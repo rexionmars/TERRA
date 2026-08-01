@@ -56,6 +56,7 @@ account for the app itself.
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Python, STAC, models, macOS |
 | [Contributing](CONTRIBUTING.md) | Issues, PRs, tests |
 | [Design](docs/DESIGN.md) | Visual identity tokens |
+| [JOSS paper draft](paper/paper.md) | Manuscript + BibTeX for Journal of Open Source Software |
 
 ## Quick start
 
