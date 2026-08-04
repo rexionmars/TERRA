@@ -31,12 +31,15 @@ Main chrome:
 
 ## 2. Projects, AOI names, and runs
 
-A **Project** groups an AOI, overlays, and inference runs.
+A **Project** groups an AOI, band compositions, and inference runs.
 
 - Rename the **AOI** (map chip / Analysis header) without renaming every run.
 - Each classification is saved as a **run** with a `run-…` label (unique per
   execution). Lists and Compare show run names; the Cover map title shows the
   **project** name with a separate **AOI** row.
+- In the project hub, open a project to land on **Analyses** (classification
+  runs). Switch to the **Band compositions** tab for RGB / indices from the map —
+  click a card for a preview modal (export / View on map).
 
 Create a project from the hub or when you have an AOI on the map, then keep that
 project active while you classify.
@@ -120,7 +123,8 @@ Open **Analysis** for:
 
 - Cover map tiles (satellite, NDVI mean, MapBiomas, prediction, confidence)
 - Class statistics, VI series, phenology
-- Project hub (folders, unassigned runs, overlays)
+- Project hub (Analyses tab by default; Band compositions tab for map composites)
+- Open a band composition card for a preview modal (export / View on map)
 - **Export tables** — ZIP with CSVs (class stats, VI series, phenology, MapBiomas compare), AOI GeoJSON, and classification GeoTIFF when available — for notebooks / training workspaces
 - Export GeoTIFF from the analysis header when available
 

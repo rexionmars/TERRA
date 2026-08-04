@@ -38,6 +38,7 @@ import type {
   CompositeResult,
   LeftDockTabsMode,
   Project,
+  ProjectOverlay,
   SaveProjectOverlayRequest,
 } from "@/lib/types"
 import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
@@ -1116,6 +1117,21 @@ function AppBody(props: {
     props.setSwipeCompare,
   ])
 
+  const showCompositionFromHub = useCallback((overlay: ProjectOverlay) => {
+    const entry = projectOverlayToComposition(overlay)
+    if (!entry) {
+      notifyError("Composition preview unavailable")
+      return
+    }
+    setComposition(entry)
+    setCompositionGallery((prev) => {
+      if (prev.some((c) => c.id === entry.id)) return prev
+      return [entry, ...prev].slice(0, 12)
+    })
+    setShowCompositionOverlay(true)
+    props.setShowPredictionOverlay(false)
+  }, [props.setShowPredictionOverlay])
+
   const startNewClassification = useCallback(() => {
     props.setResult(null)
     props.setShowPredictionOverlay(true)
@@ -1370,6 +1386,7 @@ function AppBody(props: {
                     void applyAoiRename(label)
                   }}
                   onActivateProject={(id) => void activateProject(id)}
+                  onShowComposition={showCompositionFromHub}
                   activeProjectId={activeProjectId}
                 />
               </motion.div>
