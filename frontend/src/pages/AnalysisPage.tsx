@@ -72,7 +72,7 @@ interface AnalysisPageProps {
   /** Rename the active AOI (same path as map context-menu rename). */
   onAreaLabelChange?: (label: string) => void
   /** Set map active project when opening a project from the hub. */
-  onActivateProject?: (projectId: string) => void
+  onActivateProject?: (projectId: string) => void | Promise<void>
   /** Currently active project on the map (keeps Analysis list scoped). */
   activeProjectId?: string | null
 }
@@ -281,8 +281,8 @@ export function AnalysisPage({
       setNewName("")
       setSelectedProjectId(p.id)
       setHubView("detail")
+      if (onActivateProject) await onActivateProject(p.id)
       notifySuccess("Project created", name)
-      onActivateProject?.(p.id)
     } catch (e) {
       notifyError("Could not create project", e)
     } finally {
@@ -481,7 +481,14 @@ export function AnalysisPage({
         </button>
         <button
           type="button"
-          onClick={goMap}
+          onClick={() => {
+            void (async () => {
+              if (selectedProjectId && onActivateProject) {
+                await onActivateProject(selectedProjectId)
+              }
+              goMap()
+            })()
+          }}
           className="ar-ghost flex h-9 items-center gap-1.5 rounded-sm border px-4 text-xs text-muted-foreground hover:text-foreground"
         >
           <MapIcon className="h-3.5 w-3.5" />
@@ -509,7 +516,9 @@ export function AnalysisPage({
             setSelectedProjectId(id)
             setHubView("detail")
             clearSelection()
-            onActivateProject?.(id)
+            void (async () => {
+              if (onActivateProject) await onActivateProject(id)
+            })()
           }}
           onOpenUnassigned={() => {
             setHubView("unassigned")
@@ -534,8 +543,12 @@ export function AnalysisPage({
                     <button
                       type="button"
                       onClick={() => {
-                        onActivateProject?.(selectedProject.id)
-                        goMap()
+                        void (async () => {
+                          if (onActivateProject) {
+                            await onActivateProject(selectedProject.id)
+                          }
+                          goMap()
+                        })()
                       }}
                       className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
                     >
@@ -776,7 +789,18 @@ export function AnalysisPage({
               <ArrowLeft className="h-3 w-3" />
               Saved analyses
             </button>
-            <button type="button" onClick={goMap} className={btnGhost}>
+            <button
+              type="button"
+              onClick={() => {
+                void (async () => {
+                  if (selectedProjectId && onActivateProject) {
+                    await onActivateProject(selectedProjectId)
+                  }
+                  goMap()
+                })()
+              }}
+              className={btnGhost}
+            >
               <MapIcon className="h-3 w-3" />
               View on map
             </button>
