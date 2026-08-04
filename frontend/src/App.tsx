@@ -11,7 +11,6 @@ import {
   RenderComposite,
   OpenExternal,
   RevealMainWindow,
-  SavePreferences,
   SaveProjectOverlay,
   ListProjectOverlays,
   GetProject,
@@ -418,7 +417,7 @@ function AppBody(props: {
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, runs, projects, prefs } =
+  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
   const [dataCubeOpen, setDataCubeOpen] = useState(false)
@@ -451,58 +450,91 @@ function AppBody(props: {
   const [composeStretchHigh, setComposeStretchHigh] = useState(98)
   const [composeOpacity, setComposeOpacity] = useState(0.85)
   const didRestoreProjectRef = useRef(false)
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
+  const activeProjectIdRef = useRef(activeProjectId)
+  activeProjectIdRef.current = activeProjectId
+  /** Set when activate runs before prefs have loaded; flushed on next prefs hydrate. */
+  const pendingActiveProjectRef = useRef<string | null | undefined>(undefined)
 
   const persistAoiLabel = useCallback(
     async (label: string | null) => {
-      if (!prefs) return
-      const extras = parsePreferenceExtras(prefs.extras_json)
+      const current = prefsRef.current
+      if (!current) return
+      const extras = parsePreferenceExtras(current.extras_json)
+      // Keep React's active project — prefs may lag behind a just-activated id.
+      const aid = activeProjectIdRef.current?.trim()
+      if (aid) extras.active_project_id = aid
+      else delete extras.active_project_id
       const next = label?.trim()
       if (next) extras.aoi_label = next
       else delete extras.aoi_label
       try {
-        await SavePreferences({
-          ...prefs,
-          extras_json: JSON.stringify(extras),
-        } as never)
+        await savePrefs(
+          {
+            ...current,
+            extras_json: JSON.stringify(extras),
+          },
+          { silent: true }
+        )
       } catch {
         /* best-effort */
       }
     },
-    [prefs]
+    [savePrefs]
   )
-
-  useEffect(() => {
-    const extras = parsePreferenceExtras(prefs?.extras_json)
-    const id = extras.active_project_id?.trim() || null
-    if (!id) {
-      setActiveProjectId(null)
-      const orphanLabel = extras.aoi_label?.trim()
-      if (orphanLabel && !props.analysisLabel) {
-        props.setAnalysisLabel(orphanLabel)
-      }
-      return
-    }
-    setActiveProjectId(id)
-  }, [prefs?.extras_json, props.analysisLabel, props.setAnalysisLabel])
 
   const persistActiveProjectId = useCallback(
     async (id: string | null) => {
       setActiveProjectId(id)
-      if (!prefs) return
-      const extras = parsePreferenceExtras(prefs.extras_json)
+      activeProjectIdRef.current = id
+      const current = prefsRef.current
+      if (!current) {
+        pendingActiveProjectRef.current = id
+        return
+      }
+      pendingActiveProjectRef.current = undefined
+      const extras = parsePreferenceExtras(current.extras_json)
       if (id) extras.active_project_id = id
       else delete extras.active_project_id
       try {
-        await SavePreferences({
-          ...prefs,
-          extras_json: JSON.stringify(extras),
-        } as never)
+        await savePrefs(
+          {
+            ...current,
+            extras_json: JSON.stringify(extras),
+          },
+          { silent: true }
+        )
       } catch {
         /* best-effort */
       }
     },
-    [prefs]
+    [savePrefs]
   )
+
+  // Hydrate active project from prefs only when extras change — never on AOI rename.
+  useEffect(() => {
+    if (!prefs) return
+    if (pendingActiveProjectRef.current !== undefined) {
+      const pending = pendingActiveProjectRef.current
+      pendingActiveProjectRef.current = undefined
+      void persistActiveProjectId(pending)
+      return
+    }
+    const extras = parsePreferenceExtras(prefs.extras_json)
+    const id = extras.active_project_id?.trim() || null
+    if (id) {
+      setActiveProjectId(id)
+      return
+    }
+    setActiveProjectId(null)
+    const orphanLabel = extras.aoi_label?.trim()
+    if (orphanLabel && !props.analysisLabel) {
+      props.setAnalysisLabel(orphanLabel)
+    }
+    // Intentionally omit analysisLabel: renaming AOI must not re-run this sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only follow prefs extras
+  }, [prefs, prefs?.extras_json, persistActiveProjectId])
 
   const syncProjectAoi = useCallback(
     async (projectId: string, labelOverride?: string) => {
