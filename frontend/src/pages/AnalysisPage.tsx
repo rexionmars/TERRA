@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  X,
 } from "lucide-react"
 import { notifyError, notifyExportFail, notifyExportOk, notifySuccess } from "@/lib/notify"
 import {
@@ -34,6 +35,7 @@ import {
   DeleteAnalysis,
   DeleteProject,
   ExportClassification,
+  ExportOverlayFile,
   ExportResearchPack,
   ListProjectOverlays,
   ListProjectRuns,
@@ -49,6 +51,7 @@ import {
 } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import { parseOverlayMeta } from "@/lib/projectOverlays"
 
 const MAPBIOMAS_LEGEND = [
   { id: 3, name: "Forest Formation", color: "#006d2c" },
@@ -73,6 +76,8 @@ interface AnalysisPageProps {
   onAreaLabelChange?: (label: string) => void
   /** Set map active project when opening a project from the hub. */
   onActivateProject?: (projectId: string) => void | Promise<void>
+  /** Show a saved band composition on the map (then navigate via goMap). */
+  onShowComposition?: (overlay: ProjectOverlay) => void
   /** Currently active project on the map (keeps Analysis list scoped). */
   activeProjectId?: string | null
 }
@@ -96,6 +101,7 @@ export function AnalysisPage({
   onNewClassification,
   onAreaLabelChange,
   onActivateProject,
+  onShowComposition,
   activeProjectId,
 }: AnalysisPageProps) {
   const { goMap, runs, refreshRuns, projects, refreshProjects } = useAuth()
@@ -106,6 +112,15 @@ export function AnalysisPage({
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [projectRuns, setProjectRuns] = useState<InferenceRun[]>([])
   const [projectOverlays, setProjectOverlays] = useState<ProjectOverlay[]>([])
+  const [openedOverlay, setOpenedOverlay] = useState<ProjectOverlay | null>(null)
+  /** Project detail sub-view: analyses first; compositions behind a tab. */
+  const [projectTab, setProjectTab] = useState<"analyses" | "compositions">(
+    "analyses"
+  )
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<
+    string | null
+  >(null)
+  const [deletingProject, setDeletingProject] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState("")
   const [hubLoading, setHubLoading] = useState(false)
@@ -188,6 +203,7 @@ export function AnalysisPage({
 
   const handleOpenRun = useCallback(
     async (run: InferenceRun) => {
+      setOpenedOverlay(null)
       setOpenedRunId(run.id)
       if (run.project_id) {
         setSelectedProjectId(run.project_id)
@@ -290,7 +306,16 @@ export function AnalysisPage({
     }
   }
 
+  const pendingDeleteProject = useMemo(
+    () =>
+      pendingDeleteProjectId
+        ? projects.find((p) => p.id === pendingDeleteProjectId) ?? null
+        : null,
+    [pendingDeleteProjectId, projects]
+  )
+
   const handleDeleteProject = async (id: string) => {
+    setDeletingProject(true)
     try {
       await DeleteProject(id)
       await refreshProjects()
@@ -299,9 +324,12 @@ export function AnalysisPage({
         setSelectedProjectId(null)
         setHubView("list")
       }
+      setPendingDeleteProjectId(null)
       notifySuccess("Project deleted")
     } catch (e) {
       notifyError("Could not delete project", e)
+    } finally {
+      setDeletingProject(false)
     }
   }
 
@@ -428,6 +456,13 @@ export function AnalysisPage({
   const runsPanel = (
     <SavedRunsPanel
       title={panelTitle}
+      caption={
+        hubView === "detail"
+          ? "Classification runs (RF / Temporal Transformer / Prithvi)."
+          : hubView === "unassigned"
+            ? "Classification runs not yet assigned to a project."
+            : undefined
+      }
       runs={scopedRuns}
       loading={!!loadingRun || comparing || hubLoading}
       selectedIds={selectedIds}
@@ -498,7 +533,7 @@ export function AnalysisPage({
     )
 
     return (
-      <div className="terra-workspace app-no-drag flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="terra-workspace app-no-drag relative flex h-full min-h-0 flex-col overflow-hidden">
         <ProjectsHub
           projects={projects}
           unassignedCount={unassignedCount}
@@ -510,11 +545,15 @@ export function AnalysisPage({
           onSelectAll={() => {
             setHubView("list")
             setSelectedProjectId(null)
+            setOpenedOverlay(null)
+            setProjectTab("analyses")
             clearSelection()
           }}
           onOpenProject={(id) => {
             setSelectedProjectId(id)
             setHubView("detail")
+            setOpenedOverlay(null)
+            setProjectTab("analyses")
             clearSelection()
             void (async () => {
               if (onActivateProject) await onActivateProject(id)
@@ -523,6 +562,8 @@ export function AnalysisPage({
           onOpenUnassigned={() => {
             setHubView("unassigned")
             setSelectedProjectId(null)
+            setOpenedOverlay(null)
+            setProjectTab("analyses")
             clearSelection()
           }}
           headerActions={hubActions}
@@ -557,7 +598,7 @@ export function AnalysisPage({
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleDeleteProject(selectedProject.id)}
+                      onClick={() => setPendingDeleteProjectId(selectedProject.id)}
                       className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-destructive"
                       title="Delete project (runs become unassigned)"
                     >
@@ -568,34 +609,132 @@ export function AnalysisPage({
                 </div>
               )}
 
-              {hubView === "detail" && projectOverlays.length > 0 && (
-                <section className="ar-section p-4">
-                  <p className="eyebrow mb-3 !text-muted-foreground">Overlays</p>
-                  <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                    {projectOverlays.map((o) => (
-                      <li key={o.id} className="ar-raised overflow-hidden">
-                        <div className="ar-inset aspect-square border-0">
-                          {o.overlay_uri ? (
-                            <img
-                              src={o.overlay_uri}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : null}
-                        </div>
-                        <p className="truncate px-2 py-1.5 text-[10px] text-foreground">
-                          {o.title}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
+              {hubView === "detail" && (
+                <div
+                  className="ar-raised flex gap-1 p-1"
+                  role="tablist"
+                  aria-label="Project sections"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={projectTab === "analyses"}
+                    onClick={() => setProjectTab("analyses")}
+                    className={cn(
+                      "flex h-8 flex-1 items-center justify-center rounded-sm px-3 text-[11px] font-medium transition-colors",
+                      projectTab === "analyses"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Analyses
+                    {scopedRuns.length > 0 ? (
+                      <span className="telemetry ml-1.5 opacity-80">
+                        {scopedRuns.length}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={projectTab === "compositions"}
+                    onClick={() => setProjectTab("compositions")}
+                    className={cn(
+                      "flex h-8 flex-1 items-center justify-center rounded-sm px-3 text-[11px] font-medium transition-colors",
+                      projectTab === "compositions"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Band compositions
+                    {projectOverlays.length > 0 ? (
+                      <span className="telemetry ml-1.5 opacity-80">
+                        {projectOverlays.length}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
               )}
 
-              {runsPanel}
+              {hubView === "detail" && projectTab === "compositions" ? (
+                <section className="ar-section p-4">
+                  <p className="eyebrow mb-1 !text-muted-foreground">
+                    Band compositions
+                  </p>
+                  <p className="mb-3 text-[11px] text-muted-foreground">
+                    RGB / indices applied from Compositions on the map. Click a
+                    card for a preview modal.
+                  </p>
+                  {projectOverlays.length === 0 ? (
+                    <p className="ar-raised px-3 py-4 text-[11px] text-muted-foreground">
+                      No band compositions yet. Apply one on the map while this
+                      project is active.
+                    </p>
+                  ) : (
+                    <ul className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+                      {projectOverlays.map((o) => (
+                        <li key={o.id}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenedOverlay(o)}
+                            className="ar-raised group w-full overflow-hidden text-left transition-colors hover:bg-secondary/40"
+                          >
+                            <div className="ar-inset aspect-square border-0">
+                              {o.overlay_uri ? (
+                                <img
+                                  src={o.overlay_uri}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : null}
+                            </div>
+                            <p className="truncate px-1.5 py-1 text-[9px] text-foreground group-hover:text-primary">
+                              {o.title}
+                            </p>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ) : (
+                runsPanel
+              )}
             </div>
           )}
         </ProjectsHub>
+        {openedOverlay ? (
+          <CompositionOverlayModal
+            overlay={openedOverlay}
+            projectName={
+              (
+                projects.find((p) => p.id === openedOverlay.project_id) ??
+                selectedProject
+              )?.name
+            }
+            onClose={() => setOpenedOverlay(null)}
+            onViewOnMap={() => {
+              void (async () => {
+                if (onActivateProject) {
+                  await onActivateProject(openedOverlay.project_id)
+                }
+                onShowComposition?.(openedOverlay)
+                setOpenedOverlay(null)
+                goMap()
+              })()
+            }}
+          />
+        ) : null}
+        {pendingDeleteProject ? (
+          <ConfirmDeleteProjectModal
+            project={pendingDeleteProject}
+            busy={deletingProject}
+            onCancel={() => {
+              if (!deletingProject) setPendingDeleteProjectId(null)
+            }}
+            onConfirm={() => void handleDeleteProject(pendingDeleteProject.id)}
+          />
+        ) : null}
       </div>
     )
   }
@@ -1083,8 +1222,257 @@ export function AnalysisPage({
   )
 }
 
+function ConfirmDeleteProjectModal({
+  project,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  project: Project
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (busy) return
+      if (e.key === "Escape") onCancel()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [busy, onCancel])
+
+  return (
+    <div
+      className="app-no-drag absolute inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
+      onClick={() => {
+        if (!busy) onCancel()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-project-title"
+        className="terra-workspace flex w-full max-w-md flex-col overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+        style={{
+          borderColor: "var(--ar-border)",
+          background: "var(--ar-panel)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ar-header flex shrink-0 flex-col gap-1 px-4 py-3">
+          <p className="telemetry text-[10px] text-destructive">DELETE PROJECT</p>
+          <h2
+            id="delete-project-title"
+            className="font-display text-lg font-semibold tracking-wide"
+          >
+            Delete “{project.name}”?
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            This cannot be undone. Classification runs stay on disk but become
+            unassigned; band compositions for this project are removed.
+          </p>
+        </div>
+        <div
+          className="flex shrink-0 justify-end gap-2 px-4 py-3"
+          style={{
+            borderTop: "1px solid var(--ar-border)",
+            background: "var(--ar-panel)",
+          }}
+        >
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="ar-ghost flex h-8 items-center rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="flex h-8 items-center gap-1.5 rounded-sm bg-destructive px-3 text-[11px] font-semibold text-destructive-foreground disabled:opacity-50"
+          >
+            <Trash2 className="h-3 w-3" />
+            {busy ? "Deleting…" : "Delete project"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompositionOverlayModal({
+  overlay,
+  projectName,
+  onClose,
+  onViewOnMap,
+}: {
+  overlay: ProjectOverlay
+  projectName?: string
+  onClose: () => void
+  onViewOnMap: () => void
+}) {
+  const meta = parseOverlayMeta(overlay.meta_json)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  const safeName =
+    (overlay.title || "composition")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "composition"
+
+  const exportPng = async () => {
+    if (!overlay.overlay_uri) return
+    try {
+      const dest = await ExportOverlayFile(
+        overlay.overlay_uri,
+        `terra-${safeName}.png`
+      )
+      if (dest) notifyExportOk(dest)
+    } catch (e) {
+      notifyExportFail(e)
+    }
+  }
+
+  const exportTif = async () => {
+    if (!overlay.raster_tif) return
+    try {
+      const dest = await ExportOverlayFile(
+        overlay.raster_tif,
+        `terra-${safeName}.tif`
+      )
+      if (dest) notifyExportOk(dest)
+    } catch (e) {
+      notifyExportFail(e)
+    }
+  }
+
+  const bandsLabel = meta.bands?.join("-")
+  const metaBits = [
+    meta.kind || overlay.kind,
+    bandsLabel,
+    meta.index,
+    meta.sceneDate,
+  ].filter(Boolean)
+
+  return (
+    <div
+      className="app-no-drag absolute inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={overlay.title || "Composition"}
+        className="terra-workspace flex h-[min(40rem,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+        style={{
+          borderColor: "var(--ar-border)",
+          background: "var(--ar-panel)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ar-header flex shrink-0 items-start justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <p className="telemetry text-[10px] text-primary">COMPOSITION</p>
+            <p className="eyebrow mt-0.5 !text-foreground">
+              {overlay.title || "Band composition"}
+              {projectName ? ` · ${projectName}` : ""}
+            </p>
+            {metaBits.length > 0 ? (
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                {metaBits.join(" · ")}
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-sm p-1 text-muted-foreground hover:bg-[var(--ar-raised)] hover:text-foreground"
+            title="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div
+          className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4"
+          style={{ background: "var(--ar-bg)" }}
+        >
+          <div className="ar-raised flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2">
+            {overlay.overlay_uri ? (
+              <img
+                src={overlay.overlay_uri}
+                alt={overlay.title || "Composition"}
+                className="max-h-full max-w-full object-contain"
+              />
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Preview unavailable
+              </p>
+            )}
+          </div>
+          {meta.description?.trim() ? (
+            <p className="shrink-0 text-[11px] text-muted-foreground">
+              {meta.description.trim()}
+            </p>
+          ) : null}
+        </div>
+
+        <div
+          className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-3"
+          style={{
+            borderTop: "1px solid var(--ar-border)",
+            background: "var(--ar-panel)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onViewOnMap}
+            className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            <MapIcon className="h-3 w-3" />
+            View on map
+          </button>
+          <div className="flex flex-wrap gap-2">
+            {overlay.overlay_uri ? (
+              <button
+                type="button"
+                onClick={() => void exportPng()}
+                className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <Download className="h-3 w-3" />
+                Export PNG
+              </button>
+            ) : null}
+            {overlay.raster_tif ? (
+              <button
+                type="button"
+                onClick={() => void exportTif()}
+                className="flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-[11px] font-semibold text-primary-foreground"
+              >
+                <Download className="h-3 w-3" />
+                Export GeoTIFF
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SavedRunsPanel({
   title = "Saved analyses",
+  caption,
   runs,
   loading,
   selectedIds,
@@ -1099,6 +1487,7 @@ function SavedRunsPanel({
   onAssignProject,
 }: {
   title?: string
+  caption?: string
   runs: InferenceRun[]
   loading: boolean
   selectedIds: string[]
@@ -1117,9 +1506,14 @@ function SavedRunsPanel({
   return (
     <section className="ar-section p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <History className="h-3.5 w-3.5 text-primary" />
-          <p className="eyebrow !text-foreground">{title}</p>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <History className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <p className="eyebrow !text-foreground">{title}</p>
+          </div>
+          {caption ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">{caption}</p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {selectedIds.length > 0 && (
