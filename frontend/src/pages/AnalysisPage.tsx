@@ -117,6 +117,10 @@ export function AnalysisPage({
   const [projectTab, setProjectTab] = useState<"analyses" | "compositions">(
     "analyses"
   )
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<
+    string | null
+  >(null)
+  const [deletingProject, setDeletingProject] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState("")
   const [hubLoading, setHubLoading] = useState(false)
@@ -302,7 +306,16 @@ export function AnalysisPage({
     }
   }
 
+  const pendingDeleteProject = useMemo(
+    () =>
+      pendingDeleteProjectId
+        ? projects.find((p) => p.id === pendingDeleteProjectId) ?? null
+        : null,
+    [pendingDeleteProjectId, projects]
+  )
+
   const handleDeleteProject = async (id: string) => {
+    setDeletingProject(true)
     try {
       await DeleteProject(id)
       await refreshProjects()
@@ -311,9 +324,12 @@ export function AnalysisPage({
         setSelectedProjectId(null)
         setHubView("list")
       }
+      setPendingDeleteProjectId(null)
       notifySuccess("Project deleted")
     } catch (e) {
       notifyError("Could not delete project", e)
+    } finally {
+      setDeletingProject(false)
     }
   }
 
@@ -582,7 +598,7 @@ export function AnalysisPage({
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleDeleteProject(selectedProject.id)}
+                      onClick={() => setPendingDeleteProjectId(selectedProject.id)}
                       className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-destructive"
                       title="Delete project (runs become unassigned)"
                     >
@@ -707,6 +723,16 @@ export function AnalysisPage({
                 goMap()
               })()
             }}
+          />
+        ) : null}
+        {pendingDeleteProject ? (
+          <ConfirmDeleteProjectModal
+            project={pendingDeleteProject}
+            busy={deletingProject}
+            onCancel={() => {
+              if (!deletingProject) setPendingDeleteProjectId(null)
+            }}
+            onConfirm={() => void handleDeleteProject(pendingDeleteProject.id)}
           />
         ) : null}
       </div>
@@ -1192,6 +1218,87 @@ export function AnalysisPage({
           onClose={() => setSelectedPlot(null)}
         />
       )}
+    </div>
+  )
+}
+
+function ConfirmDeleteProjectModal({
+  project,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  project: Project
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (busy) return
+      if (e.key === "Escape") onCancel()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [busy, onCancel])
+
+  return (
+    <div
+      className="app-no-drag absolute inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
+      onClick={() => {
+        if (!busy) onCancel()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-project-title"
+        className="terra-workspace flex w-full max-w-md flex-col overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+        style={{
+          borderColor: "var(--ar-border)",
+          background: "var(--ar-panel)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ar-header flex shrink-0 flex-col gap-1 px-4 py-3">
+          <p className="telemetry text-[10px] text-destructive">DELETE PROJECT</p>
+          <h2
+            id="delete-project-title"
+            className="font-display text-lg font-semibold tracking-wide"
+          >
+            Delete “{project.name}”?
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            This cannot be undone. Classification runs stay on disk but become
+            unassigned; band compositions for this project are removed.
+          </p>
+        </div>
+        <div
+          className="flex shrink-0 justify-end gap-2 px-4 py-3"
+          style={{
+            borderTop: "1px solid var(--ar-border)",
+            background: "var(--ar-panel)",
+          }}
+        >
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="ar-ghost flex h-8 items-center rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="flex h-8 items-center gap-1.5 rounded-sm bg-destructive px-3 text-[11px] font-semibold text-destructive-foreground disabled:opacity-50"
+          >
+            <Trash2 className="h-3 w-3" />
+            {busy ? "Deleting…" : "Delete project"}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
