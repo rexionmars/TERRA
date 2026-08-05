@@ -61,6 +61,17 @@ const MAPBIOMAS_LEGEND = [
   { id: 41, name: "Other temporary crops", color: "#9e9ac8" },
 ]
 
+type ProjectTab = "analyses" | "compositions"
+
+/** Project detail sections, in tab order. Drives the ARIA tabs wiring below. */
+const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
+  { id: "analyses", label: "Analyses" },
+  { id: "compositions", label: "Band compositions" },
+]
+
+const tabId = (id: ProjectTab) => `project-tab-${id}`
+const tabPanelId = (id: ProjectTab) => `project-panel-${id}`
+
 interface AnalysisPageProps {
   result: PredictResult | null
   modelKind: string
@@ -114,8 +125,9 @@ export function AnalysisPage({
   const [projectOverlays, setProjectOverlays] = useState<ProjectOverlay[]>([])
   const [openedOverlay, setOpenedOverlay] = useState<ProjectOverlay | null>(null)
   /** Project detail sub-view: analyses first; compositions behind a tab. */
-  const [projectTab, setProjectTab] = useState<"analyses" | "compositions">(
-    "analyses"
+  const [projectTab, setProjectTab] = useState<ProjectTab>("analyses")
+  const tabRefs = useRef<Partial<Record<ProjectTab, HTMLButtonElement | null>>>(
+    {}
   )
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<
     string | null
@@ -214,6 +226,39 @@ export function AnalysisPage({
       await onOpenRun(run)
     },
     [onOpenRun, hubView]
+  )
+
+  /**
+   * Arrow / Home / End navigation across the project tabs, per the ARIA
+   * authoring practices tabs pattern. Selection follows focus, which suits a
+   * two-tab strip where switching is cheap.
+   */
+  const handleTabKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      const current = PROJECT_TABS.findIndex((t) => t.id === projectTab)
+      let next: number
+      switch (e.key) {
+        case "ArrowRight":
+          next = (current + 1) % PROJECT_TABS.length
+          break
+        case "ArrowLeft":
+          next = (current - 1 + PROJECT_TABS.length) % PROJECT_TABS.length
+          break
+        case "Home":
+          next = 0
+          break
+        case "End":
+          next = PROJECT_TABS.length - 1
+          break
+        default:
+          return
+      }
+      e.preventDefault()
+      const id = PROJECT_TABS[next].id
+      setProjectTab(id)
+      tabRefs.current[id]?.focus()
+    },
+    [projectTab]
   )
 
   const toggleSelect = useCallback((id: string) => {
@@ -615,49 +660,56 @@ export function AnalysisPage({
                   role="tablist"
                   aria-label="Project sections"
                 >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={projectTab === "analyses"}
-                    onClick={() => setProjectTab("analyses")}
-                    className={cn(
-                      "flex h-8 flex-1 items-center justify-center rounded-sm px-3 text-[11px] font-medium transition-colors",
-                      projectTab === "analyses"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Analyses
-                    {scopedRuns.length > 0 ? (
-                      <span className="telemetry ml-1.5 opacity-80">
-                        {scopedRuns.length}
-                      </span>
-                    ) : null}
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={projectTab === "compositions"}
-                    onClick={() => setProjectTab("compositions")}
-                    className={cn(
-                      "flex h-8 flex-1 items-center justify-center rounded-sm px-3 text-[11px] font-medium transition-colors",
-                      projectTab === "compositions"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Band compositions
-                    {projectOverlays.length > 0 ? (
-                      <span className="telemetry ml-1.5 opacity-80">
-                        {projectOverlays.length}
-                      </span>
-                    ) : null}
-                  </button>
+                  {PROJECT_TABS.map((tab) => {
+                    const active = projectTab === tab.id
+                    const count =
+                      tab.id === "analyses"
+                        ? scopedRuns.length
+                        : projectOverlays.length
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        id={tabId(tab.id)}
+                        aria-selected={active}
+                        // Only the selected panel is mounted, so pointing at it
+                        // from an inactive tab would be a dangling IDREF.
+                        // Selection follows focus, so the focused tab always has one.
+                        aria-controls={active ? tabPanelId(tab.id) : undefined}
+                        // Roving tabindex: the strip is one tab stop, arrows move within it.
+                        tabIndex={active ? 0 : -1}
+                        ref={(el) => {
+                          tabRefs.current[tab.id] = el
+                        }}
+                        onClick={() => setProjectTab(tab.id)}
+                        onKeyDown={handleTabKeyDown}
+                        className={cn(
+                          "flex h-8 flex-1 items-center justify-center rounded-sm px-3 text-[11px] font-medium transition-colors",
+                          active
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {tab.label}
+                        {count > 0 ? (
+                          <span className="telemetry ml-1.5 opacity-80">
+                            {count}
+                          </span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
 
               {hubView === "detail" && projectTab === "compositions" ? (
-                <section className="ar-section p-4">
+                <section
+                  className="ar-section p-4"
+                  role="tabpanel"
+                  id={tabPanelId("compositions")}
+                  aria-labelledby={tabId("compositions")}
+                >
                   <p className="eyebrow mb-1 !text-muted-foreground">
                     Band compositions
                   </p>
@@ -697,6 +749,16 @@ export function AnalysisPage({
                     </ul>
                   )}
                 </section>
+              ) : hubView === "detail" ? (
+                // Only a tab panel under the detail view; the unassigned view
+                // renders the same list with no tablist above it.
+                <div
+                  role="tabpanel"
+                  id={tabPanelId("analyses")}
+                  aria-labelledby={tabId("analyses")}
+                >
+                  {runsPanel}
+                </div>
               ) : (
                 runsPanel
               )}

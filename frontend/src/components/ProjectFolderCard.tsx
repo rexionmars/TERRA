@@ -64,7 +64,17 @@ export function ProjectFolderCard({
         <p className="truncate font-display text-sm font-semibold tracking-wide text-foreground">
           {project.name}
         </p>
-        <p className="telemetry mt-1 text-[10px] text-muted-foreground">
+        {/*
+          On the selection background muted text measures 3.41:1, below WCAG
+          1.4.3. Selected cards therefore use the full-contrast text color
+          (9.54:1), which is also the conventional treatment for a selected row.
+        */}
+        <p
+          className={cn(
+            "telemetry mt-1 text-[10px]",
+            selected ? "text-foreground" : "text-muted-foreground"
+          )}
+        >
           {runs} {runs === 1 ? "analysis" : "analyses"} · {overlays}{" "}
           {overlays === 1 ? "overlay" : "overlays"}
           {project.label ? ` · ${project.label}` : ""}

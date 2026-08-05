@@ -21,7 +21,13 @@
   --p-line: 74 64 54;
   --p-line-strong: 108 92 74;
   --p-text: 236 230 220;
-  --p-muted: 148 136 120;
+  /*
+    Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
+    which is .ar-raised (#252526). The previous value (148 136 120) measured
+    4.41:1 there. This value measures 4.77:1 on .ar-raised, 6.27:1 on .ar-bg and
+    6.76:1 on .ar-panel. Used only as a text color, never as a background.
+  */
+  --p-muted: 154 142 126;
   --p-accent: 216 148 74;
   --p-accent-dim: 72 48 28;
   --p-place: 120 138 148;

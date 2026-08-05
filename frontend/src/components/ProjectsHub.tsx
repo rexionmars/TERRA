@@ -96,6 +96,10 @@ export function ProjectsHub({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search…"
+              // The wrapping label carries no text (the icon is decorative), so
+              // without this the only name is the placeholder, which the value
+              // replaces as soon as the user types.
+              aria-label="Search projects"
               className="ar-inset h-8 w-full py-0 pl-8 pr-2 text-[11px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/60"
             />
           </label>
@@ -122,13 +126,21 @@ export function ProjectsHub({
           <p className="eyebrow mb-1 mt-2 px-2 !text-muted-foreground">Folders</p>
           <ul className="flex flex-col gap-0.5">
             {filtered.map((p) => {
-              const count = (p.run_count ?? 0) + (p.overlay_count ?? 0)
+              const runs = p.run_count ?? 0
+              const overlays = p.overlay_count ?? 0
+              const count = runs + overlays
               const active = selection === p.id
+              // The badge sums two independent counts, so state them in the
+              // accessible name rather than leaving a bare number.
+              const countLabel = `${runs} ${
+                runs === 1 ? "analysis" : "analyses"
+              }, ${overlays} ${overlays === 1 ? "overlay" : "overlays"}`
               return (
                 <li key={p.id}>
                   <button
                     type="button"
                     onClick={() => onOpenProject(p.id)}
+                    title={`${p.name} — ${countLabel}`}
                     className={cn(
                       "ar-nav-item flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]",
                       active
@@ -143,7 +155,10 @@ export function ProjectsHub({
                       )}
                     />
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                    <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                    <span
+                      className="telemetry shrink-0 text-[10px] text-muted-foreground"
+                      aria-label={countLabel}
+                    >
                       {count}
                     </span>
                   </button>
@@ -226,7 +241,10 @@ export function ProjectsHub({
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="ar-header flex shrink-0 flex-wrap items-start justify-between gap-3 px-5 py-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
-            <p className="telemetry text-[10px] text-primary">ANALYSIS</p>
+            {/* Names this screen; the classification view uses ANALYSIS. */}
+            <p className="telemetry text-[10px] text-primary">
+              {selection === "unassigned" ? "UNASSIGNED" : "PROJECTS"}
+            </p>
             <h1 className="mt-0.5 font-display text-xl font-semibold tracking-wide">
               {mainTitle}
             </h1>
@@ -266,7 +284,8 @@ export function ProjectsHub({
             </div>
           ) : (
             <div>
-              <p className="eyebrow mb-3 !text-muted-foreground">Folders</p>
+              {/* The "Folders" heading lives in the sidebar; repeating it here
+                  duplicated the label under a header already titled Projects. */}
               <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filtered.map((p) => (
                   <li key={p.id} className="min-h-[10.5rem]">
