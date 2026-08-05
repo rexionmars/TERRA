@@ -1353,6 +1353,7 @@ function AppBody(props: {
               >
                 <AnalysisPage
                   result={props.result}
+                  areas={props.areas}
                   modelKind={props.modelKind}
                   areaLabel={areaLabel}
                   areaId={props.activeExample || undefined}

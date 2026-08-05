@@ -1,44 +1,26 @@
 import { cn } from "@/lib/utils"
-import type { Project } from "@/lib/types"
-
-function FolderGlyph({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 48 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden
-    >
-      <path
-        d="M2 10.5C2 8.567 3.567 7 5.5 7H16.2c.7 0 1.37.3 1.84.82L20.5 10.5H42.5c1.933 0 3.5 1.567 3.5 3.5V32.5c0 1.933-1.567 3.5-3.5 3.5h-37C3.567 36 2 34.433 2 32.5V10.5Z"
-        fill="rgb(var(--p-accent) / 0.16)"
-        stroke="rgb(var(--p-accent) / 0.75)"
-        strokeWidth="1.25"
-      />
-      <path
-        d="M2 16H46"
-        stroke="rgb(var(--p-accent))"
-        strokeWidth="1"
-        opacity="0.28"
-      />
-    </svg>
-  )
-}
+import type { GeoJSONGeometry, Project } from "@/lib/types"
+import { geometryAreaHectares } from "@/lib/geometry"
+import { AoiFootprint } from "@/components/AoiFootprint"
+import { formatHectares } from "@/lib/runSummary"
 
 export function ProjectFolderCard({
   project,
+  geometry,
   onOpen,
   selected,
   className,
 }: {
   project: Project
+  /** Resolved AOI geometry; null when the project has none. */
+  geometry?: GeoJSONGeometry | null
   onOpen: () => void
   selected?: boolean
   className?: string
 }) {
   const runs = project.run_count ?? 0
   const overlays = project.overlay_count ?? 0
+  const areaHa = geometry ? geometryAreaHectares(geometry) : 0
 
   return (
     <button
@@ -58,7 +40,11 @@ export function ProjectFolderCard({
           borderBottom: "1px solid var(--ar-border, rgb(var(--p-line) / 0.35))",
         }}
       >
-        <FolderGlyph className="h-14 w-[4.25rem] shrink-0 transition-transform group-hover:scale-[1.04]" />
+        <AoiFootprint
+          geometry={geometry}
+          title={`${project.name} area of interest`}
+          className="h-16 w-16 shrink-0 transition-transform group-hover:scale-[1.04]"
+        />
       </div>
       <div className="mt-auto min-w-0 px-3.5 py-3">
         <p className="truncate font-display text-sm font-semibold tracking-wide text-foreground">
@@ -69,9 +55,20 @@ export function ProjectFolderCard({
           1.4.3. Selected cards therefore use the full-contrast text color
           (9.54:1), which is also the conventional treatment for a selected row.
         */}
+        {/* The outline is normalised to its own bounds and so carries no
+            scale; the area figure is what distinguishes a 20 ha plot from a
+            2000 ha farm. Hectares throughout, the working unit here. */}
         <p
           className={cn(
             "telemetry mt-1 text-[10px]",
+            selected ? "text-foreground" : "text-muted-foreground"
+          )}
+        >
+          {areaHa > 0 ? formatHectares(areaHa) : "No AOI set"}
+        </p>
+        <p
+          className={cn(
+            "telemetry mt-0.5 text-[10px]",
             selected ? "text-foreground" : "text-muted-foreground"
           )}
         >
