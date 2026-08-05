@@ -25,6 +25,7 @@ import {
 } from "recharts"
 import { useAuth } from "@/lib/auth"
 import type {
+  Area,
   InferenceRun,
   PredictResult,
   Project,
@@ -51,15 +52,15 @@ import {
 } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import { displayRunLabel } from "@/lib/aoiLabel"
-import { parseOverlayMeta } from "@/lib/projectOverlays"
+import { compositionCaption, parseOverlayMeta } from "@/lib/projectOverlays"
+import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
+import {
+  classifiedAreaHa,
+  dominantClass,
+  formatHectares,
+  parseRunSummary,
+} from "@/lib/runSummary"
 
-const MAPBIOMAS_LEGEND = [
-  { id: 3, name: "Forest Formation", color: "#006d2c" },
-  { id: 21, name: "Agri-Pasture Mosaic", color: "#fee391" },
-  { id: 25, name: "Non-vegetated", color: "#d73027" },
-  { id: 39, name: "Soybean", color: "#4292c6" },
-  { id: 41, name: "Other temporary crops", color: "#9e9ac8" },
-]
 
 type ProjectTab = "analyses" | "compositions"
 
@@ -69,12 +70,24 @@ const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
   { id: "compositions", label: "Band compositions" },
 ]
 
+/**
+ * Display name for a model_kind enum. Shared so the run list and the detail
+ * header cannot disagree; the list previously printed the raw enum.
+ */
+function modelDisplayName(kind: string): string {
+  if (kind === "temporal_transformer") return "Temporal Transformer"
+  if (kind === "prithvi") return "Prithvi-EO 2.0"
+  return "Random Forest"
+}
+
 const tabId = (id: ProjectTab) => `project-tab-${id}`
 const tabPanelId = (id: ProjectTab) => `project-panel-${id}`
 
 interface AnalysisPageProps {
   result: PredictResult | null
   modelKind: string
+  /** Embedded example areas, for resolving project AOIs stored as area_id. */
+  areas?: Area[]
   areaLabel?: string
   areaId?: string
   /** Current AOI polygon as GeoJSON text (geometry or Feature). */
@@ -103,6 +116,7 @@ type CompareState = {
 export function AnalysisPage({
   result,
   modelKind,
+  areas,
   areaLabel,
   areaId,
   polygonGeoJSON,
@@ -415,12 +429,7 @@ export function AnalysisPage({
     ]
   )
 
-  const modelLabel =
-    modelKind === "temporal_transformer"
-      ? "Temporal Transformer"
-      : modelKind === "prithvi"
-        ? "Prithvi-EO 2.0"
-        : "Random Forest"
+  const modelLabel = modelDisplayName(modelKind)
 
   const plotAssets = useMemo((): AnalysisPlotAsset[] => {
     if (!result) return []
@@ -581,6 +590,7 @@ export function AnalysisPage({
       <div className="terra-workspace app-no-drag relative flex h-full min-h-0 flex-col overflow-hidden">
         <ProjectsHub
           projects={projects}
+          areas={areas}
           unassignedCount={unassignedCount}
           selection={hubSelection}
           creating={creating}
@@ -723,7 +733,7 @@ export function AnalysisPage({
                       project is active.
                     </p>
                   ) : (
-                    <ul className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+                    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                       {projectOverlays.map((o) => (
                         <li key={o.id}>
                           <button
@@ -740,9 +750,18 @@ export function AnalysisPage({
                                 />
                               ) : null}
                             </div>
-                            <p className="truncate px-1.5 py-1 text-[9px] text-foreground group-hover:text-primary">
-                              {o.title}
-                            </p>
+                            <div className="px-1.5 py-1">
+                              <p className="truncate text-[10px] text-foreground group-hover:text-primary">
+                                {o.title}
+                              </p>
+                              {/* Scene date and band triplet identify a
+                                  composition; the title alone does not. */}
+                              {compositionCaption(o.meta_json) && (
+                                <p className="telemetry truncate text-[9px] text-muted-foreground">
+                                  {compositionCaption(o.meta_json)}
+                                </p>
+                              )}
+                            </div>
                           </button>
                         </li>
                       ))}
@@ -1091,7 +1110,7 @@ export function AnalysisPage({
                 className="mt-3 flex flex-wrap gap-3 border-t pt-3"
                 style={{ borderColor: "var(--ar-border)" }}
               >
-                {MAPBIOMAS_LEGEND.map((c) => (
+                {MAPBIOMAS_CLASS_LEGEND.map((c) => (
                   <span
                     key={c.id}
                     className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
@@ -1276,7 +1295,7 @@ export function AnalysisPage({
         <AnalysisPlotModal
           plot={selectedPlot}
           plots={plotAssets}
-          legend={MAPBIOMAS_LEGEND}
+          legend={MAPBIOMAS_CLASS_LEGEND}
           onClose={() => setSelectedPlot(null)}
         />
       )}
@@ -1627,6 +1646,9 @@ function SavedRunsPanel({
             const selected = selectedIds.includes(r.id)
             const slot =
               selectedIds[0] === r.id ? "A" : selectedIds[1] === r.id ? "B" : null
+            const summary = parseRunSummary(r.summary)
+            const dominant = dominantClass(summary.classStats)
+            const classified = classifiedAreaHa(summary.classStats)
             return (
               <li
                 key={r.id}
@@ -1657,8 +1679,45 @@ function SavedRunsPanel({
                         {r.n_dates} scenes
                       </span>
                     </div>
+                    {/* What the run produced, from summary already in memory —
+                        saves a LoadAnalysis round trip just to see the result. */}
+                    {dominant && (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span
+                          className="size-2.5 shrink-0 rounded-[2px]"
+                          style={{ backgroundColor: dominant.color }}
+                        />
+                        <span className="truncate text-foreground">
+                          {dominant.name}
+                          {typeof dominant.pct === "number"
+                            ? ` ${dominant.pct.toFixed(1)}%`
+                            : ""}
+                        </span>
+                        {classified > 0 && (
+                          <span className="telemetry shrink-0 text-muted-foreground">
+                            {formatHectares(classified)} classified
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {/* The requested window is a query; date_range is the extent
+                        actually observed. Older runs have no date_range. */}
                     <div className="mt-0.5 text-muted-foreground">
-                      {r.model_kind} · {r.period_start} → {r.period_end}
+                      {modelDisplayName(r.model_kind)}
+                      {" · "}
+                      {summary.dateRange ? (
+                        <>
+                          observed {summary.dateRange[0]} → {summary.dateRange[1]}
+                          <span className="opacity-70">
+                            {" "}
+                            (requested {r.period_start} → {r.period_end})
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {r.period_start} → {r.period_end}
+                        </>
+                      )}
                     </div>
                     <div className="telemetry mt-1 text-[10px] text-muted-foreground/80">
                       {new Date(r.created_at).toLocaleString()}
