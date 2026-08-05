@@ -18,6 +18,11 @@ import type { LatLngBoundsExpression } from "leaflet"
 import type { Area, PredictResult, GeoJSONGeometry, CompositionOverlay } from "@/lib/types"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import {
+  polygonOuterRing,
+  ringCentroid,
+  type LonLat,
+} from "@/lib/geometry"
+import {
   getAoiContourScheme,
   type AoiContourScheme,
   type AoiContourSchemeId,
@@ -645,30 +650,6 @@ function DrawControl({
   }, [map, customPolygon])
 
   return null
-}
-
-type LonLat = [number, number] // [lon, lat]
-
-function polygonOuterRing(geometry: GeoJSONGeometry): LonLat[] | null {
-  if (geometry.type === "Polygon") {
-    return (geometry.coordinates[0] as LonLat[]) ?? null
-  }
-  if (geometry.type === "MultiPolygon") {
-    const multi = geometry.coordinates as unknown as number[][][][]
-    return (multi[0]?.[0] as LonLat[]) ?? null
-  }
-  return null
-}
-
-function ringCentroid(ring: LonLat[]): LonLat {
-  let lon = 0
-  let lat = 0
-  const n = Math.max(1, ring.length - 1)
-  for (let i = 0; i < ring.length - 1; i++) {
-    lon += ring[i][0]
-    lat += ring[i][1]
-  }
-  return [lon / n, lat / n]
 }
 
 /** Ray-cast point-in-polygon (lon/lat), for AOI right-click hit testing. */
