@@ -9,6 +9,7 @@ import {
   Map as MapIcon,
   Pencil,
   Plus,
+  Table2,
   Trash2,
   X,
 } from "lucide-react"
@@ -46,6 +47,7 @@ import {
 import { LulcSection } from "@/components/LulcSection"
 import { CompareAnalyses } from "@/components/CompareAnalyses"
 import { ProjectsHub } from "@/components/ProjectsHub"
+import { ResearchPackModal } from "@/components/ResearchPackModal"
 import {
   AnalysisPlotModal,
   type AnalysisPlotAsset,
@@ -153,6 +155,7 @@ export function AnalysisPage({
   const [selectedPlot, setSelectedPlot] = useState<AnalysisPlotAsset | null>(
     null
   )
+  const [packOpen, setPackOpen] = useState(false)
   const [renamingTitle, setRenamingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState("")
   const titleInputRef = useRef<HTMLInputElement | null>(null)
@@ -1031,6 +1034,16 @@ export function AnalysisPage({
             {canExportTables && (
               <button
                 type="button"
+                onClick={() => setPackOpen(true)}
+                className={btnGhost}
+              >
+                <Table2 className="h-3 w-3" />
+                Research pack
+              </button>
+            )}
+            {canExportTables && (
+              <button
+                type="button"
                 onClick={() => void exportTables()}
                 className={btnGhost}
               >
@@ -1290,6 +1303,17 @@ export function AnalysisPage({
           {runsPanel}
         </div>
       </div>
+
+      {packOpen && (
+        <ResearchPackModal
+          result={result}
+          modelKind={modelKind}
+          areaLabel={areaLabel}
+          areaId={areaId}
+          polygonGeoJSON={polygonGeoJSON}
+          onClose={() => setPackOpen(false)}
+        />
+      )}
 
       {selectedPlot && (
         <AnalysisPlotModal
