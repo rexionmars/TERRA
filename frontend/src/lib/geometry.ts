@@ -46,6 +46,102 @@ export function ringCentroid(ring: LonLat[]): LonLat {
   return [lon / count, lat / count]
 }
 
+/**
+ * Every ring of a geometry, as [outer, ...holes] per part.
+ *
+ * polygonOuterRing keeps only the first part of a MultiPolygon, which is enough
+ * to pick a camera target but not to draw or measure one: rural properties are
+ * routinely split into several parts by a road or a riparian buffer, and the
+ * dropped parts would be missing from both the outline and the area.
+ */
+export function polygonParts(geometry: GeoJSONGeometry): LonLat[][][] {
+  if (geometry.type === "Polygon") {
+    const rings = geometry.coordinates as unknown as LonLat[][]
+    return rings?.length ? [rings] : []
+  }
+  if (geometry.type === "MultiPolygon") {
+    const multi = geometry.coordinates as unknown as LonLat[][][]
+    return (multi ?? []).filter((part) => part?.length)
+  }
+  return []
+}
+
+/** Longitude/latitude bounds over every part. */
+export function geometryBounds(
+  geometry: GeoJSONGeometry | null | undefined
+): { lonMin: number; latMin: number; lonMax: number; latMax: number } | null {
+  if (!geometry) return null
+  let lonMin = Infinity
+  let latMin = Infinity
+  let lonMax = -Infinity
+  let latMax = -Infinity
+  for (const part of polygonParts(geometry)) {
+    for (const [lon, lat] of part[0] ?? []) {
+      if (lon < lonMin) lonMin = lon
+      if (lat < latMin) latMin = lat
+      if (lon > lonMax) lonMax = lon
+      if (lat > latMax) latMax = lat
+    }
+  }
+  if (!Number.isFinite(lonMin) || !Number.isFinite(latMin)) return null
+  return { lonMin, latMin, lonMax, latMax }
+}
+
+/** Metres per degree on a sphere of the mean Earth radius (IUGG). */
+const EARTH_RADIUS_M = 6371008.8
+const METRES_PER_DEGREE = (2 * Math.PI * EARTH_RADIUS_M) / 360
+
+/**
+ * Area in square metres, summing outer rings and subtracting interior rings.
+ *
+ * Uses a shoelace on an equirectangular projection about the geometry's own
+ * latitude, which at field scale agrees with the spherical-excess formula to
+ * within a few square metres over tens of hectares.
+ *
+ * Both axes take the same metres-per-degree constant, with longitude scaled by
+ * cos(latitude). Mixing the usual ellipsoidal pair (111320 for longitude,
+ * 110540 for latitude) instead introduces a systematic bias of about 0.48
+ * percent, which is 0.34 ha on a 71 ha parcel.
+ */
+export function geometryAreaM2(
+  geometry: GeoJSONGeometry | null | undefined
+): number {
+  if (!geometry) return 0
+  const bounds = geometryBounds(geometry)
+  if (!bounds) return 0
+  const midLat = (bounds.latMin + bounds.latMax) / 2
+  const kx = METRES_PER_DEGREE * Math.cos((midLat * Math.PI) / 180)
+  const ky = METRES_PER_DEGREE
+
+  const ringArea = (ring: LonLat[]): number => {
+    if (!ring || ring.length < 3) return 0
+    const closed =
+      ring[0][0] === ring[ring.length - 1][0] &&
+      ring[0][1] === ring[ring.length - 1][1]
+    const pts = closed ? ring.slice(0, -1) : ring
+    let sum = 0
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i]
+      const [x2, y2] = pts[(i + 1) % pts.length]
+      sum += x1 * kx * (y2 * ky) - x2 * kx * (y1 * ky)
+    }
+    return Math.abs(sum / 2)
+  }
+
+  let total = 0
+  for (const part of polygonParts(geometry)) {
+    total += ringArea(part[0])
+    for (let h = 1; h < part.length; h++) total -= ringArea(part[h])
+  }
+  return Math.max(0, total)
+}
+
+export function geometryAreaHectares(
+  geometry: GeoJSONGeometry | null | undefined
+): number {
+  return geometryAreaM2(geometry) / 10_000
+}
+
 /** Vertex centroid of a geometry's outer ring, or null when it has none. */
 export function geometryCentroid(
   geometry: GeoJSONGeometry | null | undefined
@@ -54,6 +150,35 @@ export function geometryCentroid(
   const ring = polygonOuterRing(geometry)
   if (!ring?.length) return null
   return ringCentroid(ring)
+}
+
+/**
+ * AOI geometry of a project, or null when it has none.
+ *
+ * A project stores either an inline polygon or a reference to an embedded
+ * example area, and projects created from the hub start with neither, so the
+ * absent case is normal rather than exceptional.
+ */
+export function resolveProjectGeometry(
+  project: { polygon_geojson?: string; area_id?: string },
+  areas: Area[]
+): GeoJSONGeometry | null {
+  const raw = project.polygon_geojson?.trim()
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as GeoJSONGeometry
+      if (parsed?.type === "Polygon" || parsed?.type === "MultiPolygon") {
+        return parsed
+      }
+    } catch {
+      /* stored text is opaque; fall through to the area reference */
+    }
+  }
+  const areaId = project.area_id?.trim()
+  if (areaId) {
+    return areas.find((a) => a.id === areaId)?.geometry ?? null
+  }
+  return null
 }
 
 /**

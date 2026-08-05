@@ -1,13 +1,15 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { FolderKanban, Inbox, Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Project } from "@/lib/types"
+import type { Area, Project } from "@/lib/types"
+import { resolveProjectGeometry } from "@/lib/geometry"
 import { ProjectFolderCard } from "@/components/ProjectFolderCard"
 
 export type ProjectsHubSelection = "all" | "unassigned" | string
 
 export function ProjectsHub({
   projects,
+  areas,
   unassignedCount,
   selection,
   creating,
@@ -21,6 +23,8 @@ export function ProjectsHub({
   children,
 }: {
   projects: Project[]
+  /** Embedded example areas, to resolve a project stored as an area_id. */
+  areas?: Area[]
   unassignedCount: number
   selection: ProjectsHubSelection
   creating: boolean
@@ -128,7 +132,6 @@ export function ProjectsHub({
             {filtered.map((p) => {
               const runs = p.run_count ?? 0
               const overlays = p.overlay_count ?? 0
-              const count = runs + overlays
               const active = selection === p.id
               // The badge sums two independent counts, so state them in the
               // accessible name rather than leaving a bare number.
@@ -155,11 +158,16 @@ export function ProjectsHub({
                       )}
                     />
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    {/* Two independent counts, shown as such: twelve
+                        classifications and twelve compositions are opposite
+                        states of work, and their sum said neither. */}
                     <span
                       className="telemetry shrink-0 text-[10px] text-muted-foreground"
                       aria-label={countLabel}
                     >
-                      {count}
+                      {runs}
+                      <span className="opacity-45"> · </span>
+                      {overlays}
                     </span>
                   </button>
                 </li>
@@ -291,6 +299,7 @@ export function ProjectsHub({
                   <li key={p.id} className="min-h-[10.5rem]">
                     <ProjectFolderCard
                       project={p}
+                      geometry={resolveProjectGeometry(p, areas ?? [])}
                       onOpen={() => onOpenProject(p.id)}
                       selected={selection === p.id}
                       className="h-full min-h-[10.5rem]"

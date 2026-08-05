@@ -17,6 +17,26 @@ type OverlayMeta = {
   label?: string
 }
 
+/**
+ * Identifying caption for a saved composition: the acquisition date and what
+ * was rendered from it. A composition is identified by its scene date and band
+ * triplet (or index), not by its nickname, so a browse grid that shows only the
+ * title cannot distinguish two compositions of the same field.
+ *
+ * Returns an empty string when the overlay carries no usable metadata, which
+ * happens for rows written before meta_json existed.
+ */
+export function compositionCaption(raw?: string): string {
+  const meta = parseOverlayMeta(raw)
+  const what =
+    meta.kind === "index"
+      ? meta.index?.toUpperCase()
+      : meta.bands?.length === 3
+        ? meta.bands.join("-")
+        : undefined
+  return [meta.sceneDate, what].filter(Boolean).join(" · ")
+}
+
 export function parseOverlayMeta(raw?: string): OverlayMeta {
   if (!raw?.trim()) return {}
   try {
