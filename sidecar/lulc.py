@@ -17,37 +17,11 @@ from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 
 # Extended MapBiomas Coleção 10 legend (classes seen on PR farms + study targets).
-MAPBIOMAS_LEGEND = {
-    3: "Forest Formation",
-    4: "Savanna Formation",
-    9: "Forest Plantation",
-    11: "Wetland",
-    15: "Pasture",
-    20: "Sugar Cane",
-    21: "Agriculture-Pasture Mosaic",
-    24: "Urban Area",
-    25: "Non-vegetated Area",
-    33: "Water",
-    39: "Soybean",
-    41: "Other Temporary Crops",
-    46: "Coffee",
-}
+from class_palette import MAPBIOMAS_LEGEND  # noqa: E402,F401
 
-MAPBIOMAS_COLORS = {
-    3: "#006400",
-    4: "#00ff00",
-    9: "#ad4400",
-    11: "#45c2a5",
-    15: "#ffd966",
-    20: "#c59ff4",
-    21: "#fff3bf",
-    24: "#d4271e",
-    25: "#ffa07a",
-    33: "#0000ff",
-    39: "#f5b3c8",
-    41: "#e974ed",
-    46: "#d082de",
-}
+# Shared with the classification path so both render a class id identically;
+# see class_palette.py.
+from class_palette import MAPBIOMAS_COLORS  # noqa: E402,F401
 
 LULC_GROUP = {
     3: "Natural vegetation",

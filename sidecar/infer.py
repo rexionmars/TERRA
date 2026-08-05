@@ -58,22 +58,12 @@ warnings.filterwarnings('ignore')
 SOJA_CLASS_ID = 39
 
 # Class metadata used for labels and the overlay palette (MapBiomas classes,
-# English labels).
-MAPBIOMAS_LEGEND = {
-    3: 'Forest Formation',
-    21: 'Agriculture-Pasture Mosaic',
-    25: 'Non-vegetated Area',
-    39: 'Soybean',
-    41: 'Other Temporary Crops',
-}
-
-MAPBIOMAS_COLORS = {
-    3: '#006d2c',
-    21: '#fee391',
-    25: '#d73027',
-    39: '#4292c6',
-    41: '#9e9ac8',
-}
+# English labels). Shared with the reference path so a prediction and the
+# MapBiomas map it is compared against use one palette; see class_palette.py.
+from class_palette import (  # noqa: E402
+    CLASSIFIER_COLORS as MAPBIOMAS_COLORS,
+    CLASSIFIER_LEGEND as MAPBIOMAS_LEGEND,
+)
 
 
 def emit_progress(progress, msg):
