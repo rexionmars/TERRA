@@ -1113,19 +1113,20 @@ function AppBody(props: {
   const startNewClassification = useCallback(() => {
     props.setResult(null)
     props.setShowPredictionOverlay(true)
-    props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
-    props.onClearArea()
+    // Starting over drops the AOI, so the session composition must go with it:
+    // otherwise the previous AOI's overlay stays painted over the empty map.
+    // Saved compositions are reloaded from the project on reopen.
+    clearAreaAndComposition()
     goMap()
   }, [
     goMap,
+    clearAreaAndComposition,
     props.setResult,
     props.setShowPredictionOverlay,
-    props.setAnalysisLabel,
     props.setSwipeCompare,
     props.setSwipeRatio,
-    props.onClearArea,
   ])
   const applyAoiRename = useCallback(
     async (label: string) => {
