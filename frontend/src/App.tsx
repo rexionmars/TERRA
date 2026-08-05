@@ -44,6 +44,7 @@ import type {
 import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import { projectOverlayToComposition } from "@/lib/projectOverlays"
+import { geometryCentroid, usesExampleArea } from "@/lib/geometry"
 import { ProjectSwitcher } from "@/components/ProjectSwitcher"
 import { resolveCompositionMeta } from "@/lib/compositeCatalog"
 import {
@@ -539,9 +540,7 @@ function AppBody(props: {
 
   const syncProjectAoi = useCallback(
     async (projectId: string, labelOverride?: string) => {
-      const useExample =
-        !!props.activeExample &&
-        !!props.areas.find((a) => a.id === props.activeExample)
+      const useExample = usesExampleArea(props.activeExample, props.areas)
       const renamed = (labelOverride ?? props.analysisLabel)?.trim()
       let label = renamed
       if (!label) {
@@ -622,21 +621,13 @@ function AppBody(props: {
           const label = savedLabel || p.name
           props.setAnalysisLabel(label)
           void persistAoiLabel(label)
-          if (aoi.polygon?.type === "Polygon") {
-            const ring = aoi.polygon.coordinates?.[0]
-            if (ring?.length) {
-              let lat = 0
-              let lon = 0
-              for (const [x, y] of ring) {
-                lon += x
-                lat += y
-              }
-              props.setFlyTo({
-                lat: lat / ring.length,
-                lon: lon / ring.length,
-                key: Date.now(),
-              })
-            }
+          const centroid = geometryCentroid(aoi.polygon)
+          if (centroid) {
+            props.setFlyTo({
+              lat: centroid[1],
+              lon: centroid[0],
+              key: Date.now(),
+            })
           }
         }
         const overlays = (await ListProjectOverlays(
@@ -723,8 +714,7 @@ function AppBody(props: {
       notifyError("Define an area: draw, search, or load an example.")
       return
     }
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
     const req: DataCubeRequest = {
       area_id: useExample ? props.activeExample : "",
       polygon_geojson: useExample ? null : props.customPolygon,
@@ -766,8 +756,7 @@ function AppBody(props: {
       notifyError("Define an area first.")
       return
     }
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
     const req: CompositeRequest = {
       area_id: useExample ? props.activeExample : "",
       polygon_geojson: useExample ? null : props.customPolygon,
@@ -863,8 +852,7 @@ function AppBody(props: {
       notifyError("Define an area: draw, search, or load an example.")
       return
     }
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
     const req: DataCubeRequest = {
       area_id: useExample ? props.activeExample : "",
       polygon_geojson: useExample ? null : props.customPolygon,
@@ -903,8 +891,7 @@ function AppBody(props: {
     props.setProgress(0)
     props.setProgressMsg("iniciando")
     props.setResult(null)
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
     const aoiLabel =
       props.analysisLabel?.trim() ||
       (useExample
@@ -953,8 +940,7 @@ function AppBody(props: {
   }
 
   const handleAnalyzeLULC = async () => {
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
     if (!useExample && !props.customPolygon) {
       notifyError("Draw a polygon or select example A/B/C.")
       return
@@ -1060,21 +1046,13 @@ function AppBody(props: {
         const aoi = parseRunPolygon(run.polygon_geojson, props.areas)
         props.setActiveExample(aoi.exampleId)
         props.setCustomPolygon(aoi.polygon)
-        if (aoi.polygon?.type === "Polygon") {
-          const ring = aoi.polygon.coordinates?.[0]
-          if (ring?.length) {
-            let lat = 0
-            let lon = 0
-            for (const [x, y] of ring) {
-              lon += x
-              lat += y
-            }
-            props.setFlyTo({
-              lat: lat / ring.length,
-              lon: lon / ring.length,
-              key: Date.now(),
-            })
-          }
+        const centroid = geometryCentroid(aoi.polygon)
+        if (centroid) {
+          props.setFlyTo({
+            lat: centroid[1],
+            lon: centroid[0],
+            key: Date.now(),
+          })
         }
         goAnalysis()
         notifySuccess("Analysis restored.")
@@ -1135,19 +1113,20 @@ function AppBody(props: {
   const startNewClassification = useCallback(() => {
     props.setResult(null)
     props.setShowPredictionOverlay(true)
-    props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
-    props.onClearArea()
+    // Starting over drops the AOI, so the session composition must go with it:
+    // otherwise the previous AOI's overlay stays painted over the empty map.
+    // Saved compositions are reloaded from the project on reopen.
+    clearAreaAndComposition()
     goMap()
   }, [
     goMap,
+    clearAreaAndComposition,
     props.setResult,
     props.setShowPredictionOverlay,
-    props.setAnalysisLabel,
     props.setSwipeCompare,
     props.setSwipeRatio,
-    props.onClearArea,
   ])
   const applyAoiRename = useCallback(
     async (label: string) => {
