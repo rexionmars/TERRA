@@ -1249,3 +1249,66 @@ func (r *Runner) AnalyzeSolar(ctx context.Context, req SolarRequest) (*SolarAnal
 	}
 	return wrapped.Solar, nil
 }
+
+// AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
+func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainRequest) (*SolarTerrainAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "geosense-solar-terrain-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+
+	reqBytes, err := json.Marshal(map[string]any{
+		"action":          "solar_terrain",
+		"model_dir":       r.modelDir,
+		"polygon_geojson": polygon,
+		"hourly_years":    req.HourlyYears,
+		"work_dir":        workDir,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Terrain *solarTerrainSidecarPayload `json:"solar_terrain"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse solar terrain result: %w", err)
+	}
+	if wrapped.Terrain == nil {
+		return nil, fmt.Errorf("sidecar returned empty solar terrain payload")
+	}
+	t := wrapped.Terrain
+	out := &SolarTerrainAnalysis{
+		POAMin: t.POAMin, POAMax: t.POAMax, POAMean: t.POAMean,
+		POAStdPct: t.POAStdPct, SlopeMeanDeg: t.SlopeMeanDeg,
+		SlopeMaxDeg: t.SlopeMaxDeg, Pixels: t.Pixels,
+		HourlyYears: t.HourlyYears, DEMSource: t.DEMSource, Extent: t.Extent,
+	}
+	if uri, err := pngToDataURI(t.OverlayPNG); err == nil {
+		out.OverlayURI = uri
+	}
+	// The GeoTIFF stays on disk for export, so the work dir is not removed here.
+	out.RasterTIF = t.RasterTIF
+	return out, nil
+}

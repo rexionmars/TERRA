@@ -501,3 +501,46 @@ type SolarAnalysis struct {
 	// per-AOI number shown without it reads as local.
 	GridNote string `json:"grid_note"`
 }
+
+// SolarTerrainRequest maps plane-of-array irradiation over the AOI terrain.
+type SolarTerrainRequest struct {
+	AreaID         string           `json:"area_id"`
+	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
+	HourlyYears    int              `json:"hourly_years,omitempty"`
+}
+
+// SolarTerrainAnalysis is the mappable solar quantity. The atmospheric resource
+// has no spatial structure at AOI scale; the irradiation reaching an inclined
+// surface does, because the surface is terrain.
+type SolarTerrainAnalysis struct {
+	POAMin       float64 `json:"poa_min"`
+	POAMax       float64 `json:"poa_max"`
+	POAMean      float64 `json:"poa_mean"`
+	POAStdPct    float64 `json:"poa_std_pct"`
+	SlopeMeanDeg float64 `json:"slope_mean_deg"`
+	SlopeMaxDeg  float64 `json:"slope_max_deg"`
+	Pixels       int     `json:"pixels"`
+	HourlyYears  int     `json:"hourly_years"`
+	DEMSource    string  `json:"dem_source"`
+	// Raster as a base64 PNG data URI, stretched between its own 2nd and 98th
+	// percentiles: the spread within an AOI is a few percent, so a fixed scale
+	// would render every AOI flat. The min and max above carry the range.
+	OverlayURI string `json:"overlay_uri"`
+	RasterTIF  string `json:"raster_tif"`
+	Extent     Bounds `json:"extent"`
+}
+
+type solarTerrainSidecarPayload struct {
+	POAMin       float64 `json:"poa_min"`
+	POAMax       float64 `json:"poa_max"`
+	POAMean      float64 `json:"poa_mean"`
+	POAStdPct    float64 `json:"poa_std_pct"`
+	SlopeMeanDeg float64 `json:"slope_mean_deg"`
+	SlopeMaxDeg  float64 `json:"slope_max_deg"`
+	Pixels       int     `json:"pixels"`
+	HourlyYears  int     `json:"hourly_years"`
+	DEMSource    string  `json:"dem_source"`
+	OverlayPNG   string  `json:"overlay_png"`
+	RasterTIF    string  `json:"raster_tif"`
+	Extent       Bounds  `json:"extent"`
+}

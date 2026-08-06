@@ -1,6 +1,14 @@
 import { forwardRef } from "react"
 import { motion } from "motion/react"
-import { ChevronLeft, CheckCircle2, Loader2, Play, Sun, Trash2 } from "lucide-react"
+import {
+  ChevronLeft,
+  CheckCircle2,
+  Loader2,
+  Mountain,
+  Play,
+  Sun,
+  Trash2,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function Section({
@@ -41,6 +49,10 @@ export interface SolarPanelProps {
   hasResult: boolean
   onRun: () => void
   onClear: () => void
+  terrainRunning: boolean
+  hasTerrain: boolean
+  onRunTerrain: () => void
+  onClearTerrain: () => void
   onCollapse: () => void
 }
 
@@ -68,6 +80,10 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
       hasResult,
       onRun,
       onClear,
+      terrainRunning,
+      hasTerrain,
+      onRunTerrain,
+      onClearTerrain,
       onCollapse,
     } = props
 
@@ -212,6 +228,37 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               </button>
             )}
           </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!hasArea || terrainRunning || running}
+              onClick={onRunTerrain}
+              className="ar-ghost flex h-9 flex-1 items-center justify-center gap-1.5 rounded-sm border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              {terrainRunning ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Mountain className="size-3.5" />
+              )}
+              {terrainRunning ? "Mapping…" : "Map over terrain"}
+            </button>
+            {hasTerrain && (
+              <button
+                type="button"
+                onClick={onClearTerrain}
+                disabled={terrainRunning}
+                className="ar-ghost flex h-9 items-center justify-center rounded-sm border px-3 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                title="Clear the terrain map"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            The terrain map resolves what the point analysis cannot: irradiation
+            on an inclined surface varies with slope and aspect, from the
+            Copernicus DEM at 30 m.
+          </p>
           <p className="flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground">
             <Sun className="mt-0.5 size-3 shrink-0 opacity-70" />
             Needs no satellite scene, so it returns an answer for any AOI and

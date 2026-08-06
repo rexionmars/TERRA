@@ -1068,6 +1068,111 @@ def main():
         sys.stdout.flush()
         return
 
+    # Terrain-resolved plane-of-array irradiation over the AOI.
+    if action == 'solar_terrain':
+        import solar as solar_mod
+        import composite as comp
+        import rasterio
+        from rasterio.warp import reproject as rio_reproject, Resampling as RioResampling
+        from datetime import date as _date
+
+        configure_gdal_for_cog()
+        if not req.get('polygon_geojson'):
+            fail('no polygon provided (polygon_geojson required)')
+        polygon = polygon_from_geojson(req['polygon_geojson'])
+        centroid = polygon.centroid
+        lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+        hourly_years = int(req.get('hourly_years') or 10)
+        last_year = _date.today().year - 1
+
+        emit_progress(5, 'fetching Copernicus DEM GLO-30')
+        try:
+            dem_path = solar_mod.fetch_dem(polygon, Path(work_dir) / 'dem.tif')
+        except Exception as e:
+            fail(f'DEM fetch failed: {e}')
+
+        with rasterio.open(dem_path) as src:
+            elevation = src.read(1).astype(float)
+            dem_transform = src.transform
+            dem_crs = src.crs
+            dem_profile = src.profile.copy()
+
+        dx_m, dy_m = solar_mod.pixel_size_m(dem_transform, lat)
+        emit_progress(20, 'slope and aspect')
+        slope, aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
+
+        emit_progress(28, f'NASA POWER hourly, {hourly_years} years')
+        try:
+            hourly = solar_mod.fetch(
+                'hourly', lon, lat,
+                f'{last_year - hourly_years + 1}0101', f'{last_year}1231',
+                progress=lambda i, n, y: emit_progress(
+                    28 + int(45 * (i + 1) / n), f'hourly {y}'
+                ),
+            )
+        except Exception as e:
+            fail(f'NASA POWER hourly request failed: {e}')
+
+        df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, float(np.nanmean(elevation)))
+        if df.empty:
+            fail('NASA POWER returned no usable hourly record for this point')
+        n_years = max(len(set(df.index.year)), 1)
+
+        emit_progress(76, 'plane-of-array lookup')
+        table = solar_mod.build_poa_lookup(
+            df, solpos, n_years,
+            progress=lambda i, n: emit_progress(76 + int(14 * (i + 1) / n), 'lookup'),
+        )
+        emit_progress(92, 'interpolating onto the terrain')
+        poa = solar_mod.interpolate_poa(slope, aspect, table)
+
+        # Only pixels inside the AOI carry a result.
+        from rasterio.features import geometry_mask
+        inside = ~geometry_mask(
+            [polygon.__geo_interface__], out_shape=poa.shape,
+            transform=dem_transform, invert=False
+        )
+        valid = inside & np.isfinite(poa)
+        if not valid.any():
+            fail('the DEM window does not overlap the AOI')
+
+        png = Path(work_dir) / 'solar_poa.png'
+        comp.write_rgba_png(solar_mod.terrain_rgba(poa, valid), png)
+
+        tif = Path(work_dir) / 'solar_poa.tif'
+        prof = dem_profile.copy()
+        prof.update(dtype='float32', count=1, compress='lzw', nodata=float('nan'))
+        with rasterio.open(tif, 'w', **prof) as dst:
+            dst.write(np.where(valid, poa, np.nan).astype('float32'), 1)
+
+        vals = poa[valid]
+        lon_min, lon_max, lat_min, lat_max = get_map_extent(
+            {'transform': dem_transform, 'crs': dem_crs,
+             'height': poa.shape[0], 'width': poa.shape[1]}
+        )
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({
+            'solar_terrain': {
+                'poa_min': round(float(np.min(vals)), 1),
+                'poa_max': round(float(np.max(vals)), 1),
+                'poa_mean': round(float(np.mean(vals)), 1),
+                'poa_std_pct': round(float(100.0 * np.std(vals) / np.mean(vals)), 2),
+                'slope_mean_deg': round(float(np.nanmean(slope[valid])), 2),
+                'slope_max_deg': round(float(np.nanmax(slope[valid])), 2),
+                'pixels': int(valid.sum()),
+                'hourly_years': int(n_years),
+                'dem_source': 'Copernicus DEM GLO-30',
+                'overlay_png': str(png),
+                'raster_tif': str(tif),
+                'extent': {
+                    'lon_min': lon_min, 'lat_min': lat_min,
+                    'lon_max': lon_max, 'lat_max': lat_max,
+                },
+            }
+        }))
+        sys.stdout.flush()
+        return
+
     # Surface water / flood mapping from spectral water indices (no model).
     if action == 'water':
         import water as water_mod

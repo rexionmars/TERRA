@@ -18,6 +18,7 @@ import {
   CreateProject,
   AnalyzeWater,
   AnalyzeSolar,
+  AnalyzeSolarTerrain,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -47,6 +48,8 @@ import type {
   WaterRequest,
   SolarAnalysis,
   SolarRequest,
+  SolarTerrainAnalysis,
+  SolarTerrainRequest,
 } from "@/lib/types"
 import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
@@ -469,6 +472,9 @@ function AppBody(props: {
   const [solarHourlyYears, setSolarHourlyYears] = useState(10)
   const [solarAzimuth, setSolarAzimuth] = useState(0)
   const [solarPR, setSolarPR] = useState("")
+  const [solarTerrain, setSolarTerrain] = useState<SolarTerrainAnalysis | null>(null)
+  const [solarTerrainRunning, setSolarTerrainRunning] = useState(false)
+  const [showSolarTerrain, setShowSolarTerrain] = useState(true)
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -1048,6 +1054,38 @@ function AppBody(props: {
     }
   }
 
+  const handleRunSolarTerrain = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    setSolarTerrainRunning(true)
+    props.setProgress(0)
+    props.setProgressMsg("starting")
+    try {
+      const req: SolarTerrainRequest = {
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        hourly_years: solarHourlyYears,
+      }
+      const res = (await AnalyzeSolarTerrain(
+        req as never
+      )) as unknown as SolarTerrainAnalysis
+      setSolarTerrain(res)
+      setShowSolarTerrain(true)
+      notifySuccess(
+        `Terrain irradiation: ${res.poa_min.toFixed(0)} to ${res.poa_max.toFixed(0)} kWh/m2/yr.`
+      )
+    } catch (e) {
+      notifyError("Solar terrain error", e)
+    } finally {
+      setSolarTerrainRunning(false)
+      props.setProgress(0)
+      props.setProgressMsg("")
+    }
+  }
+
   const handleViewDataCube = async () => {
     if (!props.start || !props.end) {
       notifyError("Set the acquisition period.")
@@ -1611,6 +1649,11 @@ function AppBody(props: {
                   onSolarPRChange={setSolarPR}
                   onRunSolar={() => void handleRunSolar()}
                   onClearSolar={() => setSolar(null)}
+                  solarTerrain={solarTerrain}
+                  solarTerrainRunning={solarTerrainRunning}
+                  showSolarTerrain={showSolarTerrain}
+                  onRunSolarTerrain={() => void handleRunSolarTerrain()}
+                  onClearSolarTerrain={() => setSolarTerrain(null)}
                   leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>

@@ -14,6 +14,7 @@ import type {
   WaterAnalysis,
   WaterIndex,
   SolarAnalysis,
+  SolarTerrainAnalysis,
 } from "@/lib/types"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
@@ -148,6 +149,11 @@ export interface MapScreenProps {
   onSolarPRChange: (v: string) => void
   onRunSolar: () => void
   onClearSolar: () => void
+  solarTerrain?: SolarTerrainAnalysis | null
+  solarTerrainRunning: boolean
+  showSolarTerrain: boolean
+  onRunSolarTerrain: () => void
+  onClearSolarTerrain: () => void
   leftDockTabs?: LeftDockTabsMode
 }
 
@@ -196,6 +202,14 @@ export function MapScreen(props: MapScreenProps) {
         showPredictionOverlay={props.showPredictionOverlay}
         showCompositionOverlay={props.showCompositionOverlay}
         composition={props.composition}
+        solarOverlay={
+          props.solarTerrain && props.showSolarTerrain
+            ? {
+                uri: props.solarTerrain.overlay_uri,
+                extent: props.solarTerrain.extent,
+              }
+            : null
+        }
         waterOverlay={
           props.water && props.showWaterOverlay
             ? {
@@ -334,6 +348,10 @@ export function MapScreen(props: MapScreenProps) {
             hasResult={!!props.solar}
             onRun={props.onRunSolar}
             onClear={props.onClearSolar}
+            terrainRunning={props.solarTerrainRunning}
+            hasTerrain={!!props.solarTerrain}
+            onRunTerrain={props.onRunSolarTerrain}
+            onClearTerrain={props.onClearSolarTerrain}
             onCollapse={() => setLeftPanel(null)}
           />
         ) : leftPanel === "water" ? (

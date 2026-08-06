@@ -1039,6 +1039,92 @@ export namespace backend {
 		}
 	}
 	
+	export class SolarTerrainAnalysis {
+	    poa_min: number;
+	    poa_max: number;
+	    poa_mean: number;
+	    poa_std_pct: number;
+	    slope_mean_deg: number;
+	    slope_max_deg: number;
+	    pixels: number;
+	    hourly_years: number;
+	    dem_source: string;
+	    overlay_uri: string;
+	    raster_tif: string;
+	    extent: Bounds;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarTerrainAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.poa_min = source["poa_min"];
+	        this.poa_max = source["poa_max"];
+	        this.poa_mean = source["poa_mean"];
+	        this.poa_std_pct = source["poa_std_pct"];
+	        this.slope_mean_deg = source["slope_mean_deg"];
+	        this.slope_max_deg = source["slope_max_deg"];
+	        this.pixels = source["pixels"];
+	        this.hourly_years = source["hourly_years"];
+	        this.dem_source = source["dem_source"];
+	        this.overlay_uri = source["overlay_uri"];
+	        this.raster_tif = source["raster_tif"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SolarTerrainRequest {
+	    area_id: string;
+	    polygon_geojson?: GeoJSONGeometry;
+	    hourly_years?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarTerrainRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_id = source["area_id"];
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.hourly_years = source["hourly_years"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	
 	

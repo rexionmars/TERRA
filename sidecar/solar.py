@@ -331,3 +331,189 @@ def modelled_performance_ratio(p_ac: pd.Series, poa_global: pd.Series) -> float:
     e_ac = float(p_ac.sum()) / 1000.0
     e_ref = float(poa_global.sum()) / 1000.0 * (PDC0_W / 1000.0)
     return float(e_ac / e_ref) if e_ref > 0 else float("nan")
+
+
+# --------------------------------------------------------------------- terrain
+#
+# The atmospheric resource has no spatial structure at AOI scale, but the
+# irradiation reaching an inclined surface does, because the surface is terrain.
+# That is the mappable quantity.
+
+# Copernicus DEM GLO-30, served from the same STAC catalogue as Sentinel-2.
+DEM_COLLECTION = "cop-dem-glo-30"
+
+# Lookup grid over (slope, aspect). Coarser than the research grid: against the
+# research configuration the mean error is 0.04 percent and the maximum 0.31,
+# while the table shrinks from 1116 pairs to 198. Shortening the period is what
+# costs accuracy, so the period is kept and the grid is coarsened.
+SLOPE_GRID = np.arange(0.0, 31.0, 3.0)
+ASPECT_GRID = np.arange(0.0, 360.0, 20.0)
+
+
+def pixel_size_m(transform, lat: float) -> tuple[float, float]:
+    """Approximate pixel dimensions in metres for a geographic grid."""
+    dx_deg, dy_deg = abs(transform.a), abs(transform.e)
+    m_per_deg_lat = 111_320.0
+    m_per_deg_lon = m_per_deg_lat * np.cos(np.radians(lat))
+    return dx_deg * m_per_deg_lon, dy_deg * m_per_deg_lat
+
+
+def horn_slope_aspect(z: np.ndarray, dx_m: float, dy_m: float):
+    """
+    Slope and aspect by the Horn (1981) third-order finite difference.
+
+    Aspect is the compass bearing of the downhill direction, clockwise from
+    north. A flat cell has no aspect and is returned as NaN rather than as a
+    bearing of zero, which would read as north-facing.
+    """
+    p = np.pad(z, 1, mode="edge")
+    nw, n_, ne = p[:-2, :-2], p[:-2, 1:-1], p[:-2, 2:]
+    w_, e_ = p[1:-1, :-2], p[1:-1, 2:]
+    sw, s_, se = p[2:, :-2], p[2:, 1:-1], p[2:, 2:]
+
+    # Rows increase southward, so the north gradient is top minus bottom.
+    gx = ((ne + 2 * e_ + se) - (nw + 2 * w_ + sw)) / (8.0 * dx_m)
+    gy = ((nw + 2 * n_ + ne) - (sw + 2 * s_ + se)) / (8.0 * dy_m)
+
+    grad = np.hypot(gx, gy)
+    slope = np.degrees(np.arctan(grad))
+    aspect = np.degrees(np.arctan2(-gx, -gy)) % 360.0
+    aspect = np.where(grad < 1e-9, np.nan, aspect)
+    return slope, aspect
+
+
+def build_poa_lookup(
+    df: pd.DataFrame,
+    solpos: pd.DataFrame,
+    n_years: float,
+    slopes: np.ndarray = SLOPE_GRID,
+    aspects: np.ndarray = ASPECT_GRID,
+    progress=None,
+) -> np.ndarray:
+    """
+    Plane-of-array irradiation for every (slope, aspect) pair, kWh/m2/year.
+
+    Transposition is the expensive step, so it runs once per pair here and the
+    pixel grid is interpolated from the table rather than transposed per pixel.
+    """
+    table = np.empty((len(slopes), len(aspects)), dtype=float)
+    for i, tilt in enumerate(slopes):
+        if progress:
+            progress(i, len(slopes))
+        if tilt == 0.0:
+            # A horizontal surface has no aspect; one transposition serves all.
+            poa = transpose(df, solpos, 0.0, 0.0)
+            table[i, :] = float(poa["poa_global"].sum()) / 1000.0 / n_years
+            continue
+        for j, az in enumerate(aspects):
+            poa = transpose(df, solpos, float(tilt), float(az))
+            table[i, j] = float(poa["poa_global"].sum()) / 1000.0 / n_years
+    return table
+
+
+def interpolate_poa(
+    slope: np.ndarray,
+    aspect: np.ndarray,
+    table: np.ndarray,
+    slopes: np.ndarray = SLOPE_GRID,
+    aspects: np.ndarray = ASPECT_GRID,
+) -> np.ndarray:
+    """
+    Bilinear interpolation of the lookup table onto the pixel grid.
+
+    Aspect wraps at 360 degrees, so the table is extended by one column before
+    interpolating rather than clamped, which would flatten north-facing slopes.
+    """
+    s = np.clip(np.nan_to_num(slope, nan=0.0), slopes[0], slopes[-1])
+    a = np.mod(np.nan_to_num(aspect, nan=0.0), 360.0)
+
+    aspects_ext = np.append(aspects, 360.0)
+    table_ext = np.concatenate([table, table[:, :1]], axis=1)
+
+    si = np.clip(np.searchsorted(slopes, s) - 1, 0, len(slopes) - 2)
+    ai = np.clip(np.searchsorted(aspects_ext, a) - 1, 0, len(aspects_ext) - 2)
+    s0, s1 = slopes[si], slopes[si + 1]
+    a0, a1 = aspects_ext[ai], aspects_ext[ai + 1]
+    ws = np.where(s1 > s0, (s - s0) / (s1 - s0), 0.0)
+    wa = np.where(a1 > a0, (a - a0) / (a1 - a0), 0.0)
+
+    v00 = table_ext[si, ai]
+    v01 = table_ext[si, ai + 1]
+    v10 = table_ext[si + 1, ai]
+    v11 = table_ext[si + 1, ai + 1]
+    return (
+        v00 * (1 - ws) * (1 - wa)
+        + v01 * (1 - ws) * wa
+        + v10 * ws * (1 - wa)
+        + v11 * ws * wa
+    )
+
+
+def fetch_dem(polygon, out_path) -> str:
+    """
+    Copernicus DEM GLO-30 window covering the AOI.
+
+    Served as a COG from the same Planetary Computer catalogue Sentinel-2 comes
+    from, so this needs no new imagery infrastructure.
+    """
+    import planetary_computer as pc
+    import pystac_client
+    import rasterio
+    from rasterio.windows import from_bounds
+
+    catalog = pystac_client.Client.open(
+        "https://planetarycomputer.microsoft.com/api/stac/v1",
+        modifier=pc.sign_inplace,
+    )
+    search = catalog.search(collections=[DEM_COLLECTION], intersects=polygon)
+    items = list(search.items())
+    if not items:
+        raise RuntimeError("no Copernicus DEM tile covers this AOI")
+
+    bounds = polygon.bounds
+    with rasterio.open(items[0].assets["data"].href) as src:
+        window = from_bounds(*bounds, transform=src.transform)
+        data = src.read(1, window=window)
+        profile = src.profile.copy()
+        profile.update(
+            height=data.shape[0],
+            width=data.shape[1],
+            transform=src.window_transform(window),
+            driver="GTiff",
+            compress="lzw",
+        )
+    if data.size == 0:
+        raise RuntimeError("Copernicus DEM window is empty for this AOI")
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(data, 1)
+    return str(out_path)
+
+
+def terrain_rgba(poa: np.ndarray, valid: np.ndarray) -> np.ndarray:
+    """
+    Colour the plane-of-array map.
+
+    Stretched between its own 2nd and 98th percentiles over valid pixels: the
+    quantity has no fixed range, and the spread within an AOI is a few percent,
+    so a fixed scale would render every AOI as one flat colour. The legend must
+    therefore carry the actual range, which the response reports.
+    """
+    import composite as comp
+
+    finite = poa[valid & np.isfinite(poa)]
+    if finite.size == 0:
+        lo, hi = 0.0, 1.0
+    else:
+        lo = float(np.percentile(finite, 2))
+        hi = float(np.percentile(finite, 98))
+    if hi <= lo:
+        hi = lo + 1.0
+    t = np.clip((np.nan_to_num(poa, nan=lo) - lo) / (hi - lo), 0.0, 1.0)
+    rgb = comp._lerp_cmap(t.astype(np.float32), comp._RDYLGN)
+    h, w = poa.shape
+    rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    rgba[..., 0] = (rgb[..., 0] * 255).astype(np.uint8)
+    rgba[..., 1] = (rgb[..., 1] * 255).astype(np.uint8)
+    rgba[..., 2] = (rgb[..., 2] * 255).astype(np.uint8)
+    rgba[..., 3] = np.where(valid, 255, 0).astype(np.uint8)
+    return rgba

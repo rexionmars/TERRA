@@ -333,6 +333,14 @@ func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, er
 	return a.runner.AnalyzeSolar(a.ctx, req)
 }
 
+// AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
+func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.SolarTerrainAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return a.runner.AnalyzeSolarTerrain(a.ctx, req)
+}
+
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
 func (a *App) ExportClassification(rasterPath string) (string, error) {
 	return a.ExportOverlayFile(rasterPath, "terra_classification.tif")

@@ -457,3 +457,25 @@ export interface SolarRequest {
   surface_azimuth: number
   performance_ratio?: number | null
 }
+
+export interface SolarTerrainAnalysis {
+  poa_min: number
+  poa_max: number
+  poa_mean: number
+  poa_std_pct: number
+  slope_mean_deg: number
+  slope_max_deg: number
+  pixels: number
+  hourly_years: number
+  dem_source: string
+  /** Stretched between its own 2nd and 98th percentiles; the range is above. */
+  overlay_uri: string
+  raster_tif: string
+  extent: Bounds
+}
+
+export interface SolarTerrainRequest {
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  hourly_years: number
+}

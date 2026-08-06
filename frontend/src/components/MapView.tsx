@@ -56,6 +56,8 @@ interface MapViewProps {
   /** When false, hide the band composition overlay. */
   showCompositionOverlay?: boolean
   composition?: CompositionOverlay | null
+  /** Terrain-resolved solar irradiation raster. */
+  solarOverlay?: { uri: string; extent: PredictResult["extent"] } | null
   /** Surface-water occurrence raster, rendered above the basemap. */
   waterOverlay?: {
     uri: string
@@ -979,6 +981,7 @@ export function MapView({
   showPredictionOverlay = true,
   showCompositionOverlay = true,
   composition = null,
+  solarOverlay = null,
   waterOverlay = null,
   swipeCompare,
   swipeRatio,
@@ -1111,6 +1114,34 @@ export function MapView({
       />
     ) : null
 
+  const solarBounds: LatLngBoundsExpression | null =
+    solarOverlay &&
+    solarOverlay.extent &&
+    !(
+      solarOverlay.extent.lon_min === 0 &&
+      solarOverlay.extent.lon_max === 0 &&
+      solarOverlay.extent.lat_min === 0 &&
+      solarOverlay.extent.lat_max === 0
+    )
+      ? [
+          [solarOverlay.extent.lat_min, solarOverlay.extent.lon_min],
+          [solarOverlay.extent.lat_max, solarOverlay.extent.lon_max],
+        ]
+      : null
+
+  const solarLayer =
+    solarOverlay && solarBounds && solarOverlay.uri ? (
+      <PredictionOverlay
+        key="solar"
+        url={solarOverlay.uri}
+        bounds={solarBounds}
+        opacity={0.85}
+        smooth={false}
+        zIndex={358}
+        swipeRatio={null}
+      />
+    ) : null
+
   const compositionLayer = compositionVisible ? (
     <PredictionOverlay
       key="composition"
@@ -1230,6 +1261,7 @@ export function MapView({
         ))}
 
       {compositionLayer}
+      {solarLayer}
       {waterLayer}
       {predictionLayer}
       {confidenceLayer}
