@@ -175,6 +175,8 @@ export interface PredictResult {
   phenology: PhenologyMetrics
   phenology_states: PhenologyStatePoint[]
   lulc?: LULCAnalysis | null
+  /** Attached when a surface-water run was made over the same AOI. */
+  water?: WaterAnalysis | null
 }
 
 export interface ProgressEvent {

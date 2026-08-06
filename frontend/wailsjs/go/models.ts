@@ -591,130 +591,6 @@ export namespace backend {
 		    return a;
 		}
 	}
-	export class VISeriesPoint {
-	    date: string;
-	    ndvi_mean: number;
-	    ndvi_std: number;
-	    evi_mean: number;
-	    evi_std: number;
-	    savi_mean: number;
-	    savi_std: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new VISeriesPoint(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.date = source["date"];
-	        this.ndvi_mean = source["ndvi_mean"];
-	        this.ndvi_std = source["ndvi_std"];
-	        this.evi_mean = source["evi_mean"];
-	        this.evi_std = source["evi_std"];
-	        this.savi_mean = source["savi_mean"];
-	        this.savi_std = source["savi_std"];
-	    }
-	}
-	export class TemporalPoint {
-	    date: string;
-	    n_dates_stack: number;
-	    soja_ndvi_mean?: number;
-	    soja_retention_pct?: number;
-	    dominant?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new TemporalPoint(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.date = source["date"];
-	        this.n_dates_stack = source["n_dates_stack"];
-	        this.soja_ndvi_mean = source["soja_ndvi_mean"];
-	        this.soja_retention_pct = source["soja_retention_pct"];
-	        this.dominant = source["dominant"];
-	    }
-	}
-	export class PredictResult {
-	    extent: Bounds;
-	    overlay_uri: string;
-	    confidence_uri: string;
-	    ndvi_mean_uri: string;
-	    true_color_uri: string;
-	    reference_uri: string;
-	    raster_tif: string;
-	    mean_confidence: number;
-	    n_dates: number;
-	    date_range: string[];
-	    class_stats: ClassStat[];
-	    temporal: TemporalPoint[];
-	    vi_series: VISeriesPoint[];
-	    phenology: PhenologyMetrics;
-	    phenology_states: PhenologyStatePoint[];
-	    lulc?: LULCAnalysis;
-	
-	    static createFrom(source: any = {}) {
-	        return new PredictResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.extent = this.convertValues(source["extent"], Bounds);
-	        this.overlay_uri = source["overlay_uri"];
-	        this.confidence_uri = source["confidence_uri"];
-	        this.ndvi_mean_uri = source["ndvi_mean_uri"];
-	        this.true_color_uri = source["true_color_uri"];
-	        this.reference_uri = source["reference_uri"];
-	        this.raster_tif = source["raster_tif"];
-	        this.mean_confidence = source["mean_confidence"];
-	        this.n_dates = source["n_dates"];
-	        this.date_range = source["date_range"];
-	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
-	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
-	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
-	        this.phenology = this.convertValues(source["phenology"], PhenologyMetrics);
-	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
-	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class ResearchExportMeta {
-	    model_kind: string;
-	    area_id: string;
-	    aoi_label: string;
-	    polygon_geojson: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new ResearchExportMeta(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.model_kind = source["model_kind"];
-	        this.area_id = source["area_id"];
-	        this.aoi_label = source["aoi_label"];
-	        this.polygon_geojson = source["polygon_geojson"];
-	    }
-	}
-	
-	
 	export class WaterDate {
 	    date: string;
 	    scene_id: string;
@@ -813,6 +689,133 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class VISeriesPoint {
+	    date: string;
+	    ndvi_mean: number;
+	    ndvi_std: number;
+	    evi_mean: number;
+	    evi_std: number;
+	    savi_mean: number;
+	    savi_std: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new VISeriesPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi_mean = source["ndvi_mean"];
+	        this.ndvi_std = source["ndvi_std"];
+	        this.evi_mean = source["evi_mean"];
+	        this.evi_std = source["evi_std"];
+	        this.savi_mean = source["savi_mean"];
+	        this.savi_std = source["savi_std"];
+	    }
+	}
+	export class TemporalPoint {
+	    date: string;
+	    n_dates_stack: number;
+	    soja_ndvi_mean?: number;
+	    soja_retention_pct?: number;
+	    dominant?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemporalPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.n_dates_stack = source["n_dates_stack"];
+	        this.soja_ndvi_mean = source["soja_ndvi_mean"];
+	        this.soja_retention_pct = source["soja_retention_pct"];
+	        this.dominant = source["dominant"];
+	    }
+	}
+	export class PredictResult {
+	    extent: Bounds;
+	    overlay_uri: string;
+	    confidence_uri: string;
+	    ndvi_mean_uri: string;
+	    true_color_uri: string;
+	    reference_uri: string;
+	    raster_tif: string;
+	    mean_confidence: number;
+	    n_dates: number;
+	    date_range: string[];
+	    class_stats: ClassStat[];
+	    temporal: TemporalPoint[];
+	    vi_series: VISeriesPoint[];
+	    phenology: PhenologyMetrics;
+	    phenology_states: PhenologyStatePoint[];
+	    lulc?: LULCAnalysis;
+	    water?: WaterAnalysis;
+	
+	    static createFrom(source: any = {}) {
+	        return new PredictResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.overlay_uri = source["overlay_uri"];
+	        this.confidence_uri = source["confidence_uri"];
+	        this.ndvi_mean_uri = source["ndvi_mean_uri"];
+	        this.true_color_uri = source["true_color_uri"];
+	        this.reference_uri = source["reference_uri"];
+	        this.raster_tif = source["raster_tif"];
+	        this.mean_confidence = source["mean_confidence"];
+	        this.n_dates = source["n_dates"];
+	        this.date_range = source["date_range"];
+	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
+	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
+	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
+	        this.phenology = this.convertValues(source["phenology"], PhenologyMetrics);
+	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
+	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
+	        this.water = this.convertValues(source["water"], WaterAnalysis);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ResearchExportMeta {
+	    model_kind: string;
+	    area_id: string;
+	    aoi_label: string;
+	    polygon_geojson: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResearchExportMeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.model_kind = source["model_kind"];
+	        this.area_id = source["area_id"];
+	        this.aoi_label = source["aoi_label"];
+	        this.polygon_geojson = source["polygon_geojson"];
+	    }
+	}
+	
+	
+	
 	
 	export class WaterRequest {
 	    area_id: string;

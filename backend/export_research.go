@@ -42,6 +42,16 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 	// Sample size of the MapBiomas comparison. The reference is native at 30 m
 	// and is resampled onto the 10 m grid, so the pixel count overstates the
 	// number of independent label observations by roughly nine times.
+	if w := result.Water; w != nil && len(w.Series) > 0 {
+		manifest["water_index"] = w.Index
+		manifest["water_threshold"] = w.ThresholdFixed
+		manifest["water_n_dates"] = w.NDates
+		manifest["water_peak_date"] = w.PeakDate
+		manifest["water_peak_fraction_pct"] = w.PeakWaterPct
+		manifest["water_ephemeral_area_ha"] = w.EphemeralAreaHa
+		manifest["water_persistent_area_ha"] = w.PersistentAreaHa
+		manifest["water_aoi_area_ha"] = w.AOIAreaHa
+	}
 	if result.LULC != nil && result.LULC.CompareReferenceCells > 0 {
 		manifest["compare_pixels"] = result.LULC.ComparePixels
 		manifest["compare_reference_cells"] = result.LULC.CompareReferenceCells
@@ -250,6 +260,38 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 		}
 	}
 
+	if w := result.Water; w != nil && len(w.Series) > 0 {
+		// observed_pixels is the denominator of water_fraction_pct: the AOI
+		// pixels actually seen on that date. A fraction cannot be recomputed
+		// against the AOI area without it.
+		rows := [][]string{{
+			"date", "scene_id", "cloud_cover", "observed_pixels",
+			"threshold_fixed", "threshold_otsu", "threshold_clipped",
+			"threshold_degenerate", "water_fraction_pct",
+			"water_fraction_otsu_pct", "water_pixels", "area_ha",
+		}}
+		for _, d := range w.Series {
+			rows = append(rows, []string{
+				d.Date,
+				d.SceneID,
+				formatFloat(d.CloudCover),
+				strconv.Itoa(d.ObservedPixels),
+				formatFloat(d.ThresholdFixed),
+				formatFloat(d.ThresholdOtsu),
+				strconv.FormatBool(d.ThresholdClipped),
+				strconv.FormatBool(d.ThresholdDegenerate),
+				formatFloat(d.WaterFractionPct),
+				formatFloat(d.WaterFractionOtsu),
+				strconv.Itoa(d.WaterPixels),
+				formatFloat(d.AreaHa),
+			})
+		}
+		if err := writeZipCSV(zw, "water_series.csv", rows); err != nil {
+			_ = zw.Close()
+			return nil, err
+		}
+	}
+
 	if rasterPath := ResolveRasterPath(result.RasterTIF, dataDir); rasterPath != "" {
 		if err := writeZipFile(zw, "rasters/classification.tif", rasterPath); err != nil {
 			_ = zw.Close()
@@ -336,9 +378,9 @@ func normalizeAOIGeoJSON(raw string) ([]byte, error) {
 	// Geometry → wrap as Feature.
 	if _, hasCoords := m["coordinates"]; hasCoords || m["type"] != nil {
 		feat := map[string]any{
-			"type":     "Feature",
+			"type":       "Feature",
 			"properties": map[string]any{},
-			"geometry": m,
+			"geometry":   m,
 		}
 		return json.MarshalIndent(feat, "", "  ")
 	}

@@ -148,6 +148,9 @@ export function ResearchPackModal({
       // Strip the bulky data URIs, matching what the analysis page sends.
       const pack = {
         ...result,
+        water: result.water
+          ? { ...result.water, occurrence_uri: "" }
+          : result.water,
         overlay_uri: "",
         confidence_uri: "",
         ndvi_mean_uri: "",

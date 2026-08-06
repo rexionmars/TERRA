@@ -315,6 +315,9 @@ type PredictResult struct {
 	Phenology       PhenologyMetrics      `json:"phenology"`
 	PhenologyStates []PhenologyStatePoint `json:"phenology_states"`
 	LULC            *LULCAnalysis         `json:"lulc,omitempty"`
+	// Attached by the frontend when a surface-water run has been made over the
+	// same AOI. Produced by a separate action, so it is not filled by Predict.
+	Water *WaterAnalysis `json:"water,omitempty"`
 }
 
 // ProgressEvent is emitted to the frontend as "predict:progress".

@@ -11,6 +11,7 @@
  */
 import type {
   ClassStat,
+  WaterAnalysis,
   LULCAnalysis,
   PhenologyMetrics,
   PhenologyStatePoint,
@@ -307,6 +308,10 @@ export function lulcPredVsRefTable(
       { key: "color", swatch: true },
       num("pct_ref"),
       num("pct_pred"),
+      // pixels_ref counts 10 m pixels; n_reference_cells counts the native 30 m
+      // MapBiomas cells behind them, which is the agreement sample size.
+      num("pixels_ref"),
+      num("n_reference_cells"),
     ],
     (lulc?.pred_vs_ref ?? []).map((r) => [
       r.class_id,
@@ -314,6 +319,46 @@ export function lulcPredVsRefTable(
       r.color,
       r.pct_ref,
       r.pct_pred,
+      r.pixels_ref ?? 0,
+      r.n_reference_cells ?? 0,
+    ])
+  )
+}
+
+export function waterSeriesTable(
+  water?: WaterAnalysis | null
+): DataTable | null {
+  return table(
+    "water_series",
+    "water_series.csv",
+    [
+      { key: "date" },
+      { key: "scene_id" },
+      num("cloud_cover"),
+      // The denominator of water_fraction_pct: AOI pixels seen on that date.
+      num("observed_pixels"),
+      num("threshold_fixed"),
+      num("threshold_otsu"),
+      { key: "threshold_clipped" },
+      { key: "threshold_degenerate" },
+      num("water_fraction_pct"),
+      num("water_fraction_otsu_pct"),
+      num("water_pixels"),
+      num("area_ha"),
+    ],
+    (water?.series ?? []).map((d) => [
+      d.date,
+      d.scene_id,
+      d.cloud_cover,
+      d.observed_pixels,
+      d.threshold_fixed,
+      d.threshold_otsu,
+      String(d.threshold_clipped),
+      String(d.threshold_degenerate),
+      d.water_fraction_pct,
+      d.water_fraction_otsu_pct,
+      d.water_pixels,
+      d.area_ha,
     ])
   )
 }
@@ -330,6 +375,7 @@ export function allAnalysisTables(result: PredictResult): DataTable[] {
     lulcCompositionTable(result.lulc),
     lulcGroupsTable(result.lulc),
     lulcPredVsRefTable(result.lulc),
+    waterSeriesTable(result.water),
   ].filter((t): t is DataTable => t !== null)
 }
 

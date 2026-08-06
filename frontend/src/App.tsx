@@ -1273,6 +1273,18 @@ function AppBody(props: {
     return props.customPolygon ? "Custom AOI" : undefined
   }, [props.analysisLabel, props.activeExample, props.areas, props.customPolygon])
 
+  /**
+   * The analysis payload as the Analysis screen and the exporter see it.
+   *
+   * Water comes from its own action, so it is merged at render time rather
+   * than written into the classification result: either can be produced first,
+   * and neither must overwrite the other.
+   */
+  const resultWithWater = useMemo(
+    () => (props.result ? { ...props.result, water } : null),
+    [props.result, water]
+  )
+
   const analysisPolygonGeoJSON = useMemo(() => {
     if (props.customPolygon) return JSON.stringify(props.customPolygon)
     if (props.activeExample) {
@@ -1487,7 +1499,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <AnalysisPage
-                  result={props.result}
+                  result={resultWithWater}
                   areas={props.areas}
                   modelKind={props.modelKind}
                   areaLabel={areaLabel}
