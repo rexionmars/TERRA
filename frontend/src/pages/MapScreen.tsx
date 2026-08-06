@@ -146,10 +146,14 @@ export function MapScreen(props: MapScreenProps) {
     setLeftPanel((cur) => (cur === id ? null : id))
   }
 
+  // The three status panels share one slot at the bottom of the map, so only
+  // the one matching the open tool is shown.
+  const showWaterStatus = leftPanel === "water" && !!props.water
   const showCompositionStatus =
-    leftPanel === "compose" || (!props.result && !!props.composition)
+    !showWaterStatus &&
+    (leftPanel === "compose" || (!props.result && !!props.composition))
   const showPredictionStatus =
-    !showCompositionStatus && !!props.result
+    !showWaterStatus && !showCompositionStatus && !!props.result
 
   const selectedSceneDate =
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
@@ -346,7 +350,13 @@ export function MapScreen(props: MapScreenProps) {
       </AnimatePresence>
 
       <AnimatePresence mode="wait" initial={false}>
-        {showCompositionStatus ? (
+        {showWaterStatus ? (
+          <WaterStatusPanel
+            key="water-status"
+            water={props.water ?? null}
+            onClear={props.onClearWater}
+          />
+        ) : showCompositionStatus ? (
           <CompositionStatusPanel
             key="composition-status"
             composition={props.composition}
@@ -362,16 +372,6 @@ export function MapScreen(props: MapScreenProps) {
             onNewClassification={props.onNewClassification}
           />
         ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence initial={false}>
-        {props.water && leftPanel === "water" && (
-          <WaterStatusPanel
-            key="water-status"
-            water={props.water}
-            onClose={props.onClearWater}
-          />
-        )}
       </AnimatePresence>
 
       <DataCubeModal
