@@ -917,6 +917,34 @@ function AppBody(props: {
     }
   }
 
+  /**
+   * Identity of the AOI currently on the map. Changes whenever the drawn
+   * polygon or the selected example changes.
+   */
+  const aoiSignature = useMemo(() => {
+    if (props.activeExample) return `area:${props.activeExample}`
+    return props.customPolygon ? `poly:${JSON.stringify(props.customPolygon)}` : ""
+  }, [props.activeExample, props.customPolygon])
+
+  /** The AOI the current water result was computed over. */
+  const waterAoiRef = useRef<string>("")
+
+  /**
+   * A water result belongs to the AOI it was measured on. When the AOI changes
+   * the raster no longer describes what is on the map, so it is dropped.
+   *
+   * Done by comparing against the AOI the run was made on rather than by
+   * clearing at each call site: the AOI changes from drawing, from loading an
+   * example, from opening a project and from opening a composition, and a
+   * missed path leaves a raster from one field painted over another.
+   */
+  useEffect(() => {
+    if (!water) return
+    if (aoiSignature === waterAoiRef.current) return
+    setWater(null)
+    setShowWaterOverlay(true)
+  }, [aoiSignature, water])
+
   const handleRunWater = async () => {
     if (!props.start || !props.end) {
       notifyError("Set the acquisition period.")
@@ -943,6 +971,7 @@ function AppBody(props: {
         index: waterIndex,
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
+      waterAoiRef.current = aoiSignature
       setWater(res)
       setShowWaterOverlay(true)
       notifySuccess(
@@ -1397,6 +1426,11 @@ function AppBody(props: {
                     if (geom) {
                       props.setActiveExample("")
                       props.setAnalysisLabel(undefined)
+                      // A composition was rendered for the previous AOI and
+                      // does not describe this one. Water is dropped by the
+                      // AOI-change effect above.
+                      setComposition(null)
+                      setShowCompositionOverlay(true)
                     }
                   }}
                   onSelectExample={props.onSelectExample}
