@@ -21,6 +21,8 @@ import type {
   ModelKind,
   PredictResult,
   WaterAnalysis,
+  SolarSitingAnalysis,
+  SolarTerrainAnalysis,
 } from "@/lib/types"
 import {
   AOI_CONTOUR_SCHEMES,
@@ -49,6 +51,15 @@ export interface OverlayToolsPanelProps {
   onShowWaterOverlayChange?: (v: boolean) => void
   waterOpacity?: number
   onWaterOpacityChange?: (v: number) => void
+  /**
+   * Solar raster, siting or terrain, whichever the map is showing. Only one
+   * reaches the map at a time, so one switch and one opacity describe it.
+   */
+  solar?: SolarSitingAnalysis | SolarTerrainAnalysis | null
+  showSolarOverlay?: boolean
+  onShowSolarOverlayChange?: (v: boolean) => void
+  solarOpacity?: number
+  onSolarOpacityChange?: (v: number) => void
   showConfidence: boolean
   onShowConfidenceChange: (v: boolean) => void
   confidenceOnTop: boolean
@@ -254,6 +265,11 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     onShowWaterOverlayChange,
     waterOpacity = 0.8,
     onWaterOpacityChange,
+    solar = null,
+    showSolarOverlay = true,
+    onShowSolarOverlayChange,
+    solarOpacity = 0.85,
+    onSolarOpacityChange,
     showConfidence,
     onShowConfidenceChange,
     confidenceOnTop,
@@ -562,6 +578,16 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
               <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <input
                   type="checkbox"
+                  checked={showSolarOverlay}
+                  disabled={!solar || !onShowSolarOverlayChange}
+                  onChange={(e) => onShowSolarOverlayChange?.(e.target.checked)}
+                  className="accent-primary"
+                />
+                Show solar overlay
+              </label>
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
                   checked={swipeCompare}
                   onChange={(e) => onSwipeCompareChange(e.target.checked)}
                   className="accent-primary"
@@ -644,6 +670,19 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
                   onChange={(e) =>
                     onWaterOpacityChange?.(Number(e.target.value))
                   }
+                  className="w-full accent-primary"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                Solar opacity {Math.round(solarOpacity * 100)}%
+                <input
+                  type="range"
+                  min={0.15}
+                  max={1}
+                  step={0.05}
+                  value={solarOpacity}
+                  disabled={!solar || !onSolarOpacityChange}
+                  onChange={(e) => onSolarOpacityChange?.(Number(e.target.value))}
                   className="w-full accent-primary"
                 />
               </label>

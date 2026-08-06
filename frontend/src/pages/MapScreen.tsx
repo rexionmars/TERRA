@@ -153,7 +153,10 @@ export interface MapScreenProps {
   onClearSolar: () => void
   solarTerrain?: SolarTerrainAnalysis | null
   solarTerrainRunning: boolean
-  showSolarTerrain: boolean
+  showSolarOverlay: boolean
+  solarOpacity: number
+  onShowSolarOverlayChange: (v: boolean) => void
+  onSolarOpacityChange: (v: number) => void
   onRunSolarTerrain: () => void
   onClearSolarTerrain: () => void
   solarSeason: SolarSeason
@@ -217,17 +220,21 @@ export function MapScreen(props: MapScreenProps) {
         showCompositionOverlay={props.showCompositionOverlay}
         composition={props.composition}
         solarOverlay={
-          props.solarSiting
-            ? {
-                uri: props.solarSiting.overlay_uri,
-                extent: props.solarSiting.extent,
-              }
-            : props.solarTerrain && props.showSolarTerrain
-            ? {
-                uri: props.solarTerrain.overlay_uri,
-                extent: props.solarTerrain.extent,
-              }
-            : null
+          !props.showSolarOverlay
+            ? null
+            : props.solarSiting
+              ? {
+                  uri: props.solarSiting.overlay_uri,
+                  extent: props.solarSiting.extent,
+                  opacity: props.solarOpacity,
+                }
+              : props.solarTerrain
+                ? {
+                    uri: props.solarTerrain.overlay_uri,
+                    extent: props.solarTerrain.extent,
+                    opacity: props.solarOpacity,
+                  }
+                : null
         }
         waterOverlay={
           props.water && props.showWaterOverlay
@@ -274,6 +281,11 @@ export function MapScreen(props: MapScreenProps) {
         showCompositionOverlay={props.showCompositionOverlay}
         onShowCompositionOverlayChange={props.onShowCompositionOverlayChange}
         water={props.water}
+        solar={props.solarSiting ?? props.solarTerrain ?? null}
+        showSolarOverlay={props.showSolarOverlay}
+        onShowSolarOverlayChange={props.onShowSolarOverlayChange}
+        solarOpacity={props.solarOpacity}
+        onSolarOpacityChange={props.onSolarOpacityChange}
         showWaterOverlay={props.showWaterOverlay}
         onShowWaterOverlayChange={props.onShowWaterOverlayChange}
         waterOpacity={props.waterOpacity}

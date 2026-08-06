@@ -57,7 +57,11 @@ interface MapViewProps {
   showCompositionOverlay?: boolean
   composition?: CompositionOverlay | null
   /** Terrain-resolved solar irradiation raster. */
-  solarOverlay?: { uri: string; extent: PredictResult["extent"] } | null
+  solarOverlay?: {
+    uri: string
+    extent: PredictResult["extent"]
+    opacity?: number
+  } | null
   /** Surface-water occurrence raster, rendered above the basemap. */
   waterOverlay?: {
     uri: string
@@ -1135,7 +1139,7 @@ export function MapView({
         key="solar"
         url={solarOverlay.uri}
         bounds={solarBounds}
-        opacity={0.85}
+        opacity={solarOverlay.opacity ?? 0.85}
         smooth={false}
         zIndex={358}
         swipeRatio={null}

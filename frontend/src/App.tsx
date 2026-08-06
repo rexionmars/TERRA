@@ -478,7 +478,10 @@ function AppBody(props: {
   const [solarPR, setSolarPR] = useState("")
   const [solarTerrain, setSolarTerrain] = useState<SolarTerrainAnalysis | null>(null)
   const [solarTerrainRunning, setSolarTerrainRunning] = useState(false)
-  const [showSolarTerrain, setShowSolarTerrain] = useState(true)
+  // Gates both solar rasters: siting takes priority over terrain on the map,
+  // so one switch and one opacity match what the user sees.
+  const [showSolarOverlay, setShowSolarOverlay] = useState(true)
+  const [solarOpacity, setSolarOpacity] = useState(0.85)
   const [solarSeason, setSolarSeason] = useState<SolarSeason>("annual")
   const [solarSiting, setSolarSiting] = useState<SolarSitingAnalysis | null>(null)
   const [solarSitingRunning, setSolarSitingRunning] = useState(false)
@@ -1083,7 +1086,7 @@ function AppBody(props: {
         req as never
       )) as unknown as SolarTerrainAnalysis
       setSolarTerrain(res)
-      setShowSolarTerrain(true)
+      setShowSolarOverlay(true)
       notifySuccess(
         `Terrain irradiation: ${res.poa_min.toFixed(0)} to ${res.poa_max.toFixed(0)} kWh/m2/yr.`
       )
@@ -1116,6 +1119,8 @@ function AppBody(props: {
         req as never
       )) as unknown as SolarSitingAnalysis
       setSolarSiting(res)
+      // A fresh run has to be visible, the same way a water run is.
+      setShowSolarOverlay(true)
       setSolarTerrain(null)
       notifySuccess(
         `Siting: ${res.suitable_no_conflict_ha.toFixed(1)} ha without land-use conflict, ${res.suitable_cropland_ha.toFixed(1)} ha on cropland.`
@@ -1694,7 +1699,10 @@ function AppBody(props: {
                   onClearSolar={() => setSolar(null)}
                   solarTerrain={solarTerrain}
                   solarTerrainRunning={solarTerrainRunning}
-                  showSolarTerrain={showSolarTerrain}
+                  showSolarOverlay={showSolarOverlay}
+                  solarOpacity={solarOpacity}
+                  onShowSolarOverlayChange={setShowSolarOverlay}
+                  onSolarOpacityChange={setSolarOpacity}
                   onRunSolarTerrain={() => void handleRunSolarTerrain()}
                   onClearSolarTerrain={() => setSolarTerrain(null)}
                   solarSeason={solarSeason}
