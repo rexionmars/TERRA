@@ -315,6 +315,8 @@ export namespace backend {
 	    color: string;
 	    pct_ref: number;
 	    pct_pred: number;
+	    pixels_ref: number;
+	    n_reference_cells?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new LULCCompareRow(source);
@@ -327,6 +329,8 @@ export namespace backend {
 	        this.color = source["color"];
 	        this.pct_ref = source["pct_ref"];
 	        this.pct_pred = source["pct_pred"];
+	        this.pixels_ref = source["pixels_ref"];
+	        this.n_reference_cells = source["n_reference_cells"];
 	    }
 	}
 	export class LULCGroupRow {
@@ -411,6 +415,8 @@ export namespace backend {
 	    composition: LULCClassRow[];
 	    groups: LULCGroupRow[];
 	    pred_vs_ref: LULCCompareRow[];
+	    compare_pixels?: number;
+	    compare_reference_cells?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new LULCAnalysis(source);
@@ -427,6 +433,8 @@ export namespace backend {
 	        this.composition = this.convertValues(source["composition"], LULCClassRow);
 	        this.groups = this.convertValues(source["groups"], LULCGroupRow);
 	        this.pred_vs_ref = this.convertValues(source["pred_vs_ref"], LULCCompareRow);
+	        this.compare_pixels = source["compare_pixels"];
+	        this.compare_reference_cells = source["compare_reference_cells"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

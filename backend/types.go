@@ -170,6 +170,12 @@ type LULCCompareRow struct {
 	Color   string  `json:"color"`
 	PctRef  float64 `json:"pct_ref"`
 	PctPred float64 `json:"pct_pred"`
+	// PixelsRef counts 10 m pixels. NReferenceCells counts the distinct native
+	// 30 m MapBiomas cells those pixels were resampled from, which is the number
+	// of independent label observations. The two are not interchangeable: about
+	// nine pixels share one cell. Zero when the cell mapping was unavailable.
+	PixelsRef       int `json:"pixels_ref"`
+	NReferenceCells int `json:"n_reference_cells,omitempty"`
 }
 
 // LULCAnalysis is the descriptive land cover / land use payload.
@@ -183,6 +189,12 @@ type LULCAnalysis struct {
 	Composition []LULCClassRow   `json:"composition"`
 	Groups      []LULCGroupRow   `json:"groups"`
 	PredVsRef   []LULCCompareRow `json:"pred_vs_ref"`
+	// Sample size of the pred-vs-ref comparison. ComparePixels counts 10 m
+	// pixels where both maps are valid; CompareReferenceCells counts the
+	// distinct native 30 m MapBiomas cells behind them, which is what an
+	// agreement statistic must be computed over. Zero when unavailable.
+	ComparePixels         int `json:"compare_pixels,omitempty"`
+	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
 }
 
 // LULCRequest selects an embedded area (or explicit polygon + MapBiomas path).
@@ -276,6 +288,12 @@ type lulcSidecarPayload struct {
 	Composition []LULCClassRow   `json:"composition"`
 	Groups      []LULCGroupRow   `json:"groups"`
 	PredVsRef   []LULCCompareRow `json:"pred_vs_ref"`
+	// Sample size of the pred-vs-ref comparison. ComparePixels counts 10 m
+	// pixels where both maps are valid; CompareReferenceCells counts the
+	// distinct native 30 m MapBiomas cells behind them, which is what an
+	// agreement statistic must be computed over. Zero when unavailable.
+	ComparePixels         int `json:"compare_pixels,omitempty"`
+	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
 }
 
 // PredictResult is returned to the frontend. The overlay is delivered as a

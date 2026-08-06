@@ -1319,9 +1319,20 @@ def main():
                 ref_on_pred_grid=None,  # composition from native clip
             )
             if ref_grid is not None:
-                # Overlay comparison on Sentinel grid (10 m → 0.01 ha/px).
-                compare = lulc_mod.pred_vs_ref_composition(classification_map, ref_grid)
+                # Overlay comparison on Sentinel grid (10 m -> 0.01 ha/px).
+                # The reference was resampled from 30 m, so the pixel count is
+                # not the number of label observations; carry the native cell
+                # count alongside it as the sample size.
+                cell_ids = lulc_mod.reference_cell_grid(ref_profile, mapbiomas_path)
+                compare = lulc_mod.pred_vs_ref_composition(
+                    classification_map, ref_grid, cell_ids=cell_ids
+                )
                 lulc_payload['pred_vs_ref'] = compare
+                valid = (classification_map >= 0) & (ref_grid > 0)
+                lulc_payload['compare_pixels'] = int(valid.sum())
+                n_cells = lulc_mod.distinct_reference_cells(cell_ids, valid)
+                if n_cells is not None:
+                    lulc_payload['compare_reference_cells'] = n_cells
         except Exception as e:
             sys.stderr.write(json.dumps({
                 'progress': -1, 'msg': f'lulc analysis skipped: {e}'

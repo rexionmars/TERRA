@@ -127,6 +127,14 @@ export interface LULCCompareRow {
   color: string
   pct_ref: number
   pct_pred: number
+  /** 10 m pixels of this class in the reference, on the classification grid. */
+  pixels_ref?: number
+  /**
+   * Distinct native 30 m MapBiomas cells behind those pixels. This is the
+   * number of independent label observations; the pixel count is about nine
+   * times larger and is not a sample size.
+   */
+  n_reference_cells?: number
 }
 
 export interface LULCAnalysis {
@@ -138,6 +146,10 @@ export interface LULCAnalysis {
   composition: LULCClassRow[]
   groups: LULCGroupRow[]
   pred_vs_ref: LULCCompareRow[]
+  /** Valid 10 m pixels shared by both maps. */
+  compare_pixels?: number
+  /** Distinct native reference cells behind them; the comparison sample size. */
+  compare_reference_cells?: number
 }
 
 export interface LULCRequest {

@@ -479,13 +479,15 @@ func convertLULC(raw *lulcSidecarPayload) *LULCAnalysis {
 		return nil
 	}
 	out := &LULCAnalysis{
-		Year:        raw.Year,
-		Source:      raw.Source,
-		Extent:      raw.Extent,
-		Metrics:     raw.Metrics,
-		Composition: raw.Composition,
-		Groups:      raw.Groups,
-		PredVsRef:   raw.PredVsRef,
+		Year:                  raw.Year,
+		Source:                raw.Source,
+		Extent:                raw.Extent,
+		Metrics:               raw.Metrics,
+		Composition:           raw.Composition,
+		Groups:                raw.Groups,
+		PredVsRef:             raw.PredVsRef,
+		ComparePixels:         raw.ComparePixels,
+		CompareReferenceCells: raw.CompareReferenceCells,
 	}
 	if out.Composition == nil {
 		out.Composition = []LULCClassRow{}

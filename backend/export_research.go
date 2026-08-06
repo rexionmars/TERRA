@@ -39,6 +39,13 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 		"mean_confidence": result.MeanConfidence,
 		"extent":          result.Extent,
 	}
+	// Sample size of the MapBiomas comparison. The reference is native at 30 m
+	// and is resampled onto the 10 m grid, so the pixel count overstates the
+	// number of independent label observations by roughly nine times.
+	if result.LULC != nil && result.LULC.CompareReferenceCells > 0 {
+		manifest["compare_pixels"] = result.LULC.ComparePixels
+		manifest["compare_reference_cells"] = result.LULC.CompareReferenceCells
+	}
 	if err := writeZipJSON(zw, "manifest.json", manifest); err != nil {
 		_ = zw.Close()
 		return nil, err
@@ -218,7 +225,13 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 		}
 
 		if len(lulc.PredVsRef) > 0 {
-			rows := [][]string{{"class_id", "name", "color", "pct_ref", "pct_pred"}}
+			// pixels_ref counts 10 m pixels; n_reference_cells counts the native
+			// 30 m MapBiomas cells behind them. An agreement statistic computed
+			// from this table must use the cell count as its denominator.
+			rows := [][]string{{
+				"class_id", "name", "color", "pct_ref", "pct_pred",
+				"pixels_ref", "n_reference_cells",
+			}}
 			for _, r := range lulc.PredVsRef {
 				rows = append(rows, []string{
 					strconv.Itoa(r.ClassID),
@@ -226,6 +239,8 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 					r.Color,
 					formatFloat(r.PctRef),
 					formatFloat(r.PctPred),
+					strconv.Itoa(r.PixelsRef),
+					strconv.Itoa(r.NReferenceCells),
 				})
 			}
 			if err := writeZipCSV(zw, "lulc_pred_vs_ref.csv", rows); err != nil {
