@@ -1306,6 +1306,11 @@ func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainReques
 		SlopeMaxDeg: t.SlopeMaxDeg, Pixels: t.Pixels,
 		HourlyYears: t.HourlyYears, DEMSource: t.DEMSource,
 		Season: t.Season, Unit: t.Unit, Extent: t.Extent,
+		// Without these the overlay still renders and the legend describes a
+		// scale the raster was not drawn on, with no error anywhere.
+		Scale: t.Scale, ShadingMeanPct: t.ShadingMeanPct,
+		ShadingMaxPct: t.ShadingMaxPct, HorizonMaxDistM: t.HorizonMaxDistM,
+		BeamFraction: t.BeamFraction,
 	}
 	if uri, err := pngToDataURI(t.OverlayPNG); err == nil {
 		out.OverlayURI = uri

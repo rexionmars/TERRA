@@ -998,6 +998,30 @@ export namespace backend {
 	
 	
 	
+	export class SolarRenderScale {
+	    palette: string;
+	    min: number;
+	    max: number;
+	    reference?: number;
+	    basis: string;
+	    shared_with: string;
+	    decimals: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarRenderScale(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.palette = source["palette"];
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.reference = source["reference"];
+	        this.basis = source["basis"];
+	        this.shared_with = source["shared_with"];
+	        this.decimals = source["decimals"];
+	    }
+	}
 	export class SolarRequest {
 	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
@@ -1181,6 +1205,11 @@ export namespace backend {
 	    dem_source: string;
 	    season: string;
 	    unit: string;
+	    scale: SolarRenderScale;
+	    shading_mean_pct?: number;
+	    shading_max_pct?: number;
+	    horizon_max_dist_m: number;
+	    beam_fraction: number;
 	    overlay_uri: string;
 	    raster_tif: string;
 	    extent: Bounds;
@@ -1202,6 +1231,11 @@ export namespace backend {
 	        this.dem_source = source["dem_source"];
 	        this.season = source["season"];
 	        this.unit = source["unit"];
+	        this.scale = this.convertValues(source["scale"], SolarRenderScale);
+	        this.shading_mean_pct = source["shading_mean_pct"];
+	        this.shading_max_pct = source["shading_max_pct"];
+	        this.horizon_max_dist_m = source["horizon_max_dist_m"];
+	        this.beam_fraction = source["beam_fraction"];
 	        this.overlay_uri = source["overlay_uri"];
 	        this.raster_tif = source["raster_tif"];
 	        this.extent = this.convertValues(source["extent"], Bounds);

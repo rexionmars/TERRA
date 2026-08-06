@@ -507,10 +507,34 @@ type SolarTerrainRequest struct {
 	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	HourlyYears    int              `json:"hourly_years,omitempty"`
-	// "annual", "winter", "summer", "winter_crop", or "anisotropy" for the
-	// winter-over-summer ratio. The annual map averages a geometry that
+	// "annual", "winter", "summer", "winter_crop", "anisotropy" for the
+	// winter-over-summer ratio, or "shading" for the share of beam irradiation
+	// the terrain horizon blocks. The annual map averages a geometry that
 	// reverses within the year, so the window is explicit.
 	Season string `json:"season,omitempty"`
+}
+
+// SolarRenderScale is the colour domain an overlay was drawn on.
+//
+// Carried explicitly because a client cannot infer it and must not guess: two
+// layers drawn on different domains look comparable and are not. Winter and
+// summer are deliberately given one domain, since their spatial spread differs
+// by about a factor of ten and per-layer normalisation would draw them at
+// identical contrast.
+type SolarRenderScale struct {
+	// Named ramp from the sidecar palette table, so the legend is built from
+	// the same stops that drew the raster.
+	Palette string  `json:"palette"`
+	Min     float64 `json:"min"`
+	Max     float64 `json:"max"`
+	// Value with an absolute meaning on this scale, if the quantity has one.
+	// Anisotropy has parity at 1.0; irradiation has none.
+	Reference *float64 `json:"reference"`
+	// "own", "shared" or "fixed": how the domain was chosen.
+	Basis      string `json:"basis"`
+	SharedWith string `json:"shared_with"`
+	// Decimal places the quantity is meaningful to.
+	Decimals int `json:"decimals"`
 }
 
 // SolarTerrainAnalysis is the mappable solar quantity. The atmospheric resource
@@ -528,29 +552,45 @@ type SolarTerrainAnalysis struct {
 	DEMSource    string  `json:"dem_source"`
 	Season       string  `json:"season"`
 	Unit         string  `json:"unit"`
-	// Raster as a base64 PNG data URI, stretched between its own 2nd and 98th
-	// percentiles: the spread within an AOI is a few percent, so a fixed scale
-	// would render every AOI flat. The min and max above carry the range.
+	// Colour domain the overlay was drawn on. Read this, not POAMin/POAMax,
+	// when building a legend: for a seasonal layer the domain spans both
+	// seasons and is wider than this layer's own range.
+	Scale SolarRenderScale `json:"scale"`
+	// Share of the beam irradiation the terrain horizon blocks, over the AOI.
+	// Small in the mean and large in incised valleys, which is where a siting
+	// map most needs it.
+	ShadingMeanPct  *float64 `json:"shading_mean_pct"`
+	ShadingMaxPct   *float64 `json:"shading_max_pct"`
+	HorizonMaxDistM float64  `json:"horizon_max_dist_m"`
+	// Share of the horizontal irradiation carried by the beam component, which
+	// is what the shading loss is scaled by before it reaches the totals.
+	BeamFraction float64 `json:"beam_fraction"`
+	// Raster as a base64 PNG data URI, drawn on Scale.
 	OverlayURI string `json:"overlay_uri"`
 	RasterTIF  string `json:"raster_tif"`
 	Extent     Bounds `json:"extent"`
 }
 
 type solarTerrainSidecarPayload struct {
-	POAMin       float64 `json:"poa_min"`
-	POAMax       float64 `json:"poa_max"`
-	POAMean      float64 `json:"poa_mean"`
-	POAStdPct    float64 `json:"poa_std_pct"`
-	SlopeMeanDeg float64 `json:"slope_mean_deg"`
-	SlopeMaxDeg  float64 `json:"slope_max_deg"`
-	Pixels       int     `json:"pixels"`
-	HourlyYears  int     `json:"hourly_years"`
-	DEMSource    string  `json:"dem_source"`
-	Season       string  `json:"season"`
-	Unit         string  `json:"unit"`
-	OverlayPNG   string  `json:"overlay_png"`
-	RasterTIF    string  `json:"raster_tif"`
-	Extent       Bounds  `json:"extent"`
+	POAMin          float64          `json:"poa_min"`
+	POAMax          float64          `json:"poa_max"`
+	POAMean         float64          `json:"poa_mean"`
+	POAStdPct       float64          `json:"poa_std_pct"`
+	SlopeMeanDeg    float64          `json:"slope_mean_deg"`
+	SlopeMaxDeg     float64          `json:"slope_max_deg"`
+	Pixels          int              `json:"pixels"`
+	HourlyYears     int              `json:"hourly_years"`
+	DEMSource       string           `json:"dem_source"`
+	Season          string           `json:"season"`
+	Unit            string           `json:"unit"`
+	Scale           SolarRenderScale `json:"scale"`
+	ShadingMeanPct  *float64         `json:"shading_mean_pct"`
+	ShadingMaxPct   *float64         `json:"shading_max_pct"`
+	HorizonMaxDistM float64          `json:"horizon_max_dist_m"`
+	BeamFraction    float64          `json:"beam_fraction"`
+	OverlayPNG      string           `json:"overlay_png"`
+	RasterTIF       string           `json:"raster_tif"`
+	Extent          Bounds           `json:"extent"`
 }
 
 // SolarSitingRequest selects an AOI and the siting conventions to apply.

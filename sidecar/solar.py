@@ -449,12 +449,136 @@ def interpolate_poa(
     )
 
 
-def fetch_dem(polygon, out_path) -> str:
+# ------------------------------------------------------------ horizon shading
+#
+# Terrain blocks the beam component near sunrise and sunset, and in an incised
+# valley it blocks it for much of the day. The research measures a mean loss of
+# 1.1 to 1.3 per cent of the annual beam over the study areas and up to 19 per
+# cent in valley bottoms, so leaving it out overstates exactly the pixels a
+# siting map should be most careful about.
+N_HORIZON_AZIMUTHS = 16
+# The research searches 60 pixels on a 27 x 30 m grid, about 1.7 km. Carried in
+# metres because the DEM window here is in geographic degrees and its pixel size
+# varies with latitude.
+HORIZON_MAX_DIST_M = 1700.0
+HORIZON_MAX_STEPS = 120
+
+
+def horizon_angles(
+    elevation: np.ndarray,
+    dx_m: float,
+    dy_m: float,
+    n_azimuths: int = N_HORIZON_AZIMUTHS,
+    max_dist_m: float = HORIZON_MAX_DIST_M,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Horizon elevation angle per pixel, per azimuth, walking outward on the DEM.
+
+    Azimuths are clockwise from north, matching the aspect convention, so a
+    solar azimuth indexes straight into the result.
+    """
+    h, w = elevation.shape
+    az_deg = np.arange(0.0, 360.0, 360.0 / n_azimuths)
+    step_m = max(min(dx_m, dy_m), 1e-6)
+    n_steps = int(min(HORIZON_MAX_STEPS, max(1, round(max_dist_m / step_m))))
+
+    z = np.nan_to_num(elevation, nan=float(np.nanmedian(elevation)))
+    rows, cols = np.mgrid[0:h, 0:w]
+    horizon = np.zeros((h, w, n_azimuths), dtype=np.float32)
+
+    for k, az in enumerate(az_deg):
+        drow = -np.cos(np.radians(az))   # north is a decreasing row index
+        dcol = np.sin(np.radians(az))
+        best = np.zeros((h, w), dtype=np.float32)
+        for step in range(1, n_steps + 1):
+            r = np.rint(rows + drow * step).astype(int)
+            c = np.rint(cols + dcol * step).astype(int)
+            inside = (r >= 0) & (r < h) & (c >= 0) & (c < w)
+            dz = z[np.clip(r, 0, h - 1), np.clip(c, 0, w - 1)] - z
+            dist = np.hypot(dcol * step * dx_m, drow * step * dy_m)
+            ang = np.degrees(np.arctan2(dz, max(dist, 1e-6)))
+            best = np.maximum(best, np.where(inside, ang, 0.0).astype(np.float32))
+        horizon[:, :, k] = np.maximum(best, 0.0)
+    return horizon, az_deg
+
+
+def beam_energy_histogram(
+    df,
+    solpos,
+    n_azimuths: int = N_HORIZON_AZIMUTHS,
+    elev_step: float = 1.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Beam energy binned over (solar azimuth, solar elevation).
+
+    Pre-aggregating turns the per-pixel shading step into a table lookup instead
+    of an hourly loop over every pixel.
+    """
+    elevation = 90.0 - solpos["apparent_zenith"].to_numpy()
+    azimuth = solpos["azimuth"].to_numpy()
+    dni = df["dni"].to_numpy()
+    up = (elevation > 0) & np.isfinite(dni)
+
+    az_bins = np.linspace(0, 360, n_azimuths + 1)
+    el_edges = np.arange(0.0, 90.0 + elev_step, elev_step)
+    az_idx = np.clip(np.digitize(azimuth[up], az_bins) - 1, 0, n_azimuths - 1)
+    el_idx = np.clip(np.digitize(elevation[up], el_edges) - 1, 0, len(el_edges) - 2)
+
+    hist = np.zeros((n_azimuths, len(el_edges) - 1), dtype=float)
+    np.add.at(hist, (az_idx, el_idx), dni[up])
+    return hist, el_edges
+
+
+def shading_loss_fraction(
+    horizon: np.ndarray,
+    hist: np.ndarray,
+    el_edges: np.ndarray,
+) -> np.ndarray:
+    """
+    Share of the beam energy each pixel loses to its own horizon.
+
+    Per azimuth sector, the cumulative beam energy arriving below the pixel
+    horizon is blocked; sectors are summed and normalised by the annual total.
+    """
+    total = hist.sum()
+    if total <= 0:
+        return np.zeros(horizon.shape[:2])
+
+    cum = np.cumsum(hist, axis=1)
+    centres = 0.5 * (el_edges[:-1] + el_edges[1:])
+    blocked = np.zeros(horizon.shape[:2], dtype=float)
+    for k in range(horizon.shape[2]):
+        idx = np.clip(np.searchsorted(centres, horizon[:, :, k]) - 1,
+                      0, len(centres) - 1)
+        blocked += np.where(horizon[:, :, k] > centres[0], cum[k][idx], 0.0)
+    return np.clip(blocked / total, 0.0, 1.0)
+
+
+def beam_fraction(df) -> float:
+    """
+    Share of the horizontal irradiation carried by the beam component.
+
+    Shading removes beam energy only, so the loss fraction is scaled by this
+    before it is applied to a plane-of-array total. The published shading layer
+    stays unscaled, which is what the research reports.
+    """
+    ghi = float(np.nansum(df["ghi"].to_numpy()))
+    dhi = float(np.nansum(df["dhi"].to_numpy()))
+    if ghi <= 0:
+        return 0.0
+    return float(np.clip((ghi - dhi) / ghi, 0.0, 1.0))
+
+
+def fetch_dem(polygon, out_path, buffer_m: float = 0.0) -> str:
     """
     Copernicus DEM GLO-30 window covering the AOI.
 
     Served as a COG from the same Planetary Computer catalogue Sentinel-2 comes
     from, so this needs no new imagery infrastructure.
+
+    `buffer_m` widens the window so terrain outside the AOI can still cast onto
+    pixels inside it. Without it, a ridge just beyond the boundary is invisible
+    and the pixels it shades are reported as unshaded.
     """
     import planetary_computer as pc
     import pystac_client
@@ -470,9 +594,22 @@ def fetch_dem(polygon, out_path) -> str:
     if not items:
         raise RuntimeError("no Copernicus DEM tile covers this AOI")
 
-    bounds = polygon.bounds
+    minx, miny, maxx, maxy = polygon.bounds
+    if buffer_m > 0:
+        lat_mid = 0.5 * (miny + maxy)
+        dlat = buffer_m / 111_320.0
+        dlon = buffer_m / max(111_320.0 * np.cos(np.radians(lat_mid)), 1.0)
+        minx, miny, maxx, maxy = minx - dlon, miny - dlat, maxx + dlon, maxy + dlat
+    bounds = (minx, miny, maxx, maxy)
+
     with rasterio.open(items[0].assets["data"].href) as src:
-        window = from_bounds(*bounds, transform=src.transform)
+        # Clip to the tile before reading. `read` silently drops the part of a
+        # window that falls outside, while `window_transform` does not, so an
+        # unclipped window near a tile edge would georeference the raster to the
+        # wrong corner.
+        window = from_bounds(*bounds, transform=src.transform).intersection(
+            rasterio.windows.Window(0, 0, src.width, src.height)
+        )
         data = src.read(1, window=window)
         profile = src.profile.copy()
         profile.update(
@@ -489,28 +626,28 @@ def fetch_dem(polygon, out_path) -> str:
     return str(out_path)
 
 
-def terrain_rgba(poa: np.ndarray, valid: np.ndarray) -> np.ndarray:
+def terrain_rgba(
+    values: np.ndarray,
+    valid: np.ndarray,
+    vmin: float,
+    vmax: float,
+    palette: str,
+) -> np.ndarray:
     """
-    Colour the plane-of-array map.
+    Colour a continuous terrain layer on a domain decided by the caller.
 
-    Stretched between its own 2nd and 98th percentiles over valid pixels: the
-    quantity has no fixed range, and the spread within an AOI is a few percent,
-    so a fixed scale would render every AOI as one flat colour. The legend must
-    therefore carry the actual range, which the response reports.
+    The domain is an argument rather than derived here because two layers can
+    only be compared if they were drawn on the same one, and this function sees
+    a single array. `render_scale` owns that decision.
     """
     import composite as comp
 
-    finite = poa[valid & np.isfinite(poa)]
-    if finite.size == 0:
-        lo, hi = 0.0, 1.0
-    else:
-        lo = float(np.percentile(finite, 2))
-        hi = float(np.percentile(finite, 98))
-    if hi <= lo:
-        hi = lo + 1.0
-    t = np.clip((np.nan_to_num(poa, nan=lo) - lo) / (hi - lo), 0.0, 1.0)
-    rgb = comp._lerp_cmap(t.astype(np.float32), comp._RDYLGN)
-    h, w = poa.shape
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
+        vmin = 0.0 if not np.isfinite(vmin) else float(vmin)
+        vmax = vmin + 1.0
+    t = np.clip((np.nan_to_num(values, nan=vmin) - vmin) / (vmax - vmin), 0.0, 1.0)
+    rgb = comp._lerp_cmap(t.astype(np.float32), comp.CONTINUOUS_STOPS[palette])
+    h, w = values.shape
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
     rgba[..., 0] = (rgb[..., 0] * 255).astype(np.uint8)
     rgba[..., 1] = (rgb[..., 1] * 255).astype(np.uint8)
@@ -544,6 +681,84 @@ def season_years(index, season: str) -> float:
     n_hours = int(season_mask(index, season).sum())
     denom = 8766.0 * len(months) / 12.0
     return (n_hours / denom) if denom > 0 else 1.0
+
+
+# ------------------------------------------------------------- render policy
+#
+# Palette per quantity, matching the research renderers so an overlay and a
+# published figure of the same quantity are the same colours: irradiation on
+# inferno, shading loss on viridis, the seasonal ratio on a diverging ramp.
+PALETTE_IRRADIATION = "inferno"
+PALETTE_SHADING = "viridis"
+PALETTE_ANISOTROPY = "rdbu_r"
+
+# Fixed domains for the two layers whose value means something absolute.
+# Anisotropy is a ratio with a reference at one; the window keeps that reference
+# visible without spending half the ramp on values the quantity does not reach
+# (0.33 to 0.83 over the study areas).
+ANISOTROPY_DOMAIN = (0.3, 1.1)
+ANISOTROPY_REFERENCE = 1.0
+# Shading loss is a fraction; the research measures at most 0.19.
+SHADING_DOMAIN = (0.0, 0.25)
+
+# Seasons drawn on a shared domain, so the pair stays comparable.
+SEASON_PAIR = {"winter": "summer", "summer": "winter"}
+
+
+def render_scale(
+    layer: str,
+    values: np.ndarray | None = None,
+    valid: np.ndarray | None = None,
+    companion: np.ndarray | None = None,
+    companion_valid: np.ndarray | None = None,
+) -> dict:
+    """
+    Colour domain and palette for a terrain layer.
+
+    Derived here rather than inside the renderer because winter and summer have
+    to land on the same domain. Their spatial spread differs by roughly a factor
+    of ten, so normalising each to its own range draws both at identical
+    contrast and asserts the opposite of the measurement.
+
+    `basis` records how the domain was chosen, so a client can say so instead of
+    leaving the reader to assume.
+    """
+    if layer == "anisotropy":
+        lo, hi = ANISOTROPY_DOMAIN
+        return {"palette": PALETTE_ANISOTROPY, "min": lo, "max": hi,
+                "reference": ANISOTROPY_REFERENCE, "basis": "fixed",
+                "shared_with": None, "decimals": 2}
+
+    if layer == "shading":
+        lo, hi = SHADING_DOMAIN
+        return {"palette": PALETTE_SHADING, "min": lo, "max": hi,
+                "reference": None, "basis": "fixed",
+                "shared_with": None, "decimals": 3}
+
+    pool = _finite(values, valid)
+    if layer in SEASON_PAIR and companion is not None:
+        pool = np.concatenate([pool, _finite(companion, companion_valid)])
+        basis, shared_with = "shared", SEASON_PAIR[layer]
+    else:
+        basis, shared_with = "own", None
+
+    if pool.size == 0:
+        lo, hi = 0.0, 1.0
+    else:
+        lo, hi = float(pool.min()), float(pool.max())
+    return {"palette": PALETTE_IRRADIATION, "min": lo, "max": hi,
+            "reference": None, "basis": basis,
+            "shared_with": shared_with, "decimals": 0}
+
+
+def _finite(values, valid) -> np.ndarray:
+    """Valid, finite samples of a layer, flattened."""
+    if values is None:
+        return np.empty(0, dtype=float)
+    m = np.isfinite(values)
+    if valid is not None:
+        m &= valid
+    return values[m].ravel()
 
 
 # ----------------------------------------------------------------- suitability

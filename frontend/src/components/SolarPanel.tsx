@@ -74,6 +74,7 @@ const SEASONS: { id: SolarSeason; label: string }[] = [
   { id: "summer", label: "Summer" },
   { id: "winter_crop", label: "Winter crop" },
   { id: "anisotropy", label: "Winter / summer" },
+  { id: "shading", label: "Horizon shading" },
 ]
 
 /**
@@ -274,7 +275,10 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
           </label>
           <p className="text-[10px] leading-relaxed text-muted-foreground">
             The annual map averages a geometry that reverses within the year.
-            Winter over summer carries that contrast in one layer.
+            Winter over summer carries that contrast in one layer. Winter and
+            summer are drawn on one colour domain, so the two are comparable.
+            Horizon shading is the share of beam irradiation the surrounding
+            terrain blocks, which is small in the mean and large in valleys.
           </p>
           <div className="flex gap-2">
             <button

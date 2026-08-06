@@ -135,3 +135,196 @@ def test_grid_note_states_both_grids():
     """Every response carries this; it must name the resolution it describes."""
     assert "1 degree" in solar.GRID_NOTE
     assert "0.5" in solar.GRID_NOTE
+
+
+# --------------------------------------------------------------- render scale
+#
+# None of the tests above touches rendering, which is how a vegetation ramp and
+# a per-layer stretch reached a physical quantity unnoticed.
+
+
+def test_seasons_share_one_colour_domain():
+    """
+    Winter and summer must be drawn on the same domain.
+
+    Their spatial spread differs by about a factor of ten. Normalising each to
+    its own range maps both onto the full ramp and draws them at identical
+    contrast, which asserts the opposite of the measurement.
+    """
+    winter = np.array([[180.0, 300.0], [250.0, 405.0]])
+    summer = np.array([[519.0, 540.0], [530.0, 554.0]])
+    valid = np.ones_like(winter, dtype=bool)
+
+    w = solar.render_scale("winter", winter, valid, summer, valid)
+    s = solar.render_scale("summer", summer, valid, winter, valid)
+
+    assert (w["min"], w["max"]) == (s["min"], s["max"])
+    assert w["min"] == 180.0 and w["max"] == 554.0
+    assert w["basis"] == "shared" and w["shared_with"] == "summer"
+    assert s["shared_with"] == "winter"
+
+
+def _colour_travel(rgba):
+    """How far the colours of a layer travel along the ramp, in RGB units.
+
+    Measured pixel to pixel rather than channel to channel: a single colour
+    already spans a wide range across its three channels, which says nothing
+    about how much the layer varies.
+    """
+    flat = rgba[..., :3].reshape(-1, 3).astype(int)
+    return int(np.abs(flat.max(axis=0) - flat.min(axis=0)).max())
+
+
+def _ramp_fraction(values, scale):
+    """Fraction of the colour ramp a layer occupies on a given domain."""
+    t = (values - scale["min"]) / (scale["max"] - scale["min"])
+    return float(t.max() - t.min())
+
+
+def test_a_flat_season_stays_flat_on_the_shared_domain():
+    """
+    On the shared domain the flat season must occupy a small slice of the ramp.
+
+    This is the defect the shared domain exists to prevent. Asserted on the
+    normalisation rather than on pixel colours, because a colour ramp is not
+    linear per channel and a colour-space threshold would be testing the ramp
+    instead of the domain.
+    """
+    winter = np.array([[178.0, 250.0, 330.0, 405.0]])
+    summer = np.array([[519.0, 530.0, 545.0, 554.0]])
+    valid = np.ones_like(summer, dtype=bool)
+
+    shared = solar.render_scale("summer", summer, valid, winter, valid)
+    summer_shared = _ramp_fraction(summer, shared)
+    winter_shared = _ramp_fraction(winter, shared)
+    assert summer_shared < 0.15, "the flat season stays in a narrow slice"
+    assert winter_shared > 4 * summer_shared, (
+        "on one domain the structured season occupies far more of the ramp"
+    )
+
+    own = solar.render_scale("annual", summer, valid)
+    assert _ramp_fraction(summer, own) == 1.0, (
+        "self-normalising spends the whole ramp on the flat season, "
+        "which is the defect"
+    )
+
+    # and the colours follow: winter moves further than summer on one domain
+    travel = lambda a: _colour_travel(solar.terrain_rgba(
+        a, valid, shared["min"], shared["max"], shared["palette"]))
+    assert travel(winter) > travel(summer)
+
+
+def test_anisotropy_domain_keeps_the_parity_reference_visible():
+    """
+    Anisotropy is a ratio whose reference is one: the two seasons deliver the
+    same irradiation. A percentile stretch of observed values, which never reach
+    one, would drop that reference off the ramp.
+    """
+    scale = solar.render_scale("anisotropy")
+    assert scale["basis"] == "fixed"
+    assert scale["reference"] == 1.0
+    assert scale["min"] < 1.0 < scale["max"]
+    assert scale["palette"] == "rdbu_r"
+
+    observed = np.array([[0.33, 0.57, 0.83]])
+    valid = np.ones_like(observed, dtype=bool)
+    rgba = solar.terrain_rgba(
+        observed, valid, scale["min"], scale["max"], scale["palette"]
+    )
+    assert rgba[..., 3].all(), "every valid pixel is opaque"
+
+
+def test_irradiation_does_not_use_the_vegetation_ramp():
+    """
+    RdYlGn is hue-coded for a judgement and sits on the red-green axis. It is
+    wrong for a physical quantity and is the ramp NDVI already uses, so a solar
+    overlay drawn with it is indistinguishable from a vegetation overlay.
+    """
+    import composite as comp
+
+    assert solar.PALETTE_IRRADIATION == "inferno"
+    assert solar.PALETTE_SHADING == "viridis"
+    for name in (solar.PALETTE_IRRADIATION, solar.PALETTE_SHADING,
+                 solar.PALETTE_ANISOTROPY):
+        assert name in comp.CONTINUOUS_STOPS
+        assert comp.CONTINUOUS_STOPS[name] is not comp._RDYLGN
+
+
+def test_degenerate_domain_does_not_divide_by_zero():
+    """A constant layer still has to render."""
+    flat = np.full((3, 3), 42.0)
+    valid = np.ones_like(flat, dtype=bool)
+    rgba = solar.terrain_rgba(flat, valid, 42.0, 42.0, "inferno")
+    assert rgba.shape == (3, 3, 4)
+    assert np.isfinite(rgba).all()
+
+
+# ------------------------------------------------------------ horizon shading
+
+
+def _ridge(h=24, w=24, height=200.0):
+    """Flat ground with a wall along the north edge."""
+    z = np.zeros((h, w))
+    z[0, :] = height
+    return z
+
+
+def _pit(h=16, w=16, height=200.0, floor=4):
+    """A floor enclosed by walls on every side.
+
+    Enclosed rather than one-sided so the test does not depend on where the
+    synthetic Sun happens to be: whatever azimuth it rises at, the floor is
+    looking up at something.
+    """
+    z = np.full((h, w), height)
+    z[floor:h - floor, floor:w - floor] = 0.0
+    return z
+
+
+def test_horizon_sees_a_ridge_to_the_north():
+    z = _ridge()
+    horizon, az = solar.horizon_angles(z, 30.0, 30.0)
+    north = int(np.argmin(np.abs(az - 0.0)))
+    south = int(np.argmin(np.abs(az - 180.0)))
+    # a pixel just south of the wall looks up at it, and sees nothing behind
+    assert horizon[5, 12, north] > 20.0
+    assert horizon[5, 12, south] == 0.0
+
+
+def test_flat_ground_has_no_horizon():
+    horizon, _ = solar.horizon_angles(np.zeros((16, 16)), 30.0, 30.0)
+    assert horizon.max() == 0.0
+
+
+def test_shading_loss_is_zero_without_relief_and_positive_with_it():
+    idx = pd.date_range("2024-06-01", periods=240, freq="h", tz="UTC")
+    df = pd.DataFrame({
+        "dni": np.tile(np.r_[np.zeros(6), np.full(12, 600.0), np.zeros(6)], 10),
+        "ghi": np.tile(np.r_[np.zeros(6), np.full(12, 700.0), np.zeros(6)], 10),
+        "dhi": np.tile(np.r_[np.zeros(6), np.full(12, 200.0), np.zeros(6)], 10),
+    }, index=idx)
+    solpos = pd.DataFrame({
+        "apparent_zenith": np.tile(
+            np.r_[np.full(6, 95.0), np.linspace(80, 20, 6),
+                  np.linspace(20, 80, 6), np.full(6, 95.0)], 10),
+        "azimuth": np.tile(np.linspace(0, 359, 24), 10),
+    }, index=idx)
+
+    hist, edges = solar.beam_energy_histogram(df, solpos)
+    assert hist.sum() > 0
+
+    flat = solar.shading_loss_fraction(
+        solar.horizon_angles(np.zeros((16, 16)), 30.0, 30.0)[0], hist, edges)
+    assert flat.max() == 0.0
+
+    walled = solar.shading_loss_fraction(
+        solar.horizon_angles(_pit(), 30.0, 30.0)[0], hist, edges)
+    assert walled.max() > 0.0
+    assert walled.max() <= 1.0
+    assert walled[8, 8] > 0.0, "the pit floor loses beam energy"
+
+
+def test_beam_fraction_is_the_direct_share_of_the_horizontal_total():
+    df = pd.DataFrame({"ghi": [100.0, 100.0], "dhi": [30.0, 30.0]})
+    assert abs(solar.beam_fraction(df) - 0.7) < 1e-9
+    assert solar.beam_fraction(pd.DataFrame({"ghi": [0.0], "dhi": [0.0]})) == 0.0

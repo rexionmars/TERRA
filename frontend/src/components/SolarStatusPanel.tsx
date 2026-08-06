@@ -6,7 +6,7 @@ import type {
   SolarSitingAnalysis,
   SolarTerrainAnalysis,
 } from "@/lib/types"
-import { RDYLGN_STOPS } from "@/lib/compositeCatalog"
+import { paletteGradient, type PaletteName } from "@/lib/palettes"
 
 interface SolarStatusPanelProps {
   solar: SolarAnalysis | null
@@ -20,21 +20,40 @@ interface SolarStatusPanelProps {
 /**
  * Key for the terrain raster.
  *
- * The ramp is imported rather than restated so it cannot drift from the image
- * it describes, and the labels carry the actual range because the raster is
- * stretched to its own percentiles.
+ * Both the ramp and its endpoints come from the scale the sidecar reports, so
+ * the legend cannot describe a domain the raster was not drawn on. `reference`
+ * marks a value with an absolute meaning, which for the seasonal ratio is
+ * parity between the two seasons.
  */
-function Ramp({ lowLabel, highLabel }: { lowLabel: string; highLabel: string }) {
+function Ramp({
+  palette,
+  lowLabel,
+  highLabel,
+  reference,
+}: {
+  palette: PaletteName
+  lowLabel: string
+  highLabel: string
+  reference?: { position: number; label: string } | null
+}) {
   return (
     <div className="flex flex-col gap-1">
-      <div
-        className="h-2 w-full rounded-full"
-        style={{
-          background: `linear-gradient(90deg, ${RDYLGN_STOPS.join(", ")})`,
-        }}
-      />
+      <div className="relative h-2 w-full">
+        <div
+          className="h-2 w-full rounded-full"
+          style={{ background: paletteGradient(palette) }}
+        />
+        {reference ? (
+          <div
+            className="absolute -top-0.5 h-3 w-px bg-foreground/70"
+            style={{ left: `${reference.position * 100}%` }}
+            title={reference.label}
+          />
+        ) : null}
+      </div>
       <div className="flex justify-between text-[10px] text-muted-foreground">
         <span>{lowLabel}</span>
+        {reference ? <span>{reference.label}</span> : null}
         <span>{highLabel}</span>
       </div>
     </div>
@@ -193,33 +212,58 @@ export const SolarStatusPanel = forwardRef<
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <Metric
                     label="Minimum"
-                    value={terrain.poa_min.toFixed(0)}
+                    value={terrain.poa_min.toFixed(terrain.scale.decimals)}
                     sub={terrain.unit}
                   />
                   <Metric
                     label="Mean"
-                    value={terrain.poa_mean.toFixed(0)}
+                    value={terrain.poa_mean.toFixed(terrain.scale.decimals)}
                     sub={`spread ${terrain.poa_std_pct.toFixed(1)}%`}
                   />
                   <Metric
                     label="Maximum"
-                    value={terrain.poa_max.toFixed(0)}
+                    value={terrain.poa_max.toFixed(terrain.scale.decimals)}
                     sub={terrain.unit}
                   />
                   <Metric
-                    label="Slope"
-                    value={`${terrain.slope_mean_deg.toFixed(1)}°`}
-                    sub={`max ${terrain.slope_max_deg.toFixed(0)}°`}
+                    label={terrain.shading_mean_pct == null ? "Slope" : "Shading"}
+                    value={
+                      terrain.shading_mean_pct == null
+                        ? `${terrain.slope_mean_deg.toFixed(1)}°`
+                        : `${terrain.shading_mean_pct.toFixed(2)}%`
+                    }
+                    sub={
+                      terrain.shading_mean_pct == null
+                        ? `max ${terrain.slope_max_deg.toFixed(0)}°`
+                        : `max ${(terrain.shading_max_pct ?? 0).toFixed(1)}% of beam`
+                    }
                   />
                 </div>
                 <Ramp
-                  lowLabel={`${terrain.poa_min.toFixed(0)} ${terrain.unit}`}
-                  highLabel={`${terrain.poa_max.toFixed(0)} ${terrain.unit}`}
+                  palette={terrain.scale.palette}
+                  lowLabel={`${terrain.scale.min.toFixed(terrain.scale.decimals)} ${terrain.unit}`}
+                  highLabel={`${terrain.scale.max.toFixed(terrain.scale.decimals)} ${terrain.unit}`}
+                  reference={
+                    terrain.scale.reference == null
+                      ? null
+                      : {
+                          position:
+                            (terrain.scale.reference - terrain.scale.min) /
+                            Math.max(terrain.scale.max - terrain.scale.min, 1e-9),
+                          label: terrain.scale.reference.toFixed(
+                            terrain.scale.decimals
+                          ),
+                        }
+                  }
                 />
                 <p className="text-[10px] leading-relaxed text-muted-foreground">
-                  Stretched between its own 2nd and 98th percentiles: the spread
-                  within an AOI is a few percent, so a fixed scale would render
-                  every AOI flat. Terrain from {terrain.dem_source}.
+                  {terrain.scale.basis === "shared"
+                    ? `Drawn on the domain shared with ${terrain.scale.shared_with}, so the two seasons are comparable: their spatial spread differs by about a factor of ten, and normalising each to its own range would draw them at identical contrast.`
+                    : terrain.scale.basis === "fixed"
+                      ? "Drawn on a fixed domain, so the value keeps its absolute meaning across areas."
+                      : "Drawn on this layer's own range."}{" "}
+                  Terrain from {terrain.dem_source}, horizon searched to{" "}
+                  {(terrain.horizon_max_dist_m / 1000).toFixed(1)} km.
                 </p>
               </>
             ) : null}

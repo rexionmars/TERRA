@@ -2,6 +2,8 @@
 // also generates models under wailsjs/go/models.ts after `wails dev`; these
 // local definitions keep the frontend readable and self-contained.
 
+import type { PaletteName } from "./palettes"
+
 export interface Bounds {
   lon_min: number
   lat_min: number
@@ -458,6 +460,26 @@ export interface SolarRequest {
   performance_ratio?: number | null
 }
 
+/**
+ * Colour domain an overlay was drawn on.
+ *
+ * Carried by the response because the client cannot infer it and must not
+ * guess. Winter and summer are deliberately given one domain: their spatial
+ * spread differs by about a factor of ten, and normalising each to its own
+ * range draws them at identical contrast.
+ */
+export interface SolarRenderScale {
+  palette: PaletteName
+  min: number
+  max: number
+  /** Value with an absolute meaning, if the quantity has one (parity at 1). */
+  reference: number | null
+  /** How the domain was chosen. */
+  basis: "own" | "shared" | "fixed"
+  shared_with: string | null
+  decimals: number
+}
+
 export interface SolarTerrainAnalysis {
   poa_min: number
   poa_max: number
@@ -470,7 +492,16 @@ export interface SolarTerrainAnalysis {
   dem_source: string
   season: string
   unit: string
-  /** Stretched between its own 2nd and 98th percentiles; the range is above. */
+  /**
+   * Read this, not poa_min/poa_max, to build a legend: for a seasonal layer the
+   * domain spans both seasons and is wider than this layer's own range.
+   */
+  scale: SolarRenderScale
+  /** Share of beam irradiation the terrain horizon blocks, over the AOI. */
+  shading_mean_pct: number | null
+  shading_max_pct: number | null
+  horizon_max_dist_m: number
+  beam_fraction: number
   overlay_uri: string
   raster_tif: string
   extent: Bounds
@@ -480,7 +511,10 @@ export interface SolarTerrainRequest {
   area_id: string
   polygon_geojson: GeoJSONGeometry | null
   hourly_years: number
-  /** annual, winter, summer, winter_crop, or anisotropy (winter/summer). */
+  /**
+   * annual, winter, summer, winter_crop, anisotropy (winter/summer), or
+   * shading (share of beam blocked by the terrain horizon).
+   */
   season: SolarSeason
 }
 
@@ -490,6 +524,7 @@ export type SolarSeason =
   | "summer"
   | "winter_crop"
   | "anisotropy"
+  | "shading"
 
 export interface SolarSitingClass {
   code: number

@@ -1087,19 +1087,48 @@ def main():
 
         emit_progress(5, 'fetching Copernicus DEM GLO-30')
         try:
-            dem_path = solar_mod.fetch_dem(polygon, Path(work_dir) / 'dem.tif')
+            # Buffered, so terrain just outside the AOI can still cast onto
+            # pixels inside it. Everything downstream is cropped back to the AOI
+            # window before it is published.
+            dem_path = solar_mod.fetch_dem(
+                polygon, Path(work_dir) / 'dem.tif',
+                buffer_m=solar_mod.HORIZON_MAX_DIST_M,
+            )
         except Exception as e:
             fail(f'DEM fetch failed: {e}')
 
         with rasterio.open(dem_path) as src:
             elevation = src.read(1).astype(float)
-            dem_transform = src.transform
+            buf_transform = src.transform
             dem_crs = src.crs
-            dem_profile = src.profile.copy()
+            buf_profile = src.profile.copy()
+            aoi_window = rasterio.windows.from_bounds(
+                *polygon.bounds, transform=buf_transform
+            ).round_offsets().round_lengths().intersection(
+                rasterio.windows.Window(0, 0, src.width, src.height)
+            )
 
-        dx_m, dy_m = solar_mod.pixel_size_m(dem_transform, lat)
-        emit_progress(20, 'slope and aspect')
+        dx_m, dy_m = solar_mod.pixel_size_m(buf_transform, lat)
+        emit_progress(20, 'slope, aspect and horizon')
         slope, aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
+        horizon, _ = solar_mod.horizon_angles(elevation, dx_m, dy_m)
+
+        # Crop back: the buffer exists so the horizon sees beyond the boundary,
+        # not so the result reports on land the user did not ask about.
+        r0 = int(aoi_window.row_off)
+        c0 = int(aoi_window.col_off)
+        r1 = r0 + int(aoi_window.height)
+        c1 = c0 + int(aoi_window.width)
+        if r1 <= r0 or c1 <= c0:
+            fail('the DEM window does not overlap the AOI')
+        _crop = lambda a: a[r0:r1, c0:c1]
+        elevation = _crop(elevation)
+        slope, aspect = _crop(slope), _crop(aspect)
+        horizon = horizon[r0:r1, c0:c1, :]
+        dem_transform = rasterio.windows.transform(aoi_window, buf_transform)
+        dem_profile = buf_profile.copy()
+        dem_profile.update(height=slope.shape[0], width=slope.shape[1],
+                           transform=dem_transform)
 
         emit_progress(28, f'NASA POWER hourly, {hourly_years} years')
         try:
@@ -1119,30 +1148,61 @@ def main():
         n_years = max(len(set(df.index.year)), 1)
 
         season = (req.get('season') or 'annual').lower()
-        if season not in solar_mod.SEASONS and season != 'anisotropy':
+        if season not in solar_mod.SEASONS and season not in ('anisotropy', 'shading'):
             fail(f'unknown season: {season}')
 
+        beam_share = solar_mod.beam_fraction(df)
+
         def _poa_for(name):
+            """Plane-of-array total for a season, attenuated by terrain shading.
+
+            Shading removes beam energy only, so the per-pixel loss is scaled by
+            the beam share of the irradiation before it is applied. The loss
+            itself is returned unscaled, which is what the published layer and
+            the research figures report.
+            """
             m = solar_mod.season_mask(df.index, name)
             sub, sp = df[m], solpos[m]
             if sub.empty:
                 fail(f'no hourly record inside the {name} window')
             yrs = solar_mod.season_years(df.index, name)
             tbl = solar_mod.build_poa_lookup(sub, sp, max(yrs, 1e-6))
-            return solar_mod.interpolate_poa(slope, aspect, tbl)
+            raw = solar_mod.interpolate_poa(slope, aspect, tbl)
+            hist, edges = solar_mod.beam_energy_histogram(sub, sp)
+            loss = solar_mod.shading_loss_fraction(horizon, hist, edges)
+            return raw * (1.0 - loss * beam_share), loss
 
         emit_progress(76, 'plane-of-array lookup')
+        companion = None
+        shading_loss = None
         if season == 'anisotropy':
             # Winter over summer in one layer: the seasonal contrast is what
             # the annual map averages away, and a ratio carries it per pixel.
-            winter = _poa_for('winter')
-            summer = _poa_for('summer')
+            emit_progress(78, 'lookup [winter]')
+            winter, _ = _poa_for('winter')
+            emit_progress(85, 'lookup [summer]')
+            summer, shading_loss = _poa_for('summer')
             with np.errstate(divide='ignore', invalid='ignore'):
                 poa = np.where(summer > 0, winter / summer, np.nan)
             unit = 'winter / summer'
+        elif season == 'shading':
+            emit_progress(80, 'horizon shading over the year')
+            _, shading_loss = _poa_for('annual')
+            poa = shading_loss
+            unit = 'fraction of beam blocked'
+        elif season in solar_mod.SEASON_PAIR:
+            # The companion season is computed only so both land on one colour
+            # domain. Their spatial spread differs by about a factor of ten, and
+            # normalising each to its own range draws them at equal contrast.
+            emit_progress(78, f'lookup [{season}]')
+            poa, shading_loss = _poa_for(season)
+            other = solar_mod.SEASON_PAIR[season]
+            emit_progress(85, f'lookup [{other}], shared colour scale')
+            companion, _ = _poa_for(other)
+            unit = 'kWh/m2 per season'
         else:
             emit_progress(80, f'lookup [{season}]')
-            poa = _poa_for(season)
+            poa, shading_loss = _poa_for(season)
             unit = 'kWh/m2 per season' if season != 'annual' else 'kWh/m2/year'
         emit_progress(92, 'interpolating onto the terrain')
 
@@ -1156,8 +1216,14 @@ def main():
         if not valid.any():
             fail('the DEM window does not overlap the AOI')
 
+        scale = solar_mod.render_scale(season, poa, valid, companion, valid)
         png = Path(work_dir) / 'solar_poa.png'
-        comp.write_rgba_png(solar_mod.terrain_rgba(poa, valid), png)
+        comp.write_rgba_png(
+            solar_mod.terrain_rgba(
+                poa, valid, scale['min'], scale['max'], scale['palette']
+            ),
+            png,
+        )
 
         tif = Path(work_dir) / 'solar_poa.tif'
         prof = dem_profile.copy()
@@ -1183,6 +1249,28 @@ def main():
                 'hourly_years': int(n_years),
                 'season': season,
                 'unit': unit,
+                # The colour domain the overlay was drawn on. Without it a
+                # client can only guess, and two layers drawn on different
+                # domains would be compared as if they shared one.
+                'scale': {
+                    'palette': scale['palette'],
+                    'min': round(float(scale['min']), 4),
+                    'max': round(float(scale['max']), 4),
+                    'reference': scale['reference'],
+                    'basis': scale['basis'],
+                    'shared_with': scale['shared_with'],
+                    'decimals': int(scale['decimals']),
+                },
+                'shading_mean_pct': (
+                    round(float(100.0 * np.nanmean(shading_loss[valid])), 3)
+                    if shading_loss is not None else None
+                ),
+                'shading_max_pct': (
+                    round(float(100.0 * np.nanmax(shading_loss[valid])), 3)
+                    if shading_loss is not None else None
+                ),
+                'horizon_max_dist_m': float(solar_mod.HORIZON_MAX_DIST_M),
+                'beam_fraction': round(float(beam_share), 4),
                 'dem_source': 'Copernicus DEM GLO-30',
                 'overlay_png': str(png),
                 'raster_tif': str(tif),
