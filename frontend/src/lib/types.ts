@@ -228,6 +228,8 @@ export interface InferenceRun {
   n_dates: number
   label?: string
   project_id?: string
+  /** "classification" or "water"; empty on rows written before the column. */
+  kind?: string
 }
 
 export interface Project {
@@ -393,4 +395,7 @@ export interface WaterRequest {
   max_cloud: number
   monthly_best: boolean
   index: WaterIndex
+  label?: string
+  run_label?: string
+  project_id?: string
 }

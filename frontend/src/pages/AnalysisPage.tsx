@@ -100,6 +100,25 @@ function WaterFigure({
   )
 }
 
+/** Peak water and occurrence areas from a saved water run's summary. */
+function waterSummaryLine(summary?: string | null): string {
+  if (!summary?.trim()) return "surface water"
+  try {
+    const j = JSON.parse(summary) as Record<string, unknown>
+    const peak =
+      typeof j.peak_water_fraction_pct === "number"
+        ? `peak ${j.peak_water_fraction_pct.toFixed(1)}%`
+        : ""
+    const eph =
+      typeof j.ephemeral_area_ha === "number"
+        ? `${j.ephemeral_area_ha.toFixed(2)} ha ephemeral`
+        : ""
+    return [peak, eph].filter(Boolean).join(" · ") || "surface water"
+  } catch {
+    return "surface water"
+  }
+}
+
 function modelDisplayName(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
   if (kind === "prithvi") return "Prithvi-EO 2.0"
@@ -1813,7 +1832,14 @@ function SavedRunsPanel({
                     </div>
                     {/* What the run produced, from summary already in memory —
                         saves a LoadAnalysis round trip just to see the result. */}
-                    {dominant && (
+                    {r.kind === "water" ? (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="size-2.5 shrink-0 rounded-[2px] bg-[#3182bd]" />
+                        <span className="truncate text-foreground">
+                          {waterSummaryLine(r.summary)}
+                        </span>
+                      </div>
+                    ) : dominant && (
                       <div className="mt-1 flex items-center gap-1.5">
                         <span
                           className="size-2.5 shrink-0 rounded-[2px]"
@@ -1835,7 +1861,9 @@ function SavedRunsPanel({
                     {/* The requested window is a query; date_range is the extent
                         actually observed. Older runs have no date_range. */}
                     <div className="mt-0.5 text-muted-foreground">
-                      {modelDisplayName(r.model_kind)}
+                      {r.kind === "water"
+                        ? `Surface water · ${r.model_kind || "index"}`
+                        : modelDisplayName(r.model_kind)}
                       {" · "}
                       {summary.dateRange ? (
                         <>

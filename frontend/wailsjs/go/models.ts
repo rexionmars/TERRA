@@ -825,6 +825,9 @@ export namespace backend {
 	    max_cloud: number;
 	    monthly_best: boolean;
 	    index?: string;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WaterRequest(source);
@@ -839,6 +842,9 @@ export namespace backend {
 	        this.max_cloud = source["max_cloud"];
 	        this.monthly_best = source["monthly_best"];
 	        this.index = source["index"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -907,6 +913,7 @@ export namespace store {
 	    n_dates: number;
 	    label?: string;
 	    project_id?: string;
+	    kind?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new InferenceRun(source);
@@ -929,6 +936,7 @@ export namespace store {
 	        this.n_dates = source["n_dates"];
 	        this.label = source["label"];
 	        this.project_id = source["project_id"];
+	        this.kind = source["kind"];
 	    }
 	}
 	export class Preferences {

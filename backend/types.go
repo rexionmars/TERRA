@@ -344,6 +344,10 @@ type WaterRequest struct {
 	MonthlyBest    bool             `json:"monthly_best"`
 	// One of NDWI, MNDWI, AWEI. Empty selects MNDWI.
 	Index string `json:"index,omitempty"`
+	// Recorded with the saved run, matching the classification request.
+	Label     string `json:"label,omitempty"`
+	RunLabel  string `json:"run_label,omitempty"`
+	ProjectID string `json:"project_id,omitempty"`
 }
 
 // WaterDate is one acquisition in the surface-water series.

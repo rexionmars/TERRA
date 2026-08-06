@@ -961,6 +961,12 @@ function AppBody(props: {
     props.setProgress(0)
     props.setProgressMsg("starting")
     try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
       const req: WaterRequest = {
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -969,14 +975,21 @@ function AppBody(props: {
         max_cloud: props.maxCloud,
         monthly_best: props.monthlyBest,
         index: waterIndex,
+        label: aoiLabel,
+        run_label: makeRunLabel(aoiLabel),
+        project_id: activeProjectId || undefined,
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
       waterAoiRef.current = aoiSignature
       setWater(res)
       setShowWaterOverlay(true)
       notifySuccess(
-        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}%.`
+        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}% (saved).`,
+        undefined,
+        { action: { label: "View analysis", onClick: () => goAnalysis() } }
       )
+      void refreshRuns()
+      void refreshProjects()
     } catch (e) {
       notifyError("Surface water error", e)
     } finally {
@@ -1189,6 +1202,21 @@ function AppBody(props: {
         const aoi = parseRunPolygon(run.polygon_geojson, props.areas)
         props.setActiveExample(aoi.exampleId)
         props.setCustomPolygon(aoi.polygon)
+        // A water run carries its raster in the same field a live run uses, so
+        // opening one puts the occurrence overlay back on the map. The AOI it
+        // was measured on is recorded first, otherwise the invalidation effect
+        // sees a mismatch and drops the raster that was just restored.
+        if (res.water) {
+          waterAoiRef.current = aoi.exampleId
+            ? `area:${aoi.exampleId}`
+            : aoi.polygon
+              ? `poly:${JSON.stringify(aoi.polygon)}`
+              : ""
+          setWater(res.water)
+          setShowWaterOverlay(true)
+        } else {
+          setWater(null)
+        }
         const centroid = geometryCentroid(aoi.polygon)
         if (centroid) {
           props.setFlyTo({
