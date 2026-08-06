@@ -9,6 +9,11 @@ export interface PreferenceExtras {
   aoi_label?: string
   /** Last product version for which What’s New was shown (or silently seeded). */
   last_seen_version?: string
+  /**
+   * Where the map was left. Restored on start so a session resumes at the last
+   * place worked on rather than at the continental default.
+   */
+  map_view?: { lat: number; lon: number; zoom: number }
 }
 
 export function parsePreferenceExtras(

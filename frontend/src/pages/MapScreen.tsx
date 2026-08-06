@@ -28,6 +28,8 @@ import {
 } from "@/components/OverlayToolsPanel"
 
 export interface MapScreenProps {
+  /** Where the map was left last session; null starts at the default view. */
+  initialView?: { lat: number; lon: number; zoom: number } | null
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -142,6 +144,7 @@ export function MapScreen(props: MapScreenProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
       <MapView
+        initialView={props.initialView}
         areas={props.areas}
         activeExample={props.activeExample}
         customPolygon={props.customPolygon}

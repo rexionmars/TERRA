@@ -33,6 +33,12 @@ import {
 } from "@/components/AoiContextMenu"
 
 interface MapViewProps {
+  /**
+   * Where the map was left last session. Read once on mount: Leaflet treats
+   * center and zoom as initial values, and rebinding them would fight the
+   * user's own panning.
+   */
+  initialView?: { lat: number; lon: number; zoom: number } | null
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -952,6 +958,7 @@ function AoiEdgeLabel({
 }
 
 export function MapView({
+  initialView = null,
   areas,
   activeExample,
   customPolygon,
@@ -976,7 +983,19 @@ export function MapView({
   onClearArea,
   onViewChange,
 }: MapViewProps) {
-  const center = useMemo<[number, number]>(() => [-14.5, -52], [])
+  // Continental default, used only when there is no remembered view.
+  const center = useMemo<[number, number]>(
+    () =>
+      initialView ? [initialView.lat, initialView.lon] : [-14.5, -52],
+    // Mount-time only: see initialView.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+  const initialZoom = useMemo(
+    () => initialView?.zoom ?? 4,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [swipeDragging, setSwipeDragging] = useState(false)
   const [aoiMenu, setAoiMenu] = useState<AoiContextMenuState | null>(null)
@@ -1124,7 +1143,12 @@ export function MapView({
   return (
     // z-0 keeps swipe chrome inside this stacking context, under Result/Control panels
     <div ref={containerRef} className="absolute inset-0 z-0">
-    <MapContainer center={center} zoom={4} className="h-full w-full" zoomControl={false}>
+    <MapContainer
+      center={center}
+      zoom={initialZoom}
+      className="h-full w-full"
+      zoomControl={false}
+    >
       <ZoomControl position="bottomright" />
       <LayersControl position="topright">
         <LayersControl.BaseLayer checked name="Satellite (Esri)">
