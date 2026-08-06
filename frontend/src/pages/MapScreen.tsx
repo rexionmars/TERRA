@@ -11,12 +11,16 @@ import type {
   LeftDockTabsMode,
   ModelKind,
   PredictResult,
+  WaterAnalysis,
+  WaterIndex,
 } from "@/lib/types"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
 import { SearchBar } from "@/components/SearchBar"
 import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
+import { WaterPanel } from "@/components/WaterPanel"
+import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import { LeftDockRail, type LeftDockPanel } from "@/components/LeftDockRail"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
@@ -28,6 +32,8 @@ import {
 } from "@/components/OverlayToolsPanel"
 
 export interface MapScreenProps {
+  /** Where the map was left last session; null starts at the default view. */
+  initialView?: { lat: number; lon: number; zoom: number } | null
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -115,6 +121,18 @@ export interface MapScreenProps {
   dataCubeError?: string | null
   dataCubeResult?: DataCubeResult | null
   onCloseDataCube: () => void
+  water?: WaterAnalysis | null
+  waterIndex: WaterIndex
+  waterRunning: boolean
+  waterProgress: number
+  waterProgressMsg: string
+  showWaterOverlay: boolean
+  onWaterIndexChange: (i: WaterIndex) => void
+  onRunWater: () => void
+  onClearWater: () => void
+  onShowWaterOverlayChange: (v: boolean) => void
+  waterOpacity: number
+  onWaterOpacityChange: (v: number) => void
   leftDockTabs?: LeftDockTabsMode
 }
 
@@ -130,10 +148,14 @@ export function MapScreen(props: MapScreenProps) {
     setLeftPanel((cur) => (cur === id ? null : id))
   }
 
+  // The three status panels share one slot at the bottom of the map, so only
+  // the one matching the open tool is shown.
+  const showWaterStatus = leftPanel === "water" && !!props.water
   const showCompositionStatus =
-    leftPanel === "compose" || (!props.result && !!props.composition)
+    !showWaterStatus &&
+    (leftPanel === "compose" || (!props.result && !!props.composition))
   const showPredictionStatus =
-    !showCompositionStatus && !!props.result
+    !showWaterStatus && !showCompositionStatus && !!props.result
 
   const selectedSceneDate =
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
@@ -142,6 +164,7 @@ export function MapScreen(props: MapScreenProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
       <MapView
+        initialView={props.initialView}
         areas={props.areas}
         activeExample={props.activeExample}
         customPolygon={props.customPolygon}
@@ -156,6 +179,15 @@ export function MapScreen(props: MapScreenProps) {
         showPredictionOverlay={props.showPredictionOverlay}
         showCompositionOverlay={props.showCompositionOverlay}
         composition={props.composition}
+        waterOverlay={
+          props.water && props.showWaterOverlay
+            ? {
+                uri: props.water.occurrence_uri,
+                extent: props.water.extent,
+                opacity: props.waterOpacity,
+              }
+            : null
+        }
         swipeCompare={props.swipeCompare}
         swipeRatio={props.swipeRatio}
         onSwipeRatioChange={props.onSwipeRatioChange}
@@ -191,6 +223,11 @@ export function MapScreen(props: MapScreenProps) {
         onShowPredictionOverlayChange={props.onShowPredictionOverlayChange}
         showCompositionOverlay={props.showCompositionOverlay}
         onShowCompositionOverlayChange={props.onShowCompositionOverlayChange}
+        water={props.water}
+        showWaterOverlay={props.showWaterOverlay}
+        onShowWaterOverlayChange={props.onShowWaterOverlayChange}
+        waterOpacity={props.waterOpacity}
+        onWaterOpacityChange={props.onWaterOpacityChange}
         showConfidence={props.showConfidence}
         onShowConfidenceChange={props.onShowConfidenceChange}
         confidenceOnTop={props.confidenceOnTop}
@@ -261,6 +298,29 @@ export function MapScreen(props: MapScreenProps) {
             dataCubeLoading={props.dataCubeLoading}
             onCollapse={() => setLeftPanel(null)}
           />
+        ) : leftPanel === "water" ? (
+          <WaterPanel
+            key="water"
+            panelOffsetClass={panelOffsetClass}
+            hasArea={props.hasArea}
+            start={props.start}
+            end={props.end}
+            onStartChange={props.onStartChange}
+            onEndChange={props.onEndChange}
+            maxCloud={props.maxCloud}
+            onMaxCloudChange={props.onMaxCloudChange}
+            monthlyBest={props.monthlyBest}
+            onMonthlyBestChange={props.onMonthlyBestChange}
+            index={props.waterIndex}
+            onIndexChange={props.onWaterIndexChange}
+            running={props.waterRunning}
+            progress={props.waterProgress}
+            progressMsg={props.waterProgressMsg}
+            hasResult={!!props.water}
+            onRun={props.onRunWater}
+            onClear={props.onClearWater}
+            onCollapse={() => setLeftPanel(null)}
+          />
         ) : leftPanel === "compose" ? (
           <CompositionPanel
             key="compose"
@@ -301,7 +361,13 @@ export function MapScreen(props: MapScreenProps) {
       </AnimatePresence>
 
       <AnimatePresence mode="wait" initial={false}>
-        {showCompositionStatus ? (
+        {showWaterStatus ? (
+          <WaterStatusPanel
+            key="water-status"
+            water={props.water ?? null}
+            onClear={props.onClearWater}
+          />
+        ) : showCompositionStatus ? (
           <CompositionStatusPanel
             key="composition-status"
             composition={props.composition}

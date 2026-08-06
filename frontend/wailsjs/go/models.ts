@@ -315,6 +315,8 @@ export namespace backend {
 	    color: string;
 	    pct_ref: number;
 	    pct_pred: number;
+	    pixels_ref: number;
+	    n_reference_cells?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new LULCCompareRow(source);
@@ -327,6 +329,8 @@ export namespace backend {
 	        this.color = source["color"];
 	        this.pct_ref = source["pct_ref"];
 	        this.pct_pred = source["pct_pred"];
+	        this.pixels_ref = source["pixels_ref"];
+	        this.n_reference_cells = source["n_reference_cells"];
 	    }
 	}
 	export class LULCGroupRow {
@@ -411,6 +415,8 @@ export namespace backend {
 	    composition: LULCClassRow[];
 	    groups: LULCGroupRow[];
 	    pred_vs_ref: LULCCompareRow[];
+	    compare_pixels?: number;
+	    compare_reference_cells?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new LULCAnalysis(source);
@@ -427,6 +433,8 @@ export namespace backend {
 	        this.composition = this.convertValues(source["composition"], LULCClassRow);
 	        this.groups = this.convertValues(source["groups"], LULCGroupRow);
 	        this.pred_vs_ref = this.convertValues(source["pred_vs_ref"], LULCCompareRow);
+	        this.compare_pixels = source["compare_pixels"];
+	        this.compare_reference_cells = source["compare_reference_cells"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -583,6 +591,104 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class WaterDate {
+	    date: string;
+	    scene_id: string;
+	    cloud_cover: number;
+	    observed_pixels: number;
+	    threshold_fixed: number;
+	    threshold_otsu: number;
+	    threshold_clipped: boolean;
+	    threshold_degenerate: boolean;
+	    water_fraction_pct: number;
+	    water_fraction_otsu_pct: number;
+	    water_pixels: number;
+	    area_ha: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WaterDate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.scene_id = source["scene_id"];
+	        this.cloud_cover = source["cloud_cover"];
+	        this.observed_pixels = source["observed_pixels"];
+	        this.threshold_fixed = source["threshold_fixed"];
+	        this.threshold_otsu = source["threshold_otsu"];
+	        this.threshold_clipped = source["threshold_clipped"];
+	        this.threshold_degenerate = source["threshold_degenerate"];
+	        this.water_fraction_pct = source["water_fraction_pct"];
+	        this.water_fraction_otsu_pct = source["water_fraction_otsu_pct"];
+	        this.water_pixels = source["water_pixels"];
+	        this.area_ha = source["area_ha"];
+	    }
+	}
+	export class WaterAnalysis {
+	    index: string;
+	    threshold_method: string;
+	    threshold_fixed: number;
+	    otsu_clip: number[];
+	    n_dates: number;
+	    date_range: string[];
+	    aoi_pixels: number;
+	    aoi_area_ha: number;
+	    series: WaterDate[];
+	    peak_date: string;
+	    peak_water_fraction_pct: number;
+	    ephemeral_pixels: number;
+	    ephemeral_area_ha: number;
+	    persistent_pixels: number;
+	    persistent_area_ha: number;
+	    mean_anomaly: number;
+	    occurrence_uri: string;
+	    extent: Bounds;
+	
+	    static createFrom(source: any = {}) {
+	        return new WaterAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.threshold_method = source["threshold_method"];
+	        this.threshold_fixed = source["threshold_fixed"];
+	        this.otsu_clip = source["otsu_clip"];
+	        this.n_dates = source["n_dates"];
+	        this.date_range = source["date_range"];
+	        this.aoi_pixels = source["aoi_pixels"];
+	        this.aoi_area_ha = source["aoi_area_ha"];
+	        this.series = this.convertValues(source["series"], WaterDate);
+	        this.peak_date = source["peak_date"];
+	        this.peak_water_fraction_pct = source["peak_water_fraction_pct"];
+	        this.ephemeral_pixels = source["ephemeral_pixels"];
+	        this.ephemeral_area_ha = source["ephemeral_area_ha"];
+	        this.persistent_pixels = source["persistent_pixels"];
+	        this.persistent_area_ha = source["persistent_area_ha"];
+	        this.mean_anomaly = source["mean_anomaly"];
+	        this.occurrence_uri = source["occurrence_uri"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class VISeriesPoint {
 	    date: string;
 	    ndvi_mean: number;
@@ -644,6 +750,7 @@ export namespace backend {
 	    phenology: PhenologyMetrics;
 	    phenology_states: PhenologyStatePoint[];
 	    lulc?: LULCAnalysis;
+	    water?: WaterAnalysis;
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictResult(source);
@@ -667,6 +774,7 @@ export namespace backend {
 	        this.phenology = this.convertValues(source["phenology"], PhenologyMetrics);
 	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
 	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
+	        this.water = this.convertValues(source["water"], WaterAnalysis);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -706,6 +814,57 @@ export namespace backend {
 	    }
 	}
 	
+	
+	
+	
+	export class WaterRequest {
+	    area_id: string;
+	    polygon_geojson?: GeoJSONGeometry;
+	    start: string;
+	    end: string;
+	    max_cloud: number;
+	    monthly_best: boolean;
+	    index?: string;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WaterRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_id = source["area_id"];
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.max_cloud = source["max_cloud"];
+	        this.monthly_best = source["monthly_best"];
+	        this.index = source["index"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -754,6 +913,7 @@ export namespace store {
 	    n_dates: number;
 	    label?: string;
 	    project_id?: string;
+	    kind?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new InferenceRun(source);
@@ -776,6 +936,7 @@ export namespace store {
 	        this.n_dates = source["n_dates"];
 	        this.label = source["label"];
 	        this.project_id = source["project_id"];
+	        this.kind = source["kind"];
 	    }
 	}
 	export class Preferences {

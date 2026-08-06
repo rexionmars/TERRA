@@ -33,6 +33,12 @@ import {
 } from "@/components/AoiContextMenu"
 
 interface MapViewProps {
+  /**
+   * Where the map was left last session. Read once on mount: Leaflet treats
+   * center and zoom as initial values, and rebinding them would fight the
+   * user's own panning.
+   */
+  initialView?: { lat: number; lon: number; zoom: number } | null
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -50,6 +56,12 @@ interface MapViewProps {
   /** When false, hide the band composition overlay. */
   showCompositionOverlay?: boolean
   composition?: CompositionOverlay | null
+  /** Surface-water occurrence raster, rendered above the basemap. */
+  waterOverlay?: {
+    uri: string
+    extent: PredictResult["extent"]
+    opacity: number
+  } | null
   /** Vertical wipe: left = basemap, right = prediction. */
   swipeCompare: boolean
   swipeRatio: number
@@ -952,6 +964,7 @@ function AoiEdgeLabel({
 }
 
 export function MapView({
+  initialView = null,
   areas,
   activeExample,
   customPolygon,
@@ -966,6 +979,7 @@ export function MapView({
   showPredictionOverlay = true,
   showCompositionOverlay = true,
   composition = null,
+  waterOverlay = null,
   swipeCompare,
   swipeRatio,
   onSwipeRatioChange,
@@ -976,7 +990,19 @@ export function MapView({
   onClearArea,
   onViewChange,
 }: MapViewProps) {
-  const center = useMemo<[number, number]>(() => [-14.5, -52], [])
+  // Continental default, used only when there is no remembered view.
+  const center = useMemo<[number, number]>(
+    () =>
+      initialView ? [initialView.lat, initialView.lon] : [-14.5, -52],
+    // Mount-time only: see initialView.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+  const initialZoom = useMemo(
+    () => initialView?.zoom ?? 4,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [swipeDragging, setSwipeDragging] = useState(false)
   const [aoiMenu, setAoiMenu] = useState<AoiContextMenuState | null>(null)
@@ -1053,6 +1079,38 @@ export function MapView({
     ? Math.max(overlayOpacity, 0.88)
     : overlayOpacity
 
+  // Surface-water occurrence sits above the composition and below the
+  // prediction, so a classification run stays readable over it.
+  const waterBounds: LatLngBoundsExpression | null =
+    waterOverlay &&
+    waterOverlay.extent &&
+    !(
+      waterOverlay.extent.lon_min === 0 &&
+      waterOverlay.extent.lon_max === 0 &&
+      waterOverlay.extent.lat_min === 0 &&
+      waterOverlay.extent.lat_max === 0
+    )
+      ? [
+          [waterOverlay.extent.lat_min, waterOverlay.extent.lon_min],
+          [waterOverlay.extent.lat_max, waterOverlay.extent.lon_max],
+        ]
+      : null
+
+  const waterLayer =
+    waterOverlay && waterBounds && waterOverlay.uri ? (
+      <PredictionOverlay
+        key="water"
+        url={waterOverlay.uri}
+        bounds={waterBounds}
+        opacity={waterOverlay.opacity}
+        smooth={false}
+        zIndex={360}
+        // null disables the swipe clip. A ratio of 1 would put the clip line at
+        // the right edge of the map and hide the layer entirely.
+        swipeRatio={null}
+      />
+    ) : null
+
   const compositionLayer = compositionVisible ? (
     <PredictionOverlay
       key="composition"
@@ -1124,7 +1182,12 @@ export function MapView({
   return (
     // z-0 keeps swipe chrome inside this stacking context, under Result/Control panels
     <div ref={containerRef} className="absolute inset-0 z-0">
-    <MapContainer center={center} zoom={4} className="h-full w-full" zoomControl={false}>
+    <MapContainer
+      center={center}
+      zoom={initialZoom}
+      className="h-full w-full"
+      zoomControl={false}
+    >
       <ZoomControl position="bottomright" />
       <LayersControl position="topright">
         <LayersControl.BaseLayer checked name="Satellite (Esri)">
@@ -1167,6 +1230,7 @@ export function MapView({
         ))}
 
       {compositionLayer}
+      {waterLayer}
       {predictionLayer}
       {confidenceLayer}
 

@@ -170,6 +170,12 @@ type LULCCompareRow struct {
 	Color   string  `json:"color"`
 	PctRef  float64 `json:"pct_ref"`
 	PctPred float64 `json:"pct_pred"`
+	// PixelsRef counts 10 m pixels. NReferenceCells counts the distinct native
+	// 30 m MapBiomas cells those pixels were resampled from, which is the number
+	// of independent label observations. The two are not interchangeable: about
+	// nine pixels share one cell. Zero when the cell mapping was unavailable.
+	PixelsRef       int `json:"pixels_ref"`
+	NReferenceCells int `json:"n_reference_cells,omitempty"`
 }
 
 // LULCAnalysis is the descriptive land cover / land use payload.
@@ -183,6 +189,12 @@ type LULCAnalysis struct {
 	Composition []LULCClassRow   `json:"composition"`
 	Groups      []LULCGroupRow   `json:"groups"`
 	PredVsRef   []LULCCompareRow `json:"pred_vs_ref"`
+	// Sample size of the pred-vs-ref comparison. ComparePixels counts 10 m
+	// pixels where both maps are valid; CompareReferenceCells counts the
+	// distinct native 30 m MapBiomas cells behind them, which is what an
+	// agreement statistic must be computed over. Zero when unavailable.
+	ComparePixels         int `json:"compare_pixels,omitempty"`
+	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
 }
 
 // LULCRequest selects an embedded area (or explicit polygon + MapBiomas path).
@@ -205,12 +217,12 @@ type DataCubeRequest struct {
 
 // DataCubeScene is one STAC scene in the data-cube inventory.
 type DataCubeScene struct {
-	ID          string  `json:"id"`
-	Date        string  `json:"date"`
-	CloudCover  float64 `json:"cloud_cover"`
-	Tile        string  `json:"tile"`
-	Satellite   string  `json:"satellite"`
-	PreviewURI  string  `json:"preview_uri,omitempty"`
+	ID         string  `json:"id"`
+	Date       string  `json:"date"`
+	CloudCover float64 `json:"cloud_cover"`
+	Tile       string  `json:"tile"`
+	Satellite  string  `json:"satellite"`
+	PreviewURI string  `json:"preview_uri,omitempty"`
 }
 
 // DataCubeResult is the inventory returned by ListDataCube.
@@ -276,6 +288,12 @@ type lulcSidecarPayload struct {
 	Composition []LULCClassRow   `json:"composition"`
 	Groups      []LULCGroupRow   `json:"groups"`
 	PredVsRef   []LULCCompareRow `json:"pred_vs_ref"`
+	// Sample size of the pred-vs-ref comparison. ComparePixels counts 10 m
+	// pixels where both maps are valid; CompareReferenceCells counts the
+	// distinct native 30 m MapBiomas cells behind them, which is what an
+	// agreement statistic must be computed over. Zero when unavailable.
+	ComparePixels         int `json:"compare_pixels,omitempty"`
+	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
 }
 
 // PredictResult is returned to the frontend. The overlay is delivered as a
@@ -297,6 +315,9 @@ type PredictResult struct {
 	Phenology       PhenologyMetrics      `json:"phenology"`
 	PhenologyStates []PhenologyStatePoint `json:"phenology_states"`
 	LULC            *LULCAnalysis         `json:"lulc,omitempty"`
+	// Attached by the frontend when a surface-water run has been made over the
+	// same AOI. Produced by a separate action, so it is not filled by Predict.
+	Water *WaterAnalysis `json:"water,omitempty"`
 }
 
 // ProgressEvent is emitted to the frontend as "predict:progress".
@@ -311,4 +332,92 @@ type ResearchExportMeta struct {
 	AreaID         string `json:"area_id"`
 	AoiLabel       string `json:"aoi_label"`
 	PolygonGeoJSON string `json:"polygon_geojson"` // raw GeoJSON geometry or Feature
+}
+
+// WaterRequest selects an AOI and period for surface water / flood mapping.
+type WaterRequest struct {
+	AreaID         string           `json:"area_id"`
+	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
+	Start          string           `json:"start"`
+	End            string           `json:"end"`
+	MaxCloud       float64          `json:"max_cloud"`
+	MonthlyBest    bool             `json:"monthly_best"`
+	// One of NDWI, MNDWI, AWEI. Empty selects MNDWI.
+	Index string `json:"index,omitempty"`
+	// Recorded with the saved run, matching the classification request.
+	Label     string `json:"label,omitempty"`
+	RunLabel  string `json:"run_label,omitempty"`
+	ProjectID string `json:"project_id,omitempty"`
+}
+
+// WaterDate is one acquisition in the surface-water series.
+type WaterDate struct {
+	Date       string  `json:"date"`
+	SceneID    string  `json:"scene_id"`
+	CloudCover float64 `json:"cloud_cover"`
+	// Pixels of the AOI actually observed on this date. Water fractions are a
+	// percentage of this, not of the whole AOI, so a partly clouded date is not
+	// reported as dry.
+	ObservedPixels int `json:"observed_pixels"`
+	// The literature cut (zero) is the primary threshold. The Otsu value is
+	// reported alongside it for comparison, never silently substituted.
+	ThresholdFixed float64 `json:"threshold_fixed"`
+	ThresholdOtsu  float64 `json:"threshold_otsu"`
+	// ThresholdClipped means the Otsu value reached an empirical bound and is a
+	// bound rather than an estimate; ThresholdDegenerate means there were too
+	// few observations to threshold at all.
+	ThresholdClipped    bool    `json:"threshold_clipped"`
+	ThresholdDegenerate bool    `json:"threshold_degenerate"`
+	WaterFractionPct    float64 `json:"water_fraction_pct"`
+	WaterFractionOtsu   float64 `json:"water_fraction_otsu_pct"`
+	WaterPixels         int     `json:"water_pixels"`
+	AreaHa              float64 `json:"area_ha"`
+}
+
+// WaterAnalysis is a surface water / flood mapping result. Descriptive: a
+// thresholded spectral index, with no model and no trained legend.
+type WaterAnalysis struct {
+	Index           string      `json:"index"`
+	ThresholdMethod string      `json:"threshold_method"`
+	ThresholdFixed  float64     `json:"threshold_fixed"`
+	OtsuClip        []float64   `json:"otsu_clip"`
+	NDates          int         `json:"n_dates"`
+	DateRange       []string    `json:"date_range"`
+	AOIPixels       int         `json:"aoi_pixels"`
+	AOIAreaHa       float64     `json:"aoi_area_ha"`
+	Series          []WaterDate `json:"series"`
+	PeakDate        string      `json:"peak_date"`
+	PeakWaterPct    float64     `json:"peak_water_fraction_pct"`
+	// Occurrence bands. Ephemeral is water on some dates but not most, which is
+	// the flood signal; persistent is standing water.
+	EphemeralPixels  int     `json:"ephemeral_pixels"`
+	EphemeralAreaHa  float64 `json:"ephemeral_area_ha"`
+	PersistentPixels int     `json:"persistent_pixels"`
+	PersistentAreaHa float64 `json:"persistent_area_ha"`
+	MeanAnomaly      float64 `json:"mean_anomaly"`
+	// Occurrence raster as a base64 PNG data URI, on a fixed 0 to 1 scale.
+	OccurrenceURI string `json:"occurrence_uri"`
+	Extent        Bounds `json:"extent"`
+}
+
+// waterSidecarPayload is the raw water block from Python (PNG as a file path).
+type waterSidecarPayload struct {
+	Index            string      `json:"index"`
+	ThresholdMethod  string      `json:"threshold_method"`
+	ThresholdFixed   float64     `json:"threshold_fixed"`
+	OtsuClip         []float64   `json:"otsu_clip"`
+	NDates           int         `json:"n_dates"`
+	DateRange        []string    `json:"date_range"`
+	AOIPixels        int         `json:"aoi_pixels"`
+	AOIAreaHa        float64     `json:"aoi_area_ha"`
+	Series           []WaterDate `json:"series"`
+	PeakDate         string      `json:"peak_date"`
+	PeakWaterPct     float64     `json:"peak_water_fraction_pct"`
+	EphemeralPixels  int         `json:"ephemeral_pixels"`
+	EphemeralAreaHa  float64     `json:"ephemeral_area_ha"`
+	PersistentPixels int         `json:"persistent_pixels"`
+	PersistentAreaHa float64     `json:"persistent_area_ha"`
+	MeanAnomaly      float64     `json:"mean_anomaly"`
+	OccurrencePNG    string      `json:"occurrence_png"`
+	Extent           Bounds      `json:"extent"`
 }

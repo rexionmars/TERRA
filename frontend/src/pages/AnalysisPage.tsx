@@ -76,6 +76,49 @@ const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
  * Display name for a model_kind enum. Shared so the run list and the detail
  * header cannot disagree; the list previously printed the raw enum.
  */
+function WaterFigure({
+  label,
+  value,
+  sub,
+}: {
+  label: string
+  value: string
+  sub?: string
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="eyebrow !text-[9px]">{label}</div>
+      <div className="telemetry mt-0.5 truncate text-sm text-foreground">
+        {value}
+      </div>
+      {sub && (
+        <div className="telemetry truncate text-[10px] text-muted-foreground">
+          {sub}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Peak water and occurrence areas from a saved water run's summary. */
+function waterSummaryLine(summary?: string | null): string {
+  if (!summary?.trim()) return "surface water"
+  try {
+    const j = JSON.parse(summary) as Record<string, unknown>
+    const peak =
+      typeof j.peak_water_fraction_pct === "number"
+        ? `peak ${j.peak_water_fraction_pct.toFixed(1)}%`
+        : ""
+    const eph =
+      typeof j.ephemeral_area_ha === "number"
+        ? `${j.ephemeral_area_ha.toFixed(2)} ha ephemeral`
+        : ""
+    return [peak, eph].filter(Boolean).join(" · ") || "surface water"
+  } catch {
+    return "surface water"
+  }
+}
+
 function modelDisplayName(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
   if (kind === "prithvi") return "Prithvi-EO 2.0"
@@ -846,6 +889,7 @@ export function AnalysisPage({
   }
 
   const canExportTables =
+    (result.water?.series?.length ?? 0) > 0 ||
     (result.class_stats?.length ?? 0) > 0 ||
     (result.vi_series?.length ?? 0) > 0 ||
     !!result.lulc ||
@@ -866,6 +910,9 @@ export function AnalysisPage({
         lulc: result.lulc
           ? { ...result.lulc, map_uri: "", map_png: "" }
           : result.lulc,
+        water: result.water
+          ? { ...result.water, occurrence_uri: "" }
+          : result.water,
       }
       const dest = await ExportResearchPack(
         {
@@ -1300,6 +1347,86 @@ export function AnalysisPage({
             </div>
           ) : null}
 
+          {/*
+            Surface water over the period. Fractions are a percentage of the
+            pixels observed on each date, so the series is not comparable to a
+            fraction of the AOI area.
+          */}
+          {result.water && result.water.series.length > 0 && (
+            <section className="ar-section p-4">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="eyebrow">
+                  Surface water · {result.water.index}
+                </p>
+                <p className="telemetry text-[10px] text-muted-foreground">
+                  {result.water.n_dates} dates ·{" "}
+                  {result.water.date_range[0]} → {result.water.date_range[1]}
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart
+                  data={result.water.series.map((d) => ({
+                    date: d.date,
+                    water: d.water_fraction_pct,
+                  }))}
+                  margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--ar-border)" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                    tickFormatter={(d: string) => d.slice(2, 7)}
+                    interval="preserveStartEnd"
+                    minTickGap={24}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                    unit="%"
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "var(--ar-raised)",
+                      border: "1px solid var(--ar-border)",
+                      borderRadius: 4,
+                      fontSize: 11,
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="water"
+                    name="Water fraction"
+                    stroke="#3182bd"
+                    strokeWidth={1.8}
+                    dot={{ r: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4"
+                   style={{ borderColor: "var(--ar-border)" }}>
+                <WaterFigure
+                  label="Peak"
+                  value={`${result.water.peak_water_fraction_pct.toFixed(1)}%`}
+                  sub={result.water.peak_date}
+                />
+                <WaterFigure
+                  label="Ephemeral"
+                  value={`${result.water.ephemeral_area_ha.toFixed(2)} ha`}
+                  sub="wet on some dates"
+                />
+                <WaterFigure
+                  label="Persistent"
+                  value={`${result.water.persistent_area_ha.toFixed(2)} ha`}
+                  sub="standing water"
+                />
+                <WaterFigure
+                  label="AOI"
+                  value={`${result.water.aoi_area_ha.toFixed(1)} ha`}
+                  sub="fraction denominator is per date"
+                />
+              </div>
+            </section>
+          )}
+
           {runsPanel}
         </div>
       </div>
@@ -1705,7 +1832,14 @@ function SavedRunsPanel({
                     </div>
                     {/* What the run produced, from summary already in memory —
                         saves a LoadAnalysis round trip just to see the result. */}
-                    {dominant && (
+                    {r.kind === "water" ? (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="size-2.5 shrink-0 rounded-[2px] bg-[#3182bd]" />
+                        <span className="truncate text-foreground">
+                          {waterSummaryLine(r.summary)}
+                        </span>
+                      </div>
+                    ) : dominant && (
                       <div className="mt-1 flex items-center gap-1.5">
                         <span
                           className="size-2.5 shrink-0 rounded-[2px]"
@@ -1727,7 +1861,9 @@ function SavedRunsPanel({
                     {/* The requested window is a query; date_range is the extent
                         actually observed. Older runs have no date_range. */}
                     <div className="mt-0.5 text-muted-foreground">
-                      {modelDisplayName(r.model_kind)}
+                      {r.kind === "water"
+                        ? `Surface water · ${r.model_kind || "index"}`
+                        : modelDisplayName(r.model_kind)}
                       {" · "}
                       {summary.dateRange ? (
                         <>

@@ -2,11 +2,12 @@ import { forwardRef } from "react"
 import { motion } from "motion/react"
 import { cn } from "@/lib/utils"
 
-export type LeftDockPanel = "classify" | "compose"
+export type LeftDockPanel = "classify" | "compose" | "water"
 
 const TABS: { id: LeftDockPanel; label: string }[] = [
   { id: "classify", label: "New classification" },
   { id: "compose", label: "Compositions" },
+  { id: "water", label: "Surface water" },
 ]
 
 interface LeftDockRailProps {

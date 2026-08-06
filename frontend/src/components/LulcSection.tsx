@@ -100,7 +100,29 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
         </div>
         {hasCompare && (
           <div className="ar-raised p-3 md:col-span-2 xl:col-span-1">
-            <p className="eyebrow mb-2.5">MapBiomas vs predicted (shared pixels)</p>
+            <p className="eyebrow mb-1">MapBiomas vs predicted (shared pixels)</p>
+            {/*
+              The reference is native at 30 m and is resampled onto the 10 m
+              classification grid, so roughly nine pixels carry one label
+              observation. The sample size stated here is the distinct native
+              cell count, not the pixel count.
+            */}
+            <p className="mb-2.5 text-[10px] text-muted-foreground">
+              {typeof lulc.compare_reference_cells === "number" ? (
+                <>
+                  n = {lulc.compare_reference_cells.toLocaleString()} reference
+                  cells at 30 m
+                  {typeof lulc.compare_pixels === "number"
+                    ? ` (${lulc.compare_pixels.toLocaleString()} pixels at 10 m)`
+                    : ""}
+                </>
+              ) : typeof lulc.compare_pixels === "number" ? (
+                <>
+                  {lulc.compare_pixels.toLocaleString()} shared pixels at 10 m ·
+                  reference cell count unavailable
+                </>
+              ) : null}
+            </p>
             <div className="flex flex-col gap-1.5">
               {lulc.pred_vs_ref.map((r) => (
                 <div
