@@ -201,7 +201,8 @@ export const WaterStatusPanel = forwardRef<
             )}
 
             <p className="text-[10px] text-muted-foreground">
-              Visibility and opacity live in Overlay Tools.
+              Visibility and opacity for this layer live in Overlay Tools,
+              alongside the prediction and composition overlays.
             </p>
           </div>
         </>

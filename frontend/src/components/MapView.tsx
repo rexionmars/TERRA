@@ -57,7 +57,11 @@ interface MapViewProps {
   showCompositionOverlay?: boolean
   composition?: CompositionOverlay | null
   /** Surface-water occurrence raster, rendered above the basemap. */
-  waterOverlay?: { uri: string; extent: PredictResult["extent"] } | null
+  waterOverlay?: {
+    uri: string
+    extent: PredictResult["extent"]
+    opacity: number
+  } | null
   /** Vertical wipe: left = basemap, right = prediction. */
   swipeCompare: boolean
   swipeRatio: number
@@ -1098,7 +1102,7 @@ export function MapView({
         key="water"
         url={waterOverlay.uri}
         bounds={waterBounds}
-        opacity={0.8}
+        opacity={waterOverlay.opacity}
         smooth={false}
         zIndex={360}
         // null disables the swipe clip. A ratio of 1 would put the clip line at

@@ -459,6 +459,7 @@ function AppBody(props: {
   const [waterIndex, setWaterIndex] = useState<WaterIndex>("MNDWI")
   const [waterRunning, setWaterRunning] = useState(false)
   const [showWaterOverlay, setShowWaterOverlay] = useState(true)
+  const [waterOpacity, setWaterOpacity] = useState(0.8)
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -1485,6 +1486,8 @@ function AppBody(props: {
                     setShowWaterOverlay(true)
                   }}
                   onShowWaterOverlayChange={setShowWaterOverlay}
+                  waterOpacity={waterOpacity}
+                  onWaterOpacityChange={setWaterOpacity}
                   leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>

@@ -131,6 +131,8 @@ export interface MapScreenProps {
   onRunWater: () => void
   onClearWater: () => void
   onShowWaterOverlayChange: (v: boolean) => void
+  waterOpacity: number
+  onWaterOpacityChange: (v: number) => void
   leftDockTabs?: LeftDockTabsMode
 }
 
@@ -179,7 +181,11 @@ export function MapScreen(props: MapScreenProps) {
         composition={props.composition}
         waterOverlay={
           props.water && props.showWaterOverlay
-            ? { uri: props.water.occurrence_uri, extent: props.water.extent }
+            ? {
+                uri: props.water.occurrence_uri,
+                extent: props.water.extent,
+                opacity: props.waterOpacity,
+              }
             : null
         }
         swipeCompare={props.swipeCompare}
@@ -217,6 +223,11 @@ export function MapScreen(props: MapScreenProps) {
         onShowPredictionOverlayChange={props.onShowPredictionOverlayChange}
         showCompositionOverlay={props.showCompositionOverlay}
         onShowCompositionOverlayChange={props.onShowCompositionOverlayChange}
+        water={props.water}
+        showWaterOverlay={props.showWaterOverlay}
+        onShowWaterOverlayChange={props.onShowWaterOverlayChange}
+        waterOpacity={props.waterOpacity}
+        onWaterOpacityChange={props.onWaterOpacityChange}
         showConfidence={props.showConfidence}
         onShowConfidenceChange={props.onShowConfidenceChange}
         confidenceOnTop={props.confidenceOnTop}
