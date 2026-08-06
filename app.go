@@ -325,6 +325,14 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 	})
 }
 
+// AnalyzeSolar computes the solar resource and photovoltaic yield at the AOI.
+func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return a.runner.AnalyzeSolar(a.ctx, req)
+}
+
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
 func (a *App) ExportClassification(rasterPath string) (string, error) {
 	return a.ExportOverlayFile(rasterPath, "terra_classification.tif")

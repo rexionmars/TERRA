@@ -934,6 +934,140 @@ def main():
         sys.stdout.flush()
         return
 
+    # Solar resource and photovoltaic yield at the AOI centroid (no imagery).
+    if action == 'solar_resource':
+        import solar as solar_mod
+        from datetime import date as _date
+
+        if not req.get('polygon_geojson'):
+            fail('no polygon provided (polygon_geojson required)')
+        polygon = polygon_from_geojson(req['polygon_geojson'])
+        centroid = polygon.centroid
+        lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+
+        clim_years = int(req.get('climatology_years') or 30)
+        hourly_years = int(req.get('hourly_years') or 10)
+        azimuth = float(req.get('surface_azimuth') or 0.0)
+        pr_override = req.get('performance_ratio')
+
+        # POWER publishes through the previous full year.
+        last_year = _date.today().year - 1
+        clim_start = f'{last_year - clim_years + 1}0101'
+        clim_end = f'{last_year}1231'
+        hourly_start = f'{last_year - hourly_years + 1}0101'
+        hourly_end = f'{last_year}1231'
+
+        emit_progress(5, f'NASA POWER daily, {clim_years} years')
+        try:
+            daily = solar_mod.fetch(
+                'daily', lon, lat, clim_start, clim_end,
+                progress=lambda i, n, y: emit_progress(
+                    5 + int(35 * (i + 1) / n), f'daily {y}'
+                ),
+            )
+        except Exception as e:
+            fail(f'NASA POWER daily request failed: {e}')
+
+        annual = solar_mod.annual_totals(daily)
+        if annual.empty:
+            fail('NASA POWER returned no complete year for this point')
+        slope, pvalue = solar_mod.linear_trend(annual)
+        resource = {
+            'ghi_annual_kwh_m2': round(float(annual.mean()), 1),
+            'ghi_std': round(float(annual.std(ddof=1)), 1) if annual.size > 1 else 0.0,
+            'ghi_cv_pct': (
+                round(float(100.0 * annual.std(ddof=1) / annual.mean()), 2)
+                if annual.size > 1 and annual.mean() else 0.0
+            ),
+            'ghi_p10': round(float(np.percentile(annual.values, 10)), 1),
+            'ghi_p90': round(float(np.percentile(annual.values, 90)), 1),
+            'n_years': int(annual.size),
+            'trend_per_year': round(slope, 3),
+            'trend_p_value': round(pvalue, 4),
+            'clear_sky_index': solar_mod.clear_sky_index(daily),
+            'monthly': solar_mod.monthly_climatology(daily),
+        }
+
+        emit_progress(42, f'NASA POWER hourly, {hourly_years} years')
+        try:
+            hourly = solar_mod.fetch(
+                'hourly', lon, lat, hourly_start, hourly_end,
+                progress=lambda i, n, y: emit_progress(
+                    42 + int(38 * (i + 1) / n), f'hourly {y}'
+                ),
+            )
+        except Exception as e:
+            fail(f'NASA POWER hourly request failed: {e}')
+
+        df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
+        if df.empty:
+            fail('NASA POWER returned no usable hourly record for this point')
+        n_years = max(len(set(df.index.year)), 1)
+
+        emit_progress(84, 'optimum tilt')
+        sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
+        best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
+        horizontal = next(
+            (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
+            best['poa_kwh_m2_year'],
+        )
+        tolerance = []
+        for dev in (5.0, 10.0, 15.0):
+            near = [
+                r for r in sweep
+                if abs(abs(r['tilt_deg'] - best['tilt_deg']) - dev) < 0.26
+            ]
+            if near:
+                worst = min(near, key=lambda r: r['poa_kwh_m2_year'])
+                loss = 100.0 * (1.0 - worst['poa_kwh_m2_year'] / best['poa_kwh_m2_year'])
+                tolerance.append({
+                    'deviation_deg': dev, 'loss_pct': round(float(loss), 2)
+                })
+
+        emit_progress(92, 'photovoltaic yield')
+        poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
+        p_ac = solar_mod.pv_yield(poa, df, solpos, best['tilt_deg'], azimuth)
+        pr_modelled = solar_mod.modelled_performance_ratio(p_ac, poa['poa_global'])
+        pr_applied = (
+            float(pr_override)
+            if isinstance(pr_override, (int, float))
+            else solar_mod.REFERENCE_PERFORMANCE_RATIO
+        )
+        pr_source = 'user' if isinstance(pr_override, (int, float)) else 'reference'
+        poa_year = float(poa['poa_global'].sum()) / 1000.0 / n_years
+        # Specific yield is POA times the performance ratio by construction, so
+        # applying a reference ratio is exact rather than a correction factor.
+        yield_year = poa_year * pr_applied
+
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({
+            'solar': {
+                'lon': lon, 'lat': lat,
+                'resource': resource,
+                'geometry': {
+                    'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
+                    'optimal_poa_kwh_m2_year': round(float(best['poa_kwh_m2_year']), 1),
+                    'surface_azimuth_deg': azimuth,
+                    'gain_over_horizontal_pct': (
+                        round(float(100.0 * (best['poa_kwh_m2_year'] / horizontal - 1.0)), 2)
+                        if horizontal else 0.0
+                    ),
+                    'tilt_tolerance': tolerance,
+                },
+                'pv': {
+                    'specific_yield_kwh_kwp_year': round(float(yield_year), 1),
+                    'performance_ratio': round(float(pr_applied), 4),
+                    'performance_ratio_source': pr_source,
+                    'performance_ratio_modelled': round(float(pr_modelled), 4),
+                    'capacity_factor_pct': round(float(100.0 * yield_year / 8760.0), 2),
+                    'hourly_years': int(n_years),
+                },
+                'grid_note': solar_mod.GRID_NOTE,
+            }
+        }))
+        sys.stdout.flush()
+        return
+
     # Surface water / flood mapping from spectral water indices (no model).
     if action == 'water':
         import water as water_mod

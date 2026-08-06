@@ -399,3 +399,61 @@ export interface WaterRequest {
   run_label?: string
   project_id?: string
 }
+
+export interface SolarMonth {
+  month: number
+  ghi: number | null
+  dni: number | null
+  dhi: number | null
+  kt: number | null
+}
+
+export interface SolarAnalysis {
+  lon: number
+  lat: number
+  resource: {
+    ghi_annual_kwh_m2: number
+    ghi_std: number
+    ghi_cv_pct: number
+    ghi_p10: number
+    ghi_p90: number
+    n_years: number
+    trend_per_year: number
+    trend_p_value: number
+    clear_sky_index: number | null
+    monthly: SolarMonth[]
+  }
+  geometry: {
+    optimal_tilt_deg: number
+    optimal_poa_kwh_m2_year: number
+    surface_azimuth_deg: number
+    gain_over_horizontal_pct: number
+    tilt_tolerance: { deviation_deg: number; loss_pct: number }[]
+  }
+  pv: {
+    specific_yield_kwh_kwp_year: number
+    /** The ratio applied to produce the yield. */
+    performance_ratio: number
+    /** "reference" or "user". */
+    performance_ratio_source: string
+    /**
+     * What the chain models. Runs high because soiling, inter-row shading,
+     * degradation, availability and cabling are not modelled, so it is shown
+     * for comparison rather than applied.
+     */
+    performance_ratio_modelled: number
+    capacity_factor_pct: number
+    hourly_years: number
+  }
+  /** The grid the figures resolve on. Always shown beside them. */
+  grid_note: string
+}
+
+export interface SolarRequest {
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  climatology_years: number
+  hourly_years: number
+  surface_azimuth: number
+  performance_ratio?: number | null
+}

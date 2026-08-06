@@ -421,3 +421,83 @@ type waterSidecarPayload struct {
 	OccurrencePNG    string      `json:"occurrence_png"`
 	Extent           Bounds      `json:"extent"`
 }
+
+// SolarRequest selects an AOI for solar resource analysis. The radiation grid
+// is 1 degree, so the request resolves to the cell the AOI centroid falls in.
+type SolarRequest struct {
+	AreaID           string           `json:"area_id"`
+	PolygonGeoJSON   *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
+	ClimatologyYears int              `json:"climatology_years,omitempty"`
+	HourlyYears      int              `json:"hourly_years,omitempty"`
+	// 0 is north, the southern-hemisphere default.
+	SurfaceAzimuth float64 `json:"surface_azimuth"`
+	// Null applies the reference ratio; a value overrides it. The response
+	// always reports which was used.
+	PerformanceRatio *float64 `json:"performance_ratio,omitempty"`
+}
+
+// SolarMonth is one calendar month of the radiation climatology, as daily means.
+type SolarMonth struct {
+	Month int      `json:"month"`
+	GHI   *float64 `json:"ghi"`
+	DNI   *float64 `json:"dni"`
+	DHI   *float64 `json:"dhi"`
+	KT    *float64 `json:"kt"`
+}
+
+// SolarResource is the long-term radiation climatology at the point.
+type SolarResource struct {
+	GHIAnnualKWhM2 float64      `json:"ghi_annual_kwh_m2"`
+	GHIStd         float64      `json:"ghi_std"`
+	GHICVPct       float64      `json:"ghi_cv_pct"`
+	GHIP10         float64      `json:"ghi_p10"`
+	GHIP90         float64      `json:"ghi_p90"`
+	NYears         int          `json:"n_years"`
+	TrendPerYear   float64      `json:"trend_per_year"`
+	TrendPValue    float64      `json:"trend_p_value"`
+	ClearSkyIndex  *float64     `json:"clear_sky_index"`
+	Monthly        []SolarMonth `json:"monthly"`
+}
+
+// SolarTiltLoss is the insolation lost by deviating from the optimum tilt.
+type SolarTiltLoss struct {
+	DeviationDeg float64 `json:"deviation_deg"`
+	LossPct      float64 `json:"loss_pct"`
+}
+
+// SolarGeometry is the fixed-tilt optimum for the point.
+type SolarGeometry struct {
+	OptimalTiltDeg        float64         `json:"optimal_tilt_deg"`
+	OptimalPOAKWhM2Year   float64         `json:"optimal_poa_kwh_m2_year"`
+	SurfaceAzimuthDeg     float64         `json:"surface_azimuth_deg"`
+	GainOverHorizontalPct float64         `json:"gain_over_horizontal_pct"`
+	TiltTolerance         []SolarTiltLoss `json:"tilt_tolerance"`
+}
+
+// SolarPV is the photovoltaic yield for a 1 kWp reference array.
+type SolarPV struct {
+	SpecificYieldKWhKWpYear float64 `json:"specific_yield_kwh_kwp_year"`
+	// The ratio applied to produce the yield, and where it came from:
+	// "reference" or "user".
+	PerformanceRatio       float64 `json:"performance_ratio"`
+	PerformanceRatioSource string  `json:"performance_ratio_source"`
+	// What this chain models. It runs high because soiling, inter-row shading,
+	// degradation, availability and cabling are not modelled, so it is reported
+	// for comparison rather than applied.
+	PerformanceRatioModelled float64 `json:"performance_ratio_modelled"`
+	CapacityFactorPct        float64 `json:"capacity_factor_pct"`
+	HourlyYears              int     `json:"hourly_years"`
+}
+
+// SolarAnalysis is a solar resource result. Physics with no trained head, so it
+// carries no fixed legend and cannot fail on scene availability.
+type SolarAnalysis struct {
+	Lon      float64       `json:"lon"`
+	Lat      float64       `json:"lat"`
+	Resource SolarResource `json:"resource"`
+	Geometry SolarGeometry `json:"geometry"`
+	PV       SolarPV       `json:"pv"`
+	// States the grid the figures resolve on. Required in every response: a
+	// per-AOI number shown without it reads as local.
+	GridNote string `json:"grid_note"`
+}

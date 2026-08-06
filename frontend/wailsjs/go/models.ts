@@ -813,6 +813,233 @@ export namespace backend {
 	        this.polygon_geojson = source["polygon_geojson"];
 	    }
 	}
+	export class SolarPV {
+	    specific_yield_kwh_kwp_year: number;
+	    performance_ratio: number;
+	    performance_ratio_source: string;
+	    performance_ratio_modelled: number;
+	    capacity_factor_pct: number;
+	    hourly_years: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarPV(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.specific_yield_kwh_kwp_year = source["specific_yield_kwh_kwp_year"];
+	        this.performance_ratio = source["performance_ratio"];
+	        this.performance_ratio_source = source["performance_ratio_source"];
+	        this.performance_ratio_modelled = source["performance_ratio_modelled"];
+	        this.capacity_factor_pct = source["capacity_factor_pct"];
+	        this.hourly_years = source["hourly_years"];
+	    }
+	}
+	export class SolarTiltLoss {
+	    deviation_deg: number;
+	    loss_pct: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarTiltLoss(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.deviation_deg = source["deviation_deg"];
+	        this.loss_pct = source["loss_pct"];
+	    }
+	}
+	export class SolarGeometry {
+	    optimal_tilt_deg: number;
+	    optimal_poa_kwh_m2_year: number;
+	    surface_azimuth_deg: number;
+	    gain_over_horizontal_pct: number;
+	    tilt_tolerance: SolarTiltLoss[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarGeometry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.optimal_tilt_deg = source["optimal_tilt_deg"];
+	        this.optimal_poa_kwh_m2_year = source["optimal_poa_kwh_m2_year"];
+	        this.surface_azimuth_deg = source["surface_azimuth_deg"];
+	        this.gain_over_horizontal_pct = source["gain_over_horizontal_pct"];
+	        this.tilt_tolerance = this.convertValues(source["tilt_tolerance"], SolarTiltLoss);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SolarMonth {
+	    month: number;
+	    ghi?: number;
+	    dni?: number;
+	    dhi?: number;
+	    kt?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarMonth(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.month = source["month"];
+	        this.ghi = source["ghi"];
+	        this.dni = source["dni"];
+	        this.dhi = source["dhi"];
+	        this.kt = source["kt"];
+	    }
+	}
+	export class SolarResource {
+	    ghi_annual_kwh_m2: number;
+	    ghi_std: number;
+	    ghi_cv_pct: number;
+	    ghi_p10: number;
+	    ghi_p90: number;
+	    n_years: number;
+	    trend_per_year: number;
+	    trend_p_value: number;
+	    clear_sky_index?: number;
+	    monthly: SolarMonth[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarResource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ghi_annual_kwh_m2 = source["ghi_annual_kwh_m2"];
+	        this.ghi_std = source["ghi_std"];
+	        this.ghi_cv_pct = source["ghi_cv_pct"];
+	        this.ghi_p10 = source["ghi_p10"];
+	        this.ghi_p90 = source["ghi_p90"];
+	        this.n_years = source["n_years"];
+	        this.trend_per_year = source["trend_per_year"];
+	        this.trend_p_value = source["trend_p_value"];
+	        this.clear_sky_index = source["clear_sky_index"];
+	        this.monthly = this.convertValues(source["monthly"], SolarMonth);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SolarAnalysis {
+	    lon: number;
+	    lat: number;
+	    resource: SolarResource;
+	    geometry: SolarGeometry;
+	    pv: SolarPV;
+	    grid_note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lon = source["lon"];
+	        this.lat = source["lat"];
+	        this.resource = this.convertValues(source["resource"], SolarResource);
+	        this.geometry = this.convertValues(source["geometry"], SolarGeometry);
+	        this.pv = this.convertValues(source["pv"], SolarPV);
+	        this.grid_note = source["grid_note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class SolarRequest {
+	    area_id: string;
+	    polygon_geojson?: GeoJSONGeometry;
+	    climatology_years?: number;
+	    hourly_years?: number;
+	    surface_azimuth: number;
+	    performance_ratio?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_id = source["area_id"];
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.climatology_years = source["climatology_years"];
+	        this.hourly_years = source["hourly_years"];
+	        this.surface_azimuth = source["surface_azimuth"];
+	        this.performance_ratio = source["performance_ratio"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	
 	

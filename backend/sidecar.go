@@ -1186,3 +1186,66 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 	}
 	return raw, nil
 }
+
+// AnalyzeSolar computes the solar resource and photovoltaic yield at the AOI.
+//
+// Unlike every Sentinel-2 product it needs no scene, so it cannot fail on
+// availability, and it carries no trained legend.
+func (r *Runner) AnalyzeSolar(ctx context.Context, req SolarRequest) (*SolarAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "geosense-solar-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":            "solar_resource",
+		"model_dir":         r.modelDir, // unused here, kept for schema
+		"polygon_geojson":   polygon,
+		"climatology_years": req.ClimatologyYears,
+		"hourly_years":      req.HourlyYears,
+		"surface_azimuth":   req.SurfaceAzimuth,
+		"work_dir":          workDir,
+	}
+	if req.PerformanceRatio != nil {
+		payload["performance_ratio"] = *req.PerformanceRatio
+	}
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Solar *SolarAnalysis `json:"solar"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse solar result: %w", err)
+	}
+	if wrapped.Solar == nil {
+		return nil, fmt.Errorf("sidecar returned empty solar payload")
+	}
+	return wrapped.Solar, nil
+}

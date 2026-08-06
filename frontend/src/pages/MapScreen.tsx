@@ -13,6 +13,7 @@ import type {
   PredictResult,
   WaterAnalysis,
   WaterIndex,
+  SolarAnalysis,
 } from "@/lib/types"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
@@ -20,6 +21,8 @@ import { SearchBar } from "@/components/SearchBar"
 import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
+import { SolarPanel } from "@/components/SolarPanel"
+import { SolarStatusPanel } from "@/components/SolarStatusPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import { LeftDockRail, type LeftDockPanel } from "@/components/LeftDockRail"
 import { ResultsPanel } from "@/components/ResultsPanel"
@@ -133,6 +136,18 @@ export interface MapScreenProps {
   onShowWaterOverlayChange: (v: boolean) => void
   waterOpacity: number
   onWaterOpacityChange: (v: number) => void
+  solar?: SolarAnalysis | null
+  solarRunning: boolean
+  solarClimYears: number
+  solarHourlyYears: number
+  solarAzimuth: number
+  solarPR: string
+  onSolarClimYearsChange: (v: number) => void
+  onSolarHourlyYearsChange: (v: number) => void
+  onSolarAzimuthChange: (v: number) => void
+  onSolarPRChange: (v: string) => void
+  onRunSolar: () => void
+  onClearSolar: () => void
   leftDockTabs?: LeftDockTabsMode
 }
 
@@ -150,12 +165,14 @@ export function MapScreen(props: MapScreenProps) {
 
   // The three status panels share one slot at the bottom of the map, so only
   // the one matching the open tool is shown.
-  const showWaterStatus = leftPanel === "water" && !!props.water
+  const showSolarStatus = leftPanel === "solar" && !!props.solar
+  const showWaterStatus =
+    !showSolarStatus && leftPanel === "water" && !!props.water
   const showCompositionStatus =
-    !showWaterStatus &&
+    !showSolarStatus && !showWaterStatus &&
     (leftPanel === "compose" || (!props.result && !!props.composition))
   const showPredictionStatus =
-    !showWaterStatus && !showCompositionStatus && !!props.result
+    !showSolarStatus && !showWaterStatus && !showCompositionStatus && !!props.result
 
   const selectedSceneDate =
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
@@ -298,6 +315,27 @@ export function MapScreen(props: MapScreenProps) {
             dataCubeLoading={props.dataCubeLoading}
             onCollapse={() => setLeftPanel(null)}
           />
+        ) : leftPanel === "solar" ? (
+          <SolarPanel
+            key="solar"
+            panelOffsetClass={panelOffsetClass}
+            hasArea={props.hasArea}
+            climatologyYears={props.solarClimYears}
+            onClimatologyYearsChange={props.onSolarClimYearsChange}
+            hourlyYears={props.solarHourlyYears}
+            onHourlyYearsChange={props.onSolarHourlyYearsChange}
+            surfaceAzimuth={props.solarAzimuth}
+            onSurfaceAzimuthChange={props.onSolarAzimuthChange}
+            performanceRatio={props.solarPR}
+            onPerformanceRatioChange={props.onSolarPRChange}
+            running={props.solarRunning}
+            progress={props.progress}
+            progressMsg={props.progressMsg}
+            hasResult={!!props.solar}
+            onRun={props.onRunSolar}
+            onClear={props.onClearSolar}
+            onCollapse={() => setLeftPanel(null)}
+          />
         ) : leftPanel === "water" ? (
           <WaterPanel
             key="water"
@@ -361,7 +399,13 @@ export function MapScreen(props: MapScreenProps) {
       </AnimatePresence>
 
       <AnimatePresence mode="wait" initial={false}>
-        {showWaterStatus ? (
+        {showSolarStatus ? (
+          <SolarStatusPanel
+            key="solar-status"
+            solar={props.solar ?? null}
+            onClear={props.onClearSolar}
+          />
+        ) : showWaterStatus ? (
           <WaterStatusPanel
             key="water-status"
             water={props.water ?? null}

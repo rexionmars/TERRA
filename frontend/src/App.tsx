@@ -17,6 +17,7 @@ import {
   UpdateProjectAOI,
   CreateProject,
   AnalyzeWater,
+  AnalyzeSolar,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -44,6 +45,8 @@ import type {
   WaterAnalysis,
   WaterIndex,
   WaterRequest,
+  SolarAnalysis,
+  SolarRequest,
 } from "@/lib/types"
 import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
@@ -460,6 +463,12 @@ function AppBody(props: {
   const [waterRunning, setWaterRunning] = useState(false)
   const [showWaterOverlay, setShowWaterOverlay] = useState(true)
   const [waterOpacity, setWaterOpacity] = useState(0.8)
+  const [solar, setSolar] = useState<SolarAnalysis | null>(null)
+  const [solarRunning, setSolarRunning] = useState(false)
+  const [solarClimYears, setSolarClimYears] = useState(30)
+  const [solarHourlyYears, setSolarHourlyYears] = useState(10)
+  const [solarAzimuth, setSolarAzimuth] = useState(0)
+  const [solarPR, setSolarPR] = useState("")
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -994,6 +1003,46 @@ function AppBody(props: {
       notifyError("Surface water error", e)
     } finally {
       setWaterRunning(false)
+      props.setProgress(0)
+      props.setProgressMsg("")
+    }
+  }
+
+  const handleRunSolar = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    const parsedPR = solarPR.trim() ? Number(solarPR.trim()) : null
+    if (
+      parsedPR !== null &&
+      (!Number.isFinite(parsedPR) || parsedPR <= 0 || parsedPR > 1)
+    ) {
+      notifyError("Performance ratio must be between 0 and 1.")
+      return
+    }
+    setSolarRunning(true)
+    props.setProgress(0)
+    props.setProgressMsg("starting")
+    try {
+      const req: SolarRequest = {
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        climatology_years: solarClimYears,
+        hourly_years: solarHourlyYears,
+        surface_azimuth: solarAzimuth,
+        performance_ratio: parsedPR,
+      }
+      const res = (await AnalyzeSolar(req as never)) as unknown as SolarAnalysis
+      setSolar(res)
+      notifySuccess(
+        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees.`
+      )
+    } catch (e) {
+      notifyError("Solar analysis error", e)
+    } finally {
+      setSolarRunning(false)
       props.setProgress(0)
       props.setProgressMsg("")
     }
@@ -1550,6 +1599,18 @@ function AppBody(props: {
                   onShowWaterOverlayChange={setShowWaterOverlay}
                   waterOpacity={waterOpacity}
                   onWaterOpacityChange={setWaterOpacity}
+                  solar={solar}
+                  solarRunning={solarRunning}
+                  solarClimYears={solarClimYears}
+                  solarHourlyYears={solarHourlyYears}
+                  solarAzimuth={solarAzimuth}
+                  solarPR={solarPR}
+                  onSolarClimYearsChange={setSolarClimYears}
+                  onSolarHourlyYearsChange={setSolarHourlyYears}
+                  onSolarAzimuthChange={setSolarAzimuth}
+                  onSolarPRChange={setSolarPR}
+                  onRunSolar={() => void handleRunSolar()}
+                  onClearSolar={() => setSolar(null)}
                   leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>
