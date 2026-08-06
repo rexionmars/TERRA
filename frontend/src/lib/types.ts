@@ -468,6 +468,8 @@ export interface SolarTerrainAnalysis {
   pixels: number
   hourly_years: number
   dem_source: string
+  season: string
+  unit: string
   /** Stretched between its own 2nd and 98th percentiles; the range is above. */
   overlay_uri: string
   raster_tif: string
@@ -478,4 +480,48 @@ export interface SolarTerrainRequest {
   area_id: string
   polygon_geojson: GeoJSONGeometry | null
   hourly_years: number
+  /** annual, winter, summer, winter_crop, or anisotropy (winter/summer). */
+  season: SolarSeason
+}
+
+export type SolarSeason =
+  | "annual"
+  | "winter"
+  | "summer"
+  | "winter_crop"
+  | "anisotropy"
+
+export interface SolarSitingClass {
+  code: number
+  name: string
+  color: string
+  pixels: number
+  area_ha: number
+  pct: number
+}
+
+export interface SolarSitingAnalysis {
+  classes: SolarSitingClass[]
+  /** Never summed with the cropland class: the trade-off must stay visible. */
+  suitable_no_conflict_ha: number
+  suitable_cropland_ha: number
+  pixel_area_ha: number
+  thresholds: {
+    slope_acceptable_deg: number
+    slope_restrictive_deg: number
+    excluded_cover: number[]
+    cropland_cover: number[]
+    note: string
+  }
+  dem_source: string
+  overlay_uri: string
+  raster_tif: string
+  extent: Bounds
+}
+
+export interface SolarSitingRequest {
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  slope_acceptable_deg: number
+  slope_restrictive_deg: number
 }

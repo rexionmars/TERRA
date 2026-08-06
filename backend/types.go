@@ -507,6 +507,10 @@ type SolarTerrainRequest struct {
 	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	HourlyYears    int              `json:"hourly_years,omitempty"`
+	// "annual", "winter", "summer", "winter_crop", or "anisotropy" for the
+	// winter-over-summer ratio. The annual map averages a geometry that
+	// reverses within the year, so the window is explicit.
+	Season string `json:"season,omitempty"`
 }
 
 // SolarTerrainAnalysis is the mappable solar quantity. The atmospheric resource
@@ -522,6 +526,8 @@ type SolarTerrainAnalysis struct {
 	Pixels       int     `json:"pixels"`
 	HourlyYears  int     `json:"hourly_years"`
 	DEMSource    string  `json:"dem_source"`
+	Season       string  `json:"season"`
+	Unit         string  `json:"unit"`
 	// Raster as a base64 PNG data URI, stretched between its own 2nd and 98th
 	// percentiles: the spread within an AOI is a few percent, so a fixed scale
 	// would render every AOI flat. The min and max above carry the range.
@@ -540,7 +546,67 @@ type solarTerrainSidecarPayload struct {
 	Pixels       int     `json:"pixels"`
 	HourlyYears  int     `json:"hourly_years"`
 	DEMSource    string  `json:"dem_source"`
+	Season       string  `json:"season"`
+	Unit         string  `json:"unit"`
 	OverlayPNG   string  `json:"overlay_png"`
 	RasterTIF    string  `json:"raster_tif"`
 	Extent       Bounds  `json:"extent"`
+}
+
+// SolarSitingRequest selects an AOI and the siting conventions to apply.
+type SolarSitingRequest struct {
+	AreaID         string           `json:"area_id"`
+	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
+	// Conventions, not verified legal restrictions. Zero applies the default,
+	// and the response repeats what was used.
+	SlopeAcceptableDeg  float64 `json:"slope_acceptable_deg,omitempty"`
+	SlopeRestrictiveDeg float64 `json:"slope_restrictive_deg,omitempty"`
+	ExcludedCover       []int   `json:"excluded_cover,omitempty"`
+	CroplandCover       []int   `json:"cropland_cover,omitempty"`
+}
+
+// SolarSitingClass is one siting class with its extent.
+type SolarSitingClass struct {
+	Code   int     `json:"code"`
+	Name   string  `json:"name"`
+	Color  string  `json:"color"`
+	Pixels int     `json:"pixels"`
+	AreaHa float64 `json:"area_ha"`
+	Pct    float64 `json:"pct"`
+}
+
+// SolarSitingThresholds records the conventions a result was produced under.
+type SolarSitingThresholds struct {
+	SlopeAcceptableDeg  float64 `json:"slope_acceptable_deg"`
+	SlopeRestrictiveDeg float64 `json:"slope_restrictive_deg"`
+	ExcludedCover       []int   `json:"excluded_cover"`
+	CroplandCover       []int   `json:"cropland_cover"`
+	Note                string  `json:"note"`
+}
+
+// SolarSitingAnalysis is the photovoltaic siting map.
+type SolarSitingAnalysis struct {
+	Classes []SolarSitingClass `json:"classes"`
+	// Reported apart and never summed: a pixel that is geometrically fine but
+	// currently produces soybean carries a trade-off a binary map would hide.
+	SuitableNoConflictHa float64               `json:"suitable_no_conflict_ha"`
+	SuitableCroplandHa   float64               `json:"suitable_cropland_ha"`
+	PixelAreaHa          float64               `json:"pixel_area_ha"`
+	Thresholds           SolarSitingThresholds `json:"thresholds"`
+	DEMSource            string                `json:"dem_source"`
+	OverlayURI           string                `json:"overlay_uri"`
+	RasterTIF            string                `json:"raster_tif"`
+	Extent               Bounds                `json:"extent"`
+}
+
+type solarSitingSidecarPayload struct {
+	Classes              []SolarSitingClass    `json:"classes"`
+	SuitableNoConflictHa float64               `json:"suitable_no_conflict_ha"`
+	SuitableCroplandHa   float64               `json:"suitable_cropland_ha"`
+	PixelAreaHa          float64               `json:"pixel_area_ha"`
+	Thresholds           SolarSitingThresholds `json:"thresholds"`
+	DEMSource            string                `json:"dem_source"`
+	OverlayPNG           string                `json:"overlay_png"`
+	RasterTIF            string                `json:"raster_tif"`
+	Extent               Bounds                `json:"extent"`
 }

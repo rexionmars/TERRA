@@ -341,6 +341,14 @@ func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.Sol
 	return a.runner.AnalyzeSolarTerrain(a.ctx, req)
 }
 
+// AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
+func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.SolarSitingAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return a.runner.AnalyzeSolarSiting(a.ctx, req)
+}
+
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
 func (a *App) ExportClassification(rasterPath string) (string, error) {
 	return a.ExportOverlayFile(rasterPath, "terra_classification.tif")

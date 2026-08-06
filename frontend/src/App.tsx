@@ -19,6 +19,7 @@ import {
   AnalyzeWater,
   AnalyzeSolar,
   AnalyzeSolarTerrain,
+  AnalyzeSolarSiting,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -50,6 +51,9 @@ import type {
   SolarRequest,
   SolarTerrainAnalysis,
   SolarTerrainRequest,
+  SolarSeason,
+  SolarSitingAnalysis,
+  SolarSitingRequest,
 } from "@/lib/types"
 import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
@@ -475,6 +479,11 @@ function AppBody(props: {
   const [solarTerrain, setSolarTerrain] = useState<SolarTerrainAnalysis | null>(null)
   const [solarTerrainRunning, setSolarTerrainRunning] = useState(false)
   const [showSolarTerrain, setShowSolarTerrain] = useState(true)
+  const [solarSeason, setSolarSeason] = useState<SolarSeason>("annual")
+  const [solarSiting, setSolarSiting] = useState<SolarSitingAnalysis | null>(null)
+  const [solarSitingRunning, setSolarSitingRunning] = useState(false)
+  const [solarSlopeAcceptable, setSolarSlopeAcceptable] = useState(10)
+  const [solarSlopeRestrictive, setSolarSlopeRestrictive] = useState(15)
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -1068,6 +1077,7 @@ function AppBody(props: {
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
         hourly_years: solarHourlyYears,
+        season: solarSeason,
       }
       const res = (await AnalyzeSolarTerrain(
         req as never
@@ -1081,6 +1091,39 @@ function AppBody(props: {
       notifyError("Solar terrain error", e)
     } finally {
       setSolarTerrainRunning(false)
+      props.setProgress(0)
+      props.setProgressMsg("")
+    }
+  }
+
+  const handleRunSolarSiting = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    setSolarSitingRunning(true)
+    props.setProgress(0)
+    props.setProgressMsg("starting")
+    try {
+      const req: SolarSitingRequest = {
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        slope_acceptable_deg: solarSlopeAcceptable,
+        slope_restrictive_deg: solarSlopeRestrictive,
+      }
+      const res = (await AnalyzeSolarSiting(
+        req as never
+      )) as unknown as SolarSitingAnalysis
+      setSolarSiting(res)
+      setSolarTerrain(null)
+      notifySuccess(
+        `Siting: ${res.suitable_no_conflict_ha.toFixed(1)} ha without land-use conflict, ${res.suitable_cropland_ha.toFixed(1)} ha on cropland.`
+      )
+    } catch (e) {
+      notifyError("Solar siting error", e)
+    } finally {
+      setSolarSitingRunning(false)
       props.setProgress(0)
       props.setProgressMsg("")
     }
@@ -1654,6 +1697,16 @@ function AppBody(props: {
                   showSolarTerrain={showSolarTerrain}
                   onRunSolarTerrain={() => void handleRunSolarTerrain()}
                   onClearSolarTerrain={() => setSolarTerrain(null)}
+                  solarSeason={solarSeason}
+                  onSolarSeasonChange={setSolarSeason}
+                  solarSiting={solarSiting}
+                  solarSitingRunning={solarSitingRunning}
+                  solarSlopeAcceptable={solarSlopeAcceptable}
+                  solarSlopeRestrictive={solarSlopeRestrictive}
+                  onSolarSlopeAcceptableChange={setSolarSlopeAcceptable}
+                  onSolarSlopeRestrictiveChange={setSolarSlopeRestrictive}
+                  onRunSolarSiting={() => void handleRunSolarSiting()}
+                  onClearSolarSiting={() => setSolarSiting(null)}
                   leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>

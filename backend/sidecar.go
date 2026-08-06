@@ -1279,6 +1279,7 @@ func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainReques
 		"model_dir":       r.modelDir,
 		"polygon_geojson": polygon,
 		"hourly_years":    req.HourlyYears,
+		"season":          req.Season,
 		"work_dir":        workDir,
 	})
 	if err != nil {
@@ -1303,12 +1304,84 @@ func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainReques
 		POAMin: t.POAMin, POAMax: t.POAMax, POAMean: t.POAMean,
 		POAStdPct: t.POAStdPct, SlopeMeanDeg: t.SlopeMeanDeg,
 		SlopeMaxDeg: t.SlopeMaxDeg, Pixels: t.Pixels,
-		HourlyYears: t.HourlyYears, DEMSource: t.DEMSource, Extent: t.Extent,
+		HourlyYears: t.HourlyYears, DEMSource: t.DEMSource,
+		Season: t.Season, Unit: t.Unit, Extent: t.Extent,
 	}
 	if uri, err := pngToDataURI(t.OverlayPNG); err == nil {
 		out.OverlayURI = uri
 	}
 	// The GeoTIFF stays on disk for export, so the work dir is not removed here.
 	out.RasterTIF = t.RasterTIF
+	return out, nil
+}
+
+// AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
+func (r *Runner) AnalyzeSolarSiting(ctx context.Context, req SolarSitingRequest) (*SolarSitingAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "geosense-solar-siting-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+
+	reqBytes, err := json.Marshal(map[string]any{
+		"action":                "solar_siting",
+		"model_dir":             r.modelDir,
+		"polygon_geojson":       polygon,
+		"slope_acceptable_deg":  req.SlopeAcceptableDeg,
+		"slope_restrictive_deg": req.SlopeRestrictiveDeg,
+		"excluded_cover":        req.ExcludedCover,
+		"cropland_cover":        req.CroplandCover,
+		"work_dir":              workDir,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Siting *solarSitingSidecarPayload `json:"solar_siting"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse solar siting result: %w", err)
+	}
+	if wrapped.Siting == nil {
+		return nil, fmt.Errorf("sidecar returned empty solar siting payload")
+	}
+	p := wrapped.Siting
+	out := &SolarSitingAnalysis{
+		Classes:              p.Classes,
+		SuitableNoConflictHa: p.SuitableNoConflictHa,
+		SuitableCroplandHa:   p.SuitableCroplandHa,
+		PixelAreaHa:          p.PixelAreaHa,
+		Thresholds:           p.Thresholds,
+		DEMSource:            p.DEMSource,
+		RasterTIF:            p.RasterTIF,
+		Extent:               p.Extent,
+	}
+	if out.Classes == nil {
+		out.Classes = []SolarSitingClass{}
+	}
+	if uri, err := pngToDataURI(p.OverlayPNG); err == nil {
+		out.OverlayURI = uri
+	}
 	return out, nil
 }

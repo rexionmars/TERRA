@@ -15,6 +15,8 @@ import type {
   WaterIndex,
   SolarAnalysis,
   SolarTerrainAnalysis,
+  SolarSeason,
+  SolarSitingAnalysis,
 } from "@/lib/types"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
@@ -154,6 +156,16 @@ export interface MapScreenProps {
   showSolarTerrain: boolean
   onRunSolarTerrain: () => void
   onClearSolarTerrain: () => void
+  solarSeason: SolarSeason
+  onSolarSeasonChange: (v: SolarSeason) => void
+  solarSiting?: SolarSitingAnalysis | null
+  solarSitingRunning: boolean
+  solarSlopeAcceptable: number
+  solarSlopeRestrictive: number
+  onSolarSlopeAcceptableChange: (v: number) => void
+  onSolarSlopeRestrictiveChange: (v: number) => void
+  onRunSolarSiting: () => void
+  onClearSolarSiting: () => void
   leftDockTabs?: LeftDockTabsMode
 }
 
@@ -203,7 +215,12 @@ export function MapScreen(props: MapScreenProps) {
         showCompositionOverlay={props.showCompositionOverlay}
         composition={props.composition}
         solarOverlay={
-          props.solarTerrain && props.showSolarTerrain
+          props.solarSiting
+            ? {
+                uri: props.solarSiting.overlay_uri,
+                extent: props.solarSiting.extent,
+              }
+            : props.solarTerrain && props.showSolarTerrain
             ? {
                 uri: props.solarTerrain.overlay_uri,
                 extent: props.solarTerrain.extent,
@@ -352,6 +369,16 @@ export function MapScreen(props: MapScreenProps) {
             hasTerrain={!!props.solarTerrain}
             onRunTerrain={props.onRunSolarTerrain}
             onClearTerrain={props.onClearSolarTerrain}
+            season={props.solarSeason}
+            onSeasonChange={props.onSolarSeasonChange}
+            sitingRunning={props.solarSitingRunning}
+            hasSiting={!!props.solarSiting}
+            slopeAcceptable={props.solarSlopeAcceptable}
+            slopeRestrictive={props.solarSlopeRestrictive}
+            onSlopeAcceptableChange={props.onSolarSlopeAcceptableChange}
+            onSlopeRestrictiveChange={props.onSolarSlopeRestrictiveChange}
+            onRunSiting={props.onRunSolarSiting}
+            onClearSiting={props.onClearSolarSiting}
             onCollapse={() => setLeftPanel(null)}
           />
         ) : leftPanel === "water" ? (

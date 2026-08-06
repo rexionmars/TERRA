@@ -4,12 +4,14 @@ import {
   ChevronLeft,
   CheckCircle2,
   Loader2,
+  LayoutGrid,
   Mountain,
   Play,
   Sun,
   Trash2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { SolarSeason } from "@/lib/types"
 
 function Section({
   step,
@@ -53,8 +55,26 @@ export interface SolarPanelProps {
   hasTerrain: boolean
   onRunTerrain: () => void
   onClearTerrain: () => void
+  season: SolarSeason
+  onSeasonChange: (v: SolarSeason) => void
+  sitingRunning: boolean
+  hasSiting: boolean
+  slopeAcceptable: number
+  slopeRestrictive: number
+  onSlopeAcceptableChange: (v: number) => void
+  onSlopeRestrictiveChange: (v: number) => void
+  onRunSiting: () => void
+  onClearSiting: () => void
   onCollapse: () => void
 }
+
+const SEASONS: { id: SolarSeason; label: string }[] = [
+  { id: "annual", label: "Annual" },
+  { id: "winter", label: "Winter" },
+  { id: "summer", label: "Summer" },
+  { id: "winter_crop", label: "Winter crop" },
+  { id: "anisotropy", label: "Winter / summer" },
+]
 
 /**
  * Solar resource at the AOI.
@@ -84,6 +104,16 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
       hasTerrain,
       onRunTerrain,
       onClearTerrain,
+      season,
+      onSeasonChange,
+      sitingRunning,
+      hasSiting,
+      slopeAcceptable,
+      slopeRestrictive,
+      onSlopeAcceptableChange,
+      onSlopeRestrictiveChange,
+      onRunSiting,
+      onClearSiting,
       onCollapse,
     } = props
 
@@ -228,6 +258,24 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               </button>
             )}
           </div>
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+            Season
+            <select
+              value={season}
+              onChange={(e) => onSeasonChange(e.target.value as SolarSeason)}
+              className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+            >
+              {SEASONS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            The annual map averages a geometry that reverses within the year.
+            Winter over summer carries that contrast in one layer.
+          </p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -258,6 +306,65 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
             The terrain map resolves what the point analysis cannot: irradiation
             on an inclined surface varies with slope and aspect, from the
             Copernicus DEM at 30 m.
+          </p>
+        </Section>
+
+        <Section step="05" title="Siting">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Slope limit
+              <input
+                type="number"
+                min={1}
+                max={45}
+                value={slopeRestrictive}
+                onChange={(e) => onSlopeRestrictiveChange(Number(e.target.value))}
+                className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Restrictive from
+              <input
+                type="number"
+                min={1}
+                max={45}
+                value={slopeAcceptable}
+                onChange={(e) => onSlopeAcceptableChange(Number(e.target.value))}
+                className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+              />
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!hasArea || sitingRunning}
+              onClick={onRunSiting}
+              className="ar-ghost flex h-9 flex-1 items-center justify-center gap-1.5 rounded-sm border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              {sitingRunning ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <LayoutGrid className="size-3.5" />
+              )}
+              {sitingRunning ? "Classifying…" : "Map siting"}
+            </button>
+            {hasSiting && (
+              <button
+                type="button"
+                onClick={onClearSiting}
+                disabled={sitingRunning}
+                className="ar-ghost flex h-9 items-center justify-center rounded-sm border px-3 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                title="Clear the siting map"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Slope limits and the excluded-cover list are project conventions,
+            not verified legal restrictions. Legal reserve, permanent
+            preservation areas and municipal zoning require the CAR and local
+            legislation, which this analysis does not consult.
           </p>
           <p className="flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground">
             <Sun className="mt-0.5 size-3 shrink-0 opacity-70" />

@@ -1118,13 +1118,33 @@ def main():
             fail('NASA POWER returned no usable hourly record for this point')
         n_years = max(len(set(df.index.year)), 1)
 
+        season = (req.get('season') or 'annual').lower()
+        if season not in solar_mod.SEASONS and season != 'anisotropy':
+            fail(f'unknown season: {season}')
+
+        def _poa_for(name):
+            m = solar_mod.season_mask(df.index, name)
+            sub, sp = df[m], solpos[m]
+            if sub.empty:
+                fail(f'no hourly record inside the {name} window')
+            yrs = solar_mod.season_years(df.index, name)
+            tbl = solar_mod.build_poa_lookup(sub, sp, max(yrs, 1e-6))
+            return solar_mod.interpolate_poa(slope, aspect, tbl)
+
         emit_progress(76, 'plane-of-array lookup')
-        table = solar_mod.build_poa_lookup(
-            df, solpos, n_years,
-            progress=lambda i, n: emit_progress(76 + int(14 * (i + 1) / n), 'lookup'),
-        )
+        if season == 'anisotropy':
+            # Winter over summer in one layer: the seasonal contrast is what
+            # the annual map averages away, and a ratio carries it per pixel.
+            winter = _poa_for('winter')
+            summer = _poa_for('summer')
+            with np.errstate(divide='ignore', invalid='ignore'):
+                poa = np.where(summer > 0, winter / summer, np.nan)
+            unit = 'winter / summer'
+        else:
+            emit_progress(80, f'lookup [{season}]')
+            poa = _poa_for(season)
+            unit = 'kWh/m2 per season' if season != 'annual' else 'kWh/m2/year'
         emit_progress(92, 'interpolating onto the terrain')
-        poa = solar_mod.interpolate_poa(slope, aspect, table)
 
         # Only pixels inside the AOI carry a result.
         from rasterio.features import geometry_mask
@@ -1161,6 +1181,126 @@ def main():
                 'slope_max_deg': round(float(np.nanmax(slope[valid])), 2),
                 'pixels': int(valid.sum()),
                 'hourly_years': int(n_years),
+                'season': season,
+                'unit': unit,
+                'dem_source': 'Copernicus DEM GLO-30',
+                'overlay_png': str(png),
+                'raster_tif': str(tif),
+                'extent': {
+                    'lon_min': lon_min, 'lat_min': lat_min,
+                    'lon_max': lon_max, 'lat_max': lat_max,
+                },
+            }
+        }))
+        sys.stdout.flush()
+        return
+
+    # Photovoltaic siting from slope limits and land-cover eligibility.
+    if action == 'solar_siting':
+        import solar as solar_mod
+        import composite as comp
+        import lulc as lulc_mod
+        import rasterio
+        from rasterio.features import geometry_mask
+
+        configure_gdal_for_cog()
+        if not req.get('polygon_geojson'):
+            fail('no polygon provided (polygon_geojson required)')
+        polygon = polygon_from_geojson(req['polygon_geojson'])
+        centroid = polygon.centroid
+
+        # Conventions, not verified legal restrictions. Echoed in the response.
+        slope_acceptable = float(
+            req.get('slope_acceptable_deg') or solar_mod.SLOPE_ACCEPTABLE_DEG
+        )
+        slope_restrictive = float(
+            req.get('slope_restrictive_deg') or solar_mod.SLOPE_RESTRICTIVE_DEG
+        )
+        excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
+        cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
+
+        emit_progress(10, 'fetching Copernicus DEM GLO-30')
+        try:
+            dem_path = solar_mod.fetch_dem(polygon, Path(work_dir) / 'dem.tif')
+        except Exception as e:
+            fail(f'DEM fetch failed: {e}')
+        with rasterio.open(dem_path) as src:
+            elevation = src.read(1).astype(float)
+            dem_transform = src.transform
+            dem_crs = src.crs
+            dem_profile = src.profile.copy()
+
+        dx_m, dy_m = solar_mod.pixel_size_m(dem_transform, centroid.y)
+        emit_progress(35, 'slope and aspect')
+        slope, _aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
+
+        emit_progress(55, 'MapBiomas land cover')
+        try:
+            mb_path = lulc_mod.resolve_mapbiomas_path(
+                req.get('mapbiomas_path'), polygon, Path(work_dir)
+            )
+            mb = reproject_mapbiomas_to_grid(
+                mb_path,
+                {'transform': dem_transform, 'crs': dem_crs,
+                 'height': slope.shape[0], 'width': slope.shape[1]},
+                np.ones_like(slope),
+            )
+        except Exception as e:
+            fail(f'MapBiomas land cover unavailable: {e}')
+
+        inside = ~geometry_mask(
+            [polygon.__geo_interface__], out_shape=slope.shape,
+            transform=dem_transform, invert=False
+        )
+        valid = inside & np.isfinite(slope)
+        if not valid.any():
+            fail('the DEM window does not overlap the AOI')
+
+        emit_progress(80, 'siting classes')
+        suit = solar_mod.suitability_map(
+            slope, mb, valid,
+            slope_acceptable=slope_acceptable,
+            slope_restrictive=slope_restrictive,
+            excluded_cover=excluded,
+            cropland_cover=cropland,
+        )
+        px_area_ha = (dx_m * dy_m) / 10_000.0
+        stats = solar_mod.suitability_stats(suit, px_area_ha)
+
+        png = Path(work_dir) / 'solar_siting.png'
+        comp.write_rgba_png(solar_mod.suitability_rgba(suit), png)
+        tif = Path(work_dir) / 'solar_siting.tif'
+        prof = dem_profile.copy()
+        prof.update(dtype='int16', count=1, compress='lzw', nodata=-1)
+        with rasterio.open(tif, 'w', **prof) as dst:
+            dst.write(suit.astype('int16'), 1)
+
+        lon_min, lon_max, lat_min, lat_max = get_map_extent(
+            {'transform': dem_transform, 'crs': dem_crs,
+             'height': slope.shape[0], 'width': slope.shape[1]}
+        )
+        by_code = {r['code']: r for r in stats}
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({
+            'solar_siting': {
+                'classes': stats,
+                # Reported apart, never summed: a pixel that is geometrically
+                # fine but currently produces soybean carries a trade-off.
+                'suitable_no_conflict_ha': by_code[4]['area_ha'],
+                'suitable_cropland_ha': by_code[3]['area_ha'],
+                'pixel_area_ha': round(float(px_area_ha), 5),
+                'thresholds': {
+                    'slope_acceptable_deg': slope_acceptable,
+                    'slope_restrictive_deg': slope_restrictive,
+                    'excluded_cover': list(excluded),
+                    'cropland_cover': list(cropland),
+                    'note': (
+                        'Project conventions, not verified legal restrictions. '
+                        'Legal reserve, permanent preservation areas and '
+                        'municipal zoning require the CAR and local '
+                        'legislation, which this analysis does not consult.'
+                    ),
+                },
                 'dem_source': 'Copernicus DEM GLO-30',
                 'overlay_png': str(png),
                 'raster_tif': str(tif),

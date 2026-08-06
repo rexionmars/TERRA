@@ -10,6 +10,10 @@ export function AnalyzeSolar(arg1) {
   return window['go']['main']['App']['AnalyzeSolar'](arg1);
 }
 
+export function AnalyzeSolarSiting(arg1) {
+  return window['go']['main']['App']['AnalyzeSolarSiting'](arg1);
+}
+
 export function AnalyzeSolarTerrain(arg1) {
   return window['go']['main']['App']['AnalyzeSolarTerrain'](arg1);
 }
