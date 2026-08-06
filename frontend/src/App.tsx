@@ -85,6 +85,39 @@ function defaultPeriod(): { start: string; end: string } {
   return { start, end }
 }
 
+/**
+ * A result with no classification in it.
+ *
+ * Solar needs no satellite scene, so it can be the only product an AOI carries.
+ * The analysis view keys "is there a classification" off n_dates and the overlay
+ * URI, so those stay at zero and the page presents only what was actually run.
+ */
+const EMPTY_RESULT: PredictResult = {
+  extent: { lon_min: 0, lat_min: 0, lon_max: 0, lat_max: 0 },
+  overlay_uri: "",
+  confidence_uri: "",
+  ndvi_mean_uri: "",
+  true_color_uri: "",
+  reference_uri: "",
+  raster_tif: "",
+  mean_confidence: 0,
+  n_dates: 0,
+  date_range: [],
+  class_stats: [],
+  temporal: [],
+  vi_series: [],
+  phenology: {
+    sos_doy: null,
+    pos_doy: null,
+    eos_doy: null,
+    los_days: null,
+    peak: null,
+    base: null,
+    amplitude: null,
+  },
+  phenology_states: [],
+}
+
 function isModelKind(v: string): v is ModelKind {
   return v === "spectral" || v === "prithvi" || v === "temporal_transformer"
 }
@@ -1044,7 +1077,16 @@ function AppBody(props: {
     props.setProgress(0)
     props.setProgressMsg("starting")
     try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
       const req: SolarRequest = {
+        label: aoiLabel,
+        run_label: makeRunLabel(aoiLabel),
+        project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
         climatology_years: solarClimYears,
@@ -1055,8 +1097,12 @@ function AppBody(props: {
       const res = (await AnalyzeSolar(req as never)) as unknown as SolarAnalysis
       setSolar(res)
       notifySuccess(
-        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees.`
+        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`,
+        undefined,
+        { action: { label: "View analysis", onClick: () => goAnalysis() } }
       )
+      void refreshRuns()
+      void refreshProjects()
     } catch (e) {
       notifyError("Solar analysis error", e)
     } finally {
@@ -1341,6 +1387,11 @@ function AppBody(props: {
         // opening one puts the occurrence overlay back on the map. The AOI it
         // was measured on is recorded first, otherwise the invalidation effect
         // sees a mismatch and drops the raster that was just restored.
+        if (res.solar) {
+          setSolar(res.solar)
+        } else {
+          setSolar(null)
+        }
         if (res.water) {
           waterAoiRef.current = aoi.exampleId
             ? `area:${aoi.exampleId}`
@@ -1474,8 +1525,17 @@ function AppBody(props: {
    * and neither must overwrite the other.
    */
   const resultWithWater = useMemo(
-    () => (props.result ? { ...props.result, water } : null),
-    [props.result, water]
+    () =>
+      props.result || solar || solarSiting
+        ? {
+            ...(props.result ?? EMPTY_RESULT),
+            water,
+            solar,
+            solar_terrain: solarTerrain,
+            solar_siting: solarSiting,
+          }
+        : null,
+    [props.result, water, solar, solarTerrain, solarSiting]
   )
 
   const analysisPolygonGeoJSON = useMemo(() => {

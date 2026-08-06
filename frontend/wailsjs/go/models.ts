@@ -591,190 +591,74 @@ export namespace backend {
 		    return a;
 		}
 	}
-	export class WaterDate {
-	    date: string;
-	    scene_id: string;
-	    cloud_cover: number;
-	    observed_pixels: number;
-	    threshold_fixed: number;
-	    threshold_otsu: number;
-	    threshold_clipped: boolean;
-	    threshold_degenerate: boolean;
-	    water_fraction_pct: number;
-	    water_fraction_otsu_pct: number;
-	    water_pixels: number;
+	export class SolarSitingThresholds {
+	    slope_acceptable_deg: number;
+	    slope_restrictive_deg: number;
+	    excluded_cover: number[];
+	    cropland_cover: number[];
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarSitingThresholds(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slope_acceptable_deg = source["slope_acceptable_deg"];
+	        this.slope_restrictive_deg = source["slope_restrictive_deg"];
+	        this.excluded_cover = source["excluded_cover"];
+	        this.cropland_cover = source["cropland_cover"];
+	        this.note = source["note"];
+	    }
+	}
+	export class SolarSitingClass {
+	    code: number;
+	    name: string;
+	    color: string;
+	    pixels: number;
 	    area_ha: number;
+	    pct: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new WaterDate(source);
+	        return new SolarSitingClass(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.date = source["date"];
-	        this.scene_id = source["scene_id"];
-	        this.cloud_cover = source["cloud_cover"];
-	        this.observed_pixels = source["observed_pixels"];
-	        this.threshold_fixed = source["threshold_fixed"];
-	        this.threshold_otsu = source["threshold_otsu"];
-	        this.threshold_clipped = source["threshold_clipped"];
-	        this.threshold_degenerate = source["threshold_degenerate"];
-	        this.water_fraction_pct = source["water_fraction_pct"];
-	        this.water_fraction_otsu_pct = source["water_fraction_otsu_pct"];
-	        this.water_pixels = source["water_pixels"];
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.color = source["color"];
+	        this.pixels = source["pixels"];
 	        this.area_ha = source["area_ha"];
+	        this.pct = source["pct"];
 	    }
 	}
-	export class WaterAnalysis {
-	    index: string;
-	    threshold_method: string;
-	    threshold_fixed: number;
-	    otsu_clip: number[];
-	    n_dates: number;
-	    date_range: string[];
-	    aoi_pixels: number;
-	    aoi_area_ha: number;
-	    series: WaterDate[];
-	    peak_date: string;
-	    peak_water_fraction_pct: number;
-	    ephemeral_pixels: number;
-	    ephemeral_area_ha: number;
-	    persistent_pixels: number;
-	    persistent_area_ha: number;
-	    mean_anomaly: number;
-	    occurrence_uri: string;
-	    extent: Bounds;
-	
-	    static createFrom(source: any = {}) {
-	        return new WaterAnalysis(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.index = source["index"];
-	        this.threshold_method = source["threshold_method"];
-	        this.threshold_fixed = source["threshold_fixed"];
-	        this.otsu_clip = source["otsu_clip"];
-	        this.n_dates = source["n_dates"];
-	        this.date_range = source["date_range"];
-	        this.aoi_pixels = source["aoi_pixels"];
-	        this.aoi_area_ha = source["aoi_area_ha"];
-	        this.series = this.convertValues(source["series"], WaterDate);
-	        this.peak_date = source["peak_date"];
-	        this.peak_water_fraction_pct = source["peak_water_fraction_pct"];
-	        this.ephemeral_pixels = source["ephemeral_pixels"];
-	        this.ephemeral_area_ha = source["ephemeral_area_ha"];
-	        this.persistent_pixels = source["persistent_pixels"];
-	        this.persistent_area_ha = source["persistent_area_ha"];
-	        this.mean_anomaly = source["mean_anomaly"];
-	        this.occurrence_uri = source["occurrence_uri"];
-	        this.extent = this.convertValues(source["extent"], Bounds);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class VISeriesPoint {
-	    date: string;
-	    ndvi_mean: number;
-	    ndvi_std: number;
-	    evi_mean: number;
-	    evi_std: number;
-	    savi_mean: number;
-	    savi_std: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new VISeriesPoint(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.date = source["date"];
-	        this.ndvi_mean = source["ndvi_mean"];
-	        this.ndvi_std = source["ndvi_std"];
-	        this.evi_mean = source["evi_mean"];
-	        this.evi_std = source["evi_std"];
-	        this.savi_mean = source["savi_mean"];
-	        this.savi_std = source["savi_std"];
-	    }
-	}
-	export class TemporalPoint {
-	    date: string;
-	    n_dates_stack: number;
-	    soja_ndvi_mean?: number;
-	    soja_retention_pct?: number;
-	    dominant?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new TemporalPoint(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.date = source["date"];
-	        this.n_dates_stack = source["n_dates_stack"];
-	        this.soja_ndvi_mean = source["soja_ndvi_mean"];
-	        this.soja_retention_pct = source["soja_retention_pct"];
-	        this.dominant = source["dominant"];
-	    }
-	}
-	export class PredictResult {
-	    extent: Bounds;
+	export class SolarSitingAnalysis {
+	    classes: SolarSitingClass[];
+	    suitable_no_conflict_ha: number;
+	    suitable_cropland_ha: number;
+	    pixel_area_ha: number;
+	    thresholds: SolarSitingThresholds;
+	    dem_source: string;
 	    overlay_uri: string;
-	    confidence_uri: string;
-	    ndvi_mean_uri: string;
-	    true_color_uri: string;
-	    reference_uri: string;
 	    raster_tif: string;
-	    mean_confidence: number;
-	    n_dates: number;
-	    date_range: string[];
-	    class_stats: ClassStat[];
-	    temporal: TemporalPoint[];
-	    vi_series: VISeriesPoint[];
-	    phenology: PhenologyMetrics;
-	    phenology_states: PhenologyStatePoint[];
-	    lulc?: LULCAnalysis;
-	    water?: WaterAnalysis;
+	    extent: Bounds;
 	
 	    static createFrom(source: any = {}) {
-	        return new PredictResult(source);
+	        return new SolarSitingAnalysis(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.classes = this.convertValues(source["classes"], SolarSitingClass);
+	        this.suitable_no_conflict_ha = source["suitable_no_conflict_ha"];
+	        this.suitable_cropland_ha = source["suitable_cropland_ha"];
+	        this.pixel_area_ha = source["pixel_area_ha"];
+	        this.thresholds = this.convertValues(source["thresholds"], SolarSitingThresholds);
+	        this.dem_source = source["dem_source"];
 	        this.overlay_uri = source["overlay_uri"];
-	        this.confidence_uri = source["confidence_uri"];
-	        this.ndvi_mean_uri = source["ndvi_mean_uri"];
-	        this.true_color_uri = source["true_color_uri"];
-	        this.reference_uri = source["reference_uri"];
 	        this.raster_tif = source["raster_tif"];
-	        this.mean_confidence = source["mean_confidence"];
-	        this.n_dates = source["n_dates"];
-	        this.date_range = source["date_range"];
-	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
-	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
-	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
-	        this.phenology = this.convertValues(source["phenology"], PhenologyMetrics);
-	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
-	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
-	        this.water = this.convertValues(source["water"], WaterAnalysis);
+	        this.extent = this.convertValues(source["extent"], Bounds);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -795,23 +679,95 @@ export namespace backend {
 		    return a;
 		}
 	}
-	export class ResearchExportMeta {
-	    model_kind: string;
-	    area_id: string;
-	    aoi_label: string;
-	    polygon_geojson: string;
+	export class SolarRenderScale {
+	    palette: string;
+	    min: number;
+	    max: number;
+	    reference?: number;
+	    basis: string;
+	    shared_with: string;
+	    decimals: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new ResearchExportMeta(source);
+	        return new SolarRenderScale(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.model_kind = source["model_kind"];
-	        this.area_id = source["area_id"];
-	        this.aoi_label = source["aoi_label"];
-	        this.polygon_geojson = source["polygon_geojson"];
+	        this.palette = source["palette"];
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.reference = source["reference"];
+	        this.basis = source["basis"];
+	        this.shared_with = source["shared_with"];
+	        this.decimals = source["decimals"];
 	    }
+	}
+	export class SolarTerrainAnalysis {
+	    poa_min: number;
+	    poa_max: number;
+	    poa_mean: number;
+	    poa_std_pct: number;
+	    slope_mean_deg: number;
+	    slope_max_deg: number;
+	    pixels: number;
+	    hourly_years: number;
+	    dem_source: string;
+	    season: string;
+	    unit: string;
+	    scale: SolarRenderScale;
+	    shading_mean_pct?: number;
+	    shading_max_pct?: number;
+	    horizon_max_dist_m: number;
+	    beam_fraction: number;
+	    overlay_uri: string;
+	    raster_tif: string;
+	    extent: Bounds;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarTerrainAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.poa_min = source["poa_min"];
+	        this.poa_max = source["poa_max"];
+	        this.poa_mean = source["poa_mean"];
+	        this.poa_std_pct = source["poa_std_pct"];
+	        this.slope_mean_deg = source["slope_mean_deg"];
+	        this.slope_max_deg = source["slope_max_deg"];
+	        this.pixels = source["pixels"];
+	        this.hourly_years = source["hourly_years"];
+	        this.dem_source = source["dem_source"];
+	        this.season = source["season"];
+	        this.unit = source["unit"];
+	        this.scale = this.convertValues(source["scale"], SolarRenderScale);
+	        this.shading_mean_pct = source["shading_mean_pct"];
+	        this.shading_max_pct = source["shading_max_pct"];
+	        this.horizon_max_dist_m = source["horizon_max_dist_m"];
+	        this.beam_fraction = source["beam_fraction"];
+	        this.overlay_uri = source["overlay_uri"];
+	        this.raster_tif = source["raster_tif"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SolarPV {
 	    specific_yield_kwh_kwp_year: number;
@@ -995,141 +951,83 @@ export namespace backend {
 		    return a;
 		}
 	}
-	
-	
-	
-	export class SolarRenderScale {
-	    palette: string;
-	    min: number;
-	    max: number;
-	    reference?: number;
-	    basis: string;
-	    shared_with: string;
-	    decimals: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new SolarRenderScale(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.palette = source["palette"];
-	        this.min = source["min"];
-	        this.max = source["max"];
-	        this.reference = source["reference"];
-	        this.basis = source["basis"];
-	        this.shared_with = source["shared_with"];
-	        this.decimals = source["decimals"];
-	    }
-	}
-	export class SolarRequest {
-	    area_id: string;
-	    polygon_geojson?: GeoJSONGeometry;
-	    climatology_years?: number;
-	    hourly_years?: number;
-	    surface_azimuth: number;
-	    performance_ratio?: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new SolarRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
-	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
-	        this.climatology_years = source["climatology_years"];
-	        this.hourly_years = source["hourly_years"];
-	        this.surface_azimuth = source["surface_azimuth"];
-	        this.performance_ratio = source["performance_ratio"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
-	export class SolarSitingThresholds {
-	    slope_acceptable_deg: number;
-	    slope_restrictive_deg: number;
-	    excluded_cover: number[];
-	    cropland_cover: number[];
-	    note: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SolarSitingThresholds(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.slope_acceptable_deg = source["slope_acceptable_deg"];
-	        this.slope_restrictive_deg = source["slope_restrictive_deg"];
-	        this.excluded_cover = source["excluded_cover"];
-	        this.cropland_cover = source["cropland_cover"];
-	        this.note = source["note"];
-	    }
-	}
-	export class SolarSitingClass {
-	    code: number;
-	    name: string;
-	    color: string;
-	    pixels: number;
+	export class WaterDate {
+	    date: string;
+	    scene_id: string;
+	    cloud_cover: number;
+	    observed_pixels: number;
+	    threshold_fixed: number;
+	    threshold_otsu: number;
+	    threshold_clipped: boolean;
+	    threshold_degenerate: boolean;
+	    water_fraction_pct: number;
+	    water_fraction_otsu_pct: number;
+	    water_pixels: number;
 	    area_ha: number;
-	    pct: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new SolarSitingClass(source);
+	        return new WaterDate(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.code = source["code"];
-	        this.name = source["name"];
-	        this.color = source["color"];
-	        this.pixels = source["pixels"];
+	        this.date = source["date"];
+	        this.scene_id = source["scene_id"];
+	        this.cloud_cover = source["cloud_cover"];
+	        this.observed_pixels = source["observed_pixels"];
+	        this.threshold_fixed = source["threshold_fixed"];
+	        this.threshold_otsu = source["threshold_otsu"];
+	        this.threshold_clipped = source["threshold_clipped"];
+	        this.threshold_degenerate = source["threshold_degenerate"];
+	        this.water_fraction_pct = source["water_fraction_pct"];
+	        this.water_fraction_otsu_pct = source["water_fraction_otsu_pct"];
+	        this.water_pixels = source["water_pixels"];
 	        this.area_ha = source["area_ha"];
-	        this.pct = source["pct"];
 	    }
 	}
-	export class SolarSitingAnalysis {
-	    classes: SolarSitingClass[];
-	    suitable_no_conflict_ha: number;
-	    suitable_cropland_ha: number;
-	    pixel_area_ha: number;
-	    thresholds: SolarSitingThresholds;
-	    dem_source: string;
-	    overlay_uri: string;
-	    raster_tif: string;
+	export class WaterAnalysis {
+	    index: string;
+	    threshold_method: string;
+	    threshold_fixed: number;
+	    otsu_clip: number[];
+	    n_dates: number;
+	    date_range: string[];
+	    aoi_pixels: number;
+	    aoi_area_ha: number;
+	    series: WaterDate[];
+	    peak_date: string;
+	    peak_water_fraction_pct: number;
+	    ephemeral_pixels: number;
+	    ephemeral_area_ha: number;
+	    persistent_pixels: number;
+	    persistent_area_ha: number;
+	    mean_anomaly: number;
+	    occurrence_uri: string;
 	    extent: Bounds;
 	
 	    static createFrom(source: any = {}) {
-	        return new SolarSitingAnalysis(source);
+	        return new WaterAnalysis(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.classes = this.convertValues(source["classes"], SolarSitingClass);
-	        this.suitable_no_conflict_ha = source["suitable_no_conflict_ha"];
-	        this.suitable_cropland_ha = source["suitable_cropland_ha"];
-	        this.pixel_area_ha = source["pixel_area_ha"];
-	        this.thresholds = this.convertValues(source["thresholds"], SolarSitingThresholds);
-	        this.dem_source = source["dem_source"];
-	        this.overlay_uri = source["overlay_uri"];
-	        this.raster_tif = source["raster_tif"];
+	        this.index = source["index"];
+	        this.threshold_method = source["threshold_method"];
+	        this.threshold_fixed = source["threshold_fixed"];
+	        this.otsu_clip = source["otsu_clip"];
+	        this.n_dates = source["n_dates"];
+	        this.date_range = source["date_range"];
+	        this.aoi_pixels = source["aoi_pixels"];
+	        this.aoi_area_ha = source["aoi_area_ha"];
+	        this.series = this.convertValues(source["series"], WaterDate);
+	        this.peak_date = source["peak_date"];
+	        this.peak_water_fraction_pct = source["peak_water_fraction_pct"];
+	        this.ephemeral_pixels = source["ephemeral_pixels"];
+	        this.ephemeral_area_ha = source["ephemeral_area_ha"];
+	        this.persistent_pixels = source["persistent_pixels"];
+	        this.persistent_area_ha = source["persistent_area_ha"];
+	        this.mean_anomaly = source["mean_anomaly"];
+	        this.occurrence_uri = source["occurrence_uri"];
 	        this.extent = this.convertValues(source["extent"], Bounds);
 	    }
 	
@@ -1151,6 +1049,189 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class VISeriesPoint {
+	    date: string;
+	    ndvi_mean: number;
+	    ndvi_std: number;
+	    evi_mean: number;
+	    evi_std: number;
+	    savi_mean: number;
+	    savi_std: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new VISeriesPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi_mean = source["ndvi_mean"];
+	        this.ndvi_std = source["ndvi_std"];
+	        this.evi_mean = source["evi_mean"];
+	        this.evi_std = source["evi_std"];
+	        this.savi_mean = source["savi_mean"];
+	        this.savi_std = source["savi_std"];
+	    }
+	}
+	export class TemporalPoint {
+	    date: string;
+	    n_dates_stack: number;
+	    soja_ndvi_mean?: number;
+	    soja_retention_pct?: number;
+	    dominant?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemporalPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.n_dates_stack = source["n_dates_stack"];
+	        this.soja_ndvi_mean = source["soja_ndvi_mean"];
+	        this.soja_retention_pct = source["soja_retention_pct"];
+	        this.dominant = source["dominant"];
+	    }
+	}
+	export class PredictResult {
+	    extent: Bounds;
+	    overlay_uri: string;
+	    confidence_uri: string;
+	    ndvi_mean_uri: string;
+	    true_color_uri: string;
+	    reference_uri: string;
+	    raster_tif: string;
+	    mean_confidence: number;
+	    n_dates: number;
+	    date_range: string[];
+	    class_stats: ClassStat[];
+	    temporal: TemporalPoint[];
+	    vi_series: VISeriesPoint[];
+	    phenology: PhenologyMetrics;
+	    phenology_states: PhenologyStatePoint[];
+	    lulc?: LULCAnalysis;
+	    water?: WaterAnalysis;
+	    solar?: SolarAnalysis;
+	    solar_terrain?: SolarTerrainAnalysis;
+	    solar_siting?: SolarSitingAnalysis;
+	
+	    static createFrom(source: any = {}) {
+	        return new PredictResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.overlay_uri = source["overlay_uri"];
+	        this.confidence_uri = source["confidence_uri"];
+	        this.ndvi_mean_uri = source["ndvi_mean_uri"];
+	        this.true_color_uri = source["true_color_uri"];
+	        this.reference_uri = source["reference_uri"];
+	        this.raster_tif = source["raster_tif"];
+	        this.mean_confidence = source["mean_confidence"];
+	        this.n_dates = source["n_dates"];
+	        this.date_range = source["date_range"];
+	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
+	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
+	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
+	        this.phenology = this.convertValues(source["phenology"], PhenologyMetrics);
+	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
+	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
+	        this.water = this.convertValues(source["water"], WaterAnalysis);
+	        this.solar = this.convertValues(source["solar"], SolarAnalysis);
+	        this.solar_terrain = this.convertValues(source["solar_terrain"], SolarTerrainAnalysis);
+	        this.solar_siting = this.convertValues(source["solar_siting"], SolarSitingAnalysis);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ResearchExportMeta {
+	    model_kind: string;
+	    area_id: string;
+	    aoi_label: string;
+	    polygon_geojson: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResearchExportMeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.model_kind = source["model_kind"];
+	        this.area_id = source["area_id"];
+	        this.aoi_label = source["aoi_label"];
+	        this.polygon_geojson = source["polygon_geojson"];
+	    }
+	}
+	
+	
+	
+	
+	
+	export class SolarRequest {
+	    area_id: string;
+	    polygon_geojson?: GeoJSONGeometry;
+	    climatology_years?: number;
+	    hourly_years?: number;
+	    surface_azimuth: number;
+	    performance_ratio?: number;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_id = source["area_id"];
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.climatology_years = source["climatology_years"];
+	        this.hourly_years = source["hourly_years"];
+	        this.surface_azimuth = source["surface_azimuth"];
+	        this.performance_ratio = source["performance_ratio"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	export class SolarSitingRequest {
 	    area_id: string;
@@ -1193,72 +1274,7 @@ export namespace backend {
 		}
 	}
 	
-	export class SolarTerrainAnalysis {
-	    poa_min: number;
-	    poa_max: number;
-	    poa_mean: number;
-	    poa_std_pct: number;
-	    slope_mean_deg: number;
-	    slope_max_deg: number;
-	    pixels: number;
-	    hourly_years: number;
-	    dem_source: string;
-	    season: string;
-	    unit: string;
-	    scale: SolarRenderScale;
-	    shading_mean_pct?: number;
-	    shading_max_pct?: number;
-	    horizon_max_dist_m: number;
-	    beam_fraction: number;
-	    overlay_uri: string;
-	    raster_tif: string;
-	    extent: Bounds;
 	
-	    static createFrom(source: any = {}) {
-	        return new SolarTerrainAnalysis(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.poa_min = source["poa_min"];
-	        this.poa_max = source["poa_max"];
-	        this.poa_mean = source["poa_mean"];
-	        this.poa_std_pct = source["poa_std_pct"];
-	        this.slope_mean_deg = source["slope_mean_deg"];
-	        this.slope_max_deg = source["slope_max_deg"];
-	        this.pixels = source["pixels"];
-	        this.hourly_years = source["hourly_years"];
-	        this.dem_source = source["dem_source"];
-	        this.season = source["season"];
-	        this.unit = source["unit"];
-	        this.scale = this.convertValues(source["scale"], SolarRenderScale);
-	        this.shading_mean_pct = source["shading_mean_pct"];
-	        this.shading_max_pct = source["shading_max_pct"];
-	        this.horizon_max_dist_m = source["horizon_max_dist_m"];
-	        this.beam_fraction = source["beam_fraction"];
-	        this.overlay_uri = source["overlay_uri"];
-	        this.raster_tif = source["raster_tif"];
-	        this.extent = this.convertValues(source["extent"], Bounds);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class SolarTerrainRequest {
 	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;

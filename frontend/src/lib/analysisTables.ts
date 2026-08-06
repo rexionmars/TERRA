@@ -11,6 +11,8 @@
  */
 import type {
   ClassStat,
+  SolarAnalysis,
+  SolarSitingAnalysis,
   WaterAnalysis,
   LULCAnalysis,
   PhenologyMetrics,
@@ -363,6 +365,64 @@ export function waterSeriesTable(
   )
 }
 
+export function solarMonthlyTable(
+  solar?: SolarAnalysis | null
+): DataTable | null {
+  return table(
+    "solar_monthly",
+    "solar_monthly.csv",
+    [num("month"), num("ghi"), num("dni"), num("dhi"), num("kt")],
+    (solar?.resource.monthly ?? []).map((m) => [
+      m.month,
+      m.ghi,
+      m.dni,
+      m.dhi,
+      m.kt,
+    ])
+  )
+}
+
+export function solarTiltToleranceTable(
+  solar?: SolarAnalysis | null
+): DataTable | null {
+  // What says how much the optimum matters: a tilt quoted without it reads as
+  // a requirement rather than a peak.
+  return table(
+    "solar_tilt_tolerance",
+    "solar_tilt_tolerance.csv",
+    [num("deviation_deg"), num("loss_pct")],
+    (solar?.geometry.tilt_tolerance ?? []).map((t) => [
+      t.deviation_deg,
+      t.loss_pct,
+    ])
+  )
+}
+
+export function solarSitingTable(
+  siting?: SolarSitingAnalysis | null
+): DataTable | null {
+  return table(
+    "solar_siting_classes",
+    "solar_siting_classes.csv",
+    [
+      num("code"),
+      { key: "name" },
+      { key: "color", swatch: true },
+      num("pixels"),
+      num("area_ha"),
+      num("pct"),
+    ],
+    (siting?.classes ?? []).map((c) => [
+      c.code,
+      c.name,
+      c.color,
+      c.pixels,
+      c.area_ha,
+      c.pct,
+    ])
+  )
+}
+
 /** Every table a result can produce, in the order the ZIP writes them. */
 export function allAnalysisTables(result: PredictResult): DataTable[] {
   return [
@@ -376,6 +436,9 @@ export function allAnalysisTables(result: PredictResult): DataTable[] {
     lulcGroupsTable(result.lulc),
     lulcPredVsRefTable(result.lulc),
     waterSeriesTable(result.water),
+    solarMonthlyTable(result.solar),
+    solarTiltToleranceTable(result.solar),
+    solarSitingTable(result.solar_siting),
   ].filter((t): t is DataTable => t !== null)
 }
 

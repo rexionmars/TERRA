@@ -73,6 +73,7 @@ type InferenceRun struct {
 const (
 	RunKindClassification = "classification"
 	RunKindWater          = "water"
+	RunKindSolar          = "solar"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.

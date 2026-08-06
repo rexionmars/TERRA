@@ -889,6 +889,8 @@ export function AnalysisPage({
   }
 
   const canExportTables =
+    !!result.solar ||
+    !!result.solar_siting ||
     (result.water?.series?.length ?? 0) > 0 ||
     (result.class_stats?.length ?? 0) > 0 ||
     (result.vi_series?.length ?? 0) > 0 ||
@@ -1346,6 +1348,137 @@ export function AnalysisPage({
               )}
             </div>
           ) : null}
+
+          {/*
+            Solar resource. Needs no scene, so it can be the only product a run
+            carries. Every figure is shown with the assumption behind it.
+          */}
+          {result.solar && (
+            <section className="ar-section p-4">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="eyebrow">Solar resource</p>
+                <p className="telemetry text-[10px] text-muted-foreground">
+                  {result.solar.resource.n_years} years ·{" "}
+                  {result.solar.lat.toFixed(2)}, {result.solar.lon.toFixed(2)}
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart
+                  data={result.solar.resource.monthly.map((m) => ({
+                    month: String(m.month).padStart(2, "0"),
+                    ghi: m.ghi,
+                    dni: m.dni,
+                    dhi: m.dhi,
+                  }))}
+                  margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--ar-border)" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                  />
+                  <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "var(--ar-raised)",
+                      border: "1px solid var(--ar-border)",
+                      borderRadius: 4,
+                      fontSize: 11,
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Line type="monotone" dataKey="ghi" name="GHI" stroke="#f59e0b" strokeWidth={1.8} dot={false} />
+                  <Line type="monotone" dataKey="dni" name="DNI" stroke="#ef4444" strokeWidth={1.8} dot={false} />
+                  <Line type="monotone" dataKey="dhi" name="DHI" stroke="#38bdf8" strokeWidth={1.8} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+              <p className="telemetry mt-1 text-[10px] text-muted-foreground">
+                daily mean kWh/m2 by month
+              </p>
+
+              <div
+                className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4"
+                style={{ borderColor: "var(--ar-border)" }}
+              >
+                <WaterFigure
+                  label="GHI"
+                  value={result.solar.resource.ghi_annual_kwh_m2.toFixed(0)}
+                  sub={`kWh/m2/yr · CV ${result.solar.resource.ghi_cv_pct.toFixed(1)}%`}
+                />
+                <WaterFigure
+                  label="Optimum tilt"
+                  value={`${result.solar.geometry.optimal_tilt_deg.toFixed(0)}°`}
+                  sub={`+${result.solar.geometry.gain_over_horizontal_pct.toFixed(1)}% over flat`}
+                />
+                <WaterFigure
+                  label="Specific yield"
+                  value={result.solar.pv.specific_yield_kwh_kwp_year.toFixed(0)}
+                  sub={`kWh/kWp/yr · PR ${result.solar.pv.performance_ratio.toFixed(2)}`}
+                />
+                <WaterFigure
+                  label="Capacity factor"
+                  value={`${result.solar.pv.capacity_factor_pct.toFixed(1)}%`}
+                  sub={`modelled PR ${result.solar.pv.performance_ratio_modelled.toFixed(3)}`}
+                />
+              </div>
+
+              {result.solar.geometry.tilt_tolerance.length > 0 && (
+                <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                  Tilt tolerance:{" "}
+                  {result.solar.geometry.tilt_tolerance
+                    .map(
+                      (t) =>
+                        `${t.deviation_deg.toFixed(0)}° costs ${t.loss_pct.toFixed(2)}%`
+                    )
+                    .join(" · ")}
+                  . The optimum is a peak, not a requirement.
+                </p>
+              )}
+
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                {result.solar.grid_note}
+              </p>
+            </section>
+          )}
+
+          {result.solar_siting && (
+            <section className="ar-section p-4">
+              <p className="eyebrow mb-3">Photovoltaic siting</p>
+              <div className="mb-3 grid grid-cols-2 gap-3">
+                <WaterFigure
+                  label="Suitable, no conflict"
+                  value={`${result.solar_siting.suitable_no_conflict_ha.toFixed(1)} ha`}
+                />
+                <WaterFigure
+                  label="Suitable, on cropland"
+                  value={`${result.solar_siting.suitable_cropland_ha.toFixed(1)} ha`}
+                  sub="reported apart, never summed"
+                />
+              </div>
+              <ul className="flex flex-col gap-1.5">
+                {result.solar_siting.classes.map((c) => (
+                  <li key={c.code} className="flex items-center gap-2 text-xs">
+                    <span
+                      className="size-2.5 shrink-0 rounded-[2px]"
+                      style={{ backgroundColor: c.color }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                    <span className="telemetry w-20 shrink-0 text-right">
+                      {c.area_ha.toFixed(1)} ha
+                    </span>
+                    <span className="telemetry w-12 shrink-0 text-right text-muted-foreground">
+                      {c.pct.toFixed(1)}%
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+                Slope limits {result.solar_siting.thresholds.slope_acceptable_deg}{" "}
+                and {result.solar_siting.thresholds.slope_restrictive_deg} degrees.{" "}
+                {result.solar_siting.thresholds.note}
+              </p>
+            </section>
+          )}
 
           {/*
             Surface water over the period. Fractions are a percentage of the

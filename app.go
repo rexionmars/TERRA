@@ -330,7 +330,85 @@ func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, er
 	if a.runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.AnalyzeSolar(a.ctx, req)
+	res, err := a.runner.AnalyzeSolar(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistSolarRun(req, res)
+	return res, nil
+}
+
+// persistSolarRun saves a solar resource run so it survives the session and is
+// listed, opened and exported like the other analyses. Best effort: failing to
+// record a run must not discard the result the user is looking at.
+func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalysis) {
+	a.mu.RLock()
+	user := a.currentUser
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil || res == nil {
+		return
+	}
+	userID := store.LocalUserID
+	if user != nil {
+		userID = user.ID
+	}
+
+	runID := uuid.NewString()
+	assetsRel := filepath.Join("runs", runID)
+	_ = os.MkdirAll(st.RunsDir(runID), 0o700)
+
+	resultBytes, _ := json.Marshal(res)
+
+	poly := ""
+	if req.PolygonGeoJSON != nil {
+		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
+			poly = string(b)
+		}
+	} else if req.AreaID != "" {
+		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
+	}
+
+	label := strings.TrimSpace(req.Label)
+	if label == "" {
+		label = "Custom AOI"
+	}
+	runLabel := strings.TrimSpace(req.RunLabel)
+	if runLabel == "" {
+		runLabel = makeRunLabel(label)
+	}
+	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
+		runLabel = "run-" + runLabel
+	}
+
+	summary, _ := json.Marshal(map[string]any{
+		"ghi_annual_kwh_m2":       res.Resource.GHIAnnualKWhM2,
+		"optimal_tilt_deg":        res.Geometry.OptimalTiltDeg,
+		"specific_yield":          res.PV.SpecificYieldKWhKWpYear,
+		"performance_ratio":       res.PV.PerformanceRatio,
+		"performance_ratio_model": res.PV.PerformanceRatioModelled,
+		"n_years":                 res.Resource.NYears,
+		"aoi_label":               label,
+		"grid_note":               res.GridNote,
+	})
+
+	_, _ = st.SaveRun(store.InferenceRun{
+		ID:     runID,
+		UserID: userID,
+		Kind:   store.RunKindSolar,
+		// No model produced this; the source is the method that did.
+		ModelKind:      "NASA POWER",
+		PeriodStart:    "",
+		PeriodEnd:      "",
+		PolygonGeoJSON: poly,
+		Status:         "ok",
+		SummaryJSON:    string(summary),
+		ResultJSON:     string(resultBytes),
+		AssetsRelPath:  assetsRel,
+		NDates:         res.Resource.NYears,
+		Label:          runLabel,
+		ProjectID:      strings.TrimSpace(req.ProjectID),
+	})
 }
 
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
@@ -626,6 +704,14 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	// see it through the same field a live run uses. The classification fields
 	// are deliberately left at zero: no classification was made, and filling
 	// n_dates here would make the page present one.
+	if run.Kind == store.RunKindSolar {
+		var solar backend.SolarAnalysis
+		if run.ResultJSON != "" && run.ResultJSON != "{}" {
+			_ = json.Unmarshal([]byte(run.ResultJSON), &solar)
+		}
+		return &backend.PredictResult{Solar: &solar}, nil
+	}
+
 	if run.Kind == store.RunKindWater {
 		var water backend.WaterAnalysis
 		if run.ResultJSON != "" && run.ResultJSON != "{}" {

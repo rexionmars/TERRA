@@ -179,6 +179,10 @@ export interface PredictResult {
   lulc?: LULCAnalysis | null
   /** Attached when a surface-water run was made over the same AOI. */
   water?: WaterAnalysis | null
+  /** Same, for the solar products, which need no scene at all. */
+  solar?: SolarAnalysis | null
+  solar_terrain?: SolarTerrainAnalysis | null
+  solar_siting?: SolarSitingAnalysis | null
 }
 
 export interface ProgressEvent {
@@ -452,6 +456,9 @@ export interface SolarAnalysis {
 }
 
 export interface SolarRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
   area_id: string
   polygon_geojson: GeoJSONGeometry | null
   climatology_years: number

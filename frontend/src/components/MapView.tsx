@@ -1077,9 +1077,29 @@ export function MapView({
     result.confidence_uri
   )
 
+  const solarBounds: LatLngBoundsExpression | null =
+    solarOverlay &&
+    solarOverlay.extent &&
+    !(
+      solarOverlay.extent.lon_min === 0 &&
+      solarOverlay.extent.lon_max === 0 &&
+      solarOverlay.extent.lat_min === 0 &&
+      solarOverlay.extent.lat_max === 0
+    )
+      ? [
+          [solarOverlay.extent.lat_min, solarOverlay.extent.lon_min],
+          [solarOverlay.extent.lat_max, solarOverlay.extent.lon_max],
+        ]
+      : null
+
+  const solarVisible = !!(solarOverlay && solarBounds && solarOverlay.uri)
+
   const swipeActive =
     swipeCompare &&
-    (compositionVisible || predictionVisible || confidenceVisible)
+    (compositionVisible ||
+      predictionVisible ||
+      confidenceVisible ||
+      solarVisible)
 
   const swipeClip = swipeActive ? swipeRatio : null
   const predictionOpacity = swipeActive
@@ -1118,33 +1138,20 @@ export function MapView({
       />
     ) : null
 
-  const solarBounds: LatLngBoundsExpression | null =
-    solarOverlay &&
-    solarOverlay.extent &&
-    !(
-      solarOverlay.extent.lon_min === 0 &&
-      solarOverlay.extent.lon_max === 0 &&
-      solarOverlay.extent.lat_min === 0 &&
-      solarOverlay.extent.lat_max === 0
-    )
-      ? [
-          [solarOverlay.extent.lat_min, solarOverlay.extent.lon_min],
-          [solarOverlay.extent.lat_max, solarOverlay.extent.lon_max],
-        ]
-      : null
 
-  const solarLayer =
-    solarOverlay && solarBounds && solarOverlay.uri ? (
-      <PredictionOverlay
-        key="solar"
-        url={solarOverlay.uri}
-        bounds={solarBounds}
-        opacity={solarOverlay.opacity ?? 0.85}
-        smooth={false}
-        zIndex={358}
-        swipeRatio={null}
-      />
-    ) : null
+  const solarLayer = solarVisible ? (
+    <PredictionOverlay
+      key="solar"
+      url={solarOverlay!.uri}
+      bounds={solarBounds!}
+      opacity={solarOverlay!.opacity ?? 0.85}
+      smooth={false}
+      zIndex={358}
+      // Wipes with the other overlays rather than staying put: comparing a
+      // solar raster against the imagery under it is the same gesture.
+      swipeRatio={swipeClip}
+    />
+  ) : null
 
   const compositionLayer = compositionVisible ? (
     <PredictionOverlay

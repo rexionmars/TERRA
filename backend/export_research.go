@@ -42,6 +42,24 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 	// Sample size of the MapBiomas comparison. The reference is native at 30 m
 	// and is resampled onto the 10 m grid, so the pixel count overstates the
 	// number of independent label observations by roughly nine times.
+	if sol := result.Solar; sol != nil {
+		// Every solar figure travels with the assumption that produced it.
+		manifest["solar_ghi_annual_kwh_m2"] = sol.Resource.GHIAnnualKWhM2
+		manifest["solar_n_years"] = sol.Resource.NYears
+		manifest["solar_optimal_tilt_deg"] = sol.Geometry.OptimalTiltDeg
+		manifest["solar_surface_azimuth_deg"] = sol.Geometry.SurfaceAzimuthDeg
+		manifest["solar_specific_yield_kwh_kwp_year"] = sol.PV.SpecificYieldKWhKWpYear
+		manifest["solar_performance_ratio"] = sol.PV.PerformanceRatio
+		manifest["solar_performance_ratio_source"] = sol.PV.PerformanceRatioSource
+		manifest["solar_performance_ratio_modelled"] = sol.PV.PerformanceRatioModelled
+		manifest["solar_grid_note"] = sol.GridNote
+	}
+	if st := result.SolarSiting; st != nil {
+		// Reported apart, never summed.
+		manifest["solar_siting_suitable_no_conflict_ha"] = st.SuitableNoConflictHa
+		manifest["solar_siting_suitable_cropland_ha"] = st.SuitableCroplandHa
+		manifest["solar_siting_thresholds"] = st.Thresholds
+	}
 	if w := result.Water; w != nil && len(w.Series) > 0 {
 		manifest["water_index"] = w.Index
 		manifest["water_threshold"] = w.ThresholdFixed
@@ -287,6 +305,52 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 			})
 		}
 		if err := writeZipCSV(zw, "water_series.csv", rows); err != nil {
+			_ = zw.Close()
+			return nil, err
+		}
+	}
+
+	if sol := result.Solar; sol != nil && len(sol.Resource.Monthly) > 0 {
+		rows := [][]string{{"month", "ghi", "dni", "dhi", "kt"}}
+		for _, m := range sol.Resource.Monthly {
+			rows = append(rows, []string{
+				strconv.Itoa(m.Month),
+				formatFloatPtr(m.GHI),
+				formatFloatPtr(m.DNI),
+				formatFloatPtr(m.DHI),
+				formatFloatPtr(m.KT),
+			})
+		}
+		if err := writeZipCSV(zw, "solar_monthly.csv", rows); err != nil {
+			_ = zw.Close()
+			return nil, err
+		}
+
+		// The tilt tolerance is what says how much the optimum matters: a
+		// figure quoted without it reads as a requirement rather than a peak.
+		tol := [][]string{{"deviation_deg", "loss_pct"}}
+		for _, t := range sol.Geometry.TiltTolerance {
+			tol = append(tol, []string{
+				formatFloat(t.DeviationDeg), formatFloat(t.LossPct),
+			})
+		}
+		if len(tol) > 1 {
+			if err := writeZipCSV(zw, "solar_tilt_tolerance.csv", tol); err != nil {
+				_ = zw.Close()
+				return nil, err
+			}
+		}
+	}
+
+	if st := result.SolarSiting; st != nil && len(st.Classes) > 0 {
+		rows := [][]string{{"code", "name", "color", "pixels", "area_ha", "pct"}}
+		for _, c := range st.Classes {
+			rows = append(rows, []string{
+				strconv.Itoa(c.Code), c.Name, c.Color,
+				strconv.Itoa(c.Pixels), formatFloat(c.AreaHa), formatFloat(c.Pct),
+			})
+		}
+		if err := writeZipCSV(zw, "solar_siting_classes.csv", rows); err != nil {
 			_ = zw.Close()
 			return nil, err
 		}

@@ -318,6 +318,11 @@ type PredictResult struct {
 	// Attached by the frontend when a surface-water run has been made over the
 	// same AOI. Produced by a separate action, so it is not filled by Predict.
 	Water *WaterAnalysis `json:"water,omitempty"`
+	// Same, for the solar products. Solar needs no scene, so it can be present
+	// with no classification behind it at all.
+	Solar        *SolarAnalysis        `json:"solar,omitempty"`
+	SolarTerrain *SolarTerrainAnalysis `json:"solar_terrain,omitempty"`
+	SolarSiting  *SolarSitingAnalysis  `json:"solar_siting,omitempty"`
 }
 
 // ProgressEvent is emitted to the frontend as "predict:progress".
@@ -434,6 +439,10 @@ type SolarRequest struct {
 	// Null applies the reference ratio; a value overrides it. The response
 	// always reports which was used.
 	PerformanceRatio *float64 `json:"performance_ratio,omitempty"`
+	// Recorded with the saved run, matching the other analyses.
+	Label     string `json:"label,omitempty"`
+	RunLabel  string `json:"run_label,omitempty"`
+	ProjectID string `json:"project_id,omitempty"`
 }
 
 // SolarMonth is one calendar month of the radiation climatology, as daily means.
