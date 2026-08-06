@@ -594,7 +594,15 @@ function AppBody(props: {
   )
 
   const activateProject = useCallback(
-    async (id: string | null) => {
+    async (
+      id: string | null,
+      opts?: { userInitiated?: boolean }
+    ) => {
+      // Opening a project is an explicit action and draws its AOI and most
+      // recent composition on the map. Restoring one at startup is not, and
+      // must not: a session that begins with an AOI outline and an overlay the
+      // user did not ask for in that session leaves them clearing both by hand.
+      const userInitiated = opts?.userInitiated ?? true
       await persistActiveProjectId(id)
       if (!id) {
         setComposition(null)
@@ -608,13 +616,13 @@ function AppBody(props: {
           p.label?.trim() ||
           parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
           ""
-        if (p.area_id) {
+        if (userInitiated && p.area_id) {
           props.setActiveExample(p.area_id)
           props.setCustomPolygon(null)
           const label = savedLabel || p.name
           props.setAnalysisLabel(label)
           void persistAoiLabel(label)
-        } else if (p.polygon_geojson) {
+        } else if (userInitiated && p.polygon_geojson) {
           const aoi = parseRunPolygon(p.polygon_geojson, props.areas)
           props.setActiveExample(aoi.exampleId)
           props.setCustomPolygon(aoi.polygon)
@@ -636,9 +644,11 @@ function AppBody(props: {
         const gallery = overlays
           .map(projectOverlayToComposition)
           .filter((x): x is CompositionOverlay => !!x)
+        // The gallery is always loaded so the compositions stay one click away
+        // in Overlay Tools; only the display is conditional.
         setCompositionGallery(gallery)
-        setComposition(gallery[0] ?? null)
-        setShowCompositionOverlay(!!gallery[0])
+        setComposition(userInitiated ? gallery[0] ?? null : null)
+        setShowCompositionOverlay(userInitiated && !!gallery[0])
       } catch (e) {
         notifyError("Could not open project", e)
       }
@@ -662,7 +672,7 @@ function AppBody(props: {
     if (!id) return
     if (!projects.some((p) => p.id === id)) return
     didRestoreProjectRef.current = true
-    void activateProject(id)
+    void activateProject(id, { userInitiated: false })
   }, [prefs?.extras_json, projects, activateProject])
 
   const handleCreateProjectFromMap = useCallback(async () => {
