@@ -1101,7 +1101,9 @@ export function MapView({
         opacity={0.8}
         smooth={false}
         zIndex={360}
-        swipeRatio={1}
+        // null disables the swipe clip. A ratio of 1 would put the clip line at
+        // the right edge of the map and hide the layer entirely.
+        swipeRatio={null}
       />
     ) : null
 

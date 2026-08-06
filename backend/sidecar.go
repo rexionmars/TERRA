@@ -1031,6 +1031,9 @@ func (r *Runner) AnalyzeWater(ctx context.Context, req WaterRequest) (*WaterAnal
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
+	// The occurrence PNG is read into a data URI before this returns, so the
+	// directory is not needed afterwards.
+	defer os.RemoveAll(workDir)
 
 	sReq := sidecarRequest{
 		Action:         "water",
