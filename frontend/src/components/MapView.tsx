@@ -50,6 +50,8 @@ interface MapViewProps {
   /** When false, hide the band composition overlay. */
   showCompositionOverlay?: boolean
   composition?: CompositionOverlay | null
+  /** Surface-water occurrence raster, rendered above the basemap. */
+  waterOverlay?: { uri: string; extent: PredictResult["extent"] } | null
   /** Vertical wipe: left = basemap, right = prediction. */
   swipeCompare: boolean
   swipeRatio: number
@@ -966,6 +968,7 @@ export function MapView({
   showPredictionOverlay = true,
   showCompositionOverlay = true,
   composition = null,
+  waterOverlay = null,
   swipeCompare,
   swipeRatio,
   onSwipeRatioChange,
@@ -1052,6 +1055,36 @@ export function MapView({
   const predictionOpacity = swipeActive
     ? Math.max(overlayOpacity, 0.88)
     : overlayOpacity
+
+  // Surface-water occurrence sits above the composition and below the
+  // prediction, so a classification run stays readable over it.
+  const waterBounds: LatLngBoundsExpression | null =
+    waterOverlay &&
+    waterOverlay.extent &&
+    !(
+      waterOverlay.extent.lon_min === 0 &&
+      waterOverlay.extent.lon_max === 0 &&
+      waterOverlay.extent.lat_min === 0 &&
+      waterOverlay.extent.lat_max === 0
+    )
+      ? [
+          [waterOverlay.extent.lat_min, waterOverlay.extent.lon_min],
+          [waterOverlay.extent.lat_max, waterOverlay.extent.lon_max],
+        ]
+      : null
+
+  const waterLayer =
+    waterOverlay && waterBounds && waterOverlay.uri ? (
+      <PredictionOverlay
+        key="water"
+        url={waterOverlay.uri}
+        bounds={waterBounds}
+        opacity={0.8}
+        smooth={false}
+        zIndex={360}
+        swipeRatio={1}
+      />
+    ) : null
 
   const compositionLayer = compositionVisible ? (
     <PredictionOverlay
@@ -1167,6 +1200,7 @@ export function MapView({
         ))}
 
       {compositionLayer}
+      {waterLayer}
       {predictionLayer}
       {confidenceLayer}
 

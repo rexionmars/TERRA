@@ -6,6 +6,10 @@ export function AnalyzeLULC(arg1) {
   return window['go']['main']['App']['AnalyzeLULC'](arg1);
 }
 
+export function AnalyzeWater(arg1) {
+  return window['go']['main']['App']['AnalyzeWater'](arg1);
+}
+
 export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
 }

@@ -336,3 +336,59 @@ export interface CompositionOverlay {
   /** Local GeoTIFF path for export (when available). */
   raster_tif?: string
 }
+
+export type WaterIndex = "NDWI" | "MNDWI" | "AWEI"
+
+export interface WaterDate {
+  date: string
+  scene_id: string
+  cloud_cover: number
+  /**
+   * AOI pixels actually observed on this date. Water fractions are a percentage
+   * of this, not of the whole AOI, so a partly clouded date is not read as dry.
+   */
+  observed_pixels: number
+  threshold_fixed: number
+  threshold_otsu: number
+  /** The Otsu value hit an empirical bound and is a bound, not an estimate. */
+  threshold_clipped: boolean
+  /** Too few observations to threshold at all. */
+  threshold_degenerate: boolean
+  water_fraction_pct: number
+  water_fraction_otsu_pct: number
+  water_pixels: number
+  area_ha: number
+}
+
+export interface WaterAnalysis {
+  index: WaterIndex
+  threshold_method: string
+  threshold_fixed: number
+  otsu_clip: number[]
+  n_dates: number
+  date_range: string[]
+  aoi_pixels: number
+  aoi_area_ha: number
+  series: WaterDate[]
+  peak_date: string
+  peak_water_fraction_pct: number
+  /** Water on some dates but not most: the flood signal rather than a pond. */
+  ephemeral_pixels: number
+  ephemeral_area_ha: number
+  persistent_pixels: number
+  persistent_area_ha: number
+  mean_anomaly: number
+  /** Occurrence raster as a data URI, coloured on a fixed 0 to 1 scale. */
+  occurrence_uri: string
+  extent: Bounds
+}
+
+export interface WaterRequest {
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  start: string
+  end: string
+  max_cloud: number
+  monthly_best: boolean
+  index: WaterIndex
+}

@@ -232,6 +232,15 @@ func (a *App) RenderComposite(req backend.CompositeRequest) (*backend.CompositeR
 	return a.runner.RenderComposite(a.ctx, req)
 }
 
+// AnalyzeWater maps surface water over a period from spectral water indices.
+// Descriptive: a thresholded index, with no model and no trained legend.
+func (a *App) AnalyzeWater(req backend.WaterRequest) (*backend.WaterAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return a.runner.AnalyzeWater(a.ctx, req)
+}
+
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
 func (a *App) ExportClassification(rasterPath string) (string, error) {
 	return a.ExportOverlayFile(rasterPath, "terra_classification.tif")

@@ -16,6 +16,7 @@ import {
   GetProject,
   UpdateProjectAOI,
   CreateProject,
+  AnalyzeWater,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -40,6 +41,9 @@ import type {
   Project,
   ProjectOverlay,
   SaveProjectOverlayRequest,
+  WaterAnalysis,
+  WaterIndex,
+  WaterRequest,
 } from "@/lib/types"
 import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
@@ -451,6 +455,10 @@ function AppBody(props: {
   const [composeStretchLow, setComposeStretchLow] = useState(2)
   const [composeStretchHigh, setComposeStretchHigh] = useState(98)
   const [composeOpacity, setComposeOpacity] = useState(0.85)
+  const [water, setWater] = useState<WaterAnalysis | null>(null)
+  const [waterIndex, setWaterIndex] = useState<WaterIndex>("MNDWI")
+  const [waterRunning, setWaterRunning] = useState(false)
+  const [showWaterOverlay, setShowWaterOverlay] = useState(true)
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -840,6 +848,46 @@ function AppBody(props: {
       notifyError("Composition error", e)
     } finally {
       setComposeRunning(false)
+    }
+  }
+
+  const handleRunWater = async () => {
+    if (!props.start || !props.end) {
+      notifyError("Set the acquisition period.")
+      return
+    }
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    setWaterRunning(true)
+    // The sidecar emits on the shared predict:progress channel and only one
+    // action runs at a time, so the panel reads the shared progress.
+    props.setProgress(0)
+    props.setProgressMsg("starting")
+    try {
+      const req: WaterRequest = {
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        start: props.start,
+        end: props.end,
+        max_cloud: props.maxCloud,
+        monthly_best: props.monthlyBest,
+        index: waterIndex,
+      }
+      const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
+      setWater(res)
+      setShowWaterOverlay(true)
+      notifySuccess(
+        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}%.`
+      )
+    } catch (e) {
+      notifyError("Surface water error", e)
+    } finally {
+      setWaterRunning(false)
+      props.setProgress(0)
+      props.setProgressMsg("")
     }
   }
 
@@ -1338,6 +1386,19 @@ function AppBody(props: {
                     setDataCubeOpen(false)
                     setDataCubeError(null)
                   }}
+                  water={water}
+                  waterIndex={waterIndex}
+                  waterRunning={waterRunning}
+                  waterProgress={props.progress}
+                  waterProgressMsg={props.progressMsg}
+                  showWaterOverlay={showWaterOverlay}
+                  onWaterIndexChange={setWaterIndex}
+                  onRunWater={() => void handleRunWater()}
+                  onClearWater={() => {
+                    setWater(null)
+                    setShowWaterOverlay(true)
+                  }}
+                  onShowWaterOverlayChange={setShowWaterOverlay}
                   leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>
