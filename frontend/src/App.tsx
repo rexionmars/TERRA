@@ -1122,7 +1122,16 @@ function AppBody(props: {
     props.setProgress(0)
     props.setProgressMsg("starting")
     try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
       const req: SolarTerrainRequest = {
+        label: aoiLabel,
+        run_label: makeRunLabel(aoiLabel),
+        project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
         hourly_years: solarHourlyYears,
@@ -1155,7 +1164,16 @@ function AppBody(props: {
     props.setProgress(0)
     props.setProgressMsg("starting")
     try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
       const req: SolarSitingRequest = {
+        label: aoiLabel,
+        run_label: makeRunLabel(aoiLabel),
+        project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
         slope_acceptable_deg: solarSlopeAcceptable,
@@ -1387,11 +1405,9 @@ function AppBody(props: {
         // opening one puts the occurrence overlay back on the map. The AOI it
         // was measured on is recorded first, otherwise the invalidation effect
         // sees a mismatch and drops the raster that was just restored.
-        if (res.solar) {
-          setSolar(res.solar)
-        } else {
-          setSolar(null)
-        }
+        setSolar(res.solar ?? null)
+        setSolarTerrain(res.solar_terrain ?? null)
+        setSolarSiting(res.solar_siting ?? null)
         if (res.water) {
           waterAoiRef.current = aoi.exampleId
             ? `area:${aoi.exampleId}`
@@ -1440,6 +1456,13 @@ function AppBody(props: {
 
   const backToAnalysesList = useCallback(() => {
     props.setResult(null)
+    // The standalone products have to go too. The analysis payload is
+    // non-null whenever any of them is present, so clearing only the
+    // classification leaves the detail view up and the saved list unreachable.
+    setWater(null)
+    setSolar(null)
+    setSolarTerrain(null)
+    setSolarSiting(null)
     props.setShowPredictionOverlay(true)
     props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
@@ -1472,6 +1495,10 @@ function AppBody(props: {
     props.setShowPredictionOverlay(true)
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
+    setWater(null)
+    setSolar(null)
+    setSolarTerrain(null)
+    setSolarSiting(null)
     // Starting over drops the AOI, so the session composition must go with it:
     // otherwise the previous AOI's overlay stays painted over the empty map.
     // Saved compositions are reloaded from the project on reopen.

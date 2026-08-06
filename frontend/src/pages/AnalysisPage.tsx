@@ -100,6 +100,29 @@ function WaterFigure({
   )
 }
 
+/** Headline figures from a saved solar run's summary. */
+function solarSummaryLine(summary?: string | null): string {
+  if (!summary?.trim()) return "solar resource"
+  try {
+    const j = JSON.parse(summary) as Record<string, unknown>
+    const ghi =
+      typeof j.ghi_annual_kwh_m2 === "number"
+        ? `${j.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr`
+        : ""
+    const tilt =
+      typeof j.optimal_tilt_deg === "number"
+        ? `tilt ${j.optimal_tilt_deg.toFixed(0)}\u00b0`
+        : ""
+    const y =
+      typeof j.specific_yield === "number"
+        ? `${j.specific_yield.toFixed(0)} kWh/kWp/yr`
+        : ""
+    return [ghi, tilt, y].filter(Boolean).join(" \u00b7 ") || "solar resource"
+  } catch {
+    return "solar resource"
+  }
+}
+
 /** Peak water and occurrence areas from a saved water run's summary. */
 function waterSummaryLine(summary?: string | null): string {
   if (!summary?.trim()) return "surface water"
@@ -122,7 +145,11 @@ function waterSummaryLine(summary?: string | null): string {
 function modelDisplayName(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
   if (kind === "prithvi") return "Prithvi-EO 2.0"
-  return "Random Forest"
+  if (kind === "spectral" || kind === "") return "Random Forest"
+  // Anything else names itself. The old fallback returned Random Forest for
+  // every unknown value, so a solar run recorded as NASA POWER was listed as a
+  // classification by a model that never touched it.
+  return kind
 }
 
 const tabId = (id: ProjectTab) => `project-tab-${id}`
@@ -1960,12 +1987,21 @@ function SavedRunsPanel({
                         {displayRunLabel(r.label)}
                       </span>
                       <span className="telemetry shrink-0 text-muted-foreground">
-                        {r.n_dates} scenes
+                        {/* Solar counts years of climatology, not scenes: it
+                            never reads one. */}
+                        {r.n_dates} {r.kind === "solar" ? "years" : "scenes"}
                       </span>
                     </div>
                     {/* What the run produced, from summary already in memory —
                         saves a LoadAnalysis round trip just to see the result. */}
-                    {r.kind === "water" ? (
+                    {r.kind === "solar" ? (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="size-2.5 shrink-0 rounded-[2px] bg-[#f59e0b]" />
+                        <span className="truncate text-foreground">
+                          {solarSummaryLine(r.summary)}
+                        </span>
+                      </div>
+                    ) : r.kind === "water" ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className="size-2.5 shrink-0 rounded-[2px] bg-[#3182bd]" />
                         <span className="truncate text-foreground">
@@ -1996,9 +2032,11 @@ function SavedRunsPanel({
                     <div className="mt-0.5 text-muted-foreground">
                       {r.kind === "water"
                         ? `Surface water · ${r.model_kind || "index"}`
-                        : modelDisplayName(r.model_kind)}
+                        : r.kind === "solar"
+                          ? `Solar resource · ${r.model_kind || "NASA POWER"}`
+                          : modelDisplayName(r.model_kind)}
                       {" · "}
-                      {summary.dateRange ? (
+                      {r.kind === "solar" ? null : summary.dateRange ? (
                         <>
                           observed {summary.dateRange[0]} → {summary.dateRange[1]}
                           <span className="opacity-70">

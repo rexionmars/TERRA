@@ -520,7 +520,10 @@ type SolarTerrainRequest struct {
 	// winter-over-summer ratio, or "shading" for the share of beam irradiation
 	// the terrain horizon blocks. The annual map averages a geometry that
 	// reverses within the year, so the window is explicit.
-	Season string `json:"season,omitempty"`
+	Season    string `json:"season,omitempty"`
+	Label     string `json:"label,omitempty"`
+	RunLabel  string `json:"run_label,omitempty"`
+	ProjectID string `json:"project_id,omitempty"`
 }
 
 // SolarRenderScale is the colour domain an overlay was drawn on.
@@ -580,6 +583,10 @@ type SolarTerrainAnalysis struct {
 	Extent     Bounds `json:"extent"`
 }
 
+// NDates reports the years of hourly record behind the map, so a saved run can
+// state its basis the way the other kinds do.
+func (t *SolarTerrainAnalysis) NDates() int { return t.HourlyYears }
+
 type solarTerrainSidecarPayload struct {
 	POAMin          float64          `json:"poa_min"`
 	POAMax          float64          `json:"poa_max"`
@@ -612,6 +619,9 @@ type SolarSitingRequest struct {
 	SlopeRestrictiveDeg float64 `json:"slope_restrictive_deg,omitempty"`
 	ExcludedCover       []int   `json:"excluded_cover,omitempty"`
 	CroplandCover       []int   `json:"cropland_cover,omitempty"`
+	Label               string  `json:"label,omitempty"`
+	RunLabel            string  `json:"run_label,omitempty"`
+	ProjectID           string  `json:"project_id,omitempty"`
 }
 
 // SolarSitingClass is one siting class with its extent.

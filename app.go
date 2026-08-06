@@ -416,7 +416,13 @@ func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.Sol
 	if a.runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.AnalyzeSolarTerrain(a.ctx, req)
+	res, err := a.runner.AnalyzeSolarTerrain(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
+		req.ProjectID, "solar_terrain", res.Season, res, res.OverlayURI, res.NDates())
+	return res, nil
 }
 
 // AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
@@ -424,7 +430,83 @@ func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.Solar
 	if a.runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.AnalyzeSolarSiting(a.ctx, req)
+	res, err := a.runner.AnalyzeSolarSiting(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
+		req.ProjectID, "solar_siting", "siting", res, res.OverlayURI, 0)
+	return res, nil
+}
+
+// persistSolarRaster saves a solar map run and writes its overlay to disk, so
+// reopening the run puts the raster back rather than only its numbers.
+func (a *App) persistSolarRaster(
+	areaID string, poly *backend.GeoJSONGeometry,
+	label, runLabel, projectID, kindTag, variant string,
+	payload any, overlayURI string, nDates int,
+) {
+	a.mu.RLock()
+	user := a.currentUser
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil || payload == nil {
+		return
+	}
+	userID := store.LocalUserID
+	if user != nil {
+		userID = user.ID
+	}
+
+	runID := uuid.NewString()
+	assetsRel := filepath.Join("runs", runID)
+	assetsDir := st.RunsDir(runID)
+	_ = os.MkdirAll(assetsDir, 0o700)
+	_ = store.WriteDataURIFile(overlayURI, filepath.Join(assetsDir, kindTag+".png"))
+
+	resultBytes, _ := json.Marshal(payload)
+
+	polyJSON := ""
+	if poly != nil {
+		if b, err := json.Marshal(poly); err == nil {
+			polyJSON = string(b)
+		}
+	} else if areaID != "" {
+		polyJSON = fmt.Sprintf(`{"area_id":%q}`, areaID)
+	}
+
+	l := strings.TrimSpace(label)
+	if l == "" {
+		l = "Custom AOI"
+	}
+	rl := strings.TrimSpace(runLabel)
+	if rl == "" {
+		rl = makeRunLabel(l)
+	}
+	if !strings.HasPrefix(strings.ToLower(rl), "run-") {
+		rl = "run-" + rl
+	}
+
+	summary, _ := json.Marshal(map[string]any{
+		"solar_product": kindTag,
+		"variant":       variant,
+		"aoi_label":     l,
+	})
+
+	_, _ = st.SaveRun(store.InferenceRun{
+		ID:             runID,
+		UserID:         userID,
+		Kind:           store.RunKindSolar,
+		ModelKind:      "NASA POWER",
+		PolygonGeoJSON: polyJSON,
+		Status:         "ok",
+		SummaryJSON:    string(summary),
+		ResultJSON:     string(resultBytes),
+		AssetsRelPath:  assetsRel,
+		NDates:         nDates,
+		Label:          rl,
+		ProjectID:      strings.TrimSpace(projectID),
+	})
 }
 
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
@@ -705,11 +787,39 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	// are deliberately left at zero: no classification was made, and filling
 	// n_dates here would make the page present one.
 	if run.Kind == store.RunKindSolar {
-		var solar backend.SolarAnalysis
-		if run.ResultJSON != "" && run.ResultJSON != "{}" {
-			_ = json.Unmarshal([]byte(run.ResultJSON), &solar)
+		// One kind covers three products; the summary says which one was saved.
+		var meta struct {
+			Product string `json:"solar_product"`
 		}
-		return &backend.PredictResult{Solar: &solar}, nil
+		_ = json.Unmarshal([]byte(run.SummaryJSON), &meta)
+		out := &backend.PredictResult{}
+		switch meta.Product {
+		case "solar_terrain":
+			var t backend.SolarTerrainAnalysis
+			_ = json.Unmarshal([]byte(run.ResultJSON), &t)
+			if uri, err := store.ReadFileDataURI(
+				filepath.Join(assetsDir, "solar_terrain.png"), "image/png",
+			); err == nil {
+				t.OverlayURI = uri
+			}
+			out.SolarTerrain = &t
+		case "solar_siting":
+			var st backend.SolarSitingAnalysis
+			_ = json.Unmarshal([]byte(run.ResultJSON), &st)
+			if uri, err := store.ReadFileDataURI(
+				filepath.Join(assetsDir, "solar_siting.png"), "image/png",
+			); err == nil {
+				st.OverlayURI = uri
+			}
+			out.SolarSiting = &st
+		default:
+			var solar backend.SolarAnalysis
+			if run.ResultJSON != "" && run.ResultJSON != "{}" {
+				_ = json.Unmarshal([]byte(run.ResultJSON), &solar)
+			}
+			out.Solar = &solar
+		}
+		return out, nil
 	}
 
 	if run.Kind == store.RunKindWater {

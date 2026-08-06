@@ -515,6 +515,9 @@ export interface SolarTerrainAnalysis {
 }
 
 export interface SolarTerrainRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
   area_id: string
   polygon_geojson: GeoJSONGeometry | null
   hourly_years: number
@@ -562,6 +565,9 @@ export interface SolarSitingAnalysis {
 }
 
 export interface SolarSitingRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
   area_id: string
   polygon_geojson: GeoJSONGeometry | null
   slope_acceptable_deg: number

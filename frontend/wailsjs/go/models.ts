@@ -1240,6 +1240,9 @@ export namespace backend {
 	    slope_restrictive_deg?: number;
 	    excluded_cover?: number[];
 	    cropland_cover?: number[];
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarSitingRequest(source);
@@ -1253,6 +1256,9 @@ export namespace backend {
 	        this.slope_restrictive_deg = source["slope_restrictive_deg"];
 	        this.excluded_cover = source["excluded_cover"];
 	        this.cropland_cover = source["cropland_cover"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1280,6 +1286,9 @@ export namespace backend {
 	    polygon_geojson?: GeoJSONGeometry;
 	    hourly_years?: number;
 	    season?: string;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarTerrainRequest(source);
@@ -1291,6 +1300,9 @@ export namespace backend {
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.hourly_years = source["hourly_years"];
 	        this.season = source["season"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
