@@ -183,7 +183,9 @@ export function MapScreen(props: MapScreenProps) {
 
   // The three status panels share one slot at the bottom of the map, so only
   // the one matching the open tool is shown.
-  const showSolarStatus = leftPanel === "solar" && !!props.solar
+  const showSolarStatus =
+    leftPanel === "solar" &&
+    (!!props.solar || !!props.solarTerrain || !!props.solarSiting)
   const showWaterStatus =
     !showSolarStatus && leftPanel === "water" && !!props.water
   const showCompositionStatus =
@@ -448,7 +450,13 @@ export function MapScreen(props: MapScreenProps) {
           <SolarStatusPanel
             key="solar-status"
             solar={props.solar ?? null}
-            onClear={props.onClearSolar}
+            terrain={props.solarTerrain ?? null}
+            siting={props.solarSiting ?? null}
+            onClear={() => {
+              props.onClearSolar()
+              props.onClearSolarTerrain()
+              props.onClearSolarSiting()
+            }}
           />
         ) : showWaterStatus ? (
           <WaterStatusPanel
