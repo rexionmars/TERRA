@@ -69,7 +69,14 @@ HOUR_LABEL_OFFSET_MIN = 30
 PDC0_W = 1000.0              # 1 kWp, so the result is a specific yield
 GAMMA_PDC = -0.0035          # power temperature coefficient, 1/C, crystalline Si
 INVERTER_ETA_NOM = 0.96
-INVERTER_PDC0_RATIO = 1.15   # DC/AC ratio
+# Inverter oversizing factor, NOT a DC/AC ratio. pvlib's pdc0 is the inverter's
+# DC input limit, so passing PDC0_W * 1.15 gives an inverter rated above the
+# array and an array-to-inverter ratio of 1000/1104 = 0.906. The constant was
+# previously labelled DC/AC, which reads as the opposite of what it does. The
+# arithmetic is left unchanged on purpose: sizing the inverter to a true 1.15
+# would move a shipped, externally benchmarked yield by 0.09 percent, which is
+# not a change to make as a side effect of a relabelling.
+INVERTER_OVERSIZE_RATIO = 1.15
 FAIMAN_U0 = 25.0
 FAIMAN_U1 = 6.84
 ALBEDO = 0.20
@@ -298,13 +305,21 @@ def sweep_tilt(
     return rows
 
 
-def pv_yield(poa, df: pd.DataFrame, solpos: pd.DataFrame, tilt: float, azimuth: float):
+def pv_yield_frame(
+    poa, df: pd.DataFrame, solpos: pd.DataFrame, tilt: float, azimuth: float
+) -> pd.DataFrame:
     """
-    PVWatts DC and AC power for a 1 kWp reference array.
+    PVWatts DC and AC power for a 1 kWp reference array, with the intermediate
+    stages of the chain.
 
     Module temperature from Faiman, DC from PVWatts, inversion from the PVWatts
     inverter model. Per kWp, so the result is a specific yield independent of
     plant size.
+
+    Returns the frame the research solar_model.pv_yield returns: poa_global,
+    g_eff, temp_cell, p_dc and p_ac. The intermediates are what a loss account
+    needs; recomputing them at the call site would recompute the chain and let
+    the two drift.
     """
     import pvlib
 
@@ -321,9 +336,22 @@ def pv_yield(poa, df: pd.DataFrame, solpos: pd.DataFrame, tilt: float, azimuth: 
     )
     p_dc = pvlib.pvsystem.pvwatts_dc(g_eff, temp_cell, PDC0_W, GAMMA_PDC)
     p_ac = pvlib.inverter.pvwatts(
-        p_dc, PDC0_W * INVERTER_PDC0_RATIO, eta_inv_nom=INVERTER_ETA_NOM
+        p_dc, PDC0_W * INVERTER_OVERSIZE_RATIO, eta_inv_nom=INVERTER_ETA_NOM
     )
-    return p_ac
+    return pd.DataFrame(
+        {
+            "poa_global": poa["poa_global"],
+            "g_eff": g_eff,
+            "temp_cell": temp_cell,
+            "p_dc": p_dc,
+            "p_ac": p_ac,
+        }
+    )
+
+
+def pv_yield(poa, df: pd.DataFrame, solpos: pd.DataFrame, tilt: float, azimuth: float):
+    """AC power alone, for callers that need no intermediate stage."""
+    return pv_yield_frame(poa, df, solpos, tilt, azimuth)["p_ac"]
 
 
 def modelled_performance_ratio(p_ac: pd.Series, poa_global: pd.Series) -> float:

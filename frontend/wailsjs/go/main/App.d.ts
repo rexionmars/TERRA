@@ -4,6 +4,8 @@ import {backend} from '../models';
 import {store} from '../models';
 import {main} from '../models';
 
+export function AnalyzeEnergyModel(arg1:backend.EnergyModelRequest):Promise<backend.EnergyModelAnalysis>;
+
 export function AnalyzeLULC(arg1:backend.LULCRequest):Promise<backend.LULCAnalysis>;
 
 export function AnalyzeSolar(arg1:backend.SolarRequest):Promise<backend.SolarAnalysis>;
@@ -13,6 +15,8 @@ export function AnalyzeSolarSiting(arg1:backend.SolarSitingRequest):Promise<back
 export function AnalyzeSolarTerrain(arg1:backend.SolarTerrainRequest):Promise<backend.SolarTerrainAnalysis>;
 
 export function AnalyzeWater(arg1:backend.WaterRequest):Promise<backend.WaterAnalysis>;
+
+export function AnalyzeWind(arg1:backend.WindRequest):Promise<backend.WindAnalysis>;
 
 export function ClearAvatar():Promise<store.User>;
 

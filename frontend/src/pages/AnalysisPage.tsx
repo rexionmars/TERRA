@@ -27,10 +27,15 @@ import {
 import { useAuth } from "@/lib/auth"
 import type {
   Area,
+  EnergyModelAnalysis,
+  EnergyCapacityDensity,
+  EnergyPlantClass,
   InferenceRun,
   PredictResult,
   Project,
   ProjectOverlay,
+  WindAnalysis,
+  PowerProvenance,
 } from "@/lib/types"
 import {
   CreateProject,
@@ -54,8 +59,10 @@ import {
 } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import { stripResearchPackRasters } from "@/lib/researchPack"
 import { compositionCaption, parseOverlayMeta } from "@/lib/projectOverlays"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
+import { PALETTE_STOPS, paletteGradient } from "@/lib/palettes"
 import {
   classifiedAreaHa,
   dominantClass,
@@ -100,27 +107,124 @@ function WaterFigure({
   )
 }
 
+/** Summary JSON of a saved run, or an empty object when there is none. */
+function runSummaryObject(summary?: string | null): Record<string, unknown> {
+  if (!summary?.trim()) return {}
+  try {
+    const j = JSON.parse(summary) as unknown
+    return j && typeof j === "object" ? (j as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * The reporting basis a specific yield was computed on. Year one applies no
+ * degradation; the lifetime mean applies the mean factor over the analysis
+ * period, which at 0.5 %/yr over 25 years is 0.942. Two runs of the same AOI on
+ * the two bases differ by that factor with nothing else to distinguish them, so
+ * the row states which one produced its figure.
+ */
+function reportingBasisLabel(v: unknown): string {
+  if (v === "year_one") return "year-one basis"
+  if (v === "lifetime_mean") return "lifetime-mean basis"
+  return typeof v === "string" && v.trim() ? `${v} basis` : ""
+}
+
+/**
+ * Which solar product a saved run holds.
+ *
+ * One store kind covers the resource run, the two raster products and the
+ * photovoltaic energy model, and app.go tells them apart by summary_json
+ * solar_product, the same key LoadAnalysis discriminates on. Unread, an energy
+ * model run and a resource run listed under one label with one set of figures.
+ * A run written before the key existed carries none and is a resource run,
+ * which is what the fallback names.
+ */
+function solarProductLabel(summary?: string | null): string {
+  const product = runSummaryObject(summary).solar_product
+  if (typeof product !== "string") return "Solar resource"
+  if (product === "solar_terrain") return "Terrain and horizon shading"
+  if (product === "solar_siting") return "Photovoltaic siting"
+  // Matched by prefix, not by equality, so the label survives a rename of the
+  // energy product tag without silently falling back to "Solar resource".
+  if (product.startsWith("energy")) return "Photovoltaic energy model"
+  return "Solar resource"
+}
+
 /** Headline figures from a saved solar run's summary. */
 function solarSummaryLine(summary?: string | null): string {
   if (!summary?.trim()) return "solar resource"
-  try {
-    const j = JSON.parse(summary) as Record<string, unknown>
-    const ghi =
-      typeof j.ghi_annual_kwh_m2 === "number"
-        ? `${j.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr`
-        : ""
-    const tilt =
-      typeof j.optimal_tilt_deg === "number"
-        ? `tilt ${j.optimal_tilt_deg.toFixed(0)}\u00b0`
-        : ""
-    const y =
-      typeof j.specific_yield === "number"
-        ? `${j.specific_yield.toFixed(0)} kWh/kWp/yr`
-        : ""
-    return [ghi, tilt, y].filter(Boolean).join(" \u00b7 ") || "solar resource"
-  } catch {
-    return "solar resource"
+  const j = runSummaryObject(summary)
+  const ghi =
+    typeof j.ghi_annual_kwh_m2 === "number"
+      ? `${j.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr`
+      : ""
+  const tilt =
+    typeof j.optimal_tilt_deg === "number"
+      ? `tilt ${j.optimal_tilt_deg.toFixed(0)}\u00b0`
+      : ""
+  const y =
+    typeof j.specific_yield === "number"
+      ? `${j.specific_yield.toFixed(0)} kWh/kWp/yr`
+      : ""
+  // The yield is scaled by the reporting basis, so it is never shown alone.
+  const basis = y ? reportingBasisLabel(j.reporting_basis) : ""
+  return (
+    [ghi, tilt, y, basis].filter(Boolean).join(" \u00b7 ") || "solar resource"
+  )
+}
+
+/**
+ * Headline figures from a saved wind run's summary.
+ *
+ * The capacity factor is gross and carries no external benchmark, so it is
+ * never shown without windQualifierLine beside it.
+ */
+function windSummaryLine(summary?: string | null): string {
+  if (!summary?.trim()) return "wind screening"
+  const j = runSummaryObject(summary)
+  const cf =
+    typeof j.wind_gross_capacity_factor_pct === "number"
+      ? `gross CF ${j.wind_gross_capacity_factor_pct.toFixed(1)}%`
+      : ""
+  const speed =
+    typeof j.wind_hub_mean_speed_ms === "number"
+      ? `${j.wind_hub_mean_speed_ms.toFixed(2)} m/s`
+      : ""
+  const hub =
+    typeof j.wind_hub_height_m === "number"
+      ? `${j.wind_hub_height_m.toFixed(0)} m hub`
+      : ""
+  const at = [speed, hub].filter(Boolean).join(" at ")
+  return [cf, at].filter(Boolean).join(" \u00b7 ") || "wind screening"
+}
+
+/**
+ * The qualifier that travels with a wind capacity factor in the run list.
+ *
+ * The figure is the published power curve on a modelled free-stream series with
+ * no plant loss applied and no comparison against an external wind reference,
+ * unlike the photovoltaic ratio, which is benchmarked against the Global Solar
+ * Atlas. Listed beside a photovoltaic row without this, it reads as the same
+ * kind of number.
+ */
+function windQualifierLine(summary?: string | null): string {
+  const j = runSummaryObject(summary)
+  const base = "screening indication, gross of losses, unvalidated"
+  if (j.wind_all_checks_passed === false) {
+    const n = typeof j.wind_flag_count === "number" ? j.wind_flag_count : 0
+    return n > 0
+      ? `${base}; ${n} record check${n === 1 ? "" : "s"} did not pass`
+      : `${base}; record checks did not pass`
   }
+  return base
+}
+
+/** The window of record a wind run read, in place of a requested period. */
+function windRecordWindow(summary?: string | null): string {
+  const w = runSummaryObject(summary).record_window
+  return typeof w === "string" ? w.trim() : ""
 }
 
 /** Peak water and occurrence areas from a saved water run's summary. */
@@ -915,9 +1019,15 @@ export function AnalysisPage({
     }
   }
 
+  // Every product that contributes a table or a manifest field. solar_terrain
+  // was missing, so an AOI carrying only a terrain run had both export buttons
+  // hidden and no way to reach its own manifest.
   const canExportTables =
     !!result.solar ||
+    !!result.solar_terrain ||
     !!result.solar_siting ||
+    !!result.energy_model ||
+    !!result.wind ||
     (result.water?.series?.length ?? 0) > 0 ||
     (result.class_stats?.length ?? 0) > 0 ||
     (result.vi_series?.length ?? 0) > 0 ||
@@ -929,20 +1039,9 @@ export function AnalysisPage({
     if (!canExportTables) return
     try {
       // Strip bulky data URIs — only tabular fields + raster path are needed.
-      const pack = {
-        ...result,
-        overlay_uri: "",
-        confidence_uri: "",
-        ndvi_mean_uri: "",
-        true_color_uri: "",
-        reference_uri: "",
-        lulc: result.lulc
-          ? { ...result.lulc, map_uri: "", map_png: "" }
-          : result.lulc,
-        water: result.water
-          ? { ...result.water, occurrence_uri: "" }
-          : result.water,
-      }
+      // Shared with the research pack modal, which reaches the same binding
+      // from the button beside this one and once stripped a shorter list.
+      const pack = stripResearchPackRasters(result)
       const dest = await ExportResearchPack(
         {
           model_kind: modelKind,
@@ -1462,9 +1561,10 @@ export function AnalysisPage({
                 </p>
               )}
 
-              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                {result.solar.grid_note}
-              </p>
+              <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                <p>{result.solar.grid_note}</p>
+                <PowerProvenanceNote provenance={result.solar.power_provenance} />
+              </div>
             </section>
           )}
 
@@ -1506,6 +1606,19 @@ export function AnalysisPage({
               </p>
             </section>
           )}
+
+          {/*
+            The photovoltaic energy model, then the wind screening. The wind
+            block is its own section and carries its own qualifier: it is gross
+            of every plant loss and has no external benchmark, while the
+            photovoltaic figures above are computed at a ratio bracketed by the
+            Global Solar Atlas, so the two are never drawn in one comparison.
+          */}
+          {result.energy_model && (
+            <EnergyModelSection energy={result.energy_model} />
+          )}
+
+          {result.wind && <WindScreening wind={result.wind} />}
 
           {/*
             Surface water over the period. Fractions are a percentage of the
@@ -1960,6 +2073,10 @@ function SavedRunsPanel({
             const summary = parseRunSummary(r.summary)
             const dominant = dominantClass(summary.classStats)
             const classified = classifiedAreaHa(summary.classStats)
+            // A wind run has no requested period. The window that applies is
+            // the record it read, which persistWindRun stores in the summary.
+            const windWindow =
+              r.kind === "wind" ? windRecordWindow(r.summary) : ""
             return (
               <li
                 key={r.id}
@@ -1987,9 +2104,14 @@ function SavedRunsPanel({
                         {displayRunLabel(r.label)}
                       </span>
                       <span className="telemetry shrink-0 text-muted-foreground">
-                        {/* Solar counts years of climatology, not scenes: it
-                            never reads one. */}
-                        {r.n_dates} {r.kind === "solar" ? "years" : "scenes"}
+                        {/* Solar counts years of climatology and wind counts
+                            years of hourly reanalysis. Neither reads a scene,
+                            and a wind run listed as "10 scenes" understated a
+                            ten-year record as ten observations. */}
+                        {r.n_dates}{" "}
+                        {r.kind === "solar" || r.kind === "wind"
+                          ? "years"
+                          : "scenes"}
                       </span>
                     </div>
                     {/* What the run produced, from summary already in memory —
@@ -2006,6 +2128,24 @@ function SavedRunsPanel({
                         <span className="size-2.5 shrink-0 rounded-[2px] bg-[#3182bd]" />
                         <span className="truncate text-foreground">
                           {waterSummaryLine(r.summary)}
+                        </span>
+                      </div>
+                    ) : r.kind === "wind" ? (
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          {/* Not the water blue: two products keyed on
+                              different reanalyses should not read as one. */}
+                          <span className="size-2.5 shrink-0 rounded-[2px] bg-[#2a9d8f]" />
+                          <span className="truncate text-foreground">
+                            {windSummaryLine(r.summary)}
+                          </span>
+                        </div>
+                        {/* The qualifier travels with the figure. Without it a
+                            gross, unbenchmarked capacity factor sits in the
+                            same list as a photovoltaic one that is benchmarked
+                            against the Global Solar Atlas. */}
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {windQualifierLine(r.summary)}
                         </span>
                       </div>
                     ) : dominant && (
@@ -2033,20 +2173,34 @@ function SavedRunsPanel({
                       {r.kind === "water"
                         ? `Surface water · ${r.model_kind || "index"}`
                         : r.kind === "solar"
-                          ? `Solar resource · ${r.model_kind || "NASA POWER"}`
-                          : modelDisplayName(r.model_kind)}
-                      {" · "}
-                      {r.kind === "solar" ? null : summary.dateRange ? (
-                        <>
-                          observed {summary.dateRange[0]} → {summary.dateRange[1]}
-                          <span className="opacity-70">
-                            {" "}
-                            (requested {r.period_start} → {r.period_end})
-                          </span>
-                        </>
+                          ? `${solarProductLabel(r.summary)} · ${r.model_kind || "NASA POWER"}`
+                          : r.kind === "wind"
+                            ? `Wind screening · ${r.model_kind || "NASA POWER MERRA-2"}`
+                            : modelDisplayName(r.model_kind)}
+                      {/* Solar reports a climatology and has no observed
+                          window. A wind run's row rendered as a bare arrow
+                          until the record window was read from the summary.
+                          The separator is emitted with the second part so
+                          neither row ends in a dangling one. */}
+                      {r.kind === "solar" ? null : r.kind === "wind" ? (
+                        windWindow ? <> · {windWindow}</> : null
                       ) : (
                         <>
-                          {r.period_start} → {r.period_end}
+                          {" · "}
+                          {summary.dateRange ? (
+                            <>
+                              observed {summary.dateRange[0]} →{" "}
+                              {summary.dateRange[1]}
+                              <span className="opacity-70">
+                                {" "}
+                                (requested {r.period_start} → {r.period_end})
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              {r.period_start} → {r.period_end}
+                            </>
+                          )}
                         </>
                       )}
                     </div>
@@ -2148,5 +2302,1479 @@ function PanelTile({
       <p className="eyebrow !text-muted-foreground">{title}</p>
       {preview}
     </div>
+  )
+}
+
+/**
+ * Position on a palette ramp by nearest stop.
+ *
+ * The stops are the ones the renderer itself uses, so a swatch drawn here is a
+ * colour sidecar/composite.py defines. Interpolating between them would put a
+ * colour on screen that no palette file contains.
+ */
+function rampStop(stops: string[], t: number): string {
+  if (!Number.isFinite(t)) return stops[0]
+  const clamped = Math.min(1, Math.max(0, t))
+  return stops[Math.round(clamped * (stops.length - 1))]
+}
+
+/** Small caps tag for a row's kind or standing. */
+function Chip({
+  children,
+  tone = "muted",
+}: {
+  children: React.ReactNode
+  tone?: "muted" | "accent"
+}) {
+  return (
+    <span
+      className={cn(
+        "telemetry shrink-0 rounded-[2px] border px-1 py-px text-[9px] uppercase tracking-wider",
+        tone === "accent" ? "text-primary" : "text-muted-foreground"
+      )}
+      style={{ borderColor: "var(--ar-border)" }}
+    >
+      {children}
+    </span>
+  )
+}
+
+/**
+ * The chain from global horizontal irradiation to delivered AC energy.
+ *
+ * The rail on the left is what separates the steps inside the performance
+ * ratio from the ones outside it. The component-closure residual between the
+ * published global horizontal irradiation and the horizontal plane rebuilt
+ * from the beam and diffuse components is a property of the radiation product;
+ * drawn inside the chain it reads as a plant loss the site would incur.
+ */
+function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
+  const w = energy.loss_waterfall
+  const steps = w.steps
+  const factorSpan = Math.max(
+    ...steps.map((s) => (s.factor == null ? 0 : Math.abs(1 - s.factor))),
+    0.0001
+  )
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">Loss waterfall · global horizontal to AC</p>
+        <p className="telemetry text-[10px] text-muted-foreground">
+          base {w.base.ghi_hourly_kwh_m2_year.toFixed(2)} kWh/m2/yr ·{" "}
+          {w.base.hourly_window}
+        </p>
+      </div>
+
+      <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+        {w.base.note} The daily climatology over {w.base.climatology_window}{" "}
+        gives {w.base.ghi_climatology_kwh_m2_year.toFixed(2)} kWh/m2/yr and is
+        carried as context rather than as the base.
+      </p>
+
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-0 border-l-2"
+            style={{ borderColor: "rgb(var(--p-accent))" }}
+          />
+          inside the performance ratio
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-0 border-l-2 border-dashed"
+            style={{ borderColor: "var(--ar-border)" }}
+          />
+          outside it: not a plant loss and not multiplied into the ratio
+        </span>
+        <span>
+          bar width is the departure from unity, on a common scale (largest{" "}
+          {(factorSpan * 100).toFixed(1)}%)
+        </span>
+      </div>
+
+      <ul className="flex flex-col gap-px">
+        {steps.map((s) => {
+          const inPR = s.in_performance_ratio
+          const dev = s.factor == null ? 0 : s.factor - 1
+          const width = (Math.abs(dev) / factorSpan) * 50
+          return (
+            <li
+              key={s.step}
+              className={cn(
+                "border-l-2 py-1.5 pl-2.5 pr-1",
+                inPR ? "" : "bg-[var(--ar-bg)]"
+              )}
+              style={{
+                borderColor: inPR ? "rgb(var(--p-accent))" : "var(--ar-border)",
+                borderLeftStyle: inPR ? "solid" : "dashed",
+              }}
+            >
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <span className="telemetry w-5 shrink-0 text-[10px] text-muted-foreground">
+                  {s.step}
+                </span>
+                <span className="min-w-[12rem] flex-1 text-xs text-foreground">
+                  {s.label}
+                </span>
+                <Chip>{s.kind.replace(/_/g, " ")}</Chip>
+                {!inPR && <Chip>outside PR</Chip>}
+                <span className="telemetry w-24 shrink-0 text-right text-[11px] text-foreground">
+                  {s.factor == null ? "—" : s.factor.toFixed(6)}
+                </span>
+                <span className="ar-track relative hidden h-1.5 w-24 shrink-0 sm:block">
+                  <span
+                    className="absolute inset-y-0"
+                    style={{
+                      width: `${width}%`,
+                      left: dev < 0 ? `${50 - width}%` : "50%",
+                      backgroundColor:
+                        dev === 0
+                          ? "var(--ar-border)"
+                          : dev < 0
+                            ? PALETTE_STOPS.rdbu_r[13]
+                            : PALETTE_STOPS.rdbu_r[3],
+                    }}
+                  />
+                </span>
+                <span className="telemetry w-36 shrink-0 text-right text-[11px] text-foreground">
+                  {s.energy_after.toFixed(2)}{" "}
+                  <span className="text-muted-foreground">{s.units}</span>
+                </span>
+                <span className="telemetry w-24 shrink-0 text-right text-[11px] text-muted-foreground">
+                  {s.cumulative_ratio == null
+                    ? "—"
+                    : s.cumulative_ratio.toFixed(6)}
+                </span>
+              </div>
+              <p className="mt-1 pl-7 text-[10px] leading-relaxed text-muted-foreground">
+                {s.source}
+                {s.note ? ` — ${s.note}` : ""}
+              </p>
+            </li>
+          )
+        })}
+      </ul>
+
+      <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+        Carried outside the performance ratio:{" "}
+        {w.outside_performance_ratio.join("; ")}.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * The performance ratio against its external benchmark.
+ *
+ * The applied ratio is drawn on the same axis as the band the Global Solar
+ * Atlas implies at this site, so a reader sees whether it is bracketed by an
+ * external measurement or only asserted. The modelled and derived ratios are
+ * on the axis too, at their distance from the band.
+ */
+function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
+  const pr = energy.performance_ratio
+  const band = pr.gsa_implied_band
+  const hasBand = band.length >= 2
+  const lo = hasBand ? Math.min(...band) : 0
+  const hi = hasBand ? Math.max(...band) : 0
+  const marks = [
+    { key: "derived", label: "derived", value: pr.derived, accent: false },
+    { key: "applied", label: "applied", value: pr.applied, accent: true },
+    { key: "modelled", label: "modelled", value: pr.modelled, accent: false },
+  ]
+  const values = marks.map((m) => m.value).concat(hasBand ? [lo, hi] : [])
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const pad = (max - min || 1) * 0.12
+  const left = min - pad
+  const width = max - min + 2 * pad
+  const pos = (v: number) => ((v - left) / width) * 100
+  const bracketed = hasBand && pr.applied >= lo && pr.applied <= hi
+
+  return (
+    <div>
+      <p className="eyebrow mb-2">Performance ratio · applied against the band</p>
+      <div className="relative h-9">
+        <div className="ar-track absolute inset-x-0 top-4 h-1.5 rounded-sm" />
+        {hasBand && (
+          <div
+            className="absolute top-2.5 h-4 rounded-sm"
+            style={{
+              left: `${pos(lo)}%`,
+              width: `${pos(hi) - pos(lo)}%`,
+              backgroundColor: "rgb(var(--p-accent) / 0.28)",
+              border: "1px solid rgb(var(--p-accent) / 0.55)",
+            }}
+          />
+        )}
+        {marks.map((m) => (
+          <div
+            key={m.key}
+            className="absolute top-1 h-7 w-px"
+            style={{
+              left: `${pos(m.value)}%`,
+              backgroundColor: m.accent
+                ? "rgb(var(--p-accent))"
+                : "var(--ar-muted)",
+            }}
+            title={`${m.label} ${m.value.toFixed(6)}`}
+          />
+        ))}
+      </div>
+      <div className="mt-1 grid grid-cols-3 gap-2">
+        {marks.map((m) => (
+          <div key={m.key}>
+            <div className="eyebrow !text-[9px]">{m.label}</div>
+            <div
+              className={cn(
+                "telemetry text-sm",
+                m.accent ? "text-primary" : "text-foreground"
+              )}
+            >
+              {m.value.toFixed(4)}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        {hasBand ? (
+          <>
+            The Global Solar Atlas implies {lo.toFixed(3)} to {hi.toFixed(3)} at
+            this site. The applied ratio {pr.applied.toFixed(3)} (
+            {pr.applied_source}){" "}
+            {bracketed
+              ? "lies inside that band, so it is bracketed by an external measurement rather than asserted"
+              : `lies outside it by ${Math.min(Math.abs(pr.applied - lo), Math.abs(pr.applied - hi)).toFixed(4)}`}
+            . The derived ratio {pr.derived.toFixed(4)}{" "}
+            {pr.derived < lo
+              ? `sits ${(lo - pr.derived).toFixed(4)} below the lower edge`
+              : pr.derived > hi
+                ? `sits ${(pr.derived - hi).toFixed(4)} above the upper edge`
+                : "lies inside the band as well"}
+            ; it is this chain decomposed plus its declared assumptions, and it
+            does not replace the applied ratio.
+          </>
+        ) : (
+          <>
+            No external band was returned with this run, so the applied ratio{" "}
+            {pr.applied.toFixed(3)} ({pr.applied_source}) is stated without one.
+          </>
+        )}
+      </p>
+      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+        At the values the reference suggests for the two optional terms the
+        derived ratio becomes{" "}
+        {pr.derived_if_optional_at_pvwatts_defaults.toFixed(4)}. Reporting basis{" "}
+        {pr.reporting_basis}, degradation factor{" "}
+        {pr.degradation_factor.toFixed(6)}. The rate is carried as a fraction
+        per year and is shown here as a percentage:{" "}
+        {(pr.degradation_rate_per_year * 100).toFixed(2)}% per year over{" "}
+        {pr.analysis_period_years} years. {pr.degradation_source}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Identities the waterfall has to satisfy, kept apart from the loss rows.
+ *
+ * A checkpoint with no residual is not an identity; Go turning an absent
+ * residual into 0.0 would read as one that closed exactly, so the null is
+ * printed as a statement rather than as a number.
+ */
+function EnergyCheckpoints({ energy }: { energy: EnergyModelAnalysis }) {
+  const checks = energy.loss_waterfall.checkpoints
+  if (checks.length === 0) return null
+  return (
+    <ul className="flex flex-col gap-2">
+      {checks.map((c) => (
+        <li key={c.name} className="ar-raised px-3 py-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="telemetry text-[11px] text-foreground">
+              {c.name.replace(/_/g, " ")}
+            </span>
+            <span className="telemetry text-sm text-foreground">
+              {c.value.toFixed(6)}
+            </span>
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+            {c.residual == null
+              ? "Not an identity, so no residual is reported."
+              : c.residual === 0
+                ? "Residual 0 against the identity."
+                : `Residual ${c.residual.toExponential(2)} against the identity.`}
+            {c.external_band.length >= 2
+              ? ` External band ${Math.min(...c.external_band).toFixed(3)} to ${Math.max(...c.external_band).toFixed(3)}.`
+              : ""}{" "}
+            {c.note}
+          </p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * Fixed tilt against one-axis tracking.
+ *
+ * The two published per-hectare measurements lead, because they answer the
+ * per-hectare question directly on fleets of built plants and they disagree on
+ * the sign. The figure this chain derives is a third line behind them, shown
+ * with the ground-coverage pair that produced it.
+ */
+function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
+  const t = energy.tracking
+  const pub = t.per_hectare.published_measurements
+  const bol = pub.bolinger_2022
+  const ong = pub.ong_2013_table5
+  const md = t.per_hectare.model_derived
+  const seasonSpan = Math.max(
+    ...t.seasonal.rows.map((r) => Math.abs(r.gain_pct)),
+    0.001
+  )
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="eyebrow">Fixed tilt against one-axis tracking</p>
+
+      <div>
+        <p className="mb-2 text-[11px] leading-relaxed text-foreground">
+          Per hectare, as published. {t.per_hectare.note}
+        </p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="ar-raised px-3 py-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="eyebrow !text-[9px]">
+                Bolinger and Bolinger (2022)
+              </span>
+              <span className="telemetry text-sm text-foreground">
+                {bol.change_pct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="telemetry mt-1 text-[11px] text-muted-foreground">
+              fixed {bol.fixed_gwh_ha_year.toFixed(2)} · tracking{" "}
+              {bol.tracking_gwh_ha_year.toFixed(2)} GWh/ha/yr (
+              {bol.fixed_mwh_acre_year.toFixed(0)} and{" "}
+              {bol.tracking_mwh_acre_year.toFixed(0)} MWh/acre/yr)
+            </div>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+              {bol.source}
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+              {bol.note}
+            </p>
+          </div>
+          <div className="ar-raised px-3 py-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="eyebrow !text-[9px]">Ong et al. (2013), Table 5</span>
+              <span className="telemetry text-sm text-foreground">
+                {ong.band_pct.length >= 2
+                  ? `${Math.min(...ong.band_pct).toFixed(1)} to ${Math.max(...ong.band_pct).toFixed(1)}%`
+                  : "—"}
+              </span>
+            </div>
+            <div className="telemetry mt-1 text-[11px] text-muted-foreground">
+              nearest sites at this DNI of{" "}
+              {ong.site_dni_kwh_m2_year.toFixed(1)} kWh/m2/yr:{" "}
+              {ong.nearest_rows
+                .map(
+                  (r) =>
+                    `${r.site} ${r.dni_kwh_m2_year.toFixed(0)} → ${r.land_use_change_pct.toFixed(1)}%`
+                )
+                .join(" · ")}
+            </div>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+              {ong.source}
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+              {ong.note}
+            </p>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          {pub.disagreement}
+        </p>
+      </div>
+
+      <div
+        className="border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="eyebrow !text-[9px]">
+            Derived here, third line · not measured
+          </span>
+          <span className="telemetry text-sm text-foreground">
+            {md.change_pct.toFixed(2)}%
+          </span>
+        </div>
+        <div className="telemetry mt-1 text-[11px] text-muted-foreground">
+          energy per hectare ratio {md.energy_per_hectare_ratio.toFixed(4)} at
+          ground coverage {md.gcr_fixed.toFixed(3)} fixed and{" "}
+          {md.gcr_tracker.toFixed(3)} tracking, a ratio of{" "}
+          {md.gcr_ratio.toFixed(4)}
+        </div>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {md.basis}. {md.note}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          Sign parity at a tracker ground coverage of{" "}
+          {md.parity.gcr_tracker.toFixed(4)}, that is{" "}
+          {md.parity.gcr_ratio.toFixed(3)} of the fixed-tilt value, searched
+          over {md.parity.search_range.join(" to ")}. {md.parity.note}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {md.module_efficiency_note}
+        </p>
+      </div>
+
+      <div
+        className="border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">Per kWp, this site's series</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <WaterFigure
+            label="Fixed"
+            value={t.per_kwp.fixed.specific_yield_kwh_kwp_year.toFixed(0)}
+            sub={`kWh/kWp/yr · tilt ${t.per_kwp.fixed.tilt_deg.toFixed(0)}° · CF ${t.per_kwp.fixed.capacity_factor_pct.toFixed(2)}%`}
+          />
+          <WaterFigure
+            label="Tracking"
+            value={t.per_kwp.tracking.specific_yield_kwh_kwp_year.toFixed(0)}
+            sub={`kWh/kWp/yr · GCR ${t.per_kwp.tracking.gcr.toFixed(3)} · CF ${t.per_kwp.tracking.capacity_factor_pct.toFixed(2)}%`}
+          />
+          <WaterFigure
+            label="Gain per kWp"
+            value={`${t.per_kwp.gain_pct.toFixed(2)}%`}
+            sub={`at the applied ratio ${t.performance_ratio.applied.toFixed(2)} (${t.performance_ratio.applied_source})`}
+          />
+          <WaterFigure
+            label="Basis that inverts"
+            value={t.per_hectare.inverts ? "per hectare" : "per kWp"}
+            sub={
+              t.per_kwp.inverts
+                ? "both bases change sign across the configurations tested"
+                : "the per-kWp comparison keeps its sign"
+            }
+          />
+        </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          {t.per_kwp.note}
+        </p>
+      </div>
+
+      <div
+        className="border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          Plane-of-array gain by season, kWh/m2
+        </p>
+        <ul className="flex flex-col gap-1.5">
+          {t.seasonal.rows.map((r) => (
+            <li
+              key={r.season}
+              className="flex flex-wrap items-center gap-2 text-xs"
+            >
+              <span className="w-24 shrink-0 truncate">
+                {r.season.replace(/_/g, " ")}
+              </span>
+              <span className="telemetry w-16 shrink-0 text-right text-[11px] text-muted-foreground">
+                {r.fixed_poa_kwh_m2_season.toFixed(1)}
+              </span>
+              <span className="telemetry w-16 shrink-0 text-right text-[11px] text-muted-foreground">
+                {r.tracker_poa_kwh_m2_season.toFixed(1)}
+              </span>
+              <span className="ar-track relative h-1.5 min-w-[6rem] flex-1">
+                <span
+                  className="absolute inset-y-0"
+                  style={{
+                    width: `${(Math.abs(r.gain_pct) / seasonSpan) * 50}%`,
+                    left:
+                      r.gain_pct < 0
+                        ? `${50 - (Math.abs(r.gain_pct) / seasonSpan) * 50}%`
+                        : "50%",
+                    backgroundColor:
+                      r.gain_pct < 0
+                        ? PALETTE_STOPS.rdbu_r[13]
+                        : PALETTE_STOPS.rdbu_r[3],
+                  }}
+                />
+              </span>
+              <span className="telemetry w-16 shrink-0 text-right">
+                {r.gain_pct.toFixed(2)}%
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          {t.seasonal.note}
+        </p>
+      </div>
+
+      <div
+        className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p>
+          Axis tilt {t.configuration.axis_tilt_deg.toFixed(0)}°, axis azimuth{" "}
+          {t.configuration.axis_azimuth_deg.toFixed(0)}° (
+          {t.configuration.axis_azimuth_convention}), rotation limit{" "}
+          {t.configuration.max_angle_deg.toFixed(0)}° (
+          {t.configuration.max_angle_source}), backtracking{" "}
+          {t.configuration.backtrack ? "on" : "off"}.{" "}
+          {t.configuration.backtrack_note} {t.configuration.terrain}
+        </p>
+        <p className="mt-1">
+          {t.performance_ratio.note} Measured across the wind assumption:{" "}
+          {t.performance_ratio.transfer_between_configurations
+            .map(
+              (r) =>
+                `${r.wind} ${r.performance_ratio_fixed.toFixed(6)} against ${r.performance_ratio_tracker.toFixed(6)}, ${r.difference_pct.toFixed(4)}%`
+            )
+            .join("; ")}
+          .
+        </p>
+        <p className="mt-1">{t.excluded}</p>
+        <p className="mt-1">{t.resolution_note}</p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Mean AC power by month and hour, with the monthly peak sun hours beside it.
+ *
+ * The hour axis is labelled on the time standard the response reports, which
+ * is not local time unless an offset was supplied: a diurnal profile read on
+ * the wrong standard is shifted without any sign that it is.
+ */
+function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
+  const g = energy.generation_profile
+  const matrix = g.mean_ac_power_by_month_and_hour
+  const peak = Math.max(
+    ...matrix.rows.flatMap((r) => r.mean_ac_w_kwp),
+    0.0001
+  )
+  const psh = g.monthly.rows
+  const pshMax = Math.max(...psh.map((m) => m.peak_sun_hours_day), 0.0001)
+  const shareMax = Math.max(
+    ...g.share_of_annual_generation_by_hour.rows.map((h) => h.share_pct),
+    0.0001
+  )
+  const offset = g.time_standard.utc_offset_hours
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">Generation profile</p>
+        <p className="telemetry text-[10px] text-muted-foreground">
+          {g.time_standard.source_standard}
+          {offset == null
+            ? ""
+            : ` ${offset >= 0 ? "+" : ""}${offset} h`} ·{" "}
+          {g.time_standard.hour_label}
+        </p>
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {g.time_standard.note} {g.note}
+      </p>
+
+      <div className="edge-fade-x -mx-1 overflow-x-auto px-1">
+        <div className="min-w-[34rem]">
+          <div className="flex items-center gap-1">
+            <span className="w-8 shrink-0" />
+            {Array.from({ length: 24 }, (_, h) => (
+              <span
+                key={h}
+                className="telemetry min-w-0 flex-1 text-center text-[8px] text-muted-foreground"
+              >
+                {h % 3 === 0 ? String(h).padStart(2, "0") : ""}
+              </span>
+            ))}
+          </div>
+          {matrix.rows.map((row) => (
+            <div key={row.month} className="flex items-center gap-1">
+              <span className="telemetry w-8 shrink-0 text-[9px] text-muted-foreground">
+                {String(row.month).padStart(2, "0")}
+              </span>
+              {Array.from({ length: 24 }, (_, h) => {
+                const v = h < row.mean_ac_w_kwp.length ? row.mean_ac_w_kwp[h] : null
+                return (
+                  <span
+                    key={h}
+                    title={
+                      v == null
+                        ? `month ${row.month}, hour ${h}: not carried`
+                        : `month ${row.month}, hour ${h}: ${v.toFixed(1)} ${matrix.units}`
+                    }
+                    className="h-4 min-w-0 flex-1 rounded-[1px]"
+                    style={{
+                      backgroundColor:
+                        v == null
+                          ? "var(--ar-border)"
+                          : rampStop(PALETTE_STOPS.inferno, v / peak),
+                    }}
+                  />
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+        <span
+          className="h-2 w-24 rounded-sm"
+          style={{ background: paletteGradient("inferno") }}
+        />
+        <span className="telemetry">
+          0 to {peak.toFixed(0)} {matrix.units}
+        </span>
+        <span>
+          modelled AC power before any performance ratio is applied, so the
+          shape is the model's and the level is not a reported yield
+        </span>
+      </div>
+
+      <div
+        className="border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          Peak sun hours per day, module plane
+        </p>
+        <ul className="flex flex-col gap-1">
+          {psh.map((m) => (
+            <li key={m.month} className="flex items-center gap-2 text-xs">
+              <span className="telemetry w-6 shrink-0 text-[10px] text-muted-foreground">
+                {String(m.month).padStart(2, "0")}
+              </span>
+              <span className="ar-track relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+                <span
+                  className="absolute inset-y-0 left-0 rounded-sm"
+                  style={{
+                    width: `${(m.peak_sun_hours_day / pshMax) * 100}%`,
+                    backgroundColor: "#f59e0b",
+                  }}
+                />
+              </span>
+              <span className="telemetry w-14 shrink-0 text-right text-[11px]">
+                {m.peak_sun_hours_day.toFixed(2)} h
+              </span>
+              <span className="telemetry w-20 shrink-0 text-right text-[10px] text-muted-foreground">
+                {m.poa_kwh_m2_month.toFixed(1)} kWh/m2
+              </span>
+              <span className="telemetry w-24 shrink-0 text-right text-[10px] text-muted-foreground">
+                {m.ac_kwh_kwp_month.toFixed(1)} kWh/kWp
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          {g.monthly.note}
+        </p>
+      </div>
+
+      <div
+        className="border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          Share of annual AC energy by hour
+        </p>
+        <div className="flex items-end gap-1">
+          {g.share_of_annual_generation_by_hour.rows.map((h) => (
+            <div
+              key={h.hour}
+              className="flex min-w-0 flex-1 flex-col items-center gap-0.5"
+              title={`hour ${h.hour}: ${h.share_pct.toFixed(3)} ${g.share_of_annual_generation_by_hour.units}`}
+            >
+              <span
+                className="w-full rounded-t-[1px]"
+                style={{
+                  height: `${Math.max(1, (h.share_pct / shareMax) * 36)}px`,
+                  backgroundColor: "#f59e0b",
+                }}
+              />
+              <span className="telemetry text-[8px] text-muted-foreground">
+                {h.hour % 3 === 0 ? String(h.hour).padStart(2, "0") : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {g.share_of_annual_generation_by_hour.units}, on the same time
+          standard as the surface above.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** One siting class, with the assumptions that produced its energy figures. */
+function PlantClassCard({
+  cls,
+  density,
+}: {
+  cls: EnergyPlantClass
+  density: EnergyCapacityDensity
+}) {
+  return (
+    <div className="ar-raised px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-xs text-foreground">{cls.label}</span>
+        <span className="telemetry text-sm text-foreground">
+          {cls.area_ha.toFixed(3)} ha
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <WaterFigure
+          label="Capacity"
+          value={`${cls.capacity_dc_mw.toFixed(2)} MW`}
+          sub={`DC at ${density.value_mw_dc_per_ha.toFixed(4)} MW/ha, ${density.area_basis.replace(/_/g, " ")}`}
+        />
+        <WaterFigure
+          label="Capacity"
+          value={`${cls.capacity_ac_mw.toFixed(2)} MW`}
+          sub={`AC at a fleet DC/AC ratio of ${density.fleet_dc_ac_ratio.toFixed(4)}`}
+        />
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        <WaterFigure
+          label="P50"
+          value={cls.energy.p50_exceedance_gwh_year.toFixed(2)}
+          sub="GWh/yr"
+        />
+        <WaterFigure
+          label="P75"
+          value={cls.energy.p75_exceedance_gwh_year.toFixed(2)}
+          sub="GWh/yr"
+        />
+        <WaterFigure
+          label="P90"
+          value={cls.energy.p90_exceedance_gwh_year.toFixed(2)}
+          sub="GWh/yr"
+        />
+      </div>
+      <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+        Specific yield {cls.specific_yield_kwh_kwp_year.toFixed(2)} kWh/kWp/yr
+        at a performance ratio of {cls.performance_ratio.toFixed(2)} (
+        {cls.performance_ratio_source}), reporting basis {cls.reporting_basis}.
+      </p>
+      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+        Largest contiguous patch {cls.contiguity.largest_ha.toFixed(3)} ha over{" "}
+        {cls.contiguity.n_patches} patches at {cls.contiguity.connectivity}-way
+        connectivity. {cls.contiguity.note}
+      </p>
+      {cls.note && (
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {cls.note}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Plant energy over the sited areas.
+ *
+ * The suitable area and the cropland-conflict area are drawn apart and are
+ * never summed: the second is the same land counted against its current use,
+ * and a total would erase the trade-off that is the result. The exceedance
+ * band carries only the uncertainty component listed as included.
+ */
+function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
+  const p = energy.plant
+  const ex = p.exceedance
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">Plant energy over the sited area</p>
+        <p className="telemetry text-[10px] text-muted-foreground">
+          basis {p.reporting_basis} · {ex.convention} convention
+        </p>
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {p.areas_note}
+      </p>
+
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        {p.suitable.area_ha > 0 && (
+          <PlantClassCard cls={p.suitable} density={p.capacity_density} />
+        )}
+        {p.cropland_conflict.area_ha > 0 && (
+          <PlantClassCard
+            cls={p.cropland_conflict}
+            density={p.capacity_density}
+          />
+        )}
+      </div>
+
+      {p.restrictive.area_ha > 0 && (
+        <div className="ar-raised px-3 py-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-xs text-foreground">
+              {p.restrictive.label}
+            </span>
+            <span className="telemetry text-sm text-foreground">
+              {p.restrictive.area_ha.toFixed(3)} ha
+            </span>
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+            {p.restrictive.capacity_dc_mw == null
+              ? "No capacity is reported for this class."
+              : `Capacity ${p.restrictive.capacity_dc_mw.toFixed(2)} MW DC.`}{" "}
+            {p.restrictive.note}
+          </p>
+        </div>
+      )}
+
+      <div
+        className="border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          Exceedance on {ex.n_years} years of annual global horizontal
+          irradiation
+        </p>
+        <ul className="flex flex-col gap-1">
+          {ex.levels.map((l) => (
+            <li
+              key={l.level}
+              className="flex flex-wrap items-center gap-2 text-xs"
+            >
+              <span className="telemetry w-10 shrink-0 text-[11px]">
+                P{l.level}
+              </span>
+              <span className="telemetry w-28 shrink-0 text-right text-[11px] text-foreground">
+                {l.ghi_empirical_kwh_m2_year.toFixed(2)}
+              </span>
+              <span className="telemetry w-20 shrink-0 text-right text-[11px] text-muted-foreground">
+                ×{l.factor_empirical.toFixed(6)}
+              </span>
+              <span className="telemetry w-28 shrink-0 text-right text-[10px] text-muted-foreground">
+                normal fit {l.ghi_normal_kwh_m2_year.toFixed(2)}
+              </span>
+              <span className="telemetry w-24 shrink-0 text-right text-[10px] text-muted-foreground">
+                ±{l.normal_fit_standard_error_kwh_m2.toFixed(2)}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          Method applied: {ex.method_applied}. Mean{" "}
+          {ex.mean_kwh_m2_year.toFixed(2)} kWh/m2/yr, standard deviation{" "}
+          {ex.std_kwh_m2_year.toFixed(2)}, coefficient of variation{" "}
+          {ex.cv_pct.toFixed(3)}%. {ex.convention_note}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {ex.p50_note} {ex.normality.test} on the annual totals gives a
+          statistic of {ex.normality.statistic.toFixed(5)} at p ={" "}
+          {ex.normality.p_value.toFixed(4)}: {ex.normality.interpretation}.
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {ex.crosswalk.note} Exceedance P90{" "}
+          {ex.crosswalk.exceedance_p90_kwh_m2_year.toFixed(2)} equals the
+          statistical 10th percentile{" "}
+          {ex.crosswalk.statistical_p10_kwh_m2_year.toFixed(2)} kWh/m2/yr.
+          Energy is treated as {ex.linearity_assumption}.
+        </p>
+      </div>
+
+      <div
+        className="border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          What the band does and does not carry
+        </p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div>
+            <div className="eyebrow !text-[9px]">included</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] leading-relaxed text-muted-foreground">
+              {p.uncertainty.included.map((u) => (
+                <li key={u}>{u}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div className="eyebrow !text-[9px]">excluded</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] leading-relaxed text-muted-foreground">
+              {p.uncertainty.excluded.map((u) => (
+                <li key={u}>{u}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          {p.uncertainty.statement} {p.uncertainty.dominant_term}
+        </p>
+      </div>
+
+      <div
+        className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p>
+          Capacity density {p.capacity_density.value_mw_dc_per_ha.toFixed(6)}{" "}
+          MW DC per hectare on the{" "}
+          {p.capacity_density.area_basis.replace(/_/g, " ")} basis, key{" "}
+          {p.capacity_density.basis}, mounting{" "}
+          {p.capacity_density.mounting.replace(/_/g, " ")}, buildable fraction{" "}
+          {p.capacity_density.buildable_fraction.toFixed(2)}.{" "}
+          {p.capacity_density.note}
+        </p>
+        <p className="mt-1">{p.capacity_density.source}</p>
+        <p className="mt-1">
+          Buildable fraction source: {p.capacity_density.buildable_fraction_source}
+        </p>
+        <p className="mt-1">
+          Fleet DC/AC ratio {p.capacity_density.fleet_dc_ac_ratio.toFixed(6)}.{" "}
+          {p.capacity_density.fleet_dc_ac_ratio_source}
+        </p>
+        <p className="mt-1">
+          Energy density cross-check:{" "}
+          {p.energy_density_cross_check.site_mwh_ha_year.toFixed(1)} against a
+          published {p.energy_density_cross_check.reference_mwh_ha_year.toFixed(1)}{" "}
+          MWh/ha/yr, a ratio of {p.energy_density_cross_check.ratio.toFixed(3)}{" "}
+          on the {p.energy_density_cross_check.area_basis.replace(/_/g, " ")}{" "}
+          basis. {p.energy_density_cross_check.note}
+        </p>
+        <p className="mt-1">
+          Horizon shading derate {p.shading.derate.toFixed(4)},{" "}
+          {p.shading.applied ? "applied" : "not applied"}. {p.shading.note}
+        </p>
+        <p className="mt-1">
+          Slope limits {p.thresholds.slope_acceptable_deg} and{" "}
+          {p.thresholds.slope_restrictive_deg} degrees.{" "}
+          {p.thresholds.note}
+        </p>
+        <p className="mt-1">{p.limitations}</p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The wind screening, in its own section.
+ *
+ * Its capacity factor is gross, carries no external validation and rests on a
+ * power-law extrapolation above the highest level the reanalysis holds, while
+ * the photovoltaic figure beside it is computed at a ratio benchmarked against
+ * the Global Solar Atlas. The two are never placed in a shared comparison and
+ * the qualifier is printed before the first number.
+ */
+function WindScreening({ wind }: { wind: WindAnalysis }) {
+  const m = wind.measured
+  const h = wind.hub
+  const q = wind.data_quality
+  const shear = q.shear
+  const roseMax = Math.max(
+    ...m.direction_energy_rose_50m.map((s) => Math.max(s.energy_pct, s.hours_pct)),
+    0.001
+  )
+  const speedMax = Math.max(
+    ...m.monthly_mean_speed_50m.map((r) => r.mean_speed_ms),
+    0.001
+  )
+
+  return (
+    <section className="ar-section p-4">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <p className="eyebrow">Wind screening</p>
+          <Chip>separate product</Chip>
+          <Chip>gross</Chip>
+          <Chip>unvalidated</Chip>
+        </div>
+        <p className="telemetry text-[10px] text-muted-foreground">
+          {wind.record_window} · {wind.record_years.toFixed(3)} years · cell
+          centre {wind.grid_cell_centre[1]?.toFixed(3)},{" "}
+          {wind.grid_cell_centre[0]?.toFixed(3)}
+        </p>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {wind.qualifier}
+      </p>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        {wind.assumptions.comparison_note}
+      </p>
+
+      <div
+        className="mt-3 border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          Carried by the reanalysis · no height extrapolation
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <WaterFigure
+            label="Mean speed 10 m"
+            value={`${m.mean_speed_10m_ms.toFixed(4)} m/s`}
+            sub="level held in the record"
+          />
+          <WaterFigure
+            label="Mean speed 50 m"
+            value={`${m.mean_speed_50m_ms.toFixed(4)} m/s`}
+            sub="highest level held in the record"
+          />
+          <WaterFigure
+            label="Weibull 50 m"
+            value={`k ${m.weibull_k_50m.toFixed(4)}`}
+            sub={`c ${m.weibull_c_50m_ms.toFixed(4)} m/s · ${m.weibull_fit_check_50m.estimator}`}
+          />
+          <WaterFigure
+            label="Power density 50 m"
+            value={`${m.wind_power_density_50m_w_m2.toFixed(2)} W/m2`}
+            sub={`energy pattern factor ${m.energy_pattern_factor_50m.toFixed(4)}`}
+          />
+        </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          {m.qualifier}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          Weibull fit against the record: mean{" "}
+          {m.weibull_fit_check_50m.weibull_mean_ms.toFixed(4)} against{" "}
+          {m.weibull_fit_check_50m.empirical_mean_ms.toFixed(4)} m/s (
+          {m.weibull_fit_check_50m.mean_error_pct.toFixed(3)}%), mean cube{" "}
+          {m.weibull_fit_check_50m.weibull_mean_cube_m3s3.toFixed(3)} against{" "}
+          {m.weibull_fit_check_50m.empirical_mean_cube_m3s3.toFixed(3)} m3/s3 (
+          {m.weibull_fit_check_50m.mean_cube_error_pct.toFixed(3)}%). Air
+          density mean {m.air_density_mean_kg_m3.toFixed(4)} kg/m3, range{" "}
+          {m.air_density_min_kg_m3.toFixed(4)} to{" "}
+          {m.air_density_max_kg_m3.toFixed(4)}. {m.humidity_note}
+        </p>
+      </div>
+
+      <div
+        className="mt-3 border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          At the {wind.hub_height_m.toFixed(0)} m hub · extrapolated
+        </p>
+        <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
+          {h.extrapolation.statement}
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <WaterFigure
+            label="Hub speed"
+            value={`${h.mean_speed_ms.toFixed(4)} m/s`}
+            sub={`power law at ${wind.assumptions.shear_exponent.toFixed(4)}, ${h.extrapolation.height_ratio.toFixed(1)}x above the top level`}
+          />
+          <WaterFigure
+            label="Gross capacity factor"
+            value={`${h.gross_capacity_factor_pct.toFixed(3)}%`}
+            sub={`no plant loss applied; ${h.gross_capacity_factor_no_density_correction_pct.toFixed(3)}% without the density correction`}
+          />
+          <WaterFigure
+            label="Gross annual energy"
+            value={`${h.gross_annual_energy_mwh_per_turbine.toFixed(1)} MWh`}
+            sub={`per turbine over ${h.hours_per_year.toFixed(0)} hours; not to be multiplied by a plant size`}
+          />
+          <WaterFigure
+            label="Power density"
+            value={`${h.wind_power_density_w_m2.toFixed(2)} W/m2`}
+            sub={`Weibull k ${h.weibull_k.toFixed(4)}, c ${h.weibull_c_ms.toFixed(4)} m/s`}
+          />
+        </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          Operating regime: above cut-in{" "}
+          {h.operating_regime.above_cut_in_pct.toFixed(3)}% of hours, at or
+          above rated {h.operating_regime.at_or_above_rated_pct.toFixed(3)}%,
+          above cut-out {h.operating_regime.above_cut_out_pct.toFixed(3)}%, on a
+          curve with cut-in {h.operating_regime.cut_in_ms.toFixed(1)}, rated{" "}
+          {h.operating_regime.rated_ms.toFixed(4)} and cut-out{" "}
+          {h.operating_regime.cut_out_ms.toFixed(1)} m/s.
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {h.density_normalisation_note} {h.hours_per_year_note}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          Excluded from these figures: {h.excluded_losses.join("; ")}.
+        </p>
+      </div>
+
+      <div
+        className="mt-3 border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">Field diagnostics</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <WaterFigure
+            label={`Hours below ${q.calm_threshold_ms} m/s`}
+            value={`${(q.calm_fraction_pct["10m"] ?? 0).toFixed(3)}%`}
+            sub={`at 10 m; 50 m ${(q.calm_fraction_pct["50m"] ?? 0).toFixed(3)}%, 2 m ${(q.calm_fraction_pct["2m"] ?? 0).toFixed(3)}%`}
+          />
+          <WaterFigure
+            label="Record maximum 10 m"
+            value={`${(q.record_maximum_ms["10m"] ?? 0).toFixed(2)} m/s`}
+            sub={`over ${q.record_hours} hours; floor ${q.record_maximum_floor_ms.toFixed(1)} m/s, ${q.record_maximum_plausible ? "met" : "not met"}`}
+          />
+          <WaterFigure
+            label="Shear exponent"
+            value={shear.shear_exponent.toFixed(4)}
+            sub={`10 m to 50 m long-term means; day ${shear.shear_exponent_day.toFixed(4)}, night ${shear.shear_exponent_night.toFixed(4)}`}
+          />
+          {/* Null when the exponent lies outside what a neutral logarithmic
+              profile between 10 m and 50 m can produce for any roughness
+              length. Rendered as a number it printed "0.000 m", a physically
+              meaningful-looking roughness that was never computed, beside the
+              flag stating that the inversion has no root. */}
+          <WaterFigure
+            label="Implied roughness"
+            value={
+              shear.implied_roughness_length_m == null
+                ? "—"
+                : `${shear.implied_roughness_length_m.toFixed(3)} m`
+            }
+            sub={
+              shear.implied_roughness_length_m == null
+                ? `no roughness length inverts this exponent; assumed cover ${shear.assumed_roughness_band_m.join(" to ")} m`
+                : `assumed cover ${shear.assumed_roughness_band_m.join(" to ")} m, ${shear.consistent_with_assumed_cover ? "consistent" : "not consistent"}`
+            }
+          />
+        </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          The assumed roughness band supports a shear exponent of{" "}
+          {shear.expected_shear_exponent_band.map((v) => v.toFixed(3)).join(" to ")}
+          . {shear.roughness_band_note}
+        </p>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+          {q.record_maximum_floor_note} {q.calm_fraction_2m_note}
+        </p>
+        {q.flags.length > 0 && (
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {q.flags.map((f) => (
+              <li
+                key={f}
+                className="border-l-2 pl-2 text-[10px] leading-relaxed text-muted-foreground"
+                style={{ borderColor: PALETTE_STOPS.rdbu_r[14] }}
+              >
+                {f}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          {q.all_checks_passed
+            ? "Every record check passed."
+            : `${q.flags.length} record check${q.flags.length === 1 ? "" : "s"} did not pass, so the hub figures rest on a series the checks do not support.`}{" "}
+          Record {q.record_hours} hours against {q.expected_hours} expected.
+        </p>
+      </div>
+
+      <div
+        className="mt-3 border-t pt-3"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p className="eyebrow !text-[9px] mb-2">
+          Hub result across the shear exponent
+        </p>
+        <ul className="flex flex-col gap-1">
+          {wind.shear_sensitivity.map((s) => (
+            <li
+              key={`${s.basis}-${s.shear_exponent}`}
+              className="flex flex-wrap items-center gap-2 text-xs"
+            >
+              <span className="telemetry w-16 shrink-0 text-[11px] text-foreground">
+                {s.shear_exponent.toFixed(4)}
+              </span>
+              <span className="telemetry w-20 shrink-0 text-right text-[10px] text-muted-foreground">
+                {s.roughness_length_m == null
+                  ? "—"
+                  : `${s.roughness_length_m.toFixed(2)} m`}
+              </span>
+              <span className="min-w-[10rem] flex-1 truncate text-[10px] text-muted-foreground">
+                {s.basis}
+              </span>
+              <span className="telemetry w-20 shrink-0 text-right text-[11px]">
+                {s.hub_speed_ms.toFixed(4)} m/s
+              </span>
+              <span className="telemetry w-16 shrink-0 text-right text-[11px]">
+                {s.capacity_factor_pct.toFixed(3)}%
+              </span>
+              <span className="telemetry w-24 shrink-0 text-right text-[11px] text-muted-foreground">
+                {s.annual_energy_mwh.toFixed(1)} MWh
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 border-t pt-3 lg:grid-cols-2"
+           style={{ borderColor: "var(--ar-border)" }}>
+        <div>
+          <p className="eyebrow !text-[9px] mb-2">
+            Mean speed at 50 m by month, m/s
+          </p>
+          <ul className="flex flex-col gap-1">
+            {m.monthly_mean_speed_50m.map((r) => (
+              <li key={r.month} className="flex items-center gap-2 text-xs">
+                <span className="telemetry w-6 shrink-0 text-[10px] text-muted-foreground">
+                  {String(r.month).padStart(2, "0")}
+                </span>
+                <span className="ar-track relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+                  <span
+                    className="absolute inset-y-0 left-0 rounded-sm"
+                    style={{
+                      width: `${(r.mean_speed_ms / speedMax) * 100}%`,
+                      backgroundColor: PALETTE_STOPS.rdbu_r[3],
+                    }}
+                  />
+                </span>
+                <span className="telemetry w-16 shrink-0 text-right text-[11px]">
+                  {r.mean_speed_ms.toFixed(3)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <p className="eyebrow !text-[9px] mb-2">
+            Direction at 50 m · share of energy against share of hours
+          </p>
+          <ul className="flex flex-col gap-1">
+            {m.direction_energy_rose_50m.map((s) => (
+              <li key={s.sector} className="flex items-center gap-2 text-xs">
+                <span className="telemetry w-10 shrink-0 text-[10px] text-muted-foreground">
+                  {s.centre_deg.toFixed(1)}°
+                </span>
+                <span className="ar-track relative h-3 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+                  <span
+                    className="absolute inset-x-0 top-0 h-1.5"
+                    style={{
+                      width: `${(s.energy_pct / roseMax) * 100}%`,
+                      backgroundColor: PALETTE_STOPS.rdbu_r[2],
+                    }}
+                  />
+                  <span
+                    className="absolute inset-x-0 bottom-0 h-1.5"
+                    style={{
+                      width: `${(s.hours_pct / roseMax) * 100}%`,
+                      backgroundColor: PALETTE_STOPS.rdbu_r[6],
+                    }}
+                  />
+                </span>
+                <span className="telemetry w-14 shrink-0 text-right text-[10px]">
+                  {s.energy_pct.toFixed(2)}%
+                </span>
+                <span className="telemetry w-14 shrink-0 text-right text-[10px] text-muted-foreground">
+                  {s.hours_pct.toFixed(2)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+            Upper bar energy, lower bar hours; they differ because the power
+            flux goes as the cube of speed. {m.direction.convention_note}{" "}
+            Circular mean {m.direction.circular_mean_deg_50m.toFixed(2)}° at 50
+            m and {m.direction.circular_mean_deg_10m.toFixed(2)}° at 10 m,
+            median turning {m.direction.median_turning_deg.toFixed(1)}°.
+          </p>
+        </div>
+      </div>
+
+      <div
+        className="mt-3 border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p>
+          Reference power curve: {wind.turbine.name},{" "}
+          {(wind.turbine.rated_power_w / 1e6).toFixed(3)} MW,{" "}
+          {wind.turbine.rotor_diameter_m.toFixed(0)} m rotor,{" "}
+          {wind.turbine.blades} blades, {wind.turbine.iec_class} turbulence
+          class {wind.turbine.turbulence_class}, hub{" "}
+          {wind.turbine.hub_height_m.toFixed(0)} m,{" "}
+          {wind.turbine.power_curve_points} curve points read from the{" "}
+          {wind.turbine.power_curve_column} column. It is a reference curve, not
+          a turbine selected for this site. {wind.turbine.drivetrain_note}
+        </p>
+        <p className="mt-1">{wind.turbine.citation}</p>
+        <p className="mt-1">
+          Hub height {wind.assumptions.hub_height_m.toFixed(0)} m:{" "}
+          {wind.assumptions.hub_height_source} Shear exponent{" "}
+          {wind.assumptions.shear_exponent.toFixed(4)}:{" "}
+          {wind.assumptions.shear_exponent_source}
+        </p>
+        <p className="mt-1">{wind.assumptions.conventions_note}</p>
+        <p className="mt-1">{wind.loads_note}</p>
+        <p className="mt-1">{wind.grid_note}</p>
+        <PowerProvenanceNote provenance={wind.power_provenance} />
+      </div>
+    </section>
+  )
+}
+
+/**
+ * The photovoltaic energy model over the AOI.
+ *
+ * Shares the radiation chain and the reported optimum with the solar resource
+ * card above, so the two cannot disagree about one AOI. Every figure is shown
+ * with the assumption that produced it, and the applied and derived yields are
+ * shown together because they answer under different assumptions rather than
+ * one correcting the other.
+ */
+function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) {
+  const d = energy.loss_waterfall.delivered
+  const g = energy.geometry
+  const mt = energy.module_type
+
+  return (
+    <section className="ar-section p-4">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">Photovoltaic energy model</p>
+        <p className="telemetry text-[10px] text-muted-foreground">
+          {energy.hourly_window} · {energy.climatology_window} ·{" "}
+          {energy.lat.toFixed(2)}, {energy.lon.toFixed(2)}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <WaterFigure
+          label="Specific yield, applied"
+          value={d.applied_kwh_kwp_year.toFixed(2)}
+          sub={`kWh/kWp/yr at PR ${energy.performance_ratio.applied.toFixed(2)} (${energy.performance_ratio.applied_source}), basis ${d.reporting_basis}`}
+        />
+        <WaterFigure
+          label="Specific yield, derived"
+          value={d.derived_kwh_kwp_year.toFixed(2)}
+          sub={`kWh/kWp/yr at PR ${energy.performance_ratio.derived.toFixed(4)}, this chain plus its declared terms`}
+        />
+        <WaterFigure
+          label="Capacity factor"
+          value={`${d.applied_capacity_factor_pct.toFixed(3)}%`}
+          sub={`${d.derived_capacity_factor_pct.toFixed(3)}% on the derived ratio, a difference of ${d.difference_pct.toFixed(3)}%`}
+        />
+        <WaterFigure
+          label="Optimum tilt"
+          value={`${g.optimal_tilt_deg.toFixed(0)}°`}
+          sub={`azimuth ${g.surface_azimuth_deg.toFixed(0)}° · plane-of-array ${g.poa_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+        />
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        {d.note}
+      </p>
+
+      <div
+        className="mt-4 border-t pt-4"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <EnergyWaterfall energy={energy} />
+      </div>
+
+      <div
+        className="mt-4 grid grid-cols-1 gap-4 border-t pt-4 lg:grid-cols-2"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <div>
+          <p className="eyebrow mb-2">Checkpoints, outside the loss rows</p>
+          <EnergyCheckpoints energy={energy} />
+        </div>
+        <PerformanceRatioScale energy={energy} />
+      </div>
+
+      <div
+        className="mt-4 border-t pt-4"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <TrackingComparison energy={energy} />
+      </div>
+
+      <div
+        className="mt-4 border-t pt-4"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <GenerationProfile energy={energy} />
+      </div>
+
+      <div
+        className="mt-4 border-t pt-4"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <PlantEnergy energy={energy} />
+      </div>
+
+      <div
+        className="mt-4 border-t pt-4 text-[10px] leading-relaxed text-muted-foreground"
+        style={{ borderColor: "var(--ar-border)" }}
+      >
+        <p>
+          Horizontal plane over the hourly window{" "}
+          {g.ghi_hourly_kwh_m2_year.toFixed(2)} kWh/m2/yr; the same array laid
+          flat receives {g.poa_horizontal_kwh_m2_year.toFixed(2)} kWh/m2/yr.
+        </p>
+        <p className="mt-1">
+          Temperature coefficient {mt.gamma_pdc_per_c} per °C, module type{" "}
+          {mt.module_type}. The alternatives are{" "}
+          {Object.entries(mt.alternatives)
+            .map(([k, v]) => `${k} ${v}`)
+            .join(", ")}
+          . {mt.source}
+        </p>
+        <p className="mt-1">
+          Transposition{" "}
+          {energy.loss_waterfall.assumptions.transposition_model.value}:{" "}
+          {energy.loss_waterfall.assumptions.transposition_model.source}
+        </p>
+        <p className="mt-1">
+          Ground albedo {energy.loss_waterfall.assumptions.albedo.value}:{" "}
+          {energy.loss_waterfall.assumptions.albedo.source}
+        </p>
+        <p className="mt-1">
+          Wind field {energy.loss_waterfall.assumptions.wind_source.value}:{" "}
+          {energy.loss_waterfall.assumptions.wind_source.source}
+        </p>
+        <p className="mt-1">
+          Placing the declared losses physically rather than as one flat factor
+          moves the yield by{" "}
+          {energy.loss_waterfall.assumptions.flat_placement_bias_pct.value}%:{" "}
+          {energy.loss_waterfall.assumptions.flat_placement_bias_pct.source}
+        </p>
+        <p className="mt-1">{energy.assumptions.resolution_note}</p>
+        <p className="mt-1">{energy.assumptions.note}</p>
+        <p className="mt-1">{energy.grid_note}</p>
+        <PowerProvenanceNote provenance={energy.power_provenance} />
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Which NASA POWER series the figures were read from, and when.
+ *
+ * POWER reprocesses historical data and the on-disk cache has no expiry, so a
+ * run can be built on a superseded revision of the record. That is acceptable
+ * only while the run says so: without this line a cached run and a fetched one
+ * are indistinguishable on screen.
+ */
+function PowerProvenanceNote({
+  provenance,
+}: {
+  provenance?: PowerProvenance | null
+}) {
+  if (!provenance) return null
+  const series = [
+    ["Daily", provenance.daily],
+    ["Hourly", provenance.hourly],
+  ] as const
+  const present = series.filter(([, s]) => !!s)
+  if (!present.length) return null
+  return (
+    <p className="mt-1">
+      {present.map(([label, s], i) => (
+        <span key={label}>
+          {i > 0 ? " " : ""}
+          {label} series{" "}
+          {s!.source === "cache"
+            ? `read from cache${s!.fetched_utc ? `, fetched ${s!.fetched_utc}` : ", fetch date not recorded"}`
+            : "fetched during this run"}
+          .
+        </span>
+      ))}
+    </p>
   )
 }

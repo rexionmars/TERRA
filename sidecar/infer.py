@@ -79,6 +79,51 @@ def fail(msg):
     sys.exit(1)
 
 
+# --- Request parameters ----------------------------------------------------
+#
+# ABSENCE SELECTS THE DEFAULT, NOT FALSINESS. `float(req.get(key) or default)`
+# reads a deliberate 0 as an omission, because 0 is falsy in Python. It is
+# silent and it is wrong wherever zero is a value the caller can mean: a
+# degradation rate of 0 %/yr became the 0.5 %/yr default and moved every energy
+# figure by 5.78 percent on the lifetime-mean basis; a 0 degree tracker
+# rotation limit became 60; a 0 degree slope limit became 15; a 0 m/s calm
+# threshold became the wind default. Every numeric parameter is read through
+# these two helpers so the pattern cannot come back one call site at a time.
+
+def request_number(req, key, default, cast=float):
+    """
+    A numeric request parameter, defaulted only when the caller omitted it.
+
+    The default is returned as given rather than cast, so a default of None
+    stays None for the parameters whose absence is itself the signal, such as
+    an unstated UTC offset.
+    """
+    value = req.get(key)
+    if value is None:
+        return default
+    return cast(value)
+
+
+def request_positive(req, key, default, cast=float, allow_zero=False):
+    """
+    A numeric request parameter that has to be positive, or the run fails.
+
+    For quantities where zero is not a value but a broken request: a window of
+    zero years has no data to average and a ground coverage ratio of zero
+    divides by zero in the per-hectare ratio. Rejecting is the honest answer;
+    substituting the default would report a figure the caller did not ask for
+    under a parameter they did set.
+    """
+    value = request_number(req, key, default, cast)
+    if value < 0 or (value == 0 and not allow_zero):
+        fail(
+            f"{key} must be "
+            f"{'zero or greater' if allow_zero else 'greater than zero'}, "
+            f"got {value}"
+        )
+    return value
+
+
 # --- Polygon / study area --------------------------------------------------
 
 def polygon_from_geojson(geom):
@@ -851,6 +896,258 @@ def configure_gdal_for_cog():
     os.environ.setdefault('VSI_CACHE', 'TRUE')
 
 
+def power_cache_dir(req):
+    """
+    Directory the NASA POWER series are cached in, or None if it cannot be made.
+
+    Deliberately outside work_dir: the Go runner creates a fresh temporary
+    work_dir per run, so a cache written under it would never be read by the
+    next one and the fetch would be paid again on every action.
+    """
+    raw = req.get('power_cache_dir')
+    path = Path(raw) if raw else Path.home() / '.cache' / 'geosense' / 'power'
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    return path
+
+
+# NASA POWER serves the radiation parameters on a 1 degree grid; see
+# solar.GRID_NOTE, which states it beside every solar response.
+POWER_RADIATION_STEP_DEG = 1.0
+
+
+def power_cell_key(lon, lat):
+    """
+    The pair of grid cells a POWER point request resolves to, as a cache key.
+
+    A POWER response is determined by the cell the point falls in on BOTH grids
+    it serves: radiation on 1 degree (solar.GRID_NOTE) and meteorology on the
+    MERRA-2 0.5 by 0.625 degree grid (wind.grid_key). Keying on either grid
+    alone does not hold, because 0.625 does not divide 1.0, so two points inside
+    one MERRA-2 longitude cell can straddle a radiation cell boundary. The key
+    is the pair, which is the conservative intersection.
+
+    solar.grid_key rounds to 0.01 degrees, which is about 1 km and far finer
+    than either grid. Keying the cache on that produced a miss for two AOIs
+    that resolve to identical series and each paid the fetch, so the reuse the
+    cache states it guarantees did not hold.
+    """
+    import wind as wind_mod
+
+    met_lon, met_lat = wind_mod.grid_key(lon, lat)
+    rad_lon = round(round(float(lon) / POWER_RADIATION_STEP_DEG)
+                    * POWER_RADIATION_STEP_DEG, 6)
+    rad_lat = round(round(float(lat) / POWER_RADIATION_STEP_DEG)
+                    * POWER_RADIATION_STEP_DEG, 6)
+    return f'{met_lon:g}_{met_lat:g}_r{rad_lon:g}_{rad_lat:g}'
+
+
+def cached_power_series(cache_dir, product, lon, lat, start, end, params,
+                        fetch_fn, progress=None):
+    """
+    A POWER series read from disk when one covering `params` is stored, fetched
+    and stored otherwise, with the provenance of whichever path was taken.
+
+    The hourly request is the dominant cost of the whole analysis, about 23 s
+    for ten years (docs/SOLAR_HANDOFF.md section 6), and three actions ask for
+    the same series over the same cell. What determines a POWER response is the
+    grid cell, the period and the parameter list, so those are the key; see
+    power_cell_key for the cell.
+
+    A stored file is reused when its columns cover the requested parameters, so
+    a superset written by one action serves the subset another asks for.
+
+    THE FETCH DATE TRAVELS WITH THE SERIES. POWER reprocesses historical data,
+    so a cached series can be a superseded revision of the record. The cache has
+    no expiry by design, because a research figure benchmarked against a stored
+    run has to stay reproducible; what would make that dangerous is the run not
+    saying so. Each series is stored with the timestamp it was fetched at, and
+    the record returned here is carried into the response of every action that
+    read one, so a cached run and a fetched run are distinguishable.
+
+    Returns (frame, provenance).
+    """
+    import hashlib
+    import pandas as pd
+    from datetime import datetime, timezone
+
+    def _record(source, fetched_utc, path=None):
+        return {
+            'source': source,
+            'fetched_utc': fetched_utc,
+            'product': product,
+            'cell_key': cell,
+            'period': f'{start}-{end}',
+            'cache_file': None if path is None else path.name,
+            'note': (
+                'Fetched from NASA POWER during this run.'
+                if source == 'fetch' else
+                'Read from the on-disk POWER cache, not fetched during this '
+                'run. POWER reprocesses historical data, so a series fetched '
+                'earlier can be a superseded revision of the record; the fetch '
+                'timestamp above is when it was retrieved.'
+                if source == 'cache' else
+                'No cache directory was available, so the series was fetched '
+                'and not stored.'
+            ),
+        }
+
+    now = lambda: datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    cell = power_cell_key(lon, lat)
+
+    if cache_dir is None:
+        return fetch_fn(progress), _record('fetch_uncached', now())
+
+    prefix = f'{product}_{cell}_{start}_{end}_'
+    wanted = set(params)
+    for path in sorted(cache_dir.glob(prefix + '*.parquet')):
+        try:
+            stored = pd.read_parquet(path)
+        except Exception:
+            continue
+        if wanted.issubset(stored.columns):
+            return stored, _record('cache', _cache_fetch_time(path), path)
+
+    df = fetch_fn(progress)
+    fetched = now()
+    key = hashlib.sha1(','.join(sorted(params)).encode()).hexdigest()[:12]
+    final = cache_dir / (prefix + key + '.parquet')
+    partial = cache_dir / (prefix + key + '.parquet.partial')
+    try:
+        df.to_parquet(partial)
+        partial.replace(final)
+        # Written after the parquet, so a stamp never exists for a series that
+        # is not there. A missing stamp reads as an unknown fetch date rather
+        # than as a fresh one.
+        final.with_name(final.name + '.json').write_text(
+            json.dumps({'fetched_utc': fetched, 'product': product,
+                        'cell_key': cell, 'period': f'{start}-{end}',
+                        'params': sorted(params)})
+        )
+    except Exception:
+        # A cache that cannot be written must not fail a run that already holds
+        # its data. The next run simply pays the fetch again.
+        try:
+            partial.unlink()
+        except OSError:
+            pass
+    return df, _record('fetch', fetched, final)
+
+
+def _cache_fetch_time(path):
+    """
+    When a cached series was fetched, from its stamp, or None if unrecorded.
+
+    Files written before the stamp existed have none. Reporting None is the
+    honest answer: the file modification time is when the parquet was written
+    to this disk, which a copy or a restore changes, so it is not the fetch
+    date and must not be presented as one.
+    """
+    stamp = path.with_name(path.name + '.json')
+    try:
+        return json.loads(stamp.read_text()).get('fetched_utc')
+    except Exception:
+        return None
+
+
+SITING_STAGES = ('dem', 'slope', 'cover', 'classes')
+
+
+def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
+                   excluded, cropland, mapbiomas_path=None, progress=None):
+    """
+    Photovoltaic siting classes on the Copernicus DEM grid, with class areas.
+
+    Shared by the solar_siting action and by the plant-energy block of
+    energy_model, so a capacity figure and the raster that published the
+    area behind it come from one classification rather than from two that can
+    disagree.
+
+    Stages are reported through progress(stage, message) with stage one of
+    SITING_STAGES; each caller maps the stage onto its own progress scale.
+    """
+    import solar as solar_mod
+    import lulc as lulc_mod
+    import rasterio
+    from rasterio.features import geometry_mask
+
+    def stage(name, msg):
+        if progress:
+            progress(name, msg)
+
+    centroid = polygon.centroid
+    stage('dem', 'fetching Copernicus DEM GLO-30')
+    try:
+        dem_path = solar_mod.fetch_dem(polygon, Path(work_dir) / 'dem.tif')
+    except Exception as e:
+        fail(f'DEM fetch failed: {e}')
+    with rasterio.open(dem_path) as src:
+        elevation = src.read(1).astype(float)
+        dem_transform = src.transform
+        dem_crs = src.crs
+        dem_profile = src.profile.copy()
+
+    dx_m, dy_m = solar_mod.pixel_size_m(dem_transform, centroid.y)
+    stage('slope', 'slope and aspect')
+    slope, _aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
+
+    stage('cover', 'MapBiomas land cover')
+    try:
+        mb_path = lulc_mod.resolve_mapbiomas_path(
+            mapbiomas_path, polygon, Path(work_dir)
+        )
+        mb = reproject_mapbiomas_to_grid(
+            mb_path,
+            {'transform': dem_transform, 'crs': dem_crs,
+             'height': slope.shape[0], 'width': slope.shape[1]},
+            np.ones_like(slope),
+        )
+    except Exception as e:
+        fail(f'MapBiomas land cover unavailable: {e}')
+
+    inside = ~geometry_mask(
+        [polygon.__geo_interface__], out_shape=slope.shape,
+        transform=dem_transform, invert=False
+    )
+    valid = inside & np.isfinite(slope)
+    if not valid.any():
+        fail('the DEM window does not overlap the AOI')
+
+    stage('classes', 'siting classes')
+    suit = solar_mod.suitability_map(
+        slope, mb, valid,
+        slope_acceptable=slope_acceptable,
+        slope_restrictive=slope_restrictive,
+        excluded_cover=excluded,
+        cropland_cover=cropland,
+    )
+    px_area_ha = (dx_m * dy_m) / 10_000.0
+    return {
+        'suitability': suit,
+        'slope': slope,
+        'valid': valid,
+        'classes': solar_mod.suitability_stats(suit, px_area_ha),
+        'pixel_area_ha': px_area_ha,
+        'dem_transform': dem_transform,
+        'dem_crs': dem_crs,
+        'dem_profile': dem_profile,
+        'thresholds': {
+            'slope_acceptable_deg': slope_acceptable,
+            'slope_restrictive_deg': slope_restrictive,
+            'excluded_cover': list(excluded),
+            'cropland_cover': list(cropland),
+            'note': (
+                'Project conventions, not verified legal restrictions. '
+                'Legal reserve, permanent preservation areas and municipal '
+                'zoning require the CAR and local legislation, which this '
+                'analysis does not consult.'
+            ),
+        },
+    }
+
+
 def main():
     try:
         req = json.load(sys.stdin)
@@ -945,9 +1242,11 @@ def main():
         centroid = polygon.centroid
         lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
 
-        clim_years = int(req.get('climatology_years') or 30)
-        hourly_years = int(req.get('hourly_years') or 10)
-        azimuth = float(req.get('surface_azimuth') or 0.0)
+        clim_years = request_positive(req, 'climatology_years', 30, int)
+        hourly_years = request_positive(req, 'hourly_years', 10, int)
+        # Zero is due north here, which is both the default and a value the
+        # caller can mean, so absence is what selects the default.
+        azimuth = request_number(req, 'surface_azimuth', 0.0)
         pr_override = req.get('performance_ratio')
 
         # POWER publishes through the previous full year.
@@ -957,10 +1256,15 @@ def main():
         hourly_start = f'{last_year - hourly_years + 1}0101'
         hourly_end = f'{last_year}1231'
 
+        cache = power_cache_dir(req)
         emit_progress(5, f'NASA POWER daily, {clim_years} years')
         try:
-            daily = solar_mod.fetch(
-                'daily', lon, lat, clim_start, clim_end,
+            daily, daily_provenance = cached_power_series(
+                cache, 'daily', lon, lat, clim_start, clim_end,
+                solar_mod.DAILY_PARAMS,
+                lambda progress: solar_mod.fetch(
+                    'daily', lon, lat, clim_start, clim_end, progress=progress
+                ),
                 progress=lambda i, n, y: emit_progress(
                     5 + int(35 * (i + 1) / n), f'daily {y}'
                 ),
@@ -990,8 +1294,13 @@ def main():
 
         emit_progress(42, f'NASA POWER hourly, {hourly_years} years')
         try:
-            hourly = solar_mod.fetch(
-                'hourly', lon, lat, hourly_start, hourly_end,
+            hourly, hourly_provenance = cached_power_series(
+                cache, 'hourly', lon, lat, hourly_start, hourly_end,
+                solar_mod.HOURLY_PARAMS,
+                lambda progress: solar_mod.fetch(
+                    'hourly', lon, lat, hourly_start, hourly_end,
+                    progress=progress,
+                ),
                 progress=lambda i, n, y: emit_progress(
                     42 + int(38 * (i + 1) / n), f'hourly {y}'
                 ),
@@ -1063,6 +1372,14 @@ def main():
                     'hourly_years': int(n_years),
                 },
                 'grid_note': solar_mod.GRID_NOTE,
+                # Which POWER series this run read and when it was
+                # fetched. Without it a cached run and a fetched run
+                # are indistinguishable to the caller, and POWER
+                # reprocesses historical data.
+                'power_provenance': {
+                    'daily': daily_provenance,
+                    'hourly': hourly_provenance,
+                },
             }
         }))
         sys.stdout.flush()
@@ -1082,7 +1399,7 @@ def main():
         polygon = polygon_from_geojson(req['polygon_geojson'])
         centroid = polygon.centroid
         lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
-        hourly_years = int(req.get('hourly_years') or 10)
+        hourly_years = request_positive(req, 'hourly_years', 10, int)
         last_year = _date.today().year - 1
 
         emit_progress(5, 'fetching Copernicus DEM GLO-30')
@@ -1130,11 +1447,17 @@ def main():
         dem_profile.update(height=slope.shape[0], width=slope.shape[1],
                            transform=dem_transform)
 
+        hourly_start = f'{last_year - hourly_years + 1}0101'
+        hourly_end = f'{last_year}1231'
         emit_progress(28, f'NASA POWER hourly, {hourly_years} years')
         try:
-            hourly = solar_mod.fetch(
-                'hourly', lon, lat,
-                f'{last_year - hourly_years + 1}0101', f'{last_year}1231',
+            hourly, hourly_provenance = cached_power_series(
+                power_cache_dir(req), 'hourly', lon, lat,
+                hourly_start, hourly_end, solar_mod.HOURLY_PARAMS,
+                lambda progress: solar_mod.fetch(
+                    'hourly', lon, lat, hourly_start, hourly_end,
+                    progress=progress,
+                ),
                 progress=lambda i, n, y: emit_progress(
                     28 + int(45 * (i + 1) / n), f'hourly {y}'
                 ),
@@ -1272,6 +1595,9 @@ def main():
                 'horizon_max_dist_m': float(solar_mod.HORIZON_MAX_DIST_M),
                 'beam_fraction': round(float(beam_share), 4),
                 'dem_source': 'Copernicus DEM GLO-30',
+                # Whether the POWER series behind this layer was fetched or
+                # read from the on-disk cache, and when it was fetched.
+                'power_provenance': {'hourly': hourly_provenance},
                 'overlay_png': str(png),
                 'raster_tif': str(tif),
                 'extent': {
@@ -1287,73 +1613,38 @@ def main():
     if action == 'solar_siting':
         import solar as solar_mod
         import composite as comp
-        import lulc as lulc_mod
         import rasterio
-        from rasterio.features import geometry_mask
 
         configure_gdal_for_cog()
         if not req.get('polygon_geojson'):
             fail('no polygon provided (polygon_geojson required)')
         polygon = polygon_from_geojson(req['polygon_geojson'])
-        centroid = polygon.centroid
 
         # Conventions, not verified legal restrictions. Echoed in the response.
-        slope_acceptable = float(
-            req.get('slope_acceptable_deg') or solar_mod.SLOPE_ACCEPTABLE_DEG
+        # Zero degrees is a limit the caller can mean: it accepts only ground
+        # the DEM reports as flat. Absence selects the convention, not falsiness.
+        slope_acceptable = request_number(
+            req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
         )
-        slope_restrictive = float(
-            req.get('slope_restrictive_deg') or solar_mod.SLOPE_RESTRICTIVE_DEG
+        slope_restrictive = request_number(
+            req, 'slope_restrictive_deg', solar_mod.SLOPE_RESTRICTIVE_DEG
         )
         excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
         cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
 
-        emit_progress(10, 'fetching Copernicus DEM GLO-30')
-        try:
-            dem_path = solar_mod.fetch_dem(polygon, Path(work_dir) / 'dem.tif')
-        except Exception as e:
-            fail(f'DEM fetch failed: {e}')
-        with rasterio.open(dem_path) as src:
-            elevation = src.read(1).astype(float)
-            dem_transform = src.transform
-            dem_crs = src.crs
-            dem_profile = src.profile.copy()
-
-        dx_m, dy_m = solar_mod.pixel_size_m(dem_transform, centroid.y)
-        emit_progress(35, 'slope and aspect')
-        slope, _aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
-
-        emit_progress(55, 'MapBiomas land cover')
-        try:
-            mb_path = lulc_mod.resolve_mapbiomas_path(
-                req.get('mapbiomas_path'), polygon, Path(work_dir)
-            )
-            mb = reproject_mapbiomas_to_grid(
-                mb_path,
-                {'transform': dem_transform, 'crs': dem_crs,
-                 'height': slope.shape[0], 'width': slope.shape[1]},
-                np.ones_like(slope),
-            )
-        except Exception as e:
-            fail(f'MapBiomas land cover unavailable: {e}')
-
-        inside = ~geometry_mask(
-            [polygon.__geo_interface__], out_shape=slope.shape,
-            transform=dem_transform, invert=False
+        siting_pct = {'dem': 10, 'slope': 35, 'cover': 55, 'classes': 80}
+        sited = compute_siting(
+            polygon, work_dir, slope_acceptable, slope_restrictive,
+            excluded, cropland, mapbiomas_path=req.get('mapbiomas_path'),
+            progress=lambda st, msg: emit_progress(siting_pct[st], msg),
         )
-        valid = inside & np.isfinite(slope)
-        if not valid.any():
-            fail('the DEM window does not overlap the AOI')
-
-        emit_progress(80, 'siting classes')
-        suit = solar_mod.suitability_map(
-            slope, mb, valid,
-            slope_acceptable=slope_acceptable,
-            slope_restrictive=slope_restrictive,
-            excluded_cover=excluded,
-            cropland_cover=cropland,
-        )
-        px_area_ha = (dx_m * dy_m) / 10_000.0
-        stats = solar_mod.suitability_stats(suit, px_area_ha)
+        suit = sited['suitability']
+        slope = sited['slope']
+        stats = sited['classes']
+        px_area_ha = sited['pixel_area_ha']
+        dem_transform = sited['dem_transform']
+        dem_crs = sited['dem_crs']
+        dem_profile = sited['dem_profile']
 
         png = Path(work_dir) / 'solar_siting.png'
         comp.write_rgba_png(solar_mod.suitability_rgba(suit), png)
@@ -1377,18 +1668,7 @@ def main():
                 'suitable_no_conflict_ha': by_code[4]['area_ha'],
                 'suitable_cropland_ha': by_code[3]['area_ha'],
                 'pixel_area_ha': round(float(px_area_ha), 5),
-                'thresholds': {
-                    'slope_acceptable_deg': slope_acceptable,
-                    'slope_restrictive_deg': slope_restrictive,
-                    'excluded_cover': list(excluded),
-                    'cropland_cover': list(cropland),
-                    'note': (
-                        'Project conventions, not verified legal restrictions. '
-                        'Legal reserve, permanent preservation areas and '
-                        'municipal zoning require the CAR and local '
-                        'legislation, which this analysis does not consult.'
-                    ),
-                },
+                'thresholds': sited['thresholds'],
                 'dem_source': 'Copernicus DEM GLO-30',
                 'overlay_png': str(png),
                 'raster_tif': str(tif),
@@ -1398,6 +1678,453 @@ def main():
                 },
             }
         }))
+        sys.stdout.flush()
+        return
+
+    # Loss waterfall, tracking comparison, generation profile and plant energy.
+    # Runs on the same POWER series as solar_resource, read from the cache when
+    # that action has already been run for this cell.
+    if action == 'energy_model':
+        import solar as solar_mod
+        import energy as energy_mod
+        from datetime import date as _date
+
+        if not req.get('polygon_geojson'):
+            fail('no polygon provided (polygon_geojson required)')
+        polygon = polygon_from_geojson(req['polygon_geojson'])
+        centroid = polygon.centroid
+        lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+
+        clim_years = request_positive(req, 'climatology_years', 30, int)
+        hourly_years = request_positive(req, 'hourly_years', 10, int)
+        azimuth = request_number(req, 'surface_azimuth', 0.0)
+        pr_override = req.get('performance_ratio')
+        reporting_basis = (req.get('reporting_basis') or 'year_one').lower()
+        if reporting_basis not in energy_mod.REPORTING_BASES:
+            fail(f'unknown reporting basis: {reporting_basis}')
+        try:
+            module_type, gamma_pdc = energy_mod.resolve_module_type(
+                req.get(energy_mod.MODULE_TYPE_REQUEST_FIELD)
+            )
+        except ValueError as e:
+            fail(str(e))
+        # Zero per year is a value, not an omission: it states that the caller
+        # is modelling no degradation. Read through request_number it survives;
+        # under the previous `or` default it became 0.5 %/yr and multiplied
+        # every lifetime-mean figure by 0.9422 instead of 1.0.
+        degradation_rate = request_positive(
+            req, 'degradation_rate_per_year',
+            energy_mod.DEGRADATION_RATE_PER_YEAR, allow_zero=True,
+        )
+        analysis_period = request_positive(
+            req, 'analysis_period_years',
+            energy_mod.ANALYSIS_PERIOD_YEARS, int,
+        )
+        gcr_fixed = request_positive(req, 'gcr_fixed', energy_mod.GCR_FIXED)
+        gcr_tracker = request_positive(
+            req, 'gcr_tracker', energy_mod.GCR_TRACKER
+        )
+        # Zero degrees is a tracker locked flat, which is a configuration a
+        # caller can ask for, so it is admitted rather than replaced by 60.
+        tracker_max_angle = request_positive(
+            req, 'tracker_max_angle_deg', energy_mod.TRACKER_MAX_ANGLE_DEG,
+            allow_zero=True,
+        )
+        density_basis = (
+            req.get('capacity_density_basis')
+            or energy_mod.DEFAULT_CAPACITY_DENSITY_BASIS
+        )
+        if density_basis not in energy_mod.CAPACITY_DENSITY_BASES:
+            fail(f'unknown capacity density basis: {density_basis}')
+        # Zero buildable share is a site with nothing buildable on it, which is
+        # a statement, not an omission.
+        buildable_fraction = request_positive(
+            req, 'buildable_fraction', energy_mod.BUILDABLE_FRACTION,
+            allow_zero=True,
+        )
+        utc_offset = request_number(req, 'utc_offset_hours', None)
+        # Zero is total horizon obstruction. It is admitted for the same reason
+        # and, like every other value of this field, it is a fraction of BEAM
+        # irradiance and is converted by the beam share before it is applied.
+        shading_derate = request_positive(
+            req, 'shading_derate', 1.0, allow_zero=True
+        )
+        shading_applied = bool(req.get('shading_applied', False))
+
+        # POWER publishes through the previous full year.
+        last_year = _date.today().year - 1
+        clim_start = f'{last_year - clim_years + 1}0101'
+        clim_end = f'{last_year}1231'
+        hourly_start = f'{last_year - hourly_years + 1}0101'
+        hourly_end = f'{last_year}1231'
+        clim_window = f'{last_year - clim_years + 1}-{last_year} daily'
+        hourly_window = f'{last_year - hourly_years + 1}-{last_year} hourly'
+
+        cache = power_cache_dir(req)
+        emit_progress(4, f'NASA POWER daily, {clim_years} years')
+        try:
+            daily, daily_provenance = cached_power_series(
+                cache, 'daily', lon, lat, clim_start, clim_end,
+                solar_mod.DAILY_PARAMS,
+                lambda progress: solar_mod.fetch(
+                    'daily', lon, lat, clim_start, clim_end, progress=progress
+                ),
+                progress=lambda i, n, y: emit_progress(
+                    4 + int(26 * (i + 1) / n), f'daily {y}'
+                ),
+            )
+        except Exception as e:
+            fail(f'NASA POWER daily request failed: {e}')
+
+        annual = solar_mod.annual_totals(daily)
+        if annual.empty:
+            fail('NASA POWER returned no complete year for this point')
+
+        emit_progress(32, f'NASA POWER hourly, {hourly_years} years')
+        try:
+            hourly, hourly_provenance = cached_power_series(
+                cache, 'hourly', lon, lat, hourly_start, hourly_end,
+                solar_mod.HOURLY_PARAMS,
+                lambda progress: solar_mod.fetch(
+                    'hourly', lon, lat, hourly_start, hourly_end,
+                    progress=progress,
+                ),
+                progress=lambda i, n, y: emit_progress(
+                    32 + int(30 * (i + 1) / n), f'hourly {y}'
+                ),
+            )
+        except Exception as e:
+            fail(f'NASA POWER hourly request failed: {e}')
+
+        # Elevation 0.0 as solar_resource does, so the two actions run on one
+        # chain and cannot report different plane-of-array totals for one AOI.
+        df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
+        if df.empty:
+            fail('NASA POWER returned no usable hourly record for this point')
+        n_years = max(len(set(df.index.year)), 1)
+
+        emit_progress(66, 'optimum tilt')
+        sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
+        best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
+        horizontal = next(
+            (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
+            best['poa_kwh_m2_year'],
+        )
+        poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
+        # The selected module type re-evaluates the two coefficient-dependent
+        # steps of the chain, so every product below runs on the type the
+        # response reports rather than on the module default.
+        frame = energy_mod.apply_module_type(
+            solar_mod.pv_yield_frame(poa, df, solpos, best['tilt_deg'], azimuth),
+            gamma_pdc,
+        )
+
+        emit_progress(70, 'performance ratio')
+        try:
+            ratio = energy_mod.resolve_performance_ratio(
+                frame, n_years,
+                override=(
+                    float(pr_override)
+                    if isinstance(pr_override, (int, float)) else None
+                ),
+                declared_loss_pct=req.get('declared_loss_pct') or None,
+                optional_loss_pct=req.get('optional_loss_pct') or None,
+                reporting_basis=reporting_basis,
+                degradation_rate_per_year=degradation_rate,
+                analysis_period_years=analysis_period,
+            )
+        except Exception as e:
+            fail(f'performance ratio could not be resolved: {e}')
+        poa_year = float(ratio['factors']['energy_poa_kwh_m2_year'])
+        ghi_hourly = float(df['ghi'].sum()) / 1000.0 / n_years
+
+        emit_progress(74, 'loss waterfall')
+        try:
+            waterfall = energy_mod.loss_waterfall(
+                frame, ghi_hourly, float(horizontal), n_years, ratio,
+                hourly_window=hourly_window,
+                ghi_climatology_kwh_m2_year=float(annual.mean()),
+                climatology_window=clim_window,
+            )
+        except Exception as e:
+            fail(f'loss waterfall failed: {e}')
+
+        emit_progress(78, 'single-axis tracking comparison')
+        try:
+            tracking = energy_mod.tracking_comparison(
+                df, solpos, n_years, poa, best['tilt_deg'], azimuth, ratio,
+                gcr_fixed=gcr_fixed, gcr_tracker=gcr_tracker,
+                max_angle_deg=tracker_max_angle,
+                gamma_pdc=gamma_pdc,
+            )
+        except Exception as e:
+            fail(f'tracking comparison failed: {e}')
+
+        emit_progress(86, 'generation profile')
+        try:
+            profile = energy_mod.generation_profile(
+                frame, n_years, utc_offset_hours=utc_offset
+            )
+        except Exception as e:
+            fail(f'generation profile failed: {e}')
+
+        density = energy_mod.resolve_capacity_density(
+            density_basis, buildable_fraction=buildable_fraction
+        )
+
+        # Three ways to reach the suitable area, in order of what the caller
+        # already holds. Reading back a siting raster is preferred over the
+        # class list alone because the raster also answers whether the area is
+        # one block or many, which the capacity figure has to be read against.
+        suitability = None
+        pixel_area_ha = req.get('pixel_area_ha')
+        # A classification the caller supplies carries limits this action never
+        # saw, so the response says so rather than reporting no limits at all.
+        thresholds = req.get('siting_thresholds') or {
+            'note': (
+                'The siting classification was supplied by the caller. The '
+                'slope limits and land-cover lists behind these areas are not '
+                'recorded in this response.'
+            ),
+        }
+        class_areas = None
+        siting_tif = req.get('siting_raster_tif')
+        siting_classes = req.get('siting_classes')
+        if siting_tif and Path(siting_tif).exists():
+            import rasterio
+            emit_progress(88, 'reading the siting raster')
+            with rasterio.open(siting_tif) as src:
+                suitability = src.read(1)
+                dx_m, dy_m = solar_mod.pixel_size_m(src.transform, centroid.y)
+            pixel_area_ha = (dx_m * dy_m) / 10_000.0
+            class_areas = solar_mod.suitability_stats(suitability, pixel_area_ha)
+        elif siting_classes:
+            class_areas = siting_classes
+        else:
+            configure_gdal_for_cog()
+            slope_acceptable = request_number(
+                req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
+            )
+            slope_restrictive = request_number(
+                req, 'slope_restrictive_deg', solar_mod.SLOPE_RESTRICTIVE_DEG
+            )
+            excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
+            cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
+            siting_pct = {'dem': 88, 'slope': 91, 'cover': 93, 'classes': 96}
+            sited = compute_siting(
+                polygon, work_dir, slope_acceptable, slope_restrictive,
+                excluded, cropland, mapbiomas_path=req.get('mapbiomas_path'),
+                progress=lambda st, msg: emit_progress(siting_pct[st], msg),
+            )
+            suitability = sited['suitability']
+            pixel_area_ha = sited['pixel_area_ha']
+            class_areas = sited['classes']
+            thresholds = sited['thresholds']
+
+        emit_progress(97, 'plant energy over the suitable area')
+        try:
+            plant = energy_mod.plant_energy(
+                class_areas, annual, poa_year, ratio,
+                density=density,
+                shading_derate=shading_derate,
+                shading_applied=shading_applied,
+                # The derate the caller sends is the terrain product's mean
+                # horizon loss, which is a fraction of BEAM irradiance. The
+                # beam share of this site's own hourly series converts it to a
+                # fraction of the plane-of-array total; without it the loss
+                # would be applied on the wrong base and every capacity-class
+                # energy figure would be low by the diffuse share of it.
+                beam_share=float(solar_mod.beam_fraction(df)),
+                suitability=suitability,
+                pixel_area_ha=(
+                    None if pixel_area_ha is None else float(pixel_area_ha)
+                ),
+                thresholds=thresholds,
+            )
+        except Exception as e:
+            fail(f'plant energy failed: {e}')
+
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({
+            'energy_model': {
+                'lon': lon, 'lat': lat,
+                'hourly_years': int(n_years),
+                'climatology_years': int(annual.size),
+                'hourly_window': hourly_window,
+                'climatology_window': clim_window,
+                'geometry': {
+                    'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
+                    'surface_azimuth_deg': azimuth,
+                    'poa_kwh_m2_year': round(poa_year, 4),
+                    'poa_horizontal_kwh_m2_year': round(float(horizontal), 4),
+                    'ghi_hourly_kwh_m2_year': round(ghi_hourly, 4),
+                },
+                'performance_ratio': ratio,
+                'module_type': energy_mod.module_type_assumption(gamma_pdc),
+                'loss_waterfall': waterfall,
+                'tracking': tracking,
+                'generation_profile': profile,
+                'capacity_density': density,
+                'plant': plant,
+                'reporting_basis': reporting_basis,
+                'grid_note': solar_mod.GRID_NOTE,
+                # Which POWER series this run read and when it was
+                # fetched. Without it a cached run and a fetched run
+                # are indistinguishable to the caller, and POWER
+                # reprocesses historical data.
+                'power_provenance': {
+                    'daily': daily_provenance,
+                    'hourly': hourly_provenance,
+                },
+                # Repeated at the top level so a reader who sees only one
+                # figure still sees the assumption that produced it.
+                'assumptions': {
+                    'performance_ratio_applied': float(ratio['applied']),
+                    'performance_ratio_source': ratio['applied_source'],
+                    'performance_ratio_modelled': round(float(ratio['modelled']), 6),
+                    'performance_ratio_derived': round(float(ratio['derived']), 6),
+                    'reporting_basis': reporting_basis,
+                    'degradation_factor': float(ratio['degradation_factor']),
+                    'degradation_rate_per_year': float(degradation_rate),
+                    'analysis_period_years': int(analysis_period),
+                    'module_type': module_type,
+                    'gamma_pdc_per_c': float(gamma_pdc),
+                    'transposition_model': solar_mod.TRANSPOSITION_MODEL,
+                    'albedo': float(solar_mod.ALBEDO),
+                    'gcr_fixed': gcr_fixed,
+                    'gcr_tracker': gcr_tracker,
+                    'capacity_density_basis': density_basis,
+                    'capacity_density_mw_dc_per_ha': round(
+                        float(density['value_mw_dc_per_ha']), 6),
+                    'shading_applied': shading_applied,
+                    'shading_derate': shading_derate,
+                    'resolution_note': solar_mod.GRID_NOTE,
+                    'note': (
+                        'Every energy figure in this response was computed at '
+                        'the applied performance ratio and the reporting basis '
+                        'stated here. A figure copied out of this response '
+                        'without them is not interpretable.'
+                    ),
+                },
+            }
+        }))
+        sys.stdout.flush()
+        return
+
+    # Wind resource screening at the AOI centroid, from POWER hourly MERRA-2.
+    if action == 'wind_resource':
+        import wind as wind_mod
+        from datetime import date as _date
+
+        if not req.get('polygon_geojson'):
+            fail('no polygon provided (polygon_geojson required)')
+        polygon = polygon_from_geojson(req['polygon_geojson'])
+        centroid = polygon.centroid
+        # The MERRA-2 cell centre, not the centroid: the request resolves to a
+        # cell and the response has to say which cell it describes.
+        lon, lat = wind_mod.grid_key(centroid.x, centroid.y)
+
+        record_years = request_positive(
+            req, 'record_years', wind_mod.RECORD_YEARS, int
+        )
+        hub_height_m = request_positive(
+            req, 'hub_height_m', wind_mod.HUB_HEIGHT_M
+        )
+        # Zero is a caller stating that no hour counts as calm, and zero is a
+        # caller stating that the record maximum needs no floor. Both are
+        # values; only absence selects the wind module's convention.
+        calm_threshold = request_positive(
+            req, 'calm_threshold_ms', wind_mod.CALM_THRESHOLD_MS,
+            allow_zero=True,
+        )
+        record_max_floor = request_positive(
+            req, 'record_max_floor_ms', wind_mod.RECORD_MAX_FLOOR_MS,
+            allow_zero=True,
+        )
+        band = req.get('roughness_band_m') or wind_mod.ROUGHNESS_BAND_M
+        try:
+            roughness_band = (float(band[0]), float(band[1]))
+        except (TypeError, IndexError, ValueError):
+            fail('roughness_band_m must be two roughness lengths in metres')
+
+        last_year = _date.today().year - 1
+        start, end = wind_mod.record_period(last_year, record_years)
+        record_window = f'{start[:4]}-{end[:4]} hourly'
+
+        emit_progress(5, f'NASA POWER hourly wind, {record_years} years')
+        try:
+            df, hourly_provenance = cached_power_series(
+                power_cache_dir(req), 'hourly', lon, lat, start, end,
+                wind_mod.HOURLY_PARAMS,
+                lambda progress: wind_mod.fetch(
+                    lon, lat, start, end, progress=progress
+                ),
+                progress=lambda i, n, y: emit_progress(
+                    5 + int(80 * (i + 1) / n), f'hourly {y}'
+                ),
+            )
+        except Exception as e:
+            fail(f'NASA POWER hourly request failed: {e}')
+        if df.empty:
+            fail('NASA POWER returned no hourly record for this point')
+
+        emit_progress(90, 'shear, Weibull fit and turbine power')
+        try:
+            assessment = wind_mod.assess(
+                df, lon, lat,
+                hub_height_m=hub_height_m,
+                calm_threshold_ms=calm_threshold,
+                record_max_floor_ms=record_max_floor,
+                roughness_band_m=roughness_band,
+            )
+        except Exception as e:
+            fail(f'wind assessment failed: {e}')
+
+        assessment.update({
+            'lon': lon, 'lat': lat,
+            'record_window': record_window,
+            'hub_height_m': hub_height_m,
+            # Whether the POWER record behind this assessment was fetched or
+            # read from the on-disk cache, and when it was fetched.
+            'power_provenance': {'hourly': hourly_provenance},
+            'assumptions': {
+                'hub_height_m': hub_height_m,
+                'hub_height_source': (
+                    'Hub height of the IEA-3.4-130 reference turbine, applied '
+                    'as a project convention. No turbine has been selected for '
+                    'this site.'
+                ),
+                'record_years': record_years,
+                'record_window': record_window,
+                'shear_exponent': assessment['measured']['shear_exponent'],
+                'shear_exponent_source': (
+                    'Power law between the 10 m and 50 m long-term means of '
+                    'this record. Everything above 50 m is extrapolated.'
+                ),
+                'roughness_band_m': list(roughness_band),
+                'calm_threshold_ms': calm_threshold,
+                'record_max_floor_ms': record_max_floor,
+                'conventions_note': (
+                    'Hub height, the assumed roughness band, the calm '
+                    'threshold and the record-maximum floor are project '
+                    'conventions the user can edit. They are not measurements '
+                    'and they have no published basis at this site.'
+                ),
+                'qualifier': wind_mod.RESULT_QUALIFIER,
+                'excluded_losses': list(wind_mod.EXCLUDED_LOSSES),
+                'comparison_note': (
+                    'The gross capacity factor here and the photovoltaic '
+                    'capacity factor from solar_resource are not comparable. '
+                    'The photovoltaic figure is computed at a performance '
+                    'ratio benchmarked against the Global Solar Atlas; this '
+                    'one carries no external validation and no plant losses.'
+                ),
+                'resolution_note': wind_mod.GRID_NOTE,
+            },
+        })
+
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({'wind': assessment}))
         sys.stdout.flush()
         return
 

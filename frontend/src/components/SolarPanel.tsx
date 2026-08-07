@@ -9,6 +9,8 @@ import {
   Play,
   Sun,
   Trash2,
+  Wind,
+  Zap,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { SolarSeason } from "@/lib/types"
@@ -31,6 +33,128 @@ function Section({
       {children}
     </div>
   )
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+  min?: number
+  max?: number
+  step?: number
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+      {label}
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+      />
+    </label>
+  )
+}
+
+/**
+ * Defaults mirrored from the sidecar module constants.
+ *
+ * The Python constant and this initial state are duplicated with no link
+ * between them, so each control states its default and where the default comes
+ * from, and the response echoes back the value actually used under
+ * `assumptions`. A field left at its default is still sent explicitly.
+ */
+export const ENERGY_DECLARED_LOSSES: {
+  key: string
+  label: string
+  defaultPct: number
+}[] = [
+  { key: "soiling", label: "Soiling", defaultPct: 2.0 },
+  { key: "mismatch", label: "DC mismatch", defaultPct: 2.0 },
+  { key: "wiring", label: "DC wiring", defaultPct: 2.0 },
+  { key: "connections", label: "Connections", defaultPct: 0.5 },
+  { key: "nameplate_rating", label: "Nameplate", defaultPct: 1.0 },
+  { key: "lid", label: "Light-induced deg.", defaultPct: 1.5 },
+]
+
+export const ENERGY_OPTIONAL_LOSSES: {
+  key: string
+  label: string
+  defaultPct: number
+  pvwattsSuggestedPct: number
+}[] = [
+  {
+    key: "interrow_shading",
+    label: "Inter-row shading",
+    defaultPct: 0.0,
+    pvwattsSuggestedPct: 3.0,
+  },
+  {
+    key: "availability",
+    label: "Availability",
+    defaultPct: 0.0,
+    pvwattsSuggestedPct: 3.0,
+  },
+]
+
+/** Keys of the sidecar capacity-density table, with the source of each. */
+export const ENERGY_CAPACITY_DENSITY_BASES: { id: string; label: string }[] = [
+  {
+    id: "bolinger_fixed_total_site",
+    label: "Bolinger fixed tilt, total site",
+  },
+  { id: "bolinger_fixed_direct", label: "Bolinger fixed tilt, direct array" },
+  { id: "bolinger_tracking_direct", label: "Bolinger tracking, direct array" },
+  { id: "nrel_large_fixed_total", label: "Ong T3, above 20 MW, total site" },
+  { id: "nrel_large_fixed_direct", label: "Ong T4, above 20 MW, direct array" },
+  { id: "nrel_small_fixed_total", label: "Ong T3, below 20 MW, total site" },
+  { id: "nrel_small_fixed_direct", label: "Ong T4, below 20 MW, direct array" },
+]
+
+export const ENERGY_DEFAULTS = {
+  reportingBasis: "year_one" as "year_one" | "lifetime_mean",
+  /** Jordan and Kurtz (2013), crystalline silicon median 0.5 percent per year. */
+  degradationRatePctPerYear: 0.5,
+  /** Project convention. */
+  analysisPeriodYears: 25,
+  /**
+   * Bolinger and Bolinger (2022) fleet capacity densities of 0.35 and 0.24
+   * MW_DC per acre are 0.86487 and 0.59305 MW_DC per hectare, which at 20
+   * percent module efficiency imply ground coverage ratios of 0.43243 and
+   * 0.29653. The tracker default was 0.35, which follows from no published
+   * pair; at the reference site yields of 1507.70 fixed and 1782.41 tracking
+   * kWh/kWp/yr that is the difference between a derived per-hectare change of
+   * -4.88 and -19.83 percent. Both are editable request parameters.
+   */
+  gcrFixed: 0.435,
+  gcrTracker: 0.295,
+  trackerMaxAngleDeg: 60,
+  capacityDensityBasis: "bolinger_fixed_total_site",
+  /** Bolinger and Bolinger (2022) worked example, not a measured median. */
+  buildableFraction: 0.75,
+}
+
+export const WIND_DEFAULTS = {
+  /** Mirrors the hourly window the solar resource uses. */
+  recordYears: 10,
+  /** The reference turbine hub. No turbine has been selected for any site. */
+  hubHeightM: 110,
+  calmThresholdMS: 0.5,
+  /** No published basis: a check on a near-surface field whose extremes are absent. */
+  recordMaxFloorMS: 10,
+  /** Open agricultural land, assumed rather than measured. */
+  roughnessLowM: 0.03,
+  roughnessHighM: 0.1,
 }
 
 export interface SolarPanelProps {
@@ -65,6 +189,54 @@ export interface SolarPanelProps {
   onSlopeRestrictiveChange: (v: number) => void
   onRunSiting: () => void
   onClearSiting: () => void
+  energyRunning: boolean
+  hasEnergy: boolean
+  energyReportingBasis: "year_one" | "lifetime_mean"
+  onEnergyReportingBasisChange: (v: "year_one" | "lifetime_mean") => void
+  /** Percent per year. Applies on the lifetime-mean basis only. */
+  energyDegradationPct: number
+  onEnergyDegradationPctChange: (v: number) => void
+  energyAnalysisPeriod: number
+  onEnergyAnalysisPeriodChange: (v: number) => void
+  energyGcrFixed: number
+  onEnergyGcrFixedChange: (v: number) => void
+  energyGcrTracker: number
+  onEnergyGcrTrackerChange: (v: number) => void
+  energyTrackerMaxAngle: number
+  onEnergyTrackerMaxAngleChange: (v: number) => void
+  energyDensityBasis: string
+  onEnergyDensityBasisChange: (v: string) => void
+  energyBuildableFraction: number
+  onEnergyBuildableFractionChange: (v: number) => void
+  /** Blank labels the diurnal profile in UTC. */
+  energyUtcOffset: string
+  onEnergyUtcOffsetChange: (v: string) => void
+  energyApplyShading: boolean
+  onEnergyApplyShadingChange: (v: boolean) => void
+  /** AOI-mean share of beam blocked, from a terrain run; null without one. */
+  energyShadingMeanPct: number | null
+  energyDeclaredLoss: Record<string, number>
+  onEnergyDeclaredLossChange: (key: string, pct: number) => void
+  energyOptionalLoss: Record<string, number>
+  onEnergyOptionalLossChange: (key: string, pct: number) => void
+  onRunEnergy: () => void
+  onClearEnergy: () => void
+  windRunning: boolean
+  hasWind: boolean
+  windRecordYears: number
+  onWindRecordYearsChange: (v: number) => void
+  windHubHeight: number
+  onWindHubHeightChange: (v: number) => void
+  windCalmThreshold: number
+  onWindCalmThresholdChange: (v: number) => void
+  windRecordMaxFloor: number
+  onWindRecordMaxFloorChange: (v: number) => void
+  windRoughnessLow: number
+  onWindRoughnessLowChange: (v: number) => void
+  windRoughnessHigh: number
+  onWindRoughnessHighChange: (v: number) => void
+  onRunWind: () => void
+  onClearWind: () => void
   onCollapse: () => void
 }
 
@@ -115,6 +287,51 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
       onSlopeRestrictiveChange,
       onRunSiting,
       onClearSiting,
+      energyRunning,
+      hasEnergy,
+      energyReportingBasis,
+      onEnergyReportingBasisChange,
+      energyDegradationPct,
+      onEnergyDegradationPctChange,
+      energyAnalysisPeriod,
+      onEnergyAnalysisPeriodChange,
+      energyGcrFixed,
+      onEnergyGcrFixedChange,
+      energyGcrTracker,
+      onEnergyGcrTrackerChange,
+      energyTrackerMaxAngle,
+      onEnergyTrackerMaxAngleChange,
+      energyDensityBasis,
+      onEnergyDensityBasisChange,
+      energyBuildableFraction,
+      onEnergyBuildableFractionChange,
+      energyUtcOffset,
+      onEnergyUtcOffsetChange,
+      energyApplyShading,
+      onEnergyApplyShadingChange,
+      energyShadingMeanPct,
+      energyDeclaredLoss,
+      onEnergyDeclaredLossChange,
+      energyOptionalLoss,
+      onEnergyOptionalLossChange,
+      onRunEnergy,
+      onClearEnergy,
+      windRunning,
+      hasWind,
+      windRecordYears,
+      onWindRecordYearsChange,
+      windHubHeight,
+      onWindHubHeightChange,
+      windCalmThreshold,
+      onWindCalmThresholdChange,
+      windRecordMaxFloor,
+      onWindRecordMaxFloorChange,
+      windRoughnessLow,
+      onWindRoughnessLowChange,
+      windRoughnessHigh,
+      onWindRoughnessHighChange,
+      onRunWind,
+      onClearWind,
       onCollapse,
     } = props
 
@@ -374,6 +591,357 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
             <Sun className="mt-0.5 size-3 shrink-0 opacity-70" />
             Needs no satellite scene, so it returns an answer for any AOI and
             carries no trained legend.
+          </p>
+        </Section>
+
+        <Section step="06" title="Energy model">
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Runs on the same radiation chain and the same optimum as step 04,
+            at the performance ratio set in step 03, so the two products cannot
+            report different yields for one AOI. Adds the loss stack behind
+            that ratio, the single-axis tracking comparison, the diurnal
+            profile and the plant energy over the suitable area.
+          </p>
+
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+            Reporting basis
+            <select
+              value={energyReportingBasis}
+              onChange={(e) =>
+                onEnergyReportingBasisChange(
+                  e.target.value as "year_one" | "lifetime_mean"
+                )
+              }
+              className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+            >
+              <option value="year_one">Year one (default)</option>
+              <option value="lifetime_mean">Lifetime mean</option>
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <NumberField
+              label="Degradation %/yr"
+              value={energyDegradationPct}
+              onChange={onEnergyDegradationPctChange}
+              min={0}
+              max={5}
+              step={0.1}
+            />
+            <NumberField
+              label="Analysis period (yr)"
+              value={energyAnalysisPeriod}
+              onChange={onEnergyAnalysisPeriodChange}
+              min={1}
+              max={50}
+            />
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Degradation is a basis for the whole chain, not a loss row, so
+            every figure carries the basis it was computed on. Year one applies
+            none. Defaults: 0.5 %/yr, the crystalline silicon median of Jordan
+            and Kurtz (2013); 25 years, a project convention.
+          </p>
+
+          <span className="text-[11px] text-muted-foreground">
+            Declared losses (%)
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            {ENERGY_DECLARED_LOSSES.map((term) => (
+              <NumberField
+                key={term.key}
+                label={`${term.label} (${term.defaultPct})`}
+                value={energyDeclaredLoss[term.key] ?? term.defaultPct}
+                onChange={(v) => onEnergyDeclaredLossChange(term.key, v)}
+                min={0}
+                max={50}
+                step={0.1}
+              />
+            ))}
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Terms this chain does not model, entered as declared assumptions.
+            The value in brackets is the PVWatts v5 default from Dobos (2014),
+            NREL/TP-6A20-62641. They multiply the modelled ratio into the
+            derived one; the applied ratio is unaffected.
+          </p>
+
+          <span className="text-[11px] text-muted-foreground">
+            Optional losses (%)
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            {ENERGY_OPTIONAL_LOSSES.map((term) => (
+              <NumberField
+                key={term.key}
+                label={`${term.label} (${term.defaultPct})`}
+                value={energyOptionalLoss[term.key] ?? term.defaultPct}
+                onChange={(v) => onEnergyOptionalLossChange(term.key, v)}
+                min={0}
+                max={50}
+                step={0.1}
+              />
+            ))}
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Both default to zero. PVWatts v5 suggests 3 percent for each.
+            Applying both multiplies the derived ratio by 0.9409; at the
+            reference site that takes it from 0.7825 to 0.7363, which is 7.5 to
+            8.1 percent below the Global Solar Atlas implied band of 0.796 to
+            0.801, the external reference the applied ratio is calibrated
+            against. No row geometry is modelled here, so there is nothing from
+            which an inter-row shading loss could be computed.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            <NumberField
+              label="GCR fixed (0.435)"
+              value={energyGcrFixed}
+              onChange={onEnergyGcrFixedChange}
+              min={0.05}
+              max={0.95}
+              step={0.005}
+            />
+            <NumberField
+              label="GCR tracker (0.295)"
+              value={energyGcrTracker}
+              onChange={onEnergyGcrTrackerChange}
+              min={0.05}
+              max={0.95}
+              step={0.005}
+            />
+          </div>
+          <NumberField
+            label="Tracker rotation limit, degrees (60)"
+            value={energyTrackerMaxAngle}
+            onChange={onEnergyTrackerMaxAngleChange}
+            min={10}
+            max={90}
+          />
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Both defaults follow from the fleet capacity densities of Bolinger
+            and Bolinger (2022), 0.35 MW_DC per acre fixed tilt and 0.24 MW_DC
+            per acre single-axis tracking, which are 0.865 and 0.593 MW_DC per
+            hectare. At 20 percent module efficiency those imply ground
+            coverage ratios of 0.432 and 0.297; the defaults 0.435 and 0.295
+            sit within 0.6 percent of them. Their ratio sets the sign of the
+            per-hectare comparison and the published ranges straddle the parity
+            point, so the response reports the parity ratio beside the answer.
+            The rotation limit is a project convention. Backtracking is always
+            on and is not exposed: without it pvlib ignores the coverage ratio
+            and returns a gain no plant would deliver.
+          </p>
+
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+            Capacity density basis
+            <select
+              value={energyDensityBasis}
+              onChange={(e) => onEnergyDensityBasisChange(e.target.value)}
+              className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+            >
+              {ENERGY_CAPACITY_DENSITY_BASES.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <NumberField
+            label="Buildable fraction (0.75)"
+            value={energyBuildableFraction}
+            onChange={onEnergyBuildableFractionChange}
+            min={0.05}
+            max={1}
+            step={0.05}
+          />
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Default: Bolinger and Bolinger (2022) fixed tilt, derated to a
+            total-site basis by the buildable fraction the paper gives as a
+            worked example. The area basis moves the capacity further than the
+            exceedance band does, so it is reported with every figure. The
+            direct-array entries apply to array area only; using one against a
+            whole site overstates capacity by 1/0.75.
+          </p>
+
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+            UTC offset for the diurnal profile (blank = UTC)
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="-3"
+              value={energyUtcOffset}
+              onChange={(e) => onEnergyUtcOffsetChange(e.target.value)}
+              className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+            />
+          </label>
+
+          <label className="flex items-start gap-2 text-[11px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={energyApplyShading}
+              disabled={energyShadingMeanPct == null}
+              onChange={(e) => onEnergyApplyShadingChange(e.target.checked)}
+              className="mt-0.5 size-3.5 shrink-0 accent-primary disabled:opacity-40"
+            />
+            <span>
+              Apply horizon shading from the terrain map
+              {energyShadingMeanPct == null
+                ? " (run one in step 04 first)"
+                : ` (${energyShadingMeanPct.toFixed(2)}% of beam, AOI mean)`}
+            </span>
+          </label>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Off by default. The terrain map measures shading over the whole
+            AOI, while the derate applies to the suitable pixels only, so
+            carrying it across is a decision the response records rather than
+            an automatic step. Left off, the plant figures are reported
+            unshaded.
+          </p>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!hasArea || energyRunning || running}
+              onClick={onRunEnergy}
+              className="ar-ghost flex h-9 flex-1 items-center justify-center gap-1.5 rounded-sm border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              {energyRunning ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Zap className="size-3.5" />
+              )}
+              {energyRunning ? "Modelling…" : "Run energy model"}
+            </button>
+            {hasEnergy && (
+              <button
+                type="button"
+                onClick={onClearEnergy}
+                disabled={energyRunning}
+                className="ar-ghost flex h-9 items-center justify-center rounded-sm border px-3 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                title="Clear the energy model"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            A siting map from step 05 is reused as the classification behind
+            the capacity; without one the AOI is classified afresh on the slope
+            limits set there. The plant figures are a resource and land
+            ceiling, not an interconnectable or permitted capacity.
+          </p>
+        </Section>
+
+        <Section step="07" title="Wind screening">
+          <p className="flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground">
+            <Wind className="mt-0.5 size-3 shrink-0 opacity-70" />A separate
+            product, not part of the solar chain. It resolves on the reanalysis
+            grid of 0.5 by 0.625 degrees, which is a different cell from the 1
+            degree radiation grid above, and it is saved as its own run kind.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <NumberField
+              label="Record years (10)"
+              value={windRecordYears}
+              onChange={onWindRecordYearsChange}
+              min={1}
+              max={30}
+            />
+            <NumberField
+              label="Hub height, m (110)"
+              value={windHubHeight}
+              onChange={onWindHubHeightChange}
+              min={10}
+              max={200}
+            />
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            The record carries 10 m and 50 m. A hub above 50 m is a power-law
+            extrapolation, and the response states the ratio it sits at. The
+            110 m default is the reference turbine hub, a project convention;
+            no turbine has been selected for any site.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <NumberField
+              label="Roughness low, m (0.03)"
+              value={windRoughnessLow}
+              onChange={onWindRoughnessLowChange}
+              min={0.001}
+              max={2}
+              step={0.01}
+            />
+            <NumberField
+              label="Roughness high, m (0.10)"
+              value={windRoughnessHigh}
+              onChange={onWindRoughnessHighChange}
+              min={0.001}
+              max={2}
+              step={0.01}
+            />
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            An assumed land-cover property for open agricultural terrain, not a
+            measurement at this AOI. The shear exponent derived from the record
+            is inverted to a roughness and checked against this band; a
+            disagreement is the strongest single reason not to read the hub
+            figures as a measurement.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <NumberField
+              label="Calm threshold, m/s (0.5)"
+              value={windCalmThreshold}
+              onChange={onWindCalmThresholdChange}
+              min={0}
+              max={5}
+              step={0.1}
+            />
+            <NumberField
+              label="Record max floor, m/s (10)"
+              value={windRecordMaxFloor}
+              onChange={onWindRecordMaxFloorChange}
+              min={0}
+              max={50}
+            />
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Both are project conventions with no published basis. The floor
+            exists to catch a near-surface field whose extremes are absent;
+            read the record maximum and the record length rather than the flag
+            alone.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!hasArea || windRunning}
+              onClick={onRunWind}
+              className="ar-ghost flex h-9 flex-1 items-center justify-center gap-1.5 rounded-sm border text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              {windRunning ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Wind className="size-3.5" />
+              )}
+              {windRunning ? "Screening…" : "Screen wind"}
+            </button>
+            {hasWind && (
+              <button
+                type="button"
+                onClick={onClearWind}
+                disabled={windRunning}
+                className="ar-ghost flex h-9 items-center justify-center rounded-sm border px-3 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                title="Clear the wind screening"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Screening indication, gross of losses, unvalidated. The capacity
+            factor excludes wake, availability, electrical, icing and
+            curtailment losses, and it has no external benchmark of the kind
+            the photovoltaic ratio has, which is computed at a performance
+            ratio bracketed by the Global Solar Atlas. It is not comparable
+            with the photovoltaic capacity factor, and the two are never placed
+            in a shared comparison: the analysis page gives each its own
+            section and no table, figure row or export column holds both.
           </p>
         </Section>
       </motion.div>

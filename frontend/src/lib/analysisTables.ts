@@ -2,17 +2,22 @@
  * Table definitions for the analysis data views.
  *
  * Column names, order and value formatting mirror backend/export_research.go,
- * which writes the same nine tables into the research pack ZIP. What the
- * application shows on screen and what it exports must be the same table, so a
- * figure read here can be cited from the exported CSV without re-deriving it.
+ * which writes the same tables into the research pack ZIP. What the application
+ * shows on screen and what it exports must be the same table, so a figure read
+ * here can be cited from the exported CSV without re-deriving it.
  *
  * Edit both together. The CSV file name on each definition is the file the Go
- * writer produces, which is the anchor for checking the two still agree.
+ * writer produces, and backend/export_parity_test.go reads this file to check
+ * the names, the column keys and their order still agree with the Go writer's
+ * researchTableColumns. The row-construction rules are not covered by that
+ * check and are restated on each definition that has one.
  */
 import type {
   ClassStat,
+  EnergyModelAnalysis,
   SolarAnalysis,
   SolarSitingAnalysis,
+  SolarTerrainAnalysis,
   WaterAnalysis,
   LULCAnalysis,
   PhenologyMetrics,
@@ -20,6 +25,7 @@ import type {
   PredictResult,
   TemporalPoint,
   VISeriesPoint,
+  WindAnalysis,
 } from "@/lib/types"
 
 export type CellValue = string | number | null | undefined
@@ -398,6 +404,66 @@ export function solarTiltToleranceTable(
   )
 }
 
+/**
+ * One row: the terrain layer's own statistics, written the way phenology is.
+ *
+ * The four value columns hold the layer named in `layer`, in `unit`, which is
+ * not always an irradiation: the shading layer carries a blocked fraction and
+ * the anisotropy layer a winter-over-summer ratio, so a column named poa_mean
+ * would assert a quantity two of the layers do not report.
+ *
+ * The two shading columns are the loss as a share of BEAM irradiation, not of
+ * the plane-of-array total. beam_fraction sits beside them because it is the
+ * factor that converts one to the other; without it the pair reads as a loss of
+ * the total and overstates the effect on yield.
+ */
+export function solarTerrainTable(
+  terrain?: SolarTerrainAnalysis | null
+): DataTable | null {
+  return table(
+    "solar_terrain",
+    "solar_terrain.csv",
+    [
+      { key: "layer" },
+      { key: "unit" },
+      num("value_min"),
+      num("value_max"),
+      num("value_mean"),
+      num("value_std_pct"),
+      num("slope_mean_deg"),
+      num("slope_max_deg"),
+      num("pixels"),
+      { key: "dem_source" },
+      num("hourly_years"),
+      num("shading_mean_pct_of_beam"),
+      num("shading_max_pct_of_beam"),
+      num("beam_fraction"),
+      num("horizon_max_dist_m"),
+    ],
+    terrain && terrain.pixels > 0
+      ? [
+          [
+            terrain.season,
+            terrain.unit,
+            terrain.poa_min,
+            terrain.poa_max,
+            terrain.poa_mean,
+            terrain.poa_std_pct,
+            terrain.slope_mean_deg,
+            terrain.slope_max_deg,
+            terrain.pixels,
+            terrain.dem_source,
+            terrain.hourly_years,
+            terrain.shading_mean_pct,
+            terrain.shading_max_pct,
+            terrain.beam_fraction,
+            terrain.horizon_max_dist_m,
+          ],
+        ]
+      : []
+  )
+}
+
 export function solarSitingTable(
   siting?: SolarSitingAnalysis | null
 ): DataTable | null {
@@ -423,6 +489,385 @@ export function solarSitingTable(
   )
 }
 
+/**
+ * The chain from global horizontal irradiation to delivered AC energy.
+ *
+ * factor and cumulative_ratio are empty on context rows, which are not
+ * multiplied in; in_performance_ratio says whether a step is inside the ratio
+ * or outside it, which is what makes the chain reconcilable from the CSV alone.
+ */
+export function energyLossWaterfallTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  return table(
+    "energy_loss_waterfall",
+    "energy_loss_waterfall.csv",
+    [
+      num("step"),
+      { key: "label" },
+      num("factor"),
+      num("energy_after"),
+      { key: "units" },
+      num("cumulative_ratio"),
+      { key: "kind" },
+      { key: "in_performance_ratio" },
+      { key: "source" },
+    ],
+    (energy?.loss_waterfall.steps ?? []).map((s) => [
+      s.step,
+      s.label,
+      s.factor,
+      s.energy_after,
+      s.units,
+      s.cumulative_ratio,
+      s.kind,
+      String(s.in_performance_ratio),
+      s.source,
+    ])
+  )
+}
+
+/**
+ * The PVWatts v5 loss stack this chain declares rather than models.
+ *
+ * Only the declared terms, matching the Go writer. The two optional terms
+ * default to zero and are carried as their own type; they reach the export
+ * through the waterfall rows, where their factor of 1.0 is visible.
+ */
+export function energyDeclaredLossesTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  return table(
+    "energy_declared_losses",
+    "energy_declared_losses.csv",
+    [
+      { key: "key" },
+      { key: "label" },
+      num("loss_pct"),
+      num("factor"),
+      { key: "kind" },
+      { key: "source" },
+      { key: "user_editable" },
+    ],
+    (energy?.performance_ratio.declared_losses ?? []).map((l) => [
+      l.key,
+      l.label,
+      l.loss_pct,
+      l.factor,
+      l.kind,
+      l.source,
+      String(l.user_editable),
+    ])
+  )
+}
+
+export function energyTrackingSeasonalTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  return table(
+    "energy_tracking_seasonal",
+    "energy_tracking_seasonal.csv",
+    [
+      { key: "season" },
+      num("fixed_poa_kwh_m2_season"),
+      num("tracker_poa_kwh_m2_season"),
+      num("gain_pct"),
+    ],
+    (energy?.tracking.seasonal.rows ?? []).map((s) => [
+      s.season,
+      s.fixed_poa_kwh_m2_season,
+      s.tracker_poa_kwh_m2_season,
+      s.gain_pct,
+    ])
+  )
+}
+
+export function energyGenerationMonthlyTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  return table(
+    "energy_generation_monthly",
+    "energy_generation_monthly.csv",
+    [
+      num("month"),
+      num("peak_sun_hours_day"),
+      num("poa_kwh_m2_month"),
+      num("ac_kwh_kwp_month"),
+    ],
+    (energy?.generation_profile.monthly.rows ?? []).map((m) => [
+      m.month,
+      m.peak_sun_hours_day,
+      m.poa_kwh_m2_month,
+      m.ac_kwh_kwp_month,
+    ])
+  )
+}
+
+export function energyGenerationHourlyShareTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  return table(
+    "energy_generation_hourly_share",
+    "energy_generation_hourly_share.csv",
+    [num("hour"), num("share_pct")],
+    (energy?.generation_profile.share_of_annual_generation_by_hour.rows ?? []).map(
+      (h) => [h.hour, h.share_pct]
+    )
+  )
+}
+
+/**
+ * Mean AC power by month and hour, one row per month and one column per hour.
+ *
+ * A month carrying fewer than 24 hours is padded rather than dropped, so every
+ * row still lines up under the hour columns. The hours are labelled on the time
+ * standard the response reports, which is not necessarily local time.
+ */
+export function energyGenerationProfileTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  return table(
+    "energy_generation_profile",
+    "energy_generation_profile.csv",
+    [
+      num("month"),
+      num("h00"),
+      num("h01"),
+      num("h02"),
+      num("h03"),
+      num("h04"),
+      num("h05"),
+      num("h06"),
+      num("h07"),
+      num("h08"),
+      num("h09"),
+      num("h10"),
+      num("h11"),
+      num("h12"),
+      num("h13"),
+      num("h14"),
+      num("h15"),
+      num("h16"),
+      num("h17"),
+      num("h18"),
+      num("h19"),
+      num("h20"),
+      num("h21"),
+      num("h22"),
+      num("h23"),
+    ],
+    (energy?.generation_profile.mean_ac_power_by_month_and_hour.rows ?? []).map(
+      (m) => [
+        m.month,
+        ...Array.from({ length: 24 }, (_, h) =>
+          h < m.mean_ac_w_kwp.length ? m.mean_ac_w_kwp[h] : null
+        ),
+      ]
+    )
+  )
+}
+
+/**
+ * convention and uncertainty_statement repeat on every row: the level column is
+ * a bare integer and carries neither the convention that puts P90 below P50 nor
+ * what the band excludes.
+ */
+export function energyExceedanceTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  const convention = energy?.plant.exceedance.convention ?? ""
+  const statement = energy?.plant.uncertainty.statement ?? ""
+  return table(
+    "energy_exceedance",
+    "energy_exceedance.csv",
+    [
+      num("level"),
+      num("ghi_empirical_kwh_m2_year"),
+      num("factor_empirical"),
+      num("ghi_normal_kwh_m2_year"),
+      num("factor_normal"),
+      num("normal_fit_standard_error_kwh_m2"),
+      { key: "convention" },
+      { key: "uncertainty_statement" },
+    ],
+    (energy?.plant.exceedance.levels ?? []).map((l) => [
+      l.level,
+      l.ghi_empirical_kwh_m2_year,
+      l.factor_empirical,
+      l.ghi_normal_kwh_m2_year,
+      l.factor_normal,
+      l.normal_fit_standard_error_kwh_m2,
+      convention,
+      statement,
+    ])
+  )
+}
+
+/**
+ * The three siting classes as one table, with a class column so the rows stay
+ * distinguishable.
+ *
+ * They are never summed: cropland_conflict is the same land counted against its
+ * current use rather than additional capacity. A class with no area is omitted
+ * rather than written as zero, and restrictive fills the first four columns
+ * only, because siting on slopes near the limit needs racking the capacity
+ * density references do not cover.
+ */
+export function energyPlantCapacityTable(
+  energy?: EnergyModelAnalysis | null
+): DataTable | null {
+  const plant = energy?.plant
+  const rows: CellValue[][] = []
+  if (plant) {
+    for (const [name, c] of [
+      ["suitable", plant.suitable],
+      ["cropland_conflict", plant.cropland_conflict],
+    ] as const) {
+      if (c.area_ha <= 0) continue
+      rows.push([
+        name,
+        c.label,
+        c.area_ha,
+        c.capacity_dc_mw,
+        c.capacity_ac_mw,
+        c.specific_yield_kwh_kwp_year,
+        c.energy.p50_exceedance_gwh_year,
+        c.energy.p75_exceedance_gwh_year,
+        c.energy.p90_exceedance_gwh_year,
+        c.contiguity.largest_ha,
+        c.contiguity.n_patches,
+        c.reporting_basis,
+        c.performance_ratio,
+        c.performance_ratio_source,
+        c.note,
+        plant.areas_note,
+        plant.uncertainty.statement,
+      ])
+    }
+    if (plant.restrictive.area_ha > 0) {
+      rows.push([
+        "restrictive",
+        plant.restrictive.label,
+        plant.restrictive.area_ha,
+        // Null, never 0: this class carries no capacity figure at all.
+        plant.restrictive.capacity_dc_mw,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        plant.restrictive.note,
+        plant.areas_note,
+        // The restrictive row carries no energy, so the band statement does
+        // not apply to it; its own note and the never-summed rule do.
+        "",
+      ])
+    }
+  }
+  return table(
+    "energy_plant_capacity",
+    "energy_plant_capacity.csv",
+    [
+      { key: "class" },
+      { key: "label" },
+      num("area_ha"),
+      num("capacity_dc_mw"),
+      num("capacity_ac_mw"),
+      num("specific_yield_kwh_kwp_year"),
+      num("p50_exceedance_gwh_year"),
+      num("p75_exceedance_gwh_year"),
+      num("p90_exceedance_gwh_year"),
+      num("largest_patch_ha"),
+      num("n_patches"),
+      { key: "reporting_basis" },
+      num("performance_ratio"),
+      { key: "performance_ratio_source" },
+      // A row read on its own carries neither the class's own qualifier, nor
+      // the rule that the areas are never summed, nor what the exceedance band
+      // leaves out.
+      { key: "class_note" },
+      { key: "areas_note" },
+      { key: "uncertainty_statement" },
+    ],
+    rows
+  )
+}
+
+export function windMonthlySpeedTable(
+  wind?: WindAnalysis | null
+): DataTable | null {
+  return table(
+    "wind_monthly_speed",
+    "wind_monthly_speed.csv",
+    [num("month"), num("mean_speed_ms")],
+    (wind?.measured.monthly_mean_speed_50m ?? []).map((m) => [
+      m.month,
+      m.mean_speed_ms,
+    ])
+  )
+}
+
+/** energy_pct and hours_pct differ because energy goes as the cube of speed. */
+export function windDirectionRoseTable(
+  wind?: WindAnalysis | null
+): DataTable | null {
+  return table(
+    "wind_direction_rose",
+    "wind_direction_rose.csv",
+    [num("sector"), num("centre_deg"), num("energy_pct"), num("hours_pct")],
+    (wind?.measured.direction_energy_rose_50m ?? []).map((s) => [
+      s.sector,
+      s.centre_deg,
+      s.energy_pct,
+      s.hours_pct,
+    ])
+  )
+}
+
+/**
+ * Hub-height result across the shear exponent.
+ *
+ * roughness_length_m is empty on the row derived from the record itself, which
+ * inverts to a roughness rather than assuming one.
+ *
+ * The two result columns carry the gross and per-turbine qualifiers in their
+ * names, and excluded_losses repeats on every row: read from the CSV alone,
+ * "capacity_factor_pct" and "annual_energy_mwh" gave no sign that no plant loss
+ * is applied and that the energy is one turbine's.
+ */
+export function windShearSensitivityTable(
+  wind?: WindAnalysis | null
+): DataTable | null {
+  const excluded = (wind?.hub.excluded_losses ?? []).join("; ")
+  return table(
+    "wind_shear_sensitivity",
+    "wind_shear_sensitivity.csv",
+    [
+      num("shear_exponent"),
+      num("roughness_length_m"),
+      { key: "basis" },
+      num("hub_speed_ms"),
+      num("gross_capacity_factor_pct"),
+      num("gross_annual_energy_mwh_per_turbine"),
+      { key: "excluded_losses" },
+    ],
+    (wind?.shear_sensitivity ?? []).map((s) => [
+      s.shear_exponent,
+      s.roughness_length_m,
+      s.basis,
+      s.hub_speed_ms,
+      s.capacity_factor_pct,
+      s.annual_energy_mwh,
+      excluded,
+    ])
+  )
+}
+
 /** Every table a result can produce, in the order the ZIP writes them. */
 export function allAnalysisTables(result: PredictResult): DataTable[] {
   return [
@@ -438,7 +883,19 @@ export function allAnalysisTables(result: PredictResult): DataTable[] {
     waterSeriesTable(result.water),
     solarMonthlyTable(result.solar),
     solarTiltToleranceTable(result.solar),
+    solarTerrainTable(result.solar_terrain),
     solarSitingTable(result.solar_siting),
+    energyLossWaterfallTable(result.energy_model),
+    energyDeclaredLossesTable(result.energy_model),
+    energyTrackingSeasonalTable(result.energy_model),
+    energyGenerationMonthlyTable(result.energy_model),
+    energyGenerationHourlyShareTable(result.energy_model),
+    energyGenerationProfileTable(result.energy_model),
+    energyExceedanceTable(result.energy_model),
+    energyPlantCapacityTable(result.energy_model),
+    windMonthlySpeedTable(result.wind),
+    windDirectionRoseTable(result.wind),
+    windShearSensitivityTable(result.wind),
   ].filter((t): t is DataTable => t !== null)
 }
 

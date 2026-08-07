@@ -1310,7 +1310,7 @@ func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainReques
 		// scale the raster was not drawn on, with no error anywhere.
 		Scale: t.Scale, ShadingMeanPct: t.ShadingMeanPct,
 		ShadingMaxPct: t.ShadingMaxPct, HorizonMaxDistM: t.HorizonMaxDistM,
-		BeamFraction: t.BeamFraction,
+		BeamFraction: t.BeamFraction, PowerProvenance: t.PowerProvenance,
 	}
 	if uri, err := pngToDataURI(t.OverlayPNG); err == nil {
 		out.OverlayURI = uri
@@ -1389,4 +1389,332 @@ func (r *Runner) AnalyzeSolarSiting(ctx context.Context, req SolarSitingRequest)
 		out.OverlayURI = uri
 	}
 	return out, nil
+}
+
+// AnalyzeEnergyModel runs the photovoltaic energy model over the AOI: the
+// loss waterfall behind the performance ratio, the tracking comparison, the
+// generation profile and the plant energy over the suitable area.
+//
+// Like AnalyzeSolar it needs no scene. It writes no raster of its own, so the
+// work directory is removed on return; a siting GeoTIFF the caller supplies is
+// read, never written.
+func (r *Runner) AnalyzeEnergyModel(ctx context.Context, req EnergyModelRequest) (*EnergyModelAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "geosense-energy-model-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":                 "energy_model",
+		"model_dir":              r.modelDir, // unused here, kept for schema
+		"polygon_geojson":        polygon,
+		"climatology_years":      req.ClimatologyYears,
+		"hourly_years":           req.HourlyYears,
+		"surface_azimuth":        req.SurfaceAzimuth,
+		"reporting_basis":        req.ReportingBasis,
+		"analysis_period_years":  req.AnalysisPeriodYears,
+		"capacity_density_basis": req.CapacityDensityBasis,
+		"slope_acceptable_deg":   req.SlopeAcceptableDeg,
+		"slope_restrictive_deg":  req.SlopeRestrictiveDeg,
+		"excluded_cover":         req.ExcludedCover,
+		"cropland_cover":         req.CroplandCover,
+		"siting_raster_tif":      req.SitingRasterTIF,
+		"shading_applied":        req.ShadingApplied,
+		"work_dir":               workDir,
+	}
+	// Only sent when set. The sidecar resolves an absent key to its own
+	// documented default and echoes back what it used, which a zero sent from
+	// here would silently replace.
+	if req.PerformanceRatio != nil {
+		payload["performance_ratio"] = *req.PerformanceRatio
+	}
+	if req.DegradationRatePerYear != nil {
+		payload["degradation_rate_per_year"] = *req.DegradationRatePerYear
+	}
+	if req.GCRFixed != nil {
+		payload["gcr_fixed"] = *req.GCRFixed
+	}
+	if req.GCRTracker != nil {
+		payload["gcr_tracker"] = *req.GCRTracker
+	}
+	if req.TrackerMaxAngleDeg != nil {
+		payload["tracker_max_angle_deg"] = *req.TrackerMaxAngleDeg
+	}
+	if req.BuildableFraction != nil {
+		payload["buildable_fraction"] = *req.BuildableFraction
+	}
+	if req.UTCOffsetHours != nil {
+		payload["utc_offset_hours"] = *req.UTCOffsetHours
+	}
+	if req.ShadingDerate != nil {
+		payload["shading_derate"] = *req.ShadingDerate
+	}
+	// Same reason as the pointers above: the sidecar resolves an empty map with
+	// `or None` and falls back to its own defaults, so sending one would read as
+	// "no overrides" either way. Sent only when it carries a term.
+	if len(req.DeclaredLossPct) > 0 {
+		payload["declared_loss_pct"] = req.DeclaredLossPct
+	}
+	if len(req.OptionalLossPct) > 0 {
+		payload["optional_loss_pct"] = req.OptionalLossPct
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Energy *EnergyModelAnalysis `json:"energy_model"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse energy model result: %w", err)
+	}
+	if wrapped.Energy == nil {
+		return nil, fmt.Errorf("sidecar returned empty energy_model payload")
+	}
+	wrapped.Energy.NormalizeNilSlices()
+	return wrapped.Energy, nil
+}
+
+// NormalizeNilSlices replaces every nil slice and map with an empty one.
+//
+// A nil slice marshals as null, and a null read as an array on the other side
+// throws on .map or .length. Normalising here rather than guarding at each read
+// is what lets the TypeScript mirror declare these fields non-nullable. Called
+// on the live path and again on restore, so a reopened run is as safe as a
+// fresh one whatever an older stored payload happens to be missing.
+func (e *EnergyModelAnalysis) NormalizeNilSlices() {
+	if e.PerformanceRatio.DeclaredLosses == nil {
+		e.PerformanceRatio.DeclaredLosses = []EnergyLossTerm{}
+	}
+	if e.PerformanceRatio.OptionalLosses == nil {
+		e.PerformanceRatio.OptionalLosses = []EnergyOptionalLossTerm{}
+	}
+	if e.PerformanceRatio.GSAImpliedBand == nil {
+		e.PerformanceRatio.GSAImpliedBand = []float64{}
+	}
+	if e.ModuleType.Alternatives == nil {
+		e.ModuleType.Alternatives = map[string]float64{}
+	}
+	if e.LossWaterfall.Assumptions.ModuleType.Alternatives == nil {
+		e.LossWaterfall.Assumptions.ModuleType.Alternatives = map[string]float64{}
+	}
+	if e.LossWaterfall.Steps == nil {
+		e.LossWaterfall.Steps = []EnergyWaterfallStep{}
+	}
+	if e.LossWaterfall.Checkpoints == nil {
+		e.LossWaterfall.Checkpoints = []EnergyWaterfallCheckpoint{}
+	}
+	for i := range e.LossWaterfall.Checkpoints {
+		if e.LossWaterfall.Checkpoints[i].ExternalBand == nil {
+			e.LossWaterfall.Checkpoints[i].ExternalBand = []float64{}
+		}
+	}
+	if e.LossWaterfall.OutsidePerformanceRatio == nil {
+		e.LossWaterfall.OutsidePerformanceRatio = []string{}
+	}
+	if e.Tracking.Seasonal.Rows == nil {
+		e.Tracking.Seasonal.Rows = []EnergySeasonRow{}
+	}
+	for i := range e.Tracking.Seasonal.Rows {
+		if e.Tracking.Seasonal.Rows[i].Months == nil {
+			e.Tracking.Seasonal.Rows[i].Months = []int{}
+		}
+	}
+	ong := &e.Tracking.PerHectare.PublishedMeasurements.OngTable5
+	if ong.NearestRows == nil {
+		ong.NearestRows = []EnergyOngRow{}
+	}
+	if ong.BandPct == nil {
+		ong.BandPct = []float64{}
+	}
+	if e.Tracking.PerHectare.ModelDerived.Parity.SearchRange == nil {
+		e.Tracking.PerHectare.ModelDerived.Parity.SearchRange = []float64{}
+	}
+	if e.Tracking.PerformanceRatio.TransferBetweenConfigurations == nil {
+		e.Tracking.PerformanceRatio.TransferBetweenConfigurations = []EnergyPRTransfer{}
+	}
+	if e.Tracking.PerformanceRatio.TransferRangePct == nil {
+		e.Tracking.PerformanceRatio.TransferRangePct = []float64{}
+	}
+	if e.GenerationProfile.MeanACPowerByMonthAndHour.Rows == nil {
+		e.GenerationProfile.MeanACPowerByMonthAndHour.Rows = []EnergyProfileMonthRow{}
+	}
+	for i := range e.GenerationProfile.MeanACPowerByMonthAndHour.Rows {
+		if e.GenerationProfile.MeanACPowerByMonthAndHour.Rows[i].MeanACWKWp == nil {
+			e.GenerationProfile.MeanACPowerByMonthAndHour.Rows[i].MeanACWKWp = []float64{}
+		}
+	}
+	if e.GenerationProfile.Monthly.Rows == nil {
+		e.GenerationProfile.Monthly.Rows = []EnergyMonthlyProfileRow{}
+	}
+	if e.GenerationProfile.Monthly.Units == nil {
+		e.GenerationProfile.Monthly.Units = map[string]string{}
+	}
+	if e.GenerationProfile.ShareOfAnnualByHour.Rows == nil {
+		e.GenerationProfile.ShareOfAnnualByHour.Rows = []EnergyHourlyShareRow{}
+	}
+	if e.Plant.Exceedance.Levels == nil {
+		e.Plant.Exceedance.Levels = []EnergyExceedanceLevel{}
+	}
+	if e.Plant.Uncertainty.Included == nil {
+		e.Plant.Uncertainty.Included = []string{}
+	}
+	if e.Plant.Uncertainty.Excluded == nil {
+		e.Plant.Uncertainty.Excluded = []string{}
+	}
+	if e.Plant.Thresholds.ExcludedCover == nil {
+		e.Plant.Thresholds.ExcludedCover = []int{}
+	}
+	if e.Plant.Thresholds.CroplandCover == nil {
+		e.Plant.Thresholds.CroplandCover = []int{}
+	}
+}
+
+// AnalyzeWind screens the wind resource at the AOI from reanalysis hourly wind.
+//
+// Screening, not assessment: the hub figures are gross of every plant loss, sit
+// above the highest level the reanalysis carries, and have no external
+// benchmark. The response says so in three places and the Go side changes none
+// of it.
+func (r *Runner) AnalyzeWind(ctx context.Context, req WindRequest) (*WindAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "geosense-wind-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":          "wind_resource",
+		"model_dir":       r.modelDir, // unused here, kept for schema
+		"polygon_geojson": polygon,
+		"record_years":    req.RecordYears,
+		"work_dir":        workDir,
+	}
+	if req.HubHeightM != nil {
+		payload["hub_height_m"] = *req.HubHeightM
+	}
+	if req.CalmThresholdMS != nil {
+		payload["calm_threshold_ms"] = *req.CalmThresholdMS
+	}
+	if req.RecordMaxFloorMS != nil {
+		payload["record_max_floor_ms"] = *req.RecordMaxFloorMS
+	}
+	if len(req.RoughnessBandM) == 2 {
+		payload["roughness_band_m"] = req.RoughnessBandM
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// The payload key is "wind", not "wind_resource": the action names the
+	// question, the key names the result.
+	var wrapped struct {
+		Wind *WindAnalysis `json:"wind"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse wind result: %w", err)
+	}
+	if wrapped.Wind == nil {
+		return nil, fmt.Errorf("sidecar returned empty wind payload")
+	}
+	wrapped.Wind.NormalizeNilSlices()
+	return wrapped.Wind, nil
+}
+
+// NormalizeNilSlices replaces every nil slice and map with an empty one, for
+// the reason given on EnergyModelAnalysis.NormalizeNilSlices.
+func (w *WindAnalysis) NormalizeNilSlices() {
+	if w.GridCellCentre == nil {
+		w.GridCellCentre = []float64{}
+	}
+	if w.Measured.MonthlyMeanSpeed50m == nil {
+		w.Measured.MonthlyMeanSpeed50m = []WindMonthlySpeed{}
+	}
+	if w.Measured.DirectionEnergyRose50m == nil {
+		w.Measured.DirectionEnergyRose50m = []WindRoseSector{}
+	}
+	if w.Hub.ExcludedLosses == nil {
+		w.Hub.ExcludedLosses = []string{}
+	}
+	if w.ShearSensitivity == nil {
+		w.ShearSensitivity = []WindShearRow{}
+	}
+	if w.DataQuality.MeanSpeedMS == nil {
+		w.DataQuality.MeanSpeedMS = map[string]float64{}
+	}
+	if w.DataQuality.CalmFractionPct == nil {
+		w.DataQuality.CalmFractionPct = map[string]float64{}
+	}
+	if w.DataQuality.RecordMaximumMS == nil {
+		w.DataQuality.RecordMaximumMS = map[string]float64{}
+	}
+	if w.DataQuality.NaNCount == nil {
+		w.DataQuality.NaNCount = map[string]int{}
+	}
+	if w.DataQuality.Shear.AssumedRoughnessBandM == nil {
+		w.DataQuality.Shear.AssumedRoughnessBandM = []float64{}
+	}
+	if w.DataQuality.Shear.ExpectedShearExponentBand == nil {
+		w.DataQuality.Shear.ExpectedShearExponentBand = []float64{}
+	}
+	if w.DataQuality.Flags == nil {
+		w.DataQuality.Flags = []string{}
+	}
+	if w.Assumptions.RoughnessBandM == nil {
+		w.Assumptions.RoughnessBandM = []float64{}
+	}
+	if w.Assumptions.ExcludedLosses == nil {
+		w.Assumptions.ExcludedLosses = []string{}
+	}
 }

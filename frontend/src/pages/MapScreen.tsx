@@ -17,6 +17,8 @@ import type {
   SolarTerrainAnalysis,
   SolarSeason,
   SolarSitingAnalysis,
+  EnergyModelAnalysis,
+  WindAnalysis,
 } from "@/lib/types"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
@@ -169,6 +171,58 @@ export interface MapScreenProps {
   onSolarSlopeRestrictiveChange: (v: number) => void
   onRunSolarSiting: () => void
   onClearSolarSiting: () => void
+  /**
+   * The photovoltaic energy model and the wind screening. Neither renders a
+   * raster, so neither joins the map overlay chain or the bottom status slot;
+   * both are read on the analysis screen and cleared from the panel that runs
+   * them.
+   */
+  energyModel?: EnergyModelAnalysis | null
+  energyRunning: boolean
+  energyReportingBasis: "year_one" | "lifetime_mean"
+  onEnergyReportingBasisChange: (v: "year_one" | "lifetime_mean") => void
+  energyDegradationPct: number
+  onEnergyDegradationPctChange: (v: number) => void
+  energyAnalysisPeriod: number
+  onEnergyAnalysisPeriodChange: (v: number) => void
+  energyGcrFixed: number
+  onEnergyGcrFixedChange: (v: number) => void
+  energyGcrTracker: number
+  onEnergyGcrTrackerChange: (v: number) => void
+  energyTrackerMaxAngle: number
+  onEnergyTrackerMaxAngleChange: (v: number) => void
+  energyDensityBasis: string
+  onEnergyDensityBasisChange: (v: string) => void
+  energyBuildableFraction: number
+  onEnergyBuildableFractionChange: (v: number) => void
+  energyUtcOffset: string
+  onEnergyUtcOffsetChange: (v: string) => void
+  energyApplyShading: boolean
+  onEnergyApplyShadingChange: (v: boolean) => void
+  /** AOI-mean share of beam blocked, from a terrain run; null without one. */
+  energyShadingMeanPct: number | null
+  energyDeclaredLoss: Record<string, number>
+  onEnergyDeclaredLossChange: (key: string, pct: number) => void
+  energyOptionalLoss: Record<string, number>
+  onEnergyOptionalLossChange: (key: string, pct: number) => void
+  onRunEnergyModel: () => void
+  onClearEnergyModel: () => void
+  wind?: WindAnalysis | null
+  windRunning: boolean
+  windRecordYears: number
+  onWindRecordYearsChange: (v: number) => void
+  windHubHeight: number
+  onWindHubHeightChange: (v: number) => void
+  windCalmThreshold: number
+  onWindCalmThresholdChange: (v: number) => void
+  windRecordMaxFloor: number
+  onWindRecordMaxFloorChange: (v: number) => void
+  windRoughnessLow: number
+  onWindRoughnessLowChange: (v: number) => void
+  windRoughnessHigh: number
+  onWindRoughnessHighChange: (v: number) => void
+  onRunWind: () => void
+  onClearWind: () => void
   leftDockTabs?: LeftDockTabsMode
 }
 
@@ -190,6 +244,12 @@ export function MapScreen(props: MapScreenProps) {
   // screen is remounted on every return from the analysis page, which resets
   // the tab to classify and would otherwise leave a restored raster on the map
   // with nothing naming it and no way to clear it.
+  //
+  // The energy model and the wind screening are deliberately absent from all
+  // four predicates: neither draws anything on the map, so there is nothing
+  // here for a status panel to name, and adding either would render the solar
+  // panel with every field null. Both are cleared from the section that ran
+  // them and read on the analysis screen.
   const showSolarStatus =
     (leftPanel === "solar" || !props.result) &&
     (!!props.solar || !!props.solarTerrain || !!props.solarSiting)
@@ -397,6 +457,53 @@ export function MapScreen(props: MapScreenProps) {
             onSlopeRestrictiveChange={props.onSolarSlopeRestrictiveChange}
             onRunSiting={props.onRunSolarSiting}
             onClearSiting={props.onClearSolarSiting}
+            energyRunning={props.energyRunning}
+            hasEnergy={!!props.energyModel}
+            energyReportingBasis={props.energyReportingBasis}
+            onEnergyReportingBasisChange={props.onEnergyReportingBasisChange}
+            energyDegradationPct={props.energyDegradationPct}
+            onEnergyDegradationPctChange={props.onEnergyDegradationPctChange}
+            energyAnalysisPeriod={props.energyAnalysisPeriod}
+            onEnergyAnalysisPeriodChange={props.onEnergyAnalysisPeriodChange}
+            energyGcrFixed={props.energyGcrFixed}
+            onEnergyGcrFixedChange={props.onEnergyGcrFixedChange}
+            energyGcrTracker={props.energyGcrTracker}
+            onEnergyGcrTrackerChange={props.onEnergyGcrTrackerChange}
+            energyTrackerMaxAngle={props.energyTrackerMaxAngle}
+            onEnergyTrackerMaxAngleChange={props.onEnergyTrackerMaxAngleChange}
+            energyDensityBasis={props.energyDensityBasis}
+            onEnergyDensityBasisChange={props.onEnergyDensityBasisChange}
+            energyBuildableFraction={props.energyBuildableFraction}
+            onEnergyBuildableFractionChange={
+              props.onEnergyBuildableFractionChange
+            }
+            energyUtcOffset={props.energyUtcOffset}
+            onEnergyUtcOffsetChange={props.onEnergyUtcOffsetChange}
+            energyApplyShading={props.energyApplyShading}
+            onEnergyApplyShadingChange={props.onEnergyApplyShadingChange}
+            energyShadingMeanPct={props.energyShadingMeanPct}
+            energyDeclaredLoss={props.energyDeclaredLoss}
+            onEnergyDeclaredLossChange={props.onEnergyDeclaredLossChange}
+            energyOptionalLoss={props.energyOptionalLoss}
+            onEnergyOptionalLossChange={props.onEnergyOptionalLossChange}
+            onRunEnergy={props.onRunEnergyModel}
+            onClearEnergy={props.onClearEnergyModel}
+            windRunning={props.windRunning}
+            hasWind={!!props.wind}
+            windRecordYears={props.windRecordYears}
+            onWindRecordYearsChange={props.onWindRecordYearsChange}
+            windHubHeight={props.windHubHeight}
+            onWindHubHeightChange={props.onWindHubHeightChange}
+            windCalmThreshold={props.windCalmThreshold}
+            onWindCalmThresholdChange={props.onWindCalmThresholdChange}
+            windRecordMaxFloor={props.windRecordMaxFloor}
+            onWindRecordMaxFloorChange={props.onWindRecordMaxFloorChange}
+            windRoughnessLow={props.windRoughnessLow}
+            onWindRoughnessLowChange={props.onWindRoughnessLowChange}
+            windRoughnessHigh={props.windRoughnessHigh}
+            onWindRoughnessHighChange={props.onWindRoughnessHighChange}
+            onRunWind={props.onRunWind}
+            onClearWind={props.onClearWind}
             onCollapse={() => setLeftPanel(null)}
           />
         ) : leftPanel === "water" ? (
