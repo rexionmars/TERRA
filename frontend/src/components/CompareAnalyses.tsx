@@ -50,8 +50,8 @@ function polygonsDiffer(runA: InferenceRun, runB: InferenceRun): boolean {
 }
 
 export function mergeClassStats(
-  a: ClassStat[] | undefined,
-  b: ClassStat[] | undefined
+  a: ClassStat[] | null | undefined,
+  b: ClassStat[] | null | undefined
 ): Array<{
   class_id: number
   name: string
@@ -262,7 +262,10 @@ function NdviChart({
     <div>
       <p className="mb-1 text-[10px] text-muted-foreground">{slot}</p>
       <ResponsiveContainer width="100%" height={160}>
-        <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <LineChart
+          data={data ?? []}
+          margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+        >
           <CartesianGrid strokeDasharray="2 4" stroke="var(--ar-border)" />
           <XAxis
             dataKey="date"

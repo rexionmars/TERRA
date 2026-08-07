@@ -184,13 +184,17 @@ export function MapScreen(props: MapScreenProps) {
     setLeftPanel((cur) => (cur === id ? null : id))
   }
 
-  // The three status panels share one slot at the bottom of the map, so only
-  // the one matching the open tool is shown.
+  // The four status panels share one slot at the bottom of the map, so only
+  // the one matching the open tool is shown. With no classification to compete
+  // for the slot the standalone product takes it whatever tab is open: this
+  // screen is remounted on every return from the analysis page, which resets
+  // the tab to classify and would otherwise leave a restored raster on the map
+  // with nothing naming it and no way to clear it.
   const showSolarStatus =
-    leftPanel === "solar" &&
+    (leftPanel === "solar" || !props.result) &&
     (!!props.solar || !!props.solarTerrain || !!props.solarSiting)
   const showWaterStatus =
-    !showSolarStatus && leftPanel === "water" && !!props.water
+    !showSolarStatus && (leftPanel === "water" || !props.result) && !!props.water
   const showCompositionStatus =
     !showSolarStatus && !showWaterStatus &&
     (leftPanel === "compose" || (!props.result && !!props.composition))

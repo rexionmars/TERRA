@@ -1005,6 +1005,23 @@ function AppBody(props: {
     setShowWaterOverlay(true)
   }, [aoiSignature, water])
 
+  /** The AOI the current solar products were computed over. */
+  const solarAoiRef = useRef<string>("")
+
+  /**
+   * The same for the three solar products. All three are read off one AOI --
+   * the resource from its centroid, the terrain and siting rasters from its
+   * extent -- so they are invalidated together.
+   */
+  useEffect(() => {
+    if (!solar && !solarTerrain && !solarSiting) return
+    if (aoiSignature === solarAoiRef.current) return
+    setSolar(null)
+    setSolarTerrain(null)
+    setSolarSiting(null)
+    setShowSolarOverlay(true)
+  }, [aoiSignature, solar, solarTerrain, solarSiting])
+
   const handleRunWater = async () => {
     if (!props.start || !props.end) {
       notifyError("Set the acquisition period.")
@@ -1095,6 +1112,7 @@ function AppBody(props: {
         performance_ratio: parsedPR,
       }
       const res = (await AnalyzeSolar(req as never)) as unknown as SolarAnalysis
+      solarAoiRef.current = aoiSignature
       setSolar(res)
       notifySuccess(
         `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`,
@@ -1140,6 +1158,7 @@ function AppBody(props: {
       const res = (await AnalyzeSolarTerrain(
         req as never
       )) as unknown as SolarTerrainAnalysis
+      solarAoiRef.current = aoiSignature
       setSolarTerrain(res)
       setShowSolarOverlay(true)
       notifySuccess(
@@ -1182,6 +1201,7 @@ function AppBody(props: {
       const res = (await AnalyzeSolarSiting(
         req as never
       )) as unknown as SolarSitingAnalysis
+      solarAoiRef.current = aoiSignature
       setSolarSiting(res)
       // A fresh run has to be visible, the same way a water run is.
       setShowSolarOverlay(true)
@@ -1383,7 +1403,16 @@ function AppBody(props: {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
-        props.setResult(res)
+        // A water or solar run carries no classification: no class stats, no
+        // overlay, no scenes. Held as the result it made the map screen present
+        // one, and the result panel then read a class list that was never
+        // there. The standalone products below are what such a run restores.
+        const isClassification =
+          (res.class_stats?.length ?? 0) > 0 ||
+          !!res.overlay_uri ||
+          !!res.lulc ||
+          res.n_dates > 0
+        props.setResult(isClassification ? res : null)
         props.setShowPredictionOverlay(true)
         if (isModelKind(run.model_kind)) props.setModelKind(run.model_kind)
         const extras = parsePreferenceExtras(prefs?.extras_json)
@@ -1401,19 +1430,24 @@ function AppBody(props: {
         const aoi = parseRunPolygon(run.polygon_geojson, props.areas)
         props.setActiveExample(aoi.exampleId)
         props.setCustomPolygon(aoi.polygon)
-        // A water run carries its raster in the same field a live run uses, so
-        // opening one puts the occurrence overlay back on the map. The AOI it
-        // was measured on is recorded first, otherwise the invalidation effect
-        // sees a mismatch and drops the raster that was just restored.
+        // A water or solar run carries its raster in the same field a live run
+        // uses, so opening one puts the overlay back on the map. The AOI it was
+        // measured on is recorded first, otherwise the invalidation effect sees
+        // a mismatch and drops the raster that was just restored.
+        const restoredAoi = aoi.exampleId
+          ? `area:${aoi.exampleId}`
+          : aoi.polygon
+            ? `poly:${JSON.stringify(aoi.polygon)}`
+            : ""
         setSolar(res.solar ?? null)
         setSolarTerrain(res.solar_terrain ?? null)
         setSolarSiting(res.solar_siting ?? null)
+        if (res.solar || res.solar_terrain || res.solar_siting) {
+          solarAoiRef.current = restoredAoi
+          setShowSolarOverlay(true)
+        }
         if (res.water) {
-          waterAoiRef.current = aoi.exampleId
-            ? `area:${aoi.exampleId}`
-            : aoi.polygon
-              ? `poly:${JSON.stringify(aoi.polygon)}`
-              : ""
+          waterAoiRef.current = restoredAoi
           setWater(res.water)
           setShowWaterOverlay(true)
         } else {
@@ -1553,7 +1587,10 @@ function AppBody(props: {
    */
   const resultWithWater = useMemo(
     () =>
-      props.result || solar || solarSiting
+      // Every standalone product counts. A run that carries only one of them
+      // no longer sets a classification result, so leaving any out here would
+      // hand the analysis screen nothing to show for it.
+      props.result || water || solar || solarTerrain || solarSiting
         ? {
             ...(props.result ?? EMPTY_RESULT),
             water,
@@ -1597,7 +1634,10 @@ function AppBody(props: {
           onOpenRepo={() => OpenExternal("https://github.com/rexionmars")}
           hasAnalysis={!!props.result || runs.length > 0}
           onAnalysisClick={() => {
-            if (screen === "analysis" && props.result) backToAnalysesList()
+            // Tested on the payload the page is actually showing, not on the
+            // classification: a water or solar run has no classification and
+            // would otherwise leave the list unreachable.
+            if (screen === "analysis" && resultWithWater) backToAnalysesList()
             else goAnalysis()
           }}
         />

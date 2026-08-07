@@ -170,12 +170,16 @@ export interface PredictResult {
   raster_tif: string
   mean_confidence: number
   n_dates: number
-  date_range: string[]
-  class_stats: ClassStat[]
-  temporal: TemporalPoint[]
-  vi_series: VISeriesPoint[]
+  // Go marshals a nil slice as null, and a run that produced no classification
+  // -- a water or solar run, which needs no scene -- leaves every one of these
+  // nil. Declared nullable so each read has to be guarded; taken as guaranteed,
+  // one of them blanked the whole application.
+  date_range: string[] | null
+  class_stats: ClassStat[] | null
+  temporal: TemporalPoint[] | null
+  vi_series: VISeriesPoint[] | null
   phenology: PhenologyMetrics
-  phenology_states: PhenologyStatePoint[]
+  phenology_states: PhenologyStatePoint[] | null
   lulc?: LULCAnalysis | null
   /** Attached when a surface-water run was made over the same AOI. */
   water?: WaterAnalysis | null

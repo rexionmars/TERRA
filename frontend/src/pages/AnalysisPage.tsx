@@ -1215,14 +1215,14 @@ export function AnalysisPage({
             </section>
           )}
 
-          {(hasClassification && result.class_stats?.length > 0) ||
+          {(hasClassification && (result.class_stats?.length ?? 0) > 0) ||
           viChart.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-stretch">
-              {hasClassification && result.class_stats?.length > 0 && (
+              {hasClassification && (result.class_stats?.length ?? 0) > 0 && (
                 <section className="ar-section p-4">
                   <p className="eyebrow mb-3">Predicted class distribution</p>
                   <ul className="flex flex-col gap-1.5">
-                    {result.class_stats.map((s) => (
+                    {(result.class_stats ?? []).map((s) => (
                       <li key={s.class_id} className="flex items-center gap-2 text-xs">
                         <span
                           className="size-2.5 shrink-0 rounded-[2px]"
