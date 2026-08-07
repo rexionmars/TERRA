@@ -67,7 +67,10 @@ import {
   classifiedAreaHa,
   dominantClass,
   formatHectares,
+  modelDisplayName,
   parseRunSummary,
+  runSummaryObject,
+  solarProductLabel,
 } from "@/lib/runSummary"
 
 
@@ -108,15 +111,10 @@ function WaterFigure({
 }
 
 /** Summary JSON of a saved run, or an empty object when there is none. */
-function runSummaryObject(summary?: string | null): Record<string, unknown> {
-  if (!summary?.trim()) return {}
-  try {
-    const j = JSON.parse(summary) as unknown
-    return j && typeof j === "object" ? (j as Record<string, unknown>) : {}
-  } catch {
-    return {}
-  }
-}
+// runSummaryObject, solarProductLabel and modelDisplayName live in
+// lib/runSummary so the profile page describes a run the same way this one
+// does. It had no branch for any of the standalone kinds and rendered a wind
+// run's empty acquisition window as a bare arrow.
 
 /**
  * The reporting basis a specific yield was computed on. Year one applies no
@@ -126,30 +124,14 @@ function runSummaryObject(summary?: string | null): Record<string, unknown> {
  * the row states which one produced its figure.
  */
 function reportingBasisLabel(v: unknown): string {
-  if (v === "year_one") return "year-one basis"
   if (v === "lifetime_mean") return "lifetime-mean basis"
-  return typeof v === "string" && v.trim() ? `${v} basis` : ""
-}
-
-/**
- * Which solar product a saved run holds.
- *
- * One store kind covers the resource run, the two raster products and the
- * photovoltaic energy model, and app.go tells them apart by summary_json
- * solar_product, the same key LoadAnalysis discriminates on. Unread, an energy
- * model run and a resource run listed under one label with one set of figures.
- * A run written before the key existed carries none and is a resource run,
- * which is what the fallback names.
- */
-function solarProductLabel(summary?: string | null): string {
-  const product = runSummaryObject(summary).solar_product
-  if (typeof product !== "string") return "Solar resource"
-  if (product === "solar_terrain") return "Terrain and horizon shading"
-  if (product === "solar_siting") return "Photovoltaic siting"
-  // Matched by prefix, not by equality, so the label survives a rename of the
-  // energy product tag without silently falling back to "Solar resource".
-  if (product.startsWith("energy")) return "Photovoltaic energy model"
-  return "Solar resource"
+  if (typeof v === "string" && v.trim() && v !== "year_one") return `${v} basis`
+  // Absent, not unknown. Only the energy model writes this key; the resource
+  // run applies a performance ratio and no degradation term, so its yield is
+  // year-one by construction. Returning nothing here left every resource row
+  // showing a yield with no basis beside it, which is what the caller below
+  // states cannot happen.
+  return "year-one basis"
 }
 
 /** Headline figures from a saved solar run's summary. */
@@ -244,16 +226,6 @@ function waterSummaryLine(summary?: string | null): string {
   } catch {
     return "surface water"
   }
-}
-
-function modelDisplayName(kind: string): string {
-  if (kind === "temporal_transformer") return "Temporal Transformer"
-  if (kind === "prithvi") return "Prithvi-EO 2.0"
-  if (kind === "spectral" || kind === "") return "Random Forest"
-  // Anything else names itself. The old fallback returned Random Forest for
-  // every unknown value, so a solar run recorded as NASA POWER was listed as a
-  // classification by a model that never touched it.
-  return kind
 }
 
 const tabId = (id: ProjectTab) => `project-tab-${id}`

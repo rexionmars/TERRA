@@ -514,6 +514,7 @@ def loss_waterfall(
     ghi_climatology_kwh_m2_year: float | None = None,
     climatology_window: str | None = None,
     wind_source: str = "NASA POWER WS2M (MERRA-2), 2 m above ground",
+    gamma_pdc: float = solar.GAMMA_PDC,
 ) -> dict:
     """
     Stepwise account from horizontal irradiation to delivered AC energy per kWp.
@@ -757,7 +758,11 @@ def loss_waterfall(
             ),
         },
         "assumptions": {
-            "module_type": module_type_assumption(),
+            # The coefficient the caller's frame was actually evaluated at.
+            # Called bare, this reported the default premium type even for a
+            # frame re-evaluated at another one, so the assumptions block named
+            # a coefficient that produced none of the figures above it.
+            "module_type": module_type_assumption(gamma_pdc),
             "albedo": {
                 "value": solar.ALBEDO,
                 "source": (

@@ -1845,6 +1845,7 @@ def main():
                 hourly_window=hourly_window,
                 ghi_climatology_kwh_m2_year=float(annual.mean()),
                 climatology_window=clim_window,
+                gamma_pdc=gamma_pdc,
             )
         except Exception as e:
             fail(f'loss waterfall failed: {e}')

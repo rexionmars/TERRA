@@ -17,6 +17,7 @@ import {
   mergePreferenceExtras,
 } from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
 
@@ -512,7 +513,7 @@ export function ProfilePage({
                             {displayRunLabel(r.label) || r.model_kind}
                           </div>
                           <div className="mt-0.5 truncate text-muted-foreground">
-                            {r.model_kind} · {r.period_start} → {r.period_end}
+                            {runRowLine(r)}
                           </div>
                         </div>
                         <button
