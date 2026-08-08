@@ -225,10 +225,11 @@ export function MapScreen(props: MapScreenProps) {
         scenes={props.composeScenes}
         scenesLoading={props.composeScenesLoading}
         onListScenes={props.onListComposeScenes}
+        onOpenListing={props.onViewDataCube}
         disabled={props.running || props.composeRunning}
         // Clears the open tool column, matching the offset the status panels
         // already use so the two agree on where the map's free width begins.
-        leftOffsetClass={leftPanel ? "left-[23.5rem]" : "left-0"}
+        leftOffsetClass={leftPanel ? "left-[20.5rem]" : "left-0"}
       />
 
       <OverlayToolsButton
@@ -313,9 +314,7 @@ export function MapScreen(props: MapScreenProps) {
             progressMsg={props.progressMsg}
             onRun={props.onRun}
             onAnalyzeLULC={props.onAnalyzeLULC}
-            onViewDataCube={props.onViewDataCube}
             lulcRunning={props.lulcRunning}
-            dataCubeLoading={props.dataCubeLoading}
             onCollapse={() => setLeftPanel(null)}
           />
         ) : leftPanel === "water" ? (

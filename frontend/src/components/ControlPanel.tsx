@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Circle,
   Globe2,
-  Boxes,
 } from "lucide-react"
 import type { Area, GeoJSONGeometry, ModelKind } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -45,9 +44,7 @@ interface ControlPanelProps {
   progressMsg: string
   onRun: () => void
   onAnalyzeLULC: () => void
-  onViewDataCube: () => void
   lulcRunning?: boolean
-  dataCubeLoading?: boolean
   /** Hide this panel (dock tabs remain). */
   onCollapse?: () => void
   /** Tailwind left offset, e.g. left-3 or left-14 */
@@ -83,15 +80,13 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
     progressMsg,
     onRun,
     onAnalyzeLULC,
-    onViewDataCube,
     lulcRunning = false,
-    dataCubeLoading = false,
     onCollapse,
   } = props
 
   const [showExamples, setShowExamples] = useState(false)
   const canLULC = hasArea
-  const busy = running || lulcRunning || dataCubeLoading
+  const busy = running || lulcRunning
 
   return (
       <motion.div
@@ -247,19 +242,6 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
             <Circle className="size-3.5" />
           )}
           Best scene per month
-        </button>
-        <button
-          type="button"
-          disabled={!hasArea || busy}
-          onClick={onViewDataCube}
-          className="flex h-8 items-center justify-center gap-1.5 rounded-sm border border-border px-2 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50"
-        >
-          {dataCubeLoading ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Boxes className="size-3.5" />
-          )}
-          View data cube
         </button>
       </Section>
 

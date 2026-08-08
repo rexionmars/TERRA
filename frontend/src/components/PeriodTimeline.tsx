@@ -12,6 +12,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from "react"
 import { motion } from "motion/react"
+import { Boxes } from "lucide-react"
 import type { DataCubeScene } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -74,6 +75,11 @@ export interface PeriodTimelineProps {
   scenesLoading?: boolean
   /** Runs the scene listing, so the track can be filled without a modal. */
   onListScenes?: () => void
+  /**
+   * Opens the listing with previews. The track says how many scenes and when;
+   * the listing says which, with a thumbnail, a tile and a satellite per scene.
+   */
+  onOpenListing?: () => void
   disabled?: boolean
   /**
    * Left edge, so the track starts after whatever column is open beside it.
@@ -93,6 +99,7 @@ export function PeriodTimeline({
   scenes,
   scenesLoading,
   onListScenes,
+  onOpenListing,
   disabled,
   leftOffsetClass = "left-0",
 }: PeriodTimelineProps) {
@@ -314,17 +321,31 @@ export function PeriodTimeline({
           {scenesLoading ? (
             "listing scenes"
           ) : scenes.length ? (
-            <>
-              {inWindow.length} of {scenes.length} scenes in window
-            </>
+            // The count opens the listing, which carries what the track cannot:
+            // a preview per scene, its tile and its satellite. The track answers
+            // how many and when; the listing answers which.
+            <button
+              type="button"
+              onClick={onOpenListing}
+              disabled={disabled || !onOpenListing}
+              className="flex h-7 items-center gap-1.5 rounded-sm border border-border px-2 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+              title="Open the scene listing, with previews"
+            >
+              <Boxes className="size-3.5" />
+              {inWindow.length} of {scenes.length} scenes
+            </button>
           ) : onListScenes ? (
+            // The data cube glyph, because this IS the data cube listing: the
+            // panel carried a button issuing the same request to a modal, and
+            // two controls for one listing is one more than the listing has.
             <button
               type="button"
               onClick={onListScenes}
               disabled={disabled}
-              className="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
+              className="flex h-7 items-center gap-1.5 rounded-sm border border-border px-2 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
             >
-              list scenes
+              <Boxes className="size-3.5" />
+              List scenes
             </button>
           ) : null}
         </span>
