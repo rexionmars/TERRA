@@ -396,6 +396,72 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
       )
     }
 
+    // The standalone products. Each renders a raster onto the map and has its
+    // own visibility switch below, but none produced a card here, so the
+    // gallery reported "no overlays yet" while its own raster was on screen
+    // and its own toggle was listed under it.
+    if (water?.occurrence_uri) {
+      const range =
+        water.date_range?.length === 2
+          ? `${water.date_range[0]} → ${water.date_range[1]}`
+          : null
+      list.push(
+        <OverlayAssetCard
+          key="water-occurrence"
+          title="Surface water occurrence"
+          params={[
+            water.index,
+            water.n_dates > 0 ? `${water.n_dates} dates` : null,
+            range,
+            `opacity ${Math.round((waterOpacity ?? 0.8) * 100)}%`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          previewUri={water.occurrence_uri}
+          pixelated
+          active={showWaterOverlay}
+          onExportPng={() =>
+            void exportAsset(water.occurrence_uri, "terra_water_occurrence.png")
+          }
+        />
+      )
+    }
+
+    if (solar?.overlay_uri) {
+      // One switch drives both solar rasters and siting takes priority, so the
+      // card names which of the two is actually on the map.
+      const siting = "classes" in solar ? solar : null
+      const terrain = siting ? null : (solar as SolarTerrainAnalysis)
+      list.push(
+        <OverlayAssetCard
+          key="solar-raster"
+          title={
+            siting ? "Photovoltaic siting" : "Terrain plane-of-array irradiation"
+          }
+          params={[
+            siting ? siting.dem_source : terrain?.dem_source,
+            terrain?.season,
+            terrain ? terrain.unit : null,
+            siting
+              ? `${siting.suitable_no_conflict_ha.toFixed(1)} ha without conflict`
+              : null,
+            `opacity ${Math.round((solarOpacity ?? 0.85) * 100)}%`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          previewUri={solar.overlay_uri}
+          pixelated
+          active={showSolarOverlay}
+          onExportPng={() =>
+            void exportAsset(
+              solar.overlay_uri,
+              siting ? "terra_solar_siting.png" : "terra_solar_terrain.png"
+            )
+          }
+        />
+      )
+    }
+
     for (const item of gallery) {
       if (!item.overlay_uri) continue
       const bandOrIndex =
@@ -466,6 +532,12 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     showCompositionOverlay,
     onSelectComposition,
     onRemoveComposition,
+    water,
+    waterOpacity,
+    showWaterOverlay,
+    solar,
+    solarOpacity,
+    showSolarOverlay,
   ])
 
   return (
