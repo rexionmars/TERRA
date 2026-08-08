@@ -47,6 +47,9 @@ export const TOKENS = {
     muted: [172, 159, 144],
     accent: [242, 86, 35],
     accentQuiet: [255, 138, 92],
+    destructive: [160, 44, 44],
+    destructiveForeground: [226, 220, 212],
+    destructiveQuiet: [224, 138, 120],
   },
   light: {
     ink: [245, 240, 233],
@@ -58,6 +61,9 @@ export const TOKENS = {
     muted: [104, 90, 76],
     accent: [186, 58, 18],
     accentQuiet: [158, 48, 14],
+    destructive: [179, 58, 26],
+    destructiveForeground: [252, 249, 243],
+    destructiveQuiet: [158, 43, 37],
   },
 } as const satisfies Record<string, Record<string, Channels>>
 
@@ -113,6 +119,23 @@ export const RULES: readonly ContrastRule[] = [
     on: ["surface", "surfaceRaised"],
     min: 3.0,
     why: "component boundary, WCAG 1.4.11; the surfaces are 1.11 and 1.20 apart, so the border is what separates them",
+  },
+  /*
+   * Destructive splits the same way the accent does, and was checked neither
+   * way until now. The single value it used to be failed both of its jobs at
+   * once: 3.12 as a label on its own fill, 4.22 as text on the background.
+   */
+  {
+    fg: "destructiveForeground",
+    on: ["destructive"],
+    min: 4.5,
+    why: "the label on a destructive fill, which is the confirmation a delete is read from",
+  },
+  {
+    fg: "destructiveQuiet",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 4.5,
+    why: "destructive where it is read rather than filled: error text, a delete row, a hover state",
   },
 ]
 

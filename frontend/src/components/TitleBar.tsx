@@ -36,7 +36,11 @@ interface TitleBarProps {
 const SCREEN_EYEBROW: Record<AppScreen, string> = {
   map: "land cover · sentinel-2",
   energy: "solar and wind · nasa power",
-  analysis: "analysis",
+  // The destination is the project hub -- the list of projects, their saved
+  // runs and their overlays. A single analysis is one thing opened from inside
+  // it, so naming the whole screen after that one thing sent users looking for
+  // a chart and gave them a folder list.
+  analysis: "project hub",
   auth: "sign in",
   profile: "settings",
 }

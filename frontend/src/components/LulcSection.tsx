@@ -17,7 +17,7 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
   const hasCompare = (lulc.pred_vs_ref?.length ?? 0) > 0
 
   return (
-    <section className="ar-section p-4 sm:p-5">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="eyebrow">Land cover / land use</p>
@@ -30,7 +30,7 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
           </p>
         </div>
         {calendar && (
-          <p className="ar-raised max-w-xs px-2.5 py-1.5 text-[10px] text-muted-foreground">
+          <p className="rounded-sm border border-border bg-secondary max-w-xs px-2.5 py-1.5 text-[10px] text-muted-foreground">
             Documented use: {calendar}
           </p>
         )}
@@ -39,7 +39,7 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
       {/* Map + dense 2×4 metrics — never stretch to 8 sparse columns */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]">
         {lulc.map_uri ? (
-          <div className="ar-inset flex aspect-square items-center justify-center overflow-hidden p-3 lg:aspect-auto lg:min-h-[14rem]">
+          <div className="rounded-sm border border-border bg-background flex aspect-square items-center justify-center overflow-hidden p-3 lg:aspect-auto lg:min-h-[14rem]">
             <img
               src={lulc.map_uri}
               alt="MapBiomas land cover"
@@ -47,7 +47,7 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
             />
           </div>
         ) : (
-          <div className="ar-inset flex min-h-[12rem] items-center justify-center text-[11px] text-muted-foreground">
+          <div className="rounded-sm border border-border bg-background flex min-h-[12rem] items-center justify-center text-[11px] text-muted-foreground">
             Map unavailable
           </div>
         )}
@@ -72,9 +72,9 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
         className={`mt-4 grid grid-cols-1 gap-3 border-t pt-4 md:grid-cols-2 ${
           hasCompare ? "xl:grid-cols-3" : ""
         }`}
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
-        <div className="ar-raised p-3">
+        <div className="rounded-sm border border-border bg-secondary p-3">
           <p className="eyebrow mb-2.5">Cover composition</p>
           <StatBars
             rows={lulc.composition.map((r) => ({
@@ -86,7 +86,7 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
             }))}
           />
         </div>
-        <div className="ar-raised p-3">
+        <div className="rounded-sm border border-border bg-secondary p-3">
           <p className="eyebrow mb-2.5">Land-use groups</p>
           <StatBars
             rows={lulc.groups.map((r) => ({
@@ -99,7 +99,7 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
           />
         </div>
         {hasCompare && (
-          <div className="ar-raised p-3 md:col-span-2 xl:col-span-1">
+          <div className="rounded-sm border border-border bg-secondary p-3 md:col-span-2 xl:col-span-1">
             <p className="eyebrow mb-1">MapBiomas vs predicted (shared pixels)</p>
             {/*
               The reference is native at 30 m and is resampled onto the 10 m
@@ -136,7 +136,7 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
                     />
                     {r.class_id}
                   </span>
-                  <div className="ar-track relative h-2 overflow-hidden rounded-sm">
+                  <div className="bg-background relative h-2 overflow-hidden rounded-sm">
                     <span
                       className="absolute inset-y-0 left-0 rounded-sm opacity-40"
                       style={{
@@ -187,7 +187,7 @@ function Metric({
   sub?: string
 }) {
   return (
-    <div className="ar-raised flex min-h-[4.5rem] flex-col justify-center px-3 py-2.5">
+    <div className="rounded-sm border border-border bg-secondary flex min-h-[4.5rem] flex-col justify-center px-3 py-2.5">
       <div className="eyebrow !text-[9px]">{label}</div>
       <div className="telemetry mt-1 text-[13px] font-medium text-foreground">
         {value}
@@ -216,7 +216,7 @@ function StatBars({
             style={{ backgroundColor: r.color }}
           />
           <span className="w-36 shrink-0 truncate sm:w-44">{r.label}</span>
-          <span className="ar-track relative h-1.5 flex-1 overflow-hidden rounded-sm">
+          <span className="bg-background relative h-1.5 flex-1 overflow-hidden rounded-sm">
             <span
               className="absolute inset-y-0 left-0 rounded-sm"
               style={{ width: `${r.pct}%`, backgroundColor: r.color }}

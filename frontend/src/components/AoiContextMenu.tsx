@@ -189,7 +189,7 @@ export function AoiContextMenu({
         <button
           type="button"
           role="menuitem"
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-destructive hover:bg-secondary"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-destructive-quiet hover:bg-secondary"
           onClick={() => {
             onClearArea()
             onClose()

@@ -158,7 +158,7 @@ function ParamGroup({
           <select
             value={params.season}
             onChange={(e) => set({ season: e.target.value as SolarSeason })}
-            className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+            className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
           >
             {SEASONS.map((s) => (
               <option key={s.id} value={s.id}>
@@ -233,7 +233,7 @@ function ParamGroup({
               reportingBasis: e.target.value as "year_one" | "lifetime_mean",
             })
           }
-          className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+          className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
         >
           <option value="year_one">Year one (default)</option>
           <option value="lifetime_mean">Lifetime mean</option>
@@ -356,7 +356,7 @@ function ParamGroup({
         <select
           value={params.densityBasis}
           onChange={(e) => set({ densityBasis: e.target.value })}
-          className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+          className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
         >
           {ENERGY_CAPACITY_DENSITY_BASES.map((b) => (
             <option key={b.id} value={b.id}>

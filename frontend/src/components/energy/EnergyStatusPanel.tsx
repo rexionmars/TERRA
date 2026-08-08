@@ -19,6 +19,7 @@ import type { SolarProductId, SolarResults } from "@/lib/energyState"
 import type { WindAnalysis } from "@/lib/types"
 import { solarProduct } from "@/components/energy/solarProducts"
 import { cn } from "@/lib/utils"
+import { btnIcon } from "@/components/ui/buttons"
 
 function Figure({
   label,
@@ -205,7 +206,7 @@ export const EnergyStatusPanel = forwardRef<
     <motion.div
       ref={ref}
       className={cn(
-        "panel app-no-drag absolute bottom-3 right-16 z-[1000] mx-auto max-w-[40rem] rounded-md",
+        "panel app-no-drag absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] right-16 z-[1000] mx-auto max-w-[40rem] rounded-md",
         leftOffsetClass
       )}
       initial={{ opacity: 0, y: 24 }}
@@ -239,7 +240,7 @@ export const EnergyStatusPanel = forwardRef<
             onClick={() => setCollapsed((c) => !c)}
             aria-expanded={!collapsed}
             aria-label={collapsed ? "Expand result" : "Collapse result"}
-            className="flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className={btnIcon}
           >
             {collapsed ? (
               <ChevronUp className="size-4" />
@@ -251,7 +252,7 @@ export const EnergyStatusPanel = forwardRef<
             type="button"
             onClick={onClear}
             aria-label="Close result"
-            className="flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className={btnIcon}
           >
             <X className="size-4" />
           </button>

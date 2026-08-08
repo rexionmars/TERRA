@@ -4,7 +4,7 @@
 @import "leaflet-draw/dist/leaflet.draw.css";
 
 /*
-  Scixiv / Perseverance — docs/DESIGN.md
+  TERRA design system — docs/DESIGN.md
 
   Channels live ONLY on --p-* (R G B). Never store channels on --color-*
   because @theme inline also owns --color-* and would overwrite them,
@@ -108,8 +108,19 @@
     nothing and inherited its parent's colour on a red fill. warning and success
     were literals inside the toast CSS, unreachable from a component.
   */
-  --destructive: #c45c3a;
+  /*
+    Destructive splits into a fill and a text colour, the same way the accent
+    does, and for the same measured reason. One value cannot do both: #c45c3a
+    carried the label at 3.12 to 1 when filled, and read at 4.22 when used as
+    text on the background -- so the colour that says "this deletes something"
+    failed the 4.5 floor in both of its jobs at once.
+
+    The fill is dark enough for the light label (5.33) and the quiet variant is
+    light enough to read on every surface (6.89 on ink, 5.17 on a raised one).
+  */
+  --destructive: #a02c2c;
   --destructive-foreground: rgb(var(--p-text));
+  --destructive-quiet: #e08a78;
   --warning: rgb(var(--p-accent-quiet));
   --success: #6f9c5a;
 
@@ -117,7 +128,13 @@
   --border: rgb(var(--p-line) / 0.28);
   --hairline: rgb(var(--p-line) / 0.22);
   --input: rgb(var(--p-line) / 0.4);
-  --ring: rgb(var(--p-accent) / 0.55);
+  /* Full accent, not a wash of it. At 0.55 the composited ring measured 2.04
+     against a filled button and 2.44 against the surface behind it -- under the
+     3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
+     contrast check verifies, because the check reads the token and the token
+     was not what got painted. At full strength the two agree: 5.23 on ink,
+     4.70 on the panel, 3.93 on a raised surface. */
+  --ring: rgb(var(--p-accent));
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -127,6 +144,7 @@
 :root[data-theme="light"] {
   --destructive: #b33a1a;
   --destructive-foreground: rgb(var(--p-surface));
+  --destructive-quiet: #9e2b25;
   --success: #3f6b2c;
   --panel: rgb(var(--p-surface) / 0.72);
   --card: rgb(var(--p-surface) / 0.65);
@@ -158,6 +176,7 @@
   --color-accent-quiet: var(--accent-quiet);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-quiet: var(--destructive-quiet);
   --color-warning: var(--warning);
   --color-success: var(--success);
   --color-border: var(--border);
@@ -220,6 +239,33 @@
 @layer base {
   * {
     border-color: var(--border);
+  }
+
+  /*
+    Keyboard focus, for every control rather than for the ones somebody
+    remembered.
+
+    The application had four focus rings in two styles across ~200 button sites,
+    so a keyboard user tabbing through it mostly could not tell where they were.
+    Chasing each site is the wrong shape of fix: the next button added would
+    arrive without one, exactly as the last two hundred did.
+
+    In @layer base, so a site that wants its own treatment still wins -- the
+    primitives in ui/buttons.ts pair focus-visible:outline-none with their own
+    ring, and utilities outrank base. outline rather than box-shadow, because it
+    follows the border radius and does not fight the shadow utilities a floating
+    panel needs.
+
+    --ring is the full accent: 5.23 on ink, 4.70 on a panel, 3.93 on a raised
+    surface, all clearing the 3.0 WCAG 1.4.11 asks of a focus indicator.
+  */
+  button:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [role="slider"]:focus-visible,
+  [role="tab"]:focus-visible {
+    outline: 1px solid var(--ring);
+    outline-offset: 1px;
   }
   html,
   body,
@@ -371,99 +417,33 @@
 }
 
 /*
-  Workspace chrome — the full-screen plane language.
+  The nav item, the one shared treatment left from the workspace chrome.
 
-  These six were literal VS Code Dark Modern hex, including a blue selection,
-  which meant the application ran two unrelated palettes: the map's panels were
-  warm and tokenised, and every full screen -- analysis, energy, profile, auth,
-  projects and the five modals -- was cold and hardcoded. A re-theme of --p-*
-  moved none of them.
+  Everything else in this block -- .terra-workspace and the eight .ar-* rules --
+  was a VS Code Dark Modern port, including a blue selection, and it made the
+  application run two unrelated palettes: the map panels were warm and
+  tokenised while every full screen was cold and hardcoded. Retiring it is why
+  a re-theme now moves every screen.
 
-  They now derive, in both themes, from the same channels as everything else.
-  The light block below is what the dark block should always have been; it is
-  kept separate only because the two themes need different alphas on the line.
+  Kept unlayered like the other component classes, and named for what it is
+  rather than for where it came from.
 */
-.terra-workspace {
-  --ar-bg: rgb(var(--p-ink));
-  --ar-panel: rgb(var(--p-surface));
-  --ar-raised: rgb(var(--p-surface-raised));
-  --ar-border: rgb(var(--p-line) / 0.55);
-  --ar-select: rgb(var(--p-accent) / 0.22);
-  --ar-muted: rgb(var(--p-muted));
-  background: var(--ar-bg);
-  color: rgb(var(--p-text));
-}
-
-:root[data-theme="light"] .terra-workspace {
-  --ar-border: rgb(var(--p-line) / 0.45);
-}
-
-.terra-workspace .ar-header {
-  background: var(--ar-panel);
-  border-bottom: 1px solid var(--ar-border);
-}
-
-.terra-workspace .ar-sidebar {
-  background: var(--ar-panel);
-  border-right: 1px solid var(--ar-border);
-}
-
-.ar-section {
-  background: var(--ar-panel, rgb(var(--p-surface)));
-  border: 1px solid var(--ar-border, rgb(var(--p-line) / 0.35));
+.nav-item {
   border-radius: var(--radius-sm);
 }
 
-.ar-raised {
-  background: var(--ar-raised, rgb(var(--p-surface-raised)));
-  border: 1px solid var(--ar-border, rgb(var(--p-line) / 0.35));
-  border-radius: var(--radius-sm);
+.nav-item:hover {
+  background: rgb(var(--p-surface-raised));
 }
 
-.ar-inset {
-  background: var(--ar-bg, rgb(var(--p-ink)));
-  border: 1px solid var(--ar-border, rgb(var(--p-line) / 0.35));
-  border-radius: var(--radius-sm);
-}
-
-.ar-ghost {
-  border-color: var(--ar-border, rgb(var(--p-line) / 0.4));
-  background: var(--ar-bg, rgb(var(--p-ink) / 0.45));
-}
-
-.ar-ghost:hover {
-  background: var(--ar-raised, rgb(var(--p-surface-raised)));
-}
-
-.ar-select {
-  background: color-mix(
-    in srgb,
-    var(--ar-select, rgb(var(--p-accent))) 55%,
-    transparent
-  );
-  border: 1px solid
-    color-mix(in srgb, var(--ar-select, rgb(var(--p-accent))) 80%, white 10%);
-  border-radius: var(--radius-sm);
-}
-
-.ar-track {
-  background: var(--ar-bg, rgb(var(--p-ink) / 0.55));
-}
-
-.ar-nav-item {
-  border-radius: var(--radius-sm);
-}
-
-.ar-nav-item:hover {
-  background: var(--ar-raised, rgb(var(--p-surface-raised)));
-}
-
-.ar-nav-item.is-active {
-  background: color-mix(
-    in srgb,
-    var(--ar-select, rgb(var(--p-accent))) 45%,
-    transparent
-  );
+/*
+  The active row. Accent at 45 percent composites to rgb(130 56 31), on which
+  the label measures 6.08 -- but --p-muted measures 3.20 there, which is why the
+  count beside the label follows the label up on this row rather than staying
+  the one unreadable thing on it.
+*/
+.nav-item.is-active {
+  background: color-mix(in srgb, rgb(var(--p-accent)) 45%, transparent);
   color: rgb(var(--p-text));
 }
 

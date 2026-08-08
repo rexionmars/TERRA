@@ -9,7 +9,6 @@ import {
   AnalyzeLULC,
   ListDataCube,
   RenderComposite,
-  OpenExternal,
   RevealMainWindow,
   SaveProjectOverlay,
   ListProjectOverlays,
@@ -2018,7 +2017,6 @@ function AppBody(props: {
 
       <div className="flex min-h-0 flex-1">
         <AppNav
-          onOpenRepo={() => OpenExternal("https://github.com/rexionmars")}
           hasAnalysis={!!props.result || runs.length > 0}
           onAnalysisClick={() => {
             // Tested on the payload the page is actually showing, not on the

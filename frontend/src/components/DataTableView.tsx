@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, Check, Copy, Table2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { notifyError, notifySuccess } from "@/lib/notify"
+import { btnGhostDense } from "@/components/ui/buttons"
 import {
   formatNumber,
   tableToCSV,
@@ -81,7 +82,7 @@ export function DataTableView({
           <button
             type="button"
             onClick={() => void copy()}
-            className="ar-ghost flex h-7 items-center gap-1.5 rounded-sm border px-2 text-[10px] text-muted-foreground hover:text-foreground"
+            className={btnGhostDense}
             title="Copy this table as CSV"
           >
             {copied ? (
@@ -95,7 +96,7 @@ export function DataTableView({
             <button
               type="button"
               onClick={() => onDownload(table)}
-              className="ar-ghost flex h-7 items-center gap-1.5 rounded-sm border px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              className={btnGhostDense}
               title={`Save ${table.csvName}`}
             >
               <Table2 className="h-3 w-3" />
@@ -106,14 +107,14 @@ export function DataTableView({
       </div>
 
       {/* Wide tables scroll inside the section rather than widening the page. */}
-      <div className="ar-inset max-h-[22rem] overflow-auto">
+      <div className="rounded-sm border border-border bg-background max-h-[22rem] overflow-auto">
         <table className="w-full min-w-max text-left text-[11px]">
           <thead className="sticky top-0 z-10">
             <tr
               className="border-b"
               style={{
-                borderColor: "var(--ar-border)",
-                background: "var(--ar-raised)",
+                borderColor: "var(--border)",
+                background: "var(--secondary)",
               }}
             >
               {table.columns.map((c, i) => {
@@ -159,7 +160,7 @@ export function DataTableView({
               <tr
                 key={r}
                 className="border-b last:border-b-0"
-                style={{ borderColor: "var(--ar-border)" }}
+                style={{ borderColor: "var(--border)" }}
               >
                 {row.map((cell, c) => {
                   const col = table.columns[c]
@@ -232,7 +233,7 @@ export function ChartTableToggle({
     <div
       role="radiogroup"
       aria-label={`${label} view`}
-      className="ar-raised flex shrink-0 gap-0.5 p-0.5"
+      className="rounded-sm border border-border bg-secondary flex shrink-0 gap-0.5 p-0.5"
     >
       {options.map((o) => {
         const active = value === o.id

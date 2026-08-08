@@ -47,6 +47,11 @@ import { WindScreening } from "@/components/WindScreening"
 import { PanelSection } from "@/components/ui/PanelSection"
 import { AoiSection } from "@/components/energy/AoiSection"
 import { EnergyStatusPanel } from "@/components/energy/EnergyStatusPanel"
+import {
+  RecordWindowBar,
+  lastCompleteYear,
+  type RecordBand,
+} from "@/components/energy/RecordWindowBar"
 import { SolarProductSelector } from "@/components/energy/SolarProductSelector"
 import { SolarParameterSections } from "@/components/energy/SolarParameterSections"
 import { SolarLayerControls } from "@/components/energy/SolarLayerControls"
@@ -256,6 +261,64 @@ export function EnergyScreen(props: EnergyScreenProps) {
   const solarBusy = solar.run.active !== null
   const windBusy = wind.run.active
 
+  // Read once per mount rather than per render: a value taken from the clock
+  // inside the render body would make the axis a function of when React
+  // re-rendered.
+  const [endYear] = useState(() => lastCompleteYear(new Date()))
+
+  /**
+   * The record windows of the tab in use, outermost first.
+   *
+   * Read from the same store the setup column's spinners write to, so the bar
+   * and the spinners are two views of one value rather than two settings. The
+   * bounds repeat the spinners' own, which is what keeps the bar from offering
+   * a window the sidecar would reject.
+   */
+  const recordBands = useMemo<RecordBand[]>(
+    () =>
+      tab === "wind"
+        ? [
+            {
+              id: "record",
+              label: "record",
+              years: wind.params.recordYears,
+              min: 1,
+              max: 30,
+              note: "MERRA-2 hourly wind",
+              onChange: (years) =>
+                windDispatch({ type: "params/set", patch: { recordYears: years } }),
+            },
+          ]
+        : [
+            {
+              id: "climatology",
+              label: "climatology",
+              years: solar.params.climatologyYears,
+              min: 5,
+              max: 40,
+              note: "daily resource",
+              onChange: (years) => setParams({ climatologyYears: years }, "radiation"),
+            },
+            {
+              id: "hourly",
+              label: "hourly",
+              years: solar.params.hourlyYears,
+              min: 3,
+              max: 20,
+              note: "tilt sweep, yield, terrain",
+              onChange: (years) => setParams({ hourlyYears: years }, "hourly"),
+            },
+          ],
+    [
+      tab,
+      wind.params.recordYears,
+      solar.params.climatologyYears,
+      solar.params.hourlyYears,
+      windDispatch,
+      setParams,
+    ]
+  )
+
   const solarOverlays = useMemo(() => {
     // Terrain first so siting draws over it: the suitability classes are what a
     // siting decision reads, and the irradiation underneath is the continuous
@@ -456,7 +519,14 @@ export function EnergyScreen(props: EnergyScreenProps) {
   )
 
   return (
-    <div className="relative h-full min-h-0 w-full">
+    <div
+      className="relative h-full min-h-0 w-full"
+      // What the record bar occupies, so the status panel and the Leaflet
+      // controls clear it instead of being drawn under it. Measured on the
+      // solar tab, which is the taller of the two: two window rows of 12.15px
+      // plus the year rule, in a panel padded 6px either side.
+      style={{ "--map-foot": "3.875rem" } as React.CSSProperties}
+    >
       {/*
         Full bleed, as on the map screen. Two of the four solar products and the
         wind screening draw nothing, and the map still carries the AOI they are
@@ -471,6 +541,15 @@ export function EnergyScreen(props: EnergyScreenProps) {
       <AnimatePresence mode="wait" initial={false}>
         {setupColumn}
       </AnimatePresence>
+
+      {/* The setup column is always open here, so the offset is constant --
+          the same 0.75rem the column is padded by, kept between the two. */}
+      <RecordWindowBar
+        bands={recordBands}
+        endYear={endYear}
+        disabled={tab === "wind" ? windBusy : solarBusy}
+        leftOffsetClass="left-[20.5rem] rounded-tl-md"
+      />
 
       <AnimatePresence initial={false}>
         {hasResult && (

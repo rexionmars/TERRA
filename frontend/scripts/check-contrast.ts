@@ -36,6 +36,26 @@ const CSS_NAME: Record<string, string> = {
 }
 
 /**
+ * Tokens declared as hex rather than as channels.
+ *
+ * The status colours are not part of the sand family and are written as hex, so
+ * they are read separately rather than left unchecked -- which is how the
+ * destructive pair shipped failing WCAG 1.4.3 in both of its roles at once.
+ *
+ * These live outside the two --p-* blocks, so each is searched for in the block
+ * that governs its theme: the dark values sit in the bare `:root` that follows
+ * the palette, the light ones in the second `[data-theme="light"]` block.
+ */
+const CSS_HEX: Record<string, string> = {
+  destructive: "--destructive",
+  destructiveQuiet: "--destructive-quiet",
+}
+
+function hexChannels(hex: string): Channels {
+  return [1, 3, 5].map((i) => parseInt(hex.substr(i, 2), 16)) as unknown as Channels
+}
+
+/**
  * The channels declared in one theme block.
  *
  * Read from the block rather than from the file as a whole: both themes declare
@@ -58,6 +78,31 @@ function channelsFromCss(theme: ThemeName): Record<string, Channels> {
     if (!m) throw new Error(`${name} not declared in the ${theme} block`)
     out[key] = [Number(m[1]), Number(m[2]), Number(m[3])]
   }
+
+  // The hex tokens are declared outside the palette blocks. The dark values are
+  // the LAST declaration before the light block opens, because the bare :root
+  // that carries them follows the palette; the light ones are inside it.
+  const lightAt = css.indexOf(':root[data-theme="light"] {\n  --destructive')
+  const scope = theme === "light" ? css.slice(lightAt) : css.slice(0, lightAt)
+  for (const [key, name] of Object.entries(CSS_HEX)) {
+    const m = scope.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`))
+    if (!m) throw new Error(`${name} not declared for the ${theme} theme`)
+    out[key] = hexChannels(m[1])
+  }
+
+  // --destructive-foreground is a reference, not a literal, and it points at a
+  // DIFFERENT palette token per theme: the light text in dark, the light
+  // surface in light. Resolving it rather than assuming one of them is the
+  // whole point -- the rule that assumed `text` passed in dark and failed in
+  // light by 2.76, which is the theme nobody had walked.
+  const fgRef = scope.match(
+    /--destructive-foreground:\s*rgb\(var\((--p-[a-z-]+)\)\)\s*;/
+  )
+  if (!fgRef) throw new Error(`--destructive-foreground unresolved for ${theme}`)
+  const refKey = Object.entries(CSS_NAME).find(([, n]) => n === fgRef[1])?.[0]
+  if (!refKey) throw new Error(`${fgRef[1]} is not a checked palette token`)
+  out.destructiveForeground = out[refKey]
+
   return out
 }
 

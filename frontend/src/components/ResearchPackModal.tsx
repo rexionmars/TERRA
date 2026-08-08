@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Braces, Download, Map as MapIcon, Shapes, Table2, X } from "lucide-react"
+import { ModalShell } from "@/components/ui/ModalShell"
+import { btnGhost, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import { ExportResearchPack } from "../../wailsjs/go/main/App"
@@ -186,27 +188,20 @@ export function ResearchPackModal({
   }, [onClose])
 
   return (
-    <div
-      className="app-no-drag absolute inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
-      onClick={onClose}
+    <ModalShell
+      onDismiss={onClose}
+      label="Research pack contents"
+      className="h-[min(48rem,92vh)] w-full max-w-6xl flex-row"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Research pack contents"
-        className="terra-workspace flex h-[min(48rem,92vh)] w-full max-w-6xl overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
-        style={{
-          borderColor: "var(--ar-border)",
-          background: "var(--ar-panel)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-      <aside className="ar-sidebar flex w-[15rem] shrink-0 flex-col">
+      {/* The one column in the app that is legitimately narrower than the
+          page-level 16rem: it lists file names inside a dialog, not
+          destinations, and the dialog is already bounded. */}
+      <aside className="flex w-[15rem] shrink-0 flex-col border-r border-border">
         <div className="shrink-0 px-3.5 pb-2 pt-4">
           <p className="font-display text-sm font-semibold tracking-wide text-foreground">
             Research pack
           </p>
-          <p className="telemetry mt-0.5 text-[10px] text-muted-foreground">
+          <p className="telemetry mt-0.5 text-meta text-muted-foreground">
             {entries.length} {entries.length === 1 ? "entry" : "entries"}
           </p>
         </div>
@@ -220,7 +215,7 @@ export function ResearchPackModal({
                 onClick={() => setSelected(e.name)}
                 title={e.name}
                 className={cn(
-                  "ar-nav-item flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]",
+                  "rounded-sm hover:bg-secondary flex w-full items-center gap-2 px-2 py-1.5 text-left text-body",
                   isActive
                     ? "is-active"
                     : "text-muted-foreground hover:text-foreground"
@@ -228,7 +223,7 @@ export function ResearchPackModal({
               >
                 {iconFor(e.kind)}
                 <span className="min-w-0 flex-1 truncate">{e.name}</span>
-                <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                <span className="telemetry shrink-0 text-meta text-muted-foreground">
                   {e.detail}
                 </span>
               </button>
@@ -238,9 +233,9 @@ export function ResearchPackModal({
       </aside>
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="ar-header flex shrink-0 flex-wrap items-start justify-between gap-3 px-5 py-4 sm:px-6 lg:px-8">
+        <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
-            <p className="telemetry text-[10px] text-primary">DATA</p>
+            <p className="telemetry text-meta text-primary">DATA</p>
             <h1 className="mt-0.5 truncate font-display text-xl font-semibold tracking-wide">
               {active?.name ?? "Research pack"}
             </h1>
@@ -254,7 +249,7 @@ export function ResearchPackModal({
             type="button"
             disabled={exporting}
             onClick={() => void exportPack()}
-            className="flex h-9 items-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+            className={btnPrimaryCommit}
           >
             <Download className="h-3.5 w-3.5" />
             {exporting ? "Exporting…" : "Export pack"}
@@ -264,7 +259,7 @@ export function ResearchPackModal({
               onClick={onClose}
               aria-label="Close"
               title="Close"
-              className="ar-ghost flex size-9 shrink-0 items-center justify-center rounded-sm border text-muted-foreground hover:text-foreground"
+              className={cn(btnGhost, "size-9 px-0")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -275,14 +270,14 @@ export function ResearchPackModal({
           {active?.kind === "table" && active.table ? (
             <DataTableView table={active.table} />
           ) : active?.kind === "manifest" ? (
-            <section className="ar-section p-4">
+            <section className="rounded-sm border border-border bg-secondary/50 p-4">
               <p className="eyebrow mb-3">manifest.json</p>
               <dl className="flex flex-col gap-1.5">
                 {manifestRows.map(([k, v]) => (
                   <div
                     key={k}
-                    className="grid grid-cols-[10rem_minmax(0,1fr)] items-baseline gap-3 border-b pb-1.5 text-[11px] last:border-b-0"
-                    style={{ borderColor: "var(--ar-border)" }}
+                    className="grid grid-cols-[10rem_minmax(0,1fr)] items-baseline gap-3 border-b pb-1.5 text-body last:border-b-0"
+                    style={{ borderColor: "var(--border)" }}
                   >
                     <dt className="telemetry text-muted-foreground">{k}</dt>
                     <dd className="telemetry break-words text-foreground">
@@ -291,7 +286,7 @@ export function ResearchPackModal({
                   </div>
                 ))}
               </dl>
-              <p className="mt-3 text-[10px] text-muted-foreground">
+              <p className="mt-3 text-meta text-muted-foreground">
                 exported_at is stamped by the exporter when the archive is
                 written, so it is not known until then.
               </p>
@@ -299,9 +294,9 @@ export function ResearchPackModal({
           ) : active?.kind === "aoi" && geometry ? (
             <AoiEntry geometry={geometry} raw={polygonGeoJSON ?? ""} />
           ) : active?.kind === "raster" ? (
-            <section className="ar-section p-4">
+            <section className="rounded-sm border border-border bg-secondary/50 p-4">
               <p className="eyebrow mb-3">rasters/classification.tif</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-body text-muted-foreground">
                 The classification raster is copied into the archive from{" "}
                 <span className="telemetry text-foreground">
                   {result.raster_tif}
@@ -314,8 +309,7 @@ export function ResearchPackModal({
           ) : null}
         </div>
       </main>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 
@@ -356,29 +350,29 @@ function AoiEntry({
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="ar-section p-4">
+      <section className="rounded-sm border border-border bg-secondary/50 p-4">
         <p className="eyebrow mb-3">aoi.geojson</p>
         <dl className="flex flex-col gap-1.5">
           {facts.map(([k, v]) => (
             <div
               key={k}
-              className="grid grid-cols-[10rem_minmax(0,1fr)] items-baseline gap-3 border-b pb-1.5 text-[11px] last:border-b-0"
-              style={{ borderColor: "var(--ar-border)" }}
+              className="grid grid-cols-[10rem_minmax(0,1fr)] items-baseline gap-3 border-b pb-1.5 text-body last:border-b-0"
+              style={{ borderColor: "var(--border)" }}
             >
               <dt className="telemetry text-muted-foreground">{k}</dt>
               <dd className="telemetry break-words text-foreground">{v}</dd>
             </div>
           ))}
         </dl>
-        <p className="mt-3 text-[10px] text-muted-foreground">
+        <p className="mt-3 text-meta text-muted-foreground">
           Area is a vertex-shoelace on an equirectangular projection about the
           AOI latitude, and the centroid is a vertex mean, adequate as a map
           target but not an area centroid.
         </p>
       </section>
-      <section className="ar-section p-4">
+      <section className="rounded-sm border border-border bg-secondary/50 p-4">
         <p className="eyebrow mb-3">geometry source</p>
-        <pre className="ar-inset max-h-64 overflow-auto p-3 text-[10px] leading-relaxed text-muted-foreground">
+        <pre className="rounded-sm border border-border bg-background max-h-64 overflow-auto p-3 text-meta leading-relaxed text-muted-foreground">
           {raw}
         </pre>
       </section>

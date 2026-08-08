@@ -58,7 +58,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-3 w-0 border-l-2 border-dashed"
-            style={{ borderColor: "var(--ar-border)" }}
+            style={{ borderColor: "var(--border)" }}
           />
           outside it: not a plant loss and not multiplied into the ratio
         </span>
@@ -78,10 +78,10 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
               key={s.step}
               className={cn(
                 "border-l-2 py-1.5 pl-2.5 pr-1",
-                inPR ? "" : "bg-[var(--ar-bg)]"
+                inPR ? "" : "bg-[var(--background)]"
               )}
               style={{
-                borderColor: inPR ? "rgb(var(--p-accent))" : "var(--ar-border)",
+                borderColor: inPR ? "rgb(var(--p-accent))" : "var(--border)",
                 borderLeftStyle: inPR ? "solid" : "dashed",
               }}
             >
@@ -97,7 +97,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
                 <span className="telemetry w-24 shrink-0 text-right text-[11px] text-foreground">
                   {s.factor == null ? "—" : s.factor.toFixed(6)}
                 </span>
-                <span className="ar-track relative hidden h-1.5 w-24 shrink-0 sm:block">
+                <span className="bg-background relative hidden h-1.5 w-24 shrink-0 sm:block">
                   <span
                     className="absolute inset-y-0"
                     style={{
@@ -105,7 +105,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
                       left: dev < 0 ? `${50 - width}%` : "50%",
                       backgroundColor:
                         dev === 0
-                          ? "var(--ar-border)"
+                          ? "var(--border)"
                           : dev < 0
                             ? PALETTE_STOPS.rdbu_r[13]
                             : PALETTE_STOPS.rdbu_r[3],
@@ -171,7 +171,7 @@ function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
     <div>
       <p className="eyebrow mb-2">Performance ratio · applied against the band</p>
       <div className="relative h-9">
-        <div className="ar-track absolute inset-x-0 top-4 h-1.5 rounded-sm" />
+        <div className="bg-background absolute inset-x-0 top-4 h-1.5 rounded-sm" />
         {hasBand && (
           <div
             className="absolute top-2.5 h-4 rounded-sm"
@@ -191,7 +191,7 @@ function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
               left: `${pos(m.value)}%`,
               backgroundColor: m.accent
                 ? "rgb(var(--p-accent))"
-                : "var(--ar-muted)",
+                : "var(--muted-foreground)",
             }}
             title={`${m.label} ${m.value.toFixed(6)}`}
           />
@@ -264,7 +264,7 @@ function EnergyCheckpoints({ energy }: { energy: EnergyModelAnalysis }) {
   return (
     <ul className="flex flex-col gap-2">
       {checks.map((c) => (
-        <li key={c.name} className="ar-raised px-3 py-2">
+        <li key={c.name} className="rounded-sm border border-border bg-secondary px-3 py-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="telemetry text-[11px] text-foreground">
               {c.name.replace(/_/g, " ")}
@@ -318,7 +318,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
           Per hectare, as published. {t.per_hectare.note}
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="ar-raised px-3 py-2">
+          <div className="rounded-sm border border-border bg-secondary px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
               <span className="eyebrow !text-[9px]">
                 Bolinger and Bolinger (2022)
@@ -340,7 +340,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
               {bol.note}
             </p>
           </div>
-          <div className="ar-raised px-3 py-2">
+          <div className="rounded-sm border border-border bg-secondary px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
               <span className="eyebrow !text-[9px]">Ong et al. (2013), Table 5</span>
               <span className="telemetry text-sm text-foreground">
@@ -374,7 +374,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <span className="eyebrow !text-[9px]">
@@ -406,7 +406,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">Per kWp, this site's series</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -442,7 +442,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           Plane-of-array gain by season, kWh/m2
@@ -462,7 +462,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
               <span className="telemetry w-16 shrink-0 text-right text-[11px] text-muted-foreground">
                 {r.tracker_poa_kwh_m2_season.toFixed(1)}
               </span>
-              <span className="ar-track relative h-1.5 min-w-[6rem] flex-1">
+              <span className="bg-background relative h-1.5 min-w-[6rem] flex-1">
                 <span
                   className="absolute inset-y-0"
                   style={{
@@ -491,7 +491,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p>
           Axis tilt {t.configuration.axis_tilt_deg.toFixed(0)}°, axis azimuth{" "}
@@ -589,7 +589,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
                     style={{
                       backgroundColor:
                         v == null
-                          ? "var(--ar-border)"
+                          ? "var(--border)"
                           : rampStop(PALETTE_STOPS.inferno, v / peak),
                     }}
                   />
@@ -615,7 +615,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           Peak sun hours per day, module plane
@@ -626,7 +626,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
               <span className="telemetry w-6 shrink-0 text-[10px] text-muted-foreground">
                 {String(m.month).padStart(2, "0")}
               </span>
-              <span className="ar-track relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+              <span className="bg-background relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
                 <span
                   className="absolute inset-y-0 left-0 rounded-sm"
                   style={{
@@ -654,7 +654,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           Share of annual AC energy by hour
@@ -697,7 +697,7 @@ function PlantClassCard({
   density: EnergyCapacityDensity
 }) {
   return (
-    <div className="ar-raised px-3 py-2.5">
+    <div className="rounded-sm border border-border bg-secondary px-3 py-2.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-xs text-foreground">{cls.label}</span>
         <span className="telemetry text-sm text-foreground">
@@ -788,7 +788,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
       </div>
 
       {p.restrictive.area_ha > 0 && (
-        <div className="ar-raised px-3 py-2">
+        <div className="rounded-sm border border-border bg-secondary px-3 py-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="text-xs text-foreground">
               {p.restrictive.label}
@@ -808,7 +808,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           Exceedance on {ex.n_years} years of annual global horizontal
@@ -860,7 +860,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           What the band does and does not carry
@@ -890,7 +890,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p>
           Capacity density {p.capacity_density.value_mw_dc_per_ha.toFixed(6)}{" "}
@@ -947,7 +947,7 @@ export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) 
   const mt = energy.module_type
 
   return (
-    <section className="ar-section p-4">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <p className="eyebrow">Photovoltaic energy model</p>
         <p className="telemetry text-[10px] text-muted-foreground">
@@ -984,14 +984,14 @@ export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) 
 
       <div
         className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <EnergyWaterfall energy={energy} />
       </div>
 
       <div
         className="mt-4 grid grid-cols-1 gap-4 border-t pt-4 lg:grid-cols-2"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <div>
           <p className="eyebrow mb-2">Checkpoints, outside the loss rows</p>
@@ -1002,28 +1002,28 @@ export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) 
 
       <div
         className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <TrackingComparison energy={energy} />
       </div>
 
       <div
         className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <GenerationProfile energy={energy} />
       </div>
 
       <div
         className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <PlantEnergy energy={energy} />
       </div>
 
       <div
         className="mt-4 border-t pt-4 text-[10px] leading-relaxed text-muted-foreground"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p>
           Horizontal plane over the hourly window{" "}

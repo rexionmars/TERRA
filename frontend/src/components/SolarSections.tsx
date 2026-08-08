@@ -40,7 +40,7 @@ import {
  */
 export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
   return (
-    <section className="ar-section p-4">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <p className="eyebrow">Solar resource</p>
         <p className="telemetry text-[10px] text-muted-foreground">
@@ -58,7 +58,7 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
           }))}
           margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
         >
-          <CartesianGrid strokeDasharray="2 4" stroke="var(--ar-border)" />
+          <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
           <XAxis
             dataKey="month"
             tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
@@ -66,8 +66,8 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
           <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} />
           <Tooltip
             contentStyle={{
-              backgroundColor: "var(--ar-raised)",
-              border: "1px solid var(--ar-border)",
+              backgroundColor: "var(--secondary)",
+              border: "1px solid var(--border)",
               borderRadius: 4,
               fontSize: 11,
             }}
@@ -84,7 +84,7 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
 
       <div
         className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <WaterFigure
           label="GHI"
@@ -136,7 +136,7 @@ export function SolarTerrainSection({
   terrain: SolarTerrainAnalysis
 }) {
   return (
-    <section className="ar-section p-4">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <p className="eyebrow">
           Terrain irradiation · {terrain.season}
@@ -229,7 +229,7 @@ export function SolarSitingSection({
   siting: SolarSitingAnalysis
 }) {
   return (
-    <section className="ar-section p-4">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <p className="eyebrow mb-3">Photovoltaic siting</p>
       <PanelTile
         title="Suitability classes"

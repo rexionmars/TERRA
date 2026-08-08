@@ -20,7 +20,6 @@
 import {
   ChartColumn,
   ChevronRight,
-  Github,
   LogIn,
   Map as MapIcon,
   UserRound,
@@ -34,7 +33,6 @@ import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
 import type { EnergyTab } from "@/pages/EnergyScreen"
 
 export interface AppNavProps {
-  onOpenRepo: () => void
   hasAnalysis?: boolean
   /** Used instead of goAnalysis when the analysis screen is already open. */
   onAnalysisClick?: () => void
@@ -56,7 +54,6 @@ interface NavChild {
 }
 
 export function AppNav({
-  onOpenRepo,
   hasAnalysis = false,
   onAnalysisClick,
   leftPanel,
@@ -150,7 +147,7 @@ export function AppNav({
         <NavItem
           id="analysis"
           active={screen === "analysis"}
-          label="Analysis"
+          label="Project hub"
           onClick={onAnalysisClick ?? goAnalysis}
           icon={<ChartColumn className="size-4" />}
           badge={hasAnalysis}
@@ -175,13 +172,6 @@ export function AppNav({
             }
           />
         )}
-        <NavItem
-          id="repo"
-          active={false}
-          label="Repository"
-          onClick={onOpenRepo}
-          icon={<Github className="size-4" />}
-        />
       </div>
     </aside>
   )

@@ -81,7 +81,7 @@ export function PanelTile({
   onOpen?: () => void
 }) {
   const preview = (
-    <div className="ar-inset relative aspect-[4/3] overflow-hidden">
+    <div className="rounded-sm border border-border bg-background relative aspect-[4/3] overflow-hidden">
       {uri ? (
         <img src={uri} alt={title} className="h-full w-full object-contain" />
       ) : (
@@ -143,7 +143,7 @@ export function Chip({
         "telemetry shrink-0 rounded-[2px] border px-1 py-px text-[9px] uppercase tracking-wider",
         tone === "accent" ? "text-primary" : "text-muted-foreground"
       )}
-      style={{ borderColor: "var(--ar-border)" }}
+      style={{ borderColor: "var(--border)" }}
     >
       {children}
     </span>

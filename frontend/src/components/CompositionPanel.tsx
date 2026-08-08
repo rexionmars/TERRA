@@ -16,6 +16,7 @@ import type {
 } from "@/lib/types"
 import { RGB_PRESETS, INDICES } from "@/lib/compositeCatalog"
 import { cn } from "@/lib/utils"
+import { btnPrimary } from "@/components/ui/buttons"
 
 const S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"] as const
 
@@ -226,7 +227,7 @@ export const CompositionPanel = forwardRef<
             List scenes
           </button>
           {scenesError && (
-            <p className="text-[10px] text-destructive">{scenesError}</p>
+            <p className="text-meta text-destructive-quiet">{scenesError}</p>
           )}
           {selectedLabel && (
             <p className="telemetry text-[10px] text-muted-foreground">
@@ -407,7 +408,7 @@ export const CompositionPanel = forwardRef<
               type="button"
               onClick={onApply}
               disabled={!canApply}
-              className="flex items-center justify-center gap-1.5 rounded-sm bg-primary px-2 py-1.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-40"
+              className={btnPrimary}
             >
               {running ? (
                 <Loader2 className="size-3.5 animate-spin" />

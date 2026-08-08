@@ -10,6 +10,8 @@ import {
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
+import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
+import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 import type { InferenceRun, Preferences } from "@/lib/types"
 import {
@@ -33,11 +35,8 @@ const SECTIONS: {
   { id: "session", label: "Session", count: 1 },
 ]
 
-const btnGhost =
-  "ar-ghost inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-60"
-
-const btnPrimary =
-  "inline-flex h-8 items-center justify-center gap-1.5 rounded-sm bg-primary px-3 text-[11px] font-semibold text-primary-foreground disabled:opacity-60"
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 
 export function ProfilePage({
   loadingRun,
@@ -210,13 +209,15 @@ export function ProfilePage({
   }
 
   return (
-    <div className="terra-workspace app-no-drag flex h-full min-h-0 overflow-hidden">
-      {/* TOC — VS Code settings tree */}
-      <aside className="ar-sidebar flex w-[15.5rem] shrink-0 flex-col">
-        <div className="border-b px-3 py-3" style={{ borderColor: "var(--ar-border)" }}>
-          <p className="telemetry text-[10px] text-primary">SETTINGS</p>
-          <p className="mt-1 truncate text-[12px] font-medium text-foreground">
-            User
+    <PageShell>
+      <PageAside>
+        {/* Whose settings, which the removed header used to say twice. The
+            display name rather than the literal "User": it is the one thing
+            here the title bar does not already carry. */}
+        <div className="border-b border-border px-3 py-3">
+          <p className="telemetry text-meta text-accent-quiet">SETTINGS</p>
+          <p className="mt-1 truncate text-emphasis font-medium text-foreground">
+            {user.display_name}
           </p>
         </div>
         <nav className="flex-1 overflow-y-auto px-1.5 py-2">
@@ -225,45 +226,47 @@ export function ProfilePage({
               key={s.id}
               type="button"
               onClick={() => scrollToSection(s.id)}
+              aria-current={activeSection === s.id ? "true" : undefined}
               className={cn(
-                "ar-nav-item flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[12px]",
+                "nav-item flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-emphasis",
+                focusRing,
                 activeSection === s.id && "is-active"
               )}
             >
               <span className="truncate text-foreground/90">{s.label}</span>
-              <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+              {/* Muted reads 3.20 to 1 on the active row's accent fill, under
+                  the 4.5 floor, so the count follows the label up on that row
+                  rather than staying the one unreadable thing on it. */}
+              <span
+                className={cn(
+                  "telemetry shrink-0 text-meta",
+                  activeSection === s.id
+                    ? "text-foreground/80"
+                    : "text-muted-foreground"
+                )}
+              >
                 ({s.count})
               </span>
             </button>
           ))}
         </nav>
-        <div
-          className="border-t px-3 py-2"
-          style={{ borderColor: "var(--ar-border)" }}
-        >
+        <div className="flex flex-col gap-2 border-t border-border px-3 py-2">
+          {/* Kept from the deleted header, next to the column it describes.
+              Only the preferences autosave -- the display name still has its
+              own Save -- so it reads as a property of the page, not a promise
+              about every control on it. */}
+          <p className="telemetry text-meta text-muted-foreground">
+            Preferences apply automatically
+          </p>
           <button type="button" onClick={() => void logout()} className={btnGhost}>
             <LogOut className="h-3 w-3" />
             Sign out
           </button>
         </div>
-      </aside>
+      </PageAside>
 
-      {/* Settings editor */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="ar-header flex shrink-0 items-center justify-between gap-3 px-5 py-2.5">
-          <div className="flex items-center gap-4">
-            <span className="border-b border-foreground pb-0.5 text-[12px] font-medium text-foreground">
-              User
-            </span>
-            <span className="text-[12px] text-muted-foreground">{user.email}</span>
-          </div>
-          <span className="telemetry hidden text-[10px] text-muted-foreground sm:inline">
-            Changes apply automatically
-          </span>
-        </header>
-
-        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-3xl px-5 py-4 sm:px-8">
+      <PageBody scrollRef={contentRef}>
+        <div className="mx-auto w-full max-w-3xl px-5 py-4 sm:px-8">
             <Section
               id="account"
               title="Account"
@@ -321,10 +324,9 @@ export function ProfilePage({
               >
                 <div className="flex max-w-md flex-wrap items-center gap-2">
                   <input
-                    className="field-input ar-inset max-w-xs"
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    onFocus={() => setFocusedSetting("account.displayName")}
                   />
                   <button
                     type="button"
@@ -346,10 +348,9 @@ export function ProfilePage({
                 onFocus={() => setFocusedSetting("account.email")}
               >
                 <input
-                  className="field-input ar-inset max-w-md opacity-70"
+                  className="field-input max-w-md opacity-70 focus-visible:ring-1 focus-visible:ring-ring"
                   value={user.email}
                   readOnly
-                  onFocus={() => setFocusedSetting("account.email")}
                 />
               </SettingRow>
             </Section>
@@ -369,9 +370,8 @@ export function ProfilePage({
                 onFocus={() => setFocusedSetting("classification.model")}
               >
                 <select
-                  className="field-input ar-inset max-w-md"
+                  className="field-input max-w-md focus-visible:ring-1 focus-visible:ring-ring"
                   value={model}
-                  onFocus={() => setFocusedSetting("classification.model")}
                   onChange={(e) => {
                     const next = e.target.value
                     setModel(next)
@@ -399,8 +399,7 @@ export function ProfilePage({
                   max={1}
                   step={0.05}
                   value={opacity}
-                  className="w-full max-w-md accent-primary"
-                  onFocus={() => setFocusedSetting("classification.opacity")}
+                  className="w-full max-w-md rounded-sm accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onChange={(e) => {
                     const next = Number(e.target.value)
                     setOpacity(next)
@@ -425,9 +424,8 @@ export function ProfilePage({
                 onFocus={() => setFocusedSetting("appearance.theme")}
               >
                 <select
-                  className="field-input ar-inset max-w-xs"
+                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
                   value={theme}
-                  onFocus={() => setFocusedSetting("appearance.theme")}
                   onChange={(e) => {
                     const next = e.target.value
                     setTheme(next)
@@ -459,13 +457,12 @@ export function ProfilePage({
                   type="button"
                   onClick={goAnalysis}
                   className={btnGhost}
-                  onFocus={() => setFocusedSetting("session.analyses")}
                 >
                   <ChartColumn className="h-3 w-3" />
-                  Open analyses
+                  Open project hub
                 </button>
                 {recentRuns.length === 0 ? (
-                  <p className="mt-3 text-[11px] text-muted-foreground">
+                  <p className="mt-3 text-body text-muted-foreground">
                     No recent analyses yet.
                   </p>
                 ) : (
@@ -473,7 +470,7 @@ export function ProfilePage({
                     {recentRuns.map((r) => (
                       <li
                         key={r.id}
-                        className="ar-raised flex items-center justify-between gap-3 px-3 py-2 text-[11px]"
+                        className="flex items-center justify-between gap-3 rounded-sm border border-border bg-secondary px-3 py-2 text-body"
                       >
                         <div className="min-w-0">
                           <div className="truncate font-medium text-foreground">
@@ -499,9 +496,8 @@ export function ProfilePage({
               </SettingRow>
             </Section>
           </div>
-        </div>
-      </div>
-    </div>
+      </PageBody>
+    </PageShell>
   )
 }
 
@@ -522,9 +518,7 @@ function Section({
       data-section={id}
       className="mb-8 scroll-mt-3"
     >
-      <h2 className="mb-1 border-b pb-2 font-display text-[15px] font-semibold tracking-wide text-foreground"
-        style={{ borderColor: "var(--ar-border)" }}
-      >
+      <h2 className="mb-1 border-b border-border pb-2 font-display text-heading font-semibold tracking-wide text-foreground">
         {title}
       </h2>
       <div className="flex flex-col">{children}</div>
@@ -551,15 +545,29 @@ function SettingRow({
     <div
       data-setting={id}
       className={cn(
-        "settings-row relative border-l-2 py-3.5 pl-4 pr-2 transition-colors",
+        "relative border-l-2 py-3.5 pl-4 pr-2 transition-colors",
         focused
-          ? "border-[var(--ar-select)] bg-[var(--ar-raised)]"
-          : "border-transparent hover:bg-[color-mix(in_srgb,var(--ar-raised)_55%,transparent)]"
+          ? // The marker was the accent at 22 percent, which composites to
+            // rgb(95 54 38) and reads 1.31 to 1 against the row's own
+            // background -- the mark that says which setting is in hand was
+            // the one thing on the row nobody could see. At full strength it
+            // measures 3.93, clearing what WCAG 1.4.11 asks of a state
+            // indicator, and accent at full strength is what the system
+            // reserves for exactly this.
+            "border-primary bg-secondary"
+          : "border-transparent hover:bg-secondary/55"
       )}
+      // Focus, not just mouse. React's onFocus follows focusin, so it fires
+      // when any control inside the row takes focus -- which is what the row
+      // is trying to report. Bound to onMouseDown alone it reported only
+      // pointer users, and every control underneath had to carry a duplicate
+      // handler to cover the keyboard; a control added without one simply
+      // moved focus into a row that never lit.
+      onFocus={onFocus}
       onMouseDown={onFocus}
     >
-      <div className="text-[13px] font-medium text-foreground">{title}</div>
-      <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-muted-foreground">
+      <div className="text-emphasis font-medium text-foreground">{title}</div>
+      <p className="mt-1 max-w-2xl text-body leading-relaxed text-muted-foreground">
         {description}
       </p>
       <div className="mt-2.5">{children}</div>

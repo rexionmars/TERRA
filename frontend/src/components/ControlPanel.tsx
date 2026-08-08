@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import type { Area, GeoJSONGeometry, ModelKind } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
 
 interface ControlPanelProps {
@@ -386,7 +387,7 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
         <button
           onClick={onRun}
           disabled={busy || !hasArea || !start || !end}
-          className="flex items-center justify-center gap-2 rounded-sm bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+          className={btnPrimaryCommit}
         >
           {running ? (
             <>

@@ -1,5 +1,7 @@
 import { useEffect } from "react"
 import type { WhatsNewEntry } from "@/lib/whatsNew"
+import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
+import { btnPrimary } from "@/components/ui/buttons"
 
 interface WhatsNewModalProps {
   currentVersion: string
@@ -24,48 +26,29 @@ export function WhatsNewModal({
   }, [onContinue])
 
   return (
-    <div
-      className="app-no-drag fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4"
-      role="presentation"
-      onClick={onContinue}
+    <ModalShell
+      onDismiss={onContinue}
+      labelledBy="whats-new-title"
+      className="w-full max-w-lg"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="whats-new-title"
-        className="terra-workspace flex w-full max-w-lg flex-col overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
-        style={{
-          borderColor: "var(--ar-border)",
-          background: "var(--ar-panel)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="ar-header flex shrink-0 flex-col gap-1 px-4 py-3">
-          <p className="telemetry text-[10px] text-primary">WHAT’S NEW</p>
-          <h2
-            id="whats-new-title"
-            className="font-display text-lg font-semibold tracking-wide"
-          >
-            What’s new in {currentVersion}
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            Highlights since your last update.
-          </p>
-        </div>
+      <ModalHeader
+        eyebrow="WHAT’S NEW"
+        titleId="whats-new-title"
+        title={`What’s new in ${currentVersion}`}
+        subtitle="Highlights since your last update."
+        onClose={onContinue}
+      />
 
-        <div
-          className="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto p-4"
-          style={{ background: "var(--ar-bg)" }}
-        >
+        <div className="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto bg-background p-4">
           {entries.map((entry) => (
-            <section key={entry.version} className="ar-section p-4">
+            <section key={entry.version} className="rounded-sm border border-border bg-secondary/50 p-4">
               <div className="mb-2 flex flex-wrap items-baseline gap-2">
                 <p className="eyebrow !text-foreground">{entry.title}</p>
-                <span className="telemetry text-[10px] text-muted-foreground">
+                <span className="telemetry text-meta text-muted-foreground">
                   v{entry.version}
                 </span>
               </div>
-              <ul className="flex list-disc flex-col gap-1.5 pl-4 text-[12px] text-muted-foreground">
+              <ul className="flex list-disc flex-col gap-1.5 pl-4 text-emphasis text-muted-foreground">
                 {entry.items.map((item) => (
                   <li key={item} className="marker:text-primary/80">
                     <span className="text-foreground/90">{item}</span>
@@ -76,20 +59,16 @@ export function WhatsNewModal({
           ))}
         </div>
 
-        <div
-          className="flex shrink-0 justify-end px-4 py-3"
-          style={{ borderTop: "1px solid var(--ar-border)" }}
-        >
+        <div className="flex shrink-0 justify-end border-t border-border px-4 py-3">
           <button
             type="button"
             autoFocus
             onClick={onContinue}
-            className="flex h-8 items-center rounded-sm bg-primary px-4 text-[11px] font-semibold text-primary-foreground"
+            className={btnPrimary}
           >
             Continue
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
