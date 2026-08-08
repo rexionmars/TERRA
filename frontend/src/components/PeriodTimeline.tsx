@@ -208,7 +208,14 @@ export function PeriodTimeline({
         rule places them. What this row adds is the one thing the track cannot
         show on its own: how many scenes the window actually holds.
       */}
-      <div className="panel flex items-center gap-4 border-x-0 border-b-0 px-3 py-1.5">
+      <div
+        className="panel flex items-center gap-4 px-3 py-1.5"
+        // Inline, because .panel is unlayered in index.css and outranks the
+        // border-x-0/border-b-0 utilities this carried before: they compiled,
+        // they just never applied, and the bar kept drawing a line down the
+        // window's own right edge.
+        style={{ borderInlineWidth: 0, borderBlockEndWidth: 0 }}
+      >
         <span className="eyebrow shrink-0">Acquisition period</span>
 
         <div
