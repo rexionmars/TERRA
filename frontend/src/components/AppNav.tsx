@@ -23,7 +23,7 @@ import {
   UserRound,
   Zap,
 } from "lucide-react"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { useAuth, type AppScreen } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { AvatarCircle } from "@/components/AvatarCircle"
@@ -68,6 +68,19 @@ export function AppNav({
   const onMap = screen === "map"
   const onEnergy = screen === "energy"
 
+  /**
+   * Sections the user has opened or closed by hand.
+   *
+   * Absent, a section follows the screen in view, which is the useful default:
+   * arriving somewhere shows what is there. An entry overrides that, so a
+   * section can be read without going to it, and the one you are on can be
+   * folded away when its list is not what you are looking at.
+   */
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+  const isExpanded = (id: string, onScreen: boolean) => overrides[id] ?? onScreen
+  const toggle = (id: string, onScreen: boolean) =>
+    setOverrides((prev) => ({ ...prev, [id]: !(prev[id] ?? onScreen) }))
+
   const mapChildren: NavChild[] = MAP_TOOLS.map((t) => ({
     key: t.id,
     label: t.label,
@@ -101,25 +114,30 @@ export function AppNav({
 
       <nav aria-label="Sections" className="flex flex-1 flex-col gap-0.5 p-2">
         <NavItem
+          id="map"
           active={onMap}
           label="Map"
           onClick={goMap}
           icon={<MapIcon className="size-4" />}
           items={mapChildren}
-          expanded={onMap}
+          expanded={isExpanded("map", onMap)}
+          onToggleExpanded={() => toggle("map", onMap)}
         />
         {/* Zap rather than Sun or Wind: the screen holds both resources, and
             either weather glyph would name one of them and read as a forecast
             rather than as generation. */}
         <NavItem
+          id="energy"
           active={onEnergy}
           label="Energy"
           onClick={goEnergy}
           icon={<Zap className="size-4" />}
           items={energyChildren}
-          expanded={onEnergy}
+          expanded={isExpanded("energy", onEnergy)}
+          onToggleExpanded={() => toggle("energy", onEnergy)}
         />
         <NavItem
+          id="analysis"
           active={screen === "analysis"}
           label="Analysis"
           onClick={onAnalysisClick ?? goAnalysis}
@@ -131,6 +149,7 @@ export function AppNav({
       <div className="flex flex-col gap-0.5 border-t border-border/60 p-2">
         {!loading && (
           <NavItem
+            id="settings"
             active={screen === "auth" || screen === "profile"}
             label={user ? "Settings" : "Sign in"}
             onClick={() => (user ? goProfile() : goAuth())}
@@ -146,6 +165,7 @@ export function AppNav({
           />
         )}
         <NavItem
+          id="repo"
           active={false}
           label="Repository"
           onClick={onOpenRepo}
@@ -157,6 +177,7 @@ export function AppNav({
 }
 
 function NavItem({
+  id,
   active,
   label,
   onClick,
@@ -164,52 +185,89 @@ function NavItem({
   badge,
   items,
   expanded,
+  onToggleExpanded,
 }: {
+  id: string
   active: boolean
   label: string
   onClick: () => void
   icon: ReactNode
   badge?: boolean
   items?: NavChild[]
-  /** Children are shown only for the destination in view: a list of every
-      sub-context at once is a menu, not a location. */
   expanded?: boolean
+  onToggleExpanded?: () => void
 }) {
+  const listId = `nav-${id}-children`
   return (
     <div className="flex flex-col">
-      <button
-        type="button"
-        onClick={onClick}
-        // aria-current names the destination in view for a screen reader, which
-        // the previous rail conveyed with a background colour alone.
-        aria-current={active ? "page" : undefined}
+      {/*
+        Two controls, not one. Going somewhere and looking at what is there are
+        different intentions, and a chevron that only reported state made the
+        second impossible without doing the first. They are siblings rather than
+        nested because a button inside a button is invalid, and a screen reader
+        would have announced one control where there are two.
+      */}
+      <div
         className={cn(
-          "group relative flex h-8 items-center gap-2.5 rounded-sm px-2 text-left text-emphasis transition-colors",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "group flex h-8 items-center rounded-sm transition-colors",
           active
             ? "bg-surface-raised text-foreground"
-            : "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
+            : "text-muted-foreground hover:bg-surface-raised/70"
         )}
       >
-        <span className={cn("shrink-0", active && "text-primary")}>{icon}</span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
-        {badge && !active && (
-          <span className="size-1.5 shrink-0 rounded-[1px] bg-primary" />
-        )}
+        <button
+          type="button"
+          onClick={onClick}
+          // aria-current names the destination in view for a screen reader,
+          // which the previous rail conveyed with a background colour alone.
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            "flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-sm pl-2 text-left text-emphasis",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            !active && "group-hover:text-foreground"
+          )}
+        >
+          <span className={cn("shrink-0", active && "text-primary")}>{icon}</span>
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          {badge && !active && (
+            <span className="size-1.5 shrink-0 rounded-[1px] bg-primary" />
+          )}
+        </button>
+
         {items?.length ? (
-          <ChevronRight
+          <button
+            type="button"
+            onClick={onToggleExpanded}
+            aria-expanded={!!expanded}
+            aria-controls={expanded ? listId : undefined}
+            aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
             className={cn(
-              "size-3 shrink-0 text-muted-foreground transition-transform",
-              expanded && "rotate-90"
+              "flex h-full w-7 shrink-0 items-center justify-center rounded-sm",
+              "text-muted-foreground hover:text-foreground",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             )}
-          />
-        ) : null}
-      </button>
+          >
+            <ChevronRight
+              className={cn(
+                "size-3 transition-transform",
+                expanded && "rotate-90"
+              )}
+            />
+          </button>
+        ) : (
+          // Keeps the labels of childless destinations on the same left edge as
+          // the ones with a chevron.
+          <span className="w-2 shrink-0" />
+        )}
+      </div>
 
       {items?.length && expanded ? (
         // The rail on the left is what makes these read as belonging to the
         // item above rather than as siblings of it.
-        <ul className="ml-4 flex flex-col border-l border-border/60 pl-2 pt-0.5">
+        <ul
+          id={listId}
+          className="ml-4 flex flex-col border-l border-border/60 pl-2 pt-0.5"
+        >
           {items.map((c) => (
             <li key={c.key}>
               <button
