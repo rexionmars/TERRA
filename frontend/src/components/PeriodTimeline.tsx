@@ -177,38 +177,21 @@ export function PeriodTimeline({
       exit={{ opacity: 0, y: 16 }}
       transition={{ type: "spring", stiffness: 380, damping: 34 }}
     >
-      <div className="panel border-x-0 border-b-0 px-3 pb-2 pt-1.5">
-        {/*
-          The dates themselves are not repeated here: the handles carry them,
-          and the month rule below places them. What this line adds is the one
-          thing the track cannot show on its own -- how many scenes the window
-          actually holds.
-        */}
-        <div className="mb-1 flex items-baseline justify-between gap-3">
-          <span className="eyebrow">Acquisition period</span>
-          <span className="telemetry text-micro text-muted-foreground">
-            {scenesLoading ? (
-              "listing scenes"
-            ) : scenes.length ? (
-              <>
-                {inWindow.length} of {scenes.length} scenes in window
-              </>
-            ) : onListScenes ? (
-              <button
-                type="button"
-                onClick={onListScenes}
-                disabled={disabled}
-                className="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
-              >
-                list scenes
-              </button>
-            ) : null}
-          </span>
-        </div>
+      {/*
+        One band: the label at one end, the scene count at the other, and the
+        track between them. Stacked, the two ends cost a second row of height
+        over the map for text that fits beside what it describes.
+
+        The dates are not here either -- the handles carry them and the month
+        rule places them. What this row adds is the one thing the track cannot
+        show on its own: how many scenes the window actually holds.
+      */}
+      <div className="panel flex items-center gap-4 border-x-0 border-b-0 px-3 py-1.5">
+        <span className="eyebrow shrink-0">Acquisition period</span>
 
         <div
           ref={trackRef}
-          className="relative h-9 select-none"
+          className="relative h-9 min-w-0 flex-1 select-none"
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
@@ -274,7 +257,7 @@ export function PeriodTimeline({
                 key={`${which}-label`}
                 aria-hidden
                 className={cn(
-                  "telemetry pointer-events-none absolute -top-0.5 whitespace-nowrap text-micro",
+                  "telemetry pointer-events-none absolute top-[0.35rem] whitespace-nowrap text-micro",
                   dragging === which ? "text-foreground" : "text-muted-foreground",
                   which === "start" ? "-translate-x-full pr-1.5" : "pl-1.5"
                 )}
@@ -311,6 +294,25 @@ export function PeriodTimeline({
             )
           })}
         </div>
+
+        <span className="telemetry shrink-0 text-micro text-muted-foreground">
+          {scenesLoading ? (
+            "listing scenes"
+          ) : scenes.length ? (
+            <>
+              {inWindow.length} of {scenes.length} scenes in window
+            </>
+          ) : onListScenes ? (
+            <button
+              type="button"
+              onClick={onListScenes}
+              disabled={disabled}
+              className="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
+            >
+              list scenes
+            </button>
+          ) : null}
+        </span>
       </div>
     </motion.div>
   )
