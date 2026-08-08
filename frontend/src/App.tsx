@@ -481,6 +481,28 @@ function AppBody(props: {
   const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
+  /**
+   * Title of the run whose result is on screen, for the title bar.
+   *
+   * Every action already generates one and sends it to be persisted, but the
+   * generated value was discarded, so the running session had no name for what
+   * it had just produced. Set when a run is made and when a saved one is
+   * opened; cleared wherever the result is.
+   */
+  const [currentRunLabel, setCurrentRunLabel] = useState<string | null>(null)
+
+  /**
+   * Name a run about to be sent, and record the name.
+   *
+   * One call so the title shown and the title persisted cannot be two different
+   * strings: makeRunLabel stamps the current time, so calling it twice for one
+   * run yields two labels a second apart.
+   */
+  const nameThisRun = useCallback((aoiHint?: string | null): string => {
+    const label = makeRunLabel(aoiHint)
+    setCurrentRunLabel(label)
+    return label
+  }, [])
   const [dataCubeOpen, setDataCubeOpen] = useState(false)
   const [dataCubeLoading, setDataCubeLoading] = useState(false)
   const [dataCubeError, setDataCubeError] = useState<string | null>(null)
@@ -1142,7 +1164,7 @@ function AppBody(props: {
         monthly_best: props.monthlyBest,
         index: waterIndex,
         label: aoiLabel,
-        run_label: makeRunLabel(aoiLabel),
+        run_label: nameThisRun(aoiLabel),
         project_id: activeProjectId || undefined,
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
@@ -1191,7 +1213,7 @@ function AppBody(props: {
         (useExample ? props.activeExample : "Custom AOI")
       const req: SolarRequest = {
         label: aoiLabel,
-        run_label: makeRunLabel(aoiLabel),
+        run_label: nameThisRun(aoiLabel),
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1237,7 +1259,7 @@ function AppBody(props: {
         (useExample ? props.activeExample : "Custom AOI")
       const req: SolarTerrainRequest = {
         label: aoiLabel,
-        run_label: makeRunLabel(aoiLabel),
+        run_label: nameThisRun(aoiLabel),
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1280,7 +1302,7 @@ function AppBody(props: {
         (useExample ? props.activeExample : "Custom AOI")
       const req: SolarSitingRequest = {
         label: aoiLabel,
-        run_label: makeRunLabel(aoiLabel),
+        run_label: nameThisRun(aoiLabel),
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1346,7 +1368,7 @@ function AppBody(props: {
         (useExample ? props.activeExample : "Custom AOI")
       const req: EnergyModelRequest = {
         label: aoiLabel,
-        run_label: makeRunLabel(aoiLabel),
+        run_label: nameThisRun(aoiLabel),
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1427,7 +1449,7 @@ function AppBody(props: {
         (useExample ? props.activeExample : "Custom AOI")
       const req: WindRequest = {
         label: aoiLabel,
-        run_label: makeRunLabel(aoiLabel),
+        run_label: nameThisRun(aoiLabel),
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1528,7 +1550,7 @@ function AppBody(props: {
       prithvi_mode: props.prithviMode,
       project_id: activeProjectId || undefined,
       label: aoiLabel,
-      run_label: makeRunLabel(aoiLabel),
+      run_label: nameThisRun(aoiLabel),
     }
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult
@@ -1655,6 +1677,7 @@ function AppBody(props: {
           !!res.lulc ||
           res.n_dates > 0
         props.setResult(isClassification ? res : null)
+        setCurrentRunLabel(run.label ?? null)
         props.setShowPredictionOverlay(true)
         if (isModelKind(run.model_kind)) props.setModelKind(run.model_kind)
         const extras = parsePreferenceExtras(prefs?.extras_json)
@@ -1746,6 +1769,7 @@ function AppBody(props: {
 
   const backToAnalysesList = useCallback(() => {
     props.setResult(null)
+    setCurrentRunLabel(null)
     // The standalone products have to go too. The analysis payload is
     // non-null whenever any of them is present, so clearing only the
     // classification leaves the detail view up and the saved list unreachable.
@@ -1784,6 +1808,7 @@ function AppBody(props: {
 
   const startNewClassification = useCallback(() => {
     props.setResult(null)
+    setCurrentRunLabel(null)
     props.setShowPredictionOverlay(true)
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
@@ -1892,6 +1917,7 @@ function AppBody(props: {
       <TitleBar
         view={props.view}
         result={props.result}
+        runLabel={currentRunLabel}
         projectSwitcher={
           screen === "map" ? (
             <ProjectSwitcher

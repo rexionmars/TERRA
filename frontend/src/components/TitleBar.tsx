@@ -12,6 +12,12 @@ interface TitleBarProps {
   view: { lat: number; lon: number; zoom: number }
   result: PredictResult | null
   projectSwitcher?: ReactNode
+  /**
+   * Title of the run on screen. Absent until one is made or opened, which is
+   * not the same as an untitled run, so nothing is shown rather than a
+   * placeholder standing in for a run that does not exist.
+   */
+  runLabel?: string | null
 }
 
 function fmtCoord(v: number, pos: string, neg: string): string {
@@ -21,9 +27,15 @@ function fmtCoord(v: number, pos: string, neg: string): string {
 
 // Frameless title bar: brand + context + map telemetry. Navigation lives in
 // the left AppSidebar so the header stays free of per-page icons.
-export function TitleBar({ view, result, projectSwitcher }: TitleBarProps) {
+export function TitleBar({
+  view,
+  result,
+  projectSwitcher,
+  runLabel,
+}: TitleBarProps) {
   const { screen } = useAuth()
   const onMap = screen === "map"
+  const run = runLabel?.trim()
 
   return (
     <header className="titlebar-terra app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pl-20 pr-2 backdrop-blur-md">
@@ -49,6 +61,21 @@ export function TitleBar({ view, result, projectSwitcher }: TitleBarProps) {
                 : "settings"}
         </span>
         {projectSwitcher}
+        {run && (
+          <>
+            <span className="hairline hidden h-4 w-px self-center border-l sm:inline-block" />
+            {/* The full title, truncated by width rather than shortened here:
+                the stamp at its end is what tells two runs of one AOI apart,
+                so a middle ellipsis would remove the discriminating part. The
+                title attribute carries the whole string. */}
+            <span
+              className="telemetry hidden max-w-[16rem] truncate text-[11px] text-muted-foreground sm:inline-block"
+              title={run}
+            >
+              {run}
+            </span>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
