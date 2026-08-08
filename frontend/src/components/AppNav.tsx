@@ -13,6 +13,9 @@
  * tools belong here at all -- they were a dock whose tabs opened a panel beside
  * the map, and the dock stops being a separate idea once the destinations are
  * named.
+ *
+ * Whether a section is open is the user's, and only the user's. See the state
+ * below: the column does not fold or unfold itself when the screen changes.
  */
 import {
   ChartColumn,
@@ -69,17 +72,25 @@ export function AppNav({
   const onEnergy = screen === "energy"
 
   /**
-   * Sections the user has opened or closed by hand.
+   * Which sections are open. Set by the user and by nothing else.
    *
-   * Absent, a section follows the screen in view, which is the useful default:
-   * arriving somewhere shows what is there. An entry overrides that, so a
-   * section can be read without going to it, and the one you are on can be
-   * folded away when its list is not what you are looking at.
+   * This followed the screen in view, which meant navigating silently folded
+   * and unfolded the column under the pointer: going to Energy closed Map, and
+   * a list the user had opened to read would vanish because they went to look
+   * at what it named. Expansion is a reading choice, navigation is a going
+   * choice, and one does not imply the other.
+   *
+   * Both start open so the structure is visible without being hunted for. This
+   * column is mounted outside the screen transition, so the state survives
+   * navigation; it resets on restart, which is a session default rather than a
+   * stored preference.
    */
-  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
-  const isExpanded = (id: string, onScreen: boolean) => overrides[id] ?? onScreen
-  const toggle = (id: string, onScreen: boolean) =>
-    setOverrides((prev) => ({ ...prev, [id]: !(prev[id] ?? onScreen) }))
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    map: true,
+    energy: true,
+  })
+  const toggle = (id: string) =>
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
 
   const mapChildren: NavChild[] = MAP_TOOLS.map((t) => ({
     key: t.id,
@@ -120,8 +131,8 @@ export function AppNav({
           onClick={goMap}
           icon={<MapIcon className="size-4" />}
           items={mapChildren}
-          expanded={isExpanded("map", onMap)}
-          onToggleExpanded={() => toggle("map", onMap)}
+          expanded={expanded.map}
+          onToggleExpanded={() => toggle("map")}
         />
         {/* Zap rather than Sun or Wind: the screen holds both resources, and
             either weather glyph would name one of them and read as a forecast
@@ -133,8 +144,8 @@ export function AppNav({
           onClick={goEnergy}
           icon={<Zap className="size-4" />}
           items={energyChildren}
-          expanded={isExpanded("energy", onEnergy)}
-          onToggleExpanded={() => toggle("energy", onEnergy)}
+          expanded={expanded.energy}
+          onToggleExpanded={() => toggle("energy")}
         />
         <NavItem
           id="analysis"
