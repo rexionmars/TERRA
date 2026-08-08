@@ -2210,6 +2210,7 @@ function AppBody(props: {
                     else void handleRunEnergyModel()
                   }}
                   onRunWind={() => void handleRunWind()}
+                  onOpenAnalysis={goAnalysis}
                   hasArea={props.hasArea}
                   areas={props.areas}
                   activeExample={props.activeExample}

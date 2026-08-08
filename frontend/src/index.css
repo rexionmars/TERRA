@@ -184,10 +184,10 @@
     aliases so existing utilities keep compiling while the screens are passed
     over in the next round.
   */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
-  --radius-xl: 4px;
+  --radius-sm: 5px;
+  --radius-md: 9px;
+  --radius-lg: 9px;
+  --radius-xl: 9px;
 
   /*
     A dense type scale, declared.
@@ -534,7 +534,7 @@
 /* Map toolbars (draw / edit / zoom) — match panel chrome + soft radius */
 .leaflet-bar {
   border: 1px solid rgb(var(--p-line) / 0.28) !important;
-  border-radius: 0.55rem !important;
+  border-radius: var(--radius-md)!important;
   overflow: hidden;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.28) !important;
   background: transparent !important;
@@ -565,12 +565,12 @@
   border-bottom-right-radius: 0.55rem !important;
 }
 .leaflet-bar a:first-child:last-child {
-  border-radius: 0.55rem !important;
+  border-radius: var(--radius-md)!important;
 }
 .leaflet-draw-actions a {
   background-color: rgb(var(--p-ink) / 0.75) !important;
   color: rgb(var(--p-text)) !important;
-  border-radius: 0.35rem !important;
+  border-radius: var(--radius-sm)!important;
 }
 
 /* Draw guides must paint above the in-progress polygon SVG */
@@ -621,7 +621,7 @@
   margin: 10px 10px 0 0 !important;
   background: var(--panel) !important;
   border: 1px solid rgb(var(--p-line) / 0.28) !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm)!important;
   box-shadow: none !important;
   backdrop-filter: blur(18px) saturate(1.05);
   -webkit-backdrop-filter: blur(18px) saturate(1.05);
@@ -674,7 +674,7 @@
 .aoi-label-chip {
   display: inline-block;
   padding: 3px 9px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   /* Default chip chrome; MapView may override via inline scheme colors */
   background: rgb(245 245 243 / 0.97);
   color: rgb(55 55 55);
@@ -722,7 +722,7 @@
 }
 .panel-scroll::-webkit-scrollbar-thumb {
   background: rgb(var(--p-line) / 0.4);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
 }
 .panel-scroll::-webkit-scrollbar-track {
   background: transparent;
@@ -761,7 +761,7 @@
   gap: 0.7rem;
   width: var(--width);
   padding: 0.7rem 0.85rem;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   border: 1px solid rgb(var(--p-line) / 0.32);
   backdrop-filter: blur(18px) saturate(1.05);
@@ -817,7 +817,7 @@
   transform: none !important;
   width: 1.25rem !important;
   height: 1.25rem !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm)!important;
   border: 1px solid rgb(var(--p-line) / 0.35) !important;
   background: transparent !important;
   color: var(--muted-foreground) !important;
