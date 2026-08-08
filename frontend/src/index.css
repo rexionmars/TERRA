@@ -709,6 +709,15 @@
   );
 }
 
+/*
+  Lifted clear of whatever is pinned to the foot of the map. The period track
+  spans the full width, and tile attribution is a licensing requirement rather
+  than chrome that may be covered.
+*/
+.leaflet-bottom {
+  margin-bottom: var(--map-foot, 0px);
+}
+
 .leaflet-control-attribution {
   background: rgb(var(--p-ink) / 0.7) !important;
   color: rgb(var(--p-muted)) !important;

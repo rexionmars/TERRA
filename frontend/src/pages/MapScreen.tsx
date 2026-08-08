@@ -16,6 +16,7 @@ import type {
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
 import { SearchBar } from "@/components/SearchBar"
+import { PeriodTimeline } from "@/components/PeriodTimeline"
 import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
@@ -174,7 +175,10 @@ export function MapScreen(props: MapScreenProps) {
     null
 
   return (
-    <div className="relative h-full min-h-0 w-full">
+    <div
+      className="relative h-full min-h-0 w-full"
+      style={{ "--map-foot": "4.5rem" } as React.CSSProperties}
+    >
       <MapView
         initialView={props.initialView}
         areas={props.areas}
@@ -212,6 +216,17 @@ export function MapScreen(props: MapScreenProps) {
       />
 
       <SearchBar onSelectLocation={props.onLocationSelect} />
+
+      <PeriodTimeline
+        start={props.start}
+        end={props.end}
+        onStartChange={props.onStartChange}
+        onEndChange={props.onEndChange}
+        scenes={props.composeScenes}
+        scenesLoading={props.composeScenesLoading}
+        onListScenes={props.onListComposeScenes}
+        disabled={props.running || props.composeRunning}
+      />
 
       <OverlayToolsButton
         active={overlayToolsOpen}

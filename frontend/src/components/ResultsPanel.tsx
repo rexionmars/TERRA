@@ -39,7 +39,7 @@ export const ResultsPanel = forwardRef<HTMLDivElement, ResultsPanelProps>(
     return (
       <motion.div
         ref={ref}
-        className="panel app-no-drag absolute bottom-3 left-[23.5rem] right-16 z-[1000] mx-auto max-w-[36rem] rounded-md"
+        className="panel app-no-drag absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] left-[23.5rem] right-16 z-[1000] mx-auto max-w-[36rem] rounded-md"
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 24 }}
