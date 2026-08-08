@@ -226,6 +226,9 @@ export function MapScreen(props: MapScreenProps) {
         scenesLoading={props.composeScenesLoading}
         onListScenes={props.onListComposeScenes}
         disabled={props.running || props.composeRunning}
+        // Clears the open tool column, matching the offset the status panels
+        // already use so the two agree on where the map's free width begins.
+        leftOffsetClass={leftPanel ? "left-[23.5rem]" : "left-0"}
       />
 
       <OverlayToolsButton

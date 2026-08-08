@@ -75,6 +75,14 @@ export interface PeriodTimelineProps {
   /** Runs the scene listing, so the track can be filled without a modal. */
   onListScenes?: () => void
   disabled?: boolean
+  /**
+   * Left edge, so the track starts after whatever column is open beside it.
+   *
+   * Run full width under an open panel, the first months of the track and the
+   * start handle sit behind it: the edge a user reaches for to widen the window
+   * backwards is the one the panel covers.
+   */
+  leftOffsetClass?: string
 }
 
 export function PeriodTimeline({
@@ -86,6 +94,7 @@ export function PeriodTimeline({
   scenesLoading,
   onListScenes,
   disabled,
+  leftOffsetClass = "left-0",
 }: PeriodTimelineProps) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState<"start" | "end" | null>(null)
@@ -171,7 +180,13 @@ export function PeriodTimeline({
 
   return (
     <motion.div
-      className="app-no-drag pointer-events-auto absolute bottom-0 left-0 right-0 z-[900]"
+      className={cn(
+        "app-no-drag pointer-events-auto absolute bottom-0 right-0 z-[900]",
+        // Animated, because the panel it clears opens and closes: a track that
+        // jumped its left edge would read as a different control appearing.
+        "transition-[left] duration-200 ease-out",
+        leftOffsetClass
+      )}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 16 }}
