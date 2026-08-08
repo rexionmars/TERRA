@@ -184,7 +184,7 @@ function NavItem({
         // the previous rail conveyed with a background colour alone.
         aria-current={active ? "page" : undefined}
         className={cn(
-          "group relative flex h-8 items-center gap-2.5 rounded-sm px-2 text-left text-body transition-colors",
+          "group relative flex h-8 items-center gap-2.5 rounded-sm px-2 text-left text-emphasis transition-colors",
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           active
             ? "bg-surface-raised text-foreground"
@@ -217,7 +217,7 @@ function NavItem({
                 onClick={c.onSelect}
                 aria-current={c.active ? "true" : undefined}
                 className={cn(
-                  "flex h-7 w-full items-center rounded-sm px-2 text-left text-body transition-colors",
+                  "flex h-7 w-full items-center rounded-sm px-2 text-left text-emphasis transition-colors",
                   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   c.active
                     ? "bg-surface-raised text-foreground"
