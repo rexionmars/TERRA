@@ -83,8 +83,8 @@ import {
   ENERGY_DECLARED_LOSSES,
   ENERGY_DEFAULTS,
   ENERGY_OPTIONAL_LOSSES,
-  WIND_DEFAULTS,
-} from "@/components/SolarPanel"
+} from "@/lib/energyDefaults"
+import { WIND_DEFAULTS } from "@/lib/windDefaults"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
 import { AnalysisPage } from "@/pages/AnalysisPage"
