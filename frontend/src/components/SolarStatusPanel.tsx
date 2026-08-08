@@ -7,6 +7,7 @@ import type {
   SolarTerrainAnalysis,
 } from "@/lib/types"
 import { paletteGradient, type PaletteName } from "@/lib/palettes"
+import { cn } from "@/lib/utils"
 
 interface SolarStatusPanelProps {
   solar: SolarAnalysis | null
@@ -15,6 +16,12 @@ interface SolarStatusPanelProps {
   /** Present when a siting map is on the map; carries its own classes. */
   siting?: SolarSitingAnalysis | null
   onClear: () => void
+  /**
+   * Left edge, so the panel clears whatever tool column is beside it. Hardcoded
+   * to the classification panel's width, it was positioned by a panel it has
+   * nothing to do with.
+   */
+  leftOffsetClass?: string
 }
 
 /**
@@ -93,9 +100,22 @@ function Metric({
 export const SolarStatusPanel = forwardRef<
   HTMLDivElement,
   SolarStatusPanelProps
->(function SolarStatusPanel({ solar, terrain, siting, onClear }, ref) {
+>(function SolarStatusPanel(
+  { solar, terrain, siting, onClear, leftOffsetClass = "left-[23.5rem]" },
+  ref
+) {
   const [collapsed, setCollapsed] = useState(false)
   const hasResult = !!solar || !!terrain || !!siting
+  // Named for the product whose figures are below, not for the axis. Fixed at
+  // "Solar resource", the heading described a suitability classification and a
+  // plane-of-array raster as the point resource, which is a third product with
+  // different units. The two raster products are named the same way in Overlay
+  // Tools; this is the same distinction, made in the same words.
+  const productName = siting
+    ? "Photovoltaic siting"
+    : terrain
+      ? "Terrain irradiation"
+      : "Solar resource"
 
   const trendSignificant =
     !!solar && solar.resource.trend_p_value < 0.05
@@ -103,7 +123,10 @@ export const SolarStatusPanel = forwardRef<
   return (
     <motion.div
       ref={ref}
-      className="panel app-no-drag absolute bottom-3 left-[23.5rem] right-16 z-[1000] mx-auto max-w-[36rem] rounded-md"
+      className={cn(
+        "panel app-no-drag absolute bottom-3 right-16 z-[1000] mx-auto max-w-[36rem] rounded-md",
+        leftOffsetClass
+      )}
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 24 }}
@@ -112,7 +135,7 @@ export const SolarStatusPanel = forwardRef<
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
           <span className="eyebrow shrink-0 !text-foreground">
-            Solar resource
+            {productName}
           </span>
           <span className="telemetry truncate text-[11px] text-muted-foreground">
             {siting
@@ -271,10 +294,20 @@ export const SolarStatusPanel = forwardRef<
         </>
       )}
 
-      {!collapsed && solar && !terrain && !siting && (
+      {/* Additive, not exclusive. Gated on the absence of a raster product,
+          this block vanished the moment a terrain or siting map was made, so a
+          point resource the user had just computed left the screen with nothing
+          saying it was still held. When a raster is present the resource is
+          labelled, because the heading above then names the raster. */}
+      {!collapsed && solar && (
         <>
           <hr className="hairline" />
           <div className="flex flex-col gap-3 p-3">
+            {(terrain || siting) && (
+              <span className="eyebrow !text-[9px]">
+                Solar resource, at the AOI centroid
+              </span>
+            )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Metric
                 label="GHI"

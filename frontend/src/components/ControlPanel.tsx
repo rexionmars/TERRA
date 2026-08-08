@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import type { Area, GeoJSONGeometry, ModelKind } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { PanelSection as Section } from "@/components/ui/PanelSection"
 
 interface ControlPanelProps {
   areas: Area[]
@@ -51,26 +52,6 @@ interface ControlPanelProps {
   onCollapse?: () => void
   /** Tailwind left offset, e.g. left-3 or left-14 */
   panelOffsetClass?: string
-}
-
-function Section({
-  step,
-  title,
-  children,
-}: {
-  step: string
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="telemetry text-[10px] text-primary">{step}</span>
-        <span className="eyebrow !text-foreground">{title}</span>
-      </div>
-      {children}
-    </div>
-  )
 }
 
 export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(

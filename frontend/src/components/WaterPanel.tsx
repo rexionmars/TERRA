@@ -2,6 +2,7 @@ import { forwardRef } from "react"
 import { motion } from "motion/react"
 import { ChevronLeft, CheckCircle2, Loader2, Play, Trash2, Waves } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PanelSection as Section } from "@/components/ui/PanelSection"
 import type { WaterIndex } from "@/lib/types"
 
 const INDICES: { id: WaterIndex; label: string; detail: string }[] = [
@@ -21,26 +22,6 @@ const INDICES: { id: WaterIndex; label: string; detail: string }[] = [
     detail: "4 bands, unbounded · Feyisa (2014)",
   },
 ]
-
-function Section({
-  step,
-  title,
-  children,
-}: {
-  step: string
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="telemetry text-[10px] text-primary">{step}</span>
-        <span className="eyebrow !text-foreground">{title}</span>
-      </div>
-      {children}
-    </div>
-  )
-}
 
 export interface WaterPanelProps {
   panelOffsetClass?: string
