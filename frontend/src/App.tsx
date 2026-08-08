@@ -2211,6 +2211,9 @@ function AppBody(props: {
                   }}
                   onRunWind={() => void handleRunWind()}
                   onOpenAnalysis={goAnalysis}
+                  onLocationSelect={(lat, lon) =>
+                    props.setFlyTo({ lat, lon, key: Date.now() })
+                  }
                   hasArea={props.hasArea}
                   areas={props.areas}
                   activeExample={props.activeExample}

@@ -36,6 +36,7 @@ import {
 } from "react"
 import { ChartLine, Trash2, Wind as WindIcon } from "lucide-react"
 import { MapView } from "@/components/MapView"
+import { SearchBar } from "@/components/SearchBar"
 import {
   SolarResourceSection,
   SolarSitingSection,
@@ -145,6 +146,12 @@ export interface EnergyScreenProps {
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   onImportPolygon: () => void
   onClearArea: () => void
+  /**
+   * Flies the map to a searched place. The AOI is defined on this screen, and
+   * without a search the only ways to reach a location were importing a file or
+   * loading a reference example -- neither of which finds a place by name.
+   */
+  onLocationSelect: (lat: number, lon: number) => void
   areaLabel?: string
   /**
    * Required, not optional: the embedded map offers a rename in its AOI context
@@ -458,6 +465,8 @@ export function EnergyScreen(props: EnergyScreenProps) {
         button, before it runs, which is where that belongs.
       */}
       {mapRegion}
+
+      <SearchBar onSelectLocation={props.onLocationSelect} />
 
       <AnimatePresence mode="wait" initial={false}>
         {setupColumn}
