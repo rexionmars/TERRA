@@ -165,10 +165,15 @@ export interface MapScreenProps {
   onClearSolar: () => void
   solarTerrain?: SolarTerrainAnalysis | null
   solarTerrainRunning: boolean
-  showSolarOverlay: boolean
-  solarOpacity: number
-  onShowSolarOverlayChange: (v: boolean) => void
-  onSolarOpacityChange: (v: number) => void
+  /** One switch and one opacity per raster: the two products are independent. */
+  showTerrainOverlay: boolean
+  terrainOpacity: number
+  showSitingOverlay: boolean
+  sitingOpacity: number
+  onShowTerrainOverlayChange: (v: boolean) => void
+  onTerrainOpacityChange: (v: number) => void
+  onShowSitingOverlayChange: (v: boolean) => void
+  onSitingOpacityChange: (v: number) => void
   onRunSolarTerrain: () => void
   onClearSolarTerrain: () => void
   solarSeason: SolarSeason
@@ -298,23 +303,32 @@ export function MapScreen(props: MapScreenProps) {
         showPredictionOverlay={props.showPredictionOverlay}
         showCompositionOverlay={props.showCompositionOverlay}
         composition={props.composition}
-        solarOverlay={
-          !props.showSolarOverlay
-            ? null
-            : props.solarSiting
-              ? {
+        // Terrain first so siting draws over it, which is the useful order:
+        // the suitability classes are what a siting decision reads, and the
+        // irradiation underneath is the continuous field they were cut from.
+        // Both are present whenever both were run; neither replaces the other.
+        solarOverlays={[
+          ...(props.solarTerrain && props.showTerrainOverlay
+            ? [
+                {
+                  id: "terrain" as const,
+                  uri: props.solarTerrain.overlay_uri,
+                  extent: props.solarTerrain.extent,
+                  opacity: props.terrainOpacity,
+                },
+              ]
+            : []),
+          ...(props.solarSiting && props.showSitingOverlay
+            ? [
+                {
+                  id: "siting" as const,
                   uri: props.solarSiting.overlay_uri,
                   extent: props.solarSiting.extent,
-                  opacity: props.solarOpacity,
-                }
-              : props.solarTerrain
-                ? {
-                    uri: props.solarTerrain.overlay_uri,
-                    extent: props.solarTerrain.extent,
-                    opacity: props.solarOpacity,
-                  }
-                : null
-        }
+                  opacity: props.sitingOpacity,
+                },
+              ]
+            : []),
+        ]}
         waterOverlay={
           props.water && props.showWaterOverlay
             ? {
@@ -360,11 +374,16 @@ export function MapScreen(props: MapScreenProps) {
         showCompositionOverlay={props.showCompositionOverlay}
         onShowCompositionOverlayChange={props.onShowCompositionOverlayChange}
         water={props.water}
-        solar={props.solarSiting ?? props.solarTerrain ?? null}
-        showSolarOverlay={props.showSolarOverlay}
-        onShowSolarOverlayChange={props.onShowSolarOverlayChange}
-        solarOpacity={props.solarOpacity}
-        onSolarOpacityChange={props.onSolarOpacityChange}
+        solarTerrain={props.solarTerrain}
+        showTerrainOverlay={props.showTerrainOverlay}
+        onShowTerrainOverlayChange={props.onShowTerrainOverlayChange}
+        terrainOpacity={props.terrainOpacity}
+        onTerrainOpacityChange={props.onTerrainOpacityChange}
+        solarSiting={props.solarSiting}
+        showSitingOverlay={props.showSitingOverlay}
+        onShowSitingOverlayChange={props.onShowSitingOverlayChange}
+        sitingOpacity={props.sitingOpacity}
+        onSitingOpacityChange={props.onSitingOpacityChange}
         showWaterOverlay={props.showWaterOverlay}
         onShowWaterOverlayChange={props.onShowWaterOverlayChange}
         waterOpacity={props.waterOpacity}

@@ -590,10 +590,14 @@ function AppBody(props: {
   const [solarPR, setSolarPR] = useState("")
   const [solarTerrain, setSolarTerrain] = useState<SolarTerrainAnalysis | null>(null)
   const [solarTerrainRunning, setSolarTerrainRunning] = useState(false)
-  // Gates both solar rasters: siting takes priority over terrain on the map,
-  // so one switch and one opacity match what the user sees.
-  const [showSolarOverlay, setShowSolarOverlay] = useState(true)
-  const [solarOpacity, setSolarOpacity] = useState(0.85)
+  // One switch and one opacity per raster. Sharing them collapsed two products
+  // into one map slot where siting silently won, which is why running a siting
+  // map had to null the terrain result to keep the ambiguity from surfacing:
+  // the state could not hold both, so a run destroyed the other product.
+  const [showTerrainOverlay, setShowTerrainOverlay] = useState(true)
+  const [terrainOpacity, setTerrainOpacity] = useState(0.85)
+  const [showSitingOverlay, setShowSitingOverlay] = useState(true)
+  const [sitingOpacity, setSitingOpacity] = useState(0.85)
   const [solarSeason, setSolarSeason] = useState<SolarSeason>("annual")
   const [solarSiting, setSolarSiting] = useState<SolarSitingAnalysis | null>(null)
   const [solarSitingRunning, setSolarSitingRunning] = useState(false)
@@ -1159,7 +1163,8 @@ function AppBody(props: {
     setSolarTerrain(null)
     setSolarSiting(null)
     setEnergyModel(null)
-    setShowSolarOverlay(true)
+    setShowTerrainOverlay(true)
+    setShowSitingOverlay(true)
   }, [aoiSignature, solar, solarTerrain, solarSiting, energyModel])
 
   /**
@@ -1319,7 +1324,7 @@ function AppBody(props: {
       )) as unknown as SolarTerrainAnalysis
       solarAoiRef.current = aoiSignature
       setSolarTerrain(res)
-      setShowSolarOverlay(true)
+      setShowTerrainOverlay(true)
       notifySuccess(
         `Terrain irradiation: ${res.poa_min.toFixed(0)} to ${res.poa_max.toFixed(0)} kWh/m2/yr.`
       )
@@ -1364,9 +1369,11 @@ function AppBody(props: {
       )) as unknown as SolarSitingAnalysis
       solarAoiRef.current = aoiSignature
       setSolarSiting(res)
-      // A fresh run has to be visible, the same way a water run is.
-      setShowSolarOverlay(true)
-      setSolarTerrain(null)
+      // A fresh run has to be visible, the same way a water run is. The terrain
+      // result is no longer discarded here: that existed because both rasters
+      // shared one map slot, so keeping two meant one of them was silently
+      // unreachable. They now have a layer each.
+      setShowSitingOverlay(true)
       notifySuccess(
         `Siting: ${res.suitable_no_conflict_ha.toFixed(1)} ha without land-use conflict, ${res.suitable_cropland_ha.toFixed(1)} ha on cropland.`
       )
@@ -1770,7 +1777,8 @@ function AppBody(props: {
           res.energy_model
         ) {
           solarAoiRef.current = restoredAoi
-          setShowSolarOverlay(true)
+          setShowTerrainOverlay(true)
+          setShowSitingOverlay(true)
         }
         // Wind is invalidated against its own AOI ref, so a restored wind run
         // has to record the AOI it was screened on the same way.
@@ -2187,10 +2195,14 @@ function AppBody(props: {
                   onClearSolar={() => setSolar(null)}
                   solarTerrain={solarTerrain}
                   solarTerrainRunning={solarTerrainRunning}
-                  showSolarOverlay={showSolarOverlay}
-                  solarOpacity={solarOpacity}
-                  onShowSolarOverlayChange={setShowSolarOverlay}
-                  onSolarOpacityChange={setSolarOpacity}
+                  showTerrainOverlay={showTerrainOverlay}
+                  terrainOpacity={terrainOpacity}
+                  onShowTerrainOverlayChange={setShowTerrainOverlay}
+                  onTerrainOpacityChange={setTerrainOpacity}
+                  showSitingOverlay={showSitingOverlay}
+                  sitingOpacity={sitingOpacity}
+                  onShowSitingOverlayChange={setShowSitingOverlay}
+                  onSitingOpacityChange={setSitingOpacity}
                   onRunSolarTerrain={() => void handleRunSolarTerrain()}
                   onClearSolarTerrain={() => setSolarTerrain(null)}
                   solarSeason={solarSeason}
