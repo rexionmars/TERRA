@@ -42,7 +42,6 @@ import type {
   CompositeKind,
   CompositeIndex,
   CompositeResult,
-  LeftDockTabsMode,
   Project,
   ProjectOverlay,
   SaveProjectOverlayRequest,
@@ -60,7 +59,7 @@ import type {
   WindAnalysis,
   WindRequest,
 } from "@/lib/types"
-import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
+import { parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import { projectOverlayToComposition } from "@/lib/projectOverlays"
 import { geometryCentroid, usesExampleArea } from "@/lib/geometry"
@@ -75,9 +74,9 @@ import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
-import { AppSidebar } from "@/components/AppSidebar"
+import { AppNav } from "@/components/AppNav"
 import { MapScreen } from "@/pages/MapScreen"
-import type { LeftDockPanel } from "@/components/LeftDockRail"
+import type { MapToolId } from "@/lib/mapTools"
 import { EnergyScreen, type EnergyTab } from "@/pages/EnergyScreen"
 import { useSolarState, useWindState } from "@/lib/energyState"
 import type {
@@ -207,8 +206,6 @@ function App() {
   const [lulcRunning, setLulcRunning] = useState(false)
   const [booting, setBooting] = useState(true)
   const [splashExiting, setSplashExiting] = useState(false)
-  const [leftDockTabs, setLeftDockTabs] =
-    useState<LeftDockTabsMode>("retracted_only")
   const { setTheme } = useTheme()
 
   const applyPrefs = useCallback(
@@ -226,7 +223,6 @@ function App() {
       if (p.theme === "dark" || p.theme === "light" || p.theme === "system") {
         setTheme(p.theme)
       }
-      setLeftDockTabs(leftDockTabsModeFromPrefs(p))
     },
     [setTheme]
   )
@@ -403,7 +399,6 @@ function App() {
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
-            leftDockTabs={leftDockTabs}
             onSelectExample={handleSelectExample}
             onClearArea={clearArea}
             onImportPolygon={handleImportPolygon}
@@ -467,7 +462,6 @@ function AppBody(props: {
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
-  leftDockTabs: LeftDockTabsMode
   onSelectExample: (id: string) => void
   onClearArea: () => void
   onImportPolygon: () => void
@@ -482,11 +476,12 @@ function AppBody(props: {
    * every navigation away, so local state reset the dock to the classification
    * panel on every return.
    */
-  const [leftPanel, setLeftPanel] = useState<LeftDockPanel | null>("classify")
+  const [leftPanel, setLeftPanel] = useState<MapToolId | null>("classify")
   /**
    * Open tab of the energy screen, held here for the same reason as the dock
    * tab above: that screen unmounts on every navigation away, so a local value
-   * put a returning user back on Solar after they had been reading Wind.
+   * put a returning user back on Solar after they had been reading Wind. The
+   * navigation column also reads it, to name which resource is in view.
    */
   const [energyTab, setEnergyTab] = useState<EnergyTab>("solar")
   /**
@@ -2022,7 +2017,7 @@ function AppBody(props: {
       />
 
       <div className="flex min-h-0 flex-1">
-        <AppSidebar
+        <AppNav
           onOpenRepo={() => OpenExternal("https://github.com/rexionmars")}
           hasAnalysis={!!props.result || runs.length > 0}
           onAnalysisClick={() => {
@@ -2032,6 +2027,10 @@ function AppBody(props: {
             if (screen === "analysis" && resultWithWater) backToAnalysesList()
             else goAnalysis()
           }}
+          leftPanel={leftPanel}
+          onLeftPanelChange={setLeftPanel}
+          energyTab={energyTab}
+          onEnergyTabChange={setEnergyTab}
         />
         <div className="relative min-h-0 min-w-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
@@ -2187,7 +2186,6 @@ function AppBody(props: {
                   onShowWaterOverlayChange={setShowWaterOverlay}
                   waterOpacity={waterOpacity}
                   onWaterOpacityChange={setWaterOpacity}
-                  leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>
             )}

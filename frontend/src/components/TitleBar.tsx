@@ -47,7 +47,7 @@ function fmtCoord(v: number, pos: string, neg: string): string {
 }
 
 // Frameless title bar: brand + context + map telemetry. Navigation lives in
-// the left AppSidebar so the header stays free of per-page icons.
+// the left navigation column so the header stays free of per-page icons.
 export function TitleBar({
   view,
   result,

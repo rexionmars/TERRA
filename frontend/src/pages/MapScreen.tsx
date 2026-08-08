@@ -8,7 +8,6 @@ import type {
   DataCubeResult,
   DataCubeScene,
   GeoJSONGeometry,
-  LeftDockTabsMode,
   ModelKind,
   PredictResult,
   WaterAnalysis,
@@ -21,7 +20,7 @@ import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
-import { LeftDockRail, type LeftDockPanel } from "@/components/LeftDockRail"
+import type { MapToolId } from "@/lib/mapTools"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
@@ -35,8 +34,8 @@ export interface MapScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
-  leftPanel: LeftDockPanel | null
-  onLeftPanelChange: (id: LeftDockPanel | null) => void
+  leftPanel: MapToolId | null
+  onLeftPanelChange: (id: MapToolId | null) => void
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -136,7 +135,6 @@ export interface MapScreenProps {
   onShowWaterOverlayChange: (v: boolean) => void
   waterOpacity: number
   onWaterOpacityChange: (v: number) => void
-  leftDockTabs?: LeftDockTabsMode
 }
 
 export function MapScreen(props: MapScreenProps) {
@@ -146,14 +144,10 @@ export function MapScreen(props: MapScreenProps) {
   // raster on the map with the classification panel open beside it.
   const { leftPanel, onLeftPanelChange } = props
   const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
-  const tabsMode = props.leftDockTabs ?? "retracted_only"
-  const showDockTabs = tabsMode === "always" || leftPanel === null
-  const panelOffsetClass =
-    tabsMode === "always" && showDockTabs ? "left-14" : "left-3"
-
-  const selectDock = (id: LeftDockPanel) => {
-    onLeftPanelChange(leftPanel === id ? null : id)
-  }
+  // The panel sits against the navigation column now that the tool rail is
+  // gone: the column lists the same three tools and is always visible, so a
+  // floating strip repeating them was a second answer to one question.
+  const panelOffsetClass = "left-3"
   const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only
@@ -269,16 +263,6 @@ export function MapScreen(props: MapScreenProps) {
           (props.result.n_dates ?? 0) > 0
         }
       />
-
-      <AnimatePresence initial={false}>
-        {showDockTabs && (
-          <LeftDockRail
-            key="dock-rail"
-            active={leftPanel}
-            onSelect={selectDock}
-          />
-        )}
-      </AnimatePresence>
 
       <AnimatePresence mode="wait" initial={false}>
         {leftPanel === "classify" ? (

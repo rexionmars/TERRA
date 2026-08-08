@@ -11,9 +11,8 @@ import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import { cn } from "@/lib/utils"
-import type { InferenceRun, LeftDockTabsMode, Preferences } from "@/lib/types"
+import type { InferenceRun, Preferences } from "@/lib/types"
 import {
-  leftDockTabsModeFromPrefs,
   mergePreferenceExtras,
 } from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
@@ -30,7 +29,7 @@ const SECTIONS: {
 }[] = [
   { id: "account", label: "Account", count: 3 },
   { id: "classification", label: "Classification", count: 2 },
-  { id: "appearance", label: "Appearance", count: 2 },
+  { id: "appearance", label: "Appearance", count: 1 },
   { id: "session", label: "Session", count: 1 },
 ]
 
@@ -65,8 +64,6 @@ export function ProfilePage({
   const [model, setModel] = useState("spectral")
   const [opacity, setOpacity] = useState(0.75)
   const [theme, setTheme] = useState("dark")
-  const [leftDockTabs, setLeftDockTabs] =
-    useState<LeftDockTabsMode>("retracted_only")
   const [busy, setBusy] = useState(false)
   const [activeSection, setActiveSection] =
     useState<SettingsSectionId>("account")
@@ -82,7 +79,6 @@ export function ProfilePage({
     model: "spectral",
     opacity: 0.75,
     theme: "dark",
-    leftDockTabs: "retracted_only" as LeftDockTabsMode,
   })
 
   useEffect(() => {
@@ -100,12 +96,10 @@ export function ProfilePage({
       model: prefs.default_model || "spectral",
       opacity: prefs.overlay_opacity ?? 0.75,
       theme: prefs.theme || "dark",
-      leftDockTabs: leftDockTabsModeFromPrefs(prefs),
     }
     setModel(next.model)
     setOpacity(next.opacity)
     setTheme(next.theme)
-    setLeftDockTabs(next.leftDockTabs)
     prefsDraftRef.current = next
     prefsReady.current = true
   }, [prefs])
@@ -115,7 +109,6 @@ export function ProfilePage({
       model: string
       opacity: number
       theme: string
-      leftDockTabs: LeftDockTabsMode
     }) => {
       if (!user) return
       const payload: Preferences = {
@@ -124,7 +117,6 @@ export function ProfilePage({
         overlay_opacity: next.opacity,
         theme: next.theme,
         extras_json: mergePreferenceExtras(prefs?.extras_json, {
-          left_dock_tabs: next.leftDockTabs,
         }),
       }
       await savePrefs(payload)
@@ -144,7 +136,6 @@ export function ProfilePage({
       model: string
       opacity: number
       theme: string
-      leftDockTabs: LeftDockTabsMode
     }>) => {
       if (!prefsReady.current) return
       prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
@@ -446,30 +437,6 @@ export function ProfilePage({
                   <option value="dark">Dark</option>
                   <option value="light">Light</option>
                   <option value="system">System</option>
-                </select>
-              </SettingRow>
-
-              <SettingRow
-                id="appearance.dock"
-                title="Left dock tabs"
-                description="When the map left dock tabs should stay visible."
-                focused={focusedSetting === "appearance.dock"}
-                onFocus={() => setFocusedSetting("appearance.dock")}
-              >
-                <select
-                  className="field-input ar-inset max-w-md"
-                  value={leftDockTabs}
-                  onFocus={() => setFocusedSetting("appearance.dock")}
-                  onChange={(e) => {
-                    const next = e.target.value as LeftDockTabsMode
-                    setLeftDockTabs(next)
-                    schedulePrefsSave({ leftDockTabs: next })
-                  }}
-                >
-                  <option value="retracted_only">
-                    Only when panels are hidden
-                  </option>
-                  <option value="always">Always visible</option>
                 </select>
               </SettingRow>
             </Section>
