@@ -15,41 +15,69 @@
 
 :root,
 :root[data-theme="dark"] {
-  --p-ink: 8 7 6;
-  --p-surface: 22 18 15;
-  --p-surface-raised: 32 26 22;
-  --p-line: 74 64 54;
-  --p-line-strong: 108 92 74;
-  --p-text: 236 230 220;
+  /*
+    Mars sand. The neutrals carry the hue rather than leaving it to the accent,
+    so the chassis reads warm without the accent having to be everywhere.
+
+    Every value below is measured, not chosen by eye. The ratios in the comments
+    are WCAG 2.x against the surfaces each token actually lands on, and
+    frontend/src/lib/contrast.ts re-derives them from these channels so a future
+    edit that breaks one fails a check rather than shipping.
+  */
+  --p-ink: 23 23 23;
+  --p-surface: 38 32 28;
+  --p-surface-raised: 54 45 39;
+  /*
+    Surface separation is 1.11 and 1.20 -- low by construction, because the
+    family is dark. Adjacent surfaces are told apart by their border, not by
+    luminance, which is why --p-line-strong exists and why it clears WCAG
+    1.4.11 against BOTH surfaces: 3.68 on surface and 3.08 on the raised one.
+    An earlier value cleared it against surface alone, which is exactly the
+    case the check exists to catch.
+  */
+  --p-line: 86 73 63;
+  --p-line-strong: 138 117 100;
+  --p-text: 226 220 212;
   /*
     Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
-    which is .ar-raised (#252526). The previous value (148 136 120) measured
-    4.41:1 there. This value measures 4.77:1 on .ar-raised, 6.27:1 on .ar-bg and
-    6.76:1 on .ar-panel. Used only as a text color, never as a background.
+    which is the raised one. This measures 5.20 there, 6.22 on surface and 6.93
+    on ink. Used only as a text colour, never as a background.
   */
-  --p-muted: 154 142 126;
-  --p-accent: 216 148 74;
-  --p-accent-dim: 72 48 28;
+  --p-muted: 172 159 144;
+  /*
+    The accent is a fill, a focus ring and an active state -- NOT a text colour.
+    It measures 3.93 on the raised surface, which fails 1.4.3. Text that needs
+    to read as the accent uses --p-accent-quiet, which clears 4.5 everywhere.
+  */
+  --p-accent: 242 86 35;
+  --p-accent-quiet: 255 138 92;
+  --p-accent-dim: 74 38 22;
   --p-place: 120 138 148;
-  --p-haze: 196 148 96;
+  --p-haze: 196 128 84;
 }
 
+/*
+  The light theme derives on its own path and inherits nothing from the block
+  above, so every ratio is measured here too. The accent is darkened rather than
+  reused: #F25623 on a light surface reads as a highlight, not as a control.
+*/
 :root[data-theme="light"] {
-  --p-ink: 247 242 234;
-  --p-surface: 252 249 244;
-  --p-surface-raised: 238 232 222;
-  --p-line: 180 168 150;
-  --p-line-strong: 148 132 110;
-  --p-text: 36 28 22;
-  --p-muted: 110 96 80;
-  --p-accent: 154 84 28;
-  --p-accent-dim: 232 208 176;
+  --p-ink: 245 240 233;
+  --p-surface: 252 249 243;
+  --p-surface-raised: 234 226 214;
+  --p-line: 190 175 156;
+  --p-line-strong: 138 118 98;
+  --p-text: 38 30 24;
+  --p-muted: 104 90 76;
+  /* Same rule as dark: a fill, not a text colour. 4.42 on the raised surface. */
+  --p-accent: 186 58 18;
+  --p-accent-quiet: 158 48 14;
+  --p-accent-dim: 240 214 198;
   --p-place: 90 110 122;
-  --p-haze: 180 160 130;
+  --p-haze: 196 150 118;
 }
 
 :root {
-  --radius: 4px;
   --background: rgb(var(--p-ink));
   --foreground: rgb(var(--p-text));
 
@@ -70,8 +98,20 @@
 
   --accent: rgb(var(--p-accent));
   --accent-foreground: rgb(var(--p-ink));
+  /* The accent where it has to be read rather than filled. See --p-accent. */
+  --accent-quiet: rgb(var(--p-accent-quiet));
   --terra: rgb(var(--p-accent));
+
+  /*
+    Status colours. destructive-foreground was missing while
+    `text-destructive-foreground` was already in use, so that label resolved to
+    nothing and inherited its parent's colour on a red fill. warning and success
+    were literals inside the toast CSS, unreachable from a component.
+  */
   --destructive: #c45c3a;
+  --destructive-foreground: rgb(var(--p-text));
+  --warning: rgb(var(--p-accent-quiet));
+  --success: #6f9c5a;
 
   /* Dust lines — quiet, never bright/white */
   --border: rgb(var(--p-line) / 0.28);
@@ -86,6 +126,8 @@
 
 :root[data-theme="light"] {
   --destructive: #b33a1a;
+  --destructive-foreground: rgb(var(--p-surface));
+  --success: #3f6b2c;
   --panel: rgb(var(--p-surface) / 0.72);
   --card: rgb(var(--p-surface) / 0.65);
   --panel-solid: rgb(var(--p-surface));
@@ -113,7 +155,11 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-terra: var(--terra);
+  --color-accent-quiet: var(--accent-quiet);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-hairline: var(--hairline);
   --color-input: var(--input);
@@ -128,11 +174,44 @@
   --color-place: rgb(var(--p-place) / <alpha-value>);
   --color-haze: rgb(var(--p-haze) / <alpha-value>);
   --color-accent-dim: rgb(var(--p-accent-dim) / <alpha-value>);
+  --color-accent-quiet-raw: rgb(var(--p-accent-quiet) / <alpha-value>);
 
+  /*
+    Two container radii, not four. The app used rounded-md for glass panels,
+    rounded-sm for workspace surfaces and rounded-lg for the search bar, with
+    Leaflet chrome overridden to a fourth value -- four answers to one question.
+    sm is the control radius, md the container radius; lg and xl are kept as
+    aliases so existing utilities keep compiling while the screens are passed
+    over in the next round.
+  */
   --radius-sm: 2px;
-  --radius-md: 3px;
+  --radius-md: 4px;
   --radius-lg: 4px;
-  --radius-xl: 6px;
+  --radius-xl: 4px;
+
+  /*
+    A dense type scale, declared.
+
+    Density is the decision; a scale is what the app lacked. There were 13 sizes
+    in the TSX with 89 percent of all text inside a 4px band and no ratio
+    between steps, plus text-[12px] and text-xs shipping the same rendered size
+    two ways. Five steps, each named for the role it serves.
+
+    micro is the floor. It is the size .eyebrow is already overridden to in 21
+    places, and it is only legible because every use of it is uppercase mono
+    with wide tracking -- it is a label size, never a prose size.
+  */
+  --text-micro: 9px;
+  --text-micro--line-height: 1.35;
+  --text-meta: 10px;
+  --text-meta--line-height: 1.4;
+  --text-body: 11px;
+  --text-body--line-height: 1.5;
+  --text-emphasis: 12px;
+  --text-emphasis--line-height: 1.5;
+  --text-heading: 14px;
+  --text-heading--line-height: 1.4;
+
   --font-sans: var(--font-sans);
   --font-mono: var(--font-telemetry);
   --font-display: var(--font-display);
@@ -292,27 +371,31 @@
 }
 
 /*
-  Workspace chrome — Dark Modern plane language (scoped).
-  Accent / CTA stay TERRA ochre (--p-accent). Selection uses VS Code blue.
+  Workspace chrome — the full-screen plane language.
+
+  These six were literal VS Code Dark Modern hex, including a blue selection,
+  which meant the application ran two unrelated palettes: the map's panels were
+  warm and tokenised, and every full screen -- analysis, energy, profile, auth,
+  projects and the five modals -- was cold and hardcoded. A re-theme of --p-*
+  moved none of them.
+
+  They now derive, in both themes, from the same channels as everything else.
+  The light block below is what the dark block should always have been; it is
+  kept separate only because the two themes need different alphas on the line.
 */
 .terra-workspace {
-  --ar-bg: #1f1f1f;
-  --ar-panel: #181818;
-  --ar-raised: #252526;
-  --ar-border: #2b2b2b;
-  --ar-select: #264f78;
-  --ar-muted: #9d9d9d;
+  --ar-bg: rgb(var(--p-ink));
+  --ar-panel: rgb(var(--p-surface));
+  --ar-raised: rgb(var(--p-surface-raised));
+  --ar-border: rgb(var(--p-line) / 0.55);
+  --ar-select: rgb(var(--p-accent) / 0.22);
+  --ar-muted: rgb(var(--p-muted));
   background: var(--ar-bg);
   color: rgb(var(--p-text));
 }
 
 :root[data-theme="light"] .terra-workspace {
-  --ar-bg: rgb(var(--p-ink));
-  --ar-panel: rgb(var(--p-surface));
-  --ar-raised: rgb(var(--p-surface-raised));
   --ar-border: rgb(var(--p-line) / 0.45);
-  --ar-select: rgb(var(--p-accent) / 0.22);
-  --ar-muted: rgb(var(--p-muted));
 }
 
 .terra-workspace .ar-header {
@@ -690,14 +773,21 @@
   margin-top: 0.1rem;
   flex-shrink: 0;
 }
+/*
+  Status through the status tokens, so a toast and a component reporting the
+  same state cannot disagree. Success used the accent, which is now the colour
+  of every primary action; error was a literal red reachable from nowhere.
+*/
 .terra-toast-success [data-icon] {
-  color: rgb(var(--p-accent));
+  color: var(--success);
 }
 .terra-toast-error [data-icon] {
-  color: rgb(220 80 70);
+  color: var(--destructive);
 }
-.terra-toast-info [data-icon],
 .terra-toast-warning [data-icon] {
+  color: var(--warning);
+}
+.terra-toast-info [data-icon] {
   color: rgb(var(--p-muted));
 }
 .terra-toast [data-content] {
@@ -739,9 +829,9 @@
   color: var(--foreground) !important;
 }
 .terra-toast-error {
-  border-color: rgb(220 80 70 / 0.35);
+  border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
 }
 .terra-toast-success {
-  border-color: rgb(var(--p-accent) / 0.35);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
 }
 

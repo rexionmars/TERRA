@@ -32,7 +32,7 @@
           sessionStorage.setItem(currentKey, String(index));
         } catch (e) {}
         var css =
-          "linear-gradient(to bottom, rgba(8,7,6,0.22) 0%, rgba(8,7,6,0.28) 40%, rgba(8,7,6,0.55) 100%)," +
+          "linear-gradient(to bottom, rgba(23,23,23,0.22) 0%, rgba(23,23,23,0.28) 40%, rgba(23,23,23,0.55) 100%)," +
           'url("' + images[index] + '") center / cover no-repeat';
         document.documentElement.style.setProperty("--splash-html-bg", css);
       })();
@@ -41,7 +41,7 @@
       html, body {
         margin: 0;
         height: 100%;
-        background: rgb(8, 7, 6);
+        background: rgb(23, 23, 23);
         overflow: hidden;
       }
       /* Compact centered splash until React SplashScreen mounts */
@@ -56,7 +56,7 @@
         gap: 0.85rem;
         padding: 1.25rem;
         box-sizing: border-box;
-        background: var(--splash-html-bg, rgb(8, 7, 6));
+        background: var(--splash-html-bg, rgb(23, 23, 23));
         opacity: 1;
         transition: opacity 280ms ease;
         pointer-events: none;
@@ -76,7 +76,7 @@
         font-weight: 600;
         font-size: 1.05rem;
         letter-spacing: 0.18em;
-        color: rgb(236, 230, 220);
+        color: rgb(226, 220, 212);
         text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
       }
       #splash .splash-eyebrow {
@@ -101,7 +101,7 @@
         font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
         font-size: 0.62rem;
         letter-spacing: 0.04em;
-        color: rgba(236, 230, 220, 0.85);
+        color: rgba(226, 220, 212, 0.85);
         text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
       }
       #splash .splash-led {
@@ -109,7 +109,7 @@
         height: 6px;
         margin-top: 0.25rem;
         border-radius: 1px;
-        background: rgb(216, 148, 74);
+        background: rgb(242, 86, 35);
         animation: splash-blink 1.2s ease-in-out infinite;
       }
       @keyframes splash-blink {
