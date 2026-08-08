@@ -56,6 +56,7 @@ export function TitleBar({
 }: TitleBarProps) {
   const { screen } = useAuth()
   const onMap = screen === "map"
+  const hasMap = onMap || screen === "energy"
   const run = runLabel?.trim()
 
   return (
@@ -92,7 +93,13 @@ export function TitleBar({
       </div>
 
       <div className="flex items-center gap-3">
-        {onMap && (
+        {/*
+          Wherever there is a map. The energy screen draws one full bleed and
+          the AOI is defined on it, so the position was being withheld from
+          half the places it describes. The two screens share one view, so the
+          readout is the same value in both.
+        */}
+        {hasMap && (
           <div className="telemetry hidden items-center gap-4 text-[11px] text-muted-foreground lg:flex">
             <span>
               LAT <span className="text-foreground">{fmtCoord(view.lat, "N", "S")}</span>
@@ -103,7 +110,9 @@ export function TitleBar({
             <span>
               Z <span className="text-foreground">{view.zoom.toFixed(0)}</span>
             </span>
-            {result && (
+            {/* The pill counts the scenes behind a classification, which the
+                energy products never read, so it stays on the map screen. */}
+            {onMap && result && (
               <>
                 <span className="hairline h-4 w-px self-center border-l" />
                 <span className="status-pill text-place/80">
