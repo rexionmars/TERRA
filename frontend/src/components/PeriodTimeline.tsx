@@ -188,7 +188,7 @@ export function PeriodTimeline({
   return (
     <motion.div
       className={cn(
-        "app-no-drag pointer-events-auto absolute bottom-0 right-0 z-[900]",
+        "app-no-drag pointer-events-auto absolute bottom-0 right-0 z-[900] overflow-hidden",
         // Animated, because the panel it clears opens and closes: a track that
         // jumped its left edge would read as a different control appearing.
         "transition-[left] duration-200 ease-out",

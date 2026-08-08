@@ -254,10 +254,14 @@ function BasemapDateAttribution() {
   }, [map, basemap])
 
   useEffect(() => {
+    // Leaflet's default prefix carries a flag emoji. The attribution itself is
+    // a licensing requirement and stays; the emoji is not part of it, and no
+    // string this application renders carries one.
     const leaflet =
       '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'
-    const prefix = dateLabel ? `🇺🇦 ${leaflet} · ${dateLabel}` : `🇺🇦 ${leaflet}`
-    map.attributionControl.setPrefix(prefix)
+    map.attributionControl.setPrefix(
+      dateLabel ? `${leaflet} · imagery ${dateLabel}` : leaflet
+    )
   }, [map, dateLabel])
 
   return null
