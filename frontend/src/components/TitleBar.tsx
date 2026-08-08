@@ -6,7 +6,7 @@ import {
   Quit,
 } from "../../wailsjs/runtime/runtime"
 import type { PredictResult } from "@/lib/types"
-import { useAuth } from "@/lib/auth"
+import { useAuth, type AppScreen } from "@/lib/auth"
 
 interface TitleBarProps {
   view: { lat: number; lon: number; zoom: number }
@@ -18,6 +18,27 @@ interface TitleBarProps {
    * placeholder standing in for a run that does not exist.
    */
   runLabel?: string | null
+}
+
+/**
+ * What each screen works from, named once per screen.
+ *
+ * The eyebrow used to be the pinned literal "land cover · sentinel-2", which a
+ * user in the energy screen read for a whole session while neither the solar
+ * nor the wind products touch Sentinel-2. The energy label names NASA POWER
+ * because both tabs read their series from it (SolarAnalysis,
+ * SolarTerrainAnalysis, EnergyModelAnalysis and WindAnalysis all carry
+ * power_provenance), and it names no single resource because the tab in use is
+ * state inside that screen which the title bar does not see.
+ *
+ * Typed against AppScreen so a screen added later cannot ship without a label.
+ */
+const SCREEN_EYEBROW: Record<AppScreen, string> = {
+  map: "land cover · sentinel-2",
+  energy: "solar and wind · nasa power",
+  analysis: "analysis",
+  auth: "sign in",
+  profile: "settings",
 }
 
 function fmtCoord(v: number, pos: string, neg: string): string {
@@ -51,15 +72,7 @@ export function TitleBar({
           </span>
         </div>
         <span className="hairline h-4 w-px self-center border-l" />
-        <span className="eyebrow hidden sm:inline">
-          {onMap
-            ? "land cover · sentinel-2"
-            : screen === "auth"
-              ? "sign in"
-              : screen === "analysis"
-                ? "analysis"
-                : "settings"}
-        </span>
+        <span className="eyebrow hidden sm:inline">{SCREEN_EYEBROW[screen]}</span>
         {projectSwitcher}
         {run && (
           <>

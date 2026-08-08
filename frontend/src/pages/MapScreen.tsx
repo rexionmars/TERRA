@@ -13,12 +13,6 @@ import type {
   PredictResult,
   WaterAnalysis,
   WaterIndex,
-  SolarAnalysis,
-  SolarTerrainAnalysis,
-  SolarSeason,
-  SolarSitingAnalysis,
-  EnergyModelAnalysis,
-  WindAnalysis,
 } from "@/lib/types"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
@@ -26,8 +20,6 @@ import { SearchBar } from "@/components/SearchBar"
 import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
-import { SolarPanel } from "@/components/SolarPanel"
-import { SolarStatusPanel } from "@/components/SolarStatusPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import { LeftDockRail, type LeftDockPanel } from "@/components/LeftDockRail"
 import { ResultsPanel } from "@/components/ResultsPanel"
@@ -144,107 +136,13 @@ export interface MapScreenProps {
   onShowWaterOverlayChange: (v: boolean) => void
   waterOpacity: number
   onWaterOpacityChange: (v: number) => void
-  solar?: SolarAnalysis | null
-  solarRunning: boolean
-  /**
-   * The solar-axis progress channel, separate from the classification one. The
-   * panel used to read the classification's, so a finished classification left
-   * its last message under a solar run's button.
-   */
-  solarProgress: number
-  solarProgressMsg: string
-  solarClimYears: number
-  solarHourlyYears: number
-  solarAzimuth: number
-  solarPR: string
-  onSolarClimYearsChange: (v: number) => void
-  onSolarHourlyYearsChange: (v: number) => void
-  onSolarAzimuthChange: (v: number) => void
-  onSolarPRChange: (v: string) => void
-  onRunSolar: () => void
-  onClearSolar: () => void
-  solarTerrain?: SolarTerrainAnalysis | null
-  solarTerrainRunning: boolean
-  /** One switch and one opacity per raster: the two products are independent. */
-  showTerrainOverlay: boolean
-  terrainOpacity: number
-  showSitingOverlay: boolean
-  sitingOpacity: number
-  onShowTerrainOverlayChange: (v: boolean) => void
-  onTerrainOpacityChange: (v: number) => void
-  onShowSitingOverlayChange: (v: boolean) => void
-  onSitingOpacityChange: (v: number) => void
-  onRunSolarTerrain: () => void
-  onClearSolarTerrain: () => void
-  solarSeason: SolarSeason
-  onSolarSeasonChange: (v: SolarSeason) => void
-  solarSiting?: SolarSitingAnalysis | null
-  solarSitingRunning: boolean
-  solarSlopeAcceptable: number
-  solarSlopeRestrictive: number
-  onSolarSlopeAcceptableChange: (v: number) => void
-  onSolarSlopeRestrictiveChange: (v: number) => void
-  onRunSolarSiting: () => void
-  onClearSolarSiting: () => void
-  /**
-   * The photovoltaic energy model and the wind screening. Neither renders a
-   * raster, so neither joins the map overlay chain or the bottom status slot;
-   * both are read on the analysis screen and cleared from the panel that runs
-   * them.
-   */
-  energyModel?: EnergyModelAnalysis | null
-  energyRunning: boolean
-  energyReportingBasis: "year_one" | "lifetime_mean"
-  onEnergyReportingBasisChange: (v: "year_one" | "lifetime_mean") => void
-  energyDegradationPct: number
-  onEnergyDegradationPctChange: (v: number) => void
-  energyAnalysisPeriod: number
-  onEnergyAnalysisPeriodChange: (v: number) => void
-  energyGcrFixed: number
-  onEnergyGcrFixedChange: (v: number) => void
-  energyGcrTracker: number
-  onEnergyGcrTrackerChange: (v: number) => void
-  energyTrackerMaxAngle: number
-  onEnergyTrackerMaxAngleChange: (v: number) => void
-  energyDensityBasis: string
-  onEnergyDensityBasisChange: (v: string) => void
-  energyBuildableFraction: number
-  onEnergyBuildableFractionChange: (v: number) => void
-  energyUtcOffset: string
-  onEnergyUtcOffsetChange: (v: string) => void
-  energyApplyShading: boolean
-  onEnergyApplyShadingChange: (v: boolean) => void
-  /** AOI-mean share of beam blocked, from a terrain run; null without one. */
-  energyShadingMeanPct: number | null
-  energyDeclaredLoss: Record<string, number>
-  onEnergyDeclaredLossChange: (key: string, pct: number) => void
-  energyOptionalLoss: Record<string, number>
-  onEnergyOptionalLossChange: (key: string, pct: number) => void
-  onRunEnergyModel: () => void
-  onClearEnergyModel: () => void
-  wind?: WindAnalysis | null
-  windRunning: boolean
-  windRecordYears: number
-  onWindRecordYearsChange: (v: number) => void
-  windHubHeight: number
-  onWindHubHeightChange: (v: number) => void
-  windCalmThreshold: number
-  onWindCalmThresholdChange: (v: number) => void
-  windRecordMaxFloor: number
-  onWindRecordMaxFloorChange: (v: number) => void
-  windRoughnessLow: number
-  onWindRoughnessLowChange: (v: number) => void
-  windRoughnessHigh: number
-  onWindRoughnessHighChange: (v: number) => void
-  onRunWind: () => void
-  onClearWind: () => void
   leftDockTabs?: LeftDockTabsMode
 }
 
 export function MapScreen(props: MapScreenProps) {
   // Held by the caller, not here. This screen is unmounted whenever the user
   // goes to another one, so local state put the dock back on "classify" on
-  // every return -- including a return from a solar run, which left a solar
+  // every return -- including a return from a water run, which left a water
   // raster on the map with the classification panel open beside it.
   const { leftPanel, onLeftPanelChange } = props
   const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
@@ -258,28 +156,24 @@ export function MapScreen(props: MapScreenProps) {
   }
   const setLeftPanel = onLeftPanelChange
 
-  // The four status panels share one slot at the bottom of the map, so only
-  // the one matching the open tool is shown. With no classification to compete
-  // for the slot the standalone product takes it whatever tab is open: this
-  // screen is remounted on every return from the analysis page, which resets
-  // the tab to classify and would otherwise leave a restored raster on the map
-  // with nothing naming it and no way to clear it.
+  // The three status panels share one slot at the bottom of the map, so only
+  // the one matching the open tool is shown. Water keeps its own rule: with no
+  // classification to compete for the slot it takes it whatever tab is open,
+  // because this screen is remounted on every return from the analysis page,
+  // which resets the tab to classify and would otherwise leave a restored water
+  // raster on the map with nothing naming it and no way to clear it.
   //
-  // The energy model and the wind screening are deliberately absent from all
-  // four predicates: neither draws anything on the map, so there is nothing
-  // here for a status panel to name, and adding either would render the solar
-  // panel with every field null. Both are cleared from the section that ran
-  // them and read on the analysis screen.
-  const showSolarStatus =
-    (leftPanel === "solar" || !props.result) &&
-    (!!props.solar || !!props.solarTerrain || !!props.solarSiting)
+  // The solar chain used to sit above water here and to gate the two below it.
+  // Its rasters are now drawn on the energy screen, which names and clears them
+  // beside the run that produced them, so nothing on this map can be a solar
+  // layer and the gate had no case left to exclude.
   const showWaterStatus =
-    !showSolarStatus && (leftPanel === "water" || !props.result) && !!props.water
+    (leftPanel === "water" || !props.result) && !!props.water
   const showCompositionStatus =
-    !showSolarStatus && !showWaterStatus &&
+    !showWaterStatus &&
     (leftPanel === "compose" || (!props.result && !!props.composition))
   const showPredictionStatus =
-    !showSolarStatus && !showWaterStatus && !showCompositionStatus && !!props.result
+    !showWaterStatus && !showCompositionStatus && !!props.result
 
   const selectedSceneDate =
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
@@ -303,32 +197,6 @@ export function MapScreen(props: MapScreenProps) {
         showPredictionOverlay={props.showPredictionOverlay}
         showCompositionOverlay={props.showCompositionOverlay}
         composition={props.composition}
-        // Terrain first so siting draws over it, which is the useful order:
-        // the suitability classes are what a siting decision reads, and the
-        // irradiation underneath is the continuous field they were cut from.
-        // Both are present whenever both were run; neither replaces the other.
-        solarOverlays={[
-          ...(props.solarTerrain && props.showTerrainOverlay
-            ? [
-                {
-                  id: "terrain" as const,
-                  uri: props.solarTerrain.overlay_uri,
-                  extent: props.solarTerrain.extent,
-                  opacity: props.terrainOpacity,
-                },
-              ]
-            : []),
-          ...(props.solarSiting && props.showSitingOverlay
-            ? [
-                {
-                  id: "siting" as const,
-                  uri: props.solarSiting.overlay_uri,
-                  extent: props.solarSiting.extent,
-                  opacity: props.sitingOpacity,
-                },
-              ]
-            : []),
-        ]}
         waterOverlay={
           props.water && props.showWaterOverlay
             ? {
@@ -374,16 +242,6 @@ export function MapScreen(props: MapScreenProps) {
         showCompositionOverlay={props.showCompositionOverlay}
         onShowCompositionOverlayChange={props.onShowCompositionOverlayChange}
         water={props.water}
-        solarTerrain={props.solarTerrain}
-        showTerrainOverlay={props.showTerrainOverlay}
-        onShowTerrainOverlayChange={props.onShowTerrainOverlayChange}
-        terrainOpacity={props.terrainOpacity}
-        onTerrainOpacityChange={props.onTerrainOpacityChange}
-        solarSiting={props.solarSiting}
-        showSitingOverlay={props.showSitingOverlay}
-        onShowSitingOverlayChange={props.onShowSitingOverlayChange}
-        sitingOpacity={props.sitingOpacity}
-        onSitingOpacityChange={props.onSitingOpacityChange}
         showWaterOverlay={props.showWaterOverlay}
         onShowWaterOverlayChange={props.onShowWaterOverlayChange}
         waterOpacity={props.waterOpacity}
@@ -458,88 +316,6 @@ export function MapScreen(props: MapScreenProps) {
             dataCubeLoading={props.dataCubeLoading}
             onCollapse={() => setLeftPanel(null)}
           />
-        ) : leftPanel === "solar" ? (
-          <SolarPanel
-            key="solar"
-            panelOffsetClass={panelOffsetClass}
-            hasArea={props.hasArea}
-            climatologyYears={props.solarClimYears}
-            onClimatologyYearsChange={props.onSolarClimYearsChange}
-            hourlyYears={props.solarHourlyYears}
-            onHourlyYearsChange={props.onSolarHourlyYearsChange}
-            surfaceAzimuth={props.solarAzimuth}
-            onSurfaceAzimuthChange={props.onSolarAzimuthChange}
-            performanceRatio={props.solarPR}
-            onPerformanceRatioChange={props.onSolarPRChange}
-            running={props.solarRunning}
-            progress={props.solarProgress}
-            progressMsg={props.solarProgressMsg}
-            hasResult={!!props.solar}
-            onRun={props.onRunSolar}
-            onClear={props.onClearSolar}
-            terrainRunning={props.solarTerrainRunning}
-            hasTerrain={!!props.solarTerrain}
-            onRunTerrain={props.onRunSolarTerrain}
-            onClearTerrain={props.onClearSolarTerrain}
-            season={props.solarSeason}
-            onSeasonChange={props.onSolarSeasonChange}
-            sitingRunning={props.solarSitingRunning}
-            hasSiting={!!props.solarSiting}
-            slopeAcceptable={props.solarSlopeAcceptable}
-            slopeRestrictive={props.solarSlopeRestrictive}
-            onSlopeAcceptableChange={props.onSolarSlopeAcceptableChange}
-            onSlopeRestrictiveChange={props.onSolarSlopeRestrictiveChange}
-            onRunSiting={props.onRunSolarSiting}
-            onClearSiting={props.onClearSolarSiting}
-            energyRunning={props.energyRunning}
-            hasEnergy={!!props.energyModel}
-            energyReportingBasis={props.energyReportingBasis}
-            onEnergyReportingBasisChange={props.onEnergyReportingBasisChange}
-            energyDegradationPct={props.energyDegradationPct}
-            onEnergyDegradationPctChange={props.onEnergyDegradationPctChange}
-            energyAnalysisPeriod={props.energyAnalysisPeriod}
-            onEnergyAnalysisPeriodChange={props.onEnergyAnalysisPeriodChange}
-            energyGcrFixed={props.energyGcrFixed}
-            onEnergyGcrFixedChange={props.onEnergyGcrFixedChange}
-            energyGcrTracker={props.energyGcrTracker}
-            onEnergyGcrTrackerChange={props.onEnergyGcrTrackerChange}
-            energyTrackerMaxAngle={props.energyTrackerMaxAngle}
-            onEnergyTrackerMaxAngleChange={props.onEnergyTrackerMaxAngleChange}
-            energyDensityBasis={props.energyDensityBasis}
-            onEnergyDensityBasisChange={props.onEnergyDensityBasisChange}
-            energyBuildableFraction={props.energyBuildableFraction}
-            onEnergyBuildableFractionChange={
-              props.onEnergyBuildableFractionChange
-            }
-            energyUtcOffset={props.energyUtcOffset}
-            onEnergyUtcOffsetChange={props.onEnergyUtcOffsetChange}
-            energyApplyShading={props.energyApplyShading}
-            onEnergyApplyShadingChange={props.onEnergyApplyShadingChange}
-            energyShadingMeanPct={props.energyShadingMeanPct}
-            energyDeclaredLoss={props.energyDeclaredLoss}
-            onEnergyDeclaredLossChange={props.onEnergyDeclaredLossChange}
-            energyOptionalLoss={props.energyOptionalLoss}
-            onEnergyOptionalLossChange={props.onEnergyOptionalLossChange}
-            onRunEnergy={props.onRunEnergyModel}
-            onClearEnergy={props.onClearEnergyModel}
-            windRunning={props.windRunning}
-            hasWind={!!props.wind}
-            windRecordYears={props.windRecordYears}
-            onWindRecordYearsChange={props.onWindRecordYearsChange}
-            windHubHeight={props.windHubHeight}
-            onWindHubHeightChange={props.onWindHubHeightChange}
-            windCalmThreshold={props.windCalmThreshold}
-            onWindCalmThresholdChange={props.onWindCalmThresholdChange}
-            windRecordMaxFloor={props.windRecordMaxFloor}
-            onWindRecordMaxFloorChange={props.onWindRecordMaxFloorChange}
-            windRoughnessLow={props.windRoughnessLow}
-            onWindRoughnessLowChange={props.onWindRoughnessLowChange}
-            windRoughnessHigh={props.windRoughnessHigh}
-            onWindRoughnessHighChange={props.onWindRoughnessHighChange}
-            onRunWind={props.onRunWind}
-            onClearWind={props.onClearWind}
-            onCollapse={() => setLeftPanel(null)}
-          />
         ) : leftPanel === "water" ? (
           <WaterPanel
             key="water"
@@ -603,19 +379,7 @@ export function MapScreen(props: MapScreenProps) {
       </AnimatePresence>
 
       <AnimatePresence mode="wait" initial={false}>
-        {showSolarStatus ? (
-          <SolarStatusPanel
-            key="solar-status"
-            solar={props.solar ?? null}
-            terrain={props.solarTerrain ?? null}
-            siting={props.solarSiting ?? null}
-            onClear={() => {
-              props.onClearSolar()
-              props.onClearSolarTerrain()
-              props.onClearSolarSiting()
-            }}
-          />
-        ) : showWaterStatus ? (
+        {showWaterStatus ? (
           <WaterStatusPanel
             key="water-status"
             water={props.water ?? null}

@@ -1,4 +1,4 @@
-import { Map, UserRound, LogIn, Github, ChartColumn } from "lucide-react"
+import { Map, UserRound, LogIn, Github, ChartColumn, Zap } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { AvatarCircle } from "@/components/AvatarCircle"
@@ -15,7 +15,8 @@ export function AppSidebar({
   hasAnalysis = false,
   onAnalysisClick,
 }: AppSidebarProps) {
-  const { user, loading, screen, goMap, goAuth, goProfile, goAnalysis } = useAuth()
+  const { user, loading, screen, goMap, goAuth, goProfile, goAnalysis, goEnergy } =
+    useAuth()
 
   return (
     <aside className="app-no-drag flex w-14 shrink-0 flex-col items-center border-r border-border/60 bg-ink py-3">
@@ -25,6 +26,15 @@ export function AppSidebar({
           title="Map"
           onClick={goMap}
           icon={<Map className="h-4 w-4" />}
+        />
+        {/* Zap rather than Sun or Wind: the screen holds both resources behind
+            mutually exclusive tabs, and either weather glyph would name one of
+            them and read as a forecast rather than as generation. */}
+        <NavItem
+          active={screen === "energy"}
+          title="Energy"
+          onClick={goEnergy}
+          icon={<Zap className="h-4 w-4" />}
         />
         <NavItem
           active={screen === "analysis"}

@@ -21,8 +21,6 @@ import type {
   ModelKind,
   PredictResult,
   WaterAnalysis,
-  SolarSitingAnalysis,
-  SolarTerrainAnalysis,
 } from "@/lib/types"
 import {
   AOI_CONTOUR_SCHEMES,
@@ -51,25 +49,6 @@ export interface OverlayToolsPanelProps {
   onShowWaterOverlayChange?: (v: boolean) => void
   waterOpacity?: number
   onWaterOpacityChange?: (v: number) => void
-  /**
-   * Solar raster, siting or terrain, whichever the map is showing. Only one
-   * reaches the map at a time, so one switch and one opacity describe it.
-   */
-  /**
-   * The two solar rasters, each with its own visibility and opacity. They used
-   * to arrive as one already-resolved layer, so the panel could neither list
-   * both nor let the user see one under the other.
-   */
-  solarTerrain?: SolarTerrainAnalysis | null
-  showTerrainOverlay?: boolean
-  onShowTerrainOverlayChange?: (v: boolean) => void
-  terrainOpacity?: number
-  onTerrainOpacityChange?: (v: number) => void
-  solarSiting?: SolarSitingAnalysis | null
-  showSitingOverlay?: boolean
-  onShowSitingOverlayChange?: (v: boolean) => void
-  sitingOpacity?: number
-  onSitingOpacityChange?: (v: number) => void
   showConfidence: boolean
   onShowConfidenceChange: (v: boolean) => void
   confidenceOnTop: boolean
@@ -275,16 +254,6 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     onShowWaterOverlayChange,
     waterOpacity = 0.8,
     onWaterOpacityChange,
-    solarTerrain = null,
-    showTerrainOverlay = true,
-    onShowTerrainOverlayChange,
-    terrainOpacity = 0.85,
-    onTerrainOpacityChange,
-    solarSiting = null,
-    showSitingOverlay = true,
-    onShowSitingOverlayChange,
-    sitingOpacity = 0.85,
-    onSitingOpacityChange,
     showConfidence,
     onShowConfidenceChange,
     confidenceOnTop,
@@ -411,10 +380,11 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
       )
     }
 
-    // The standalone products. Each renders a raster onto the map and has its
-    // own visibility switch below, but none produced a card here, so the
-    // gallery reported "no overlays yet" while its own raster was on screen
-    // and its own toggle was listed under it.
+    // Surface water renders a raster onto the map and has its own visibility
+    // switch below, but produced no card here, so the gallery reported "no
+    // overlays yet" while its own raster was on screen and its own toggle was
+    // listed under it. The two solar rasters had the same defect; they are now
+    // drawn and listed on the energy screen, which owns their layer controls.
     if (water?.occurrence_uri) {
       const range =
         water.date_range?.length === 2
@@ -437,56 +407,6 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
           active={showWaterOverlay}
           onExportPng={() =>
             void exportAsset(water.occurrence_uri, "terra_water_occurrence.png")
-          }
-        />
-      )
-    }
-
-    // A card each. One card described whichever raster had won the shared map
-    // slot, so a terrain map made before a siting map was listed nowhere.
-    if (solarTerrain?.overlay_uri) {
-      list.push(
-        <OverlayAssetCard
-          key="solar-terrain"
-          title="Terrain plane-of-array irradiation"
-          params={[
-            solarTerrain.dem_source,
-            solarTerrain.season,
-            solarTerrain.unit,
-            `opacity ${Math.round(terrainOpacity * 100)}%`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          previewUri={solarTerrain.overlay_uri}
-          pixelated
-          active={showTerrainOverlay}
-          onExportPng={() =>
-            void exportAsset(
-              solarTerrain.overlay_uri,
-              "terra_solar_terrain.png"
-            )
-          }
-        />
-      )
-    }
-
-    if (solarSiting?.overlay_uri) {
-      list.push(
-        <OverlayAssetCard
-          key="solar-siting"
-          title="Photovoltaic siting"
-          params={[
-            solarSiting.dem_source,
-            `${solarSiting.suitable_no_conflict_ha.toFixed(1)} ha without conflict`,
-            `opacity ${Math.round(sitingOpacity * 100)}%`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          previewUri={solarSiting.overlay_uri}
-          pixelated
-          active={showSitingOverlay}
-          onExportPng={() =>
-            void exportAsset(solarSiting.overlay_uri, "terra_solar_siting.png")
           }
         />
       )
@@ -565,12 +485,6 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     water,
     waterOpacity,
     showWaterOverlay,
-    solarTerrain,
-    terrainOpacity,
-    showTerrainOverlay,
-    solarSiting,
-    sitingOpacity,
-    showSitingOverlay,
   ])
 
   return (
@@ -604,8 +518,14 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
               title="Generated overlays"
             >
               {cards.length === 0 ? (
+                // Names every run that puts a card here. Solar leaving does not
+                // make the old sentence true: surface water still produces a
+                // card and is neither a classification nor a composition, so a
+                // user with a water raster on the map was told to do two things
+                // that would not have produced it.
                 <p className="text-[11px] text-muted-foreground">
-                  No overlays yet — classify or apply a composition.
+                  No overlays yet — classify, map surface water, or apply a
+                  composition.
                 </p>
               ) : (
                 <div className="flex flex-col gap-2">{cards}</div>
@@ -679,28 +599,6 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
                   className="accent-primary"
                 />
                 Show surface water overlay
-              </label>
-              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={showTerrainOverlay}
-                  disabled={!solarTerrain || !onShowTerrainOverlayChange}
-                  onChange={(e) =>
-                    onShowTerrainOverlayChange?.(e.target.checked)
-                  }
-                  className="accent-primary"
-                />
-                Show terrain irradiation overlay
-              </label>
-              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={showSitingOverlay}
-                  disabled={!solarSiting || !onShowSitingOverlayChange}
-                  onChange={(e) => onShowSitingOverlayChange?.(e.target.checked)}
-                  className="accent-primary"
-                />
-                Show siting overlay
               </label>
               <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <input
@@ -786,36 +684,6 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
                   disabled={!water || !onWaterOpacityChange}
                   onChange={(e) =>
                     onWaterOpacityChange?.(Number(e.target.value))
-                  }
-                  className="w-full accent-primary"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                Terrain irradiation opacity {Math.round(terrainOpacity * 100)}%
-                <input
-                  type="range"
-                  min={0.15}
-                  max={1}
-                  step={0.05}
-                  value={terrainOpacity}
-                  disabled={!solarTerrain || !onTerrainOpacityChange}
-                  onChange={(e) =>
-                    onTerrainOpacityChange?.(Number(e.target.value))
-                  }
-                  className="w-full accent-primary"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                Siting opacity {Math.round(sitingOpacity * 100)}%
-                <input
-                  type="range"
-                  min={0.15}
-                  max={1}
-                  step={0.05}
-                  value={sitingOpacity}
-                  disabled={!solarSiting || !onSitingOpacityChange}
-                  onChange={(e) =>
-                    onSitingOpacityChange?.(Number(e.target.value))
                   }
                   className="w-full accent-primary"
                 />

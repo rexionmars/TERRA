@@ -53,7 +53,6 @@ import type {
   SolarRequest,
   SolarTerrainAnalysis,
   SolarTerrainRequest,
-  SolarSeason,
   SolarSitingAnalysis,
   SolarSitingRequest,
   EnergyModelAnalysis,
@@ -79,12 +78,14 @@ import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { AppSidebar } from "@/components/AppSidebar"
 import { MapScreen } from "@/pages/MapScreen"
 import type { LeftDockPanel } from "@/components/LeftDockRail"
-import {
-  ENERGY_DECLARED_LOSSES,
-  ENERGY_DEFAULTS,
-  ENERGY_OPTIONAL_LOSSES,
-} from "@/lib/energyDefaults"
-import { WIND_DEFAULTS } from "@/lib/windDefaults"
+import { EnergyScreen, type EnergyTab } from "@/pages/EnergyScreen"
+import { useSolarState, useWindState } from "@/lib/energyState"
+import type {
+  SolarLayers,
+  SolarParams,
+  SolarProductId,
+  WindParams,
+} from "@/lib/energyState"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
 import { AnalysisPage } from "@/pages/AnalysisPage"
@@ -201,25 +202,6 @@ function App() {
   const [running, setRunning] = useState<boolean>(false)
   const [progress, setProgress] = useState<number>(0)
   const [progressMsg, setProgressMsg] = useState<string>("")
-  /**
-   * Progress for the solar-axis products, kept apart from the classification
-   * channel above.
-   *
-   * The sidecar emits on one shared event and only one action runs at a time,
-   * so the two channels never carry a value at once; what they must not do is
-   * share a display. The solar panel was reading the classification channel, so
-   * a classification left its last message under a solar run's button.
-   *
-   * Held here beside the subscription that writes them, and passed down like
-   * the classification pair above.
-   */
-  const [solarProgress, setSolarProgress] = useState<number>(0)
-  const [solarProgressMsg, setSolarProgressMsg] = useState<string>("")
-  /** Set by a solar run so the shared event routes to the pair above. */
-  const solarRunningRef = useRef(false)
-  const markSolarRunning = useCallback((active: boolean) => {
-    solarRunningRef.current = active
-  }, [])
   const [result, setResult] = useState<PredictResult | null>(null)
   const [analysisLabel, setAnalysisLabel] = useState<string | undefined>()
   const [lulcRunning, setLulcRunning] = useState(false)
@@ -253,19 +235,6 @@ function App() {
     ListEmbeddedAreas()
       .then((a) => setAreas((a ?? []) as unknown as Area[]))
       .catch((e) => notifyError("Failed to load examples", e))
-  }, [])
-
-  useEffect(() => {
-    // One event, two destinations. The sidecar has a single progress channel
-    // and runs one action at a time, so the running product decides which
-    // display receives it rather than both showing the same value.
-    EventsOn("predict:progress", (ev: ProgressEvent) => {
-      const setPct = solarRunningRef.current ? setSolarProgress : setProgress
-      const setMsg = solarRunningRef.current ? setSolarProgressMsg : setProgressMsg
-      if (ev.progress >= 0) setPct(ev.progress)
-      if (ev.msg) setMsg(ev.msg)
-    })
-    return () => EventsOff("predict:progress")
   }, [])
 
   useEffect(() => {
@@ -405,11 +374,6 @@ function App() {
             running={running}
             progress={progress}
             progressMsg={progressMsg}
-            solarProgress={solarProgress}
-            solarProgressMsg={solarProgressMsg}
-            setSolarProgress={setSolarProgress}
-            setSolarProgressMsg={setSolarProgressMsg}
-            markSolarRunning={markSolarRunning}
             result={result}
             analysisLabel={analysisLabel}
             hasArea={hasArea}
@@ -474,13 +438,6 @@ function AppBody(props: {
   running: boolean
   progress: number
   progressMsg: string
-  /** The solar-axis progress channel, separate from the pair above. */
-  solarProgress: number
-  solarProgressMsg: string
-  setSolarProgress: (v: number) => void
-  setSolarProgressMsg: (v: string) => void
-  /** Routes the shared sidecar progress event to the solar channel. */
-  markSolarRunning: (active: boolean) => void
   result: PredictResult | null
   analysisLabel?: string
   hasArea: boolean
@@ -526,6 +483,12 @@ function AppBody(props: {
    * panel on every return.
    */
   const [leftPanel, setLeftPanel] = useState<LeftDockPanel | null>("classify")
+  /**
+   * Open tab of the energy screen, held here for the same reason as the dock
+   * tab above: that screen unmounts on every navigation away, so a local value
+   * put a returning user back on Solar after they had been reading Wind.
+   */
+  const [energyTab, setEnergyTab] = useState<EnergyTab>("solar")
   /**
    * Title of the run whose result is on screen, for the title bar.
    *
@@ -582,87 +545,31 @@ function AppBody(props: {
   const [waterRunning, setWaterRunning] = useState(false)
   const [showWaterOverlay, setShowWaterOverlay] = useState(true)
   const [waterOpacity, setWaterOpacity] = useState(0.8)
-  const [solar, setSolar] = useState<SolarAnalysis | null>(null)
-  const [solarRunning, setSolarRunning] = useState(false)
-  const [solarClimYears, setSolarClimYears] = useState(30)
-  const [solarHourlyYears, setSolarHourlyYears] = useState(10)
-  const [solarAzimuth, setSolarAzimuth] = useState(0)
-  const [solarPR, setSolarPR] = useState("")
-  const [solarTerrain, setSolarTerrain] = useState<SolarTerrainAnalysis | null>(null)
-  const [solarTerrainRunning, setSolarTerrainRunning] = useState(false)
-  // One switch and one opacity per raster. Sharing them collapsed two products
-  // into one map slot where siting silently won, which is why running a siting
-  // map had to null the terrain result to keep the ambiguity from surfacing:
-  // the state could not hold both, so a run destroyed the other product.
-  const [showTerrainOverlay, setShowTerrainOverlay] = useState(true)
-  const [terrainOpacity, setTerrainOpacity] = useState(0.85)
-  const [showSitingOverlay, setShowSitingOverlay] = useState(true)
-  const [sitingOpacity, setSitingOpacity] = useState(0.85)
-  const [solarSeason, setSolarSeason] = useState<SolarSeason>("annual")
-  const [solarSiting, setSolarSiting] = useState<SolarSitingAnalysis | null>(null)
-  const [solarSitingRunning, setSolarSitingRunning] = useState(false)
-  const [solarSlopeAcceptable, setSolarSlopeAcceptable] = useState(10)
-  const [solarSlopeRestrictive, setSolarSlopeRestrictive] = useState(15)
-  // Every default below mirrors a sidecar module constant. The two are
-  // duplicated with no link between them, so the panel states each default and
-  // its source, and the response echoes back the value actually used.
-  const [energyModel, setEnergyModel] =
-    useState<EnergyModelAnalysis | null>(null)
-  const [energyRunning, setEnergyRunning] = useState(false)
-  const [energyReportingBasis, setEnergyReportingBasis] = useState<
-    "year_one" | "lifetime_mean"
-  >(ENERGY_DEFAULTS.reportingBasis)
-  const [energyDegradationPct, setEnergyDegradationPct] = useState(
-    ENERGY_DEFAULTS.degradationRatePctPerYear
+  /**
+   * The energy axis: parameters, results, layer state and run status for the
+   * four photovoltaic products and for the wind screening.
+   *
+   * Two stores rather than one, and neither one a set of useState values here.
+   * The defaults, the shape of the shared parameters and the rule that a result
+   * is recorded together with the AOI it was computed over all live in
+   * lib/energyState.ts, so this file no longer restates them.
+   */
+  const [solar, solarDispatch] = useSolarState()
+  const [wind, windDispatch] = useWindState()
+
+  const setSolarParams = useCallback(
+    (patch: Partial<SolarParams>) => solarDispatch({ type: "params/set", patch }),
+    [solarDispatch]
   )
-  const [energyAnalysisPeriod, setEnergyAnalysisPeriod] = useState(
-    ENERGY_DEFAULTS.analysisPeriodYears
+  const setSolarLayers = useCallback(
+    (patch: Partial<SolarLayers>) => solarDispatch({ type: "layers/set", patch }),
+    [solarDispatch]
   )
-  const [energyGcrFixed, setEnergyGcrFixed] = useState(ENERGY_DEFAULTS.gcrFixed)
-  const [energyGcrTracker, setEnergyGcrTracker] = useState(
-    ENERGY_DEFAULTS.gcrTracker
+  const setWindParams = useCallback(
+    (patch: Partial<WindParams>) => windDispatch({ type: "params/set", patch }),
+    [windDispatch]
   )
-  const [energyTrackerMaxAngle, setEnergyTrackerMaxAngle] = useState(
-    ENERGY_DEFAULTS.trackerMaxAngleDeg
-  )
-  const [energyDensityBasis, setEnergyDensityBasis] = useState(
-    ENERGY_DEFAULTS.capacityDensityBasis
-  )
-  const [energyBuildableFraction, setEnergyBuildableFraction] = useState(
-    ENERGY_DEFAULTS.buildableFraction
-  )
-  /** Blank labels the diurnal profile in UTC, which is what POWER publishes. */
-  const [energyUtcOffset, setEnergyUtcOffset] = useState("")
-  /** Off by default: see the comment where the request is built. */
-  const [applyShading, setApplyShading] = useState(false)
-  const [energyDeclaredLoss, setEnergyDeclaredLoss] = useState<
-    Record<string, number>
-  >(() =>
-    Object.fromEntries(ENERGY_DECLARED_LOSSES.map((t) => [t.key, t.defaultPct]))
-  )
-  const [energyOptionalLoss, setEnergyOptionalLoss] = useState<
-    Record<string, number>
-  >(() =>
-    Object.fromEntries(ENERGY_OPTIONAL_LOSSES.map((t) => [t.key, t.defaultPct]))
-  )
-  const [wind, setWind] = useState<WindAnalysis | null>(null)
-  const [windRunning, setWindRunning] = useState(false)
-  const [windRecordYears, setWindRecordYears] = useState(
-    WIND_DEFAULTS.recordYears
-  )
-  const [windHubHeight, setWindHubHeight] = useState(WIND_DEFAULTS.hubHeightM)
-  const [windCalmThreshold, setWindCalmThreshold] = useState(
-    WIND_DEFAULTS.calmThresholdMS
-  )
-  const [windRecordMaxFloor, setWindRecordMaxFloor] = useState(
-    WIND_DEFAULTS.recordMaxFloorMS
-  )
-  const [windRoughnessLow, setWindRoughnessLow] = useState(
-    WIND_DEFAULTS.roughnessLowM
-  )
-  const [windRoughnessHigh, setWindRoughnessHigh] = useState(
-    WIND_DEFAULTS.roughnessHighM
-  )
+
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -1148,40 +1055,108 @@ function AppBody(props: {
     setShowWaterOverlay(true)
   }, [aoiSignature, water])
 
-  /** The AOI the current solar products were computed over. */
-  const solarAoiRef = useRef<string>("")
-
   /**
    * The same for the four solar products. All four are read off one AOI -- the
    * resource and the energy model from its centroid, the terrain and siting
-   * rasters from its extent -- so they are invalidated together.
+   * rasters from its extent -- so they are invalidated together. The store
+   * compares against the signature recorded with the result and no-ops when it
+   * has not moved, so this fires on every AOI change without a guard here.
+   *
+   * The store's own signature is a dependency, not only the map's. A run that
+   * finishes after the AOI has moved records the signature it was computed on,
+   * and without that dependency this effect would not re-run to notice the
+   * mismatch, leaving one field's raster on another field's map.
    */
   useEffect(() => {
-    if (!solar && !solarTerrain && !solarSiting && !energyModel) return
-    if (aoiSignature === solarAoiRef.current) return
-    setSolar(null)
-    setSolarTerrain(null)
-    setSolarSiting(null)
-    setEnergyModel(null)
-    setShowTerrainOverlay(true)
-    setShowSitingOverlay(true)
-  }, [aoiSignature, solar, solarTerrain, solarSiting, energyModel])
+    solarDispatch({ type: "aoi/changed", aoiSignature })
+  }, [aoiSignature, solar.aoiSignature, solarDispatch])
 
   /**
-   * The AOI the current wind screening was computed over.
+   * The wind screening, invalidated separately.
    *
-   * A separate ref from the solar one because wind resolves on a different
-   * reanalysis grid (0.5 by 0.625 degrees against the solar 1 degree), so the
-   * two products can describe the same AOI through different cells and neither
-   * one's validity implies the other's.
+   * Not folded into the effect above: wind resolves on the MERRA-2 grid of 0.5
+   * by 0.625 degrees against the 1 degree radiation grid, so an AOI can leave
+   * the radiation cell while staying inside the reanalysis cell, and neither
+   * result's validity implies the other's. Two effects keep the two signatures
+   * independent even though both read the same AOI.
    */
-  const windAoiRef = useRef<string>("")
+  useEffect(() => {
+    windDispatch({ type: "aoi/changed", aoiSignature })
+  }, [aoiSignature, wind.aoiSignature, windDispatch])
+
+  /**
+   * One sidecar progress channel, three destinations.
+   *
+   * The sidecar emits on a single event and runs one action at a time, so the
+   * store with a run in flight decides which display receives it. Sharing one
+   * display let a finished classification leave its last message under a solar
+   * run's button.
+   *
+   * Read through refs so the subscription is registered once: re-registering on
+   * every run state change would drop events emitted between the unsubscribe
+   * and the resubscribe.
+   *
+   * The carried percentage is mirrored in solarSeenRef / windSeenRef rather
+   * than read back from the store. The sidecar emits every raw log line as
+   * progress -1, meaning "message only, percentage unchanged", and several of
+   * those can arrive in one React batch; carrying the store's value would then
+   * read a percentage from before the batch and roll the bar backwards. The
+   * mirrors are reset by startSolarRun / startWindRun below, so a second run of
+   * the same product cannot open on the previous run's percentage.
+   */
+  const solarRunRef = useRef(solar.run)
+  solarRunRef.current = solar.run
+  const windRunRef = useRef(wind.run)
+  windRunRef.current = wind.run
+  const solarSeenRef = useRef({ progress: 0, message: "" })
+  const windSeenRef = useRef({ progress: 0, message: "" })
+  const setProgressRef = useRef(props.setProgress)
+  setProgressRef.current = props.setProgress
+  const setProgressMsgRef = useRef(props.setProgressMsg)
+  setProgressMsgRef.current = props.setProgressMsg
+
+  const startSolarRun = useCallback(
+    (product: SolarProductId) => {
+      solarSeenRef.current = { progress: 0, message: "starting" }
+      solarDispatch({ type: "run/start", product })
+    },
+    [solarDispatch]
+  )
+  const startWindRun = useCallback(() => {
+    windSeenRef.current = { progress: 0, message: "starting" }
+    windDispatch({ type: "run/start" })
+  }, [windDispatch])
 
   useEffect(() => {
-    if (!wind) return
-    if (aoiSignature === windAoiRef.current) return
-    setWind(null)
-  }, [aoiSignature, wind])
+    EventsOn("predict:progress", (ev: ProgressEvent) => {
+      if (solarRunRef.current.active) {
+        const seen = solarSeenRef.current
+        if (ev.progress >= 0) seen.progress = ev.progress
+        if (ev.msg) seen.message = ev.msg
+        solarDispatch({
+          type: "run/progress",
+          progress: seen.progress,
+          message: seen.message,
+        })
+        return
+      }
+      if (windRunRef.current.active) {
+        const seen = windSeenRef.current
+        if (ev.progress >= 0) seen.progress = ev.progress
+        if (ev.msg) seen.message = ev.msg
+        windDispatch({
+          type: "run/progress",
+          progress: seen.progress,
+          message: seen.message,
+        })
+        return
+      }
+      // No energy run in flight, so this belongs to the classification channel.
+      if (ev.progress >= 0) setProgressRef.current(ev.progress)
+      if (ev.msg) setProgressMsgRef.current(ev.msg)
+    })
+    return () => EventsOff("predict:progress")
+  }, [solarDispatch, windDispatch])
 
   const handleRunWater = async () => {
     if (!props.start || !props.end) {
@@ -1243,7 +1218,10 @@ function AppBody(props: {
       notifyError("Define an area: draw, search, or load an example.")
       return
     }
-    const parsedPR = solarPR.trim() ? Number(solarPR.trim()) : null
+    const p = solar.params
+    const parsedPR = p.performanceRatio.trim()
+      ? Number(p.performanceRatio.trim())
+      : null
     if (
       parsedPR !== null &&
       (!Number.isFinite(parsedPR) || parsedPR <= 0 || parsedPR > 1)
@@ -1251,10 +1229,7 @@ function AppBody(props: {
       notifyError("Performance ratio must be between 0 and 1.")
       return
     }
-    setSolarRunning(true)
-    props.markSolarRunning(true)
-    props.setSolarProgress(0)
-    props.setSolarProgressMsg("starting")
+    startSolarRun("resource")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1268,14 +1243,21 @@ function AppBody(props: {
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
-        climatology_years: solarClimYears,
-        hourly_years: solarHourlyYears,
-        surface_azimuth: solarAzimuth,
+        climatology_years: p.climatologyYears,
+        hourly_years: p.hourlyYears,
+        surface_azimuth: p.surfaceAzimuth,
         performance_ratio: parsedPR,
       }
       const res = (await AnalyzeSolar(req as never)) as unknown as SolarAnalysis
-      solarAoiRef.current = aoiSignature
-      setSolar(res)
+      // Result and AOI signature in one action. Assigned separately, the
+      // invalidation effect above can observe the fresh result against the old
+      // signature and drop what was just produced.
+      solarDispatch({
+        type: "result/set",
+        product: "resource",
+        result: res,
+        aoiSignature,
+      })
       notifySuccess(
         `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`,
         undefined,
@@ -1286,10 +1268,7 @@ function AppBody(props: {
     } catch (e) {
       notifyError("Solar analysis error", e)
     } finally {
-      setSolarRunning(false)
-      props.markSolarRunning(false)
-      props.setSolarProgress(0)
-      props.setSolarProgressMsg("")
+      solarDispatch({ type: "run/finish" })
     }
   }
 
@@ -1299,10 +1278,7 @@ function AppBody(props: {
       notifyError("Define an area: draw, search, or load an example.")
       return
     }
-    setSolarTerrainRunning(true)
-    props.markSolarRunning(true)
-    props.setSolarProgress(0)
-    props.setSolarProgressMsg("starting")
+    startSolarRun("terrain")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1316,25 +1292,27 @@ function AppBody(props: {
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
-        hourly_years: solarHourlyYears,
-        season: solarSeason,
+        hourly_years: solar.params.hourlyYears,
+        season: solar.params.season,
       }
       const res = (await AnalyzeSolarTerrain(
         req as never
       )) as unknown as SolarTerrainAnalysis
-      solarAoiRef.current = aoiSignature
-      setSolarTerrain(res)
-      setShowTerrainOverlay(true)
+      solarDispatch({
+        type: "result/set",
+        product: "terrain",
+        result: res,
+        aoiSignature,
+      })
+      // A fresh raster has to be visible even if its layer had been switched off.
+      solarDispatch({ type: "layers/set", patch: { showTerrain: true } })
       notifySuccess(
         `Terrain irradiation: ${res.poa_min.toFixed(0)} to ${res.poa_max.toFixed(0)} kWh/m2/yr.`
       )
     } catch (e) {
       notifyError("Solar terrain error", e)
     } finally {
-      setSolarTerrainRunning(false)
-      props.markSolarRunning(false)
-      props.setSolarProgress(0)
-      props.setSolarProgressMsg("")
+      solarDispatch({ type: "run/finish" })
     }
   }
 
@@ -1344,10 +1322,7 @@ function AppBody(props: {
       notifyError("Define an area: draw, search, or load an example.")
       return
     }
-    setSolarSitingRunning(true)
-    props.markSolarRunning(true)
-    props.setSolarProgress(0)
-    props.setSolarProgressMsg("starting")
+    startSolarRun("siting")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1361,29 +1336,30 @@ function AppBody(props: {
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
-        slope_acceptable_deg: solarSlopeAcceptable,
-        slope_restrictive_deg: solarSlopeRestrictive,
+        slope_acceptable_deg: solar.params.slopeAcceptableDeg,
+        slope_restrictive_deg: solar.params.slopeRestrictiveDeg,
       }
       const res = (await AnalyzeSolarSiting(
         req as never
       )) as unknown as SolarSitingAnalysis
-      solarAoiRef.current = aoiSignature
-      setSolarSiting(res)
+      solarDispatch({
+        type: "result/set",
+        product: "siting",
+        result: res,
+        aoiSignature,
+      })
       // A fresh run has to be visible, the same way a water run is. The terrain
       // result is no longer discarded here: that existed because both rasters
       // shared one map slot, so keeping two meant one of them was silently
       // unreachable. They now have a layer each.
-      setShowSitingOverlay(true)
+      solarDispatch({ type: "layers/set", patch: { showSiting: true } })
       notifySuccess(
         `Siting: ${res.suitable_no_conflict_ha.toFixed(1)} ha without land-use conflict, ${res.suitable_cropland_ha.toFixed(1)} ha on cropland.`
       )
     } catch (e) {
       notifyError("Solar siting error", e)
     } finally {
-      setSolarSitingRunning(false)
-      props.markSolarRunning(false)
-      props.setSolarProgress(0)
-      props.setSolarProgressMsg("")
+      solarDispatch({ type: "run/finish" })
     }
   }
 
@@ -1394,9 +1370,12 @@ function AppBody(props: {
       return
     }
     // Same field and same range check as the resource run: one performance
-    // ratio is resolved for the whole solar panel, so the two products cannot
+    // ratio is resolved for the whole energy axis, so the two products cannot
     // report a yield on two different ratios for one AOI.
-    const parsedPR = solarPR.trim() ? Number(solarPR.trim()) : null
+    const p = solar.params
+    const parsedPR = p.performanceRatio.trim()
+      ? Number(p.performanceRatio.trim())
+      : null
     if (
       parsedPR !== null &&
       (!Number.isFinite(parsedPR) || parsedPR <= 0 || parsedPR > 1)
@@ -1404,9 +1383,7 @@ function AppBody(props: {
       notifyError("Performance ratio must be between 0 and 1.")
       return
     }
-    const parsedOffset = energyUtcOffset.trim()
-      ? Number(energyUtcOffset.trim())
-      : null
+    const parsedOffset = p.utcOffset.trim() ? Number(p.utcOffset.trim()) : null
     if (
       parsedOffset !== null &&
       (!Number.isFinite(parsedOffset) || parsedOffset < -12 || parsedOffset > 14)
@@ -1414,10 +1391,7 @@ function AppBody(props: {
       notifyError("UTC offset must be between -12 and 14 hours.")
       return
     }
-    setEnergyRunning(true)
-    props.markSolarRunning(true)
-    props.setSolarProgress(0)
-    props.setSolarProgressMsg("starting")
+    startSolarRun("energy")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1431,43 +1405,57 @@ function AppBody(props: {
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
-        climatology_years: solarClimYears,
-        hourly_years: solarHourlyYears,
-        surface_azimuth: solarAzimuth,
+        climatology_years: p.climatologyYears,
+        hourly_years: p.hourlyYears,
+        surface_azimuth: p.surfaceAzimuth,
         performance_ratio: parsedPR,
-        reporting_basis: energyReportingBasis,
-        degradation_rate_per_year: energyDegradationPct / 100,
-        analysis_period_years: energyAnalysisPeriod,
-        gcr_fixed: energyGcrFixed,
-        gcr_tracker: energyGcrTracker,
-        tracker_max_angle_deg: energyTrackerMaxAngle,
-        capacity_density_basis: energyDensityBasis,
-        buildable_fraction: energyBuildableFraction,
+        reporting_basis: p.reportingBasis,
+        // Every numeric below is sent as read. No `x || default` anywhere on
+        // this path, because that reads a deliberate zero as an omission: a
+        // degradation rate of exactly 0 states that no degradation is
+        // modelled, and under an `or` default it became the 0.5 %/yr reference
+        // and multiplied every lifetime-mean figure by 0.9422 instead of 1.0.
+        // Go forwards these through pointers, so a zero reaches the sidecar,
+        // which either admits it (degradation, tracker angle, buildable share,
+        // shading) or fails the run naming the parameter. Neither end
+        // substitutes a default for a value the caller did set.
+        degradation_rate_per_year: p.degradationPct / 100,
+        analysis_period_years: p.analysisPeriodYears,
+        gcr_fixed: p.gcrFixed,
+        gcr_tracker: p.gcrTracker,
+        tracker_max_angle_deg: p.trackerMaxAngleDeg,
+        capacity_density_basis: p.densityBasis,
+        buildable_fraction: p.buildableFraction,
         utc_offset_hours: parsedOffset,
-        declared_loss_pct: energyDeclaredLoss,
-        optional_loss_pct: energyOptionalLoss,
-        slope_acceptable_deg: solarSlopeAcceptable,
-        slope_restrictive_deg: solarSlopeRestrictive,
+        declared_loss_pct: p.declaredLoss,
+        optional_loss_pct: p.optionalLoss,
+        slope_acceptable_deg: p.slopeAcceptableDeg,
+        slope_restrictive_deg: p.slopeRestrictiveDeg,
         // A siting run already classified this AOI. Reusing its GeoTIFF makes
         // the capacity figure and the raster that published the area behind it
         // come from one classification rather than two.
-        siting_raster_tif: solarSiting?.raster_tif || undefined,
+        siting_raster_tif: solar.results.siting?.raster_tif || undefined,
         // Off unless the user asks for it. The terrain product measures
         // shading over the whole AOI, while the field it feeds is documented
         // as shading over the suitable pixels; carrying it across silently
         // would file an AOI mean under a different quantity's name. Left off,
         // the response states that the figures are unshaded.
         shading_derate:
-          applyShading && solarTerrain?.shading_mean_pct != null
-            ? 1 - solarTerrain.shading_mean_pct / 100
+          p.applyShading && solar.results.terrain?.shading_mean_pct != null
+            ? 1 - solar.results.terrain.shading_mean_pct / 100
             : undefined,
-        shading_applied: applyShading && solarTerrain?.shading_mean_pct != null,
+        shading_applied:
+          p.applyShading && solar.results.terrain?.shading_mean_pct != null,
       }
       const res = (await AnalyzeEnergyModel(
         req as never
       )) as unknown as EnergyModelAnalysis
-      solarAoiRef.current = aoiSignature
-      setEnergyModel(res)
+      solarDispatch({
+        type: "result/set",
+        product: "energy",
+        result: res,
+        aoiSignature,
+      })
       notifySuccess(
         `Energy model: ${res.plant.suitable.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp/yr at performance ratio ${res.performance_ratio.applied.toFixed(3)} (${res.performance_ratio.applied_source}), ${res.reporting_basis} basis.`,
         undefined,
@@ -1478,10 +1466,7 @@ function AppBody(props: {
     } catch (e) {
       notifyError("Energy model error", e)
     } finally {
-      setEnergyRunning(false)
-      props.markSolarRunning(false)
-      props.setSolarProgress(0)
-      props.setSolarProgressMsg("")
+      solarDispatch({ type: "run/finish" })
     }
   }
 
@@ -1491,16 +1476,14 @@ function AppBody(props: {
       notifyError("Define an area: draw, search, or load an example.")
       return
     }
-    if (!(windRoughnessLow > 0) || !(windRoughnessHigh > windRoughnessLow)) {
+    const w = wind.params
+    if (!(w.roughnessLowM > 0) || !(w.roughnessHighM > w.roughnessLowM)) {
       notifyError(
         "Roughness band must be two increasing lengths in metres, both above zero."
       )
       return
     }
-    setWindRunning(true)
-    props.markSolarRunning(true)
-    props.setSolarProgress(0)
-    props.setSolarProgressMsg("starting")
+    startWindRun()
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1514,15 +1497,14 @@ function AppBody(props: {
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
-        record_years: windRecordYears,
-        hub_height_m: windHubHeight,
-        calm_threshold_ms: windCalmThreshold,
-        record_max_floor_ms: windRecordMaxFloor,
-        roughness_band_m: [windRoughnessLow, windRoughnessHigh],
+        record_years: w.recordYears,
+        hub_height_m: w.hubHeightM,
+        calm_threshold_ms: w.calmThresholdMS,
+        record_max_floor_ms: w.recordMaxFloorMS,
+        roughness_band_m: [w.roughnessLowM, w.roughnessHighM],
       }
       const res = (await AnalyzeWind(req as never)) as unknown as WindAnalysis
-      windAoiRef.current = aoiSignature
-      setWind(res)
+      windDispatch({ type: "result/set", result: res, aoiSignature })
       // Never stated beside the photovoltaic capacity factor and never without
       // the qualifier: this figure is gross of every plant loss, rests on an
       // extrapolation above the highest measured level, and has no external
@@ -1537,10 +1519,7 @@ function AppBody(props: {
     } catch (e) {
       notifyError("Wind screening error", e)
     } finally {
-      setWindRunning(false)
-      props.markSolarRunning(false)
-      props.setSolarProgress(0)
-      props.setSolarProgressMsg("")
+      windDispatch({ type: "run/finish" })
     }
   }
 
@@ -1766,27 +1745,30 @@ function AppBody(props: {
           : aoi.polygon
             ? `poly:${JSON.stringify(aoi.polygon)}`
             : ""
-        setSolar(res.solar ?? null)
-        setSolarTerrain(res.solar_terrain ?? null)
-        setSolarSiting(res.solar_siting ?? null)
-        setEnergyModel(res.energy_model ?? null)
-        if (
-          res.solar ||
-          res.solar_terrain ||
-          res.solar_siting ||
-          res.energy_model
-        ) {
-          solarAoiRef.current = restoredAoi
-          setShowTerrainOverlay(true)
-          setShowSitingOverlay(true)
-        }
-        // Wind is invalidated against its own AOI ref, so a restored wind run
-        // has to record the AOI it was screened on the same way.
+        // Results and the AOI they were computed over in one action, for the
+        // reason a live run records them together: assigned separately, the
+        // invalidation effect can run against the old signature and drop the
+        // results that were just restored.
+        solarDispatch({
+          type: "results/restore",
+          results: {
+            resource: res.solar ?? null,
+            terrain: res.solar_terrain ?? null,
+            siting: res.solar_siting ?? null,
+            energy: res.energy_model ?? null,
+          },
+          aoiSignature: restoredAoi,
+        })
+        // Wind carries its own signature, so a restored wind run records the
+        // AOI it was screened on separately.
         if (res.wind) {
-          windAoiRef.current = restoredAoi
-          setWind(res.wind)
+          windDispatch({
+            type: "result/set",
+            result: res.wind,
+            aoiSignature: restoredAoi,
+          })
         } else {
-          setWind(null)
+          windDispatch({ type: "result/clear" })
         }
         if (res.water) {
           waterAoiRef.current = restoredAoi
@@ -1815,6 +1797,8 @@ function AppBody(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       goAnalysis,
+      solarDispatch,
+      windDispatch,
       props.areas,
       props.analysisLabel,
       props.setResult,
@@ -1837,17 +1821,16 @@ function AppBody(props: {
     // non-null whenever any of them is present, so clearing only the
     // classification leaves the detail view up and the saved list unreachable.
     setWater(null)
-    setSolar(null)
-    setSolarTerrain(null)
-    setSolarSiting(null)
-    setEnergyModel(null)
-    setWind(null)
+    solarDispatch({ type: "results/clearAll" })
+    windDispatch({ type: "result/clear" })
     props.setShowPredictionOverlay(true)
     props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
     goAnalysis()
   }, [
     goAnalysis,
+    solarDispatch,
+    windDispatch,
     props.setResult,
     props.setShowPredictionOverlay,
     props.setAnalysisLabel,
@@ -1876,11 +1859,8 @@ function AppBody(props: {
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
     setWater(null)
-    setSolar(null)
-    setSolarTerrain(null)
-    setSolarSiting(null)
-    setEnergyModel(null)
-    setWind(null)
+    solarDispatch({ type: "results/clearAll" })
+    windDispatch({ type: "result/clear" })
     // Starting over drops the AOI, so the session composition must go with it:
     // otherwise the previous AOI's overlay stays painted over the empty map.
     // Saved compositions are reloaded from the project on reopen.
@@ -1888,6 +1868,8 @@ function AppBody(props: {
     goMap()
   }, [
     goMap,
+    solarDispatch,
+    windDispatch,
     clearAreaAndComposition,
     props.setResult,
     props.setShowPredictionOverlay,
@@ -1927,6 +1909,53 @@ function AppBody(props: {
   }, [props.analysisLabel, props.activeExample, props.areas, props.customPolygon])
 
   /**
+   * The one progress pair the dock's solar panel reads.
+   *
+   * That panel predates the two stores and has a single display for all five
+   * products, so the running store supplies it. The energy screen reads each
+   * store's own run state directly and needs no such collapse.
+   */
+  const energyProgress = wind.run.active ? wind.run : solar.run
+
+  /**
+   * Where the map is, for both screens that carry one.
+   *
+   * One live ref and one debounced write to the same map_view preference. Two
+   * memories would let a pan made on the energy screen be lost on the way back
+   * to the map, or the reverse, depending on which one last committed.
+   */
+  const handleViewChange = useCallback(
+    (v: { lat: number; lon: number; zoom: number }) => {
+      liveViewRef.current = v
+      props.setView(v)
+      persistMapView(v)
+    },
+    [persistMapView, props.setView]
+  )
+
+  const initialMapView =
+    liveViewRef.current ??
+    parsePreferenceExtras(prefs?.extras_json).map_view ??
+    null
+
+  /**
+   * A polygon drawn on either map. The composition is dropped with it: it was
+   * rendered for the previous AOI and does not describe this one. Water and the
+   * energy products are dropped by their own AOI-change effects.
+   */
+  const handlePolygonDrawn = useCallback(
+    (geom: GeoJSONGeometry | null) => {
+      props.setCustomPolygon(geom)
+      if (!geom) return
+      props.setActiveExample("")
+      props.setAnalysisLabel(undefined)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [props.setCustomPolygon, props.setActiveExample, props.setAnalysisLabel]
+  )
+
+  /**
    * The analysis payload as the Analysis screen and the exporter see it.
    *
    * Water comes from its own action, so it is merged at render time rather
@@ -1934,36 +1963,34 @@ function AppBody(props: {
    * and neither must overwrite the other.
    */
   const resultWithWater = useMemo(
-    () =>
+    () => {
       // Every standalone product counts. A run that carries only one of them
       // no longer sets a classification result, so leaving any out here would
       // hand the analysis screen nothing to show for it.
-      props.result ||
-      water ||
-      solar ||
-      solarTerrain ||
-      solarSiting ||
-      energyModel ||
-      wind
-        ? {
-            ...(props.result ?? EMPTY_RESULT),
-            water,
-            solar,
-            solar_terrain: solarTerrain,
-            solar_siting: solarSiting,
-            energy_model: energyModel,
-            wind,
-          }
-        : null,
-    [
-      props.result,
-      water,
-      solar,
-      solarTerrain,
-      solarSiting,
-      energyModel,
-      wind,
-    ]
+      const r = solar.results
+      const w = wind.result
+      if (
+        !props.result &&
+        !water &&
+        !r.resource &&
+        !r.terrain &&
+        !r.siting &&
+        !r.energy &&
+        !w
+      ) {
+        return null
+      }
+      return {
+        ...(props.result ?? EMPTY_RESULT),
+        water,
+        solar: r.resource,
+        solar_terrain: r.terrain,
+        solar_siting: r.siting,
+        energy_model: r.energy,
+        wind: w,
+      }
+    },
+    [props.result, water, solar.results, wind.result]
   )
 
   const analysisPolygonGeoJSON = useMemo(() => {
@@ -2018,11 +2045,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MapScreen
-                  initialView={
-                    liveViewRef.current ??
-                    parsePreferenceExtras(prefs?.extras_json).map_view ??
-                    null
-                  }
+                  initialView={initialMapView}
                   leftPanel={leftPanel}
                   onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
@@ -2073,23 +2096,8 @@ function AppBody(props: {
                   composeStretchLow={composeStretchLow}
                   composeStretchHigh={composeStretchHigh}
                   composeOpacity={composeOpacity}
-                  onViewChange={(v) => {
-                    liveViewRef.current = v
-                    props.setView(v)
-                    persistMapView(v)
-                  }}
-                  onPolygonDrawn={(geom) => {
-                    props.setCustomPolygon(geom)
-                    if (geom) {
-                      props.setActiveExample("")
-                      props.setAnalysisLabel(undefined)
-                      // A composition was rendered for the previous AOI and
-                      // does not describe this one. Water is dropped by the
-                      // AOI-change effect above.
-                      setComposition(null)
-                      setShowCompositionOverlay(true)
-                    }
-                  }}
+                  onViewChange={handleViewChange}
+                  onPolygonDrawn={handlePolygonDrawn}
                   onSelectExample={props.onSelectExample}
                   onLocationSelect={(lat, lon) =>
                     props.setFlyTo({ lat, lon, key: Date.now() })
@@ -2179,92 +2187,53 @@ function AppBody(props: {
                   onShowWaterOverlayChange={setShowWaterOverlay}
                   waterOpacity={waterOpacity}
                   onWaterOpacityChange={setWaterOpacity}
-                  solar={solar}
-                  solarRunning={solarRunning}
-                  solarProgress={props.solarProgress}
-                  solarProgressMsg={props.solarProgressMsg}
-                  solarClimYears={solarClimYears}
-                  solarHourlyYears={solarHourlyYears}
-                  solarAzimuth={solarAzimuth}
-                  solarPR={solarPR}
-                  onSolarClimYearsChange={setSolarClimYears}
-                  onSolarHourlyYearsChange={setSolarHourlyYears}
-                  onSolarAzimuthChange={setSolarAzimuth}
-                  onSolarPRChange={setSolarPR}
-                  onRunSolar={() => void handleRunSolar()}
-                  onClearSolar={() => setSolar(null)}
-                  solarTerrain={solarTerrain}
-                  solarTerrainRunning={solarTerrainRunning}
-                  showTerrainOverlay={showTerrainOverlay}
-                  terrainOpacity={terrainOpacity}
-                  onShowTerrainOverlayChange={setShowTerrainOverlay}
-                  onTerrainOpacityChange={setTerrainOpacity}
-                  showSitingOverlay={showSitingOverlay}
-                  sitingOpacity={sitingOpacity}
-                  onShowSitingOverlayChange={setShowSitingOverlay}
-                  onSitingOpacityChange={setSitingOpacity}
-                  onRunSolarTerrain={() => void handleRunSolarTerrain()}
-                  onClearSolarTerrain={() => setSolarTerrain(null)}
-                  solarSeason={solarSeason}
-                  onSolarSeasonChange={setSolarSeason}
-                  solarSiting={solarSiting}
-                  solarSitingRunning={solarSitingRunning}
-                  solarSlopeAcceptable={solarSlopeAcceptable}
-                  solarSlopeRestrictive={solarSlopeRestrictive}
-                  onSolarSlopeAcceptableChange={setSolarSlopeAcceptable}
-                  onSolarSlopeRestrictiveChange={setSolarSlopeRestrictive}
-                  onRunSolarSiting={() => void handleRunSolarSiting()}
-                  onClearSolarSiting={() => setSolarSiting(null)}
-                  energyModel={energyModel}
-                  energyRunning={energyRunning}
-                  energyReportingBasis={energyReportingBasis}
-                  onEnergyReportingBasisChange={setEnergyReportingBasis}
-                  energyDegradationPct={energyDegradationPct}
-                  onEnergyDegradationPctChange={setEnergyDegradationPct}
-                  energyAnalysisPeriod={energyAnalysisPeriod}
-                  onEnergyAnalysisPeriodChange={setEnergyAnalysisPeriod}
-                  energyGcrFixed={energyGcrFixed}
-                  onEnergyGcrFixedChange={setEnergyGcrFixed}
-                  energyGcrTracker={energyGcrTracker}
-                  onEnergyGcrTrackerChange={setEnergyGcrTracker}
-                  energyTrackerMaxAngle={energyTrackerMaxAngle}
-                  onEnergyTrackerMaxAngleChange={setEnergyTrackerMaxAngle}
-                  energyDensityBasis={energyDensityBasis}
-                  onEnergyDensityBasisChange={setEnergyDensityBasis}
-                  energyBuildableFraction={energyBuildableFraction}
-                  onEnergyBuildableFractionChange={setEnergyBuildableFraction}
-                  energyUtcOffset={energyUtcOffset}
-                  onEnergyUtcOffsetChange={setEnergyUtcOffset}
-                  energyApplyShading={applyShading}
-                  onEnergyApplyShadingChange={setApplyShading}
-                  energyShadingMeanPct={solarTerrain?.shading_mean_pct ?? null}
-                  energyDeclaredLoss={energyDeclaredLoss}
-                  onEnergyDeclaredLossChange={(key, pct) =>
-                    setEnergyDeclaredLoss((prev) => ({ ...prev, [key]: pct }))
-                  }
-                  energyOptionalLoss={energyOptionalLoss}
-                  onEnergyOptionalLossChange={(key, pct) =>
-                    setEnergyOptionalLoss((prev) => ({ ...prev, [key]: pct }))
-                  }
-                  onRunEnergyModel={() => void handleRunEnergyModel()}
-                  onClearEnergyModel={() => setEnergyModel(null)}
-                  wind={wind}
-                  windRunning={windRunning}
-                  windRecordYears={windRecordYears}
-                  onWindRecordYearsChange={setWindRecordYears}
-                  windHubHeight={windHubHeight}
-                  onWindHubHeightChange={setWindHubHeight}
-                  windCalmThreshold={windCalmThreshold}
-                  onWindCalmThresholdChange={setWindCalmThreshold}
-                  windRecordMaxFloor={windRecordMaxFloor}
-                  onWindRecordMaxFloorChange={setWindRecordMaxFloor}
-                  windRoughnessLow={windRoughnessLow}
-                  onWindRoughnessLowChange={setWindRoughnessLow}
-                  windRoughnessHigh={windRoughnessHigh}
-                  onWindRoughnessHighChange={setWindRoughnessHigh}
-                  onRunWind={() => void handleRunWind()}
-                  onClearWind={() => setWind(null)}
                   leftDockTabs={props.leftDockTabs}
+                />
+              </motion.div>
+            )}
+            {screen === "energy" && (
+              <motion.div
+                key="screen-energy"
+                className="absolute inset-0 min-h-0"
+                initial={{ opacity: 0, x: 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <EnergyScreen
+                  solar={solar}
+                  solarDispatch={solarDispatch}
+                  wind={wind}
+                  windDispatch={windDispatch}
+                  onRunSolar={(product: SolarProductId) => {
+                    if (product === "resource") void handleRunSolar()
+                    else if (product === "terrain") void handleRunSolarTerrain()
+                    else if (product === "siting") void handleRunSolarSiting()
+                    else void handleRunEnergyModel()
+                  }}
+                  onRunWind={() => void handleRunWind()}
+                  hasArea={props.hasArea}
+                  areas={props.areas}
+                  activeExample={props.activeExample}
+                  onSelectExample={props.onSelectExample}
+                  customPolygon={props.customPolygon}
+                  onPolygonDrawn={handlePolygonDrawn}
+                  onImportPolygon={props.onImportPolygon}
+                  onClearArea={clearAreaAndComposition}
+                  areaLabel={areaLabel}
+                  onAreaLabelChange={(label) => {
+                    void applyAoiRename(label)
+                  }}
+                  aoiContourScheme={props.aoiContourScheme}
+                  onAoiContourSchemeChange={props.setAoiContourScheme}
+                  // The same live ref and the same debounced map_view write the
+                  // map screen uses, so panning here and returning there lands
+                  // in the same place.
+                  initialView={initialMapView}
+                  onViewChange={handleViewChange}
+                  flyTo={props.flyTo}
+                  tab={energyTab}
+                  onTabChange={setEnergyTab}
                 />
               </motion.div>
             )}
