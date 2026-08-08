@@ -62,7 +62,11 @@ import { displayRunLabel } from "@/lib/aoiLabel"
 import { stripResearchPackRasters } from "@/lib/researchPack"
 import { compositionCaption, parseOverlayMeta } from "@/lib/projectOverlays"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
-import { PALETTE_STOPS, paletteGradient } from "@/lib/palettes"
+import {
+  PALETTE_STOPS,
+  paletteGradient,
+  type PaletteName,
+} from "@/lib/palettes"
 import {
   classifiedAreaHa,
   dominantClass,
@@ -1540,10 +1544,101 @@ export function AnalysisPage({
             </section>
           )}
 
+          {result.solar_terrain && (
+            <section className="ar-section p-4">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="eyebrow">
+                  Terrain irradiation · {result.solar_terrain.season}
+                </p>
+                <p className="telemetry text-[10px] text-muted-foreground">
+                  {result.solar_terrain.dem_source} ·{" "}
+                  {result.solar_terrain.hourly_years} years
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <PanelTile
+                    title={`Plane-of-array · ${result.solar_terrain.unit}`}
+                    uri={result.solar_terrain.overlay_uri}
+                    empty="No terrain raster"
+                  />
+                  {/* Endpoints come from the scale the sidecar drew on, not
+                      from this layer's own range: a seasonal layer shares its
+                      domain with the other season and is narrower than it. */}
+                  <ContinuousRamp
+                    palette={result.solar_terrain.scale.palette}
+                    lowLabel={result.solar_terrain.scale.min.toFixed(
+                      result.solar_terrain.scale.decimals
+                    )}
+                    highLabel={result.solar_terrain.scale.max.toFixed(
+                      result.solar_terrain.scale.decimals
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3 self-start">
+                  <WaterFigure
+                    label="Minimum"
+                    value={result.solar_terrain.poa_min.toFixed(0)}
+                  />
+                  <WaterFigure
+                    label="Maximum"
+                    value={result.solar_terrain.poa_max.toFixed(0)}
+                  />
+                  <WaterFigure
+                    label="Mean"
+                    value={result.solar_terrain.poa_mean.toFixed(0)}
+                    sub={result.solar_terrain.unit}
+                  />
+                  <WaterFigure
+                    label="Spatial spread"
+                    value={`${result.solar_terrain.poa_std_pct.toFixed(1)}%`}
+                    sub="standard deviation"
+                  />
+                  <WaterFigure
+                    label="Mean slope"
+                    value={`${result.solar_terrain.slope_mean_deg.toFixed(1)}°`}
+                    sub={`max ${result.solar_terrain.slope_max_deg.toFixed(1)}°`}
+                  />
+                  {result.solar_terrain.shading_mean_pct !== null && (
+                    <WaterFigure
+                      label="Horizon shading"
+                      value={`${result.solar_terrain.shading_mean_pct.toFixed(2)}%`}
+                      sub={
+                        result.solar_terrain.shading_max_pct !== null
+                          ? `max ${result.solar_terrain.shading_max_pct.toFixed(1)}% of beam`
+                          : "of beam irradiance"
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+                The atmospheric resource has no spatial structure at this scale;
+                what varies over the area is the irradiation reaching an inclined
+                surface, because the surface is terrain. Horizon shading is a
+                share of the beam component
+                {/* Absent on runs saved before the field existed, where zero
+                    would read as a measured beam share of nothing. */}
+                {result.solar_terrain.beam_fraction > 0
+                  ? `, which carries ${(result.solar_terrain.beam_fraction * 100).toFixed(0)}% of the horizontal irradiation here`
+                  : ""}
+                .
+              </p>
+              <PowerProvenanceNote
+                provenance={result.solar_terrain.power_provenance}
+              />
+            </section>
+          )}
+
           {result.solar_siting && (
             <section className="ar-section p-4">
               <p className="eyebrow mb-3">Photovoltaic siting</p>
-              <div className="mb-3 grid grid-cols-2 gap-3">
+              <PanelTile
+                title="Suitability classes"
+                uri={result.solar_siting.overlay_uri}
+                empty="No siting raster"
+              />
+              <div className="mb-3 mt-3 grid grid-cols-2 gap-3">
                 <WaterFigure
                   label="Suitable, no conflict"
                   value={`${result.solar_siting.suitable_no_conflict_ha.toFixed(1)} ha`}
@@ -1608,6 +1703,20 @@ export function AnalysisPage({
                   {result.water.date_range[0]} → {result.water.date_range[1]}
                 </p>
               </div>
+              {result.water.occurrence_uri && (
+                <div className="mb-3">
+                  <PanelTile
+                    title="Water occurrence"
+                    uri={result.water.occurrence_uri}
+                    empty="No occurrence raster"
+                  />
+                  <ContinuousRamp
+                    palette="blues"
+                    lowLabel="0% of observed dates"
+                    highLabel="100%"
+                  />
+                </div>
+              )}
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart
                   data={result.water.series.map((d) => ({
@@ -2227,6 +2336,37 @@ function SavedRunsPanel({
         </ul>
       )}
     </section>
+  )
+}
+
+/**
+ * Colour ramp for a continuous raster, labelled with the domain endpoints.
+ *
+ * The caller passes the endpoints of the scale the raster was DRAWN on, not the
+ * layer's own range. For a seasonal layer the two differ: the domain spans both
+ * seasons, so a ramp labelled from this layer's own minimum and maximum would
+ * assert a contrast the image does not carry.
+ */
+function ContinuousRamp({
+  palette,
+  lowLabel,
+  highLabel,
+}: {
+  palette: PaletteName
+  lowLabel: string
+  highLabel: string
+}) {
+  return (
+    <div className="mt-2 flex flex-col gap-1">
+      <div
+        className="h-2 w-full rounded-full"
+        style={{ background: paletteGradient(palette) }}
+      />
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span>{lowLabel}</span>
+        <span>{highLabel}</span>
+      </div>
+    </div>
   )
 }
 
