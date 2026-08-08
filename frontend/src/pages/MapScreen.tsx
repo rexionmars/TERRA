@@ -42,6 +42,9 @@ import {
 export interface MapScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
+  /** Open tool tab, owned by the caller so it survives this screen unmounting. */
+  leftPanel: LeftDockPanel | null
+  onLeftPanelChange: (id: LeftDockPanel | null) => void
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -143,6 +146,13 @@ export interface MapScreenProps {
   onWaterOpacityChange: (v: number) => void
   solar?: SolarAnalysis | null
   solarRunning: boolean
+  /**
+   * The solar-axis progress channel, separate from the classification one. The
+   * panel used to read the classification's, so a finished classification left
+   * its last message under a solar run's button.
+   */
+  solarProgress: number
+  solarProgressMsg: string
   solarClimYears: number
   solarHourlyYears: number
   solarAzimuth: number
@@ -227,7 +237,11 @@ export interface MapScreenProps {
 }
 
 export function MapScreen(props: MapScreenProps) {
-  const [leftPanel, setLeftPanel] = useState<LeftDockPanel | null>("classify")
+  // Held by the caller, not here. This screen is unmounted whenever the user
+  // goes to another one, so local state put the dock back on "classify" on
+  // every return -- including a return from a solar run, which left a solar
+  // raster on the map with the classification panel open beside it.
+  const { leftPanel, onLeftPanelChange } = props
   const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
   const tabsMode = props.leftDockTabs ?? "retracted_only"
   const showDockTabs = tabsMode === "always" || leftPanel === null
@@ -235,8 +249,9 @@ export function MapScreen(props: MapScreenProps) {
     tabsMode === "always" && showDockTabs ? "left-14" : "left-3"
 
   const selectDock = (id: LeftDockPanel) => {
-    setLeftPanel((cur) => (cur === id ? null : id))
+    onLeftPanelChange(leftPanel === id ? null : id)
   }
+  const setLeftPanel = onLeftPanelChange
 
   // The four status panels share one slot at the bottom of the map, so only
   // the one matching the open tool is shown. With no classification to compete
@@ -438,8 +453,8 @@ export function MapScreen(props: MapScreenProps) {
             performanceRatio={props.solarPR}
             onPerformanceRatioChange={props.onSolarPRChange}
             running={props.solarRunning}
-            progress={props.progress}
-            progressMsg={props.progressMsg}
+            progress={props.solarProgress}
+            progressMsg={props.solarProgressMsg}
             hasResult={!!props.solar}
             onRun={props.onRunSolar}
             onClear={props.onClearSolar}

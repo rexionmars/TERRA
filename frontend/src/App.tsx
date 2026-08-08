@@ -78,6 +78,7 @@ import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { AppSidebar } from "@/components/AppSidebar"
 import { MapScreen } from "@/pages/MapScreen"
+import type { LeftDockPanel } from "@/components/LeftDockRail"
 import {
   ENERGY_DECLARED_LOSSES,
   ENERGY_DEFAULTS,
@@ -200,6 +201,25 @@ function App() {
   const [running, setRunning] = useState<boolean>(false)
   const [progress, setProgress] = useState<number>(0)
   const [progressMsg, setProgressMsg] = useState<string>("")
+  /**
+   * Progress for the solar-axis products, kept apart from the classification
+   * channel above.
+   *
+   * The sidecar emits on one shared event and only one action runs at a time,
+   * so the two channels never carry a value at once; what they must not do is
+   * share a display. The solar panel was reading the classification channel, so
+   * a classification left its last message under a solar run's button.
+   *
+   * Held here beside the subscription that writes them, and passed down like
+   * the classification pair above.
+   */
+  const [solarProgress, setSolarProgress] = useState<number>(0)
+  const [solarProgressMsg, setSolarProgressMsg] = useState<string>("")
+  /** Set by a solar run so the shared event routes to the pair above. */
+  const solarRunningRef = useRef(false)
+  const markSolarRunning = useCallback((active: boolean) => {
+    solarRunningRef.current = active
+  }, [])
   const [result, setResult] = useState<PredictResult | null>(null)
   const [analysisLabel, setAnalysisLabel] = useState<string | undefined>()
   const [lulcRunning, setLulcRunning] = useState(false)
@@ -236,9 +256,14 @@ function App() {
   }, [])
 
   useEffect(() => {
+    // One event, two destinations. The sidecar has a single progress channel
+    // and runs one action at a time, so the running product decides which
+    // display receives it rather than both showing the same value.
     EventsOn("predict:progress", (ev: ProgressEvent) => {
-      if (ev.progress >= 0) setProgress(ev.progress)
-      if (ev.msg) setProgressMsg(ev.msg)
+      const setPct = solarRunningRef.current ? setSolarProgress : setProgress
+      const setMsg = solarRunningRef.current ? setSolarProgressMsg : setProgressMsg
+      if (ev.progress >= 0) setPct(ev.progress)
+      if (ev.msg) setMsg(ev.msg)
     })
     return () => EventsOff("predict:progress")
   }, [])
@@ -380,6 +405,11 @@ function App() {
             running={running}
             progress={progress}
             progressMsg={progressMsg}
+            solarProgress={solarProgress}
+            solarProgressMsg={solarProgressMsg}
+            setSolarProgress={setSolarProgress}
+            setSolarProgressMsg={setSolarProgressMsg}
+            markSolarRunning={markSolarRunning}
             result={result}
             analysisLabel={analysisLabel}
             hasArea={hasArea}
@@ -444,6 +474,13 @@ function AppBody(props: {
   running: boolean
   progress: number
   progressMsg: string
+  /** The solar-axis progress channel, separate from the pair above. */
+  solarProgress: number
+  solarProgressMsg: string
+  setSolarProgress: (v: number) => void
+  setSolarProgressMsg: (v: string) => void
+  /** Routes the shared sidecar progress event to the solar channel. */
+  markSolarRunning: (active: boolean) => void
   result: PredictResult | null
   analysisLabel?: string
   hasArea: boolean
@@ -481,6 +518,14 @@ function AppBody(props: {
   const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
+  /**
+   * Open tool tab of the map's left dock.
+   *
+   * Held here rather than inside MapScreen because that screen unmounts on
+   * every navigation away, so local state reset the dock to the classification
+   * panel on every return.
+   */
+  const [leftPanel, setLeftPanel] = useState<LeftDockPanel | null>("classify")
   /**
    * Title of the run whose result is on screen, for the title bar.
    *
@@ -1202,8 +1247,9 @@ function AppBody(props: {
       return
     }
     setSolarRunning(true)
-    props.setProgress(0)
-    props.setProgressMsg("starting")
+    props.markSolarRunning(true)
+    props.setSolarProgress(0)
+    props.setSolarProgressMsg("starting")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1236,8 +1282,9 @@ function AppBody(props: {
       notifyError("Solar analysis error", e)
     } finally {
       setSolarRunning(false)
-      props.setProgress(0)
-      props.setProgressMsg("")
+      props.markSolarRunning(false)
+      props.setSolarProgress(0)
+      props.setSolarProgressMsg("")
     }
   }
 
@@ -1248,8 +1295,9 @@ function AppBody(props: {
       return
     }
     setSolarTerrainRunning(true)
-    props.setProgress(0)
-    props.setProgressMsg("starting")
+    props.markSolarRunning(true)
+    props.setSolarProgress(0)
+    props.setSolarProgressMsg("starting")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1279,8 +1327,9 @@ function AppBody(props: {
       notifyError("Solar terrain error", e)
     } finally {
       setSolarTerrainRunning(false)
-      props.setProgress(0)
-      props.setProgressMsg("")
+      props.markSolarRunning(false)
+      props.setSolarProgress(0)
+      props.setSolarProgressMsg("")
     }
   }
 
@@ -1291,8 +1340,9 @@ function AppBody(props: {
       return
     }
     setSolarSitingRunning(true)
-    props.setProgress(0)
-    props.setProgressMsg("starting")
+    props.markSolarRunning(true)
+    props.setSolarProgress(0)
+    props.setSolarProgressMsg("starting")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1324,8 +1374,9 @@ function AppBody(props: {
       notifyError("Solar siting error", e)
     } finally {
       setSolarSitingRunning(false)
-      props.setProgress(0)
-      props.setProgressMsg("")
+      props.markSolarRunning(false)
+      props.setSolarProgress(0)
+      props.setSolarProgressMsg("")
     }
   }
 
@@ -1357,8 +1408,9 @@ function AppBody(props: {
       return
     }
     setEnergyRunning(true)
-    props.setProgress(0)
-    props.setProgressMsg("starting")
+    props.markSolarRunning(true)
+    props.setSolarProgress(0)
+    props.setSolarProgressMsg("starting")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1420,8 +1472,9 @@ function AppBody(props: {
       notifyError("Energy model error", e)
     } finally {
       setEnergyRunning(false)
-      props.setProgress(0)
-      props.setProgressMsg("")
+      props.markSolarRunning(false)
+      props.setSolarProgress(0)
+      props.setSolarProgressMsg("")
     }
   }
 
@@ -1438,8 +1491,9 @@ function AppBody(props: {
       return
     }
     setWindRunning(true)
-    props.setProgress(0)
-    props.setProgressMsg("starting")
+    props.markSolarRunning(true)
+    props.setSolarProgress(0)
+    props.setSolarProgressMsg("starting")
     try {
       const aoiLabel =
         props.analysisLabel?.trim() ||
@@ -1477,8 +1531,9 @@ function AppBody(props: {
       notifyError("Wind screening error", e)
     } finally {
       setWindRunning(false)
-      props.setProgress(0)
-      props.setProgressMsg("")
+      props.markSolarRunning(false)
+      props.setSolarProgress(0)
+      props.setSolarProgressMsg("")
     }
   }
 
@@ -1960,6 +2015,8 @@ function AppBody(props: {
                     parsePreferenceExtras(prefs?.extras_json).map_view ??
                     null
                   }
+                  leftPanel={leftPanel}
+                  onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
                   activeExample={props.activeExample}
                   customPolygon={props.customPolygon}
@@ -2116,6 +2173,8 @@ function AppBody(props: {
                   onWaterOpacityChange={setWaterOpacity}
                   solar={solar}
                   solarRunning={solarRunning}
+                  solarProgress={props.solarProgress}
+                  solarProgressMsg={props.solarProgressMsg}
                   solarClimYears={solarClimYears}
                   solarHourlyYears={solarHourlyYears}
                   solarAzimuth={solarAzimuth}

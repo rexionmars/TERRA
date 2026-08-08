@@ -35,6 +35,58 @@ function Section({
   )
 }
 
+/**
+ * What an action returns, stated before it is run.
+ *
+ * Two of the five products on this panel draw a raster; three return only
+ * figures. Every other workflow in the application -- classification,
+ * compositions, surface water -- always draws, so a run button that says
+ * nothing is read as promising a layer. This marker is the only place that
+ * distinction is declared, and it is verifiable against lib/types.ts: the
+ * terrain and siting payloads carry overlay_uri and extent, the other three
+ * carry neither.
+ */
+function OutputKind({ draws }: { draws: boolean }) {
+  return (
+    <span className="telemetry text-[10px] text-muted-foreground">
+      {draws ? "returns a map layer" : "returns figures, no map layer"}
+    </span>
+  )
+}
+
+/**
+ * Progress for whichever product is running.
+ *
+ * Rendered by every action rather than only by the first. The bar used to sit
+ * in the Run section alone and to test the solar-resource flag, so the four
+ * other products wrote progress that nothing displayed. Only one action runs at
+ * a time, so one bar per section is unambiguous.
+ */
+function RunProgress({
+  active,
+  progress,
+  message,
+}: {
+  active: boolean
+  progress: number
+  message: string
+}) {
+  if (!active) return null
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="ar-track h-1 overflow-hidden rounded-sm">
+        <div
+          className="h-full rounded-sm bg-primary transition-[width]"
+          style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+        />
+      </div>
+      <span className="telemetry text-[10px] text-muted-foreground">
+        {message}
+      </span>
+    </div>
+  )
+}
+
 function NumberField({
   label,
   value,
@@ -437,19 +489,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
         </Section>
 
         <Section step="04" title="Run">
-          {running && (
-            <div className="flex flex-col gap-1">
-              <div className="ar-track h-1 overflow-hidden rounded-sm">
-                <div
-                  className="h-full rounded-sm bg-primary transition-[width]"
-                  style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
-                />
-              </div>
-              <span className="telemetry text-[10px] text-muted-foreground">
-                {progressMsg}
-              </span>
-            </div>
-          )}
+          <RunProgress active={running} progress={progress} message={progressMsg} />
           <div className="flex gap-2">
             <button
               type="button"
@@ -476,6 +516,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               </button>
             )}
           </div>
+          <OutputKind draws={false} />
           <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
             Season
             <select
@@ -497,6 +538,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
             Horizon shading is the share of beam irradiation the surrounding
             terrain blocks, which is small in the mean and large in valleys.
           </p>
+          <RunProgress active={terrainRunning} progress={progress} message={progressMsg} />
           <div className="flex gap-2">
             <button
               type="button"
@@ -523,6 +565,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               </button>
             )}
           </div>
+          <OutputKind draws />
           <p className="text-[10px] leading-relaxed text-muted-foreground">
             The terrain map resolves what the point analysis cannot: irradiation
             on an inclined surface varies with slope and aspect, from the
@@ -555,6 +598,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               />
             </label>
           </div>
+          <RunProgress active={sitingRunning} progress={progress} message={progressMsg} />
           <div className="flex gap-2">
             <button
               type="button"
@@ -581,6 +625,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               </button>
             )}
           </div>
+          <OutputKind draws />
           <p className="text-[10px] leading-relaxed text-muted-foreground">
             Slope limits and the excluded-cover list are project conventions,
             not verified legal restrictions. Legal reserve, permanent
@@ -796,6 +841,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
             unshaded.
           </p>
 
+          <RunProgress active={energyRunning} progress={progress} message={progressMsg} />
           <div className="flex gap-2">
             <button
               type="button"
@@ -822,6 +868,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               </button>
             )}
           </div>
+          <OutputKind draws={false} />
           <p className="text-[10px] leading-relaxed text-muted-foreground">
             A siting map from step 05 is reused as the classification behind
             the capacity; without one the AOI is classified afresh on the slope
@@ -907,6 +954,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
             read the record maximum and the record length rather than the flag
             alone.
           </p>
+          <RunProgress active={windRunning} progress={progress} message={progressMsg} />
           <div className="flex gap-2">
             <button
               type="button"
@@ -933,6 +981,7 @@ export const SolarPanel = forwardRef<HTMLDivElement, SolarPanelProps>(
               </button>
             )}
           </div>
+          <OutputKind draws={false} />
           <p className="text-[10px] leading-relaxed text-muted-foreground">
             Screening indication, gross of losses, unvalidated. The capacity
             factor excludes wake, availability, electrical, icing and
