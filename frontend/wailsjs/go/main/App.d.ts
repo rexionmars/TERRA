@@ -18,6 +18,10 @@ export function AnalyzeWater(arg1:backend.WaterRequest):Promise<backend.WaterAna
 
 export function AnalyzeWind(arg1:backend.WindRequest):Promise<backend.WindAnalysis>;
 
+export function BuildManagedEnvironment(arg1:string):Promise<void>;
+
+export function CancelEnvironmentBuild():Promise<void>;
+
 export function ClearAvatar():Promise<store.User>;
 
 export function CreateProject(arg1:string,arg2:string):Promise<store.Project>;
@@ -45,6 +49,10 @@ export function GetBootLogs():Promise<Array<string>>;
 export function GetPreferences():Promise<store.Preferences>;
 
 export function GetProject(arg1:string):Promise<store.Project>;
+
+export function InspectEnvironment():Promise<main.EnvironmentState>;
+
+export function InspectPython(arg1:string):Promise<backend.EnvReport>;
 
 export function ListDataCube(arg1:backend.DataCubeRequest):Promise<backend.DataCubeResult>;
 
@@ -91,3 +99,5 @@ export function UpdateProject(arg1:store.Project):Promise<store.Project>;
 export function UpdateProjectAOI(arg1:string,arg2:string,arg3:string,arg4:string):Promise<store.Project>;
 
 export function UpdateProjectRunLabels(arg1:string,arg2:string):Promise<number>;
+
+export function UseInterpreter(arg1:string):Promise<backend.EnvReport>;

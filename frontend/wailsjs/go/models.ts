@@ -2042,6 +2042,80 @@ export namespace backend {
 	
 	
 	
+	export class EnvPackage {
+	    module: string;
+	    distribution: string;
+	    blocks: string;
+	    optional: boolean;
+	    present: boolean;
+	    version: string;
+	    wanted: string;
+	    version_problem: string;
+	    why: string;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnvPackage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.module = source["module"];
+	        this.distribution = source["distribution"];
+	        this.blocks = source["blocks"];
+	        this.optional = source["optional"];
+	        this.present = source["present"];
+	        this.version = source["version"];
+	        this.wanted = source["wanted"];
+	        this.version_problem = source["version_problem"];
+	        this.why = source["why"];
+	        this.error = source["error"];
+	    }
+	}
+	export class EnvReport {
+	    executable: string;
+	    python_version: string;
+	    python_ok: boolean;
+	    min_python: string;
+	    packages: EnvPackage[];
+	    usable: boolean;
+	    origin: string;
+	    unreachable: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnvReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.executable = source["executable"];
+	        this.python_version = source["python_version"];
+	        this.python_ok = source["python_ok"];
+	        this.min_python = source["min_python"];
+	        this.packages = this.convertValues(source["packages"], EnvPackage);
+	        this.usable = source["usable"];
+	        this.origin = source["origin"];
+	        this.unreachable = source["unreachable"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	export class GeocodeResult {
 	    display_name: string;
@@ -3389,6 +3463,20 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class PythonCandidate {
+	    path: string;
+	    origin: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PythonCandidate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.origin = source["origin"];
+	    }
+	}
 	export class ResearchExportMeta {
 	    model_kind: string;
 	    area_id: string;
@@ -3670,6 +3758,46 @@ export namespace backend {
 
 export namespace main {
 	
+	export class EnvironmentState {
+	    active?: backend.EnvReport;
+	    candidates: backend.PythonCandidate[];
+	    managed_dir: string;
+	    managed_active: boolean;
+	    env_override: string;
+	    building: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnvironmentState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.active = this.convertValues(source["active"], backend.EnvReport);
+	        this.candidates = this.convertValues(source["candidates"], backend.PythonCandidate);
+	        this.managed_dir = source["managed_dir"];
+	        this.managed_active = source["managed_active"];
+	        this.env_override = source["env_override"];
+	        this.building = source["building"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SaveProjectOverlayRequest {
 	    project_id: string;
 	    kind: string;

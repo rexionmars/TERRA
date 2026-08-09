@@ -30,6 +30,14 @@ export function AnalyzeWind(arg1) {
   return window['go']['main']['App']['AnalyzeWind'](arg1);
 }
 
+export function BuildManagedEnvironment(arg1) {
+  return window['go']['main']['App']['BuildManagedEnvironment'](arg1);
+}
+
+export function CancelEnvironmentBuild() {
+  return window['go']['main']['App']['CancelEnvironmentBuild']();
+}
+
 export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
 }
@@ -84,6 +92,14 @@ export function GetPreferences() {
 
 export function GetProject(arg1) {
   return window['go']['main']['App']['GetProject'](arg1);
+}
+
+export function InspectEnvironment() {
+  return window['go']['main']['App']['InspectEnvironment']();
+}
+
+export function InspectPython(arg1) {
+  return window['go']['main']['App']['InspectPython'](arg1);
 }
 
 export function ListDataCube(arg1) {
@@ -176,4 +192,8 @@ export function UpdateProjectAOI(arg1, arg2, arg3, arg4) {
 
 export function UpdateProjectRunLabels(arg1, arg2) {
   return window['go']['main']['App']['UpdateProjectRunLabels'](arg1, arg2);
+}
+
+export function UseInterpreter(arg1) {
+  return window['go']['main']['App']['UseInterpreter'](arg1);
 }

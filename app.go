@@ -30,6 +30,7 @@ type App struct {
 	sessionToken string
 	currentUser  *store.User
 
+	envBuilder  backend.EnvBuilder
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time

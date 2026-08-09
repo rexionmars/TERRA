@@ -231,3 +231,16 @@ func wellKnownPythons() []string {
 	}
 	return nil
 }
+
+// SidecarPath is the script the runner executes, so callers can locate the
+// directory that holds doctor.py beside it.
+func (r *Runner) SidecarPath() string {
+	if r == nil {
+		return ""
+	}
+	return r.sidecar
+}
+
+// VenvInterpreter is the interpreter inside a virtual environment, exported so
+// the application can recognise its own managed environment by path.
+func VenvInterpreter(venvDir string) string { return venvPython(venvDir) }
