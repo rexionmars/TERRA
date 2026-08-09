@@ -6,10 +6,9 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
+  Label,
 } from "recharts"
 import type {
   ClassStat,
@@ -18,6 +17,14 @@ import type {
   PredictResult,
 } from "@/lib/types"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import {
+  VI_GAP_DAYS,
+  dateToMs,
+  insertTimeGaps,
+  timeAxisProps,
+  timeLabelFormatter,
+  timeTickFormatter,
+} from "@/lib/chartAxis"
 
 function modelLabel(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
@@ -252,47 +259,89 @@ function NdviChart({
   slot,
   data,
   stroke,
+  domain,
+  yDomain,
 }: {
   slot: "A" | "B"
   data: PredictResult["vi_series"]
   stroke: string
+  /**
+   * The time span BOTH panels are drawn on.
+   *
+   * Each panel scaled to its own dates before, so two runs over different
+   * periods were drawn the same width and read as directly comparable. The
+   * whole point of this view is comparing them, and the axis was the one thing
+   * making that impossible: a run over three months and a run over a year
+   * looked like the same season.
+   */
+  domain: [number, number]
+  /** Shared for the same reason, so a difference in height is a difference. */
+  yDomain: [number, number]
 }) {
+  const rows = insertTimeGaps(
+    (data ?? []).map((p) => ({ t: dateToMs(p.date), ndvi_mean: p.ndvi_mean })),
+    VI_GAP_DAYS
+  )
   return (
     <div>
       <p className="mb-1 text-meta text-muted-foreground">{slot}</p>
-      <ResponsiveContainer width="100%" height={160}>
-        <LineChart
-          data={data ?? []}
-          margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-        >
-          <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={rows} margin={{ top: 4, right: 10, left: 2, bottom: 18 }}>
           <XAxis
-            dataKey="date"
-            tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
-            tickFormatter={(d: string) => d.slice(2, 7)}
-            interval="preserveStartEnd"
-            minTickGap={20}
-          />
+            {...timeAxisProps}
+            domain={domain}
+            allowDataOverflow
+            tickFormatter={timeTickFormatter(domain[1] - domain[0])}
+            stroke="var(--border)"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickMargin={6}
+            minTickGap={26}
+          >
+            <Label
+              value="Acquisition date"
+              position="insideBottom"
+              offset={-12}
+              style={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            />
+          </XAxis>
           <YAxis
-            domain={[-0.1, 1]}
-            tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
-          />
+            domain={yDomain}
+            stroke="var(--border)"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickFormatter={(v: number) => v.toFixed(2)}
+            width={46}
+          >
+            <Label
+              value="NDVI (dimensionless)"
+              angle={-90}
+              position="insideLeft"
+              style={{
+                fontSize: 12,
+                fill: "var(--muted-foreground)",
+                textAnchor: "middle",
+              }}
+            />
+          </YAxis>
           <Tooltip
+            labelFormatter={timeLabelFormatter}
+            formatter={(v: number) => v.toFixed(2)}
             contentStyle={{
-              backgroundColor: "var(--secondary)",
+              backgroundColor: "var(--popover)",
               border: "1px solid var(--border)",
-              borderRadius: 2,
-              fontSize: 10,
+              borderRadius: 5,
+              fontSize: 11,
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 9 }} />
           <Line
-            type="monotone"
+            type="linear"
             dataKey="ndvi_mean"
             name="NDVI"
             stroke={stroke}
             strokeWidth={1.6}
-            dot={false}
+            dot={{ r: 1.6, strokeWidth: 0, fill: stroke }}
+            activeDot={{ r: 3 }}
+            connectNulls={false}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -322,6 +371,37 @@ export function CompareAnalyses({
   const merged = mergeClassStats(resultA.class_stats, resultB.class_stats)
   const hasVi =
     (resultA.vi_series?.length ?? 0) > 0 && (resultB.vi_series?.length ?? 0) > 0
+
+  /**
+   * One pair of axes for both panels.
+   *
+   * Each scaled to its own data before, which is the failure mode this whole
+   * screen exists to avoid: two runs over different periods drew the same
+   * width, so a three-month season and a full year looked alike, and a
+   * difference in curve height was as likely to be a difference in axis as a
+   * difference in vegetation.
+   */
+  const viTimes = [...(resultA.vi_series ?? []), ...(resultB.vi_series ?? [])]
+    .map((p) => dateToMs(p.date))
+    .filter((t) => Number.isFinite(t))
+  const viDomain: [number, number] = viTimes.length
+    ? [Math.min(...viTimes), Math.max(...viTimes)]
+    : [0, 1]
+
+  const viValues = [...(resultA.vi_series ?? []), ...(resultB.vi_series ?? [])]
+    .map((p) => p.ndvi_mean)
+    .filter((v) => Number.isFinite(v))
+  // Padded by a twentieth so the extremes are not drawn on the frame, and
+  // taken from the data rather than forced to 0..1: NDVI is defined on [-1, 1]
+  // and a fixed floor of -0.1 silently clipped water and cloud shadow.
+  const viYDomain: [number, number] = viValues.length
+    ? (() => {
+        const lo = Math.min(...viValues)
+        const hi = Math.max(...viValues)
+        const pad = Math.max(0.02, (hi - lo) / 20)
+        return [lo - pad, hi + pad]
+      })()
+    : [0, 1]
   const hasPheno =
     !!(resultA.phenology || resultB.phenology) &&
     ((resultA.n_dates ?? 0) > 0 ||
@@ -454,12 +534,16 @@ export function CompareAnalyses({
                     <NdviChart
                       slot="A"
                       data={resultA.vi_series}
-                      stroke="#c2703d"
+                      stroke="var(--series-ndvi)"
+                      domain={viDomain}
+                      yDomain={viYDomain}
                     />
                     <NdviChart
                       slot="B"
                       data={resultB.vi_series}
-                      stroke="#38bdf8"
+                      stroke="var(--series-evi)"
+                      domain={viDomain}
+                      yDomain={viYDomain}
                     />
                   </div>
                 </section>

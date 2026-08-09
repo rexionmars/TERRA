@@ -5,6 +5,7 @@ import {
   Columns2,
   Download,
   FolderOpen,
+  ChevronDown,
   History,
   Map as MapIcon,
   Pencil,
@@ -19,14 +20,15 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Label,
   Legend,
 } from "recharts"
 import { useAuth } from "@/lib/auth"
 import { PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnGhostDense, btnIcon, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
+import type { MapToolId } from "@/lib/mapTools"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import type {
   Area,
@@ -90,9 +92,18 @@ import {
   formatHectares,
   modelDisplayName,
   parseRunSummary,
+  runKindLabel,
   runSummaryObject,
   solarProductLabel,
 } from "@/lib/runSummary"
+import {
+  VI_GAP_DAYS,
+  dateToMs,
+  insertTimeGaps,
+  timeAxisProps,
+  timeLabelFormatter,
+  timeTickFormatter,
+} from "@/lib/chartAxis"
 
 
 /**
@@ -102,11 +113,25 @@ import {
  * three curves share an axis and have to be told apart, which a family of one
  * hue cannot do.
  */
-const VI_SERIES = {
-  ndvi: "#22c55e",
-  evi: "#38bdf8",
-  savi: "#f59e0b",
-} as const
+/**
+ * The three index series, with a redundant channel each.
+ *
+ * The colours live in index.css, one value per theme, because no single hex
+ * clears 3:1 against both a near-black and a near-white ground -- the previous
+ * triple was tuned for the dark theme and measured 2.17, 2.04 and 2.04 on the
+ * light one, under WCAG's floor for a non-text graphic on all three.
+ *
+ * The dash pattern is the second channel. Nature's guidance lists "relying
+ * solely on colour for definition" among the things to avoid, and the measured
+ * reason here is specific: converted to greyscale the old blue and amber were
+ * the same value to eight decimals, so a desaturated chart showed one line
+ * where there were three.
+ */
+const VI_LINES = [
+  { key: "ndvi", label: "NDVI", stroke: "var(--series-ndvi)", dash: undefined },
+  { key: "evi", label: "EVI", stroke: "var(--series-evi)", dash: "6 3" },
+  { key: "savi", label: "SAVI", stroke: "var(--series-savi)", dash: "2 3" },
+] as const
 
 /**
  * One colour per product kind, declared once because two of these have to agree
@@ -131,8 +156,8 @@ type ProjectTab = "analyses" | "compositions"
 
 /** Project detail sections, in tab order. Drives the ARIA tabs wiring below. */
 const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
-  { id: "analyses", label: "Analyses" },
-  { id: "compositions", label: "Band compositions" },
+  { id: "analyses", label: "Runs" },
+  { id: "compositions", label: "Compositions" },
 ]
 
 /** Summary JSON of a saved run, or an empty object when there is none. */
@@ -268,7 +293,9 @@ interface AnalysisPageProps {
   loadingRun?: boolean
   onOpenRun: (run: InferenceRun) => Promise<void>
   onBackToList: () => void
-  onNewClassification: () => void
+
+  /** Starts a run of the chosen product; see startNewRun in App.tsx. */
+  onStartRun: (product: MapToolId | "energy") => void
   /** Rename the active AOI (same path as map context-menu rename). */
   onAreaLabelChange?: (label: string) => void
   /** Set map active project when opening a project from the hub. */
@@ -296,7 +323,8 @@ export function AnalysisPage({
   loadingRun,
   onOpenRun,
   onBackToList,
-  onNewClassification,
+
+  onStartRun,
   onAreaLabelChange,
   onActivateProject,
   onShowComposition,
@@ -475,10 +503,18 @@ export function AnalysisPage({
     return runs
   }, [hubView, projectRuns, runs, selectedProjectId])
 
+  /**
+   * The list's own heading, which only earns one where nothing above it says
+   * the same thing.
+   *
+   * Inside a project the page already carries the name as its title and the
+   * open tab already says which list this is, so `Analyses · Jose de Freitas`
+   * was the third statement of both before a single row appeared.
+   */
   const panelTitle = useMemo(() => {
-    if (hubView === "unassigned") return "Unassigned analyses"
-    if (selectedProject) return `Analyses · ${selectedProject.name}`
-    return "Saved analyses"
+    if (hubView === "unassigned") return "Unassigned runs"
+    if (selectedProject) return undefined
+    return "Saved runs"
   }, [hubView, selectedProject])
 
   const startCompare = useCallback(async () => {
@@ -684,12 +720,17 @@ export function AnalysisPage({
   const runsPanel = (
     <SavedRunsPanel
       title={panelTitle}
+      /*
+        The list is filtered by project and by nothing else, so it holds every
+        run kind -- classification, surface water, solar and wind alike. The
+        caption named only the first and even listed its three models, twenty
+        lines above the code that branches on r.kind to draw the other three.
+        Inside a project it says nothing at all now: the tab above already does.
+      */
       caption={
-        hubView === "detail"
-          ? "Classification runs (RF / Temporal Transformer / Prithvi)."
-          : hubView === "unassigned"
-            ? "Classification runs not yet assigned to a project."
-            : undefined
+        hubView === "unassigned"
+          ? "Runs of any product not yet assigned to a project."
+          : undefined
       }
       runs={scopedRuns}
       loading={!!loadingRun || comparing || hubLoading}
@@ -734,14 +775,7 @@ export function AnalysisPage({
 
     const hubActions = (
       <>
-        <button
-          type="button"
-          onClick={onNewClassification}
-          className={btnPrimaryCommit}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New classification
-        </button>
+        <NewRunMenu onStart={onStartRun} />
         <button
           type="button"
           onClick={() => {
@@ -800,9 +834,14 @@ export function AnalysisPage({
           {(hubView === "detail" || hubView === "unassigned") && (
             <div className="flex flex-col gap-3">
               {hubView === "detail" && selectedProject && (
-                <div className="rounded-sm border border-border bg-secondary flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                /*
+                  One line, not a card. A card announces a region of content;
+                  this is a single fact and two actions on it, and boxed it took
+                  the same weight as the list of 48 runs below.
+                */
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
                   <p className="text-body text-muted-foreground">
-                    AOI:{" "}
+                    <span className="eyebrow mr-2">AOI</span>
                     {selectedProject.label ||
                       selectedProject.area_id ||
                       (selectedProject.polygon_geojson
@@ -839,8 +878,17 @@ export function AnalysisPage({
               )}
 
               {hubView === "detail" && (
+                /*
+                  An underlined rule, not a filled segmented control.
+
+                  Each tab was flex-1 inside a bordered plate, so the two split
+                  the full width and the active one painted half the screen in
+                  full accent -- an enormous amount of colour and space spent
+                  saying which of two lists is open. Sized to its label and
+                  marked by a 2px rule, the same statement costs a line.
+                */
                 <div
-                  className="rounded-sm border border-border bg-secondary flex gap-1 p-1"
+                  className="flex gap-4 border-b border-border"
                   role="tablist"
                   aria-label="Project sections"
                 >
@@ -869,15 +917,22 @@ export function AnalysisPage({
                         onClick={() => setProjectTab(tab.id)}
                         onKeyDown={handleTabKeyDown}
                         className={cn(
-                          "flex h-8 flex-1 items-center justify-center rounded-sm px-3 text-body font-medium transition-colors",
+                          "-mb-px flex h-8 items-center gap-1.5 border-b-2 px-0.5 text-body font-medium transition-colors",
                           active
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:text-foreground"
+                            ? "border-primary text-foreground"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
                         {tab.label}
                         {count > 0 ? (
-                          <span className="telemetry ml-1.5 opacity-80">
+                          <span
+                            className={cn(
+                              "telemetry rounded-sm px-1 text-micro",
+                              active
+                                ? "bg-primary/20 text-accent-quiet"
+                                : "bg-secondary text-muted-foreground"
+                            )}
+                          >
                             {count}
                           </span>
                         ) : null}
@@ -999,12 +1054,55 @@ export function AnalysisPage({
   const pheno = result.phenology
   const lulc = result.lulc
   const hasClassification = (result.n_dates ?? 0) > 0 || !!result.overlay_uri
-  const viChart = viSeries.map((p) => ({
-    date: p.date,
-    ndvi: p.ndvi_mean,
-    evi: p.evi_mean,
-    savi: p.savi_mean,
+  /**
+   * The index series on a real time axis, with its gaps left open.
+   *
+   * Keyed on the date string, recharts drew a category axis: every acquisition
+   * at the same horizontal spacing whatever the interval. Sentinel-2 revisits
+   * every five days at best and cloud masking makes the usable series
+   * irregular, so a month and a week were drawn the same width and every slope
+   * on the chart was wrong by whatever the gaps happened to be.
+   *
+   * A break is inserted where the interval exceeds `VI_GAP_DAYS`. Drawn
+   * through, a straight segment across a six-week cloud gap asserts
+   * observations that were never made, and it is indistinguishable from a
+   * segment across three good acquisitions.
+   *
+   * NOT memoised, deliberately. This point in the component is past two early
+   * returns -- the hub and the project views render and return above it -- so a
+   * hook here runs on one render path and not the other. React counts a
+   * different number of hooks between renders and unmounts the tree, which
+   * shows as the whole window going black the moment an analysis is opened.
+   * The arrays are a few dozen rows; the render around them costs far more.
+   */
+  const viTimes = viSeries
+    .map((p) => dateToMs(p.date))
+    .filter((t) => Number.isFinite(t))
+  const viSpan =
+    viTimes.length > 1 ? Math.max(...viTimes) - Math.min(...viTimes) : 0
+  /** Tick precision follows the span; see lib/chartAxis.ts. */
+  const viAxis = { tickFormatter: timeTickFormatter(viSpan) }
+
+  const viChart = insertTimeGaps(
+    viSeries.map((p) => ({
+      t: dateToMs(p.date),
+      ndvi: p.ndvi_mean,
+      evi: p.evi_mean,
+      savi: p.savi_mean,
+    })),
+    VI_GAP_DAYS
+  )
+
+  // Same treatment for surface water: it is the same cloud-screened Sentinel-2
+  // calendar, so it has the same irregular spacing and the same gaps.
+  const waterRows = (result.water?.series ?? []).map((d) => ({
+    t: dateToMs(d.date),
+    water: d.water_fraction_pct,
   }))
+  const waterTimes = waterRows.map((r) => r.t).filter((t) => Number.isFinite(t))
+  const waterSpan =
+    waterTimes.length > 1 ? Math.max(...waterTimes) - Math.min(...waterTimes) : 0
+  const waterChart = insertTimeGaps(waterRows, VI_GAP_DAYS)
 
   const exportTif = async () => {
     if (!result.raster_tif) return
@@ -1202,10 +1300,7 @@ export function AnalysisPage({
               <MapIcon className="h-3 w-3" />
               View on map
             </button>
-            <button type="button" onClick={onNewClassification} className={btnGhost}>
-              <Plus className="h-3 w-3" />
-              New classification
-            </button>
+            <NewRunMenu onStart={onStartRun} variant="ghost" />
             {canExportTables && (
               <button
                 type="button"
@@ -1354,59 +1449,95 @@ export function AnalysisPage({
               {viChart.length > 0 && (
                 <section className="rounded-sm border border-border bg-secondary/50 p-4">
                   <p className="eyebrow mb-3">Vegetation indices · AOI mean</p>
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={240}>
                     <LineChart
                       data={viChart}
-                      margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
+                      margin={{ top: 6, right: 14, left: 4, bottom: 22 }}
                     >
-                      <CartesianGrid
-                        strokeDasharray="2 4"
-                        stroke="var(--border)"
-                      />
+                      {/*
+                        No gridlines. Nature's figure specification lists
+                        "background gridlines" among the things it avoids for
+                        graphs, and with five ticks on a panel this narrow the
+                        eye reaches the axis without them.
+                      */}
                       <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                        tickFormatter={(d: string) => d.slice(2, 7)}
-                        interval="preserveStartEnd"
-                        minTickGap={24}
-                      />
+                        {...timeAxisProps}
+                        {...viAxis}
+                        stroke="var(--border)"
+                        tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                        tickMargin={6}
+                        minTickGap={28}
+                      >
+                        <Label
+                          value="Acquisition date"
+                          position="insideBottom"
+                          offset={-14}
+                          style={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                        />
+                      </XAxis>
+                      {/*
+                        The domain is the data, not a forced 0..1. Clipped at
+                        -0.1 it also cut the negative half of a range the index
+                        is defined on: water and cloud shadow sit below zero,
+                        and the chart silently dropped them.
+                      */}
                       <YAxis
-                        domain={[-0.1, 1]}
-                        tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                      />
+                        domain={["auto", "auto"]}
+                        stroke="var(--border)"
+                        tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                        tickFormatter={(v: number) => v.toFixed(2)}
+                        width={48}
+                      >
+                        <Label
+                          value="Index value (dimensionless)"
+                          angle={-90}
+                          position="insideLeft"
+                          style={{
+                            fontSize: 12,
+                            fill: "var(--muted-foreground)",
+                            textAnchor: "middle",
+                          }}
+                        />
+                      </YAxis>
                       <Tooltip
+                        labelFormatter={timeLabelFormatter}
+                        formatter={(v: number) => v.toFixed(2)}
                         contentStyle={{
-                          backgroundColor: "var(--secondary)",
+                          backgroundColor: "var(--popover)",
                           border: "1px solid var(--border)",
-                          borderRadius: 4,
+                          borderRadius: 5,
                           fontSize: 11,
                         }}
                       />
-                      <Legend wrapperStyle={{ fontSize: 10 }} />
-                      <Line
-                        type="monotone"
-                        dataKey="ndvi"
-                        name="NDVI"
-                        stroke={VI_SERIES.ndvi}
-                        strokeWidth={1.8}
-                        dot={false}
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                        iconType="plainline"
                       />
-                      <Line
-                        type="monotone"
-                        dataKey="evi"
-                        name="EVI"
-                        stroke={VI_SERIES.evi}
-                        strokeWidth={1.8}
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="savi"
-                        name="SAVI"
-                        stroke={VI_SERIES.savi}
-                        strokeWidth={1.8}
-                        dot={false}
-                      />
+                      {VI_LINES.map((s) => (
+                        <Line
+                          key={s.key}
+                          // Linear, not monotone. A spline draws curvature
+                          // between two observations that the sampling does not
+                          // support, and the phenology metrics printed beside
+                          // this chart are computed on a linear interpolation --
+                          // so the figure and the number disagreed about the
+                          // same data.
+                          type="linear"
+                          dataKey={s.key}
+                          name={s.label}
+                          stroke={s.stroke}
+                          strokeWidth={1.8}
+                          // A second channel, so colour is never the only one.
+                          strokeDasharray={s.dash}
+                          // The observations themselves. Hidden, a reader could
+                          // not tell a measurement from an interpolation, which
+                          // is what made the two defects above invisible.
+                          dot={{ r: 1.8, strokeWidth: 0, fill: s.stroke }}
+                          activeDot={{ r: 3 }}
+                          connectNulls={false}
+                          isAnimationActive={false}
+                        />
+                      ))}
                     </LineChart>
                   </ResponsiveContainer>
                 </section>
@@ -1532,41 +1663,63 @@ export function AnalysisPage({
                   />
                 </div>
               )}
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={220}>
                 <LineChart
-                  data={result.water.series.map((d) => ({
-                    date: d.date,
-                    water: d.water_fraction_pct,
-                  }))}
-                  margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
+                  data={waterChart}
+                  margin={{ top: 6, right: 14, left: 4, bottom: 22 }}
                 >
-                  <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
                   <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                    tickFormatter={(d: string) => d.slice(2, 7)}
-                    interval="preserveStartEnd"
-                    minTickGap={24}
-                  />
+                    {...timeAxisProps}
+                    tickFormatter={timeTickFormatter(waterSpan)}
+                    stroke="var(--border)"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickMargin={6}
+                    minTickGap={28}
+                  >
+                    <Label
+                      value="Acquisition date"
+                      position="insideBottom"
+                      offset={-14}
+                      style={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                    />
+                  </XAxis>
                   <YAxis
-                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                    unit="%"
-                  />
+                    stroke="var(--border)"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickFormatter={(v: number) => v.toFixed(0)}
+                    width={48}
+                  >
+                    <Label
+                      value="Water fraction (%)"
+                      angle={-90}
+                      position="insideLeft"
+                      style={{
+                        fontSize: 12,
+                        fill: "var(--muted-foreground)",
+                        textAnchor: "middle",
+                      }}
+                    />
+                  </YAxis>
                   <Tooltip
+                    labelFormatter={timeLabelFormatter}
+                    formatter={(v: number) => `${v.toFixed(1)} %`}
                     contentStyle={{
-                      backgroundColor: "var(--secondary)",
+                      backgroundColor: "var(--popover)",
                       border: "1px solid var(--border)",
-                      borderRadius: 4,
+                      borderRadius: 5,
                       fontSize: 11,
                     }}
                   />
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="water"
                     name="Water fraction"
                     stroke={PRODUCT_COLOR.water}
                     strokeWidth={1.8}
-                    dot={{ r: 2 }}
+                    dot={{ r: 1.8, strokeWidth: 0, fill: PRODUCT_COLOR.water }}
+                    activeDot={{ r: 3 }}
+                    connectNulls={false}
+                    isAnimationActive={false}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -1823,7 +1976,7 @@ function CompositionOverlayModal({
 }
 
 function SavedRunsPanel({
-  title = "Saved analyses",
+  title,
   caption,
   runs,
   loading,
@@ -1859,10 +2012,12 @@ function SavedRunsPanel({
     <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <History className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <p className="eyebrow !text-foreground">{title}</p>
-          </div>
+          {title && (
+            <div className="flex items-center gap-2">
+              <History className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <p className="eyebrow !text-foreground">{title}</p>
+            </div>
+          )}
           {caption ? (
             <p className="mt-1 text-body text-muted-foreground">{caption}</p>
           ) : null}
@@ -1908,8 +2063,8 @@ function SavedRunsPanel({
 
       {runs.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No analyses in this project yet. Classify with this project active on the
-          map — or assign unassigned runs from the hub.
+          No runs in this project yet. Run a product with this project active
+          — or assign an unassigned run from the hub.
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
@@ -1932,7 +2087,7 @@ function SavedRunsPanel({
                   selected ? "border-primary bg-secondary" : "border-border bg-secondary/50"
                 )}
               >
-                <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                <label className="flex min-w-0 flex-1 items-start gap-2">
                   <input
                     type="checkbox"
                     checked={selected}
@@ -1947,6 +2102,13 @@ function SavedRunsPanel({
                           {slot}
                         </span>
                       )}
+                      {/* Which product this is. The list is filtered by project
+                          and by nothing else, so four kinds share it, and the
+                          only way to tell them apart was to read the summary
+                          sentence of each of forty-eight rows. */}
+                      <span className="telemetry shrink-0 rounded-sm border border-border px-1 text-micro uppercase text-muted-foreground">
+                        {runKindLabel(r.kind)}
+                      </span>
                       <span className="truncate font-medium text-foreground">
                         {displayRunLabel(r.label)}
                       </span>
@@ -2102,5 +2264,82 @@ function SavedRunsPanel({
         </ul>
       )}
     </section>
+  )
+}
+
+/**
+ * Start a run, of whichever product.
+ *
+ * The hub offered "New classification" and nothing else while the application
+ * produces four run kinds and a composition, so four of the five had no way in
+ * from here at all -- a user had to know which screen held them.
+ *
+ * A menu rather than five buttons: they are alternatives, only one is taken,
+ * and five primary buttons in a header would say they are five separate
+ * decisions.
+ */
+function NewRunMenu({
+  onStart,
+  variant = "primary",
+}: {
+  onStart: (product: MapToolId | "energy") => void
+  /** Ghost where it sits among other secondary actions on an open analysis. */
+  variant?: "primary" | "ghost"
+}) {
+  const [open, setOpen] = useState(false)
+
+  const items: { id: MapToolId | "energy"; label: string; note: string }[] = [
+    { id: "classify", label: "Classification", note: "Sentinel-2, per-pixel cover" },
+    { id: "compose", label: "Composition", note: "band composite or index" },
+    { id: "water", label: "Surface water", note: "flooded fraction per date" },
+    { id: "energy", label: "Solar or wind", note: "NASA POWER, no scene needed" },
+  ]
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={variant === "ghost" ? btnGhost : btnPrimaryCommit}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        New run
+        <ChevronDown className="h-3.5 w-3.5" />
+      </button>
+
+      {open && (
+        <>
+          {/* Click-away, behind the menu and above everything else. */}
+          <div
+            className="fixed inset-0 z-[4000]"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="menu"
+            className="panel absolute right-0 z-[4001] mt-1 flex w-64 flex-col overflow-hidden rounded-md p-1"
+          >
+            {items.map((it) => (
+              <button
+                key={it.id}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onStart(it.id)
+                }}
+                className="flex flex-col items-start rounded-sm px-2.5 py-1.5 text-left hover:bg-secondary"
+              >
+                <span className="text-body font-medium text-foreground">
+                  {it.label}
+                </span>
+                <span className="text-micro text-muted-foreground">{it.note}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }

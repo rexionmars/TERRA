@@ -465,7 +465,7 @@ function AppBody(props: {
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, runs, projects, prefs, savePrefs } =
+  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
   /**
@@ -1846,6 +1846,19 @@ function AppBody(props: {
     props.setShowPredictionOverlay(false)
   }, [props.setShowPredictionOverlay])
 
+  /**
+   * Starts a run of any product, from wherever the user is.
+   *
+   * The hub offered New classification and nothing else, while the application
+   * produces four run kinds and a composition. A user in a project could reach
+   * a classification in one click and everything else by navigating and
+   * remembering which screen holds it.
+   *
+   * The three map products clear the session the same way -- the previous
+   * result, overlay and AOI all belong to the run being replaced -- so they
+   * share startNewClassification and differ only in the panel they open. Energy
+   * defines its own AOI on its own screen and clears nothing here.
+   */
   const startNewClassification = useCallback(() => {
     props.setResult(null)
     setCurrentRunLabel(null)
@@ -1870,6 +1883,32 @@ function AppBody(props: {
     props.setSwipeCompare,
     props.setSwipeRatio,
   ])
+
+  /**
+   * Starts a run of any product, from wherever the user is.
+   *
+   * The hub offered New classification and nothing else, while the application
+   * produces four run kinds and a composition. A user in a project could reach
+   * a classification in one click and everything else by navigating and
+   * remembering which screen holds it.
+   *
+   * The three map products clear the session the same way -- the previous
+   * result, overlay and AOI all belong to the run being replaced -- so they
+   * share startNewClassification and differ only in the panel they open. Energy
+   * defines its own AOI on its own screen and clears nothing here.
+   */
+  const startNewRun = useCallback(
+    (product: MapToolId | "energy") => {
+      if (product === "energy") {
+        goEnergy()
+        return
+      }
+      setLeftPanel(product)
+      startNewClassification()
+    },
+    [goEnergy, startNewClassification]
+  )
+
   const applyAoiRename = useCallback(
     async (label: string) => {
       const next = label.trim()
@@ -2266,7 +2305,7 @@ function AppBody(props: {
                   loadingRun={loadingRun}
                   onOpenRun={openSavedAnalysis}
                   onBackToList={backToAnalysesList}
-                  onNewClassification={startNewClassification}
+                  onStartRun={startNewRun}
                   onAreaLabelChange={(label) => {
                     void applyAoiRename(label)
                   }}

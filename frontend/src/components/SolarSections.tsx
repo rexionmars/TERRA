@@ -26,10 +26,10 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Label,
 } from "recharts"
 
 /**
@@ -56,32 +56,80 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
             dni: m.dni,
             dhi: m.dhi,
           }))}
-          margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
+          margin={{ top: 6, right: 14, left: 4, bottom: 22 }}
         >
-          <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
+          {/*
+            The month axis stays categorical, and that is correct here: this is
+            a twelve-value climatology on evenly spaced months, not an
+            irregular acquisition calendar. The index charts had to move to a
+            numeric time axis for exactly the opposite reason.
+          */}
           <XAxis
             dataKey="month"
-            tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-          />
-          <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} />
+            stroke="var(--border)"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickMargin={6}
+          >
+            <Label
+              value="Month"
+              position="insideBottom"
+              offset={-14}
+              style={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            />
+          </XAxis>
+          <YAxis
+            stroke="var(--border)"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickFormatter={(v: number) => v.toFixed(1)}
+            width={52}
+          >
+            {/* The unit was in a caption below the chart. Nature requires it on
+                the axis, and a reader reading a value should not have to look
+                somewhere else to know what it is. */}
+            <Label
+              value="Irradiation (kWh m⁻² d⁻¹)"
+              angle={-90}
+              position="insideLeft"
+              style={{
+                fontSize: 12,
+                fill: "var(--muted-foreground)",
+                textAnchor: "middle",
+              }}
+            />
+          </YAxis>
           <Tooltip
+            formatter={(v: number) => v.toFixed(2)}
             contentStyle={{
-              backgroundColor: "var(--secondary)",
+              backgroundColor: "var(--popover)",
               border: "1px solid var(--border)",
-              borderRadius: 4,
+              borderRadius: 5,
               fontSize: 11,
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Line type="monotone" dataKey="ghi" name="GHI" stroke="#f59e0b" strokeWidth={1.8} dot={false} />
-          <Line type="monotone" dataKey="dni" name="DNI" stroke="#ef4444" strokeWidth={1.8} dot={false} />
-          <Line type="monotone" dataKey="dhi" name="DHI" stroke="#38bdf8" strokeWidth={1.8} dot={false} />
+          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" />
+          {/* The verified triple, and a dash each: GHI, DNI and DHI are not
+              independent -- GHI is the sum of DHI and the projected DNI -- so
+              they are read together and have to stay separable in greyscale. */}
+          {[
+            { key: "ghi", label: "GHI", stroke: "var(--series-ndvi)", dash: undefined },
+            { key: "dni", label: "DNI", stroke: "var(--series-evi)", dash: "6 3" },
+            { key: "dhi", label: "DHI", stroke: "var(--series-savi)", dash: "2 3" },
+          ].map((s) => (
+            <Line
+              key={s.key}
+              type="linear"
+              dataKey={s.key}
+              name={s.label}
+              stroke={s.stroke}
+              strokeWidth={1.8}
+              strokeDasharray={s.dash}
+              dot={{ r: 1.8, strokeWidth: 0, fill: s.stroke }}
+              activeDot={{ r: 3 }}
+              isAnimationActive={false}
+            />
+          ))}
         </LineChart>
       </ResponsiveContainer>
-      <p className="telemetry mt-1 text-[10px] text-muted-foreground">
-        daily mean kWh/m2 by month
-      </p>
-
       <div
         className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4"
         style={{ borderColor: "var(--border)" }}

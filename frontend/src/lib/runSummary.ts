@@ -174,3 +174,18 @@ export function runRowLine(run: {
     }
   }
 }
+
+/**
+ * The product a saved run came from, in one word.
+ *
+ * Rows written before the kind column carry an empty string, which the store
+ * reads back as "classification" -- so the fallback here names that rather than
+ * something like "unknown", which would label the oldest runs as a mystery
+ * product that does not exist.
+ */
+export function runKindLabel(kind?: string): string {
+  if (kind === "water") return "water"
+  if (kind === "solar") return "solar"
+  if (kind === "wind") return "wind"
+  return "class"
+}
