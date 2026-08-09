@@ -44,6 +44,10 @@ const ORIGIN_LABEL: Record<string, string> = {
   venv: "a project environment",
   path: "found on this machine",
   detected: "detected automatically",
+  // The interpreter chosen here is no longer where it was, so this is a
+  // fallback. Said plainly, because the alternative is a selection that
+  // silently stopped applying.
+  abandoned: "detected automatically · the interpreter chosen here is gone",
   GEOSENSE_PYTHON: "forced by GEOSENSE_PYTHON",
 }
 
@@ -246,6 +250,42 @@ export function EnvironmentPanel() {
         </div>
       </section>
 
+      {/*
+        Where the application is reading its parts from.
+
+        Read-only on purpose. These are properties of the installation, and the
+        environment variables that override them cannot be usefully set by the
+        application itself -- one written into this process does not survive a
+        relaunch, and making it survive would mean editing a shell profile or
+        the registry from a desktop app. They are set in the terminal that
+        launches TERRA, by someone who already has one.
+
+        What was missing was seeing them. Until now these appeared only in the
+        boot log, behind a splash screen, so a GEOSENSE_MODEL_DIR exported and
+        forgotten kept selecting a model directory with nothing on screen
+        saying which.
+      */}
+      {(state?.paths ?? []).length > 0 && (
+        <section className="rounded-sm border border-border bg-secondary/50 p-4">
+          <p className="eyebrow mb-1">Locations</p>
+          <p className="mb-3 text-body text-muted-foreground">
+            Where TERRA reads its parts from, as resolved at startup. Set by the
+            installation and by environment variables, not editable here.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {(state?.paths ?? []).map((p) => (
+              <PathRow key={p.label} path={p} />
+            ))}
+          </ul>
+          {state?.config_path && (
+            <p className="mt-3 text-micro text-muted-foreground">
+              The interpreter choice is saved in{" "}
+              <span className="telemetry break-all">{state.config_path}</span>
+            </p>
+          )}
+        </section>
+      )}
+
       {log.length > 0 && (
         <section className="rounded-sm border border-border bg-secondary/50 p-4">
           <p className="eyebrow mb-3">{building ? "Installing" : "Last install"}</p>
@@ -318,6 +358,48 @@ function PackageRow({ pkg }: { pkg: backend.EnvPackage }) {
         </span>
       ) : (
         <span className="text-muted-foreground">without it: {pkg.blocks}</span>
+      )}
+    </li>
+  )
+}
+
+/**
+ * One resolved location, and whether it is actually there.
+ *
+ * A missing path is called out rather than left to be noticed. Each of these
+ * resolves to something whether or not it exists -- the model directory falls
+ * back to a legacy training path that is absent in every release -- so a path
+ * that is not there reads exactly like one that is, until an analysis fails on
+ * it minutes later.
+ */
+function PathRow({ path }: { path: main.ResolvedPath }) {
+  return (
+    <li className="rounded-sm border border-border bg-background px-3 py-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+        <span className="text-body text-foreground">{path.label}</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Named, because a variable set once in a shell profile keeps
+              deciding this and is the last thing anyone suspects. */}
+          {path.source && (
+            <span className="telemetry rounded-sm border border-border px-1 text-micro text-muted-foreground">
+              {path.source}
+            </span>
+          )}
+          {!path.exists && (
+            <span className="telemetry flex items-center gap-1 rounded-sm bg-destructive-quiet/15 px-1 text-micro uppercase text-destructive-quiet">
+              <AlertTriangle className="size-3" />
+              not found
+            </span>
+          )}
+        </div>
+      </div>
+      <p className="telemetry mt-0.5 break-all text-micro text-muted-foreground">
+        {path.path || "not resolved"}
+      </p>
+      {!path.exists && path.blocks && (
+        <p className="mt-1 text-micro text-muted-foreground">
+          without it: {path.blocks}
+        </p>
       )}
     </li>
   )

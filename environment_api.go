@@ -19,6 +19,37 @@ else there: not "run this analysis" but "can anything be run at all". The
 screen it serves is the one a user meets when the answer is no.
 */
 
+/*
+ResolvedPath is one location the application resolved at startup, reported so
+the user can see where something is being read from.
+
+Read-only, and deliberately so. These are properties of the installation -- a
+packaged bundle knows where its own sidecar/ and model/ are -- not preferences,
+and the environment variables that override them cannot usefully be set by the
+application itself: a variable written into this process does not survive a
+relaunch, and making it survive would mean editing the user's shell profile or
+registry from a desktop app. They exist for a launch from a terminal, which is
+where a developer can already set them.
+
+What was missing was not a way to change these; it was any way to see them. They
+appeared only in the boot log, which scrolls past behind a splash screen, so
+"the model directory is not where you think" was a question nothing on screen
+could answer.
+*/
+type ResolvedPath struct {
+	// What this path is, in the user's terms.
+	Label string `json:"label"`
+	Path  string `json:"path"`
+	// Set when an environment variable decided this path, naming it. The point
+	// of showing these at all is the case where one is set and forgotten.
+	Source string `json:"source,omitempty"`
+	// Whether the path is actually there. A resolved path that does not exist
+	// is the specific thing worth seeing: it resolves silently and fails later.
+	Exists bool `json:"exists"`
+	// What stops working when it is absent.
+	Blocks string `json:"blocks,omitempty"`
+}
+
 // EnvironmentState is everything the setup screen needs in one call.
 type EnvironmentState struct {
 	// The interpreter in use right now, inspected.
@@ -36,6 +67,11 @@ type EnvironmentState struct {
 	// the selection it offers will not take effect.
 	EnvOverride string `json:"env_override"`
 	Building    bool   `json:"building"`
+	// Where the application is reading its parts from, for diagnosis.
+	Paths []ResolvedPath `json:"paths"`
+	// The settings file itself, so the screen can point at what to delete when
+	// a saved choice needs undoing outside the application.
+	ConfigPath string `json:"config_path"`
 }
 
 func (a *App) sidecarDir() string {
@@ -70,6 +106,7 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 		ManagedDir:  managed,
 		EnvOverride: envOverride(),
 		Building:    a.envBuilder.Running(),
+		ConfigPath:  backend.ConfigPath(data),
 	}
 
 	// Read once. Four separate reads could see two different runners if a build
@@ -84,6 +121,7 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 		state.Active = active
 		state.ManagedActive = python == venvInterpreter(managed)
 	}
+	state.Paths = resolvedPaths(runner, data)
 
 	appDir := ""
 	if runner != nil {
@@ -91,6 +129,81 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 	}
 	state.Candidates = backend.DiscoverPythons(appDir, managed, "")
 	return state, nil
+}
+
+/*
+resolvedPaths lists where the application is reading its parts from.
+
+Each entry names the environment variable that decided it, when one did. That is
+the case this exists for: a GEOSENSE_MODEL_DIR exported months ago in a shell
+profile keeps applying to every launch from that terminal, and until now nothing
+on screen said so -- the classification simply came from a model directory the
+user had forgotten about.
+
+Exists is checked rather than assumed. resolveAppDir and the model fallback both
+end in a path that may not be there, and neither reports it: the failure arrives
+later, as "model directory not found", from the middle of a run.
+*/
+func resolvedPaths(runner *backend.Runner, dataDir string) []ResolvedPath {
+	// Set by Go regardless of the runner, so they are reported even when the
+	// runner failed to build -- which is exactly when someone is looking.
+	paths := []ResolvedPath{{
+		Label:  "Data directory",
+		Path:   dataDir,
+		Blocks: "saved runs, projects and the interpreter choice",
+	}}
+
+	if runner == nil {
+		return withExistence(paths)
+	}
+
+	paths = append(paths,
+		ResolvedPath{
+			Label:  "Sidecar",
+			Path:   runner.SidecarPath(),
+			Source: sourceVar("GEOSENSE_APP_DIR"),
+			Blocks: "every analysis",
+		},
+		ResolvedPath{
+			Label:  "Model",
+			Path:   runner.ModelDir(),
+			Source: sourceVar("GEOSENSE_MODEL_DIR"),
+			Blocks: "the Random Forest classification",
+		},
+		ResolvedPath{
+			Label:  "Areas",
+			Path:   runner.AreasDir(),
+			Source: sourceVar("GEOSENSE_APP_DIR"),
+			Blocks: "the embedded study areas A, B and C",
+		},
+		ResolvedPath{
+			Label:  "Repository root",
+			Path:   runner.RepoRoot(),
+			Source: sourceVar("GEOSENSE_ROOT"),
+			Blocks: "the local MapBiomas rasters for embedded areas",
+		},
+	)
+	return withExistence(paths)
+}
+
+// sourceVar names an environment variable when it is set, so the screen can say
+// which one is deciding a path rather than only where the path landed.
+func sourceVar(name string) string {
+	if os.Getenv(name) == "" {
+		return ""
+	}
+	return name
+}
+
+func withExistence(paths []ResolvedPath) []ResolvedPath {
+	for i := range paths {
+		if paths[i].Path == "" {
+			continue
+		}
+		_, err := os.Stat(paths[i].Path)
+		paths[i].Exists = err == nil
+	}
+	return paths
 }
 
 // InspectPython inspects one candidate, for the screen to call when the user

@@ -3758,6 +3758,26 @@ export namespace backend {
 
 export namespace main {
 	
+	export class ResolvedPath {
+	    label: string;
+	    path: string;
+	    source?: string;
+	    exists: boolean;
+	    blocks?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResolvedPath(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.path = source["path"];
+	        this.source = source["source"];
+	        this.exists = source["exists"];
+	        this.blocks = source["blocks"];
+	    }
+	}
 	export class EnvironmentState {
 	    active?: backend.EnvReport;
 	    candidates: backend.PythonCandidate[];
@@ -3765,6 +3785,8 @@ export namespace main {
 	    managed_active: boolean;
 	    env_override: string;
 	    building: boolean;
+	    paths: ResolvedPath[];
+	    config_path: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EnvironmentState(source);
@@ -3778,6 +3800,8 @@ export namespace main {
 	        this.managed_active = source["managed_active"];
 	        this.env_override = source["env_override"];
 	        this.building = source["building"];
+	        this.paths = this.convertValues(source["paths"], ResolvedPath);
+	        this.config_path = source["config_path"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3798,6 +3822,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class SaveProjectOverlayRequest {
 	    project_id: string;
 	    kind: string;

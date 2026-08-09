@@ -216,6 +216,23 @@ func (r *Runner) ModelDir() string {
 	return r.modelDir
 }
 
+// AreasDir returns the resolved directory of embedded area GeoJSONs.
+func (r *Runner) AreasDir() string {
+	if r == nil {
+		return ""
+	}
+	return r.areasDir
+}
+
+// RepoRoot returns the resolved repository root, which is where the legacy
+// MapBiomas rasters are looked up.
+func (r *Runner) RepoRoot() string {
+	if r == nil {
+		return ""
+	}
+	return r.repoRoot
+}
+
 // ListAreas loads the embedded area GeoJSONs (A/B/C).
 func (r *Runner) ListAreas() []Area {
 	areas := []Area{}
