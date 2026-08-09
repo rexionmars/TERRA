@@ -177,7 +177,7 @@ export function MapScreen(props: MapScreenProps) {
   return (
     <div
       className="relative h-full min-h-0 w-full"
-      style={{ "--map-foot": "4.5rem" } as React.CSSProperties}
+      style={{ "--map-foot": "3.0625rem" } as React.CSSProperties}
     >
       <MapView
         initialView={props.initialView}
@@ -360,7 +360,6 @@ export function MapScreen(props: MapScreenProps) {
             scenesError={props.composeScenesError}
             selectedSceneId={props.selectedSceneId}
             onSelectScene={props.onSelectScene}
-            onListScenes={props.onListComposeScenes}
             kind={props.composeKind}
             onKindChange={props.onComposeKindChange}
             bands={props.composeBands}

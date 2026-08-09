@@ -110,10 +110,26 @@ export function PeriodTimeline({
   const endDay = toDay(end)
 
   /**
+   * Today, as a UTC day number.
+   *
+   * The period selects scenes that have already been acquired, so there is
+   * nothing to the right of it. Read once per mount rather than per render: a
+   * value taken from the clock inside the render body would make the axis a
+   * function of when React happened to re-render.
+   */
+  const [today] = useState(() => Math.floor(Date.now() / DAY_MS))
+
+  /**
    * The drawn span, which is the period plus a margin.
    *
    * Drawn edge to edge, the handles would sit on the boundary with nowhere to
    * drag outward to, so the window could only ever shrink.
+   *
+   * The margin runs past today on purpose. Clamping the axis as well as the
+   * handle put the end handle at exactly 100 percent whenever the period ran to
+   * the present -- against the right edge, with its date label overflowing into
+   * whatever sat beside the track. The months ahead are drawn and simply cannot
+   * be reached, which is also what makes the stop legible.
    */
   const [from, to] = useMemo(() => {
     if (startDay === null || endDay === null) return [0, 1]
@@ -142,10 +158,18 @@ export function PeriodTimeline({
       if (startDay === null || endDay === null) return
       // The handles cannot cross. Swapping them silently would invert the
       // period, and every consumer reads start before end.
-      if (which === "start") onStartChange(toISO(Math.min(day, endDay - 1)))
-      else onEndChange(toISO(Math.max(day, startDay + 1)))
+      //
+      // Neither can pass today. A period ending in the future is not a wider
+      // search, it is a request for imagery that has not been acquired: the
+      // listing returns the same scenes and the run reports a date range the
+      // data does not cover.
+      if (which === "start") {
+        onStartChange(toISO(Math.min(day, endDay - 1, today - 1)))
+      } else {
+        onEndChange(toISO(Math.min(Math.max(day, startDay + 1), today)))
+      }
     },
-    [startDay, endDay, onStartChange, onEndChange]
+    [startDay, endDay, today, onStartChange, onEndChange]
   )
 
   const onPointerDown = (which: "start" | "end") => (e: React.PointerEvent) => {
@@ -227,6 +251,21 @@ export function PeriodTimeline({
         >
           {/* Month rule */}
           <div className="absolute inset-x-0 top-4 h-px bg-border" />
+
+          {/*
+            Where the calendar ends. Drawn only when it falls inside the track,
+            so a historical period never carries a marker for a boundary far off
+            to its right. Without it the end handle stops at a point the track
+            gives no reason for, which reads as the control sticking.
+          */}
+          {today > from && today < to && (
+            <span
+              aria-hidden
+              title="Today — no imagery has been acquired past this point"
+              className="absolute top-1.5 w-px bg-line-strong"
+              style={{ left: `${pct(today)}%`, height: "1.25rem" }}
+            />
+          )}
           {monthTicks(from, to).map((d) => (
             <div
               key={d}

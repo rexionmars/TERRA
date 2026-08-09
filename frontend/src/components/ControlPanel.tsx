@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import type { Area, GeoJSONGeometry, ModelKind } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { todayISO } from "@/lib/dates"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
 
@@ -200,6 +201,7 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
             <span className="eyebrow">start</span>
             <input
               type="date"
+              max={todayISO()}
               value={start}
               disabled={busy}
               onChange={(e) => onStartChange(e.target.value)}
@@ -210,6 +212,7 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
             <span className="eyebrow">end</span>
             <input
               type="date"
+              max={todayISO()}
               value={end}
               disabled={busy}
               onChange={(e) => onEndChange(e.target.value)}

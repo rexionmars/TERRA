@@ -60,6 +60,17 @@ export interface RecordWindowBarProps {
   disabled?: boolean
   /** Left edge, so the bar starts after whatever column is open beside it. */
   leftOffsetClass?: string
+  /**
+   * The bar's rendered height, reported rather than assumed.
+   *
+   * What clears this bar -- the status panel, the Leaflet attribution -- reads
+   * `--map-foot`, and that number was maintained by hand. It was wrong twice:
+   * once too generous, leaving a strip of map between the attribution and the
+   * bar so the attribution read as floating over the imagery, and once too
+   * small, so it overlapped. It also cannot be one number, because the wind tab
+   * draws one band and the solar tab draws two.
+   */
+  onHeightChange?: (px: number) => void
 }
 
 /**
@@ -111,10 +122,24 @@ export function RecordWindowBar({
   endYear,
   disabled,
   leftOffsetClass = "left-0",
+  onHeightChange,
 }: RecordWindowBarProps) {
   const ruleRef = useRef<HTMLDivElement | null>(null)
+  const barRef = useRef<HTMLDivElement | null>(null)
   const laneWidth = useLaneWidth(ruleRef)
   const [dragging, setDragging] = useState<string | null>(null)
+
+  // Reported on every resize, so switching tabs -- which changes the number of
+  // bands and therefore the height -- moves what clears the bar with it.
+  useEffect(() => {
+    const el = barRef.current
+    if (!el || !onHeightChange) return
+    const ro = new ResizeObserver(([entry]) =>
+      onHeightChange(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height)
+    )
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [onHeightChange])
 
   // The axis spans the widest window that could be asked for, so widening a
   // window never rescales the lane under the pointer that is widening it.
@@ -182,6 +207,7 @@ export function RecordWindowBar({
         stylesheet under every other panel in the app.
       */}
       <div
+        ref={barRef}
         className="panel flex items-center gap-4 px-3 py-1.5"
         style={{ borderInlineWidth: 0, borderBlockEndWidth: 0 }}
       >

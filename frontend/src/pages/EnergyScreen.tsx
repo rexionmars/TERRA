@@ -266,6 +266,10 @@ export function EnergyScreen(props: EnergyScreenProps) {
   // re-rendered.
   const [endYear] = useState(() => lastCompleteYear(new Date()))
 
+  // Seeded at the solar tab height so the first paint is close; the bar
+  // corrects it on mount.
+  const [footPx, setFootPx] = useState(62)
+
   /**
    * The record windows of the tab in use, outermost first.
    *
@@ -521,11 +525,12 @@ export function EnergyScreen(props: EnergyScreenProps) {
   return (
     <div
       className="relative h-full min-h-0 w-full"
-      // What the record bar occupies, so the status panel and the Leaflet
-      // controls clear it instead of being drawn under it. Measured on the
-      // solar tab, which is the taller of the two: two window rows of 12.15px
-      // plus the year rule, in a panel padded 6px either side.
-      style={{ "--map-foot": "3.875rem" } as React.CSSProperties}
+      // What the record bar occupies, reported by the bar itself, so the status
+      // panel and the Leaflet attribution clear it exactly. Held by hand this
+      // was wrong in both directions -- too small on the solar tab, which
+      // overlapped, and too large on wind, which left a strip of map between the
+      // attribution and the bar and made the attribution read as floating.
+      style={{ "--map-foot": `${footPx}px` } as React.CSSProperties}
     >
       {/*
         Full bleed, as on the map screen. Two of the four solar products and the
@@ -549,6 +554,7 @@ export function EnergyScreen(props: EnergyScreenProps) {
         endYear={endYear}
         disabled={tab === "wind" ? windBusy : solarBusy}
         leftOffsetClass="left-[20.5rem] rounded-tl-md"
+        onHeightChange={setFootPx}
       />
 
       <AnimatePresence initial={false}>

@@ -2,6 +2,7 @@ import { forwardRef } from "react"
 import { motion } from "motion/react"
 import { ChevronLeft, CheckCircle2, Loader2, Play, Trash2, Waves } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { todayISO } from "@/lib/dates"
 import { btnGhost, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
 import type { WaterIndex } from "@/lib/types"
@@ -123,6 +124,7 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
               Start
               <input
                 type="date"
+                max={todayISO()}
                 value={start}
                 onChange={(e) => onStartChange(e.target.value)}
                 className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
@@ -132,6 +134,7 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
               End
               <input
                 type="date"
+                max={todayISO()}
                 value={end}
                 onChange={(e) => onEndChange(e.target.value)}
                 className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
