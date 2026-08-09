@@ -153,7 +153,12 @@ def test_modelled_factors_telescope_into_the_performance_ratio():
     f = energy.modelled_factors(site["frame"], site["n_years"])
     product = f["f_iam"] * f["f_temp"] * f["f_inverter"]
     assert abs(product - f["performance_ratio_modelled"]) < 1e-12
-    assert f["telescoping_residual"] == 0.0
+    # Not exact zero: the residual is a difference of products, so its last bit
+    # depends on the order the platform BLAS multiplies them. It came out at
+    # -1.1e-16 on CI numpy against 0.0 here, which is one ULP and not a defect.
+    # energy.py declares the tolerance the module itself checks against, and the
+    # two assertions either side of this one already use it.
+    assert abs(f["telescoping_residual"]) <= energy.TELESCOPING_TOLERANCE
     assert abs(
         f["performance_ratio_modelled"]
         - f["energy_ac_kwh_kwp_year"] / f["energy_poa_kwh_m2_year"]
@@ -408,7 +413,11 @@ def test_the_performance_ratio_chain_multiplies_to_the_derived_ratio():
         math.prod(r["factor"] for r in modelled) - ratio["modelled"]
     ) < 1e-12
     names = {c["name"]: c for c in wf["checkpoints"]}
-    assert names["performance_ratio_modelled"]["residual"] == 0.0
+    # See the note in test_modelled_factors_telescope_into_the_performance_ratio:
+    # one ULP of float noise, not a broken chain.
+    assert abs(
+        names["performance_ratio_modelled"]["residual"]
+    ) <= energy.TELESCOPING_TOLERANCE
     assert abs(
         names["performance_ratio_derived"]["value"] - ratio["derived"]
     ) < 1e-12
