@@ -232,6 +232,99 @@ func (a *App) RenderComposite(req backend.CompositeRequest) (*backend.CompositeR
 	return a.runner.RenderComposite(a.ctx, req)
 }
 
+// AnalyzeWater maps surface water over a period from spectral water indices.
+// Descriptive: a thresholded index, with no model and no trained legend.
+func (a *App) AnalyzeWater(req backend.WaterRequest) (*backend.WaterAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	res, err := a.runner.AnalyzeWater(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistWaterRun(req, res)
+	return res, nil
+}
+
+// persistWaterRun saves a surface-water run so it survives the session and is
+// listed, opened and exported like a classification. Best effort: failing to
+// record a run must not discard the result the user is looking at.
+func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalysis) {
+	a.mu.RLock()
+	user := a.currentUser
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil || res == nil {
+		return
+	}
+	userID := store.LocalUserID
+	if user != nil {
+		userID = user.ID
+	}
+
+	runID := uuid.NewString()
+	assetsRel := filepath.Join("runs", runID)
+	assetsDir := st.RunsDir(runID)
+	_ = os.MkdirAll(assetsDir, 0o700)
+	_ = store.WriteDataURIFile(res.OccurrenceURI, filepath.Join(assetsDir, "water_occurrence.png"))
+
+	// Store without the bulky data URI; the asset is restored on load.
+	stored := *res
+	stored.OccurrenceURI = ""
+	resultBytes, _ := json.Marshal(stored)
+
+	poly := ""
+	if req.PolygonGeoJSON != nil {
+		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
+			poly = string(b)
+		}
+	} else if req.AreaID != "" {
+		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
+	}
+
+	label := strings.TrimSpace(req.Label)
+	if label == "" {
+		label = "Custom AOI"
+	}
+	runLabel := strings.TrimSpace(req.RunLabel)
+	if runLabel == "" {
+		runLabel = makeRunLabel(label)
+	}
+	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
+		runLabel = "run-" + runLabel
+	}
+
+	summary, _ := json.Marshal(map[string]any{
+		"water_index":             res.Index,
+		"n_dates":                 res.NDates,
+		"date_range":              res.DateRange,
+		"peak_date":               res.PeakDate,
+		"peak_water_fraction_pct": res.PeakWaterPct,
+		"ephemeral_area_ha":       res.EphemeralAreaHa,
+		"persistent_area_ha":      res.PersistentAreaHa,
+		"aoi_area_ha":             res.AOIAreaHa,
+		"aoi_label":               label,
+	})
+
+	_, _ = st.SaveRun(store.InferenceRun{
+		ID:     runID,
+		UserID: userID,
+		Kind:   store.RunKindWater,
+		// No model produced this: the index name carries the method instead.
+		ModelKind:      res.Index,
+		PeriodStart:    req.Start,
+		PeriodEnd:      req.End,
+		PolygonGeoJSON: poly,
+		Status:         "ok",
+		SummaryJSON:    string(summary),
+		ResultJSON:     string(resultBytes),
+		AssetsRelPath:  assetsRel,
+		NDates:         res.NDates,
+		Label:          runLabel,
+		ProjectID:      strings.TrimSpace(req.ProjectID),
+	})
+}
+
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
 func (a *App) ExportClassification(rasterPath string) (string, error) {
 	return a.ExportOverlayFile(rasterPath, "terra_classification.tif")
@@ -502,11 +595,30 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 			return nil, mapStoreErr(err)
 		}
 	}
+	assetsDir := a.store.RunsDir(run.ID)
+
+	// A water run stores a WaterAnalysis, not a PredictResult. It is returned
+	// attached to an otherwise empty result so the analysis view and the export
+	// see it through the same field a live run uses. The classification fields
+	// are deliberately left at zero: no classification was made, and filling
+	// n_dates here would make the page present one.
+	if run.Kind == store.RunKindWater {
+		var water backend.WaterAnalysis
+		if run.ResultJSON != "" && run.ResultJSON != "{}" {
+			_ = json.Unmarshal([]byte(run.ResultJSON), &water)
+		}
+		if uri, err := store.ReadFileDataURI(
+			filepath.Join(assetsDir, "water_occurrence.png"), "image/png",
+		); err == nil {
+			water.OccurrenceURI = uri
+		}
+		return &backend.PredictResult{Water: &water}, nil
+	}
+
 	var res backend.PredictResult
 	if run.ResultJSON != "" && run.ResultJSON != "{}" {
 		_ = json.Unmarshal([]byte(run.ResultJSON), &res)
 	}
-	assetsDir := a.store.RunsDir(run.ID)
 	if uri, err := store.ReadFileDataURI(filepath.Join(assetsDir, "overlay.png"), "image/png"); err == nil {
 		res.OverlayURI = uri
 	}

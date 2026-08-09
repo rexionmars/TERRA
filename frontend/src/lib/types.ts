@@ -127,6 +127,14 @@ export interface LULCCompareRow {
   color: string
   pct_ref: number
   pct_pred: number
+  /** 10 m pixels of this class in the reference, on the classification grid. */
+  pixels_ref?: number
+  /**
+   * Distinct native 30 m MapBiomas cells behind those pixels. This is the
+   * number of independent label observations; the pixel count is about nine
+   * times larger and is not a sample size.
+   */
+  n_reference_cells?: number
 }
 
 export interface LULCAnalysis {
@@ -138,6 +146,10 @@ export interface LULCAnalysis {
   composition: LULCClassRow[]
   groups: LULCGroupRow[]
   pred_vs_ref: LULCCompareRow[]
+  /** Valid 10 m pixels shared by both maps. */
+  compare_pixels?: number
+  /** Distinct native reference cells behind them; the comparison sample size. */
+  compare_reference_cells?: number
 }
 
 export interface LULCRequest {
@@ -163,6 +175,8 @@ export interface PredictResult {
   phenology: PhenologyMetrics
   phenology_states: PhenologyStatePoint[]
   lulc?: LULCAnalysis | null
+  /** Attached when a surface-water run was made over the same AOI. */
+  water?: WaterAnalysis | null
 }
 
 export interface ProgressEvent {
@@ -214,6 +228,8 @@ export interface InferenceRun {
   n_dates: number
   label?: string
   project_id?: string
+  /** "classification" or "water"; empty on rows written before the column. */
+  kind?: string
 }
 
 export interface Project {
@@ -323,4 +339,63 @@ export interface CompositionOverlay {
   sceneDate?: string
   /** Local GeoTIFF path for export (when available). */
   raster_tif?: string
+}
+
+export type WaterIndex = "NDWI" | "MNDWI" | "AWEI"
+
+export interface WaterDate {
+  date: string
+  scene_id: string
+  cloud_cover: number
+  /**
+   * AOI pixels actually observed on this date. Water fractions are a percentage
+   * of this, not of the whole AOI, so a partly clouded date is not read as dry.
+   */
+  observed_pixels: number
+  threshold_fixed: number
+  threshold_otsu: number
+  /** The Otsu value hit an empirical bound and is a bound, not an estimate. */
+  threshold_clipped: boolean
+  /** Too few observations to threshold at all. */
+  threshold_degenerate: boolean
+  water_fraction_pct: number
+  water_fraction_otsu_pct: number
+  water_pixels: number
+  area_ha: number
+}
+
+export interface WaterAnalysis {
+  index: WaterIndex
+  threshold_method: string
+  threshold_fixed: number
+  otsu_clip: number[]
+  n_dates: number
+  date_range: string[]
+  aoi_pixels: number
+  aoi_area_ha: number
+  series: WaterDate[]
+  peak_date: string
+  peak_water_fraction_pct: number
+  /** Water on some dates but not most: the flood signal rather than a pond. */
+  ephemeral_pixels: number
+  ephemeral_area_ha: number
+  persistent_pixels: number
+  persistent_area_ha: number
+  mean_anomaly: number
+  /** Occurrence raster as a data URI, coloured on a fixed 0 to 1 scale. */
+  occurrence_uri: string
+  extent: Bounds
+}
+
+export interface WaterRequest {
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  start: string
+  end: string
+  max_cloud: number
+  monthly_best: boolean
+  index: WaterIndex
+  label?: string
+  run_label?: string
+  project_id?: string
 }

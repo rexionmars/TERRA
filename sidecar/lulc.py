@@ -290,21 +290,105 @@ def write_lulc_png(arr: np.ndarray, out_path: Path) -> None:
             dst.write(rgba[:, :, i], i + 1)
 
 
-def pred_vs_ref_composition(pred_map: np.ndarray, ref_map: np.ndarray) -> list[dict]:
-    """Compare predicted vs MapBiomas composition on overlapping valid pixels."""
+def reference_cell_grid(
+    ref_profile: dict,
+    mapbiomas_path: str,
+) -> np.ndarray | None:
+    """
+    Flat index of the native MapBiomas cell each reference-grid pixel came from.
+
+    MapBiomas Collection rasters are native at 30 m. When one is reprojected onto
+    the 10 m classification grid, roughly nine destination pixels are filled from
+    a single source cell and therefore carry one label observation between them.
+    Areas stay correct because area is area, but a count of those pixels is not a
+    sample size: it counts each observation about nine times.
+
+    Returns an array shaped like the reference grid, where pixels sharing a value
+    were resampled from the same native cell. Adapted from
+    mestrado/experiments/class41_decomposition/build_wide_aoi.py.
+
+    Returns None when the MapBiomas raster cannot be opened, so callers keep
+    reporting pixel counts rather than an incorrect sample size.
+    """
+    from rasterio.transform import rowcol as rio_rowcol, xy as rio_xy
+
+    try:
+        with rasterio.open(mapbiomas_path) as src:
+            mb_transform = src.transform
+            mb_crs = src.crs
+            mb_width = int(src.width)
+    except Exception:
+        return None
+
+    height = int(ref_profile["height"])
+    width = int(ref_profile["width"])
+    rows, cols = np.meshgrid(
+        np.arange(height, dtype=np.int64),
+        np.arange(width, dtype=np.int64),
+        indexing="ij",
+    )
+    xs, ys = rio_xy(
+        ref_profile["transform"], rows.ravel(), cols.ravel(), offset="center"
+    )
+    tf = Transformer.from_crs(ref_profile["crs"], mb_crs, always_xy=True)
+    lon, lat = tf.transform(np.asarray(xs), np.asarray(ys))
+    mb_rows, mb_cols = rio_rowcol(mb_transform, lon, lat)
+    ids = np.asarray(mb_rows, dtype=np.int64) * mb_width + np.asarray(
+        mb_cols, dtype=np.int64
+    )
+    return ids.reshape(height, width)
+
+
+def distinct_reference_cells(
+    cell_ids: np.ndarray | None, mask: np.ndarray
+) -> int | None:
+    """
+    Number of distinct native reference cells covered by a boolean mask.
+
+    None when the cell mapping is unavailable, which callers report as an absent
+    sample size rather than substituting the pixel count.
+    """
+    if cell_ids is None:
+        return None
+    if not mask.any():
+        return 0
+    return int(np.unique(cell_ids[mask]).size)
+
+
+def pred_vs_ref_composition(
+    pred_map: np.ndarray,
+    ref_map: np.ndarray,
+    cell_ids: np.ndarray | None = None,
+) -> list[dict]:
+    """
+    Compare predicted vs MapBiomas composition on overlapping valid pixels.
+
+    Percentages are pixel fractions and are unaffected by resampling. The counts
+    reported alongside them are not interchangeable: `pixels_ref` counts 10 m
+    pixels, while `n_reference_cells` counts the distinct 30 m MapBiomas cells
+    those pixels were resampled from, which is the number of independent label
+    observations and therefore the denominator an agreement statistic needs.
+    """
     valid = (pred_map >= 0) & (ref_map > 0)
     n_tot = int(valid.sum())
     rows = []
     for cid in TARGET_COMPARE:
-        n_pred = int(((pred_map == cid) & valid).sum())
-        n_ref = int(((ref_map == cid) & valid).sum())
-        rows.append({
+        pred_mask = (pred_map == cid) & valid
+        ref_mask = (ref_map == cid) & valid
+        n_pred = int(pred_mask.sum())
+        n_ref = int(ref_mask.sum())
+        row = {
             "class_id": cid,
             "name": MAPBIOMAS_LEGEND.get(cid, f"Class {cid}"),
             "color": MAPBIOMAS_COLORS.get(cid, "#bbbbbb"),
             "pct_ref": float(round(100.0 * n_ref / n_tot, 2)) if n_tot else 0.0,
             "pct_pred": float(round(100.0 * n_pred / n_tot, 2)) if n_tot else 0.0,
-        })
+            "pixels_ref": n_ref,
+        }
+        cells = distinct_reference_cells(cell_ids, ref_mask)
+        if cells is not None:
+            row["n_reference_cells"] = cells
+        rows.append(row)
     return rows
 
 
@@ -315,6 +399,7 @@ def analyze_mapbiomas(
     pred_map: np.ndarray | None = None,
     ref_on_pred_grid: np.ndarray | None = None,
     px_ha_override: float | None = None,
+    cell_ids: np.ndarray | None = None,
 ) -> dict:
     """
     Build a full LULC analysis payload.
@@ -322,6 +407,10 @@ def analyze_mapbiomas(
     Prefer clipping the native MapBiomas raster to the polygon. When
     `ref_on_pred_grid` is provided (already reprojected to the Sentinel grid),
     composition uses that grid with `px_ha_override` (typically 0.01 ha @ 10 m).
+
+    `cell_ids` accompanies `ref_on_pred_grid`: on that grid the reference has
+    been resampled from 30 m, so pixel counts are not sample sizes. See
+    reference_cell_grid.
     """
     from rasterio.transform import array_bounds as rio_array_bounds
 
@@ -348,7 +437,9 @@ def analyze_mapbiomas(
 
     pred_vs_ref = []
     if pred_map is not None and ref_on_pred_grid is not None:
-        pred_vs_ref = pred_vs_ref_composition(pred_map, ref_on_pred_grid)
+        pred_vs_ref = pred_vs_ref_composition(
+            pred_map, ref_on_pred_grid, cell_ids=cell_ids
+        )
 
     # Prefer georeferenced raster bounds for map overlay; fall back to polygon.
     if transform is not None:

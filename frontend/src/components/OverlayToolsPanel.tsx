@@ -20,6 +20,7 @@ import type {
   CompositionOverlay,
   ModelKind,
   PredictResult,
+  WaterAnalysis,
 } from "@/lib/types"
 import {
   AOI_CONTOUR_SCHEMES,
@@ -42,6 +43,12 @@ export interface OverlayToolsPanelProps {
   onShowPredictionOverlayChange: (v: boolean) => void
   showCompositionOverlay: boolean
   onShowCompositionOverlayChange: (v: boolean) => void
+  /** Surface-water occurrence raster, when a water run has been made. */
+  water?: WaterAnalysis | null
+  showWaterOverlay?: boolean
+  onShowWaterOverlayChange?: (v: boolean) => void
+  waterOpacity?: number
+  onWaterOpacityChange?: (v: number) => void
   showConfidence: boolean
   onShowConfidenceChange: (v: boolean) => void
   confidenceOnTop: boolean
@@ -242,6 +249,11 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     onShowPredictionOverlayChange,
     showCompositionOverlay,
     onShowCompositionOverlayChange,
+    water = null,
+    showWaterOverlay = true,
+    onShowWaterOverlayChange,
+    waterOpacity = 0.8,
+    onWaterOpacityChange,
     showConfidence,
     onShowConfidenceChange,
     confidenceOnTop,
@@ -538,6 +550,18 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
               <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <input
                   type="checkbox"
+                  checked={showWaterOverlay}
+                  disabled={!water || !onShowWaterOverlayChange}
+                  onChange={(e) =>
+                    onShowWaterOverlayChange?.(e.target.checked)
+                  }
+                  className="accent-primary"
+                />
+                Show surface water overlay
+              </label>
+              <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
                   checked={swipeCompare}
                   onChange={(e) => onSwipeCompareChange(e.target.checked)}
                   className="accent-primary"
@@ -604,6 +628,21 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
                   disabled={!composition}
                   onChange={(e) =>
                     onComposeOpacityChange(Number(e.target.value))
+                  }
+                  className="w-full accent-primary"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                Surface water opacity {Math.round(waterOpacity * 100)}%
+                <input
+                  type="range"
+                  min={0.15}
+                  max={1}
+                  step={0.05}
+                  value={waterOpacity}
+                  disabled={!water || !onWaterOpacityChange}
+                  onChange={(e) =>
+                    onWaterOpacityChange?.(Number(e.target.value))
                   }
                   className="w-full accent-primary"
                 />

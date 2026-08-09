@@ -6,6 +6,8 @@ import {main} from '../models';
 
 export function AnalyzeLULC(arg1:backend.LULCRequest):Promise<backend.LULCAnalysis>;
 
+export function AnalyzeWater(arg1:backend.WaterRequest):Promise<backend.WaterAnalysis>;
+
 export function ClearAvatar():Promise<store.User>;
 
 export function CreateProject(arg1:string,arg2:string):Promise<store.Project>;

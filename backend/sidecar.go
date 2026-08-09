@@ -479,13 +479,15 @@ func convertLULC(raw *lulcSidecarPayload) *LULCAnalysis {
 		return nil
 	}
 	out := &LULCAnalysis{
-		Year:        raw.Year,
-		Source:      raw.Source,
-		Extent:      raw.Extent,
-		Metrics:     raw.Metrics,
-		Composition: raw.Composition,
-		Groups:      raw.Groups,
-		PredVsRef:   raw.PredVsRef,
+		Year:                  raw.Year,
+		Source:                raw.Source,
+		Extent:                raw.Extent,
+		Metrics:               raw.Metrics,
+		Composition:           raw.Composition,
+		Groups:                raw.Groups,
+		PredVsRef:             raw.PredVsRef,
+		ComparePixels:         raw.ComparePixels,
+		CompareReferenceCells: raw.CompareReferenceCells,
 	}
 	if out.Composition == nil {
 		out.Composition = []LULCClassRow{}
@@ -992,4 +994,195 @@ func promoteExportFile(src, basename string) (string, error) {
 		return "", err
 	}
 	return dest, nil
+}
+
+// AnalyzeWater maps surface water over a period from spectral water indices.
+//
+// Descriptive: the result is a thresholded index, so it carries none of the
+// fixed-legend domain-shift limitation that applies to the classifier.
+func (r *Runner) AnalyzeWater(ctx context.Context, req WaterRequest) (*WaterAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if strings.TrimSpace(req.Start) == "" || strings.TrimSpace(req.End) == "" {
+		return nil, fmt.Errorf("set the acquisition period (start and end dates)")
+	}
+
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	maxCloud := req.MaxCloud
+	if maxCloud <= 0 {
+		maxCloud = 100
+	}
+
+	workDir, err := os.MkdirTemp("", "geosense-water-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	// The occurrence PNG is read into a data URI before this returns, so the
+	// directory is not needed afterwards.
+	defer os.RemoveAll(workDir)
+
+	sReq := sidecarRequest{
+		Action:         "water",
+		ModelDir:       r.modelDir, // unused here, kept for schema
+		PolygonGeoJSON: polygon,
+		Start:          req.Start,
+		End:            req.End,
+		MaxCloud:       maxCloud,
+		MonthlyBest:    req.MonthlyBest,
+		Index:          req.Index,
+		WorkDir:        workDir,
+	}
+	reqBytes, err := json.Marshal(sReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Water *waterSidecarPayload `json:"water"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse water result: %w", err)
+	}
+	if wrapped.Water == nil {
+		return nil, fmt.Errorf("sidecar returned empty water payload")
+	}
+	return convertWater(wrapped.Water), nil
+}
+
+func convertWater(raw *waterSidecarPayload) *WaterAnalysis {
+	if raw == nil {
+		return nil
+	}
+	out := &WaterAnalysis{
+		Index:            raw.Index,
+		ThresholdMethod:  raw.ThresholdMethod,
+		ThresholdFixed:   raw.ThresholdFixed,
+		OtsuClip:         raw.OtsuClip,
+		NDates:           raw.NDates,
+		DateRange:        raw.DateRange,
+		AOIPixels:        raw.AOIPixels,
+		AOIAreaHa:        raw.AOIAreaHa,
+		Series:           raw.Series,
+		PeakDate:         raw.PeakDate,
+		PeakWaterPct:     raw.PeakWaterPct,
+		EphemeralPixels:  raw.EphemeralPixels,
+		EphemeralAreaHa:  raw.EphemeralAreaHa,
+		PersistentPixels: raw.PersistentPixels,
+		PersistentAreaHa: raw.PersistentAreaHa,
+		MeanAnomaly:      raw.MeanAnomaly,
+		Extent:           raw.Extent,
+	}
+	if out.Series == nil {
+		out.Series = []WaterDate{}
+	}
+	if out.DateRange == nil {
+		out.DateRange = []string{}
+	}
+	if raw.OccurrencePNG != "" {
+		if uri, err := pngToDataURI(raw.OccurrencePNG); err == nil {
+			out.OccurrenceURI = uri
+		}
+	}
+	return out
+}
+
+// runSidecarJSON runs the sidecar with a marshalled request, relaying progress
+// events to the UI, and returns its stdout payload. Shared by the actions whose
+// only difference is the request and the shape they unmarshal.
+func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, error) {
+	cmd := exec.CommandContext(ctx, r.pythonPath, r.sidecar)
+	cmd.Stdin = strings.NewReader(string(reqBytes))
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", err
+	}
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to start sidecar: %w", err)
+	}
+
+	var wg sync.WaitGroup
+	var lastError string
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stderr)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			var ev struct {
+				Progress *int   `json:"progress"`
+				Msg      string `json:"msg"`
+				Error    string `json:"error"`
+			}
+			if err := json.Unmarshal([]byte(line), &ev); err != nil {
+				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				continue
+			}
+			if ev.Error != "" {
+				lastError = ev.Error
+				continue
+			}
+			p := -1
+			if ev.Progress != nil {
+				p = *ev.Progress
+			}
+			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+		}
+	}()
+
+	var out strings.Builder
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		scanner := bufio.NewScanner(stdout)
+		scanner.Buffer(make([]byte, 0, 1024*1024), 16*1024*1024)
+		for scanner.Scan() {
+			out.WriteString(scanner.Text())
+		}
+	}()
+
+	wg.Wait()
+	if waitErr := cmd.Wait(); waitErr != nil {
+		if lastError != "" {
+			return "", fmt.Errorf("%s", lastError)
+		}
+		return "", fmt.Errorf("sidecar failed: %w", waitErr)
+	}
+
+	raw := strings.TrimSpace(out.String())
+	if raw == "" {
+		if lastError != "" {
+			return "", fmt.Errorf("%s", lastError)
+		}
+		return "", fmt.Errorf("sidecar produced no output")
+	}
+	return raw, nil
 }

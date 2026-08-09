@@ -16,6 +16,7 @@ import {
   GetProject,
   UpdateProjectAOI,
   CreateProject,
+  AnalyzeWater,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -40,6 +41,9 @@ import type {
   Project,
   ProjectOverlay,
   SaveProjectOverlayRequest,
+  WaterAnalysis,
+  WaterIndex,
+  WaterRequest,
 } from "@/lib/types"
 import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
@@ -451,6 +455,11 @@ function AppBody(props: {
   const [composeStretchLow, setComposeStretchLow] = useState(2)
   const [composeStretchHigh, setComposeStretchHigh] = useState(98)
   const [composeOpacity, setComposeOpacity] = useState(0.85)
+  const [water, setWater] = useState<WaterAnalysis | null>(null)
+  const [waterIndex, setWaterIndex] = useState<WaterIndex>("MNDWI")
+  const [waterRunning, setWaterRunning] = useState(false)
+  const [showWaterOverlay, setShowWaterOverlay] = useState(true)
+  const [waterOpacity, setWaterOpacity] = useState(0.8)
   const didRestoreProjectRef = useRef(false)
   const prefsRef = useRef(prefs)
   prefsRef.current = prefs
@@ -484,6 +493,61 @@ function AppBody(props: {
       }
     },
     [savePrefs]
+  )
+
+  /**
+   * Remember where the map was left, so the next session resumes there.
+   *
+   * The map emits on every pan and zoom frame, so this is debounced and only
+   * writes once the view has settled. Failures are ignored: this is a
+   * convenience, and losing it must never interrupt work.
+   */
+  const viewSaveTimer = useRef<number | undefined>(undefined)
+  /**
+   * Live map position, so returning to the map screen resumes exactly where it
+   * was left rather than at whatever the debounced write last committed.
+   */
+  const liveViewRef = useRef<{ lat: number; lon: number; zoom: number } | null>(
+    null
+  )
+  const persistMapView = useCallback(
+    (v: { lat: number; lon: number; zoom: number }) => {
+      if (viewSaveTimer.current) window.clearTimeout(viewSaveTimer.current)
+      viewSaveTimer.current = window.setTimeout(() => {
+        const current = prefsRef.current
+        if (!current) return
+        const extras = parsePreferenceExtras(current.extras_json)
+        const last = extras.map_view
+        // Skip a write when nothing meaningful moved.
+        if (
+          last &&
+          Math.abs(last.lat - v.lat) < 1e-4 &&
+          Math.abs(last.lon - v.lon) < 1e-4 &&
+          last.zoom === v.zoom
+        ) {
+          return
+        }
+        extras.map_view = {
+          lat: Number(v.lat.toFixed(5)),
+          lon: Number(v.lon.toFixed(5)),
+          zoom: v.zoom,
+        }
+        void savePrefs(
+          { ...current, extras_json: JSON.stringify(extras) },
+          { silent: true }
+        ).catch(() => {
+          /* best-effort */
+        })
+      }, 1200)
+    },
+    [savePrefs]
+  )
+
+  useEffect(
+    () => () => {
+      if (viewSaveTimer.current) window.clearTimeout(viewSaveTimer.current)
+    },
+    []
   )
 
   const persistActiveProjectId = useCallback(
@@ -594,7 +658,15 @@ function AppBody(props: {
   )
 
   const activateProject = useCallback(
-    async (id: string | null) => {
+    async (
+      id: string | null,
+      opts?: { userInitiated?: boolean }
+    ) => {
+      // Opening a project is an explicit action and draws its AOI and most
+      // recent composition on the map. Restoring one at startup is not, and
+      // must not: a session that begins with an AOI outline and an overlay the
+      // user did not ask for in that session leaves them clearing both by hand.
+      const userInitiated = opts?.userInitiated ?? true
       await persistActiveProjectId(id)
       if (!id) {
         setComposition(null)
@@ -608,13 +680,13 @@ function AppBody(props: {
           p.label?.trim() ||
           parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
           ""
-        if (p.area_id) {
+        if (userInitiated && p.area_id) {
           props.setActiveExample(p.area_id)
           props.setCustomPolygon(null)
           const label = savedLabel || p.name
           props.setAnalysisLabel(label)
           void persistAoiLabel(label)
-        } else if (p.polygon_geojson) {
+        } else if (userInitiated && p.polygon_geojson) {
           const aoi = parseRunPolygon(p.polygon_geojson, props.areas)
           props.setActiveExample(aoi.exampleId)
           props.setCustomPolygon(aoi.polygon)
@@ -636,9 +708,11 @@ function AppBody(props: {
         const gallery = overlays
           .map(projectOverlayToComposition)
           .filter((x): x is CompositionOverlay => !!x)
+        // The gallery is always loaded so the compositions stay one click away
+        // in Overlay Tools; only the display is conditional.
         setCompositionGallery(gallery)
-        setComposition(gallery[0] ?? null)
-        setShowCompositionOverlay(!!gallery[0])
+        setComposition(userInitiated ? gallery[0] ?? null : null)
+        setShowCompositionOverlay(userInitiated && !!gallery[0])
       } catch (e) {
         notifyError("Could not open project", e)
       }
@@ -662,7 +736,7 @@ function AppBody(props: {
     if (!id) return
     if (!projects.some((p) => p.id === id)) return
     didRestoreProjectRef.current = true
-    void activateProject(id)
+    void activateProject(id, { userInitiated: false })
   }, [prefs?.extras_json, projects, activateProject])
 
   const handleCreateProjectFromMap = useCallback(async () => {
@@ -840,6 +914,88 @@ function AppBody(props: {
       notifyError("Composition error", e)
     } finally {
       setComposeRunning(false)
+    }
+  }
+
+  /**
+   * Identity of the AOI currently on the map. Changes whenever the drawn
+   * polygon or the selected example changes.
+   */
+  const aoiSignature = useMemo(() => {
+    if (props.activeExample) return `area:${props.activeExample}`
+    return props.customPolygon ? `poly:${JSON.stringify(props.customPolygon)}` : ""
+  }, [props.activeExample, props.customPolygon])
+
+  /** The AOI the current water result was computed over. */
+  const waterAoiRef = useRef<string>("")
+
+  /**
+   * A water result belongs to the AOI it was measured on. When the AOI changes
+   * the raster no longer describes what is on the map, so it is dropped.
+   *
+   * Done by comparing against the AOI the run was made on rather than by
+   * clearing at each call site: the AOI changes from drawing, from loading an
+   * example, from opening a project and from opening a composition, and a
+   * missed path leaves a raster from one field painted over another.
+   */
+  useEffect(() => {
+    if (!water) return
+    if (aoiSignature === waterAoiRef.current) return
+    setWater(null)
+    setShowWaterOverlay(true)
+  }, [aoiSignature, water])
+
+  const handleRunWater = async () => {
+    if (!props.start || !props.end) {
+      notifyError("Set the acquisition period.")
+      return
+    }
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    setWaterRunning(true)
+    // The sidecar emits on the shared predict:progress channel and only one
+    // action runs at a time, so the panel reads the shared progress.
+    props.setProgress(0)
+    props.setProgressMsg("starting")
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: WaterRequest = {
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        start: props.start,
+        end: props.end,
+        max_cloud: props.maxCloud,
+        monthly_best: props.monthlyBest,
+        index: waterIndex,
+        label: aoiLabel,
+        run_label: makeRunLabel(aoiLabel),
+        project_id: activeProjectId || undefined,
+      }
+      const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
+      waterAoiRef.current = aoiSignature
+      setWater(res)
+      setShowWaterOverlay(true)
+      notifySuccess(
+        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}% (saved).`,
+        undefined,
+        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+      )
+      void refreshRuns()
+      void refreshProjects()
+    } catch (e) {
+      notifyError("Surface water error", e)
+    } finally {
+      setWaterRunning(false)
+      props.setProgress(0)
+      props.setProgressMsg("")
     }
   }
 
@@ -1046,6 +1202,21 @@ function AppBody(props: {
         const aoi = parseRunPolygon(run.polygon_geojson, props.areas)
         props.setActiveExample(aoi.exampleId)
         props.setCustomPolygon(aoi.polygon)
+        // A water run carries its raster in the same field a live run uses, so
+        // opening one puts the occurrence overlay back on the map. The AOI it
+        // was measured on is recorded first, otherwise the invalidation effect
+        // sees a mismatch and drops the raster that was just restored.
+        if (res.water) {
+          waterAoiRef.current = aoi.exampleId
+            ? `area:${aoi.exampleId}`
+            : aoi.polygon
+              ? `poly:${JSON.stringify(aoi.polygon)}`
+              : ""
+          setWater(res.water)
+          setShowWaterOverlay(true)
+        } else {
+          setWater(null)
+        }
         const centroid = geometryCentroid(aoi.polygon)
         if (centroid) {
           props.setFlyTo({
@@ -1160,6 +1331,18 @@ function AppBody(props: {
     return props.customPolygon ? "Custom AOI" : undefined
   }, [props.analysisLabel, props.activeExample, props.areas, props.customPolygon])
 
+  /**
+   * The analysis payload as the Analysis screen and the exporter see it.
+   *
+   * Water comes from its own action, so it is merged at render time rather
+   * than written into the classification result: either can be produced first,
+   * and neither must overwrite the other.
+   */
+  const resultWithWater = useMemo(
+    () => (props.result ? { ...props.result, water } : null),
+    [props.result, water]
+  )
+
   const analysisPolygonGeoJSON = useMemo(() => {
     if (props.customPolygon) return JSON.stringify(props.customPolygon)
     if (props.activeExample) {
@@ -1208,6 +1391,11 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MapScreen
+                  initialView={
+                    liveViewRef.current ??
+                    parsePreferenceExtras(prefs?.extras_json).map_view ??
+                    null
+                  }
                   areas={props.areas}
                   activeExample={props.activeExample}
                   customPolygon={props.customPolygon}
@@ -1256,12 +1444,21 @@ function AppBody(props: {
                   composeStretchLow={composeStretchLow}
                   composeStretchHigh={composeStretchHigh}
                   composeOpacity={composeOpacity}
-                  onViewChange={props.setView}
+                  onViewChange={(v) => {
+                    liveViewRef.current = v
+                    props.setView(v)
+                    persistMapView(v)
+                  }}
                   onPolygonDrawn={(geom) => {
                     props.setCustomPolygon(geom)
                     if (geom) {
                       props.setActiveExample("")
                       props.setAnalysisLabel(undefined)
+                      // A composition was rendered for the previous AOI and
+                      // does not describe this one. Water is dropped by the
+                      // AOI-change effect above.
+                      setComposition(null)
+                      setShowCompositionOverlay(true)
                     }
                   }}
                   onSelectExample={props.onSelectExample}
@@ -1338,6 +1535,21 @@ function AppBody(props: {
                     setDataCubeOpen(false)
                     setDataCubeError(null)
                   }}
+                  water={water}
+                  waterIndex={waterIndex}
+                  waterRunning={waterRunning}
+                  waterProgress={props.progress}
+                  waterProgressMsg={props.progressMsg}
+                  showWaterOverlay={showWaterOverlay}
+                  onWaterIndexChange={setWaterIndex}
+                  onRunWater={() => void handleRunWater()}
+                  onClearWater={() => {
+                    setWater(null)
+                    setShowWaterOverlay(true)
+                  }}
+                  onShowWaterOverlayChange={setShowWaterOverlay}
+                  waterOpacity={waterOpacity}
+                  onWaterOpacityChange={setWaterOpacity}
                   leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>
@@ -1352,7 +1564,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <AnalysisPage
-                  result={props.result}
+                  result={resultWithWater}
                   areas={props.areas}
                   modelKind={props.modelKind}
                   areaLabel={areaLabel}
