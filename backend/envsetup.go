@@ -9,8 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 /*
@@ -115,6 +117,23 @@ func (b *EnvBuilder) Build(
 		return "", err
 	}
 
+	// Asked before anything is created or removed.
+	//
+	// The candidate list is deliberately uninspected -- running the doctor in
+	// every interpreter costs seconds apiece -- so "Build environment" is
+	// offered on interpreters too old to carry the wheels. Without this the
+	// answer arrives at the verification step, after a venv was created, the
+	// previous one deleted, and pip spent minutes failing to resolve. This
+	// costs one process start and reports the same fact up front.
+	if version, err := basePythonVersion(ctx, basePython); err != nil {
+		return fail(fmt.Errorf("%s could not be run: %w", basePython, err))
+	} else if !versionAtLeast(version, minPython) {
+		return fail(fmt.Errorf(
+			"%s is Python %s, and TERRA needs %s or newer",
+			basePython, strings.Join(itoaAll(version), "."),
+			strings.Join(itoaAll(minPython), ".")))
+	}
+
 	// A previous attempt may have left a partial tree. venv would reuse it and
 	// inherit whatever was broken about it, so it goes first -- at a moment
 	// when nothing is running inside it, unlike during a cancel.
@@ -186,6 +205,74 @@ func (b *EnvBuilder) Build(
 
 	emit(EnvSetupEvent{Step: StepDone, Line: "environment ready · python " + report.PythonVersion})
 	return py, nil
+}
+
+/*
+minPython is the floor a base interpreter has to clear to be worth building on.
+
+It restates doctor.py's MIN_PYTHON, which is the authority: that file decides
+whether a finished environment is usable, and this only decides whether it is
+worth spending minutes finding out. Kept in step by the test below, which fails
+if the two drift -- a floor here that is lower would let a build run to a
+verification that was always going to reject it, and one that is higher would
+refuse an interpreter the doctor would have accepted.
+*/
+var minPython = []int{3, 12}
+
+// basePythonVersion asks an interpreter its version, as major/minor.
+//
+// Deliberately not the doctor: that imports rasterio and torch and costs
+// seconds. This is one `print` and answers the only question asked before a
+// build starts.
+func basePythonVersion(ctx context.Context, python string) ([]int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, python, "-c",
+		"import sys; print('%d.%d' % sys.version_info[:2])")
+	out, err := cmd.Output()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+			return nil, fmt.Errorf("%s", strings.TrimSpace(string(ee.Stderr)))
+		}
+		return nil, err
+	}
+
+	var parts []int
+	for _, chunk := range strings.Split(strings.TrimSpace(string(out)), ".") {
+		n, err := strconv.Atoi(chunk)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected version output: %q",
+				strings.TrimSpace(string(out)))
+		}
+		parts = append(parts, n)
+	}
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("no version reported")
+	}
+	return parts, nil
+}
+
+// versionAtLeast compares version tuples component by component, so 3.13 beats
+// 3.12 and 3.9 does not -- which a string comparison gets wrong.
+func versionAtLeast(got, floor []int) bool {
+	for i, want := range floor {
+		if i >= len(got) {
+			return false
+		}
+		if got[i] != want {
+			return got[i] > want
+		}
+	}
+	return true
+}
+
+func itoaAll(parts []int) []string {
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		out[i] = strconv.Itoa(p)
+	}
+	return out
 }
 
 // runStreaming runs a command and reports every line it writes, on either
