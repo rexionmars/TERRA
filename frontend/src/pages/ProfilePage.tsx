@@ -10,6 +10,7 @@ import {
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
+import { ActivityGrid } from "@/components/ActivityGrid"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
@@ -32,7 +33,7 @@ const SECTIONS: {
   { id: "account", label: "Account", count: 3 },
   { id: "classification", label: "Classification", count: 2 },
   { id: "appearance", label: "Appearance", count: 1 },
-  { id: "session", label: "Session", count: 1 },
+  { id: "session", label: "Session", count: 2 },
 ]
 
 const focusRing =
@@ -446,6 +447,16 @@ export function ProfilePage({
                 sectionRefs.current.session = el
               }}
             >
+              <SettingRow
+                id="session.activity"
+                title="Activity"
+                description="Runs per day over the last year. A run is one classification, composition, water, solar or wind analysis."
+                focused={focusedSetting === "session.activity"}
+                onFocus={() => setFocusedSetting("session.activity")}
+              >
+                <ActivityGrid />
+              </SettingRow>
+
               <SettingRow
                 id="session.analyses"
                 title="Saved analyses"

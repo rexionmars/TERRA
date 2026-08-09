@@ -3697,6 +3697,20 @@ export namespace main {
 
 export namespace store {
 	
+	export class ActivityDay {
+	    day: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActivityDay(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.day = source["day"];
+	        this.count = source["count"];
+	    }
+	}
 	export class InferenceRun {
 	    id: string;
 	    user_id: string;

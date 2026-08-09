@@ -730,6 +730,57 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 	return out, rows.Err()
 }
 
+// ActivityDay is one calendar day with the number of runs made on it.
+type ActivityDay struct {
+	// Local calendar date, YYYY-MM-DD.
+	Day   string `json:"day"`
+	Count int    `json:"count"`
+}
+
+// RunActivity counts runs per day over a trailing window.
+//
+// Counted here rather than derived from ListRuns, which caps at 100 rows and
+// carries result_json on every one of them. A year of activity read that way
+// would be both truncated -- showing empty weeks that are not empty -- and
+// wasteful, since the caller needs a number per day and not the runs.
+//
+// created_at is written as RFC3339 in UTC, and localtime converts it to the
+// day the user actually worked; grouped in UTC, an evening run west of
+// Greenwich lands on tomorrow's square.
+func (s *Store) RunActivity(userID string, days int) ([]ActivityDay, error) {
+	if userID == "" {
+		userID = LocalUserID
+	}
+	if days <= 0 || days > 1100 {
+		days = 366
+	}
+	rows, err := s.db.Query(
+		`SELECT date(created_at, 'localtime') AS d, COUNT(*)
+		 FROM inference_runs
+		 WHERE user_id = ?
+		   AND date(created_at, 'localtime') >= date('now', 'localtime', ?)
+		 GROUP BY d
+		 ORDER BY d`,
+		userID, fmt.Sprintf("-%d days", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Never nil: a user with no runs marshals to [] rather than null, so the
+	// caller renders an empty year instead of failing on a missing list.
+	out := []ActivityDay{}
+	for rows.Next() {
+		var a ActivityDay
+		if err := rows.Scan(&a.Day, &a.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetRun(userID, runID string) (*InferenceRun, error) {
 	if userID == "" {
 		userID = LocalUserID
