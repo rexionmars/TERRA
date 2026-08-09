@@ -466,7 +466,7 @@ function AppBody(props: {
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
+  const { user, refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
 
@@ -490,10 +490,16 @@ function AppBody(props: {
    * Once per session, and never over an explicit navigation: this is a
    * first-run gate, not a guard that keeps pulling someone out of a screen
    * they chose to open.
+   *
+   * Waits for a signed-in user. goProfile sends anyone without one to the auth
+   * screen instead, so firing before sign-in spent the one attempt this gate
+   * gets on a redirect to a page it did not mean -- and an unusable interpreter
+   * then went unreported for the rest of the session, which is precisely the
+   * silence the gate exists to break.
    */
   const envGateDone = useRef(false)
   useEffect(() => {
-    if (envGateDone.current) return
+    if (!user || envGateDone.current) return
     envGateDone.current = true
     void (async () => {
       try {
@@ -505,7 +511,7 @@ function AppBody(props: {
         goProfile("system")
       }
     })()
-  }, [goProfile])
+  }, [user, goProfile])
   /**
    * Open tool tab of the map's left dock.
    *
