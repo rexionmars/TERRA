@@ -23,14 +23,17 @@ import {
 } from "../../wailsjs/go/main/App"
 import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
 
-export type AppScreen =
-  | "map"
-  | "auth"
-  | "profile"
-  | "analysis"
-  | "energy"
-  /** Whether anything can be computed at all; see pages/EnvironmentScreen. */
-  | "environment"
+export type AppScreen = "map" | "auth" | "profile" | "analysis" | "energy"
+
+/**
+ * A page of the settings screen, when something wants to open a particular one.
+ *
+ * The Python environment briefly had a screen of its own here, which gave one
+ * subject three separate doors -- a full-screen route, a link inside settings,
+ * and the first-run gate. It is a settings page like the others; opening it is
+ * opening settings at that page.
+ */
+export type SettingsPage = "account" | "analysis" | "appearance" | "system"
 
 interface AuthContextValue {
   user: User | null
@@ -41,10 +44,11 @@ interface AuthContextValue {
   screen: AppScreen
   goMap: () => void
   goAuth: () => void
-  goProfile: () => void
+  goProfile: (page?: SettingsPage) => void
   goAnalysis: () => void
   goEnergy: () => void
-  goEnvironment: () => void
+  /** Which settings page to open on arrival, consumed once by ProfilePage. */
+  settingsPage: SettingsPage | null
   navigate: (screen: AppScreen) => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
@@ -190,9 +194,22 @@ export function AuthProvider({
     [onPrefsApplied]
   )
 
-  const goProfile = useCallback(() => {
-    setScreen(user ? "profile" : "auth")
-  }, [user])
+  /**
+   * Which settings page the next arrival should land on.
+   *
+   * Null once ProfilePage has read it, so returning to settings by hand shows
+   * the page last chosen there rather than replaying the destination of
+   * whatever sent the user in the first time.
+   */
+  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(null)
+
+  const goProfile = useCallback(
+    (page?: SettingsPage) => {
+      setSettingsPage(page ?? null)
+      setScreen(user ? "profile" : "auth")
+    },
+    [user]
+  )
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -207,7 +224,7 @@ export function AuthProvider({
       goProfile,
       goAnalysis: () => setScreen("analysis"),
       goEnergy: () => setScreen("energy"),
-      goEnvironment: () => setScreen("environment"),
+      settingsPage,
       navigate: setScreen,
       login,
       register,
@@ -226,6 +243,7 @@ export function AuthProvider({
       projects,
       loading,
       screen,
+      settingsPage,
       goProfile,
       login,
       register,

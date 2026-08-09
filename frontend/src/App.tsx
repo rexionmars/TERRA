@@ -87,7 +87,6 @@ import type {
 } from "@/lib/energyState"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
-import { EnvironmentScreen } from "@/pages/EnvironmentScreen"
 import { AnalysisPage } from "@/pages/AnalysisPage"
 
 function defaultPeriod(): { start: string; end: string } {
@@ -467,21 +466,26 @@ function AppBody(props: {
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goEnvironment, runs, projects, prefs, savePrefs } =
+  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
 
   /**
-   * Send the user to the environment screen when nothing can be computed.
+   * Open settings at System when nothing can be computed.
    *
    * Checked here rather than during boot: it imports every dependency in the
    * target interpreter, which costs seconds, and the splash has a fast probe
    * for the interpreter itself. This runs once the shell is already up.
    *
-   * Blocking is the point. Without it the application opens looking healthy,
-   * the user draws an area, chooses a period, waits, and the run dies on an
-   * import -- which is the failure the environment screen exists to move
-   * earlier, to a place where it can be fixed.
+   * Sending the user somewhere is the point. Without it the application opens
+   * looking healthy, the user draws an area, chooses a period, waits, and the
+   * run dies on an import -- this moves that failure earlier, to the page that
+   * can fix it.
+   *
+   * It goes to a settings page rather than a screen of its own. Configuring the
+   * interpreter is a setting; giving it a separate full-screen route meant the
+   * same subject could be reached three ways and left the window with no way
+   * back to anything else.
    *
    * Once per session, and never over an explicit navigation: this is a
    * first-run gate, not a guard that keeps pulling someone out of a screen
@@ -494,14 +498,14 @@ function AppBody(props: {
     void (async () => {
       try {
         const state = await InspectEnvironment()
-        if (!state.active?.usable) goEnvironment()
+        if (!state.active?.usable) goProfile("system")
       } catch {
-        // Failing to inspect is itself a reason to show the screen: it is the
+        // Failing to inspect is itself a reason to show the page: it is the
         // only place that can report what went wrong.
-        goEnvironment()
+        goProfile("system")
       }
     })()
-  }, [goEnvironment])
+  }, [goProfile])
   /**
    * Open tool tab of the map's left dock.
    *
@@ -2353,9 +2357,6 @@ function AppBody(props: {
           {screen === "auth" && <AuthPage />}
           {screen === "profile" && (
             <ProfilePage loadingRun={loadingRun} onOpenRun={openSavedAnalysis} />
-          )}
-          {screen === "environment" && (
-            <EnvironmentScreen onReady={() => goMap()} />
           )}
         </div>
       </div>

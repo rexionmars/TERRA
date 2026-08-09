@@ -1,39 +1,49 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import {
-  Camera,
-  ChartColumn,
-  FolderOpen,
-  LogOut,
-  Save,
-  Trash2,
-} from "lucide-react"
+import { Camera, ChartColumn, FolderOpen, LogOut, Save, Trash2 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import { ActivityGrid } from "@/components/ActivityGrid"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
+import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { cn } from "@/lib/utils"
 import type { InferenceRun, Preferences } from "@/lib/types"
-import {
-  mergePreferenceExtras,
-} from "@/lib/preferenceExtras"
+import { mergePreferenceExtras } from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
 
-type SettingsSectionId = "account" | "classification" | "appearance" | "session"
+type SettingsSectionId = "account" | "analysis" | "appearance" | "system"
 
+/**
+ * The pages of settings, grouped by subject.
+ *
+ * There were five, and two were the same subject: "Account" held who you are
+ * and "Session" held your work, split for no reason anyone chose -- they grew
+ * apart. Worse, "Session" contained no session at all, which made the run list
+ * read as something signing out would take with it. Sign out itself was in
+ * neither, sitting in the column's footer, as far from the account it ends as
+ * the layout allowed.
+ *
+ * "Classification" named one product while holding the overlay opacity, which
+ * compositions and surface water use as well. These are analysis defaults, so
+ * that is what it says.
+ */
 const SECTIONS: {
   id: SettingsSectionId
   label: string
-  count: number
+  /** How many settings the page holds, where that is a countable thing. */
+  count?: number
 }[] = [
-  { id: "account", label: "Account", count: 3 },
-  { id: "classification", label: "Classification", count: 2 },
+  { id: "account", label: "Account", count: 6 },
+  { id: "analysis", label: "Analysis", count: 2 },
   { id: "appearance", label: "Appearance", count: 1 },
-  { id: "session", label: "Session", count: 2 },
+  // No count. The other pages are lists of controls, and the number says how
+  // long the list is. This one reports the state of an environment and offers
+  // what to do about it, so "(1)" would be counting the wrong thing.
+  { id: "system", label: "System" },
 ]
 
 const focusRing =
@@ -58,6 +68,7 @@ export function ProfilePage({
     refreshRuns,
     goAuth,
     goAnalysis,
+    settingsPage,
   } = useAuth()
   const { setTheme: setNextTheme } = useTheme()
   const [name, setName] = useState("")
@@ -65,14 +76,16 @@ export function ProfilePage({
   const [opacity, setOpacity] = useState(0.75)
   const [theme, setTheme] = useState("dark")
   const [busy, setBusy] = useState(false)
-  const [activeSection, setActiveSection] =
-    useState<SettingsSectionId>("account")
+  /*
+    Account unless something asked for a particular page -- the first-run gate
+    asks for System, since an unusable interpreter is the reason it opened
+    settings at all.
+  */
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>(
+    settingsPage ?? "account"
+  )
   const [focusedSetting, setFocusedSetting] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const contentRef = useRef<HTMLDivElement | null>(null)
-  const sectionRefs = useRef<Partial<Record<SettingsSectionId, HTMLElement | null>>>(
-    {}
-  )
   const prefsReady = useRef(false)
   const savePrefsTimer = useRef<number | null>(null)
   const prefsDraftRef = useRef({
@@ -105,19 +118,14 @@ export function ProfilePage({
   }, [prefs])
 
   const persistPreferences = useCallback(
-    async (next: {
-      model: string
-      opacity: number
-      theme: string
-    }) => {
+    async (next: { model: string; opacity: number; theme: string }) => {
       if (!user) return
       const payload: Preferences = {
         user_id: user.id,
         default_model: next.model,
         overlay_opacity: next.opacity,
         theme: next.theme,
-        extras_json: mergePreferenceExtras(prefs?.extras_json, {
-        }),
+        extras_json: mergePreferenceExtras(prefs?.extras_json, {}),
       }
       await savePrefs(payload)
       if (
@@ -132,11 +140,13 @@ export function ProfilePage({
   )
 
   const schedulePrefsSave = useCallback(
-    (patch: Partial<{
-      model: string
-      opacity: number
-      theme: string
-    }>) => {
+    (
+      patch: Partial<{
+        model: string
+        opacity: number
+        theme: string
+      }>
+    ) => {
       if (!prefsReady.current) return
       prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
       if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
@@ -155,33 +165,19 @@ export function ProfilePage({
 
   const recentRuns = useMemo(() => runs.slice(0, 3), [runs])
 
-  const scrollToSection = (id: SettingsSectionId) => {
-    setActiveSection(id)
-    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }
+  /*
+    The column switches the page; it does not scroll to a heading.
 
-  useEffect(() => {
-    const root = contentRef.current
-    if (!root) return
-    const nodes = SECTIONS.map((s) => sectionRefs.current[s.id]).filter(
-      Boolean
-    ) as HTMLElement[]
-    if (nodes.length === 0) return
+    Every section used to be mounted at once in one scrolling page, with the
+    column scrolling to an anchor and an IntersectionObserver guessing which
+    heading was in view to light the right entry. Two consequences, both bad:
+    the page grows without bound as settings are added, and the column looks
+    like navigation while behaving like a table of contents.
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        const top = visible[0]?.target as HTMLElement | undefined
-        const id = top?.dataset.section as SettingsSectionId | undefined
-        if (id) setActiveSection(id)
-      },
-      { root, rootMargin: "-12% 0px -70% 0px", threshold: 0 }
-    )
-    for (const n of nodes) io.observe(n)
-    return () => io.disconnect()
-  }, [user])
+    Rendering one section at a time is what the column already appeared to do,
+    and it removes the observer, the scroll and the refs that fed them.
+  */
+  const page = SECTIONS.find((s) => s.id === activeSection) ?? SECTIONS[0]
 
   if (!user) return null
 
@@ -226,7 +222,7 @@ export function ProfilePage({
             <button
               key={s.id}
               type="button"
-              onClick={() => scrollToSection(s.id)}
+              onClick={() => setActiveSection(s.id)}
               aria-current={activeSection === s.id ? "true" : undefined}
               className={cn(
                 "nav-item flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-emphasis",
@@ -238,16 +234,18 @@ export function ProfilePage({
               {/* Muted reads 3.20 to 1 on the active row's accent fill, under
                   the 4.5 floor, so the count follows the label up on that row
                   rather than staying the one unreadable thing on it. */}
-              <span
-                className={cn(
-                  "telemetry shrink-0 text-meta",
-                  activeSection === s.id
-                    ? "text-foreground/80"
-                    : "text-muted-foreground"
-                )}
-              >
-                ({s.count})
-              </span>
+              {s.count !== undefined && (
+                <span
+                  className={cn(
+                    "telemetry shrink-0 text-meta",
+                    activeSection === s.id
+                      ? "text-foreground/80"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  ({s.count})
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -259,22 +257,20 @@ export function ProfilePage({
           <p className="telemetry text-meta text-muted-foreground">
             Preferences apply automatically
           </p>
-          <button type="button" onClick={() => void logout()} className={btnGhost}>
-            <LogOut className="h-3 w-3" />
-            Sign out
-          </button>
         </div>
       </PageAside>
 
-      <PageBody scrollRef={contentRef}>
+      <PageBody>
         <div className="mx-auto w-full max-w-3xl px-5 py-4 sm:px-8">
-            <Section
-              id="account"
-              title="Account"
-              sectionRef={(el) => {
-                sectionRefs.current.account = el
-              }}
-            >
+          {/* The page's one heading. Each section used to carry its own, which
+              is why System showed "System" and then "Python environment"
+              directly beneath it. */}
+          <h2 className="mb-1 border-b border-border pb-2 font-display text-heading font-semibold tracking-wide text-foreground">
+            {page.label}
+          </h2>
+
+          {activeSection === "account" && (
+            <Section>
               <SettingRow
                 id="account.photo"
                 title="Profile photo"
@@ -289,9 +285,7 @@ export function ProfilePage({
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif"
                     className="hidden"
-                    onChange={(e) =>
-                      void onPickPhoto(e.target.files?.[0] ?? null)
-                    }
+                    onChange={(e) => void onPickPhoto(e.target.files?.[0] ?? null)}
                   />
                   <button
                     type="button"
@@ -354,121 +348,29 @@ export function ProfilePage({
                   readOnly
                 />
               </SettingRow>
-            </Section>
 
-            <Section
-              id="classification"
-              title="Classification"
-              sectionRef={(el) => {
-                sectionRefs.current.classification = el
-              }}
-            >
+              {/* Was a section called "Session", which held no session: it held
+                  your work. Your identity and your history are the same
+                  subject, and splitting them put the run list under a heading
+                  that suggested it would be lost on sign-out. */}
               <SettingRow
-                id="classification.model"
-                title="Default model"
-                description="Model pre-selected in the Classification panel on the map."
-                focused={focusedSetting === "classification.model"}
-                onFocus={() => setFocusedSetting("classification.model")}
-              >
-                <select
-                  className="field-input max-w-md focus-visible:ring-1 focus-visible:ring-ring"
-                  value={model}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    setModel(next)
-                    schedulePrefsSave({ model: next })
-                  }}
-                >
-                  <option value="spectral">Random Forest (spectral)</option>
-                  <option value="temporal_transformer">
-                    Temporal Transformer
-                  </option>
-                  <option value="prithvi">Prithvi-EO 2.0</option>
-                </select>
-              </SettingRow>
-
-              <SettingRow
-                id="classification.opacity"
-                title={`Overlay opacity · ${opacity.toFixed(2)}`}
-                description="Default opacity for prediction and composition overlays on the map."
-                focused={focusedSetting === "classification.opacity"}
-                onFocus={() => setFocusedSetting("classification.opacity")}
-              >
-                <input
-                  type="range"
-                  min={0.2}
-                  max={1}
-                  step={0.05}
-                  value={opacity}
-                  className="w-full max-w-md rounded-sm accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onChange={(e) => {
-                    const next = Number(e.target.value)
-                    setOpacity(next)
-                    schedulePrefsSave({ opacity: next })
-                  }}
-                />
-              </SettingRow>
-            </Section>
-
-            <Section
-              id="appearance"
-              title="Appearance"
-              sectionRef={(el) => {
-                sectionRefs.current.appearance = el
-              }}
-            >
-              <SettingRow
-                id="appearance.theme"
-                title="Color theme"
-                description="Controls the overall light/dark appearance of TERRA."
-                focused={focusedSetting === "appearance.theme"}
-                onFocus={() => setFocusedSetting("appearance.theme")}
-              >
-                <select
-                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
-                  value={theme}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    setTheme(next)
-                    schedulePrefsSave({ theme: next })
-                  }}
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                  <option value="system">System</option>
-                </select>
-              </SettingRow>
-            </Section>
-
-            <Section
-              id="session"
-              title="Session"
-              sectionRef={(el) => {
-                sectionRefs.current.session = el
-              }}
-            >
-              <SettingRow
-                id="session.activity"
+                id="account.activity"
                 title="Activity"
                 description="Runs per day over the last year. A run is one classification, composition, water, solar or wind analysis."
-                focused={focusedSetting === "session.activity"}
-                onFocus={() => setFocusedSetting("session.activity")}
+                focused={focusedSetting === "account.activity"}
+                onFocus={() => setFocusedSetting("account.activity")}
               >
                 <ActivityGrid />
               </SettingRow>
 
               <SettingRow
-                id="session.analyses"
+                id="account.analyses"
                 title="Saved analyses"
-                description="Full history lives in the Analysis hub. Recent runs are listed below."
-                focused={focusedSetting === "session.analyses"}
-                onFocus={() => setFocusedSetting("session.analyses")}
+                description="Full history lives in the project hub. The most recent are listed here."
+                focused={focusedSetting === "account.analyses"}
+                onFocus={() => setFocusedSetting("account.analyses")}
               >
-                <button
-                  type="button"
-                  onClick={goAnalysis}
-                  className={btnGhost}
-                >
+                <button type="button" onClick={goAnalysis} className={btnGhost}>
                   <ChartColumn className="h-3 w-3" />
                   Open project hub
                 </button>
@@ -505,36 +407,129 @@ export function ProfilePage({
                   </ul>
                 )}
               </SettingRow>
+
+              {/* Sign out belongs to the account, not to the bottom of a
+                  column. It sat in the aside footer, as far from the identity
+                  it ends as the layout allowed. */}
+              <SettingRow
+                id="account.signout"
+                title="Sign out"
+                description="Saved runs and projects stay on this machine and are here when you sign back in."
+                focused={focusedSetting === "account.signout"}
+                onFocus={() => setFocusedSetting("account.signout")}
+              >
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className={btnGhost}
+                >
+                  <LogOut className="h-3 w-3" />
+                  Sign out
+                </button>
+              </SettingRow>
             </Section>
-          </div>
+          )}
+
+          {activeSection === "analysis" && (
+            <Section>
+              <SettingRow
+                id="classification.model"
+                title="Default model"
+                description="Model pre-selected in the Classification panel on the map."
+                focused={focusedSetting === "classification.model"}
+                onFocus={() => setFocusedSetting("classification.model")}
+              >
+                <select
+                  className="field-input max-w-md focus-visible:ring-1 focus-visible:ring-ring"
+                  value={model}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setModel(next)
+                    schedulePrefsSave({ model: next })
+                  }}
+                >
+                  <option value="spectral">Random Forest (spectral)</option>
+                  <option value="temporal_transformer">Temporal Transformer</option>
+                  <option value="prithvi">Prithvi-EO 2.0</option>
+                </select>
+              </SettingRow>
+
+              <SettingRow
+                id="classification.opacity"
+                title={`Overlay opacity · ${opacity.toFixed(2)}`}
+                description="Default opacity for prediction and composition overlays on the map."
+                focused={focusedSetting === "classification.opacity"}
+                onFocus={() => setFocusedSetting("classification.opacity")}
+              >
+                <input
+                  type="range"
+                  min={0.2}
+                  max={1}
+                  step={0.05}
+                  value={opacity}
+                  className="w-full max-w-md rounded-sm accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  onChange={(e) => {
+                    const next = Number(e.target.value)
+                    setOpacity(next)
+                    schedulePrefsSave({ opacity: next })
+                  }}
+                />
+              </SettingRow>
+            </Section>
+          )}
+
+          {activeSection === "appearance" && (
+            <Section>
+              <SettingRow
+                id="appearance.theme"
+                title="Color theme"
+                description="Controls the overall light/dark appearance of TERRA."
+                focused={focusedSetting === "appearance.theme"}
+                onFocus={() => setFocusedSetting("appearance.theme")}
+              >
+                <select
+                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                  value={theme}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setTheme(next)
+                    schedulePrefsSave({ theme: next })
+                  }}
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="system">System</option>
+                </select>
+              </SettingRow>
+            </Section>
+          )}
+
+          {/* Not wrapped in a SettingRow. A row is a labelled field with a
+              description beside it, which is right for a name or a slider and
+              wrong for this: wrapped, the page showed its title twice and
+              indented the whole thing as though it were one control's value. */}
+          {activeSection === "system" && (
+            <Section>
+              <div className="pt-3">
+                <EnvironmentPanel />
+              </div>
+            </Section>
+          )}
+        </div>
       </PageBody>
     </PageShell>
   )
 }
 
-function Section({
-  id,
-  title,
-  children,
-  sectionRef,
-}: {
-  id: SettingsSectionId
-  title: string
-  children: React.ReactNode
-  sectionRef: (el: HTMLElement | null) => void
-}) {
-  return (
-    <section
-      ref={sectionRef}
-      data-section={id}
-      className="mb-8 scroll-mt-3"
-    >
-      <h2 className="mb-1 border-b border-border pb-2 font-display text-heading font-semibold tracking-wide text-foreground">
-        {title}
-      </h2>
-      <div className="flex flex-col">{children}</div>
-    </section>
-  )
+/**
+ * One page of settings.
+ *
+ * It carries no heading and no anchor any more: one page is mounted at a time
+ * and the body titles it once, so a heading here would print the same word
+ * twice, and there is nothing left to scroll to.
+ */
+function Section({ children }: { children: React.ReactNode }) {
+  return <section className="flex flex-col">{children}</section>
 }
 
 function SettingRow({
