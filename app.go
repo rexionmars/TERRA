@@ -103,17 +103,12 @@ func (a *App) startup(ctx context.Context) {
 	if err != nil {
 		appDir = "."
 	}
-	a.bootLog("resolving sidecar paths…")
-	runner, err := backend.NewRunner(appDir)
-	if err != nil {
-		a.bootLog("runner init failed: " + err.Error())
-		wruntime.LogError(ctx, "failed to init runner: "+err.Error())
-	} else {
-		a.runner = runner
-		a.bootLog("python · " + filepath.Base(runner.PythonPath()))
-		a.bootLog("model · " + filepath.Base(runner.ModelDir()))
-	}
 
+	// The store opens BEFORE the runner, which is the reverse of what it was.
+	// The interpreter chosen in the UI lives in a file beside the database, so
+	// the runner cannot be built until that directory is known -- built first,
+	// it could only ever guess, which is what left the choice to an environment
+	// variable a desktop launch never sees.
 	a.bootLog("opening local store…")
 	st, err := store.Open()
 	if err != nil {
@@ -123,6 +118,19 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.store = st
 	a.bootLog("store ready")
+
+	cfg := backend.LoadAppConfig(st.DataDir())
+	a.bootLog("resolving sidecar paths…")
+	runner, err := backend.NewRunner(appDir, cfg.PythonPath)
+	if err != nil {
+		a.bootLog("runner init failed: " + err.Error())
+		wruntime.LogError(ctx, "failed to init runner: "+err.Error())
+	} else {
+		a.runner = runner
+		a.bootLog("python · " + filepath.Base(runner.PythonPath()))
+		a.bootLog("model · " + filepath.Base(runner.ModelDir()))
+	}
+
 	if u, token, err := st.RestoreSession(); err == nil {
 		a.mu.Lock()
 		a.currentUser = u

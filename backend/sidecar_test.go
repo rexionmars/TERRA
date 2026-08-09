@@ -25,7 +25,7 @@ func TestNewRunnerListAreasAndModelDir(t *testing.T) {
 	t.Setenv("GEOSENSE_PYTHON", "python3")
 	t.Setenv("GEOSENSE_ROOT", filepath.Dir(root))
 
-	r, err := NewRunner(root)
+	r, err := NewRunner(root, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestNewRunnerPrefersBundledPython(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(root, "model"), 0o755)
 	_ = os.WriteFile(filepath.Join(root, "model", "rf_classifier.joblib"), []byte("x"), 0o644)
 
-	r, err := NewRunner(root)
+	r, err := NewRunner(root, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestResolveAppDirResourcesLayout(t *testing.T) {
 	}
 	t.Setenv("GEOSENSE_APP_DIR", res)
 	t.Setenv("GEOSENSE_PYTHON", "python3")
-	r, err := NewRunner("/nonexistent")
+	r, err := NewRunner("/nonexistent", "")
 	if err != nil {
 		t.Fatal(err)
 	}

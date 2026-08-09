@@ -73,11 +73,27 @@ func resolveAppDir(appDir string) string {
 	return appDir
 }
 
-// resolvePython picks the interpreter: GEOSENSE_PYTHON, bundled python/,
-// repo .venv, then PATH.
-func resolvePython(appDir, repoRoot string) string {
+// resolvePython picks the interpreter: GEOSENSE_PYTHON, the choice saved in the
+// UI, bundled python/, repo .venv, then PATH.
+//
+// The saved choice sits second on purpose. It has to beat every heuristic
+// below, because a user who picked an interpreter meant it -- but not the
+// environment variable, so a developer can still override per run without
+// editing a file the UI also writes.
+//
+// The last step is the dangerous one and is kept only as a last resort: PATH
+// always answers something. A machine with no suitable Python still has a
+// `python3`, so the chain never fails visibly -- it quietly selects an
+// interpreter that cannot work and defers the error to the middle of an
+// analysis. That is what the setup screen exists to replace.
+func resolvePython(appDir, repoRoot, configured string) string {
 	if env := os.Getenv("GEOSENSE_PYTHON"); env != "" {
 		return env
+	}
+	if configured != "" {
+		if _, err := os.Stat(configured); err == nil {
+			return configured
+		}
 	}
 	bundled := []string{
 		filepath.Join(appDir, "python", "bin", "python3"),
@@ -104,11 +120,13 @@ func resolvePython(appDir, repoRoot string) string {
 	return "python3"
 }
 
-// NewRunner resolves all required paths. appDir is the directory of the running
-// geosense-infer project (where sidecar/ and areas/ live). It is resolved from
-// (in order): GEOSENSE_APP_DIR, a candidate that actually contains sidecar/, or
-// the provided appDir.
-func NewRunner(appDir string) (*Runner, error) {
+// NewRunner resolves all required paths.
+//
+// appDir is the directory holding sidecar/, areas/ and model/, resolved from
+// GEOSENSE_APP_DIR, a candidate that actually contains sidecar/, or the value
+// given. configuredPython is the interpreter chosen in the UI, empty when none
+// has been; see resolvePython for where it sits in the order.
+func NewRunner(appDir, configuredPython string) (*Runner, error) {
 	appDir = resolveAppDir(appDir)
 
 	repoRoot := filepath.Dir(appDir) // geosense-infer sits inside the repo
@@ -121,7 +139,7 @@ func NewRunner(appDir string) (*Runner, error) {
 		repoRoot = env
 	}
 
-	python := resolvePython(appDir, repoRoot)
+	python := resolvePython(appDir, repoRoot, configuredPython)
 
 	sidecar := filepath.Join(appDir, "sidecar", "infer.py")
 	areasDir := filepath.Join(appDir, "areas")
