@@ -366,7 +366,7 @@ export function ProfilePage({
               <SettingRow
                 id="classification.model"
                 title="Default model"
-                description="Model pre-selected when opening New classification on the map."
+                description="Model pre-selected in the Classification panel on the map."
                 focused={focusedSetting === "classification.model"}
                 onFocus={() => setFocusedSetting("classification.model")}
               >

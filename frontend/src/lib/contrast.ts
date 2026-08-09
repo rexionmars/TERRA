@@ -48,6 +48,7 @@ export const TOKENS = {
     accent: [242, 86, 35],
     accentQuiet: [255, 138, 92],
     destructive: [160, 44, 44],
+    success: [111, 156, 90],
     destructiveForeground: [226, 220, 212],
     destructiveQuiet: [224, 138, 120],
   },
@@ -62,6 +63,7 @@ export const TOKENS = {
     accent: [186, 58, 18],
     accentQuiet: [158, 48, 14],
     destructive: [179, 58, 26],
+    success: [63, 107, 44],
     destructiveForeground: [252, 249, 243],
     destructiveQuiet: [158, 43, 37],
   },
@@ -136,6 +138,23 @@ export const RULES: readonly ContrastRule[] = [
     on: ["ink", "surface", "surfaceRaised"],
     min: 4.5,
     why: "destructive where it is read rather than filled: error text, a delete row, a hover state",
+  },
+  /*
+   * The toast marks, which were the one status surface no rule covered -- and
+   * the gap showed: the error mark asked for --destructive, the fill token,
+   * and drew at 2.47 on the toast plate. Splitting destructive is what made it
+   * fail, and nothing caught it, because nothing was looking.
+   *
+   * 3.0 rather than 4.5: these are meaningful graphics under WCAG 1.4.11, not
+   * text. Success stays green rather than joining the sand family, because
+   * green and orange are the only thing separating a success toast from a
+   * warning one once both are marks of the same shape.
+   */
+  {
+    fg: "success",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 3.0,
+    why: "the success mark on a toast, which is a graphic rather than text",
   },
 ]
 

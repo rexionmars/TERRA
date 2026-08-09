@@ -49,6 +49,7 @@ const CSS_NAME: Record<string, string> = {
 const CSS_HEX: Record<string, string> = {
   destructive: "--destructive",
   destructiveQuiet: "--destructive-quiet",
+  success: "--success",
 }
 
 function hexChannels(hex: string): Channels {

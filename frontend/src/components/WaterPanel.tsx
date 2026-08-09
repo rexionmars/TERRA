@@ -152,7 +152,7 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
               className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
             />
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input
               type="checkbox"
               checked={monthlyBest}
