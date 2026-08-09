@@ -15,7 +15,7 @@ import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
 
-type SettingsSectionId = "account" | "analysis" | "appearance" | "system"
+type SettingsSectionId = "account" | "system"
 
 /**
  * The pages of settings, grouped by subject.
@@ -27,9 +27,14 @@ type SettingsSectionId = "account" | "analysis" | "appearance" | "system"
  * neither, sitting in the column's footer, as far from the account it ends as
  * the layout allowed.
  *
- * "Classification" named one product while holding the overlay opacity, which
- * compositions and surface water use as well. These are analysis defaults, so
- * that is what it says.
+ * "Analysis" is gone. It held the default model and the overlay opacity, and
+ * both are already set where they are used -- the model in the Classification
+ * panel, the opacity in the overlay tools -- so the page was a second place to
+ * change something the map changes better, next to the thing it affects.
+ *
+ * "Appearance" is gone as a page but not as a setting: the colour theme moved
+ * into Account. One control was never a page, and the theme belongs to the
+ * person signed in rather than to the installation, which is what Account is.
  */
 const SECTIONS: {
   id: SettingsSectionId
@@ -37,10 +42,8 @@ const SECTIONS: {
   /** How many settings the page holds, where that is a countable thing. */
   count?: number
 }[] = [
-  { id: "account", label: "Account", count: 6 },
-  { id: "analysis", label: "Analysis", count: 2 },
-  { id: "appearance", label: "Appearance", count: 1 },
-  // No count. The other pages are lists of controls, and the number says how
+  { id: "account", label: "Account", count: 7 },
+  // No count. The other page is a list of controls, and the number says how
   // long the list is. This one reports the state of an environment and offers
   // what to do about it, so "(1)" would be counting the wrong thing.
   { id: "system", label: "System" },
@@ -69,11 +72,10 @@ export function ProfilePage({
     goAuth,
     goAnalysis,
     settingsPage,
+    consumeSettingsPage,
   } = useAuth()
   const { setTheme: setNextTheme } = useTheme()
   const [name, setName] = useState("")
-  const [model, setModel] = useState("spectral")
-  const [opacity, setOpacity] = useState(0.75)
   const [theme, setTheme] = useState("dark")
   const [busy, setBusy] = useState(false)
   /*
@@ -84,15 +86,23 @@ export function ProfilePage({
   const [activeSection, setActiveSection] = useState<SettingsSectionId>(
     settingsPage ?? "account"
   )
+
+  /*
+    Read once, then cleared.
+
+    The request steers one arrival. Left standing it would survive this page
+    unmounting -- opening settings by hand afterwards would land on System
+    again, overriding the page the user last chose, with nothing on screen
+    explaining why it keeps jumping there.
+  */
+  useEffect(() => {
+    if (settingsPage) consumeSettingsPage()
+  }, [settingsPage, consumeSettingsPage])
   const [focusedSetting, setFocusedSetting] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const prefsReady = useRef(false)
   const savePrefsTimer = useRef<number | null>(null)
-  const prefsDraftRef = useRef({
-    model: "spectral",
-    opacity: 0.75,
-    theme: "dark",
-  })
+  const prefsDraftRef = useRef({ theme: "dark" })
 
   useEffect(() => {
     if (!user) {
@@ -105,25 +115,27 @@ export function ProfilePage({
 
   useEffect(() => {
     if (!prefs) return
-    const next = {
-      model: prefs.default_model || "spectral",
-      opacity: prefs.overlay_opacity ?? 0.75,
-      theme: prefs.theme || "dark",
-    }
-    setModel(next.model)
-    setOpacity(next.opacity)
+    const next = { theme: prefs.theme || "dark" }
     setTheme(next.theme)
     prefsDraftRef.current = next
     prefsReady.current = true
   }, [prefs])
 
+  /*
+    The model and the opacity are written back exactly as they were read.
+
+    This page no longer edits them -- both are set where they are used, on the
+    map -- but Preferences carries them, so a save that omitted them would
+    write a zero opacity and an empty model over whatever is stored. Passing
+    the stored value through keeps a theme change to being a theme change.
+  */
   const persistPreferences = useCallback(
-    async (next: { model: string; opacity: number; theme: string }) => {
+    async (next: { theme: string }) => {
       if (!user) return
       const payload: Preferences = {
         user_id: user.id,
-        default_model: next.model,
-        overlay_opacity: next.opacity,
+        default_model: prefs?.default_model || "spectral",
+        overlay_opacity: prefs?.overlay_opacity ?? 0.75,
         theme: next.theme,
         extras_json: mergePreferenceExtras(prefs?.extras_json, {}),
       }
@@ -136,17 +148,18 @@ export function ProfilePage({
         setNextTheme(next.theme)
       }
     },
-    [prefs?.extras_json, savePrefs, setNextTheme, user]
+    [
+      prefs?.default_model,
+      prefs?.overlay_opacity,
+      prefs?.extras_json,
+      savePrefs,
+      setNextTheme,
+      user,
+    ]
   )
 
   const schedulePrefsSave = useCallback(
-    (
-      patch: Partial<{
-        model: string
-        opacity: number
-        theme: string
-      }>
-    ) => {
+    (patch: Partial<{ theme: string }>) => {
       if (!prefsReady.current) return
       prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
       if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
@@ -408,6 +421,32 @@ export function ProfilePage({
                 )}
               </SettingRow>
 
+              {/* Was a page of its own holding this one control. A single
+                  setting is not a page, and the theme is a property of the
+                  person signed in rather than of the installation -- which is
+                  the difference between this page and System. */}
+              <SettingRow
+                id="account.theme"
+                title="Color theme"
+                description="Controls the overall light/dark appearance of TERRA."
+                focused={focusedSetting === "account.theme"}
+                onFocus={() => setFocusedSetting("account.theme")}
+              >
+                <select
+                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                  value={theme}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setTheme(next)
+                    schedulePrefsSave({ theme: next })
+                  }}
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="system">System</option>
+                </select>
+              </SettingRow>
+
               {/* Sign out belongs to the account, not to the bottom of a
                   column. It sat in the aside footer, as far from the identity
                   it ends as the layout allowed. */}
@@ -426,80 +465,6 @@ export function ProfilePage({
                   <LogOut className="h-3 w-3" />
                   Sign out
                 </button>
-              </SettingRow>
-            </Section>
-          )}
-
-          {activeSection === "analysis" && (
-            <Section>
-              <SettingRow
-                id="classification.model"
-                title="Default model"
-                description="Model pre-selected in the Classification panel on the map."
-                focused={focusedSetting === "classification.model"}
-                onFocus={() => setFocusedSetting("classification.model")}
-              >
-                <select
-                  className="field-input max-w-md focus-visible:ring-1 focus-visible:ring-ring"
-                  value={model}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    setModel(next)
-                    schedulePrefsSave({ model: next })
-                  }}
-                >
-                  <option value="spectral">Random Forest (spectral)</option>
-                  <option value="temporal_transformer">Temporal Transformer</option>
-                  <option value="prithvi">Prithvi-EO 2.0</option>
-                </select>
-              </SettingRow>
-
-              <SettingRow
-                id="classification.opacity"
-                title={`Overlay opacity · ${opacity.toFixed(2)}`}
-                description="Default opacity for prediction and composition overlays on the map."
-                focused={focusedSetting === "classification.opacity"}
-                onFocus={() => setFocusedSetting("classification.opacity")}
-              >
-                <input
-                  type="range"
-                  min={0.2}
-                  max={1}
-                  step={0.05}
-                  value={opacity}
-                  className="w-full max-w-md rounded-sm accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onChange={(e) => {
-                    const next = Number(e.target.value)
-                    setOpacity(next)
-                    schedulePrefsSave({ opacity: next })
-                  }}
-                />
-              </SettingRow>
-            </Section>
-          )}
-
-          {activeSection === "appearance" && (
-            <Section>
-              <SettingRow
-                id="appearance.theme"
-                title="Color theme"
-                description="Controls the overall light/dark appearance of TERRA."
-                focused={focusedSetting === "appearance.theme"}
-                onFocus={() => setFocusedSetting("appearance.theme")}
-              >
-                <select
-                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
-                  value={theme}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    setTheme(next)
-                    schedulePrefsSave({ theme: next })
-                  }}
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                  <option value="system">System</option>
-                </select>
               </SettingRow>
             </Section>
           )}

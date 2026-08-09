@@ -33,7 +33,7 @@ export type AppScreen = "map" | "auth" | "profile" | "analysis" | "energy"
  * and the first-run gate. It is a settings page like the others; opening it is
  * opening settings at that page.
  */
-export type SettingsPage = "account" | "analysis" | "appearance" | "system"
+export type SettingsPage = "account" | "system"
 
 interface AuthContextValue {
   user: User | null
@@ -49,6 +49,8 @@ interface AuthContextValue {
   goEnergy: () => void
   /** Which settings page to open on arrival, consumed once by ProfilePage. */
   settingsPage: SettingsPage | null
+  /** Clears the above, so it steers one arrival rather than every one. */
+  consumeSettingsPage: () => void
   navigate: (screen: AppScreen) => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
@@ -197,11 +199,13 @@ export function AuthProvider({
   /**
    * Which settings page the next arrival should land on.
    *
-   * Null once ProfilePage has read it, so returning to settings by hand shows
-   * the page last chosen there rather than replaying the destination of
-   * whatever sent the user in the first time.
+   * Cleared by consumeSettingsPage once ProfilePage has acted on it, so
+   * returning to settings by hand shows the page last chosen there rather than
+   * replaying the destination of whatever sent the user in the first time.
    */
   const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(null)
+
+  const consumeSettingsPage = useCallback(() => setSettingsPage(null), [])
 
   const goProfile = useCallback(
     (page?: SettingsPage) => {
@@ -225,6 +229,7 @@ export function AuthProvider({
       goAnalysis: () => setScreen("analysis"),
       goEnergy: () => setScreen("energy"),
       settingsPage,
+      consumeSettingsPage,
       navigate: setScreen,
       login,
       register,
@@ -244,6 +249,7 @@ export function AuthProvider({
       loading,
       screen,
       settingsPage,
+      consumeSettingsPage,
       goProfile,
       login,
       register,
