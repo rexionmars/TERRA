@@ -63,16 +63,31 @@ type InferenceRun struct {
 	NDates         int    `json:"n_dates"`
 	Label          string `json:"label,omitempty"`
 	ProjectID      string `json:"project_id,omitempty"`
-	// "classification" or "water". Empty on rows written before the column
-	// existed, which are all classifications; readers normalise it.
+	// One of the RunKind constants below. Empty on rows written before the
+	// column existed, which are all classifications; readers normalise it.
 	Kind string `json:"kind,omitempty"`
 }
 
 // Run kinds. A classification comes from a model; a descriptive product such as
 // surface water is a thresholded index with no model and no trained legend.
+//
+// Adding a value here needs no migration: the kind column was added by an ALTER
+// with DEFAULT 'classification' and carries no CHECK constraint, and both
+// readers select COALESCE(kind,'classification'), so a database written before
+// a kind existed keeps working and rows of the new kind are simply new rows.
+// What a new kind does require is that every reader branching on these literals
+// gains its case, which is the failure the wind kind was added to avoid: filed
+// under RunKindSolar a wind run listed as solar, printed the solar summary line
+// and reopened as an empty solar card, with nothing raising an error.
 const (
 	RunKindClassification = "classification"
 	RunKindWater          = "water"
+	RunKindSolar          = "solar"
+	// Wind screening. Its own kind rather than a product inside RunKindSolar:
+	// it comes from a different product on a different grid, its capacity
+	// factor is gross and unvalidated, and the solar readers would label it as
+	// though it were neither.
+	RunKindWind = "wind"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.

@@ -27,10 +27,15 @@ import {
 import { useAuth } from "@/lib/auth"
 import type {
   Area,
+  EnergyModelAnalysis,
+  EnergyCapacityDensity,
+  EnergyPlantClass,
   InferenceRun,
   PredictResult,
   Project,
   ProjectOverlay,
+  WindAnalysis,
+  PowerProvenance,
 } from "@/lib/types"
 import {
   CreateProject,
@@ -54,13 +59,36 @@ import {
 } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import { stripResearchPackRasters } from "@/lib/researchPack"
 import { compositionCaption, parseOverlayMeta } from "@/lib/projectOverlays"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
+import {
+  PALETTE_STOPS,
+  paletteGradient,
+  type PaletteName,
+} from "@/lib/palettes"
+import {
+  Chip,
+  ContinuousRamp,
+  PanelTile,
+  rampStop,
+  WaterFigure,
+} from "@/components/analysisPrimitives"
+import { EnergyModelSection } from "@/components/EnergyModelSection"
+import {
+  SolarResourceSection,
+  SolarSitingSection,
+  SolarTerrainSection,
+} from "@/components/SolarSections"
+import { WindScreening } from "@/components/WindScreening"
 import {
   classifiedAreaHa,
   dominantClass,
   formatHectares,
+  modelDisplayName,
   parseRunSummary,
+  runSummaryObject,
+  solarProductLabel,
 } from "@/lib/runSummary"
 
 
@@ -72,32 +100,103 @@ const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
   { id: "compositions", label: "Band compositions" },
 ]
 
+/** Summary JSON of a saved run, or an empty object when there is none. */
+// runSummaryObject, solarProductLabel and modelDisplayName live in
+// lib/runSummary so the profile page describes a run the same way this one
+// does. It had no branch for any of the standalone kinds and rendered a wind
+// run's empty acquisition window as a bare arrow.
+
 /**
- * Display name for a model_kind enum. Shared so the run list and the detail
- * header cannot disagree; the list previously printed the raw enum.
+ * The reporting basis a specific yield was computed on. Year one applies no
+ * degradation; the lifetime mean applies the mean factor over the analysis
+ * period, which at 0.5 %/yr over 25 years is 0.942. Two runs of the same AOI on
+ * the two bases differ by that factor with nothing else to distinguish them, so
+ * the row states which one produced its figure.
  */
-function WaterFigure({
-  label,
-  value,
-  sub,
-}: {
-  label: string
-  value: string
-  sub?: string
-}) {
+function reportingBasisLabel(v: unknown): string {
+  if (v === "lifetime_mean") return "lifetime-mean basis"
+  if (typeof v === "string" && v.trim() && v !== "year_one") return `${v} basis`
+  // Absent, not unknown. Only the energy model writes this key; the resource
+  // run applies a performance ratio and no degradation term, so its yield is
+  // year-one by construction. Returning nothing here left every resource row
+  // showing a yield with no basis beside it, which is what the caller below
+  // states cannot happen.
+  return "year-one basis"
+}
+
+/** Headline figures from a saved solar run's summary. */
+function solarSummaryLine(summary?: string | null): string {
+  if (!summary?.trim()) return "solar resource"
+  const j = runSummaryObject(summary)
+  const ghi =
+    typeof j.ghi_annual_kwh_m2 === "number"
+      ? `${j.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr`
+      : ""
+  const tilt =
+    typeof j.optimal_tilt_deg === "number"
+      ? `tilt ${j.optimal_tilt_deg.toFixed(0)}\u00b0`
+      : ""
+  const y =
+    typeof j.specific_yield === "number"
+      ? `${j.specific_yield.toFixed(0)} kWh/kWp/yr`
+      : ""
+  // The yield is scaled by the reporting basis, so it is never shown alone.
+  const basis = y ? reportingBasisLabel(j.reporting_basis) : ""
   return (
-    <div className="min-w-0">
-      <div className="eyebrow !text-[9px]">{label}</div>
-      <div className="telemetry mt-0.5 truncate text-sm text-foreground">
-        {value}
-      </div>
-      {sub && (
-        <div className="telemetry truncate text-[10px] text-muted-foreground">
-          {sub}
-        </div>
-      )}
-    </div>
+    [ghi, tilt, y, basis].filter(Boolean).join(" \u00b7 ") || "solar resource"
   )
+}
+
+/**
+ * Headline figures from a saved wind run's summary.
+ *
+ * The capacity factor is gross and carries no external benchmark, so it is
+ * never shown without windQualifierLine beside it.
+ */
+function windSummaryLine(summary?: string | null): string {
+  if (!summary?.trim()) return "wind screening"
+  const j = runSummaryObject(summary)
+  const cf =
+    typeof j.wind_gross_capacity_factor_pct === "number"
+      ? `gross CF ${j.wind_gross_capacity_factor_pct.toFixed(1)}%`
+      : ""
+  const speed =
+    typeof j.wind_hub_mean_speed_ms === "number"
+      ? `${j.wind_hub_mean_speed_ms.toFixed(2)} m/s`
+      : ""
+  const hub =
+    typeof j.wind_hub_height_m === "number"
+      ? `${j.wind_hub_height_m.toFixed(0)} m hub`
+      : ""
+  const at = [speed, hub].filter(Boolean).join(" at ")
+  return [cf, at].filter(Boolean).join(" \u00b7 ") || "wind screening"
+}
+
+/**
+ * The qualifier that travels with a wind capacity factor in the run list.
+ *
+ * The figure is the published power curve on a modelled free-stream series with
+ * no plant loss applied and no comparison against an external wind reference,
+ * unlike the photovoltaic ratio, which is benchmarked against the Global Solar
+ * Atlas. Listed beside a photovoltaic row without this, it reads as the same
+ * kind of number.
+ */
+function windQualifierLine(summary?: string | null): string {
+  const j = runSummaryObject(summary)
+  const base = "screening indication, gross of losses, unvalidated"
+  if (j.wind_all_checks_passed === false) {
+    const n = typeof j.wind_flag_count === "number" ? j.wind_flag_count : 0
+    return n > 0
+      ? `${base}; ${n} record check${n === 1 ? "" : "s"} did not pass`
+      : `${base}; record checks did not pass`
+  }
+  return base
+}
+
+/** The window of record a wind run read, in place of a requested period. */
+function windRecordWindow(summary?: string | null): string {
+  const w = runSummaryObject(summary).record_window
+  return typeof w === "string" ? w.trim() : ""
 }
 
 /** Peak water and occurrence areas from a saved water run's summary. */
@@ -117,12 +216,6 @@ function waterSummaryLine(summary?: string | null): string {
   } catch {
     return "surface water"
   }
-}
-
-function modelDisplayName(kind: string): string {
-  if (kind === "temporal_transformer") return "Temporal Transformer"
-  if (kind === "prithvi") return "Prithvi-EO 2.0"
-  return "Random Forest"
 }
 
 const tabId = (id: ProjectTab) => `project-tab-${id}`
@@ -888,7 +981,15 @@ export function AnalysisPage({
     }
   }
 
+  // Every product that contributes a table or a manifest field. solar_terrain
+  // was missing, so an AOI carrying only a terrain run had both export buttons
+  // hidden and no way to reach its own manifest.
   const canExportTables =
+    !!result.solar ||
+    !!result.solar_terrain ||
+    !!result.solar_siting ||
+    !!result.energy_model ||
+    !!result.wind ||
     (result.water?.series?.length ?? 0) > 0 ||
     (result.class_stats?.length ?? 0) > 0 ||
     (result.vi_series?.length ?? 0) > 0 ||
@@ -900,20 +1001,9 @@ export function AnalysisPage({
     if (!canExportTables) return
     try {
       // Strip bulky data URIs — only tabular fields + raster path are needed.
-      const pack = {
-        ...result,
-        overlay_uri: "",
-        confidence_uri: "",
-        ndvi_mean_uri: "",
-        true_color_uri: "",
-        reference_uri: "",
-        lulc: result.lulc
-          ? { ...result.lulc, map_uri: "", map_png: "" }
-          : result.lulc,
-        water: result.water
-          ? { ...result.water, occurrence_uri: "" }
-          : result.water,
-      }
+      // Shared with the research pack modal, which reaches the same binding
+      // from the button beside this one and once stripped a shorter list.
+      const pack = stripResearchPackRasters(result)
       const dest = await ExportResearchPack(
         {
           model_kind: modelKind,
@@ -1186,14 +1276,14 @@ export function AnalysisPage({
             </section>
           )}
 
-          {(hasClassification && result.class_stats?.length > 0) ||
+          {(hasClassification && (result.class_stats?.length ?? 0) > 0) ||
           viChart.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-stretch">
-              {hasClassification && result.class_stats?.length > 0 && (
+              {hasClassification && (result.class_stats?.length ?? 0) > 0 && (
                 <section className="ar-section p-4">
                   <p className="eyebrow mb-3">Predicted class distribution</p>
                   <ul className="flex flex-col gap-1.5">
-                    {result.class_stats.map((s) => (
+                    {(result.class_stats ?? []).map((s) => (
                       <li key={s.class_id} className="flex items-center gap-2 text-xs">
                         <span
                           className="size-2.5 shrink-0 rounded-[2px]"
@@ -1348,6 +1438,33 @@ export function AnalysisPage({
           ) : null}
 
           {/*
+            Solar resource. Needs no scene, so it can be the only product a run
+            carries. Every figure is shown with the assumption behind it.
+          */}
+          {result.solar && <SolarResourceSection solar={result.solar} />}
+
+          {result.solar_terrain && (
+            <SolarTerrainSection terrain={result.solar_terrain} />
+          )}
+
+          {result.solar_siting && (
+            <SolarSitingSection siting={result.solar_siting} />
+          )}
+
+          {/*
+            The photovoltaic energy model, then the wind screening. The wind
+            block is its own section and carries its own qualifier: it is gross
+            of every plant loss and has no external benchmark, while the
+            photovoltaic figures above are computed at a ratio bracketed by the
+            Global Solar Atlas, so the two are never drawn in one comparison.
+          */}
+          {result.energy_model && (
+            <EnergyModelSection energy={result.energy_model} />
+          )}
+
+          {result.wind && <WindScreening wind={result.wind} />}
+
+          {/*
             Surface water over the period. Fractions are a percentage of the
             pixels observed on each date, so the series is not comparable to a
             fraction of the AOI area.
@@ -1363,6 +1480,20 @@ export function AnalysisPage({
                   {result.water.date_range[0]} → {result.water.date_range[1]}
                 </p>
               </div>
+              {result.water.occurrence_uri && (
+                <div className="mb-3">
+                  <PanelTile
+                    title="Water occurrence"
+                    uri={result.water.occurrence_uri}
+                    empty="No occurrence raster"
+                  />
+                  <ContinuousRamp
+                    palette="blues"
+                    lowLabel="0% of observed dates"
+                    highLabel="100%"
+                  />
+                </div>
+              )}
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart
                   data={result.water.series.map((d) => ({
@@ -1800,6 +1931,10 @@ function SavedRunsPanel({
             const summary = parseRunSummary(r.summary)
             const dominant = dominantClass(summary.classStats)
             const classified = classifiedAreaHa(summary.classStats)
+            // A wind run has no requested period. The window that applies is
+            // the record it read, which persistWindRun stores in the summary.
+            const windWindow =
+              r.kind === "wind" ? windRecordWindow(r.summary) : ""
             return (
               <li
                 key={r.id}
@@ -1827,16 +1962,48 @@ function SavedRunsPanel({
                         {displayRunLabel(r.label)}
                       </span>
                       <span className="telemetry shrink-0 text-muted-foreground">
-                        {r.n_dates} scenes
+                        {/* Solar counts years of climatology and wind counts
+                            years of hourly reanalysis. Neither reads a scene,
+                            and a wind run listed as "10 scenes" understated a
+                            ten-year record as ten observations. */}
+                        {r.n_dates}{" "}
+                        {r.kind === "solar" || r.kind === "wind"
+                          ? "years"
+                          : "scenes"}
                       </span>
                     </div>
                     {/* What the run produced, from summary already in memory —
                         saves a LoadAnalysis round trip just to see the result. */}
-                    {r.kind === "water" ? (
+                    {r.kind === "solar" ? (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="size-2.5 shrink-0 rounded-[2px] bg-[#f59e0b]" />
+                        <span className="truncate text-foreground">
+                          {solarSummaryLine(r.summary)}
+                        </span>
+                      </div>
+                    ) : r.kind === "water" ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className="size-2.5 shrink-0 rounded-[2px] bg-[#3182bd]" />
                         <span className="truncate text-foreground">
                           {waterSummaryLine(r.summary)}
+                        </span>
+                      </div>
+                    ) : r.kind === "wind" ? (
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          {/* Not the water blue: two products keyed on
+                              different reanalyses should not read as one. */}
+                          <span className="size-2.5 shrink-0 rounded-[2px] bg-[#2a9d8f]" />
+                          <span className="truncate text-foreground">
+                            {windSummaryLine(r.summary)}
+                          </span>
+                        </div>
+                        {/* The qualifier travels with the figure. Without it a
+                            gross, unbenchmarked capacity factor sits in the
+                            same list as a photovoltaic one that is benchmarked
+                            against the Global Solar Atlas. */}
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {windQualifierLine(r.summary)}
                         </span>
                       </div>
                     ) : dominant && (
@@ -1863,19 +2030,35 @@ function SavedRunsPanel({
                     <div className="mt-0.5 text-muted-foreground">
                       {r.kind === "water"
                         ? `Surface water · ${r.model_kind || "index"}`
-                        : modelDisplayName(r.model_kind)}
-                      {" · "}
-                      {summary.dateRange ? (
-                        <>
-                          observed {summary.dateRange[0]} → {summary.dateRange[1]}
-                          <span className="opacity-70">
-                            {" "}
-                            (requested {r.period_start} → {r.period_end})
-                          </span>
-                        </>
+                        : r.kind === "solar"
+                          ? `${solarProductLabel(r.summary)} · ${r.model_kind || "NASA POWER"}`
+                          : r.kind === "wind"
+                            ? `Wind screening · ${r.model_kind || "NASA POWER MERRA-2"}`
+                            : modelDisplayName(r.model_kind)}
+                      {/* Solar reports a climatology and has no observed
+                          window. A wind run's row rendered as a bare arrow
+                          until the record window was read from the summary.
+                          The separator is emitted with the second part so
+                          neither row ends in a dangling one. */}
+                      {r.kind === "solar" ? null : r.kind === "wind" ? (
+                        windWindow ? <> · {windWindow}</> : null
                       ) : (
                         <>
-                          {r.period_start} → {r.period_end}
+                          {" · "}
+                          {summary.dateRange ? (
+                            <>
+                              observed {summary.dateRange[0]} →{" "}
+                              {summary.dateRange[1]}
+                              <span className="opacity-70">
+                                {" "}
+                                (requested {r.period_start} → {r.period_end})
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              {r.period_start} → {r.period_end}
+                            </>
+                          )}
                         </>
                       )}
                     </div>
@@ -1930,52 +2113,5 @@ function SavedRunsPanel({
         </ul>
       )}
     </section>
-  )
-}
-
-function PanelTile({
-  title,
-  uri,
-  empty,
-  onOpen,
-}: {
-  title: string
-  uri?: string
-  empty: string
-  onOpen?: () => void
-}) {
-  const preview = (
-    <div className="ar-inset relative aspect-[4/3] overflow-hidden">
-      {uri ? (
-        <img src={uri} alt={title} className="h-full w-full object-contain" />
-      ) : (
-        <div className="flex h-full items-center justify-center px-3 text-center text-[10px] text-muted-foreground">
-          {empty}
-        </div>
-      )}
-    </div>
-  )
-
-  if (onOpen && uri) {
-    return (
-      <button
-        type="button"
-        onClick={onOpen}
-        className="group flex w-full flex-col gap-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50"
-        title={`Open ${title}`}
-      >
-        <p className="eyebrow !text-muted-foreground group-hover:text-foreground">
-          {title}
-        </p>
-        <div className="transition-opacity group-hover:opacity-90">{preview}</div>
-      </button>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <p className="eyebrow !text-muted-foreground">{title}</p>
-      {preview}
-    </div>
   )
 }

@@ -325,6 +325,379 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 	})
 }
 
+// AnalyzeSolar computes the solar resource and photovoltaic yield at the AOI.
+func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	res, err := a.runner.AnalyzeSolar(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistSolarRun(req, res)
+	return res, nil
+}
+
+// persistSolarRun saves a solar resource run so it survives the session and is
+// listed, opened and exported like the other analyses. Best effort: failing to
+// record a run must not discard the result the user is looking at.
+func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalysis) {
+	a.mu.RLock()
+	user := a.currentUser
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil || res == nil {
+		return
+	}
+	userID := store.LocalUserID
+	if user != nil {
+		userID = user.ID
+	}
+
+	runID := uuid.NewString()
+	assetsRel := filepath.Join("runs", runID)
+	_ = os.MkdirAll(st.RunsDir(runID), 0o700)
+
+	resultBytes, _ := json.Marshal(res)
+
+	poly := ""
+	if req.PolygonGeoJSON != nil {
+		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
+			poly = string(b)
+		}
+	} else if req.AreaID != "" {
+		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
+	}
+
+	label := strings.TrimSpace(req.Label)
+	if label == "" {
+		label = "Custom AOI"
+	}
+	runLabel := strings.TrimSpace(req.RunLabel)
+	if runLabel == "" {
+		runLabel = makeRunLabel(label)
+	}
+	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
+		runLabel = "run-" + runLabel
+	}
+
+	summary, _ := json.Marshal(map[string]any{
+		"ghi_annual_kwh_m2":       res.Resource.GHIAnnualKWhM2,
+		"optimal_tilt_deg":        res.Geometry.OptimalTiltDeg,
+		"specific_yield":          res.PV.SpecificYieldKWhKWpYear,
+		"performance_ratio":       res.PV.PerformanceRatio,
+		"performance_ratio_model": res.PV.PerformanceRatioModelled,
+		"n_years":                 res.Resource.NYears,
+		"aoi_label":               label,
+		"grid_note":               res.GridNote,
+	})
+
+	_, _ = st.SaveRun(store.InferenceRun{
+		ID:     runID,
+		UserID: userID,
+		Kind:   store.RunKindSolar,
+		// No model produced this; the source is the method that did.
+		ModelKind:      "NASA POWER",
+		PeriodStart:    "",
+		PeriodEnd:      "",
+		PolygonGeoJSON: poly,
+		Status:         "ok",
+		SummaryJSON:    string(summary),
+		ResultJSON:     string(resultBytes),
+		AssetsRelPath:  assetsRel,
+		NDates:         res.Resource.NYears,
+		Label:          runLabel,
+		ProjectID:      strings.TrimSpace(req.ProjectID),
+	})
+}
+
+// AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
+func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.SolarTerrainAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	res, err := a.runner.AnalyzeSolarTerrain(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
+		req.ProjectID, "solar_terrain", res.Season, res, res.OverlayURI, res.NDates())
+	return res, nil
+}
+
+// AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
+func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.SolarSitingAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	res, err := a.runner.AnalyzeSolarSiting(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
+		req.ProjectID, "solar_siting", "siting", res, res.OverlayURI, 0)
+	return res, nil
+}
+
+// persistSolarRaster saves a solar map run and writes its overlay to disk, so
+// reopening the run puts the raster back rather than only its numbers.
+func (a *App) persistSolarRaster(
+	areaID string, poly *backend.GeoJSONGeometry,
+	label, runLabel, projectID, kindTag, variant string,
+	payload any, overlayURI string, nDates int,
+) {
+	a.mu.RLock()
+	user := a.currentUser
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil || payload == nil {
+		return
+	}
+	userID := store.LocalUserID
+	if user != nil {
+		userID = user.ID
+	}
+
+	runID := uuid.NewString()
+	assetsRel := filepath.Join("runs", runID)
+	assetsDir := st.RunsDir(runID)
+	_ = os.MkdirAll(assetsDir, 0o700)
+	_ = store.WriteDataURIFile(overlayURI, filepath.Join(assetsDir, kindTag+".png"))
+
+	resultBytes, _ := json.Marshal(payload)
+
+	polyJSON := ""
+	if poly != nil {
+		if b, err := json.Marshal(poly); err == nil {
+			polyJSON = string(b)
+		}
+	} else if areaID != "" {
+		polyJSON = fmt.Sprintf(`{"area_id":%q}`, areaID)
+	}
+
+	l := strings.TrimSpace(label)
+	if l == "" {
+		l = "Custom AOI"
+	}
+	rl := strings.TrimSpace(runLabel)
+	if rl == "" {
+		rl = makeRunLabel(l)
+	}
+	if !strings.HasPrefix(strings.ToLower(rl), "run-") {
+		rl = "run-" + rl
+	}
+
+	summary, _ := json.Marshal(map[string]any{
+		"solar_product": kindTag,
+		"variant":       variant,
+		"aoi_label":     l,
+	})
+
+	_, _ = st.SaveRun(store.InferenceRun{
+		ID:             runID,
+		UserID:         userID,
+		Kind:           store.RunKindSolar,
+		ModelKind:      "NASA POWER",
+		PolygonGeoJSON: polyJSON,
+		Status:         "ok",
+		SummaryJSON:    string(summary),
+		ResultJSON:     string(resultBytes),
+		AssetsRelPath:  assetsRel,
+		NDates:         nDates,
+		Label:          rl,
+		ProjectID:      strings.TrimSpace(projectID),
+	})
+}
+
+// AnalyzeEnergyModel runs the photovoltaic energy model over the AOI.
+func (a *App) AnalyzeEnergyModel(req backend.EnergyModelRequest) (*backend.EnergyModelAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	res, err := a.runner.AnalyzeEnergyModel(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistEnergyModelRun(req, res)
+	return res, nil
+}
+
+// persistEnergyModelRun saves an energy model run so it survives the session
+// and is listed, opened and exported like the other analyses. Best effort:
+// failing to record a run must not discard the result the user is looking at.
+//
+// Filed under RunKindSolar with solar_product "energy_model", which is the
+// discriminator the solar products already use. It is a solar product: same
+// radiation chain, same grid, same optimum.
+func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend.EnergyModelAnalysis) {
+	a.mu.RLock()
+	user := a.currentUser
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil || res == nil {
+		return
+	}
+	userID := store.LocalUserID
+	if user != nil {
+		userID = user.ID
+	}
+
+	runID := uuid.NewString()
+	assetsRel := filepath.Join("runs", runID)
+	_ = os.MkdirAll(st.RunsDir(runID), 0o700)
+
+	resultBytes, _ := json.Marshal(res)
+
+	poly := ""
+	if req.PolygonGeoJSON != nil {
+		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
+			poly = string(b)
+		}
+	} else if req.AreaID != "" {
+		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
+	}
+
+	label := strings.TrimSpace(req.Label)
+	if label == "" {
+		label = "Custom AOI"
+	}
+	runLabel := strings.TrimSpace(req.RunLabel)
+	if runLabel == "" {
+		runLabel = makeRunLabel(label)
+	}
+	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
+		runLabel = "run-" + runLabel
+	}
+
+	// ghi_annual_kwh_m2, optimal_tilt_deg and specific_yield are the keys the
+	// saved-run list already reads for a solar row, so the row says something
+	// without a client change. Everything else states the basis, because a
+	// yield without its performance ratio and reporting basis is not a figure.
+	summary, _ := json.Marshal(map[string]any{
+		"solar_product":            "energy_model",
+		"variant":                  res.ReportingBasis,
+		"ghi_annual_kwh_m2":        res.LossWaterfall.Base.GHIClimatologyKWhM2Year,
+		"optimal_tilt_deg":         res.Geometry.OptimalTiltDeg,
+		"specific_yield":           res.LossWaterfall.Delivered.AppliedKWhKWpYear,
+		"performance_ratio":        res.PerformanceRatio.Applied,
+		"performance_ratio_source": res.PerformanceRatio.AppliedSource,
+		"performance_ratio_model":  res.PerformanceRatio.Modelled,
+		"reporting_basis":          res.ReportingBasis,
+		"capacity_density_basis":   res.CapacityDensity.Basis,
+		"suitable_area_ha":         res.Plant.Suitable.AreaHa,
+		"suitable_capacity_dc_mw":  res.Plant.Suitable.CapacityDCMW,
+		"n_years":                  res.HourlyYears,
+		"aoi_label":                label,
+		"grid_note":                res.GridNote,
+	})
+
+	_, _ = st.SaveRun(store.InferenceRun{
+		ID:     runID,
+		UserID: userID,
+		Kind:   store.RunKindSolar,
+		// No model produced this; the source is the method that did.
+		ModelKind:      "NASA POWER",
+		PolygonGeoJSON: poly,
+		Status:         "ok",
+		SummaryJSON:    string(summary),
+		ResultJSON:     string(resultBytes),
+		AssetsRelPath:  assetsRel,
+		NDates:         res.NDates(),
+		Label:          runLabel,
+		ProjectID:      strings.TrimSpace(req.ProjectID),
+	})
+}
+
+// AnalyzeWind screens the wind resource at the AOI.
+func (a *App) AnalyzeWind(req backend.WindRequest) (*backend.WindAnalysis, error) {
+	if a.runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	res, err := a.runner.AnalyzeWind(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistWindRun(req, res)
+	return res, nil
+}
+
+// persistWindRun saves a wind screening run under its own kind. Best effort:
+// failing to record a run must not discard the result the user is looking at.
+func (a *App) persistWindRun(req backend.WindRequest, res *backend.WindAnalysis) {
+	a.mu.RLock()
+	user := a.currentUser
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil || res == nil {
+		return
+	}
+	userID := store.LocalUserID
+	if user != nil {
+		userID = user.ID
+	}
+
+	runID := uuid.NewString()
+	assetsRel := filepath.Join("runs", runID)
+	_ = os.MkdirAll(st.RunsDir(runID), 0o700)
+
+	resultBytes, _ := json.Marshal(res)
+
+	poly := ""
+	if req.PolygonGeoJSON != nil {
+		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
+			poly = string(b)
+		}
+	} else if req.AreaID != "" {
+		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
+	}
+
+	label := strings.TrimSpace(req.Label)
+	if label == "" {
+		label = "Custom AOI"
+	}
+	runLabel := strings.TrimSpace(req.RunLabel)
+	if runLabel == "" {
+		runLabel = makeRunLabel(label)
+	}
+	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
+		runLabel = "run-" + runLabel
+	}
+
+	// The qualifier and the check outcome travel with the capacity factor. A
+	// gross, unvalidated figure listed beside a benchmarked photovoltaic one
+	// reads as the same kind of number unless the row says otherwise.
+	summary, _ := json.Marshal(map[string]any{
+		"wind_hub_height_m":              res.HubHeightM,
+		"wind_mean_speed_50m_ms":         res.Measured.MeanSpeed50mMS,
+		"wind_hub_mean_speed_ms":         res.Hub.MeanSpeedMS,
+		"wind_gross_capacity_factor_pct": res.Hub.GrossCapacityFactorPct,
+		"wind_annual_energy_mwh":         res.Hub.GrossAnnualEnergyMWhPerTurbine,
+		"wind_turbine":                   res.Turbine.Name,
+		"wind_all_checks_passed":         res.DataQuality.AllChecksPassed,
+		"wind_flag_count":                len(res.DataQuality.Flags),
+		"record_window":                  res.RecordWindow,
+		"qualifier":                      res.Qualifier,
+		"aoi_label":                      label,
+		"grid_note":                      res.GridNote,
+	})
+
+	_, _ = st.SaveRun(store.InferenceRun{
+		ID:     runID,
+		UserID: userID,
+		Kind:   store.RunKindWind,
+		// No model produced this; the source is the product that did.
+		ModelKind:      "NASA POWER MERRA-2",
+		PolygonGeoJSON: poly,
+		Status:         "ok",
+		SummaryJSON:    string(summary),
+		ResultJSON:     string(resultBytes),
+		AssetsRelPath:  assetsRel,
+		NDates:         res.NDates(),
+		Label:          runLabel,
+		ProjectID:      strings.TrimSpace(req.ProjectID),
+	})
+}
+
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
 func (a *App) ExportClassification(rasterPath string) (string, error) {
 	return a.ExportOverlayFile(rasterPath, "terra_classification.tif")
@@ -602,6 +975,72 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	// see it through the same field a live run uses. The classification fields
 	// are deliberately left at zero: no classification was made, and filling
 	// n_dates here would make the page present one.
+	if run.Kind == store.RunKindSolar {
+		// One kind covers four products; the summary says which one was saved.
+		var meta struct {
+			Product string `json:"solar_product"`
+		}
+		_ = json.Unmarshal([]byte(run.SummaryJSON), &meta)
+		out := &backend.PredictResult{}
+		switch meta.Product {
+		case "solar_terrain":
+			var t backend.SolarTerrainAnalysis
+			_ = json.Unmarshal([]byte(run.ResultJSON), &t)
+			if uri, err := store.ReadFileDataURI(
+				filepath.Join(assetsDir, "solar_terrain.png"), "image/png",
+			); err == nil {
+				t.OverlayURI = uri
+			}
+			out.SolarTerrain = &t
+		case "solar_siting":
+			var st backend.SolarSitingAnalysis
+			_ = json.Unmarshal([]byte(run.ResultJSON), &st)
+			if uri, err := store.ReadFileDataURI(
+				filepath.Join(assetsDir, "solar_siting.png"), "image/png",
+			); err == nil {
+				st.OverlayURI = uri
+			}
+			out.SolarSiting = &st
+		// "energy_advanced" is the tag this product was written under before it
+		// was renamed. It is read and never written. Runs saved under the old
+		// tag would otherwise fall to the default branch, which decodes an
+		// energy payload into a SolarAnalysis and reopens as an empty solar
+		// card with nothing raising an error; a rename that makes a saved run
+		// unopenable is a worse defect than the name it fixes. The real store
+		// held no such row when the rename was made, so nothing was migrated
+		// and no write path can produce the old tag again.
+		case "energy_model", "energy_advanced":
+			// No raster: the whole run is in result_json. Without this case the
+			// run saves and lists correctly and reopens as an empty solar card,
+			// with nothing raising an error.
+			var e backend.EnergyModelAnalysis
+			if run.ResultJSON != "" && run.ResultJSON != "{}" {
+				_ = json.Unmarshal([]byte(run.ResultJSON), &e)
+			}
+			e.NormalizeNilSlices()
+			out.EnergyModel = &e
+		default:
+			var solar backend.SolarAnalysis
+			if run.ResultJSON != "" && run.ResultJSON != "{}" {
+				_ = json.Unmarshal([]byte(run.ResultJSON), &solar)
+			}
+			out.Solar = &solar
+		}
+		return out, nil
+	}
+
+	// A wind run stores a WindAnalysis and no raster. Returned attached to an
+	// otherwise empty result, the way a water run is, so the analysis view and
+	// the export see it through the field a live run uses.
+	if run.Kind == store.RunKindWind {
+		var wind backend.WindAnalysis
+		if run.ResultJSON != "" && run.ResultJSON != "{}" {
+			_ = json.Unmarshal([]byte(run.ResultJSON), &wind)
+		}
+		wind.NormalizeNilSlices()
+		return &backend.PredictResult{Wind: &wind}, nil
+	}
+
 	if run.Kind == store.RunKindWater {
 		var water backend.WaterAnalysis
 		if run.ResultJSON != "" && run.ResultJSON != "{}" {

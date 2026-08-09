@@ -5,6 +5,7 @@ import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import { ExportResearchPack } from "../../wailsjs/go/main/App"
 import type { GeoJSONGeometry, PredictResult } from "@/lib/types"
 import { allAnalysisTables, type DataTable } from "@/lib/analysisTables"
+import { stripResearchPackRasters } from "@/lib/researchPack"
 import { DataTableView } from "@/components/DataTableView"
 import {
   geometryAreaHectares,
@@ -16,10 +17,12 @@ import {
 /**
  * Inspector for the research pack, opened from the analysis header.
  *
- * The export writes a manifest, the AOI geometry, nine CSV tables and the
- * classification raster, and none of it could be read without unzipping the
- * archive elsewhere. This lists the same entries the ZIP contains and renders
- * each one, so the pack can be checked before it leaves the application.
+ * The export writes a manifest, the AOI geometry, one CSV per table the result
+ * carries and the classification raster, and none of it could be read without
+ * unzipping the archive elsewhere. This lists the same entries the ZIP contains
+ * and renders each one, so the pack can be checked before it leaves the
+ * application. The table count is not stated here because it follows from the
+ * products in the result; allAnalysisTables is the list.
  *
  * Entries are named after the files the exporter writes, so what is inspected
  * here maps one-to-one onto what lands on disk.
@@ -84,7 +87,13 @@ export function ResearchPackModal({
     [polygonGeoJSON]
   )
 
-  /** Mirrors the manifest map written by BuildResearchPackZIP. */
+  /**
+   * The run-metadata block of the manifest written by BuildResearchPackZIP.
+   * The per-product keys that exporter adds after it — the solar, terrain,
+   * energy and wind figures, each with the assumption that produced it — are
+   * not listed here, so this is a preview of the manifest's head rather than
+   * the whole of it.
+   */
   const manifestRows = useMemo(() => {
     if (!result) return []
     return [
@@ -145,21 +154,11 @@ export function ResearchPackModal({
     if (!result) return
     setExporting(true)
     try {
-      // Strip the bulky data URIs, matching what the analysis page sends.
-      const pack = {
-        ...result,
-        water: result.water
-          ? { ...result.water, occurrence_uri: "" }
-          : result.water,
-        overlay_uri: "",
-        confidence_uri: "",
-        ndvi_mean_uri: "",
-        true_color_uri: "",
-        reference_uri: "",
-        lulc: result.lulc
-          ? { ...result.lulc, map_uri: "", map_png: "" }
-          : result.lulc,
-      }
+      // Strip the bulky data URIs through the helper the analysis page also
+      // calls. Inlined here, this path kept sending solar_terrain.overlay_uri
+      // and solar_siting.overlay_uri while the other stripped them, so the two
+      // buttons in the same row put payloads of different sizes on the bridge.
+      const pack = stripResearchPackRasters(result)
       const dest = await ExportResearchPack(
         {
           model_kind: modelKind,

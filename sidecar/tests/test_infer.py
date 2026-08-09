@@ -103,3 +103,150 @@ def test_classify_from_features_rf_smoke():
     assert set(preds.tolist()).issubset(set(label_encoder.classes_.tolist()))
     assert np.all(conf[valid] > 0)
     assert conf[0, 0] == 0
+
+
+# Request parameter parsing.
+#
+# `req.get(key) or default` reads a deliberate 0 as an omission, because 0 is
+# falsy. These pin the two helpers that replaced it and the parameters where
+# zero is a value the caller can mean.
+
+
+def test_request_number_defaults_only_on_absence():
+    req = {"present_zero": 0, "present_value": 3.5, "explicit_null": None}
+    assert infer.request_number(req, "present_zero", 0.5) == 0.0
+    assert infer.request_number(req, "present_value", 0.5) == 3.5
+    assert infer.request_number(req, "missing", 0.5) == 0.5
+    assert infer.request_number(req, "explicit_null", 0.5) == 0.5
+    # A default of None survives, for parameters whose absence is the signal.
+    assert infer.request_number(req, "missing", None) is None
+    assert infer.request_number({"utc_offset_hours": 0}, "utc_offset_hours",
+                                None) == 0.0
+    assert infer.request_number(req, "present_value", 0, int) == 3
+
+
+def test_request_number_carries_a_zero_degradation_rate_through():
+    """
+    The reported defect: a user entering 0 %/yr received the 0.5 %/yr default,
+    which on the lifetime-mean basis multiplied every energy figure by 0.94224
+    instead of 1.0, 5.78 percent low, with nothing on screen saying so.
+    """
+    import energy
+
+    rate = infer.request_number(
+        {"degradation_rate_per_year": 0.0}, "degradation_rate_per_year",
+        energy.DEGRADATION_RATE_PER_YEAR,
+    )
+    assert rate == 0.0
+    assert energy.degradation_factor("lifetime_mean", rate) == 1.0
+    default = energy.degradation_factor(
+        "lifetime_mean", energy.DEGRADATION_RATE_PER_YEAR
+    )
+    assert abs(default - 0.942238) < 5e-7
+    # Every figure the run reports was 5.78 percent below what the caller asked
+    # for, which is the size of the silent substitution.
+    assert abs((1.0 - default) - 0.0578) < 5e-5
+
+
+def test_request_positive_admits_zero_only_where_zero_is_a_value():
+    assert infer.request_positive({"a": 0}, "a", 1.0, allow_zero=True) == 0.0
+    assert infer.request_positive({}, "a", 1.0, allow_zero=True) == 1.0
+    assert infer.request_positive({"a": 2}, "a", 1.0) == 2.0
+    # Zero years of record and a zero ground coverage ratio are broken
+    # requests, not values: substituting the default would report a figure the
+    # caller did not ask for under a parameter they did set.
+    for bad in ({"a": 0}, {"a": -1}):
+        with pytest.raises(SystemExit):
+            infer.request_positive(bad, "a", 1.0)
+    with pytest.raises(SystemExit):
+        infer.request_positive({"a": -1}, "a", 1.0, allow_zero=True)
+
+
+def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
+    """
+    The key used solar.grid_key, which rounds to 0.01 degrees, about 1 km. Two
+    AOIs inside one POWER cell then missed each other and each paid the roughly
+    23 s hourly fetch, so the reuse the cache states it guarantees did not hold.
+    """
+    import solar
+    import wind
+
+    a = (-53.5048, -25.7434)
+    b = (-53.5362, -25.5)
+    assert solar.grid_key(*a) != solar.grid_key(*b)
+    assert wind.grid_key(*a) == wind.grid_key(*b)
+    assert infer.power_cell_key(*a) == infer.power_cell_key(*b)
+
+    # Both grids have to agree, because 0.625 does not divide 1.0: these two
+    # points share one MERRA-2 longitude cell and straddle the boundary between
+    # two 1 degree radiation cells, so keying on the meteorology grid alone
+    # would return one series under two different radiation cells.
+    c, d = (-53.6, -25.5), (-53.45, -25.5)
+    assert wind.grid_key(*c) == wind.grid_key(*d)
+    assert infer.power_cell_key(*c) != infer.power_cell_key(*d)
+
+
+def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
+    """
+    Before this, a cached run and a fetched run produced byte-identical
+    payloads. POWER reprocesses historical data, so a superseded revision can
+    stay pinned to an externally benchmarked figure with nothing on screen
+    saying the series was not fetched during the run.
+    """
+    import pandas as pd
+
+    frame = pd.DataFrame({"ALLSKY_SFC_SW_DWN": [1.0, 2.0], "T2M": [20.0, 21.0]})
+    calls = []
+
+    def fetch(progress=None):
+        calls.append(1)
+        return frame
+
+    args = (tmp_path, "hourly", -53.5048, -25.7434, "20160101", "20251231",
+            ["ALLSKY_SFC_SW_DWN"])
+    first, first_provenance = infer.cached_power_series(*args, fetch)
+    assert calls == [1]
+    assert first_provenance["source"] == "fetch"
+    assert first_provenance["fetched_utc"].endswith("+00:00")
+    assert first_provenance["cell_key"] == infer.power_cell_key(
+        -53.5048, -25.7434
+    )
+
+    second, second_provenance = infer.cached_power_series(*args, fetch)
+    assert calls == [1]
+    assert second.equals(first)
+    assert second_provenance["source"] == "cache"
+    # The fetch date travels with the series rather than being inferred from
+    # the file, whose modification time a copy or a restore would change.
+    assert second_provenance["fetched_utc"] == first_provenance["fetched_utc"]
+    assert "superseded revision" in second_provenance["note"]
+
+    # A stored file with no stamp reports an unknown fetch date, not a fresh one.
+    for stamp in tmp_path.glob("*.parquet.json"):
+        stamp.unlink()
+    _, third_provenance = infer.cached_power_series(*args, fetch)
+    assert calls == [1]
+    assert third_provenance["source"] == "cache"
+    assert third_provenance["fetched_utc"] is None
+
+
+def test_the_cached_power_series_is_reused_across_the_cell_not_the_centroid():
+    """The cache miss the coarser key removes, measured on two real centroids."""
+    import pandas as pd
+    import tempfile
+
+    frame = pd.DataFrame({"ALLSKY_SFC_SW_DWN": [1.0]})
+    calls = []
+
+    def fetch(progress=None):
+        calls.append(1)
+        return frame
+
+    with tempfile.TemporaryDirectory() as d:
+        cache = Path(d)
+        for lon, lat in ((-53.5048, -25.7434), (-53.5362, -25.5)):
+            infer.cached_power_series(
+                cache, "hourly", lon, lat, "20160101", "20251231",
+                ["ALLSKY_SFC_SW_DWN"], fetch,
+            )
+        assert calls == [1]

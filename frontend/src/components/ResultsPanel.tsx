@@ -20,6 +20,9 @@ export const ResultsPanel = forwardRef<HTMLDivElement, ResultsPanelProps>(
       !(result.n_dates > 0) &&
       !(result.confidence_uri && result.confidence_uri.length > 0)
 
+    // class_stats is declared non-optional but a run that made no
+    // classification marshals it as null, so the list is defaulted here rather
+    // than trusted: reading it directly took the whole application down.
     const stats = isLulcOnly
       ? (result.lulc?.composition ?? []).map((c) => ({
           class_id: c.class_id,
@@ -27,7 +30,7 @@ export const ResultsPanel = forwardRef<HTMLDivElement, ResultsPanelProps>(
           color: c.color,
           pct: c.pct,
         }))
-      : result.class_stats
+      : (result.class_stats ?? [])
 
     const subtitle = isLulcOnly
       ? `MapBiomas ${result.lulc?.year ?? 2023} · ${result.lulc?.metrics.area_ha.toFixed(1) ?? "—"} ha`

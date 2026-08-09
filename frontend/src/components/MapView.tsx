@@ -56,6 +56,20 @@ interface MapViewProps {
   /** When false, hide the band composition overlay. */
   showCompositionOverlay?: boolean
   composition?: CompositionOverlay | null
+  /**
+   * The solar rasters, drawn in array order.
+   *
+   * A list rather than one slot because terrain irradiation and siting are
+   * different products that can both describe an AOI at once. Sharing a slot
+   * made siting silently replace terrain, which is why producing one used to
+   * discard the other.
+   */
+  solarOverlays?: {
+    id: "terrain" | "siting"
+    uri: string
+    extent: PredictResult["extent"]
+    opacity?: number
+  }[] | null
   /** Surface-water occurrence raster, rendered above the basemap. */
   waterOverlay?: {
     uri: string
@@ -979,6 +993,7 @@ export function MapView({
   showPredictionOverlay = true,
   showCompositionOverlay = true,
   composition = null,
+  solarOverlays = null,
   waterOverlay = null,
   swipeCompare,
   swipeRatio,
@@ -1070,9 +1085,35 @@ export function MapView({
     result.confidence_uri
   )
 
+  // A zero extent is what the sidecar returns when it resolved no window, so a
+  // raster carrying one would be stretched across the null island.
+  const drawableSolar = (solarOverlays ?? [])
+    .filter((o) => o.uri && o.extent)
+    .filter(
+      (o) =>
+        !(
+          o.extent.lon_min === 0 &&
+          o.extent.lon_max === 0 &&
+          o.extent.lat_min === 0 &&
+          o.extent.lat_max === 0
+        )
+    )
+    .map((o) => ({
+      ...o,
+      bounds: [
+        [o.extent.lat_min, o.extent.lon_min],
+        [o.extent.lat_max, o.extent.lon_max],
+      ] as LatLngBoundsExpression,
+    }))
+
+  const solarVisible = drawableSolar.length > 0
+
   const swipeActive =
     swipeCompare &&
-    (compositionVisible || predictionVisible || confidenceVisible)
+    (compositionVisible ||
+      predictionVisible ||
+      confidenceVisible ||
+      solarVisible)
 
   const swipeClip = swipeActive ? swipeRatio : null
   const predictionOpacity = swipeActive
@@ -1110,6 +1151,23 @@ export function MapView({
         swipeRatio={null}
       />
     ) : null
+
+
+  // One layer per raster, stacked in array order so the caller decides which
+  // sits on top rather than the map silently preferring one product.
+  const solarLayer = drawableSolar.map((o, i) => (
+    <PredictionOverlay
+      key={`solar-${o.id}`}
+      url={o.uri}
+      bounds={o.bounds}
+      opacity={o.opacity ?? 0.85}
+      smooth={false}
+      zIndex={358 + i}
+      // Wipes with the other overlays rather than staying put: comparing a
+      // solar raster against the imagery under it is the same gesture.
+      swipeRatio={swipeClip}
+    />
+  ))
 
   const compositionLayer = compositionVisible ? (
     <PredictionOverlay
@@ -1157,7 +1215,14 @@ export function MapView({
       ? "Prediction"
       : compositionVisible
         ? composition?.title || "Composition"
-        : "Overlay"
+        : // Named rather than left as the generic fallback: with only a solar
+          // raster on the map the divider labelled it "Overlay", which is the
+          // one case where the label had something specific to say.
+          drawableSolar.some((o) => o.id === "siting")
+          ? "Siting"
+          : drawableSolar.some((o) => o.id === "terrain")
+            ? "Terrain irradiation"
+            : "Overlay"
 
   // Example outlines are shown only when no custom polygon is active, as faint
   // clickable shortcuts to the article's validated sites.
@@ -1230,6 +1295,7 @@ export function MapView({
         ))}
 
       {compositionLayer}
+      {solarLayer}
       {waterLayer}
       {predictionLayer}
       {confidenceLayer}

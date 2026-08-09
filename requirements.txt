@@ -9,3 +9,19 @@ joblib>=1.3
 scikit-learn>=1.8,<1.9
 pystac-client>=0.7
 planetary-computer>=1.0
+pvlib>=0.11
+
+# pandas is imported directly by solar.py, wind.py, energy.py and infer.py, and
+# was reaching the environment only as a transitive dependency of pvlib. A
+# direct import belongs in the manifest: the version that satisfies pvlib is not
+# a promise to us.
+pandas>=2.0
+
+# The POWER cache is parquet, and pandas needs an engine to read or write it.
+# Without one, cached_power_series raises inside the try that exists so a cache
+# failure never fails a run -- so the cache silently never works, and every run
+# repays the hourly fetch, about 23 seconds for ten years. Nothing surfaces it:
+# the provenance honestly reports 'fetch', which is what a first run says too.
+# Undeclared, it worked only on machines that happened to have pyarrow for some
+# other reason, which is how it passed locally and failed in CI.
+pyarrow>=14.0

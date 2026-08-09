@@ -34,6 +34,9 @@ import {
 export interface MapScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
+  /** Open tool tab, owned by the caller so it survives this screen unmounting. */
+  leftPanel: LeftDockPanel | null
+  onLeftPanelChange: (id: LeftDockPanel | null) => void
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -137,7 +140,11 @@ export interface MapScreenProps {
 }
 
 export function MapScreen(props: MapScreenProps) {
-  const [leftPanel, setLeftPanel] = useState<LeftDockPanel | null>("classify")
+  // Held by the caller, not here. This screen is unmounted whenever the user
+  // goes to another one, so local state put the dock back on "classify" on
+  // every return -- including a return from a water run, which left a water
+  // raster on the map with the classification panel open beside it.
+  const { leftPanel, onLeftPanelChange } = props
   const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
   const tabsMode = props.leftDockTabs ?? "retracted_only"
   const showDockTabs = tabsMode === "always" || leftPanel === null
@@ -145,12 +152,23 @@ export function MapScreen(props: MapScreenProps) {
     tabsMode === "always" && showDockTabs ? "left-14" : "left-3"
 
   const selectDock = (id: LeftDockPanel) => {
-    setLeftPanel((cur) => (cur === id ? null : id))
+    onLeftPanelChange(leftPanel === id ? null : id)
   }
+  const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only
-  // the one matching the open tool is shown.
-  const showWaterStatus = leftPanel === "water" && !!props.water
+  // the one matching the open tool is shown. Water keeps its own rule: with no
+  // classification to compete for the slot it takes it whatever tab is open,
+  // because this screen is remounted on every return from the analysis page,
+  // which resets the tab to classify and would otherwise leave a restored water
+  // raster on the map with nothing naming it and no way to clear it.
+  //
+  // The solar chain used to sit above water here and to gate the two below it.
+  // Its rasters are now drawn on the energy screen, which names and clears them
+  // beside the run that produced them, so nothing on this map can be a solar
+  // layer and the gate had no case left to exclude.
+  const showWaterStatus =
+    (leftPanel === "water" || !props.result) && !!props.water
   const showCompositionStatus =
     !showWaterStatus &&
     (leftPanel === "compose" || (!props.result && !!props.composition))

@@ -4,6 +4,12 @@ import { cn } from "@/lib/utils"
 
 export type LeftDockPanel = "classify" | "compose" | "water"
 
+/**
+ * Every tab here opens a panel beside this map and acts on it. The solar tab
+ * did not: its five products moved to the energy screen, so the tab would have
+ * had to navigate away from the map it sits on, and a dock whose tabs sometimes
+ * leave the screen no longer tells the user where a panel will appear.
+ */
 const TABS: { id: LeftDockPanel; label: string }[] = [
   { id: "classify", label: "New classification" },
   { id: "compose", label: "Compositions" },

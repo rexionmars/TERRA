@@ -2,6 +2,8 @@
 // also generates models under wailsjs/go/models.ts after `wails dev`; these
 // local definitions keep the frontend readable and self-contained.
 
+import type { PaletteName } from "./palettes"
+
 export interface Bounds {
   lon_min: number
   lat_min: number
@@ -168,15 +170,29 @@ export interface PredictResult {
   raster_tif: string
   mean_confidence: number
   n_dates: number
-  date_range: string[]
-  class_stats: ClassStat[]
-  temporal: TemporalPoint[]
-  vi_series: VISeriesPoint[]
+  // Go marshals a nil slice as null, and a run that produced no classification
+  // -- a water or solar run, which needs no scene -- leaves every one of these
+  // nil. Declared nullable so each read has to be guarded; taken as guaranteed,
+  // one of them blanked the whole application.
+  date_range: string[] | null
+  class_stats: ClassStat[] | null
+  temporal: TemporalPoint[] | null
+  vi_series: VISeriesPoint[] | null
   phenology: PhenologyMetrics
-  phenology_states: PhenologyStatePoint[]
+  phenology_states: PhenologyStatePoint[] | null
   lulc?: LULCAnalysis | null
   /** Attached when a surface-water run was made over the same AOI. */
   water?: WaterAnalysis | null
+  /** Same, for the solar products, which need no scene at all. */
+  solar?: SolarAnalysis | null
+  solar_terrain?: SolarTerrainAnalysis | null
+  solar_siting?: SolarSitingAnalysis | null
+  energy_model?: EnergyModelAnalysis | null
+  /**
+   * A wind screening. Filed under its own run kind, not under solar: the two
+   * answer different questions and their capacity factors are not comparable.
+   */
+  wind?: WindAnalysis | null
 }
 
 export interface ProgressEvent {
@@ -398,4 +414,1028 @@ export interface WaterRequest {
   label?: string
   run_label?: string
   project_id?: string
+}
+
+export interface SolarMonth {
+  month: number
+  ghi: number | null
+  dni: number | null
+  dhi: number | null
+  kt: number | null
+}
+
+export interface SolarAnalysis {
+  lon: number
+  lat: number
+  resource: {
+    ghi_annual_kwh_m2: number
+    ghi_std: number
+    ghi_cv_pct: number
+    ghi_p10: number
+    ghi_p90: number
+    n_years: number
+    trend_per_year: number
+    trend_p_value: number
+    clear_sky_index: number | null
+    monthly: SolarMonth[]
+  }
+  geometry: {
+    optimal_tilt_deg: number
+    optimal_poa_kwh_m2_year: number
+    surface_azimuth_deg: number
+    gain_over_horizontal_pct: number
+    tilt_tolerance: { deviation_deg: number; loss_pct: number }[]
+  }
+  pv: {
+    specific_yield_kwh_kwp_year: number
+    /** The ratio applied to produce the yield. */
+    performance_ratio: number
+    /** "reference" or "user". */
+    performance_ratio_source: string
+    /**
+     * What the chain models. Runs high because soiling, inter-row shading,
+     * degradation, availability and cabling are not modelled, so it is shown
+     * for comparison rather than applied.
+     */
+    performance_ratio_modelled: number
+    capacity_factor_pct: number
+    hourly_years: number
+  }
+  /** The grid the figures resolve on. Always shown beside them. */
+  grid_note: string
+  power_provenance?: PowerProvenance | null
+}
+
+/**
+ * Which NASA POWER series a run read, and when it was retrieved.
+ *
+ * POWER reprocesses historical data, so a series read from the on-disk cache can
+ * be a superseded revision. The cache has no expiry, so that a figure benchmarked
+ * against a stored run stays reproducible; what makes that safe is the run saying
+ * which it was.
+ */
+export interface PowerSeriesProvenance {
+  source: "fetch" | "cache" | "fetch_uncached"
+  /** Absent for a series cached before the stamp was recorded. */
+  fetched_utc: string | null
+  product: string
+  cell_key: string
+  period: string
+  cache_file: string | null
+  note: string
+}
+
+export interface PowerProvenance {
+  daily?: PowerSeriesProvenance | null
+  hourly?: PowerSeriesProvenance | null
+}
+
+export interface SolarRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  climatology_years: number
+  hourly_years: number
+  surface_azimuth: number
+  performance_ratio?: number | null
+}
+
+/**
+ * Colour domain an overlay was drawn on.
+ *
+ * Carried by the response because the client cannot infer it and must not
+ * guess. Winter and summer are deliberately given one domain: their spatial
+ * spread differs by about a factor of ten, and normalising each to its own
+ * range draws them at identical contrast.
+ */
+export interface SolarRenderScale {
+  palette: PaletteName
+  min: number
+  max: number
+  /** Value with an absolute meaning, if the quantity has one (parity at 1). */
+  reference: number | null
+  /** How the domain was chosen. */
+  basis: "own" | "shared" | "fixed"
+  shared_with: string | null
+  decimals: number
+}
+
+export interface SolarTerrainAnalysis {
+  poa_min: number
+  poa_max: number
+  poa_mean: number
+  poa_std_pct: number
+  slope_mean_deg: number
+  slope_max_deg: number
+  pixels: number
+  hourly_years: number
+  dem_source: string
+  season: string
+  unit: string
+  /**
+   * Read this, not poa_min/poa_max, to build a legend: for a seasonal layer the
+   * domain spans both seasons and is wider than this layer's own range.
+   */
+  scale: SolarRenderScale
+  /** Share of beam irradiation the terrain horizon blocks, over the AOI. */
+  shading_mean_pct: number | null
+  shading_max_pct: number | null
+  horizon_max_dist_m: number
+  beam_fraction: number
+  overlay_uri: string
+  raster_tif: string
+  extent: Bounds
+  power_provenance?: PowerProvenance | null
+}
+
+export interface SolarTerrainRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  hourly_years: number
+  /**
+   * annual, winter, summer, winter_crop, anisotropy (winter/summer), or
+   * shading (share of beam blocked by the terrain horizon).
+   */
+  season: SolarSeason
+}
+
+export type SolarSeason =
+  | "annual"
+  | "winter"
+  | "summer"
+  | "winter_crop"
+  | "anisotropy"
+  | "shading"
+
+export interface SolarSitingClass {
+  code: number
+  name: string
+  color: string
+  pixels: number
+  area_ha: number
+  pct: number
+}
+
+export interface SolarSitingAnalysis {
+  classes: SolarSitingClass[]
+  /** Never summed with the cropland class: the trade-off must stay visible. */
+  suitable_no_conflict_ha: number
+  suitable_cropland_ha: number
+  pixel_area_ha: number
+  thresholds: {
+    slope_acceptable_deg: number
+    slope_restrictive_deg: number
+    excluded_cover: number[]
+    cropland_cover: number[]
+    note: string
+  }
+  dem_source: string
+  overlay_uri: string
+  raster_tif: string
+  extent: Bounds
+}
+
+export interface SolarSitingRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  slope_acceptable_deg: number
+  slope_restrictive_deg: number
+}
+
+/**
+ * Request for the photovoltaic energy model.
+ *
+ * "energy_model" is the sidecar action identifier, kept verbatim across the
+ * request, the payload key, the stored run and the export manifest so all four
+ * name one thing. It is not a claim about the method.
+ *
+ * Every optional field left unset resolves to the sidecar default, which the
+ * response echoes back under `assumptions`. A field sent as 0 where 0 is not a
+ * usable value is read by the sidecar as unset, so the panel sends the default
+ * rather than a blank.
+ */
+export interface EnergyModelRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  climatology_years: number
+  hourly_years: number
+  surface_azimuth: number
+  /** Null applies the reference ratio; a value overrides it. */
+  performance_ratio?: number | null
+  /** "year_one" or "lifetime_mean". Empty selects year_one. */
+  reporting_basis?: string
+  degradation_rate_per_year?: number | null
+  analysis_period_years?: number
+  gcr_fixed?: number | null
+  gcr_tracker?: number | null
+  tracker_max_angle_deg?: number | null
+  /** Key into the sidecar capacity-density table. */
+  capacity_density_basis?: string
+  buildable_fraction?: number | null
+  /** Local offset used to label the diurnal profile. Absent means UTC. */
+  utc_offset_hours?: number | null
+  /** Per-term overrides of the PVWatts v5 loss stack, in percent. */
+  declared_loss_pct?: Record<string, number>
+  optional_loss_pct?: Record<string, number>
+  slope_acceptable_deg?: number
+  slope_restrictive_deg?: number
+  excluded_cover?: number[]
+  cropland_cover?: number[]
+  /** GeoTIFF from a siting run, reused instead of reclassifying the AOI. */
+  siting_raster_tif?: string
+  shading_derate?: number | null
+  shading_applied?: boolean
+}
+
+export interface EnergyGeometry {
+  optimal_tilt_deg: number
+  surface_azimuth_deg: number
+  poa_kwh_m2_year: number
+  poa_horizontal_kwh_m2_year: number
+  ghi_hourly_kwh_m2_year: number
+}
+
+/** One declared PVWatts v5 loss the chain does not model, with its source. */
+export interface EnergyLossTerm {
+  key: string
+  label: string
+  loss_pct: number
+  factor: number
+  kind: string
+  source: string
+  user_editable: boolean
+}
+
+/**
+ * A loss defaulted to zero. The value the reference suggests is reported beside
+ * it rather than applied, so enabling it is a recorded decision.
+ */
+export interface EnergyOptionalLossTerm {
+  key: string
+  label: string
+  loss_pct: number
+  factor: number
+  kind: string
+  default_pct: number
+  pvwatts_suggested_pct: number
+  source: string
+  user_editable: boolean
+}
+
+export interface EnergyPRFactors {
+  energy_poa_kwh_m2_year: number
+  energy_effective_kwh_m2_year: number
+  energy_dc_kwh_kwp_year: number
+  energy_ac_kwh_kwp_year: number
+  f_iam: number
+  f_temp: number
+  f_inverter: number
+  performance_ratio_modelled: number
+  /** Residual of the identity f_iam * f_temp * f_inverter = modelled ratio. */
+  telescoping_residual: number
+  temp_cell_irradiance_weighted_c: number
+}
+
+export interface EnergyPerformanceRatio {
+  applied: number
+  applied_source: string
+  reference: number
+  reference_source: string
+  modelled: number
+  derived: number
+  derived_source: string
+  derived_if_optional_at_pvwatts_defaults: number
+  declared_loss_factor: number
+  optional_loss_factor: number
+  factors: EnergyPRFactors
+  declared_losses: EnergyLossTerm[]
+  optional_losses: EnergyOptionalLossTerm[]
+  reporting_basis: string
+  degradation_factor: number
+  degradation_rate_per_year: number
+  analysis_period_years: number
+  degradation_source: string
+  /** Band implied by the Global Solar Atlas at this site: [low, high]. */
+  gsa_implied_band: number[]
+}
+
+/** Which PVWatts v5 module type the temperature coefficient came from. */
+export interface EnergyModuleType {
+  gamma_pdc_per_c: number
+  module_type: string
+  alternatives: Record<string, number>
+  source: string
+  user_editable: boolean
+}
+
+export interface EnergyWaterfallBase {
+  ghi_hourly_kwh_m2_year: number
+  hourly_window: string
+  ghi_climatology_kwh_m2_year: number
+  climatology_window: string
+  note: string
+}
+
+/** Factor and cumulative_ratio are null on context rows, not multiplied in. */
+export interface EnergyWaterfallStep {
+  step: number
+  label: string
+  factor: number | null
+  energy_after: number
+  units: string
+  cumulative_ratio: number | null
+  kind: string
+  in_performance_ratio: boolean
+  source: string
+  note: string
+}
+
+/**
+ * An identity the waterfall must satisfy.
+ *
+ * residual is null on a checkpoint that is not an identity, so a row with no
+ * residual is not read as one that closed exactly. external_band is the
+ * benchmark the value is read against, empty when the checkpoint has none.
+ */
+export interface EnergyWaterfallCheckpoint {
+  name: string
+  value: number
+  residual: number | null
+  note: string
+  external_band: number[]
+}
+
+export interface EnergyWaterfallPR {
+  applied: number
+  applied_source: string
+  modelled: number
+  derived: number
+  reporting_basis: string
+  degradation_factor: number
+}
+
+export interface EnergyDelivered {
+  applied_kwh_kwp_year: number
+  applied_capacity_factor_pct: number
+  derived_kwh_kwp_year: number
+  derived_capacity_factor_pct: number
+  difference_pct: number
+  reporting_basis: string
+  note: string
+}
+
+export interface EnergyNumberSource {
+  value: number
+  source: string
+}
+
+export interface EnergyTextSource {
+  value: string
+  source: string
+}
+
+export interface EnergyWaterfallAssumptions {
+  module_type: EnergyModuleType
+  albedo: EnergyNumberSource
+  transposition_model: EnergyTextSource
+  wind_source: EnergyTextSource
+  flat_placement_bias_pct: EnergyNumberSource
+}
+
+export interface EnergyLossWaterfall {
+  base: EnergyWaterfallBase
+  steps: EnergyWaterfallStep[]
+  checkpoints: EnergyWaterfallCheckpoint[]
+  outside_performance_ratio: string[]
+  performance_ratio: EnergyWaterfallPR
+  delivered: EnergyDelivered
+  assumptions: EnergyWaterfallAssumptions
+}
+
+export interface EnergyTrackerConfiguration {
+  axis_tilt_deg: number
+  axis_azimuth_deg: number
+  axis_azimuth_convention: string
+  max_angle_deg: number
+  max_angle_source: string
+  backtrack: boolean
+  backtrack_note: string
+  terrain: string
+}
+
+export interface EnergyFixedYield {
+  tilt_deg: number
+  azimuth_deg: number
+  poa_kwh_m2_year: number
+  specific_yield_kwh_kwp_year: number
+  capacity_factor_pct: number
+  performance_ratio_modelled: number
+}
+
+export interface EnergyTrackerYield {
+  gcr: number
+  poa_kwh_m2_year: number
+  specific_yield_kwh_kwp_year: number
+  capacity_factor_pct: number
+  performance_ratio_modelled: number
+}
+
+export interface EnergyPerKWp {
+  fixed: EnergyFixedYield
+  tracking: EnergyTrackerYield
+  gain_pct: number
+  /** Whether the comparison changes sign on this basis. */
+  inverts: boolean
+  note: string
+}
+
+export interface EnergySeasonRow {
+  season: string
+  months: number[]
+  fixed_poa_kwh_m2_season: number
+  tracker_poa_kwh_m2_season: number
+  gain_pct: number
+}
+
+export interface EnergySeasonal {
+  rows: EnergySeasonRow[]
+  note: string
+}
+
+/** Measured fleet energy density, reported as published rather than derived. */
+export interface EnergyBolingerDensity {
+  fixed_gwh_ha_year: number
+  tracking_gwh_ha_year: number
+  fixed_mwh_acre_year: number
+  tracking_mwh_acre_year: number
+  change_pct: number
+  source: string
+  note: string
+}
+
+export interface EnergyOngRow {
+  site: string
+  dni_kwh_m2_year: number
+  land_use_change_pct: number
+}
+
+export interface EnergyOngTable5 {
+  site_dni_kwh_m2_year: number
+  nearest_rows: EnergyOngRow[]
+  band_pct: number[]
+  source: string
+  note: string
+}
+
+/** Both published per-hectare measurements. They disagree on the sign. */
+export interface EnergyPublishedLandUse {
+  bolinger_2022: EnergyBolingerDensity
+  ong_2013_table5: EnergyOngTable5
+  disagreement: string
+}
+
+export interface EnergyParityGCR {
+  gcr_tracker: number
+  gcr_ratio: number
+  search_range: number[]
+  note: string
+}
+
+export interface EnergyModelDerivedLandUse {
+  energy_per_hectare_ratio: number
+  change_pct: number
+  gcr_fixed: number
+  gcr_tracker: number
+  gcr_ratio: number
+  basis: string
+  note: string
+  module_efficiency_note: string
+  parity: EnergyParityGCR
+}
+
+export interface EnergyPerHectare {
+  published_measurements: EnergyPublishedLandUse
+  model_derived: EnergyModelDerivedLandUse
+  inverts: boolean
+  note: string
+}
+
+export interface EnergyPRTransfer {
+  wind: string
+  performance_ratio_fixed: number
+  performance_ratio_tracker: number
+  difference_pct: number
+}
+
+export interface EnergyTrackingPR {
+  applied: number
+  applied_source: string
+  reporting_basis: string
+  transfer_between_configurations: EnergyPRTransfer[]
+  transfer_range_pct: number[]
+  note: string
+}
+
+export interface EnergyTracking {
+  configuration: EnergyTrackerConfiguration
+  per_kwp: EnergyPerKWp
+  seasonal: EnergySeasonal
+  per_hectare: EnergyPerHectare
+  performance_ratio: EnergyTrackingPR
+  excluded: string
+  resolution_note: string
+}
+
+/** utc_offset_hours is null when none was supplied; the hours are then UTC. */
+export interface EnergyTimeStandard {
+  source_standard: string
+  hour_label: string
+  utc_offset_hours: number | null
+  note: string
+}
+
+export interface EnergyProfileMonthRow {
+  month: number
+  mean_ac_w_kwp: number[]
+}
+
+export interface EnergyProfileMatrix {
+  units: string
+  rows: EnergyProfileMonthRow[]
+}
+
+export interface EnergyMonthlyProfileRow {
+  month: number
+  peak_sun_hours_day: number
+  poa_kwh_m2_month: number
+  ac_kwh_kwp_month: number
+}
+
+export interface EnergyMonthlyProfile {
+  units: Record<string, string>
+  rows: EnergyMonthlyProfileRow[]
+  note: string
+}
+
+export interface EnergyHourlyShareRow {
+  hour: number
+  share_pct: number
+}
+
+export interface EnergyHourlyShare {
+  units: string
+  rows: EnergyHourlyShareRow[]
+}
+
+export interface EnergyGenerationProfile {
+  time_standard: EnergyTimeStandard
+  mean_ac_power_by_month_and_hour: EnergyProfileMatrix
+  monthly: EnergyMonthlyProfile
+  share_of_annual_generation_by_hour: EnergyHourlyShare
+  note: string
+}
+
+/**
+ * Installed capacity per hectare with the area basis it is measured on. The
+ * basis moves the answer further than the exceedance band does, so the two are
+ * never reported apart.
+ */
+export interface EnergyCapacityDensity {
+  basis: string
+  value_mw_per_ha: number
+  units: string
+  value_mw_dc_per_ha: number
+  area_basis: string
+  mounting: string
+  source: string
+  acre_conversion: string
+  buildable_fraction: number
+  buildable_fraction_source: string
+  fleet_dc_ac_ratio: number
+  fleet_dc_ac_ratio_source: string
+  ac_to_dc_conversion_applied: boolean
+  note: string
+}
+
+export interface EnergyContiguity {
+  largest_ha: number
+  n_patches: number
+  connectivity: number
+  note: string
+}
+
+/** P90 is the value exceeded in 90 percent of years, so it is below P50. */
+export interface EnergyExceedanceEnergy {
+  p50_exceedance_gwh_year: number
+  p75_exceedance_gwh_year: number
+  p90_exceedance_gwh_year: number
+}
+
+export interface EnergyPlantClass {
+  label: string
+  area_ha: number
+  capacity_dc_mw: number
+  capacity_ac_mw: number
+  specific_yield_kwh_kwp_year: number
+  energy: EnergyExceedanceEnergy
+  reporting_basis: string
+  performance_ratio: number
+  performance_ratio_source: string
+  note: string
+  contiguity: EnergyContiguity
+}
+
+/** Area only: capacity_dc_mw is null because this class needs other racking. */
+export interface EnergyRestrictiveClass {
+  label: string
+  area_ha: number
+  capacity_dc_mw: number | null
+  note: string
+}
+
+export interface EnergyShading {
+  derate: number
+  applied: boolean
+  note: string
+}
+
+export interface EnergyExceedanceLevel {
+  level: number
+  ghi_empirical_kwh_m2_year: number
+  factor_empirical: number
+  ghi_normal_kwh_m2_year: number
+  factor_normal: number
+  normal_fit_standard_error_kwh_m2: number
+}
+
+export interface EnergyNormality {
+  test: string
+  statistic: number
+  p_value: number
+  interpretation: string
+}
+
+export interface EnergyExceedanceCrosswalk {
+  exceedance_p90_kwh_m2_year: number
+  statistical_p10_kwh_m2_year: number
+  exceedance_p10_kwh_m2_year: number
+  statistical_p90_kwh_m2_year: number
+  note: string
+}
+
+export interface EnergyExceedance {
+  method_applied: string
+  convention: string
+  convention_note: string
+  n_years: number
+  mean_kwh_m2_year: number
+  std_kwh_m2_year: number
+  cv_pct: number
+  levels: EnergyExceedanceLevel[]
+  p50_note: string
+  normality: EnergyNormality
+  crosswalk: EnergyExceedanceCrosswalk
+  linearity_assumption: string
+}
+
+export interface EnergyUncertainty {
+  included: string[]
+  excluded: string[]
+  statement: string
+  dominant_term: string
+}
+
+export interface EnergyDensityCrossCheck {
+  site_mwh_ha_year: number
+  reference_mwh_ha_year: number
+  ratio: number
+  area_basis: string
+  source: string
+  note: string
+}
+
+/**
+ * The resource and land ceiling over the suitable area. Not an
+ * interconnectable or permitted capacity, and the classes are never summed.
+ */
+export interface EnergyPlant {
+  suitable: EnergyPlantClass
+  cropland_conflict: EnergyPlantClass
+  restrictive: EnergyRestrictiveClass
+  areas_note: string
+  capacity_density: EnergyCapacityDensity
+  shading: EnergyShading
+  exceedance: EnergyExceedance
+  uncertainty: EnergyUncertainty
+  energy_density_cross_check: EnergyDensityCrossCheck
+  reporting_basis: string
+  limitations: string
+  /** Only `note` is filled when the caller supplied a classification. */
+  thresholds: {
+    slope_acceptable_deg: number
+    slope_restrictive_deg: number
+    excluded_cover: number[]
+    cropland_cover: number[]
+    note: string
+  }
+}
+
+export interface EnergyAssumptions {
+  performance_ratio_applied: number
+  performance_ratio_source: string
+  performance_ratio_modelled: number
+  performance_ratio_derived: number
+  reporting_basis: string
+  degradation_factor: number
+  degradation_rate_per_year: number
+  analysis_period_years: number
+  module_type: string
+  transposition_model: string
+  albedo: number
+  gcr_fixed: number
+  gcr_tracker: number
+  capacity_density_basis: string
+  capacity_density_mw_dc_per_ha: number
+  shading_applied: boolean
+  shading_derate: number
+  resolution_note: string
+  note: string
+}
+
+/**
+ * The photovoltaic energy model at the AOI.
+ *
+ * Shares the radiation chain with SolarAnalysis and reports the same optimum,
+ * so the two products cannot disagree about one AOI. Every array field is
+ * non-nullable: the Go Runner normalises each nil slice to an empty one on the
+ * live path and again on restore, which is what makes that safe here.
+ */
+export interface EnergyModelAnalysis {
+  lon: number
+  lat: number
+  hourly_years: number
+  climatology_years: number
+  hourly_window: string
+  climatology_window: string
+  geometry: EnergyGeometry
+  performance_ratio: EnergyPerformanceRatio
+  module_type: EnergyModuleType
+  loss_waterfall: EnergyLossWaterfall
+  tracking: EnergyTracking
+  generation_profile: EnergyGenerationProfile
+  capacity_density: EnergyCapacityDensity
+  plant: EnergyPlant
+  reporting_basis: string
+  /** The grid the figures resolve on. Always shown beside them. */
+  grid_note: string
+  assumptions: EnergyAssumptions
+  power_provenance?: PowerProvenance | null
+}
+
+/**
+ * Request for the wind resource screening.
+ *
+ * The reanalysis cell is 0.5 by 0.625 degrees, so the response reports the
+ * centre of the cell the AOI centroid falls in, not the centroid.
+ */
+export interface WindRequest {
+  label?: string
+  run_label?: string
+  project_id?: string
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  record_years: number
+  hub_height_m?: number | null
+  calm_threshold_ms?: number | null
+  record_max_floor_ms?: number | null
+  /** Two roughness lengths in metres: the assumed land-cover band. */
+  roughness_band_m?: number[]
+}
+
+export interface WindWeibullFitCheck {
+  empirical_mean_ms: number
+  weibull_mean_ms: number
+  mean_error_pct: number
+  empirical_mean_cube_m3s3: number
+  weibull_mean_cube_m3s3: number
+  mean_cube_error_pct: number
+  estimator: string
+}
+
+export interface WindMonthlySpeed {
+  month: number
+  mean_speed_ms: number
+}
+
+/** The convention is the direction the wind comes from, stated because the
+ * opposite convention is also in use. */
+export interface WindDirection {
+  convention_note: string
+  circular_mean_deg_10m: number
+  circular_mean_deg_50m: number
+  median_turning_deg: number
+}
+
+/** energy_pct and hours_pct differ because energy goes as the cube of speed. */
+export interface WindRoseSector {
+  sector: number
+  centre_deg: number
+  energy_pct: number
+  hours_pct: number
+}
+
+/** What the reanalysis carries directly at 10 m and 50 m: no extrapolation. */
+export interface WindMeasured {
+  qualifier: string
+  mean_speed_10m_ms: number
+  mean_speed_50m_ms: number
+  shear_exponent: number
+  weibull_k_50m: number
+  weibull_c_50m_ms: number
+  weibull_fit_check_50m: WindWeibullFitCheck
+  energy_pattern_factor_50m: number
+  wind_power_density_50m_w_m2: number
+  air_density_mean_kg_m3: number
+  air_density_min_kg_m3: number
+  air_density_max_kg_m3: number
+  humidity_note: string
+  monthly_mean_speed_50m: WindMonthlySpeed[]
+  direction: WindDirection
+  direction_energy_rose_50m: WindRoseSector[]
+}
+
+export interface WindExtrapolation {
+  hub_height_m: number
+  interpolation_ceiling_m: number
+  height_ratio: number
+  is_extrapolation: boolean
+  statement: string
+}
+
+export interface WindOperatingRegime {
+  above_cut_in_pct: number
+  at_or_above_rated_pct: number
+  above_cut_out_pct: number
+  cut_in_ms: number
+  rated_ms: number
+  cut_out_ms: number
+}
+
+/**
+ * The hub-height result. Gross: no wake, availability, electrical, icing or
+ * curtailment loss is applied, and there is no external validation.
+ */
+export interface WindHub {
+  qualifier: string
+  extrapolation: WindExtrapolation
+  mean_speed_ms: number
+  weibull_k: number
+  weibull_c_ms: number
+  wind_power_density_w_m2: number
+  gross_capacity_factor_pct: number
+  gross_capacity_factor_no_density_correction_pct: number
+  gross_annual_energy_mwh_per_turbine: number
+  operating_regime: WindOperatingRegime
+  density_normalisation_note: string
+  hours_per_year: number
+  hours_per_year_note: string
+  excluded_losses: string[]
+}
+
+/** roughness_length_m is null on the row derived from the record itself, which
+ * inverts to a roughness rather than assuming one. */
+export interface WindShearRow {
+  shear_exponent: number
+  roughness_length_m: number | null
+  basis: string
+  hub_speed_ms: number
+  capacity_factor_pct: number
+  annual_energy_mwh: number
+}
+
+export interface WindShearDiagnostics {
+  shear_exponent: number
+  /**
+   * Null when the shear exponent lies outside the range a neutral logarithmic
+   * profile between 10 m and 50 m can produce for any roughness length:
+   * sidecar/wind.py implied_roughness_length returns NaN there and the
+   * serialiser writes null. Declared nullable because Go decodes that null into
+   * a float64 zero, and rendered as a number it printed "0.000 m" for a value
+   * that was never computed, beside prose saying the inversion has no root.
+   */
+  implied_roughness_length_m: number | null
+  assumed_roughness_band_m: number[]
+  expected_shear_exponent_band: number[]
+  consistent_with_assumed_cover: boolean
+  roughness_band_note: string
+  shear_exponent_hourly_mean: number
+  shear_exponent_hourly_median: number
+  shear_exponent_day: number
+  shear_exponent_night: number
+  local_utc_offset_hours: number
+}
+
+/**
+ * The record's own account of itself. all_checks_passed false with a populated
+ * flags list is the signal that the hub figures rest on a series the checks do
+ * not support.
+ */
+export interface WindDataQuality {
+  record_hours: number
+  expected_hours: number
+  mean_speed_ms: Record<string, number>
+  calm_fraction_pct: Record<string, number>
+  calm_threshold_ms: number
+  record_maximum_ms: Record<string, number>
+  record_maximum_floor_ms: number
+  record_maximum_plausible: boolean
+  record_maximum_floor_note: string
+  calm_fraction_2m_flag_pct: number
+  calm_fraction_2m_note: string
+  nan_count: Record<string, number>
+  shear: WindShearDiagnostics
+  flags: string[]
+  all_checks_passed: boolean
+}
+
+/** A reference power curve, not a turbine selected for this site. */
+export interface WindTurbine {
+  name: string
+  rated_power_w: number
+  rotor_diameter_m: number
+  hub_height_m: number
+  blades: number
+  iec_class: string
+  turbulence_class: string
+  cut_in_ms: number
+  rated_speed_ms: number
+  cut_out_ms: number
+  power_curve_points: number
+  power_curve_column: string
+  citation: string
+  citation_url: string
+  curve_source_url: string
+  curve_source_commit: string
+  drivetrain_note: string
+}
+
+export interface WindAssumptions {
+  hub_height_m: number
+  hub_height_source: string
+  record_years: number
+  record_window: string
+  shear_exponent: number
+  shear_exponent_source: string
+  roughness_band_m: number[]
+  calm_threshold_ms: number
+  record_max_floor_ms: number
+  conventions_note: string
+  qualifier: string
+  excluded_losses: string[]
+  /** States that the wind capacity factor is not comparable with the PV one. */
+  comparison_note: string
+  resolution_note: string
+}
+
+/**
+ * A wind resource screening at the AOI, from reanalysis hourly wind.
+ *
+ * A screening indication and not a resource assessment: the hub figures are
+ * gross of every plant loss, carry no external validation, and rest on a
+ * power-law extrapolation above the highest level the data carries. Its
+ * capacity factor must never be placed beside the photovoltaic one, which is
+ * benchmarked against the Global Solar Atlas.
+ *
+ * Array fields are non-nullable for the reason given on
+ * EnergyModelAnalysis.
+ */
+export interface WindAnalysis {
+  lon: number
+  lat: number
+  /** Centre of the reanalysis cell the AOI resolves to, [lon, lat]. */
+  grid_cell_centre: number[]
+  grid_note: string
+  record_years: number
+  record_window: string
+  hub_height_m: number
+  qualifier: string
+  loads_note: string
+  measured: WindMeasured
+  hub: WindHub
+  shear_sensitivity: WindShearRow[]
+  data_quality: WindDataQuality
+  turbine: WindTurbine
+  assumptions: WindAssumptions
+  power_provenance?: PowerProvenance | null
 }
