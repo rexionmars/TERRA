@@ -39,10 +39,11 @@ type EnvironmentState struct {
 }
 
 func (a *App) sidecarDir() string {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return ""
 	}
-	return filepath.Dir(a.runner.SidecarPath())
+	return filepath.Dir(runner.SidecarPath())
 }
 
 func (a *App) dataDir() string {
@@ -71,16 +72,21 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 		Building:    a.envBuilder.Running(),
 	}
 
+	// Read once. Four separate reads could see two different runners if a build
+	// finished between them, and report an interpreter's packages beside another
+	// one's path.
+	runner := a.currentRunner()
 	sidecar := a.sidecarDir()
-	if a.runner != nil && sidecar != "" {
-		active := backend.InspectPython(a.ctx, a.runner.PythonPath(), sidecar)
-		active.Origin = originOf(a.runner.PythonPath(), managed, cfg)
+	if runner != nil && sidecar != "" {
+		python := runner.PythonPath()
+		active := backend.InspectPython(a.ctx, python, sidecar)
+		active.Origin = originOf(python, managed, cfg)
 		state.Active = active
-		state.ManagedActive = a.runner.PythonPath() == venvInterpreter(managed)
+		state.ManagedActive = python == venvInterpreter(managed)
 	}
 
 	appDir := ""
-	if a.runner != nil {
+	if runner != nil {
 		appDir = filepath.Dir(sidecar)
 	}
 	state.Candidates = backend.DiscoverPythons(appDir, managed, "")
@@ -187,7 +193,7 @@ func (a *App) CancelEnvironmentBuild() {
 // restart, so a user who has just fixed their environment can work in it.
 func (a *App) rebuildRunner(python string) error {
 	appDir := ""
-	if a.runner != nil {
+	if a.currentRunner() != nil {
 		appDir = filepath.Dir(a.sidecarDir())
 	}
 	runner, err := backend.NewRunner(appDir, python)
@@ -209,6 +215,13 @@ func envOverride() string { return os.Getenv("GEOSENSE_PYTHON") }
 func venvInterpreter(dir string) string { return backend.VenvInterpreter(dir) }
 
 // originOf names where an interpreter came from, in the user's terms.
+//
+// "abandoned" is the case worth naming. A saved choice whose file is gone --
+// an environment deleted, a Homebrew upgrade moving a path -- falls through
+// resolvePython to a heuristic, and reporting that as "detected" would tell
+// the user their selection is still in force while quietly running something
+// else. It says the selection was dropped, which is the only version of events
+// that explains what they are looking at.
 func originOf(path, managedDir string, cfg backend.AppConfig) string {
 	switch {
 	case os.Getenv("GEOSENSE_PYTHON") != "":
@@ -217,6 +230,9 @@ func originOf(path, managedDir string, cfg backend.AppConfig) string {
 		return "managed"
 	case cfg.PythonPath != "" && path == cfg.PythonPath:
 		return "chosen"
+	case cfg.PythonPath != "":
+		// A choice is recorded and is not what is running.
+		return "abandoned"
 	default:
 		return "detected"
 	}

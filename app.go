@@ -41,6 +41,27 @@ func NewApp() *App {
 	return &App{}
 }
 
+/*
+currentRunner is the runner as it stands right now.
+
+Every read of a.runner goes through here because the field is no longer written
+once at startup and left alone: choosing an interpreter rebuilds it, and each
+method bound to the frontend runs on its own goroutine. A bare read racing that
+write is a data race on a pointer -- the kind that survives every test and
+appears once, in a build nobody can reproduce.
+
+Returning the pointer rather than holding the lock for the call is deliberate.
+An analysis runs for minutes; holding the lock across it would make choosing an
+interpreter wait for the run to finish. A run that started on the previous
+interpreter finishes on it, which is the honest outcome: it is the one it
+loaded its model into.
+*/
+func (a *App) currentRunner() *backend.Runner {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.runner
+}
+
 func (a *App) bootLog(msg string) {
 	msg = strings.TrimSpace(msg)
 	if msg == "" {
@@ -127,7 +148,13 @@ func (a *App) startup(ctx context.Context) {
 		a.bootLog("runner init failed: " + err.Error())
 		wruntime.LogError(ctx, "failed to init runner: "+err.Error())
 	} else {
+		// Written under the lock like every other assignment to it. Startup runs
+		// before the frontend can call anything, so nothing races this one today
+		// -- but a field that is guarded in one place and bare in another is
+		// read as safe to touch bare, which is how the guarding gets lost.
+		a.mu.Lock()
 		a.runner = runner
+		a.mu.Unlock()
 		a.bootLog("python · " + filepath.Base(runner.PythonPath()))
 		a.bootLog("model · " + filepath.Base(runner.ModelDir()))
 	}
@@ -160,13 +187,14 @@ func (a *App) domReady(ctx context.Context) {
 func (a *App) probeSidecar(ctx context.Context) {
 	a.bootLog("probing sidecar…")
 	ok := true
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		a.bootLog("sidecar unavailable")
 		ok = false
 	} else {
 		probeCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 		defer cancel()
-		line, err := a.runner.Probe(probeCtx)
+		line, err := runner.Probe(probeCtx)
 		if err != nil {
 			a.bootLog("sidecar probe: " + err.Error())
 			ok = false
@@ -196,18 +224,20 @@ func (a *App) probeSidecar(ctx context.Context) {
 
 // ListEmbeddedAreas returns the embedded study areas (A/B/C).
 func (a *App) ListEmbeddedAreas() []backend.Area {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return []backend.Area{}
 	}
-	return a.runner.ListAreas()
+	return runner.ListAreas()
 }
 
 // Predict runs the inference sidecar for the given request.
 func (a *App) Predict(req backend.PredictRequest) (*backend.PredictResult, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.Predict(a.ctx, req)
+	res, err := runner.Predict(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -219,35 +249,39 @@ func (a *App) Predict(req backend.PredictRequest) (*backend.PredictResult, error
 // without Sentinel imagery. Embedded areas use local TIFFs; custom AOIs in
 // Brazil fetch a MapBiomas Collection 10 COG window on demand.
 func (a *App) AnalyzeLULC(req backend.LULCRequest) (*backend.LULCAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.AnalyzeLULC(a.ctx, req)
+	return runner.AnalyzeLULC(a.ctx, req)
 }
 
 // ListDataCube inventories Sentinel-2 L2A scenes for the AOI (before Classify).
 func (a *App) ListDataCube(req backend.DataCubeRequest) (*backend.DataCubeResult, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.ListDataCube(a.ctx, req)
+	return runner.ListDataCube(a.ctx, req)
 }
 
 // RenderComposite builds an RGB / false-color or spectral-index overlay for one scene.
 func (a *App) RenderComposite(req backend.CompositeRequest) (*backend.CompositeResult, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.RenderComposite(a.ctx, req)
+	return runner.RenderComposite(a.ctx, req)
 }
 
 // AnalyzeWater maps surface water over a period from spectral water indices.
 // Descriptive: a thresholded index, with no model and no trained legend.
 func (a *App) AnalyzeWater(req backend.WaterRequest) (*backend.WaterAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeWater(a.ctx, req)
+	res, err := runner.AnalyzeWater(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -336,10 +370,11 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 
 // AnalyzeSolar computes the solar resource and photovoltaic yield at the AOI.
 func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeSolar(a.ctx, req)
+	res, err := runner.AnalyzeSolar(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -422,10 +457,11 @@ func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalys
 
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
 func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.SolarTerrainAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeSolarTerrain(a.ctx, req)
+	res, err := runner.AnalyzeSolarTerrain(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -436,10 +472,11 @@ func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.Sol
 
 // AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
 func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.SolarSitingAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeSolarSiting(a.ctx, req)
+	res, err := runner.AnalyzeSolarSiting(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -520,10 +557,11 @@ func (a *App) persistSolarRaster(
 
 // AnalyzeEnergyModel runs the photovoltaic energy model over the AOI.
 func (a *App) AnalyzeEnergyModel(req backend.EnergyModelRequest) (*backend.EnergyModelAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeEnergyModel(a.ctx, req)
+	res, err := runner.AnalyzeEnergyModel(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -619,10 +657,11 @@ func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend
 
 // AnalyzeWind screens the wind resource at the AOI.
 func (a *App) AnalyzeWind(req backend.WindRequest) (*backend.WindAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeWind(a.ctx, req)
+	res, err := runner.AnalyzeWind(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
