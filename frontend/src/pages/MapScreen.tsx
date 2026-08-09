@@ -8,7 +8,6 @@ import type {
   DataCubeResult,
   DataCubeScene,
   GeoJSONGeometry,
-  LeftDockTabsMode,
   ModelKind,
   PredictResult,
   WaterAnalysis,
@@ -17,11 +16,12 @@ import type {
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
 import { SearchBar } from "@/components/SearchBar"
+import { PeriodTimeline } from "@/components/PeriodTimeline"
 import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
-import { LeftDockRail, type LeftDockPanel } from "@/components/LeftDockRail"
+import type { MapToolId } from "@/lib/mapTools"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
@@ -35,8 +35,8 @@ export interface MapScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
-  leftPanel: LeftDockPanel | null
-  onLeftPanelChange: (id: LeftDockPanel | null) => void
+  leftPanel: MapToolId | null
+  onLeftPanelChange: (id: MapToolId | null) => void
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -136,7 +136,6 @@ export interface MapScreenProps {
   onShowWaterOverlayChange: (v: boolean) => void
   waterOpacity: number
   onWaterOpacityChange: (v: number) => void
-  leftDockTabs?: LeftDockTabsMode
 }
 
 export function MapScreen(props: MapScreenProps) {
@@ -146,14 +145,10 @@ export function MapScreen(props: MapScreenProps) {
   // raster on the map with the classification panel open beside it.
   const { leftPanel, onLeftPanelChange } = props
   const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
-  const tabsMode = props.leftDockTabs ?? "retracted_only"
-  const showDockTabs = tabsMode === "always" || leftPanel === null
-  const panelOffsetClass =
-    tabsMode === "always" && showDockTabs ? "left-14" : "left-3"
-
-  const selectDock = (id: LeftDockPanel) => {
-    onLeftPanelChange(leftPanel === id ? null : id)
-  }
+  // The panel sits against the navigation column now that the tool rail is
+  // gone: the column lists the same three tools and is always visible, so a
+  // floating strip repeating them was a second answer to one question.
+  const panelOffsetClass = "left-3"
   const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only
@@ -180,7 +175,10 @@ export function MapScreen(props: MapScreenProps) {
     null
 
   return (
-    <div className="relative h-full min-h-0 w-full">
+    <div
+      className="relative h-full min-h-0 w-full"
+      style={{ "--map-foot": "3.0625rem" } as React.CSSProperties}
+    >
       <MapView
         initialView={props.initialView}
         areas={props.areas}
@@ -218,6 +216,23 @@ export function MapScreen(props: MapScreenProps) {
       />
 
       <SearchBar onSelectLocation={props.onLocationSelect} />
+
+      <PeriodTimeline
+        start={props.start}
+        end={props.end}
+        onStartChange={props.onStartChange}
+        onEndChange={props.onEndChange}
+        scenes={props.composeScenes}
+        scenesLoading={props.composeScenesLoading}
+        onListScenes={props.onListComposeScenes}
+        onOpenListing={props.onViewDataCube}
+        disabled={props.running || props.composeRunning}
+        // Clears the open tool column, matching the offset the status panels
+        // already use so the two agree on where the map's free width begins.
+        leftOffsetClass={
+          leftPanel ? "left-[20.5rem] rounded-tl-md" : "left-0"
+        }
+      />
 
       <OverlayToolsButton
         active={overlayToolsOpen}
@@ -270,16 +285,6 @@ export function MapScreen(props: MapScreenProps) {
         }
       />
 
-      <AnimatePresence initial={false}>
-        {showDockTabs && (
-          <LeftDockRail
-            key="dock-rail"
-            active={leftPanel}
-            onSelect={selectDock}
-          />
-        )}
-      </AnimatePresence>
-
       <AnimatePresence mode="wait" initial={false}>
         {leftPanel === "classify" ? (
           <ControlPanel
@@ -311,9 +316,7 @@ export function MapScreen(props: MapScreenProps) {
             progressMsg={props.progressMsg}
             onRun={props.onRun}
             onAnalyzeLULC={props.onAnalyzeLULC}
-            onViewDataCube={props.onViewDataCube}
             lulcRunning={props.lulcRunning}
-            dataCubeLoading={props.dataCubeLoading}
             onCollapse={() => setLeftPanel(null)}
           />
         ) : leftPanel === "water" ? (
@@ -357,7 +360,6 @@ export function MapScreen(props: MapScreenProps) {
             scenesError={props.composeScenesError}
             selectedSceneId={props.selectedSceneId}
             onSelectScene={props.onSelectScene}
-            onListScenes={props.onListComposeScenes}
             kind={props.composeKind}
             onKindChange={props.onComposeKindChange}
             bands={props.composeBands}

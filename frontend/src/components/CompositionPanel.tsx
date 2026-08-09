@@ -7,7 +7,6 @@ import {
   Pencil,
   Play,
   Trash2,
-  List,
 } from "lucide-react"
 import type {
   CompositeIndex,
@@ -16,6 +15,8 @@ import type {
 } from "@/lib/types"
 import { RGB_PRESETS, INDICES } from "@/lib/compositeCatalog"
 import { cn } from "@/lib/utils"
+import { todayISO } from "@/lib/dates"
+import { btnPrimary } from "@/components/ui/buttons"
 
 const S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"] as const
 
@@ -54,7 +55,6 @@ export interface CompositionPanelProps {
   scenesError: string | null
   selectedSceneId: string
   onSelectScene: (id: string) => void
-  onListScenes: () => void
   kind: CompositeKind
   onKindChange: (k: CompositeKind) => void
   bands: [string, string, string]
@@ -94,7 +94,6 @@ export const CompositionPanel = forwardRef<
     scenesError,
     selectedSceneId,
     onSelectScene,
-    onListScenes,
     kind,
     onKindChange,
     bands,
@@ -173,6 +172,7 @@ export const CompositionPanel = forwardRef<
               Start
               <input
                 type="date"
+                max={todayISO()}
                 value={start}
                 onChange={(e) => onStartChange(e.target.value)}
                 disabled={busy}
@@ -183,6 +183,7 @@ export const CompositionPanel = forwardRef<
               End
               <input
                 type="date"
+                max={todayISO()}
                 value={end}
                 onChange={(e) => onEndChange(e.target.value)}
                 disabled={busy}
@@ -212,21 +213,12 @@ export const CompositionPanel = forwardRef<
             />
             Best scene per month
           </label>
-          <button
-            type="button"
-            onClick={onListScenes}
-            disabled={busy || !hasArea || !start || !end}
-            className="flex items-center justify-center gap-1.5 rounded-sm border border-border px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-50"
-          >
-            {scenesLoading ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <List className="size-3.5" />
-            )}
-            List scenes
-          </button>
+          {/* The listing is issued from the period track at the foot of the
+              map, which is where the window it lists is chosen. A second button
+              here made two controls for one request, and this one sat away from
+              the dates that decide what comes back. */}
           {scenesError && (
-            <p className="text-[10px] text-destructive">{scenesError}</p>
+            <p className="text-meta text-destructive-quiet">{scenesError}</p>
           )}
           {selectedLabel && (
             <p className="telemetry text-[10px] text-muted-foreground">
@@ -407,7 +399,7 @@ export const CompositionPanel = forwardRef<
               type="button"
               onClick={onApply}
               disabled={!canApply}
-              className="flex items-center justify-center gap-1.5 rounded-sm bg-primary px-2 py-1.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-40"
+              className={btnPrimary}
             >
               {running ? (
                 <Loader2 className="size-3.5 animate-spin" />

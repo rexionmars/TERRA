@@ -946,6 +946,26 @@ func (a *App) ListRuns(limit int) ([]store.InferenceRun, error) {
 	return a.store.ListRuns(userID, limit)
 }
 
+// RunActivity returns the number of runs per calendar day over a trailing
+// window, for the activity grid on the settings screen.
+//
+// Separate from ListRuns because that one caps at 100 rows and carries the full
+// result payload on each: a year of activity read through it would show empty
+// weeks that are not empty.
+func (a *App) RunActivity(days int) ([]store.ActivityDay, error) {
+	if err := a.requireStore(); err != nil {
+		return nil, err
+	}
+	a.mu.RLock()
+	u := a.currentUser
+	a.mu.RUnlock()
+	userID := store.LocalUserID
+	if u != nil {
+		userID = u.ID
+	}
+	return a.store.RunActivity(userID, days)
+}
+
 // LoadAnalysis restores a saved PredictResult (with image data URIs) by run id.
 func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	if err := a.requireStore(); err != nil {

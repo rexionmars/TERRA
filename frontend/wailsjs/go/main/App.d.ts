@@ -74,6 +74,8 @@ export function RenderComposite(arg1:backend.CompositeRequest):Promise<backend.C
 
 export function RevealMainWindow():Promise<void>;
 
+export function RunActivity(arg1:number):Promise<Array<store.ActivityDay>>;
+
 export function SavePreferences(arg1:store.Preferences):Promise<void>;
 
 export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<store.ProjectOverlay>;

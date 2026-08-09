@@ -142,6 +142,10 @@ export function RevealMainWindow() {
   return window['go']['main']['App']['RevealMainWindow']();
 }
 
+export function RunActivity(arg1) {
+  return window['go']['main']['App']['RunActivity'](arg1);
+}
+
 export function SavePreferences(arg1) {
   return window['go']['main']['App']['SavePreferences'](arg1);
 }

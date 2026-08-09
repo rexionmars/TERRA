@@ -142,7 +142,7 @@ function OverlayAssetCard({
         onClick={onActivate}
         className={cn(
           "relative size-16 shrink-0 overflow-hidden rounded-sm border border-border/50 bg-secondary",
-          onActivate && "cursor-pointer hover:opacity-90"
+          onActivate && "hover:opacity-90"
         )}
         title={onActivate ? "Show on map" : undefined}
       >

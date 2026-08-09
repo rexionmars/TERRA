@@ -1,255 +1,255 @@
-# Scixiv visual identity — Perseverance
+# TERRA design system
 
-Portable design system for apps that should share this notebook’s look: **scientific UI with a Mars 2020 / Perseverance reading** — basalt, dust, flight-hardware ochre, sky haze. Subtle mission chrome, not a fan site.
+Mars sand: warm near-black surfaces where the neutrals carry the hue rather than
+leaving it to the accent, one terracotta accent, monospace telemetry, and a
+density chosen on purpose.
 
-Use this file as the source of truth when theming other products. Implementation in this repo lives in [`frontend/src/index.css`](../frontend/src/index.css) (CSS variables / Tailwind v4 theme).
+The implementation is the source of truth. This file describes it; where the two
+disagree, the code is right and this file is stale.
 
----
+| What | Where |
+| --- | --- |
+| Tokens, type scale, base layer | [`frontend/src/index.css`](../frontend/src/index.css) |
+| Contrast rules, re-derived from the tokens | [`frontend/src/lib/contrast.ts`](../frontend/src/lib/contrast.ts) |
+| The check that fails a build-time regression | [`frontend/scripts/check-contrast.ts`](../frontend/scripts/check-contrast.ts) |
+| Page chassis | [`frontend/src/components/ui/PageShell.tsx`](../frontend/src/components/ui/PageShell.tsx) |
+| Dialog chassis | [`frontend/src/components/ui/ModalShell.tsx`](../frontend/src/components/ui/ModalShell.tsx) |
+| Button primitives | [`frontend/src/components/ui/buttons.ts`](../frontend/src/components/ui/buttons.ts) |
 
-## Thesis (one line)
-
-> Warm near-black surfaces, a single Martian ochre accent, butterscotch atmosphere wash, and monospace “ops” labels — restrained, high contrast, no purple glow.
-
-Everything new must pass this filter.
-
----
-
-## Do / don’t
-
-**Do**
-
-- One accent only (ochre / rust).
-- Warm gray hierarchy (ink → surface → raised).
-- Mono for status, dates, SOL, metadata.
-- Soft institution/place colors at reduced opacity so they never beat titles.
-- One atmospheric wash on the root; keep the rest flat.
-
-**Don’t**
-
-- Default AI clusters: purple-on-white, cream + terracotta serif, broadsheet hairlines.
-- Multi-layer glow, neon, or competing accent hues.
-- Heavy card chrome when a borderless list would do.
-- Literal Mars kitsch (GIFs, ground strips) unless the product *is* this notebook’s brand surface.
+Run `npm run check:contrast` in `frontend/`. It fails if a pair drops below its
+floor **and** if the channels in `contrast.ts` stop matching `index.css`, so the
+table below cannot quietly drift from the palette.
 
 ---
 
-## Color tokens
+## Where channels live
 
-Colors are stored as space-separated `R G B` so Tailwind / CSS can apply alpha: `rgb(var(--color-accent) / 0.55)`.
+Channels are stored **only** on `--p-*`, as space-separated `R G B`, so alpha can
+be applied: `rgb(var(--p-line) / 0.28)`.
 
-### Dark (`data-theme="dark"`)
+Never store channels on `--color-*`. Tailwind v4's `@theme inline` block owns
+that namespace and will overwrite them, turning `rgb(var(--color-line) / …)`
+into invalid CSS — which paints white or falls back, depending on the property.
 
-| Token | RGB | Hex (approx.) | Role |
+Semantic tokens (`--border`, `--panel`, `--primary`, `--ring`, …) are composed
+from `--p-*` in a plain `:root` block, and `@theme inline` maps those to
+`--color-*` for Tailwind. Three levels, one direction.
+
+---
+
+## Palette
+
+### Dark
+
+| Token | RGB | Hex | Role |
 | --- | --- | --- | --- |
-| `ink` | `8 7 6` | `#080706` | Page / app background (basalt) |
-| `surface` | `22 18 15` | `#16120F` | Panels, inputs |
-| `surface-raised` | `32 26 22` | `#201A16` | Elevated surface |
-| `line` | `74 64 54` | `#4A4036` | Dividers |
-| `line-strong` | `108 92 74` | `#6C5C4A` | Interactive borders (≥ 3:1 on ink) |
-| `text` | `236 230 220` | `#ECE6DC` | Primary text |
-| `muted` | `148 136 120` | `#948878` | Secondary text |
-| `accent` | `216 148 74` | `#D8944A` | Links, emphasis, mission LED |
-| `accent-dim` | `72 48 28` | `#48301C` | Soft accent fill |
-| `place` | `120 138 148` | `#788A94` | Geography / location (low emphasis) |
-| `haze` | `196 148 96` | `#C49460` | Atmosphere wash only |
+| `--p-ink` | `23 23 23` | `#171717` | App background |
+| `--p-surface` | `38 32 28` | `#26201C` | Panel |
+| `--p-surface-raised` | `54 45 39` | `#362D27` | Card, field |
+| `--p-line` | `86 73 63` | `#56493F` | Divider |
+| `--p-line-strong` | `138 117 100` | `#8A7564` | Component boundary |
+| `--p-text` | `226 220 212` | `#E2DCD4` | Text |
+| `--p-muted` | `172 159 144` | `#AC9F90` | Secondary text |
+| `--p-accent` | `242 86 35` | `#F25623` | Fill, focus, active state |
+| `--p-accent-quiet` | `255 138 92` | `#FF8A5C` | The accent **as text** |
 
-### Light (`data-theme="light"`)
+### Light
 
-| Token | RGB | Hex (approx.) | Role |
+The light theme derives on its own path and inherits nothing from the dark
+block, so every ratio is measured there too. The accent is darkened rather than
+reused: `#F25623` on a light surface reads as a highlight, not as a control.
+
+| Token | RGB | Hex |
+| --- | --- | --- |
+| `--p-ink` | `245 240 233` | `#F5F0E9` |
+| `--p-surface` | `252 249 243` | `#FCF9F3` |
+| `--p-surface-raised` | `234 226 214` | `#EAE2D6` |
+| `--p-line` | `190 175 156` | `#BEAF9C` |
+| `--p-line-strong` | `138 118 98` | `#8A7662` |
+| `--p-text` | `38 30 24` | `#261E18` |
+| `--p-muted` | `104 90 76` | `#685A4C` |
+| `--p-accent` | `186 58 18` | `#BA3A12` |
+| `--p-accent-quiet` | `158 48 14` | `#9E300E` |
+
+---
+
+## Three rules the measurements impose
+
+These are not style preferences. Each one is a ratio that fails.
+
+**1. The accent is not a text colour.** Full accent measures **3.93** on the
+raised surface, below the 4.5 WCAG 1.4.3 asks. It is a fill, a focus ring and an
+active state. Text that has to read as the accent uses `--p-accent-quiet`, which
+clears 4.5 on every surface (7.72 / 6.92 / 5.79 dark).
+
+**2. A filled accent button takes near-black.** `--primary-foreground` is the
+ink: **5.23** dark, 5.00 light. White on the same fill is 3.43 and fails. For the
+same reason no filled button carries a whole-element hover fade —
+`hover:opacity-90` drops the label to 4.45 dark and 4.29 light.
+
+**3. Adjacent surfaces need a border.** Surface separation is 1.11 and 1.20, low
+by construction because the family is dark. Two panels are told apart by their
+border, not by luminance, which is why `--p-line-strong` exists and why it has to
+clear 3.0 against *both* surfaces: 3.68 on surface, 3.08 on the raised one. An
+earlier value cleared it against surface alone.
+
+### Destructive splits the same way
+
+One value cannot be both a fill and a text colour, and the single value that used
+to be both failed in both jobs at once: **3.12** as a label on its own fill,
+**4.22** as text on the background.
+
+| Token | Dark | Light | Role |
 | --- | --- | --- | --- |
-| `ink` | `247 242 234` | `#F7F2EA` | Sky-haze paper background |
-| `surface` | `252 249 244` | `#FCF9F4` | Panels |
-| `surface-raised` | `238 232 222` | `#EEE8DE` | Elevated |
-| `line` | `180 168 150` | `#B4A896` | Dividers |
-| `line-strong` | `148 132 110` | `#94846E` | Controls |
-| `text` | `36 28 22` | `#241C16` | Primary text |
-| `muted` | `110 96 80` | `#6E6050` | Secondary |
-| `accent` | `154 84 28` | `#9A541C` | Rust ochre (AA on paper) |
-| `accent-dim` | `232 208 176` | `#E8D0B0` | Soft accent |
-| `place` | `90 110 122` | `#5A6E7A` | Location |
-| `haze` | `180 160 130` | `#B4A082` | Atmosphere wash |
+| `--destructive` | `#A02C2C` | `#B33A1A` | The fill |
+| `--destructive-foreground` | `--p-text` | `--p-surface` | Its label — a *different* palette token per theme |
+| `--destructive-quiet` | `#E08A78` | `#9E2B25` | Error text, a delete row, a hover state |
 
-### Emphasis rules
+The foreground being a different token per theme is why the contrast check
+resolves it rather than assuming one: a rule that assumed `--p-text` passed in
+dark and failed in light by 2.76.
 
-- Titles / primary actions: full `text` or full `accent`.
-- Institutions / partners in timelines: `accent` at ~55% opacity.
-- Places: `place` at ~80% opacity.
-- Never use full vivid accent for long secondary metadata.
+### Focus
 
-### Contrast
+`--ring` is the **full** accent, not a wash of it. At 0.55 alpha the composited
+ring measured 2.04 against a filled button and 2.44 against the surface behind
+it — under the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure
+the check reported, because the check read the token and the token was not what
+got painted.
 
-Target WCAG 2.1 AA: text pairs ≥ 4.5:1; UI borders that identify controls ≥ 3:1. Recheck if you tweak ochre.
-
----
-
-## Atmosphere (signature wash)
-
-Apply once on the root / `body`:
-
-```css
-background-color: rgb(var(--color-ink));
-background-image: radial-gradient(
-  ellipse 120% 55% at 50% -8%,
-  rgb(var(--color-haze) / 0.16),
-  transparent 58%
-);
-background-attachment: fixed;
-```
-
-Do not stack multiple decorative gradients on the same surface.
+Every control gets a ring from one rule in `@layer base` covering `button`,
+`summary` and the `button`, `slider` and `tab` roles. It uses `outline` rather
+than `box-shadow`, so it follows the border radius and does not fight the shadow
+a floating panel needs. A site wanting its own treatment pairs
+`focus-visible:outline-none` with its own ring; utilities outrank base.
 
 ---
 
-## Typography
+## Scientific ramps are out of scope
 
-Three roles:
+`inferno`, `viridis`, `rdbu_r`, `blues` and `rdylgn` do not take part in the
+palette. They are perceptually uniform sequences painted by the Python renderer,
+guarded byte for byte by `sidecar/tests/test_palette_sync.py`, and they answer to
+the data rather than to the chassis.
 
-| Role | This repo | Use for |
+The same holds for the AOI outline colours in `frontend/src/lib/aoiStyle.ts`:
+they are drawn over satellite imagery and chosen to contrast with terrain, not
+with the interface.
+
+**The map area stays out of the warm drift.** The chassis is Mars sand; the
+viewport and any chrome touching a raster stay low-chroma, or the frame competes
+with the data for the reading.
+
+---
+
+## Type scale
+
+Five steps, each named for its role. Declared in `@theme inline`, so they are
+real Tailwind utilities.
+
+| Utility | Size | Leading | Use for |
+| --- | --- | --- | --- |
+| `text-micro` | 9px | 1.35 | Label floor: uppercase mono with wide tracking, never prose |
+| `text-meta` | 10px | 1.4 | Counts, timestamps, units |
+| `text-body` | 11px | 1.5 | Body and control labels |
+| `text-emphasis` | 12px | 1.5 | Row titles, field values |
+| `text-heading` | 14px | 1.4 | Section and page headings |
+
+`micro` is a floor, not a size to reach for. It is legible only because every use
+of it is uppercase monospace with wide tracking.
+
+**`tailwind-merge` has to be told about these.** `src/lib/utils.ts` extends it so
+they classify as `font-size`; without that, `cn("text-body", "text-muted-foreground")`
+deletes the size, because stock tailwind-merge reads `text-body` as a colour.
+
+Fonts: Space Grotesk (display), Inter (sans), JetBrains Mono (telemetry).
+
+## Radius
+
+Two: `--radius-sm` 5px for a control or an inner card, `--radius-md` 9px for a
+container. `lg` and `xl` are aliases of `md` so a stray utility cannot introduce
+a third.
+
+---
+
+## Chassis
+
+One chassis, not two. Everything floating over a raster is a `.panel`; every
+full-window screen is panels laid on the ink at the same radius and the same
+spring. A page has no raster underneath, so it cannot borrow the reason the glass
+exists — but the surface, the border, the radius and the entry are the identity,
+and none of those depend on there being a map.
+
+| Primitive | For |
+| --- | --- |
+| `PageShell` | The window: ink ground, 12px padding, flex |
+| `PageAside` | The section column. **16rem**, one width — the three that existed (15, 15.5, 16.5rem) were the same column written three times |
+| `PageBody` | The scrolling panel |
+| `ModalShell` | The scrim and the dialog, at `z-2000`, `fixed` |
+| `ModalHeader` | Eyebrow, title, subtitle, and the way out |
+
+A page does **not** carry its own title bar. The window title bar already names
+the screen and the account; a header repeating them costs a row of height for
+nothing.
+
+### Buttons
+
+Six primitives in `ui/buttons.ts`, derived from a sweep of all 196 button sites.
+Each carries the focus ring and one shared `disabled` convention.
+
+| Primitive | Height | For |
 | --- | --- | --- |
-| Display | Space Grotesk | Brand, page titles, section heads |
-| Sans | Inter | Body, UI labels |
-| Mono | JetBrains Mono | SOL, dates, status, code, captions |
+| `btnPrimary` | 32px | The filled action. 32px is also what `.field-input` sets, so a button beside an input lines up |
+| `btnPrimaryCommit` | 36px | The single committing action anchoring a panel or modal foot |
+| `btnDestructive` | 32px | The filled destructive |
+| `btnGhost` | 32px | The quiet action |
+| `btnGhostDense` | 28px | Table toolbars, card action rows — bands that repeat per row |
+| `btnIcon` | 28px | Icon-only, matching the dense height |
 
-Tracking for ops labels: uppercase + wide letter-spacing (e.g. `0.12em`–`0.14em`) at `2xs` / caption size.
-
----
-
-## Gradients
-
-### UI fades (utility)
-
-- Timeline / marquee edges: `ink → transparent` (left/right). Not brand color — just overflow chrome.
-
-### Topic tiles (optional)
-
-`linear-gradient(135deg, from, to)` for category avatars when you have a taxonomy. Defaults in this repo:
-
-| Topic | From | To |
-| --- | --- | --- |
-| Computer Vision | `#3f3d63` | `#5b6b8c` |
-| Machine Learning | `#4a3a5e` | `#7a5b8c` |
-| Control Systems | `#4a3a28` | `#7a6248` |
-| Spectroscopy | `#2a3848` | `#4a6070` |
-| Signal Processing | `#2a4550` | `#3d7a8c` |
-| Engineering | `#4a4038` | `#7a6a52` |
-| Default / RS / robotics / notes | `#3a4550` | `#586878` |
-
-Apps without topics can omit these entirely.
+One site legitimately cannot adopt a primitive: the energy `RunButton` states
+what its product returns and wraps to two lines, so `min-h-9` with its own
+leading is structural. It carries every other part of the primitive.
 
 ---
 
-## Mission chrome (optional flavor)
+## The cascade hazard
 
-Use sparingly so products feel related without cloning Scixiv:
+**Component classes in `index.css` are unlayered.** `.panel`, `.field-input`,
+`.eyebrow`, `.telemetry` and `.nav-item` sit outside any cascade layer, while
+Tailwind v4 emits utilities into `@layer utilities`. Unlayered rules therefore
+**beat every utility**, regardless of source order.
 
-- Status pill: monospace `Sol N · Active` (or product-specific ops string).
-- Indicator dots: near-square (`1px`–`3px` radius), ochre fill.
-- Prefer fewer hairline borders; drop top/bottom shell rules if the haze already separates regions.
-- Overflow lists: hide scrollbars; show fade + chevron only when `scrollWidth > clientWidth`.
+Consequences that shipped before this was understood:
 
-Product-specific art (Ingenuity GIF, Martian ground strip) is **Scixiv-only** unless you deliberately brand another surface the same way.
+- `border-x-0` and `border-b-0` on a `.panel` were dead classes. Both foot bars
+  drew a line down the window's own right edge.
+- `.field-input` stacked with a second background class made the second one
+  inert, and which border won depended on byte order in the compiled sheet.
+- A `hover:border-destructive` on a ghost button never painted at all, and was
+  only found by reading the compiled sheet.
+
+Before writing a utility that overrides a property one of those classes sets,
+check the compiled sheet in `dist/assets/*.css`. Inline style is the only
+declaration that wins without relayering the stylesheet under every other call
+site.
 
 ---
 
-## Drop-in CSS skeleton
+## Verification
 
-```css
-:root,
-:root[data-theme="dark"] {
-  --color-ink: 8 7 6;
-  --color-surface: 22 18 15;
-  --color-surface-raised: 32 26 22;
-  --color-line: 74 64 54;
-  --color-line-strong: 108 92 74;
-  --color-text: 236 230 220;
-  --color-muted: 148 136 120;
-  --color-accent: 216 148 74;
-  --color-accent-dim: 72 48 28;
-  --color-place: 120 138 148;
-  --color-haze: 196 148 96;
-}
-
-:root[data-theme="light"] {
-  --color-ink: 247 242 234;
-  --color-surface: 252 249 244;
-  --color-surface-raised: 238 232 222;
-  --color-line: 180 168 150;
-  --color-line-strong: 148 132 110;
-  --color-text: 36 28 22;
-  --color-muted: 110 96 80;
-  --color-accent: 154 84 28;
-  --color-accent-dim: 232 208 176;
-  --color-place: 90 110 122;
-  --color-haze: 180 160 130;
-}
+```
+cd frontend && npx tsc --noEmit
+cd frontend && npm run check:contrast
+cd frontend && npm run build
+go build ./... && go test ./...
+cd sidecar && python -m pytest tests -q
 ```
 
-### Tailwind mapping (example)
+Go and the sidecar are **control** — a chassis change should not move them. If
+`test_palette_sync.py` fails, the re-palette leaked into the scientific ramps.
 
-```ts
-colors: {
-  ink: "rgb(var(--color-ink) / <alpha-value>)",
-  surface: "rgb(var(--color-surface) / <alpha-value>)",
-  "surface-raised": "rgb(var(--color-surface-raised) / <alpha-value>)",
-  line: "rgb(var(--color-line) / <alpha-value>)",
-  "line-strong": "rgb(var(--color-line-strong) / <alpha-value>)",
-  text: "rgb(var(--color-text) / <alpha-value>)",
-  muted: "rgb(var(--color-muted) / <alpha-value>)",
-  accent: "rgb(var(--color-accent) / <alpha-value>)",
-  "accent-dim": "rgb(var(--color-accent-dim) / <alpha-value>)",
-  place: "rgb(var(--color-place) / <alpha-value>)",
-}
-```
+The checks cannot see everything. Two things need eyes:
 
-### JSON theme (for RN / Electron / design tools)
-
-```json
-{
-  "name": "perseverance",
-  "dark": {
-    "ink": "#080706",
-    "surface": "#16120F",
-    "surfaceRaised": "#201A16",
-    "line": "#4A4036",
-    "lineStrong": "#6C5C4A",
-    "text": "#ECE6DC",
-    "muted": "#948878",
-    "accent": "#D8944A",
-    "accentDim": "#48301C",
-    "place": "#788A94",
-    "haze": "#C49460"
-  },
-  "light": {
-    "ink": "#F7F2EA",
-    "surface": "#FCF9F4",
-    "surfaceRaised": "#EEE8DE",
-    "line": "#B4A896",
-    "lineStrong": "#94846E",
-    "text": "#241C16",
-    "muted": "#6E6050",
-    "accent": "#9A541C",
-    "accentDim": "#E8D0B0",
-    "place": "#5A6E7A",
-    "haze": "#B4A082"
-  }
-}
-```
-
----
-
-## Checklist for a new app
-
-1. Copy tokens + theme switch (`data-theme` or equivalent).
-2. Wire display / sans / mono fonts.
-3. Add the radial haze on the root once.
-4. Map semantic classes (`bg-ink`, `text-accent`, `border-line`, `text-place`).
-5. Style primary actions with ochre; keep secondary chrome quiet.
-6. Verify AA contrast on both themes.
-7. Add mission chrome only if it fits the product voice.
-
----
-
-## Source files in this repo
-
-- Tokens & theme: [`frontend/src/index.css`](../frontend/src/index.css)
-- App shell / splash styling: `frontend/src/` components and pages
+- **Both themes.** The light theme derives separately and inherits nothing.
+- **The map area.** Open a terrain raster and a suitability raster and confirm
+  the frame does not compete with the ramp.

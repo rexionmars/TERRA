@@ -4,7 +4,7 @@
 @import "leaflet-draw/dist/leaflet.draw.css";
 
 /*
-  Scixiv / Perseverance — docs/DESIGN.md
+  TERRA design system — docs/DESIGN.md
 
   Channels live ONLY on --p-* (R G B). Never store channels on --color-*
   because @theme inline also owns --color-* and would overwrite them,
@@ -15,41 +15,69 @@
 
 :root,
 :root[data-theme="dark"] {
-  --p-ink: 8 7 6;
-  --p-surface: 22 18 15;
-  --p-surface-raised: 32 26 22;
-  --p-line: 74 64 54;
-  --p-line-strong: 108 92 74;
-  --p-text: 236 230 220;
+  /*
+    Mars sand. The neutrals carry the hue rather than leaving it to the accent,
+    so the chassis reads warm without the accent having to be everywhere.
+
+    Every value below is measured, not chosen by eye. The ratios in the comments
+    are WCAG 2.x against the surfaces each token actually lands on, and
+    frontend/src/lib/contrast.ts re-derives them from these channels so a future
+    edit that breaks one fails a check rather than shipping.
+  */
+  --p-ink: 23 23 23;
+  --p-surface: 38 32 28;
+  --p-surface-raised: 54 45 39;
+  /*
+    Surface separation is 1.11 and 1.20 -- low by construction, because the
+    family is dark. Adjacent surfaces are told apart by their border, not by
+    luminance, which is why --p-line-strong exists and why it clears WCAG
+    1.4.11 against BOTH surfaces: 3.68 on surface and 3.08 on the raised one.
+    An earlier value cleared it against surface alone, which is exactly the
+    case the check exists to catch.
+  */
+  --p-line: 86 73 63;
+  --p-line-strong: 138 117 100;
+  --p-text: 226 220 212;
   /*
     Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
-    which is .ar-raised (#252526). The previous value (148 136 120) measured
-    4.41:1 there. This value measures 4.77:1 on .ar-raised, 6.27:1 on .ar-bg and
-    6.76:1 on .ar-panel. Used only as a text color, never as a background.
+    which is the raised one. This measures 5.20 there, 6.22 on surface and 6.93
+    on ink. Used only as a text colour, never as a background.
   */
-  --p-muted: 154 142 126;
-  --p-accent: 216 148 74;
-  --p-accent-dim: 72 48 28;
+  --p-muted: 172 159 144;
+  /*
+    The accent is a fill, a focus ring and an active state -- NOT a text colour.
+    It measures 3.93 on the raised surface, which fails 1.4.3. Text that needs
+    to read as the accent uses --p-accent-quiet, which clears 4.5 everywhere.
+  */
+  --p-accent: 242 86 35;
+  --p-accent-quiet: 255 138 92;
+  --p-accent-dim: 74 38 22;
   --p-place: 120 138 148;
-  --p-haze: 196 148 96;
+  --p-haze: 196 128 84;
 }
 
+/*
+  The light theme derives on its own path and inherits nothing from the block
+  above, so every ratio is measured here too. The accent is darkened rather than
+  reused: #F25623 on a light surface reads as a highlight, not as a control.
+*/
 :root[data-theme="light"] {
-  --p-ink: 247 242 234;
-  --p-surface: 252 249 244;
-  --p-surface-raised: 238 232 222;
-  --p-line: 180 168 150;
-  --p-line-strong: 148 132 110;
-  --p-text: 36 28 22;
-  --p-muted: 110 96 80;
-  --p-accent: 154 84 28;
-  --p-accent-dim: 232 208 176;
+  --p-ink: 245 240 233;
+  --p-surface: 252 249 243;
+  --p-surface-raised: 234 226 214;
+  --p-line: 190 175 156;
+  --p-line-strong: 138 118 98;
+  --p-text: 38 30 24;
+  --p-muted: 104 90 76;
+  /* Same rule as dark: a fill, not a text colour. 4.42 on the raised surface. */
+  --p-accent: 186 58 18;
+  --p-accent-quiet: 158 48 14;
+  --p-accent-dim: 240 214 198;
   --p-place: 90 110 122;
-  --p-haze: 180 160 130;
+  --p-haze: 196 150 118;
 }
 
 :root {
-  --radius: 4px;
   --background: rgb(var(--p-ink));
   --foreground: rgb(var(--p-text));
 
@@ -70,22 +98,100 @@
 
   --accent: rgb(var(--p-accent));
   --accent-foreground: rgb(var(--p-ink));
+  /* The accent where it has to be read rather than filled. See --p-accent. */
+  --accent-quiet: rgb(var(--p-accent-quiet));
   --terra: rgb(var(--p-accent));
-  --destructive: #c45c3a;
+
+  /*
+    Status colours. destructive-foreground was missing while
+    `text-destructive-foreground` was already in use, so that label resolved to
+    nothing and inherited its parent's colour on a red fill. warning and success
+    were literals inside the toast CSS, unreachable from a component.
+  */
+  /*
+    Destructive splits into a fill and a text colour, the same way the accent
+    does, and for the same measured reason. One value cannot do both: #c45c3a
+    carried the label at 3.12 to 1 when filled, and read at 4.22 when used as
+    text on the background -- so the colour that says "this deletes something"
+    failed the 4.5 floor in both of its jobs at once.
+
+    The fill is dark enough for the light label (5.33) and the quiet variant is
+    light enough to read on every surface (6.89 on ink, 5.17 on a raised one).
+  */
+  --destructive: #a02c2c;
+  --destructive-foreground: rgb(var(--p-text));
+  --destructive-quiet: #e08a78;
+  --warning: rgb(var(--p-accent-quiet));
+  --success: #6f9c5a;
+
+  /*
+    The vegetation index series, one value per theme.
+    See docs/DESIGN.md, "Charts".
+
+    The previous triple (#22c55e / #38bdf8 / #f59e0b) was chosen at matched
+    perceptual weight for the dark ground, which is a reasonable aesthetic goal
+    and exactly what made it a weak scientific encoding: matched luminance means
+    no redundant channel. Its L* spread was 2.0, and the blue and the amber
+    converted to the SAME grey -- greyscale dE00 of 0.0. Desaturated, the
+    three-series chart became one line. It also failed WCAG's 3:1 for a
+    non-text graphic against the light theme on all three, at 2.17/2.04/2.04.
+
+    These were searched rather than picked, maximising the WORST pairwise dE00
+    across every condition at once -- normal vision, Vienot deuteranopia,
+    Vienot protanopia and full greyscale -- subject to >= 3:1 contrast on that
+    theme's own ground.
+
+    Measured, worst case in any condition: 18.7 dark and 18.7 light, against a
+    greyscale minimum of 0.0 for the palette they replace. Dichromat minimum is
+    34.9 and 31.0, against 26.7. So they clear the greyscale floor outright
+    rather than leaning on the dash patterns to carry it -- which matters,
+    because a dash survives a screenshot but not a thumbnail, and luminance
+    separation survives both.
+
+    The cost is chroma: the light-theme SAVI is a very dark brown and reads
+    more as "the dark line" than as an amber one. That is the honest trade for
+    a series that stays separable when the colour is gone.
+  */
+  --series-ndvi: #bae8c0;
+  --series-evi: #689fb6;
+  --series-savi: #8d5b35;
 
   /* Dust lines — quiet, never bright/white */
   --border: rgb(var(--p-line) / 0.28);
   --hairline: rgb(var(--p-line) / 0.22);
   --input: rgb(var(--p-line) / 0.4);
-  --ring: rgb(var(--p-accent) / 0.55);
+  /* Full accent, not a wash of it. At 0.55 the composited ring measured 2.04
+     against a filled button and 2.44 against the surface behind it -- under the
+     3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
+     contrast check verifies, because the check reads the token and the token
+     was not what got painted. At full strength the two agree: 5.23 on ink,
+     4.70 on the panel, 3.93 on a raised surface. */
+  --ring: rgb(var(--p-accent));
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /*
+    Shapes for the map controls Leaflet renders outside React, where a lucide
+    component cannot go. Masks, not images: the colour stays in CSS, so these
+    follow the theme and the hover state. The stroke is fixed at black because a
+    mask reads only the alpha channel -- the colour in the path is discarded.
+  */
+  --icon-polygon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.83 2.38a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .73 2.25l-3.04 9.26a2 2 0 0 1-1.9 1.37H6.04a2 2 0 0 1-1.9-1.37L1.1 10.37a2 2 0 0 1 .73-2.25z'/%3E%3C/svg%3E");
+  --icon-edit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'/%3E%3Cpath d='M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z'/%3E%3C/svg%3E");
+  --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6'/%3E%3Cpath d='M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'/%3E%3Cline x1='10' x2='10' y1='11' y2='17'/%3E%3Cline x1='14' x2='14' y1='11' y2='17'/%3E%3C/svg%3E");
 }
 
 :root[data-theme="light"] {
   --destructive: #b33a1a;
+  --destructive-foreground: rgb(var(--p-surface));
+  --destructive-quiet: #9e2b25;
+  --success: #3f6b2c;
+  /* Darkened for the light ground; same four floors, same search. */
+  --series-ndvi: #4b9b55;
+  --series-evi: #315f72;
+  --series-savi: #291d14;
   --panel: rgb(var(--p-surface) / 0.72);
   --card: rgb(var(--p-surface) / 0.65);
   --panel-solid: rgb(var(--p-surface));
@@ -113,7 +219,12 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-terra: var(--terra);
+  --color-accent-quiet: var(--accent-quiet);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-quiet: var(--destructive-quiet);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-hairline: var(--hairline);
   --color-input: var(--input);
@@ -128,11 +239,44 @@
   --color-place: rgb(var(--p-place) / <alpha-value>);
   --color-haze: rgb(var(--p-haze) / <alpha-value>);
   --color-accent-dim: rgb(var(--p-accent-dim) / <alpha-value>);
+  --color-accent-quiet-raw: rgb(var(--p-accent-quiet) / <alpha-value>);
 
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --radius-lg: 4px;
-  --radius-xl: 6px;
+  /*
+    Two container radii, not four. The app used rounded-md for glass panels,
+    rounded-sm for workspace surfaces and rounded-lg for the search bar, with
+    Leaflet chrome overridden to a fourth value -- four answers to one question.
+    sm is the control radius, md the container radius; lg and xl are kept as
+    aliases so existing utilities keep compiling while the screens are passed
+    over in the next round.
+  */
+  --radius-sm: 5px;
+  --radius-md: 9px;
+  --radius-lg: 9px;
+  --radius-xl: 9px;
+
+  /*
+    A dense type scale, declared.
+
+    Density is the decision; a scale is what the app lacked. There were 13 sizes
+    in the TSX with 89 percent of all text inside a 4px band and no ratio
+    between steps, plus text-[12px] and text-xs shipping the same rendered size
+    two ways. Five steps, each named for the role it serves.
+
+    micro is the floor. It is the size .eyebrow is already overridden to in 21
+    places, and it is only legible because every use of it is uppercase mono
+    with wide tracking -- it is a label size, never a prose size.
+  */
+  --text-micro: 9px;
+  --text-micro--line-height: 1.35;
+  --text-meta: 10px;
+  --text-meta--line-height: 1.4;
+  --text-body: 11px;
+  --text-body--line-height: 1.5;
+  --text-emphasis: 12px;
+  --text-emphasis--line-height: 1.5;
+  --text-heading: 14px;
+  --text-heading--line-height: 1.4;
+
   --font-sans: var(--font-sans);
   --font-mono: var(--font-telemetry);
   --font-display: var(--font-display);
@@ -141,6 +285,65 @@
 @layer base {
   * {
     border-color: var(--border);
+  }
+
+  /*
+    Keyboard focus, for every control rather than for the ones somebody
+    remembered.
+
+    The application had four focus rings in two styles across ~200 button sites,
+    so a keyboard user tabbing through it mostly could not tell where they were.
+    Chasing each site is the wrong shape of fix: the next button added would
+    arrive without one, exactly as the last two hundred did.
+
+    In @layer base, so a site that wants its own treatment still wins -- the
+    primitives in ui/buttons.ts pair focus-visible:outline-none with their own
+    ring, and utilities outrank base. outline rather than box-shadow, because it
+    follows the border radius and does not fight the shadow utilities a floating
+    panel needs.
+
+    --ring is the full accent: 5.23 on ink, 4.70 on a panel, 3.93 on a raised
+    surface, all clearing the 3.0 WCAG 1.4.11 asks of a focus indicator.
+  */
+  button:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [role="slider"]:focus-visible,
+  [role="tab"]:focus-visible {
+    outline: 1px solid var(--ring);
+    outline-offset: 1px;
+  }
+
+  /*
+    The pointer, for the same reason and in the same place.
+
+    Neither browsers nor Tailwind put a pointer on a button, so 134 buttons drew
+    the arrow while three labels drew the hand -- equally clickable things saying
+    different things. Declared once rather than per control, so the next button
+    added inherits the convention instead of needing to remember it.
+
+    Checkbox and radio labels only: a label wrapping a text field wants the text
+    caret, and giving every label a hand would have taken it away.
+
+    Utilities still win, which is how the drag handles keep ew-resize, the swipe
+    seam keeps col-resize, and the pan viewport keeps grab.
+  */
+  button:not(:disabled),
+  summary,
+  select:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="option"],
+  label:has(input[type="checkbox"]:not(:disabled)),
+  label:has(input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
   }
   html,
   body,
@@ -292,95 +495,33 @@
 }
 
 /*
-  Workspace chrome — Dark Modern plane language (scoped).
-  Accent / CTA stay TERRA ochre (--p-accent). Selection uses VS Code blue.
+  The nav item, the one shared treatment left from the workspace chrome.
+
+  Everything else in this block -- .terra-workspace and the eight .ar-* rules --
+  was a VS Code Dark Modern port, including a blue selection, and it made the
+  application run two unrelated palettes: the map panels were warm and
+  tokenised while every full screen was cold and hardcoded. Retiring it is why
+  a re-theme now moves every screen.
+
+  Kept unlayered like the other component classes, and named for what it is
+  rather than for where it came from.
 */
-.terra-workspace {
-  --ar-bg: #1f1f1f;
-  --ar-panel: #181818;
-  --ar-raised: #252526;
-  --ar-border: #2b2b2b;
-  --ar-select: #264f78;
-  --ar-muted: #9d9d9d;
-  background: var(--ar-bg);
-  color: rgb(var(--p-text));
-}
-
-:root[data-theme="light"] .terra-workspace {
-  --ar-bg: rgb(var(--p-ink));
-  --ar-panel: rgb(var(--p-surface));
-  --ar-raised: rgb(var(--p-surface-raised));
-  --ar-border: rgb(var(--p-line) / 0.45);
-  --ar-select: rgb(var(--p-accent) / 0.22);
-  --ar-muted: rgb(var(--p-muted));
-}
-
-.terra-workspace .ar-header {
-  background: var(--ar-panel);
-  border-bottom: 1px solid var(--ar-border);
-}
-
-.terra-workspace .ar-sidebar {
-  background: var(--ar-panel);
-  border-right: 1px solid var(--ar-border);
-}
-
-.ar-section {
-  background: var(--ar-panel, rgb(var(--p-surface)));
-  border: 1px solid var(--ar-border, rgb(var(--p-line) / 0.35));
+.nav-item {
   border-radius: var(--radius-sm);
 }
 
-.ar-raised {
-  background: var(--ar-raised, rgb(var(--p-surface-raised)));
-  border: 1px solid var(--ar-border, rgb(var(--p-line) / 0.35));
-  border-radius: var(--radius-sm);
+.nav-item:hover {
+  background: rgb(var(--p-surface-raised));
 }
 
-.ar-inset {
-  background: var(--ar-bg, rgb(var(--p-ink)));
-  border: 1px solid var(--ar-border, rgb(var(--p-line) / 0.35));
-  border-radius: var(--radius-sm);
-}
-
-.ar-ghost {
-  border-color: var(--ar-border, rgb(var(--p-line) / 0.4));
-  background: var(--ar-bg, rgb(var(--p-ink) / 0.45));
-}
-
-.ar-ghost:hover {
-  background: var(--ar-raised, rgb(var(--p-surface-raised)));
-}
-
-.ar-select {
-  background: color-mix(
-    in srgb,
-    var(--ar-select, rgb(var(--p-accent))) 55%,
-    transparent
-  );
-  border: 1px solid
-    color-mix(in srgb, var(--ar-select, rgb(var(--p-accent))) 80%, white 10%);
-  border-radius: var(--radius-sm);
-}
-
-.ar-track {
-  background: var(--ar-bg, rgb(var(--p-ink) / 0.55));
-}
-
-.ar-nav-item {
-  border-radius: var(--radius-sm);
-}
-
-.ar-nav-item:hover {
-  background: var(--ar-raised, rgb(var(--p-surface-raised)));
-}
-
-.ar-nav-item.is-active {
-  background: color-mix(
-    in srgb,
-    var(--ar-select, rgb(var(--p-accent))) 45%,
-    transparent
-  );
+/*
+  The active row. Accent at 45 percent composites to rgb(130 56 31), on which
+  the label measures 6.08 -- but --p-muted measures 3.20 there, which is why the
+  count beside the label follows the label up on this row rather than staying
+  the one unreadable thing on it.
+*/
+.nav-item.is-active {
+  background: color-mix(in srgb, rgb(var(--p-accent)) 45%, transparent);
   color: rgb(var(--p-text));
 }
 
@@ -448,17 +589,27 @@
   font-family: var(--font-sans);
 }
 
-/* Map toolbars (draw / edit / zoom) — match panel chrome + soft radius */
+/*
+  Map toolbars (draw / edit / zoom).
+
+  The plate is more opaque than a panel deliberately. A panel is large, so an
+  18px blur has area to average over and the imagery underneath becomes texture.
+  These are 34px squares: the blur samples a patch small enough that a bright
+  green field stays bright green, and at 55 percent ink the buttons read as dark
+  green blobs rather than as chrome. The imagery still shows through, it just
+  stops deciding the hue.
+*/
 .leaflet-bar {
   border: 1px solid rgb(var(--p-line) / 0.28) !important;
-  border-radius: 0.55rem !important;
+  border-radius: var(--radius-md) !important;
   overflow: hidden;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.28) !important;
   background: transparent !important;
 }
 .leaflet-control-zoom a,
 .leaflet-draw-toolbar a {
-  background-color: rgb(var(--p-ink) / 0.55) !important;
+  position: relative;
+  background-color: rgb(var(--p-ink) / 0.82) !important;
   color: rgb(var(--p-text)) !important;
   border-bottom: 1px solid rgb(var(--p-line) / 0.22) !important;
   width: 2.125rem !important;
@@ -469,25 +620,85 @@
 }
 .leaflet-control-zoom a:hover,
 .leaflet-draw-toolbar a:hover {
-  background-color: rgb(var(--p-surface-raised) / 0.85) !important;
+  background-color: rgb(var(--p-surface-raised) / 0.92) !important;
   color: rgb(var(--p-text)) !important;
 }
+
+/* These are anchors, so the base rule keyed on button and the ARIA roles does
+   not reach them, and they had no visible focus at all. */
+.leaflet-control-zoom a:focus-visible,
+.leaflet-draw-toolbar a:focus-visible,
+.leaflet-draw-actions a:focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: -2px;
+}
+
 .leaflet-bar a:first-child {
-  border-top-left-radius: 0.55rem !important;
-  border-top-right-radius: 0.55rem !important;
+  border-top-left-radius: var(--radius-md) !important;
+  border-top-right-radius: var(--radius-md) !important;
 }
 .leaflet-bar a:last-child {
   border-bottom: none !important;
-  border-bottom-left-radius: 0.55rem !important;
-  border-bottom-right-radius: 0.55rem !important;
+  border-bottom-left-radius: var(--radius-md) !important;
+  border-bottom-right-radius: var(--radius-md) !important;
 }
 .leaflet-bar a:first-child:last-child {
-  border-radius: 0.55rem !important;
+  border-radius: var(--radius-md) !important;
+}
+
+/*
+  The draw icons.
+
+  leaflet-draw ships a spritesheet of dark glyphs drawn for a white button, and
+  nothing had ever replaced it -- so the three controls carried near-black icons
+  on a near-black plate. Masked rather than recoloured in the data URI, the way
+  the layers toggle below still does it: a mask takes its colour from CSS, so it
+  follows the theme and the hover state instead of pinning one literal hex that
+  is wrong in the light theme.
+
+  Lucide shapes, matching the icon set the rest of the application uses.
+*/
+.leaflet-draw-toolbar a {
+  background-image: none !important;
+}
+.leaflet-draw-toolbar a::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgb(var(--p-muted));
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 1rem 1rem;
+  mask-size: 1rem 1rem;
+}
+.leaflet-draw-toolbar a:hover::before {
+  background-color: rgb(var(--p-text));
+}
+.leaflet-draw-toolbar a.leaflet-disabled::before {
+  opacity: 0.4;
+}
+
+/* pentagon */
+.leaflet-draw-draw-polygon::before {
+  -webkit-mask-image: var(--icon-polygon);
+  mask-image: var(--icon-polygon);
+}
+/* square-pen */
+.leaflet-draw-edit-edit::before {
+  -webkit-mask-image: var(--icon-edit);
+  mask-image: var(--icon-edit);
+}
+/* trash-2 */
+.leaflet-draw-edit-remove::before {
+  -webkit-mask-image: var(--icon-trash);
+  mask-image: var(--icon-trash);
 }
 .leaflet-draw-actions a {
   background-color: rgb(var(--p-ink) / 0.75) !important;
   color: rgb(var(--p-text)) !important;
-  border-radius: 0.35rem !important;
+  border-radius: var(--radius-sm)!important;
 }
 
 /* Draw guides must paint above the in-progress polygon SVG */
@@ -538,7 +749,7 @@
   margin: 10px 10px 0 0 !important;
   background: var(--panel) !important;
   border: 1px solid rgb(var(--p-line) / 0.28) !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm)!important;
   box-shadow: none !important;
   backdrop-filter: blur(18px) saturate(1.05);
   -webkit-backdrop-filter: blur(18px) saturate(1.05);
@@ -581,6 +792,9 @@
 .map-swipe-handle {
   touch-action: none;
   user-select: none;
+  /* It only moves on one axis. Left as the inherited arrow it read as a
+     decoration sitting on the seam rather than as the control that moves it. */
+  cursor: col-resize;
 }
 
 /* AOI name chip — glued to contour edge, rotation applied inline */
@@ -591,7 +805,7 @@
 .aoi-label-chip {
   display: inline-block;
   padding: 3px 9px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   /* Default chip chrome; MapView may override via inline scheme colors */
   background: rgb(245 245 243 / 0.97);
   color: rgb(55 55 55);
@@ -626,12 +840,40 @@
   );
 }
 
-.leaflet-control-attribution {
-  background: rgb(var(--p-ink) / 0.7) !important;
-  color: rgb(var(--p-muted)) !important;
+/*
+  Lifted clear of whatever is pinned to the foot of the map. The period track
+  spans the full width, and tile attribution is a licensing requirement rather
+  than chrome that may be covered.
+
+  --map-foot has to be the bar's exact height. Set generously it leaves a strip
+  of map between the two, and the attribution reads as a rectangle floating over
+  the imagery rather than as chrome docked to the bar below it.
+*/
+.leaflet-bottom {
+  margin-bottom: var(--map-foot, 0px);
 }
+
+/*
+  Docked, not floating: it sits flush on the bar's top edge and shares its
+  border, so the two read as one piece of chrome. The control is right-anchored,
+  so the left corner is the only exposed one and the only one rounded.
+*/
+.leaflet-control-attribution {
+  margin: 0 !important;
+  padding: 0.25rem 0.5rem !important;
+  background: rgb(var(--p-ink) / 0.82) !important;
+  color: rgb(var(--p-muted)) !important;
+  border: 1px solid rgb(var(--p-line) / 0.28) !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-top-left-radius: var(--radius-md) !important;
+  backdrop-filter: blur(18px) saturate(1.05);
+  -webkit-backdrop-filter: blur(18px) saturate(1.05);
+}
+/* The accent measures 3.80 on this plate over bright imagery, under the 4.5 of
+   WCAG 1.4.3. The quiet variant is the one that reads: 5.60. */
 .leaflet-control-attribution a {
-  color: rgb(var(--p-accent)) !important;
+  color: rgb(var(--p-accent-quiet)) !important;
 }
 
 .panel-scroll::-webkit-scrollbar {
@@ -639,7 +881,7 @@
 }
 .panel-scroll::-webkit-scrollbar-thumb {
   background: rgb(var(--p-line) / 0.4);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
 }
 .panel-scroll::-webkit-scrollbar-track {
   background: transparent;
@@ -678,7 +920,10 @@
   gap: 0.7rem;
   width: var(--width);
   padding: 0.7rem 0.85rem;
-  border-radius: 2px;
+  /* A floating container, so the container radius. It carried the control
+     radius, which made it the one thing over the map with a different corner
+     from every panel beside it. */
+  border-radius: var(--radius-md);
   background: var(--panel);
   border: 1px solid rgb(var(--p-line) / 0.32);
   backdrop-filter: blur(18px) saturate(1.05);
@@ -690,14 +935,29 @@
   margin-top: 0.1rem;
   flex-shrink: 0;
 }
+/*
+  Status through the status tokens, so a toast and a component reporting the
+  same state cannot disagree. Success used the accent, which is now the colour
+  of every primary action; error was a literal red reachable from nowhere.
+
+  These are icons, so they take the READ variants, not the fill ones. The error
+  mark carried --destructive, which is the fill -- the value darkened so a light
+  label reads on top of it -- and as a mark on the toast plate that measures
+  2.47, under the 3.0 WCAG 1.4.11 asks of a meaningful graphic. Splitting
+  destructive into a fill and a quiet variant is what made it fail: before the
+  split one value did both jobs badly, and afterwards this call site was still
+  asking for the wrong half.
+*/
 .terra-toast-success [data-icon] {
-  color: rgb(var(--p-accent));
+  color: var(--success);
 }
 .terra-toast-error [data-icon] {
-  color: rgb(220 80 70);
+  color: var(--destructive-quiet);
 }
-.terra-toast-info [data-icon],
 .terra-toast-warning [data-icon] {
+  color: var(--warning);
+}
+.terra-toast-info [data-icon] {
   color: rgb(var(--p-muted));
 }
 .terra-toast [data-content] {
@@ -708,14 +968,14 @@
   min-width: 0;
 }
 .terra-toast-title {
-  font-size: 12px;
+  font-size: var(--text-emphasis);
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--foreground);
 }
 .terra-toast-desc {
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: var(--text-body);
+  line-height: 1.4;
   color: var(--muted-foreground);
   word-break: break-word;
 }
@@ -727,7 +987,7 @@
   transform: none !important;
   width: 1.25rem !important;
   height: 1.25rem !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm)!important;
   border: 1px solid rgb(var(--p-line) / 0.35) !important;
   background: transparent !important;
   color: var(--muted-foreground) !important;
@@ -739,9 +999,9 @@
   color: var(--foreground) !important;
 }
 .terra-toast-error {
-  border-color: rgb(220 80 70 / 0.35);
+  border-color: color-mix(in srgb, var(--destructive-quiet) 35%, transparent);
 }
 .terra-toast-success {
-  border-color: rgb(var(--p-accent) / 0.35);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
 }
 

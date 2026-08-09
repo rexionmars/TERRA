@@ -34,7 +34,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
   )
 
   return (
-    <section className="ar-section p-4">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex flex-wrap items-baseline gap-2">
           <p className="eyebrow">Wind screening</p>
@@ -58,7 +58,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
 
       <div
         className="mt-3 border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           Carried by the reanalysis · no height extrapolation
@@ -104,7 +104,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
 
       <div
         className="mt-3 border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           At the {wind.hub_height_m.toFixed(0)} m hub · extrapolated
@@ -153,7 +153,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
 
       <div
         className="mt-3 border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">Field diagnostics</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -222,7 +222,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
 
       <div
         className="mt-3 border-t pt-3"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p className="eyebrow !text-[9px] mb-2">
           Hub result across the shear exponent
@@ -259,7 +259,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 border-t pt-3 lg:grid-cols-2"
-           style={{ borderColor: "var(--ar-border)" }}>
+           style={{ borderColor: "var(--border)" }}>
         <div>
           <p className="eyebrow !text-[9px] mb-2">
             Mean speed at 50 m by month, m/s
@@ -270,7 +270,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
                 <span className="telemetry w-6 shrink-0 text-[10px] text-muted-foreground">
                   {String(r.month).padStart(2, "0")}
                 </span>
-                <span className="ar-track relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+                <span className="bg-background relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
                   <span
                     className="absolute inset-y-0 left-0 rounded-sm"
                     style={{
@@ -296,7 +296,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
                 <span className="telemetry w-10 shrink-0 text-[10px] text-muted-foreground">
                   {s.centre_deg.toFixed(1)}°
                 </span>
-                <span className="ar-track relative h-3 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+                <span className="bg-background relative h-3 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
                   <span
                     className="absolute inset-x-0 top-0 h-1.5"
                     style={{
@@ -333,7 +333,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
 
       <div
         className="mt-3 border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
-        style={{ borderColor: "var(--ar-border)" }}
+        style={{ borderColor: "var(--border)" }}
       >
         <p>
           Reference power curve: {wind.turbine.name},{" "}

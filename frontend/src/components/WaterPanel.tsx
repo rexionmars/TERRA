@@ -2,6 +2,8 @@ import { forwardRef } from "react"
 import { motion } from "motion/react"
 import { ChevronLeft, CheckCircle2, Loader2, Play, Trash2, Waves } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { todayISO } from "@/lib/dates"
+import { btnGhost, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
 import type { WaterIndex } from "@/lib/types"
 
@@ -122,18 +124,20 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
               Start
               <input
                 type="date"
+                max={todayISO()}
                 value={start}
                 onChange={(e) => onStartChange(e.target.value)}
-                className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+                className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
               />
             </label>
             <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
               End
               <input
                 type="date"
+                max={todayISO()}
                 value={end}
                 onChange={(e) => onEndChange(e.target.value)}
-                className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+                className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
               />
             </label>
           </div>
@@ -145,10 +149,10 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
               max={100}
               value={maxCloud}
               onChange={(e) => onMaxCloudChange(Number(e.target.value))}
-              className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+              className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
             />
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input
               type="checkbox"
               checked={monthlyBest}
@@ -193,7 +197,7 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
         <Section step="04" title="Run">
           {running && (
             <div className="flex flex-col gap-1">
-              <div className="ar-track h-1 overflow-hidden rounded-sm">
+              <div className="bg-background h-1 overflow-hidden rounded-sm">
                 <div
                   className="h-full rounded-sm bg-primary transition-[width]"
                   style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
@@ -209,7 +213,7 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
               type="button"
               disabled={!hasArea || running}
               onClick={onRun}
-              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-sm bg-primary text-xs font-semibold text-primary-foreground disabled:opacity-50"
+              className={cn(btnPrimaryCommit, "flex-1")}
             >
               {running ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -223,7 +227,7 @@ export const WaterPanel = forwardRef<HTMLDivElement, WaterPanelProps>(
                 type="button"
                 onClick={onClear}
                 disabled={running}
-                className="ar-ghost flex h-9 items-center gap-1.5 rounded-sm border px-3 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                className={btnGhost}
               >
                 <Trash2 className="size-3.5" />
                 Clear

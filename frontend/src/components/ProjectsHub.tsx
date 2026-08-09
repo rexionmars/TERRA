@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils"
 import type { Area, Project } from "@/lib/types"
 import { resolveProjectGeometry } from "@/lib/geometry"
 import { ProjectFolderCard } from "@/components/ProjectFolderCard"
+import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
+import { btnGhostDense, btnIcon, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 
 export type ProjectsHubSelection = "all" | "unassigned" | string
 
@@ -71,14 +73,14 @@ export function ProjectsHub({
           "Analyses and overlays saved under this project."
 
   return (
-    <div className="terra-workspace flex h-full min-h-0 w-full">
-      <aside className="ar-sidebar flex w-[16.5rem] shrink-0 flex-col">
+    <PageShell>
+      <PageAside>
         <div className="flex shrink-0 items-center justify-between gap-2 px-3.5 pb-2 pt-4">
           <div className="min-w-0">
             <p className="font-display text-sm font-semibold tracking-wide text-foreground">
               Projects
             </p>
-            <p className="telemetry mt-0.5 text-[10px] text-muted-foreground">
+            <p className="telemetry mt-0.5 text-meta text-muted-foreground">
               {projects.length}{" "}
               {projects.length === 1 ? "workspace" : "workspaces"}
             </p>
@@ -87,7 +89,7 @@ export function ProjectsHub({
             type="button"
             title="New project"
             onClick={() => setShowCreate(true)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-[var(--ar-raised)] hover:text-foreground"
+            className={btnIcon}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -104,7 +106,7 @@ export function ProjectsHub({
               // without this the only name is the placeholder, which the value
               // replaces as soon as the user types.
               aria-label="Search projects"
-              className="ar-inset h-8 w-full py-0 pl-8 pr-2 text-[11px] outline-none placeholder:text-muted-foreground/70 focus:border-primary/60"
+              className="h-8 w-full rounded-sm border border-border bg-background py-0 pl-8 pr-2 text-body outline-none placeholder:text-muted-foreground/70 focus:border-primary/60"
             />
           </label>
         </div>
@@ -114,7 +116,7 @@ export function ProjectsHub({
             type="button"
             onClick={onSelectAll}
             className={cn(
-              "ar-nav-item mb-1 flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]",
+              "nav-item mb-1 flex w-full items-center gap-2 px-2 py-1.5 text-left text-body",
               selection === "all"
                 ? "is-active"
                 : "text-muted-foreground hover:text-foreground"
@@ -122,7 +124,7 @@ export function ProjectsHub({
           >
             <FolderKanban className="h-3.5 w-3.5 shrink-0 text-primary/75" />
             <span className="min-w-0 flex-1 truncate">All projects</span>
-            <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+            <span className="telemetry shrink-0 text-meta text-muted-foreground">
               {projects.length}
             </span>
           </button>
@@ -145,7 +147,7 @@ export function ProjectsHub({
                     onClick={() => onOpenProject(p.id)}
                     title={`${p.name} — ${countLabel}`}
                     className={cn(
-                      "ar-nav-item flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]",
+                      "nav-item flex w-full items-center gap-2 px-2 py-1.5 text-left text-body",
                       active
                         ? "is-active"
                         : "text-muted-foreground hover:text-foreground"
@@ -162,7 +164,7 @@ export function ProjectsHub({
                         classifications and twelve compositions are opposite
                         states of work, and their sum said neither. */}
                     <span
-                      className="telemetry shrink-0 text-[10px] text-muted-foreground"
+                      className="telemetry shrink-0 text-meta text-muted-foreground"
                       aria-label={countLabel}
                     >
                       {runs}
@@ -174,7 +176,7 @@ export function ProjectsHub({
               )
             })}
             {filtered.length === 0 && (
-              <li className="px-2 py-2 text-[10px] text-muted-foreground">
+              <li className="px-2 py-2 text-meta text-muted-foreground">
                 {projects.length === 0 ? "No projects yet" : "No matches"}
               </li>
             )}
@@ -184,7 +186,7 @@ export function ProjectsHub({
             type="button"
             onClick={onOpenUnassigned}
             className={cn(
-              "ar-nav-item mt-3 flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]",
+              "nav-item mt-3 flex w-full items-center gap-2 px-2 py-1.5 text-left text-body",
               selection === "unassigned"
                 ? "is-active"
                 : "text-muted-foreground hover:text-foreground"
@@ -193,7 +195,7 @@ export function ProjectsHub({
             <Inbox className="h-3.5 w-3.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate">Unassigned</span>
             {unassignedCount > 0 && (
-              <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+              <span className="telemetry shrink-0 text-meta text-muted-foreground">
                 {unassignedCount}
               </span>
             )}
@@ -201,13 +203,7 @@ export function ProjectsHub({
         </div>
 
         {showCreate && (
-          <div
-            className="shrink-0 p-3"
-            style={{
-              borderTop: "1px solid var(--ar-border)",
-              background: "var(--ar-bg)",
-            }}
-          >
+          <div className="shrink-0 border-t border-border bg-background p-3">
             <input
               value={newName}
               onChange={(e) => onNewNameChange(e.target.value)}
@@ -220,14 +216,14 @@ export function ProjectsHub({
               }}
               autoFocus
               placeholder="Project name"
-              className="ar-inset h-8 w-full px-2 text-[11px] outline-none focus:border-primary/60"
+              className="h-8 w-full rounded-sm border border-border bg-background px-2 text-body outline-none focus:border-primary/60"
             />
             <div className="mt-1.5 flex gap-1">
               <button
                 type="button"
                 disabled={creating || !newName.trim()}
                 onClick={onCreate}
-                className="flex h-7 flex-1 items-center justify-center gap-1 rounded-sm bg-primary text-[10px] font-semibold text-primary-foreground disabled:opacity-50"
+                className={cn(btnPrimary, "flex-1")}
               >
                 Create
               </button>
@@ -237,23 +233,25 @@ export function ProjectsHub({
                   setShowCreate(false)
                   onNewNameChange("")
                 }}
-                className="ar-ghost h-7 rounded-sm border px-2 text-[10px] text-muted-foreground"
+                className={btnGhostDense}
               >
                 Cancel
               </button>
             </div>
           </div>
         )}
-      </aside>
+      </PageAside>
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="ar-header flex shrink-0 flex-wrap items-start justify-between gap-3 px-5 py-4 sm:px-6 lg:px-8">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        {/*
+          The title and its actions, out of the band they sat in. What the
+          eyebrow said -- PROJECTS or UNASSIGNED -- the column beside it already
+          shows as the selected entry, and the title bar names the screen, so
+          the band cost a row of height to repeat two things.
+        */}
+        <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 px-4 pt-1">
           <div className="min-w-0">
-            {/* Names this screen; the classification view uses ANALYSIS. */}
-            <p className="telemetry text-[10px] text-primary">
-              {selection === "unassigned" ? "UNASSIGNED" : "PROJECTS"}
-            </p>
-            <h1 className="mt-0.5 font-display text-xl font-semibold tracking-wide">
+            <h1 className="font-display text-xl font-semibold tracking-wide">
               {mainTitle}
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">{mainSubtitle}</p>
@@ -263,11 +261,12 @@ export function ProjectsHub({
           ) : null}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6 lg:px-8">
+        <PageBody>
+          <div className="p-4">
           {children ? (
             children
           ) : filtered.length === 0 ? (
-            <div className="ar-section flex min-h-[18rem] flex-col items-center justify-center border-dashed px-6 py-16 text-center">
+            <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-sm border border-dashed border-border bg-secondary/30 px-6 py-16 text-center">
               <FolderKanban className="mb-3 h-8 w-8 text-primary/70" />
               <p className="text-sm text-foreground">
                 {projects.length === 0
@@ -283,7 +282,7 @@ export function ProjectsHub({
                 <button
                   type="button"
                   onClick={() => setShowCreate(true)}
-                  className="mt-4 flex h-9 items-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground"
+                  className={cn(btnPrimaryCommit, "mt-4")}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   New project
@@ -309,8 +308,9 @@ export function ProjectsHub({
               </ul>
             </div>
           )}
-        </div>
-      </main>
-    </div>
+          </div>
+        </PageBody>
+      </div>
+    </PageShell>
   )
 }

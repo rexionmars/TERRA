@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { LogIn, UserPlus } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { PageShell } from "@/components/ui/PageShell"
+import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 
 export function AuthPage() {
@@ -30,10 +32,10 @@ export function AuthPage() {
   }
 
   return (
-    <div className="terra-workspace app-no-drag flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4 px-5 py-10 sm:px-6">
+    <PageShell className="items-center justify-center overflow-y-auto">
+      <div className="flex w-full max-w-md flex-col justify-center gap-4 px-5 py-10 sm:px-6">
         <div>
-          <p className="telemetry text-[10px] text-primary">AUTH</p>
+          <p className="telemetry text-meta text-accent-quiet">AUTH</p>
           <h1 className="mt-0.5 font-display text-xl font-semibold tracking-wide">
             {mode === "login" ? "Sign in" : "Create account"}
           </h1>
@@ -42,7 +44,7 @@ export function AuthPage() {
           </p>
         </div>
 
-        <div className="ar-raised flex gap-0.5 p-0.5">
+        <div className="flex gap-0.5 rounded-sm border border-border bg-secondary p-0.5">
           <TabButton
             active={mode === "login"}
             onClick={() => setMode("login")}
@@ -61,7 +63,7 @@ export function AuthPage() {
 
         <form
           onSubmit={submit}
-          className="ar-section flex flex-col gap-3 p-4"
+          className="flex flex-col gap-3 rounded-sm border border-border bg-secondary/50 p-4"
         >
           {mode === "register" && (
             <Field label="Display name">
@@ -69,7 +71,7 @@ export function AuthPage() {
                 required
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="field-input ar-inset"
+                className="field-input focus-visible:ring-1 focus-visible:ring-ring"
                 placeholder="Your name"
                 autoComplete="name"
               />
@@ -81,7 +83,7 @@ export function AuthPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="field-input ar-inset"
+              className="field-input focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="you@example.com"
               autoComplete="email"
             />
@@ -93,7 +95,7 @@ export function AuthPage() {
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="field-input ar-inset"
+              className="field-input focus-visible:ring-1 focus-visible:ring-ring"
               placeholder="Min. 6 characters"
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
@@ -101,18 +103,18 @@ export function AuthPage() {
             />
           </Field>
 
-          {error && <p className="text-[11px] text-destructive">{error}</p>}
+          {error && <p className="text-body text-destructive-quiet">{error}</p>}
 
           <button
             type="submit"
             disabled={busy}
-            className="mt-1 flex h-9 items-center justify-center rounded-sm bg-primary text-xs font-semibold tracking-wide text-primary-foreground disabled:opacity-60"
+            className={cn(btnPrimaryCommit, "mt-1 w-full tracking-wide")}
           >
             {busy ? "…" : mode === "login" ? "Sign in" : "Create account"}
           </button>
         </form>
       </div>
-    </div>
+    </PageShell>
   )
 }
 
@@ -147,7 +149,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "ar-nav-item flex flex-1 items-center justify-center gap-1.5 rounded-sm py-2 text-[11px] font-medium",
+        "nav-item flex flex-1 items-center justify-center gap-1.5 rounded-sm py-2 text-body font-medium",
         active && "is-active"
       )}
     >

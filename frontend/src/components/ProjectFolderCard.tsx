@@ -28,7 +28,7 @@ export function ProjectFolderCard({
       onClick={onOpen}
       className={cn(
         "group flex w-full flex-col text-left transition-colors",
-        selected ? "ar-select" : "ar-raised hover:brightness-110",
+        selected ? "rounded-sm border border-primary bg-secondary" : "rounded-sm border border-border bg-secondary hover:brightness-110",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50",
         className
       )}
@@ -36,8 +36,8 @@ export function ProjectFolderCard({
       <div
         className="flex min-h-0 flex-1 items-center justify-center px-4 pt-5 pb-2"
         style={{
-          background: "var(--ar-bg, rgb(var(--p-ink)))",
-          borderBottom: "1px solid var(--ar-border, rgb(var(--p-line) / 0.35))",
+          background: "var(--background)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <AoiFootprint

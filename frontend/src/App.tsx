@@ -9,7 +9,6 @@ import {
   AnalyzeLULC,
   ListDataCube,
   RenderComposite,
-  OpenExternal,
   RevealMainWindow,
   SaveProjectOverlay,
   ListProjectOverlays,
@@ -42,7 +41,6 @@ import type {
   CompositeKind,
   CompositeIndex,
   CompositeResult,
-  LeftDockTabsMode,
   Project,
   ProjectOverlay,
   SaveProjectOverlayRequest,
@@ -60,7 +58,7 @@ import type {
   WindAnalysis,
   WindRequest,
 } from "@/lib/types"
-import { leftDockTabsModeFromPrefs, parsePreferenceExtras } from "@/lib/preferenceExtras"
+import { parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import { projectOverlayToComposition } from "@/lib/projectOverlays"
 import { geometryCentroid, usesExampleArea } from "@/lib/geometry"
@@ -75,9 +73,9 @@ import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
-import { AppSidebar } from "@/components/AppSidebar"
+import { AppNav } from "@/components/AppNav"
 import { MapScreen } from "@/pages/MapScreen"
-import type { LeftDockPanel } from "@/components/LeftDockRail"
+import type { MapToolId } from "@/lib/mapTools"
 import { EnergyScreen, type EnergyTab } from "@/pages/EnergyScreen"
 import { useSolarState, useWindState } from "@/lib/energyState"
 import type {
@@ -207,8 +205,6 @@ function App() {
   const [lulcRunning, setLulcRunning] = useState(false)
   const [booting, setBooting] = useState(true)
   const [splashExiting, setSplashExiting] = useState(false)
-  const [leftDockTabs, setLeftDockTabs] =
-    useState<LeftDockTabsMode>("retracted_only")
   const { setTheme } = useTheme()
 
   const applyPrefs = useCallback(
@@ -226,7 +222,6 @@ function App() {
       if (p.theme === "dark" || p.theme === "light" || p.theme === "system") {
         setTheme(p.theme)
       }
-      setLeftDockTabs(leftDockTabsModeFromPrefs(p))
     },
     [setTheme]
   )
@@ -403,7 +398,6 @@ function App() {
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
-            leftDockTabs={leftDockTabs}
             onSelectExample={handleSelectExample}
             onClearArea={clearArea}
             onImportPolygon={handleImportPolygon}
@@ -467,12 +461,11 @@ function AppBody(props: {
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
-  leftDockTabs: LeftDockTabsMode
   onSelectExample: (id: string) => void
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, runs, projects, prefs, savePrefs } =
+  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
   /**
@@ -482,11 +475,12 @@ function AppBody(props: {
    * every navigation away, so local state reset the dock to the classification
    * panel on every return.
    */
-  const [leftPanel, setLeftPanel] = useState<LeftDockPanel | null>("classify")
+  const [leftPanel, setLeftPanel] = useState<MapToolId | null>("classify")
   /**
    * Open tab of the energy screen, held here for the same reason as the dock
    * tab above: that screen unmounts on every navigation away, so a local value
-   * put a returning user back on Solar after they had been reading Wind.
+   * put a returning user back on Solar after they had been reading Wind. The
+   * navigation column also reads it, to name which resource is in view.
    */
   const [energyTab, setEnergyTab] = useState<EnergyTab>("solar")
   /**
@@ -849,7 +843,7 @@ function AppBody(props: {
     void activateProject(id, { userInitiated: false })
   }, [prefs?.extras_json, projects, activateProject])
 
-  const handleCreateProjectFromMap = useCallback(async () => {
+  const handleCreateProjectFromAoi = useCallback(async () => {
     const hint =
       props.analysisLabel ||
       (props.activeExample
@@ -1852,6 +1846,19 @@ function AppBody(props: {
     props.setShowPredictionOverlay(false)
   }, [props.setShowPredictionOverlay])
 
+  /**
+   * Starts a run of any product, from wherever the user is.
+   *
+   * The hub offered New classification and nothing else, while the application
+   * produces four run kinds and a composition. A user in a project could reach
+   * a classification in one click and everything else by navigating and
+   * remembering which screen holds it.
+   *
+   * The three map products clear the session the same way -- the previous
+   * result, overlay and AOI all belong to the run being replaced -- so they
+   * share startNewClassification and differ only in the panel they open. Energy
+   * defines its own AOI on its own screen and clears nothing here.
+   */
   const startNewClassification = useCallback(() => {
     props.setResult(null)
     setCurrentRunLabel(null)
@@ -1876,6 +1883,32 @@ function AppBody(props: {
     props.setSwipeCompare,
     props.setSwipeRatio,
   ])
+
+  /**
+   * Starts a run of any product, from wherever the user is.
+   *
+   * The hub offered New classification and nothing else, while the application
+   * produces four run kinds and a composition. A user in a project could reach
+   * a classification in one click and everything else by navigating and
+   * remembering which screen holds it.
+   *
+   * The three map products clear the session the same way -- the previous
+   * result, overlay and AOI all belong to the run being replaced -- so they
+   * share startNewClassification and differ only in the panel they open. Energy
+   * defines its own AOI on its own screen and clears nothing here.
+   */
+  const startNewRun = useCallback(
+    (product: MapToolId | "energy") => {
+      if (product === "energy") {
+        goEnergy()
+        return
+      }
+      setLeftPanel(product)
+      startNewClassification()
+    },
+    [goEnergy, startNewClassification]
+  )
+
   const applyAoiRename = useCallback(
     async (label: string) => {
       const next = label.trim()
@@ -2008,13 +2041,23 @@ function AppBody(props: {
         view={props.view}
         result={props.result}
         runLabel={currentRunLabel}
+        /*
+          Wherever a run is filed under the active project. The energy handlers
+          send project_id exactly as the classification ones do, so a solar or
+          wind run lands in a project the energy screen never named and offered
+          no way to change -- the user could only discover it afterwards, in the
+          hub.
+
+          Not on the project hub itself, which selects a project as its whole
+          purpose, and not on settings or sign-in, which have no project.
+        */
         projectSwitcher={
-          screen === "map" ? (
+          screen === "map" || screen === "energy" ? (
             <ProjectSwitcher
               projects={projects}
               activeProjectId={activeProjectId}
               onSelect={(id) => void activateProject(id)}
-              onCreate={() => void handleCreateProjectFromMap()}
+              onCreate={() => void handleCreateProjectFromAoi()}
               onOpenHub={() => goAnalysis()}
             />
           ) : undefined
@@ -2022,8 +2065,7 @@ function AppBody(props: {
       />
 
       <div className="flex min-h-0 flex-1">
-        <AppSidebar
-          onOpenRepo={() => OpenExternal("https://github.com/rexionmars")}
+        <AppNav
           hasAnalysis={!!props.result || runs.length > 0}
           onAnalysisClick={() => {
             // Tested on the payload the page is actually showing, not on the
@@ -2032,6 +2074,10 @@ function AppBody(props: {
             if (screen === "analysis" && resultWithWater) backToAnalysesList()
             else goAnalysis()
           }}
+          leftPanel={leftPanel}
+          onLeftPanelChange={setLeftPanel}
+          energyTab={energyTab}
+          onEnergyTabChange={setEnergyTab}
         />
         <div className="relative min-h-0 min-w-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
@@ -2187,7 +2233,6 @@ function AppBody(props: {
                   onShowWaterOverlayChange={setShowWaterOverlay}
                   waterOpacity={waterOpacity}
                   onWaterOpacityChange={setWaterOpacity}
-                  leftDockTabs={props.leftDockTabs}
                 />
               </motion.div>
             )}
@@ -2212,6 +2257,10 @@ function AppBody(props: {
                     else void handleRunEnergyModel()
                   }}
                   onRunWind={() => void handleRunWind()}
+                  onOpenAnalysis={goAnalysis}
+                  onLocationSelect={(lat, lon) =>
+                    props.setFlyTo({ lat, lon, key: Date.now() })
+                  }
                   hasArea={props.hasArea}
                   areas={props.areas}
                   activeExample={props.activeExample}
@@ -2256,7 +2305,7 @@ function AppBody(props: {
                   loadingRun={loadingRun}
                   onOpenRun={openSavedAnalysis}
                   onBackToList={backToAnalysesList}
-                  onNewClassification={startNewClassification}
+                  onStartRun={startNewRun}
                   onAreaLabelChange={(label) => {
                     void applyAoiRename(label)
                   }}

@@ -74,7 +74,7 @@ export function AoiFootprint({
       >
         <span
           className="flex h-10 w-14 items-center justify-center rounded-sm border border-dashed"
-          style={{ borderColor: "var(--ar-border)" }}
+          style={{ borderColor: "var(--border)" }}
         >
           No AOI
         </span>

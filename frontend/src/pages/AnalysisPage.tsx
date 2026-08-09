@@ -5,6 +5,7 @@ import {
   Columns2,
   Download,
   FolderOpen,
+  ChevronDown,
   History,
   Map as MapIcon,
   Pencil,
@@ -19,12 +20,16 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Label,
   Legend,
 } from "recharts"
 import { useAuth } from "@/lib/auth"
+import { PageBody, PageShell } from "@/components/ui/PageShell"
+import { btnGhost, btnGhostDense, btnIcon, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
+import type { MapToolId } from "@/lib/mapTools"
+import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import type {
   Area,
   EnergyModelAnalysis,
@@ -87,17 +92,72 @@ import {
   formatHectares,
   modelDisplayName,
   parseRunSummary,
+  runKindLabel,
   runSummaryObject,
   solarProductLabel,
 } from "@/lib/runSummary"
+import {
+  VI_GAP_DAYS,
+  dateToMs,
+  insertTimeGaps,
+  timeAxisProps,
+  timeLabelFormatter,
+  timeTickFormatter,
+} from "@/lib/chartAxis"
 
+
+/**
+ * The vegetation index series, one colour each.
+ *
+ * Data encoding rather than chrome, so these stay outside the sand palette: the
+ * three curves share an axis and have to be told apart, which a family of one
+ * hue cannot do.
+ */
+/**
+ * The three index series, with a redundant channel each.
+ *
+ * The colours live in index.css, one value per theme, because no single hex
+ * clears 3:1 against both a near-black and a near-white ground -- the previous
+ * triple was tuned for the dark theme and measured 2.17, 2.04 and 2.04 on the
+ * light one, under WCAG's floor for a non-text graphic on all three.
+ *
+ * The dash pattern is the second channel. Nature's guidance lists "relying
+ * solely on colour for definition" among the things to avoid, and the measured
+ * reason here is specific: converted to greyscale the old blue and amber were
+ * the same value to eight decimals, so a desaturated chart showed one line
+ * where there were three.
+ */
+const VI_LINES = [
+  { key: "ndvi", label: "NDVI", stroke: "var(--series-ndvi)", dash: undefined },
+  { key: "evi", label: "EVI", stroke: "var(--series-evi)", dash: "6 3" },
+  { key: "savi", label: "SAVI", stroke: "var(--series-savi)", dash: "2 3" },
+] as const
+
+/**
+ * One colour per product kind, declared once because two of these have to agree
+ * across the file.
+ *
+ * `water` is read twice -- the dot beside a saved water run and the stroke of
+ * the water fraction curve -- and the two saying the same thing is the point.
+ * Written as literals in both places, they agreed by coincidence, and an edit
+ * to one would have separated them silently. That is exactly how the two copies
+ * of RdYlGn in compositeCatalog.ts drifted apart at every stop.
+ *
+ * `wind` is deliberately not the water blue: the two resolve on different
+ * reanalyses and should not read as one product.
+ */
+const PRODUCT_COLOR = {
+  solar: "#f59e0b",
+  water: "#3182bd",
+  wind: "#2a9d8f",
+} as const
 
 type ProjectTab = "analyses" | "compositions"
 
 /** Project detail sections, in tab order. Drives the ARIA tabs wiring below. */
 const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
-  { id: "analyses", label: "Analyses" },
-  { id: "compositions", label: "Band compositions" },
+  { id: "analyses", label: "Runs" },
+  { id: "compositions", label: "Compositions" },
 ]
 
 /** Summary JSON of a saved run, or an empty object when there is none. */
@@ -233,7 +293,9 @@ interface AnalysisPageProps {
   loadingRun?: boolean
   onOpenRun: (run: InferenceRun) => Promise<void>
   onBackToList: () => void
-  onNewClassification: () => void
+
+  /** Starts a run of the chosen product; see startNewRun in App.tsx. */
+  onStartRun: (product: MapToolId | "energy") => void
   /** Rename the active AOI (same path as map context-menu rename). */
   onAreaLabelChange?: (label: string) => void
   /** Set map active project when opening a project from the hub. */
@@ -261,7 +323,8 @@ export function AnalysisPage({
   loadingRun,
   onOpenRun,
   onBackToList,
-  onNewClassification,
+
+  onStartRun,
   onAreaLabelChange,
   onActivateProject,
   onShowComposition,
@@ -440,10 +503,18 @@ export function AnalysisPage({
     return runs
   }, [hubView, projectRuns, runs, selectedProjectId])
 
+  /**
+   * The list's own heading, which only earns one where nothing above it says
+   * the same thing.
+   *
+   * Inside a project the page already carries the name as its title and the
+   * open tab already says which list this is, so `Analyses · Jose de Freitas`
+   * was the third statement of both before a single row appeared.
+   */
   const panelTitle = useMemo(() => {
-    if (hubView === "unassigned") return "Unassigned analyses"
-    if (selectedProject) return `Analyses · ${selectedProject.name}`
-    return "Saved analyses"
+    if (hubView === "unassigned") return "Unassigned runs"
+    if (selectedProject) return undefined
+    return "Saved runs"
   }, [hubView, selectedProject])
 
   const startCompare = useCallback(async () => {
@@ -649,12 +720,17 @@ export function AnalysisPage({
   const runsPanel = (
     <SavedRunsPanel
       title={panelTitle}
+      /*
+        The list is filtered by project and by nothing else, so it holds every
+        run kind -- classification, surface water, solar and wind alike. The
+        caption named only the first and even listed its three models, twenty
+        lines above the code that branches on r.kind to draw the other three.
+        Inside a project it says nothing at all now: the tab above already does.
+      */
       caption={
-        hubView === "detail"
-          ? "Classification runs (RF / Temporal Transformer / Prithvi)."
-          : hubView === "unassigned"
-            ? "Classification runs not yet assigned to a project."
-            : undefined
+        hubView === "unassigned"
+          ? "Runs of any product not yet assigned to a project."
+          : undefined
       }
       runs={scopedRuns}
       loading={!!loadingRun || comparing || hubLoading}
@@ -699,14 +775,7 @@ export function AnalysisPage({
 
     const hubActions = (
       <>
-        <button
-          type="button"
-          onClick={onNewClassification}
-          className="flex h-9 items-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New classification
-        </button>
+        <NewRunMenu onStart={onStartRun} />
         <button
           type="button"
           onClick={() => {
@@ -717,7 +786,7 @@ export function AnalysisPage({
               goMap()
             })()
           }}
-          className="ar-ghost flex h-9 items-center gap-1.5 rounded-sm border px-4 text-xs text-muted-foreground hover:text-foreground"
+          className={btnGhost}
         >
           <MapIcon className="h-3.5 w-3.5" />
           Go to map
@@ -726,7 +795,7 @@ export function AnalysisPage({
     )
 
     return (
-      <div className="terra-workspace app-no-drag relative flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="app-no-drag relative flex h-full min-h-0 flex-col overflow-hidden">
         <ProjectsHub
           projects={projects}
           areas={areas}
@@ -765,9 +834,14 @@ export function AnalysisPage({
           {(hubView === "detail" || hubView === "unassigned") && (
             <div className="flex flex-col gap-3">
               {hubView === "detail" && selectedProject && (
-                <div className="ar-raised flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                  <p className="text-[11px] text-muted-foreground">
-                    AOI:{" "}
+                /*
+                  One line, not a card. A card announces a region of content;
+                  this is a single fact and two actions on it, and boxed it took
+                  the same weight as the list of 48 runs below.
+                */
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                  <p className="text-body text-muted-foreground">
+                    <span className="eyebrow mr-2">AOI</span>
                     {selectedProject.label ||
                       selectedProject.area_id ||
                       (selectedProject.polygon_geojson
@@ -785,7 +859,7 @@ export function AnalysisPage({
                           goMap()
                         })()
                       }}
-                      className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
+                      className={btnGhost}
                     >
                       <MapIcon className="h-3 w-3" />
                       Open on map
@@ -793,7 +867,7 @@ export function AnalysisPage({
                     <button
                       type="button"
                       onClick={() => setPendingDeleteProjectId(selectedProject.id)}
-                      className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-destructive"
+                      className={cn(btnGhost, "hover:text-destructive-quiet")}
                       title="Delete project (runs become unassigned)"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -804,8 +878,17 @@ export function AnalysisPage({
               )}
 
               {hubView === "detail" && (
+                /*
+                  An underlined rule, not a filled segmented control.
+
+                  Each tab was flex-1 inside a bordered plate, so the two split
+                  the full width and the active one painted half the screen in
+                  full accent -- an enormous amount of colour and space spent
+                  saying which of two lists is open. Sized to its label and
+                  marked by a 2px rule, the same statement costs a line.
+                */
                 <div
-                  className="ar-raised flex gap-1 p-1"
+                  className="flex gap-4 border-b border-border"
                   role="tablist"
                   aria-label="Project sections"
                 >
@@ -834,15 +917,22 @@ export function AnalysisPage({
                         onClick={() => setProjectTab(tab.id)}
                         onKeyDown={handleTabKeyDown}
                         className={cn(
-                          "flex h-8 flex-1 items-center justify-center rounded-sm px-3 text-[11px] font-medium transition-colors",
+                          "-mb-px flex h-8 items-center gap-1.5 border-b-2 px-0.5 text-body font-medium transition-colors",
                           active
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:text-foreground"
+                            ? "border-primary text-foreground"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
                         {tab.label}
                         {count > 0 ? (
-                          <span className="telemetry ml-1.5 opacity-80">
+                          <span
+                            className={cn(
+                              "telemetry rounded-sm px-1 text-micro",
+                              active
+                                ? "bg-primary/20 text-accent-quiet"
+                                : "bg-secondary text-muted-foreground"
+                            )}
+                          >
                             {count}
                           </span>
                         ) : null}
@@ -854,7 +944,7 @@ export function AnalysisPage({
 
               {hubView === "detail" && projectTab === "compositions" ? (
                 <section
-                  className="ar-section p-4"
+                  className="rounded-sm border border-border bg-secondary/50 p-4"
                   role="tabpanel"
                   id={tabPanelId("compositions")}
                   aria-labelledby={tabId("compositions")}
@@ -862,12 +952,12 @@ export function AnalysisPage({
                   <p className="eyebrow mb-1 !text-muted-foreground">
                     Band compositions
                   </p>
-                  <p className="mb-3 text-[11px] text-muted-foreground">
+                  <p className="mb-3 text-body text-muted-foreground">
                     RGB / indices applied from Compositions on the map. Click a
                     card for a preview modal.
                   </p>
                   {projectOverlays.length === 0 ? (
-                    <p className="ar-raised px-3 py-4 text-[11px] text-muted-foreground">
+                    <p className="rounded-sm border border-border bg-secondary px-3 py-4 text-body text-muted-foreground">
                       No band compositions yet. Apply one on the map while this
                       project is active.
                     </p>
@@ -878,9 +968,9 @@ export function AnalysisPage({
                           <button
                             type="button"
                             onClick={() => setOpenedOverlay(o)}
-                            className="ar-raised group w-full overflow-hidden text-left transition-colors hover:bg-secondary/40"
+                            className="rounded-sm border border-border bg-secondary group w-full overflow-hidden text-left transition-colors hover:bg-secondary/40"
                           >
-                            <div className="ar-inset aspect-square border-0">
+                            <div className="rounded-sm border border-border bg-background aspect-square border-0">
                               {o.overlay_uri ? (
                                 <img
                                   src={o.overlay_uri}
@@ -890,13 +980,13 @@ export function AnalysisPage({
                               ) : null}
                             </div>
                             <div className="px-1.5 py-1">
-                              <p className="truncate text-[10px] text-foreground group-hover:text-primary">
+                              <p className="truncate text-meta text-foreground group-hover:text-primary">
                                 {o.title}
                               </p>
                               {/* Scene date and band triplet identify a
                                   composition; the title alone does not. */}
                               {compositionCaption(o.meta_json) && (
-                                <p className="telemetry truncate text-[9px] text-muted-foreground">
+                                <p className="telemetry truncate text-micro text-muted-foreground">
                                   {compositionCaption(o.meta_json)}
                                 </p>
                               )}
@@ -964,12 +1054,55 @@ export function AnalysisPage({
   const pheno = result.phenology
   const lulc = result.lulc
   const hasClassification = (result.n_dates ?? 0) > 0 || !!result.overlay_uri
-  const viChart = viSeries.map((p) => ({
-    date: p.date,
-    ndvi: p.ndvi_mean,
-    evi: p.evi_mean,
-    savi: p.savi_mean,
+  /**
+   * The index series on a real time axis, with its gaps left open.
+   *
+   * Keyed on the date string, recharts drew a category axis: every acquisition
+   * at the same horizontal spacing whatever the interval. Sentinel-2 revisits
+   * every five days at best and cloud masking makes the usable series
+   * irregular, so a month and a week were drawn the same width and every slope
+   * on the chart was wrong by whatever the gaps happened to be.
+   *
+   * A break is inserted where the interval exceeds `VI_GAP_DAYS`. Drawn
+   * through, a straight segment across a six-week cloud gap asserts
+   * observations that were never made, and it is indistinguishable from a
+   * segment across three good acquisitions.
+   *
+   * NOT memoised, deliberately. This point in the component is past two early
+   * returns -- the hub and the project views render and return above it -- so a
+   * hook here runs on one render path and not the other. React counts a
+   * different number of hooks between renders and unmounts the tree, which
+   * shows as the whole window going black the moment an analysis is opened.
+   * The arrays are a few dozen rows; the render around them costs far more.
+   */
+  const viTimes = viSeries
+    .map((p) => dateToMs(p.date))
+    .filter((t) => Number.isFinite(t))
+  const viSpan =
+    viTimes.length > 1 ? Math.max(...viTimes) - Math.min(...viTimes) : 0
+  /** Tick precision follows the span; see lib/chartAxis.ts. */
+  const viAxis = { tickFormatter: timeTickFormatter(viSpan) }
+
+  const viChart = insertTimeGaps(
+    viSeries.map((p) => ({
+      t: dateToMs(p.date),
+      ndvi: p.ndvi_mean,
+      evi: p.evi_mean,
+      savi: p.savi_mean,
+    })),
+    VI_GAP_DAYS
+  )
+
+  // Same treatment for surface water: it is the same cloud-screened Sentinel-2
+  // calendar, so it has the same irregular spacing and the same gaps.
+  const waterRows = (result.water?.series ?? []).map((d) => ({
+    t: dateToMs(d.date),
+    water: d.water_fraction_pct,
   }))
+  const waterTimes = waterRows.map((r) => r.t).filter((t) => Number.isFinite(t))
+  const waterSpan =
+    waterTimes.length > 1 ? Math.max(...waterTimes) - Math.min(...waterTimes) : 0
+  const waterChart = insertTimeGaps(waterRows, VI_GAP_DAYS)
 
   const exportTif = async () => {
     if (!result.raster_tif) return
@@ -1020,16 +1153,13 @@ export function AnalysisPage({
   }
 
   const metric = (label: string, value: number | null | undefined, suffix = "") => (
-    <div className="ar-raised flex min-h-[4.25rem] flex-col justify-center px-2.5 py-2">
+    <div className="rounded-sm border border-border bg-secondary flex min-h-[4.25rem] flex-col justify-center px-2.5 py-2">
       <div className="eyebrow">{label}</div>
-      <div className="telemetry mt-0.5 text-[12px] text-foreground">
+      <div className="telemetry mt-0.5 text-emphasis text-foreground">
         {value == null ? "—" : `${Number(value).toFixed(value % 1 === 0 ? 0 : 2)}${suffix}`}
       </div>
     </div>
   )
-
-  const btnGhost =
-    "ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
 
   const startTitleRename = () => {
     if (!onAreaLabelChange) return
@@ -1059,12 +1189,18 @@ export function AnalysisPage({
   }
 
   return (
-    <div className="terra-workspace app-no-drag flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="ar-header sticky top-0 z-10 shrink-0 px-5 py-3.5 sm:px-6 lg:px-8">
+    <PageShell className="flex-col">
+      {/*
+        The title stays where the settings header could not: it is the subject
+        of the page and it carries the rename, which nothing else offers. What
+        goes is the "ANALYSIS" eyebrow above it -- the title bar states the
+        screen already -- and the separate banded header it sat in, which cost a
+        full row of height to hold one line of text.
+      */}
+      <header className="shrink-0 px-4 pb-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="telemetry text-[10px] text-primary">ANALYSIS</p>
-            <h1 className="mt-0.5 truncate font-display text-xl font-semibold tracking-wide xl:text-2xl">
+            <h1 className="truncate font-display text-xl font-semibold tracking-wide xl:text-2xl">
               {hasClassification ? "Cover map" : "Land cover / land use"}
               {projectTitle ? ` — ${projectTitle}` : ""}
             </h1>
@@ -1076,7 +1212,7 @@ export function AnalysisPage({
                   commitTitleRename()
                 }}
               >
-                <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                <span className="telemetry shrink-0 text-meta text-muted-foreground">
                   AOI
                 </span>
                 <input
@@ -1093,11 +1229,11 @@ export function AnalysisPage({
                   maxLength={64}
                   placeholder="Area name"
                   aria-label="AOI name"
-                  className="ar-inset min-w-0 flex-1 px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-1 focus:ring-primary/50"
+                  className="rounded-sm border border-border bg-background min-w-0 flex-1 px-2 py-1 text-sm font-medium text-foreground outline-none focus:ring-1 focus:ring-primary/50"
                 />
                 <button
                   type="submit"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-sm text-primary hover:bg-[var(--ar-raised)]"
+                  className={cn(btnIcon, "text-primary")}
                   title="Save AOI name"
                 >
                   <Check className="size-4" />
@@ -1105,7 +1241,7 @@ export function AnalysisPage({
               </form>
             ) : onAreaLabelChange || areaLabel ? (
               <div className="mt-1.5 flex min-w-0 items-center gap-2">
-                <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                <span className="telemetry shrink-0 text-meta text-muted-foreground">
                   AOI
                 </span>
                 {onAreaLabelChange ? (
@@ -1113,7 +1249,7 @@ export function AnalysisPage({
                     type="button"
                     onClick={startTitleRename}
                     title="Rename AOI"
-                    className="group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-sm px-1 py-0.5 text-left hover:bg-[var(--ar-raised)]"
+                    className="group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-sm px-1 py-0.5 text-left hover:bg-secondary"
                   >
                     <span className="truncate text-sm font-medium text-foreground">
                       {areaLabel || "Name this area…"}
@@ -1164,10 +1300,7 @@ export function AnalysisPage({
               <MapIcon className="h-3 w-3" />
               View on map
             </button>
-            <button type="button" onClick={onNewClassification} className={btnGhost}>
-              <Plus className="h-3 w-3" />
-              New classification
-            </button>
+            <NewRunMenu onStart={onStartRun} variant="ghost" />
             {canExportTables && (
               <button
                 type="button"
@@ -1192,7 +1325,7 @@ export function AnalysisPage({
               <button
                 type="button"
                 onClick={() => void exportTif()}
-                className="flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-[11px] font-semibold text-primary-foreground"
+                className={btnPrimary}
               >
                 <Download className="h-3 w-3" />
                 Export GeoTIFF
@@ -1202,12 +1335,12 @@ export function AnalysisPage({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex w-full flex-col gap-3 px-5 py-4 sm:px-6 lg:px-8">
+      <PageBody>
+        <div className="flex w-full flex-col gap-3 p-4">
           {lulc && <LulcSection lulc={lulc} areaId={areaId} />}
 
           {hasClassification && (
-            <section className="ar-section p-4">
+            <section className="rounded-sm border border-border bg-secondary/50 p-4">
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
                 <PanelTile
                   title="Satellite · true color"
@@ -1258,12 +1391,12 @@ export function AnalysisPage({
               </div>
               <div
                 className="mt-3 flex flex-wrap gap-3 border-t pt-3"
-                style={{ borderColor: "var(--ar-border)" }}
+                style={{ borderColor: "var(--border)" }}
               >
                 {MAPBIOMAS_CLASS_LEGEND.map((c) => (
                   <span
                     key={c.id}
-                    className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
+                    className="flex items-center gap-1.5 text-meta text-muted-foreground"
                   >
                     <span
                       className="size-2.5 rounded-[2px]"
@@ -1280,7 +1413,7 @@ export function AnalysisPage({
           viChart.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-stretch">
               {hasClassification && (result.class_stats?.length ?? 0) > 0 && (
-                <section className="ar-section p-4">
+                <section className="rounded-sm border border-border bg-secondary/50 p-4">
                   <p className="eyebrow mb-3">Predicted class distribution</p>
                   <ul className="flex flex-col gap-1.5">
                     {(result.class_stats ?? []).map((s) => (
@@ -1292,7 +1425,7 @@ export function AnalysisPage({
                         <span className="w-40 shrink-0 truncate sm:w-44">
                           {s.name}
                         </span>
-                        <span className="ar-track relative h-1.5 flex-1 overflow-hidden rounded-sm">
+                        <span className="relative h-1.5 flex-1 overflow-hidden rounded-sm bg-background">
                           <span
                             className="absolute inset-y-0 left-0 rounded-sm"
                             style={{
@@ -1314,61 +1447,97 @@ export function AnalysisPage({
               )}
 
               {viChart.length > 0 && (
-                <section className="ar-section p-4">
+                <section className="rounded-sm border border-border bg-secondary/50 p-4">
                   <p className="eyebrow mb-3">Vegetation indices · AOI mean</p>
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={240}>
                     <LineChart
                       data={viChart}
-                      margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
+                      margin={{ top: 6, right: 14, left: 4, bottom: 22 }}
                     >
-                      <CartesianGrid
-                        strokeDasharray="2 4"
-                        stroke="var(--ar-border)"
-                      />
+                      {/*
+                        No gridlines. Nature's figure specification lists
+                        "background gridlines" among the things it avoids for
+                        graphs, and with five ticks on a panel this narrow the
+                        eye reaches the axis without them.
+                      */}
                       <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                        tickFormatter={(d: string) => d.slice(2, 7)}
-                        interval="preserveStartEnd"
-                        minTickGap={24}
-                      />
+                        {...timeAxisProps}
+                        {...viAxis}
+                        stroke="var(--border)"
+                        tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                        tickMargin={6}
+                        minTickGap={28}
+                      >
+                        <Label
+                          value="Acquisition date"
+                          position="insideBottom"
+                          offset={-14}
+                          style={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                        />
+                      </XAxis>
+                      {/*
+                        The domain is the data, not a forced 0..1. Clipped at
+                        -0.1 it also cut the negative half of a range the index
+                        is defined on: water and cloud shadow sit below zero,
+                        and the chart silently dropped them.
+                      */}
                       <YAxis
-                        domain={[-0.1, 1]}
-                        tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                      />
+                        domain={["auto", "auto"]}
+                        stroke="var(--border)"
+                        tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                        tickFormatter={(v: number) => v.toFixed(2)}
+                        width={48}
+                      >
+                        <Label
+                          value="Index value (dimensionless)"
+                          angle={-90}
+                          position="insideLeft"
+                          style={{
+                            fontSize: 12,
+                            fill: "var(--muted-foreground)",
+                            textAnchor: "middle",
+                          }}
+                        />
+                      </YAxis>
                       <Tooltip
+                        labelFormatter={timeLabelFormatter}
+                        formatter={(v: number) => v.toFixed(2)}
                         contentStyle={{
-                          backgroundColor: "var(--ar-raised)",
-                          border: "1px solid var(--ar-border)",
-                          borderRadius: 4,
+                          backgroundColor: "var(--popover)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 5,
                           fontSize: 11,
                         }}
                       />
-                      <Legend wrapperStyle={{ fontSize: 10 }} />
-                      <Line
-                        type="monotone"
-                        dataKey="ndvi"
-                        name="NDVI"
-                        stroke="#22c55e"
-                        strokeWidth={1.8}
-                        dot={false}
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                        iconType="plainline"
                       />
-                      <Line
-                        type="monotone"
-                        dataKey="evi"
-                        name="EVI"
-                        stroke="#38bdf8"
-                        strokeWidth={1.8}
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="savi"
-                        name="SAVI"
-                        stroke="#f59e0b"
-                        strokeWidth={1.8}
-                        dot={false}
-                      />
+                      {VI_LINES.map((s) => (
+                        <Line
+                          key={s.key}
+                          // Linear, not monotone. A spline draws curvature
+                          // between two observations that the sampling does not
+                          // support, and the phenology metrics printed beside
+                          // this chart are computed on a linear interpolation --
+                          // so the figure and the number disagreed about the
+                          // same data.
+                          type="linear"
+                          dataKey={s.key}
+                          name={s.label}
+                          stroke={s.stroke}
+                          strokeWidth={1.8}
+                          // A second channel, so colour is never the only one.
+                          strokeDasharray={s.dash}
+                          // The observations themselves. Hidden, a reader could
+                          // not tell a measurement from an interpolation, which
+                          // is what made the two defects above invisible.
+                          dot={{ r: 1.8, strokeWidth: 0, fill: s.stroke }}
+                          activeDot={{ r: 3 }}
+                          connectNulls={false}
+                          isAnimationActive={false}
+                        />
+                      ))}
                     </LineChart>
                   </ResponsiveContainer>
                 </section>
@@ -1379,7 +1548,7 @@ export function AnalysisPage({
           {(pheno && hasClassification) || states.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-stretch">
               {pheno && hasClassification && (
-                <section className="ar-section p-4">
+                <section className="rounded-sm border border-border bg-secondary/50 p-4">
                   <p className="eyebrow mb-3">Phenology metrics · AOI NDVI</p>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7 xl:grid-cols-4 2xl:grid-cols-7">
                     {metric("SOS", pheno.sos_doy, " d")}
@@ -1394,7 +1563,7 @@ export function AnalysisPage({
               )}
 
               {states.length > 0 && (
-                <section className="ar-section p-4">
+                <section className="rounded-sm border border-border bg-secondary/50 p-4">
                   <p className="eyebrow mb-3">Phenological state timeline</p>
                   <div className="edge-fade-x -mx-1 overflow-x-auto px-1">
                     <div className="flex min-w-0 gap-1">
@@ -1408,14 +1577,14 @@ export function AnalysisPage({
                             className="h-3 w-full rounded-sm"
                             style={{ backgroundColor: s.color }}
                           />
-                          <span className="telemetry text-[8px] text-place">
+                          <span className="telemetry text-micro text-place">
                             {s.date.slice(5)}
                           </span>
                         </div>
                       ))}
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                  <div className="mt-3 flex flex-wrap gap-2 text-meta text-muted-foreground">
                     {[
                       ["#8c510a", "Bare / low"],
                       ["#66c2a5", "Green-up"],
@@ -1470,12 +1639,12 @@ export function AnalysisPage({
             fraction of the AOI area.
           */}
           {result.water && result.water.series.length > 0 && (
-            <section className="ar-section p-4">
+            <section className="rounded-sm border border-border bg-secondary/50 p-4">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <p className="eyebrow">
                   Surface water · {result.water.index}
                 </p>
-                <p className="telemetry text-[10px] text-muted-foreground">
+                <p className="telemetry text-meta text-muted-foreground">
                   {result.water.n_dates} dates ·{" "}
                   {result.water.date_range[0]} → {result.water.date_range[1]}
                 </p>
@@ -1494,46 +1663,68 @@ export function AnalysisPage({
                   />
                 </div>
               )}
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={220}>
                 <LineChart
-                  data={result.water.series.map((d) => ({
-                    date: d.date,
-                    water: d.water_fraction_pct,
-                  }))}
-                  margin={{ top: 5, right: 12, left: -12, bottom: 0 }}
+                  data={waterChart}
+                  margin={{ top: 6, right: 14, left: 4, bottom: 22 }}
                 >
-                  <CartesianGrid strokeDasharray="2 4" stroke="var(--ar-border)" />
                   <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                    tickFormatter={(d: string) => d.slice(2, 7)}
-                    interval="preserveStartEnd"
-                    minTickGap={24}
-                  />
+                    {...timeAxisProps}
+                    tickFormatter={timeTickFormatter(waterSpan)}
+                    stroke="var(--border)"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickMargin={6}
+                    minTickGap={28}
+                  >
+                    <Label
+                      value="Acquisition date"
+                      position="insideBottom"
+                      offset={-14}
+                      style={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                    />
+                  </XAxis>
                   <YAxis
-                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                    unit="%"
-                  />
+                    stroke="var(--border)"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickFormatter={(v: number) => v.toFixed(0)}
+                    width={48}
+                  >
+                    <Label
+                      value="Water fraction (%)"
+                      angle={-90}
+                      position="insideLeft"
+                      style={{
+                        fontSize: 12,
+                        fill: "var(--muted-foreground)",
+                        textAnchor: "middle",
+                      }}
+                    />
+                  </YAxis>
                   <Tooltip
+                    labelFormatter={timeLabelFormatter}
+                    formatter={(v: number) => `${v.toFixed(1)} %`}
                     contentStyle={{
-                      backgroundColor: "var(--ar-raised)",
-                      border: "1px solid var(--ar-border)",
-                      borderRadius: 4,
+                      backgroundColor: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 5,
                       fontSize: 11,
                     }}
                   />
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="water"
                     name="Water fraction"
-                    stroke="#3182bd"
+                    stroke={PRODUCT_COLOR.water}
                     strokeWidth={1.8}
-                    dot={{ r: 2 }}
+                    dot={{ r: 1.8, strokeWidth: 0, fill: PRODUCT_COLOR.water }}
+                    activeDot={{ r: 3 }}
+                    connectNulls={false}
+                    isAnimationActive={false}
                   />
                 </LineChart>
               </ResponsiveContainer>
               <div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4"
-                   style={{ borderColor: "var(--ar-border)" }}>
+                   style={{ borderColor: "var(--border)" }}>
                 <WaterFigure
                   label="Peak"
                   value={`${result.water.peak_water_fraction_pct.toFixed(1)}%`}
@@ -1560,7 +1751,7 @@ export function AnalysisPage({
 
           {runsPanel}
         </div>
-      </div>
+      </PageBody>
 
       {packOpen && (
         <ResearchPackModal
@@ -1581,7 +1772,7 @@ export function AnalysisPage({
           onClose={() => setSelectedPlot(null)}
         />
       )}
-    </div>
+    </PageShell>
   )
 }
 
@@ -1606,48 +1797,25 @@ function ConfirmDeleteProjectModal({
   }, [busy, onCancel])
 
   return (
-    <div
-      className="app-no-drag absolute inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
-      onClick={() => {
-        if (!busy) onCancel()
-      }}
+    <ModalShell
+      onDismiss={onCancel}
+      dismissible={!busy}
+      labelledBy="delete-project-title"
+      className="w-full max-w-md"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-project-title"
-        className="terra-workspace flex w-full max-w-md flex-col overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
-        style={{
-          borderColor: "var(--ar-border)",
-          background: "var(--ar-panel)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="ar-header flex shrink-0 flex-col gap-1 px-4 py-3">
-          <p className="telemetry text-[10px] text-destructive">DELETE PROJECT</p>
-          <h2
-            id="delete-project-title"
-            className="font-display text-lg font-semibold tracking-wide"
-          >
-            Delete “{project.name}”?
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            This cannot be undone. Classification runs stay on disk but become
-            unassigned; band compositions for this project are removed.
-          </p>
-        </div>
-        <div
-          className="flex shrink-0 justify-end gap-2 px-4 py-3"
-          style={{
-            borderTop: "1px solid var(--ar-border)",
-            background: "var(--ar-panel)",
-          }}
-        >
+      <ModalHeader
+        tone="destructive"
+        eyebrow="DELETE PROJECT"
+        titleId="delete-project-title"
+        title={<>Delete “{project.name}”?</>}
+        subtitle="This cannot be undone. Classification runs stay on disk but become unassigned; band compositions for this project are removed."
+      />
+        <div className="flex shrink-0 justify-end gap-2 border-t border-border px-4 py-3">
           <button
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="ar-ghost flex h-8 items-center rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className={btnGhost}
           >
             Cancel
           </button>
@@ -1655,14 +1823,13 @@ function ConfirmDeleteProjectModal({
             type="button"
             disabled={busy}
             onClick={onConfirm}
-            className="flex h-8 items-center gap-1.5 rounded-sm bg-destructive px-3 text-[11px] font-semibold text-destructive-foreground disabled:opacity-50"
+            className="flex h-8 items-center gap-1.5 rounded-sm bg-destructive px-3 text-body font-semibold text-destructive-foreground disabled:opacity-50"
           >
             <Trash2 className="h-3 w-3" />
             {busy ? "Deleting…" : "Delete project"}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 
@@ -1728,49 +1895,25 @@ function CompositionOverlayModal({
   ].filter(Boolean)
 
   return (
-    <div
-      className="app-no-drag absolute inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
-      onClick={onClose}
+    <ModalShell
+      onDismiss={onClose}
+      label={overlay.title || "Composition"}
+      className="h-[min(40rem,90vh)] w-full max-w-3xl"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={overlay.title || "Composition"}
-        className="terra-workspace flex h-[min(40rem,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
-        style={{
-          borderColor: "var(--ar-border)",
-          background: "var(--ar-panel)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="ar-header flex shrink-0 items-start justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="telemetry text-[10px] text-primary">COMPOSITION</p>
-            <p className="eyebrow mt-0.5 !text-foreground">
-              {overlay.title || "Band composition"}
-              {projectName ? ` · ${projectName}` : ""}
-            </p>
-            {metaBits.length > 0 ? (
-              <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                {metaBits.join(" · ")}
-              </p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-sm p-1 text-muted-foreground hover:bg-[var(--ar-raised)] hover:text-foreground"
-            title="Close"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+      <ModalHeader
+        eyebrow="COMPOSITION"
+        title={`${overlay.title || "Band composition"}${
+          projectName ? ` · ${projectName}` : ""
+        }`}
+        subtitle={metaBits.length > 0 ? metaBits.join(" · ") : undefined}
+        onClose={onClose}
+      />
 
         <div
           className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4"
-          style={{ background: "var(--ar-bg)" }}
+          style={{ background: "var(--background)" }}
         >
-          <div className="ar-raised flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2">
+          <div className="rounded-sm border border-border bg-secondary flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2">
             {overlay.overlay_uri ? (
               <img
                 src={overlay.overlay_uri}
@@ -1778,13 +1921,13 @@ function CompositionOverlayModal({
                 className="max-h-full max-w-full object-contain"
               />
             ) : (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-body text-muted-foreground">
                 Preview unavailable
               </p>
             )}
           </div>
           {meta.description?.trim() ? (
-            <p className="shrink-0 text-[11px] text-muted-foreground">
+            <p className="shrink-0 text-body text-muted-foreground">
               {meta.description.trim()}
             </p>
           ) : null}
@@ -1793,14 +1936,14 @@ function CompositionOverlayModal({
         <div
           className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-3"
           style={{
-            borderTop: "1px solid var(--ar-border)",
-            background: "var(--ar-panel)",
+            borderTop: "1px solid var(--border)",
+            background: "var(--panel-solid)",
           }}
         >
           <button
             type="button"
             onClick={onViewOnMap}
-            className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
+            className={btnGhost}
           >
             <MapIcon className="h-3 w-3" />
             View on map
@@ -1810,7 +1953,7 @@ function CompositionOverlayModal({
               <button
                 type="button"
                 onClick={() => void exportPng()}
-                className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
+                className={btnGhost}
               >
                 <Download className="h-3 w-3" />
                 Export PNG
@@ -1820,7 +1963,7 @@ function CompositionOverlayModal({
               <button
                 type="button"
                 onClick={() => void exportTif()}
-                className="flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-[11px] font-semibold text-primary-foreground"
+                className={btnPrimary}
               >
                 <Download className="h-3 w-3" />
                 Export GeoTIFF
@@ -1828,13 +1971,12 @@ function CompositionOverlayModal({
             ) : null}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 
 function SavedRunsPanel({
-  title = "Saved analyses",
+  title,
   caption,
   runs,
   loading,
@@ -1867,15 +2009,17 @@ function SavedRunsPanel({
   const canCompare = selectedIds.length === 2 && !comparing
 
   return (
-    <section className="ar-section p-4">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <History className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <p className="eyebrow !text-foreground">{title}</p>
-          </div>
+          {title && (
+            <div className="flex items-center gap-2">
+              <History className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <p className="eyebrow !text-foreground">{title}</p>
+            </div>
+          )}
           {caption ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">{caption}</p>
+            <p className="mt-1 text-body text-muted-foreground">{caption}</p>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
@@ -1883,7 +2027,7 @@ function SavedRunsPanel({
             <button
               type="button"
               onClick={onClearSelection}
-              className="text-[10px] text-muted-foreground hover:text-foreground"
+              className="text-meta text-muted-foreground hover:text-foreground"
             >
               Clear selection
             </button>
@@ -1891,7 +2035,7 @@ function SavedRunsPanel({
           <button
             type="button"
             onClick={onRefresh}
-            className="text-[10px] text-muted-foreground hover:text-foreground"
+            className="text-meta text-muted-foreground hover:text-foreground"
           >
             Refresh
           </button>
@@ -1899,8 +2043,8 @@ function SavedRunsPanel({
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="ar-raised mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-          <p className="text-[11px] text-muted-foreground">
+        <div className="rounded-sm border border-border bg-secondary mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+          <p className="text-body text-muted-foreground">
             {selectedIds.length === 1
               ? "Select one more analysis to compare"
               : "Two analyses selected"}
@@ -1909,7 +2053,7 @@ function SavedRunsPanel({
             type="button"
             disabled={!canCompare}
             onClick={onCompare}
-            className="flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-[11px] font-semibold text-primary-foreground disabled:opacity-50"
+            className={btnPrimary}
           >
             <Columns2 className="h-3 w-3" />
             {comparing ? "Loading…" : "Compare"}
@@ -1919,8 +2063,8 @@ function SavedRunsPanel({
 
       {runs.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No analyses in this project yet. Classify with this project active on the
-          map — or assign unassigned runs from the hub.
+          No runs in this project yet. Run a product with this project active
+          — or assign an unassigned run from the hub.
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
@@ -1940,10 +2084,10 @@ function SavedRunsPanel({
                 key={r.id}
                 className={cn(
                   "flex items-center justify-between gap-3 rounded-sm border px-3 py-2.5 text-xs",
-                  selected ? "ar-select" : "ar-raised"
+                  selected ? "border-primary bg-secondary" : "border-border bg-secondary/50"
                 )}
               >
-                <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                <label className="flex min-w-0 flex-1 items-start gap-2">
                   <input
                     type="checkbox"
                     checked={selected}
@@ -1954,10 +2098,17 @@ function SavedRunsPanel({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       {slot && (
-                        <span className="telemetry shrink-0 rounded-sm bg-primary/20 px-1 text-[9px] text-primary">
+                        <span className="telemetry shrink-0 rounded-sm bg-primary/20 px-1 text-micro text-primary">
                           {slot}
                         </span>
                       )}
+                      {/* Which product this is. The list is filtered by project
+                          and by nothing else, so four kinds share it, and the
+                          only way to tell them apart was to read the summary
+                          sentence of each of forty-eight rows. */}
+                      <span className="telemetry shrink-0 rounded-sm border border-border px-1 text-micro uppercase text-muted-foreground">
+                        {runKindLabel(r.kind)}
+                      </span>
                       <span className="truncate font-medium text-foreground">
                         {displayRunLabel(r.label)}
                       </span>
@@ -1976,14 +2127,14 @@ function SavedRunsPanel({
                         saves a LoadAnalysis round trip just to see the result. */}
                     {r.kind === "solar" ? (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <span className="size-2.5 shrink-0 rounded-[2px] bg-[#f59e0b]" />
+                        <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.solar }} />
                         <span className="truncate text-foreground">
                           {solarSummaryLine(r.summary)}
                         </span>
                       </div>
                     ) : r.kind === "water" ? (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <span className="size-2.5 shrink-0 rounded-[2px] bg-[#3182bd]" />
+                        <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.water }} />
                         <span className="truncate text-foreground">
                           {waterSummaryLine(r.summary)}
                         </span>
@@ -1993,7 +2144,7 @@ function SavedRunsPanel({
                         <div className="flex items-center gap-1.5">
                           {/* Not the water blue: two products keyed on
                               different reanalyses should not read as one. */}
-                          <span className="size-2.5 shrink-0 rounded-[2px] bg-[#2a9d8f]" />
+                          <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.wind }} />
                           <span className="truncate text-foreground">
                             {windSummaryLine(r.summary)}
                           </span>
@@ -2002,7 +2153,7 @@ function SavedRunsPanel({
                             gross, unbenchmarked capacity factor sits in the
                             same list as a photovoltaic one that is benchmarked
                             against the Global Solar Atlas. */}
-                        <span className="truncate text-[10px] text-muted-foreground">
+                        <span className="truncate text-meta text-muted-foreground">
                           {windQualifierLine(r.summary)}
                         </span>
                       </div>
@@ -2062,12 +2213,12 @@ function SavedRunsPanel({
                         </>
                       )}
                     </div>
-                    <div className="telemetry mt-1 text-[10px] text-muted-foreground/80">
+                    <div className="telemetry mt-1 text-meta text-muted-foreground/80">
                       {new Date(r.created_at).toLocaleString()}
                     </div>
                     {onAssignProject && projects && projects.length > 0 && (
                       <select
-                        className="ar-inset mt-1.5 max-w-full px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        className="rounded-sm border border-border bg-background mt-1.5 max-w-full px-1.5 py-0.5 text-meta text-muted-foreground"
                         defaultValue=""
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => {
@@ -2090,7 +2241,7 @@ function SavedRunsPanel({
                     type="button"
                     disabled={loading}
                     onClick={() => void onOpen(r)}
-                    className="ar-ghost flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+                    className={btnGhost}
                   >
                     <FolderOpen className="h-3 w-3" />
                     Open
@@ -2100,7 +2251,7 @@ function SavedRunsPanel({
                       type="button"
                       disabled={loading}
                       onClick={() => onDelete(r)}
-                      className="ar-ghost flex h-8 items-center justify-center rounded-sm border px-2 text-muted-foreground hover:border-destructive/50 hover:text-destructive disabled:opacity-60"
+                      className={cn(btnGhost, "px-2 hover:border-destructive-quiet/50 hover:text-destructive-quiet")}
                       title="Delete analysis"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -2113,5 +2264,82 @@ function SavedRunsPanel({
         </ul>
       )}
     </section>
+  )
+}
+
+/**
+ * Start a run, of whichever product.
+ *
+ * The hub offered "New classification" and nothing else while the application
+ * produces four run kinds and a composition, so four of the five had no way in
+ * from here at all -- a user had to know which screen held them.
+ *
+ * A menu rather than five buttons: they are alternatives, only one is taken,
+ * and five primary buttons in a header would say they are five separate
+ * decisions.
+ */
+function NewRunMenu({
+  onStart,
+  variant = "primary",
+}: {
+  onStart: (product: MapToolId | "energy") => void
+  /** Ghost where it sits among other secondary actions on an open analysis. */
+  variant?: "primary" | "ghost"
+}) {
+  const [open, setOpen] = useState(false)
+
+  const items: { id: MapToolId | "energy"; label: string; note: string }[] = [
+    { id: "classify", label: "Classification", note: "Sentinel-2, per-pixel cover" },
+    { id: "compose", label: "Composition", note: "band composite or index" },
+    { id: "water", label: "Surface water", note: "flooded fraction per date" },
+    { id: "energy", label: "Solar or wind", note: "NASA POWER, no scene needed" },
+  ]
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={variant === "ghost" ? btnGhost : btnPrimaryCommit}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        New run
+        <ChevronDown className="h-3.5 w-3.5" />
+      </button>
+
+      {open && (
+        <>
+          {/* Click-away, behind the menu and above everything else. */}
+          <div
+            className="fixed inset-0 z-[4000]"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="menu"
+            className="panel absolute right-0 z-[4001] mt-1 flex w-64 flex-col overflow-hidden rounded-md p-1"
+          >
+            {items.map((it) => (
+              <button
+                key={it.id}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onStart(it.id)
+                }}
+                className="flex flex-col items-start rounded-sm px-2.5 py-1.5 text-left hover:bg-secondary"
+              >
+                <span className="text-body font-medium text-foreground">
+                  {it.label}
+                </span>
+                <span className="text-micro text-muted-foreground">{it.note}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }

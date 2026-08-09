@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Columns2, Download, Minus, Plus, RotateCcw, X } from "lucide-react"
+import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import {
   ExportClassification,
   ExportOverlayFile,
 } from "../../wailsjs/go/main/App"
 import { cn } from "@/lib/utils"
+import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 
 export type AnalysisPlotAsset = {
   id: string
@@ -248,7 +250,7 @@ function PlotViewport({
       </div>
 
       {scale > 1.01 && (
-        <div className="pointer-events-none absolute left-2 top-2 z-30 rounded-sm bg-black/55 px-1.5 py-0.5 text-[10px] tracking-wide text-white/85">
+        <div className="pointer-events-none absolute left-2 top-2 z-30 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/85">
           {Math.round(scale * 100)}%
         </div>
       )}
@@ -312,10 +314,10 @@ function PlotSwipeView({
         style={{ left: `${ratio * 100}%`, transform: "translateX(-50%)" }}
       />
       {/* Fixed corner labels — keep the divider free to travel edge-to-edge */}
-      <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-[10px] tracking-wide text-white/90">
+      <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/90">
         {shortLabel(left.title)}
       </div>
-      <div className="pointer-events-none absolute right-2 top-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-[10px] tracking-wide text-white/90">
+      <div className="pointer-events-none absolute right-2 top-2 z-10 rounded-sm bg-black/55 px-1.5 py-0.5 text-meta tracking-wide text-white/90">
         {shortLabel(right.title)}
       </div>
       <button
@@ -433,44 +435,23 @@ export function AnalysisPlotModal({
   }
 
   return (
-    <div
-      className="app-no-drag absolute inset-0 z-[2000] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
-      onClick={onClose}
+    <ModalShell
+      onDismiss={onClose}
+      label={plot.title}
+      className="h-[min(48rem,92vh)] w-full max-w-5xl"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={plot.title}
-        className="terra-workspace flex h-[min(48rem,92vh)] w-full max-w-5xl flex-col overflow-hidden rounded-sm border shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
-        style={{
-          borderColor: "var(--ar-border)",
-          background: "var(--ar-panel)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="ar-header flex shrink-0 items-start justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="eyebrow !text-foreground">{plot.title}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Preview · zoom / pan · export
-              {canSwipe ? " · swipe" : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-sm p-1 text-muted-foreground hover:bg-[var(--ar-raised)] hover:text-foreground"
-            title="Close"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+      <ModalHeader
+        eyebrow="PLOT"
+        title={plot.title}
+        subtitle={`Preview · zoom / pan · export${canSwipe ? " · swipe" : ""}`}
+        onClose={onClose}
+      />
 
         <div
           className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4"
-          style={{ background: "var(--ar-bg)" }}
+          style={{ background: "var(--background)" }}
         >
-          <div className="ar-raised min-h-0 flex-1 overflow-hidden">
+          <div className="rounded-sm border border-border bg-secondary min-h-0 flex-1 overflow-hidden">
             <PlotViewport resetKey={`${plot.id}:${swipeOn ? compareId ?? "" : "solo"}`}>
               {swipeOn && swipeLeft && swipeRight ? (
                 <PlotSwipeView
@@ -500,7 +481,7 @@ export function AnalysisPlotModal({
               {legend.map((c) => (
                 <span
                   key={c.id}
-                  className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
+                  className="flex items-center gap-1.5 text-meta text-muted-foreground"
                 >
                   <span
                     className="size-2.5 rounded-[2px]"
@@ -516,8 +497,8 @@ export function AnalysisPlotModal({
         <div
           className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3"
           style={{
-            borderTop: "1px solid var(--ar-border)",
-            background: "var(--ar-panel)",
+            borderTop: "1px solid var(--border)",
+            background: "var(--panel-solid)",
           }}
         >
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -527,10 +508,10 @@ export function AnalysisPlotModal({
                   type="button"
                   onClick={() => setSwipeOn((v) => !v)}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px]",
+                    "inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-body",
                     swipeOn
                       ? "border-primary/50 bg-primary/15 text-foreground"
-                      : "ar-ghost text-muted-foreground hover:text-foreground"
+                      : btnGhost
                   )}
                   title="Swipe compare"
                 >
@@ -538,12 +519,12 @@ export function AnalysisPlotModal({
                   Swipe
                 </button>
                 {swipeOn && (
-                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <label className="flex items-center gap-1.5 text-body text-muted-foreground">
                     vs
                     <select
                       value={comparePlot?.id ?? ""}
                       onChange={(e) => setCompareId(e.target.value)}
-                      className="ar-inset max-w-[12rem] px-1.5 py-0.5 text-[11px] text-foreground"
+                      className="rounded-sm border border-border bg-background max-w-[12rem] px-1.5 py-0.5 text-body text-foreground"
                     >
                       {compareCandidates.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -563,7 +544,7 @@ export function AnalysisPlotModal({
             <button
               type="button"
               onClick={() => void exportPng()}
-              className="ar-ghost inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-[11px] text-muted-foreground hover:text-foreground"
+              className={btnGhost}
             >
               <Download className="size-3.5" />
               Export PNG
@@ -572,7 +553,7 @@ export function AnalysisPlotModal({
               <button
                 type="button"
                 onClick={() => void exportTif()}
-                className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-primary px-3 text-[11px] font-semibold text-primary-foreground"
+                className={btnPrimary}
               >
                 <Download className="size-3.5" />
                 Export GeoTIFF
@@ -580,7 +561,6 @@ export function AnalysisPlotModal({
             ) : null}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }

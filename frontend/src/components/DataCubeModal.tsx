@@ -1,5 +1,6 @@
 import { Loader2, X, ImageOff, Boxes } from "lucide-react"
 import type { DataCubeResult } from "@/lib/types"
+import { btnIcon } from "@/components/ui/buttons"
 
 interface DataCubeModalProps {
   open: boolean
@@ -58,7 +59,7 @@ export function DataCubeModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-sm p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className={btnIcon}
             title="Close"
           >
             <X className="size-4" />
@@ -74,7 +75,7 @@ export function DataCubeModal({
           )}
 
           {!loading && error && (
-            <div className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-3 text-xs text-destructive">
+            <div className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-3 text-xs text-destructive-quiet">
               {error}
             </div>
           )}

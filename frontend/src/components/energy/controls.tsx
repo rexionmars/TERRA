@@ -34,7 +34,7 @@ export function NumberField({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+        className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
       />
     </label>
   )
@@ -60,7 +60,7 @@ export function TextField({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="ar-inset px-2 py-1 text-xs text-foreground outline-none"
+        className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
       />
     </label>
   )
@@ -104,7 +104,7 @@ export function RunProgress({
   if (!active) return null
   return (
     <div className="flex flex-col gap-1">
-      <div className="ar-track h-1 overflow-hidden rounded-sm">
+      <div className="bg-background h-1 overflow-hidden rounded-sm">
         <div
           className="h-full rounded-sm bg-primary transition-[width]"
           style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
@@ -143,9 +143,15 @@ export function RunButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
+      // The one filled button that cannot take a primitive verbatim: its label
+      // states what the product returns and wraps to two lines, so min-h-9 with
+      // its own leading is load-bearing and any fixed height truncates it. The
+      // rest of the primitive is here in full -- the fill, the near-black label,
+      // one disabled convention and the focus ring.
       className={cn(
         "flex min-h-9 w-full items-center justify-center gap-1.5 rounded-sm bg-primary px-3 py-2",
-        "text-center text-xs font-semibold leading-snug text-primary-foreground disabled:opacity-50"
+        "text-center text-emphasis font-semibold leading-snug text-primary-foreground",
+        "disabled:opacity-60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
       {running ? (
@@ -175,7 +181,7 @@ export function OutputPlaceholder({
   children: React.ReactNode
 }) {
   return (
-    <div className="ar-section flex h-full min-h-[16rem] items-center justify-center p-8">
+    <div className="rounded-sm border border-border bg-secondary/50 flex h-full min-h-[16rem] items-center justify-center p-8">
       <div className="flex max-w-md flex-col items-center gap-2 text-center">
         <span className="text-muted-foreground">{icon}</span>
         <p className="eyebrow !text-foreground">{title}</p>
