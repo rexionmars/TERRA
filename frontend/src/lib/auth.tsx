@@ -23,7 +23,14 @@ import {
 } from "../../wailsjs/go/main/App"
 import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
 
-export type AppScreen = "map" | "auth" | "profile" | "analysis" | "energy"
+export type AppScreen =
+  | "map"
+  | "auth"
+  | "profile"
+  | "analysis"
+  | "energy"
+  /** Whether anything can be computed at all; see pages/EnvironmentScreen. */
+  | "environment"
 
 interface AuthContextValue {
   user: User | null
@@ -37,6 +44,7 @@ interface AuthContextValue {
   goProfile: () => void
   goAnalysis: () => void
   goEnergy: () => void
+  goEnvironment: () => void
   navigate: (screen: AppScreen) => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
@@ -199,6 +207,7 @@ export function AuthProvider({
       goProfile,
       goAnalysis: () => setScreen("analysis"),
       goEnergy: () => setScreen("energy"),
+      goEnvironment: () => setScreen("environment"),
       navigate: setScreen,
       login,
       register,

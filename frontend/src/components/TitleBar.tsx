@@ -43,6 +43,7 @@ const SCREEN_EYEBROW: Record<AppScreen, string> = {
   analysis: "project hub",
   auth: "sign in",
   profile: "settings",
+  environment: "python environment",
 }
 
 function fmtCoord(v: number, pos: string, neg: string): string {
