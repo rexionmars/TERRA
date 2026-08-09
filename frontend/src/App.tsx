@@ -843,7 +843,7 @@ function AppBody(props: {
     void activateProject(id, { userInitiated: false })
   }, [prefs?.extras_json, projects, activateProject])
 
-  const handleCreateProjectFromMap = useCallback(async () => {
+  const handleCreateProjectFromAoi = useCallback(async () => {
     const hint =
       props.analysisLabel ||
       (props.activeExample
@@ -2002,13 +2002,23 @@ function AppBody(props: {
         view={props.view}
         result={props.result}
         runLabel={currentRunLabel}
+        /*
+          Wherever a run is filed under the active project. The energy handlers
+          send project_id exactly as the classification ones do, so a solar or
+          wind run lands in a project the energy screen never named and offered
+          no way to change -- the user could only discover it afterwards, in the
+          hub.
+
+          Not on the project hub itself, which selects a project as its whole
+          purpose, and not on settings or sign-in, which have no project.
+        */
         projectSwitcher={
-          screen === "map" ? (
+          screen === "map" || screen === "energy" ? (
             <ProjectSwitcher
               projects={projects}
               activeProjectId={activeProjectId}
               onSelect={(id) => void activateProject(id)}
-              onCreate={() => void handleCreateProjectFromMap()}
+              onCreate={() => void handleCreateProjectFromAoi()}
               onOpenHub={() => goAnalysis()}
             />
           ) : undefined
