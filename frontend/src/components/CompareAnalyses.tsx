@@ -18,7 +18,7 @@ import type {
 } from "@/lib/types"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import {
-  VI_GAP_DAYS,
+  gapLimitMs,
   dateToMs,
   insertTimeGaps,
   timeAxisProps,
@@ -278,10 +278,14 @@ function NdviChart({
   /** Shared for the same reason, so a difference in height is a difference. */
   yDomain: [number, number]
 }) {
-  const rows = insertTimeGaps(
-    (data ?? []).map((p) => ({ t: dateToMs(p.date), ndvi_mean: p.ndvi_mean })),
-    VI_GAP_DAYS
-  )
+  const points = (data ?? []).map((p) => ({
+    t: dateToMs(p.date),
+    ndvi_mean: p.ndvi_mean,
+  }))
+  // Per panel, from that run's own cadence: the two runs being compared may
+  // have been sampled differently, and one threshold for both would break the
+  // sparser series or join across a real absence in the denser one.
+  const rows = insertTimeGaps(points, gapLimitMs(points.map((r) => r.t)))
   return (
     <div>
       <p className="mb-1 text-meta text-muted-foreground">{slot}</p>

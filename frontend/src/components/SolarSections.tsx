@@ -106,7 +106,15 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
               fontSize: 11,
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" />
+          {/* Above the plot: a bottom legend shares the band the axis title
+              occupies, and "Month" was drawn through the series keys. */}
+          <Legend
+            verticalAlign="top"
+            align="right"
+            height={20}
+            wrapperStyle={{ fontSize: 11, paddingBottom: 2 }}
+            iconType="plainline"
+          />
           {/* The verified triple, and a dash each: GHI, DNI and DHI are not
               independent -- GHI is the sum of DHI and the projected DNI -- so
               they are read together and have to stay separable in greyscale. */}
