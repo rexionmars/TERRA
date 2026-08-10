@@ -24,6 +24,8 @@ import {
   BuildManagedEnvironment,
   CancelEnvironmentBuild,
   InspectEnvironment,
+  ListOptionalPackages,
+  ManageOptionalPackage,
   UseInterpreter,
 } from "../../wailsjs/go/main/App"
 import type { backend, main } from "../../wailsjs/go/models"
@@ -66,6 +68,7 @@ export function EnvironmentPanel() {
   const [problem, setProblem] = useState<string | null>(null)
   const [log, setLog] = useState<SetupEvent[]>([])
   const [building, setBuilding] = useState(false)
+  const [optional, setOptional] = useState<backend.OptionalPackage[]>([])
   const logRef = useRef<HTMLDivElement | null>(null)
 
   const refresh = useCallback(async () => {
@@ -83,6 +86,13 @@ export function EnvironmentPanel() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // Static for the life of the build, so fetched once rather than per refresh.
+  useEffect(() => {
+    ListOptionalPackages()
+      .then((list) => setOptional(list ?? []))
+      .catch(() => {})
+  }, [])
 
   // pip's own lines, as they arrive. An install takes minutes, and its output
   // is the only honest answer to "is this stuck".
@@ -115,6 +125,25 @@ export function EnvironmentPanel() {
     }
   }
 
+  /*
+    Install or remove one optional package.
+
+    Reports through the same "env:setup" events a build uses -- pip's output is
+    the honest answer to "is this stuck" for a multi-gigabyte download too, and
+    the listener above already refreshes the panel when it ends.
+  */
+  const manage = async (name: string, install: boolean) => {
+    setLog([])
+    setProblem(null)
+    setBuilding(true)
+    try {
+      await ManageOptionalPackage(name, install)
+    } catch (e) {
+      setBuilding(false)
+      setProblem(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   const choose = async (path: string) => {
     setBusyPath(path)
     setProblem(null)
@@ -132,7 +161,9 @@ export function EnvironmentPanel() {
   const missing = (active?.packages ?? []).filter(
     (p) => !p.optional && (!p.present || p.version_problem)
   )
-  const degraded = (active?.packages ?? []).filter((p) => p.optional && !p.present)
+  // Optional packages are no longer listed as "degraded" here: the section
+  // below names them, says what they cost, and offers to install them, which
+  // is the whole of what a reader needed from that line.
 
   return (
     <div className="flex flex-col gap-3">
@@ -227,16 +258,62 @@ export function EnvironmentPanel() {
                 ))}
               </ul>
             )}
-            {degraded.length > 0 && (
-              <ul className="mt-3 flex flex-col gap-1.5">
-                {degraded.map((p) => (
-                  <PackageRow key={p.module} pkg={p} />
-                ))}
-              </ul>
-            )}
           </>
         )}
       </section>
+
+      {/*
+        The optional models, with a way to get them.
+
+        torch is outside requirements.txt on purpose -- it outweighs everything
+        else the application ships, so every install paying for it to serve the
+        people who want the neural models would be the wrong default. But the
+        panel only ever reported its absence: "without it: Temporal Transformer
+        and Prithvi" told the user what they were missing and left them to work
+        out where pip lived. Removal is offered for the same reason it is
+        optional: it is gigabytes, and someone who tried the neural models
+        should be able to reclaim them without rebuilding the environment.
+      */}
+      {optional.length > 0 && active && !active.unreachable && (
+        <section className="rounded-sm border border-border bg-secondary/50 p-4">
+          <p className="eyebrow mb-1">Optional models</p>
+          <p className="mb-3 text-body text-muted-foreground">
+            Large downloads TERRA does not install by default. Everything else
+            works without them.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {optional.map((pkg) => {
+              const installed = (active.packages ?? []).some(
+                (p) => p.distribution === pkg.name && p.present
+              )
+              return (
+                <li
+                  key={pkg.name}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border bg-background px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="text-body text-foreground">
+                      <span className="telemetry">{pkg.name}</span>
+                      {installed ? " · installed" : ` · ${pkg.size}`}
+                    </p>
+                    <p className="text-micro text-muted-foreground">
+                      enables {pkg.enables}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={building || busyPath !== null}
+                    onClick={() => void manage(pkg.name, !installed)}
+                    className={installed ? btnGhost : btnPrimaryCommit}
+                  >
+                    {installed ? "Remove" : "Install"}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* The recommended repair, and the interpreters it can be built on. */}
       <section className="rounded-sm border border-border bg-secondary/50 p-4">

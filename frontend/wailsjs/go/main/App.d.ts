@@ -72,6 +72,8 @@ export function ListDataCube(arg1:backend.DataCubeRequest):Promise<backend.DataC
 
 export function ListEmbeddedAreas():Promise<Array<backend.Area>>;
 
+export function ListOptionalPackages():Promise<Array<backend.OptionalPackage>>;
+
 export function ListProjectOverlays(arg1:string):Promise<Array<store.ProjectOverlay>>;
 
 export function ListProjectRuns(arg1:string,arg2:number):Promise<Array<store.InferenceRun>>;
@@ -87,6 +89,8 @@ export function LoadAnalysis(arg1:string):Promise<backend.PredictResult>;
 export function Login(arg1:string,arg2:string):Promise<store.User>;
 
 export function Logout():Promise<void>;
+
+export function ManageOptionalPackage(arg1:string,arg2:boolean):Promise<void>;
 
 export function OpenExternal(arg1:string):Promise<void>;
 
