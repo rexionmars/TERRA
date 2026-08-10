@@ -7,7 +7,7 @@ import {
   SPLASH_STILLS,
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
-import { BRAND_TAGLINE } from "@/lib/brand"
+import { BRAND_TAGLINE, RELEASE_NAME } from "@/lib/brand"
 
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
@@ -96,8 +96,7 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
   }, [])
 
   const statusLine = logs[logs.length - 1] ?? "booting…"
-  const activeStill = SPLASH_STILLS[slide] ?? SPLASH_STILLS[0]
-  const activeImage = activeStill?.path ?? SPLASH_IMAGES[0]
+  const activeImage = SPLASH_STILLS[slide]?.path ?? SPLASH_IMAGES[0]
 
   return (
     <div
@@ -137,19 +136,17 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
             {BRAND_TAGLINE}
           </p>
           {/*
-            The still on screen, named.
+            The release, named. Fixed for the version.
 
-            Its own name rather than the release's: they are the same image on
-            the first launch after an update and different on every launch
-            after, and printing "Ember" over a photograph of a river would be
-            the interface stating something the user can see is false.
+            This briefly showed the name of the still on screen, which made it
+            change every launch as the rotation advanced -- a name that moves
+            is a caption, not a name. The photograph rotates; the release does
+            not.
           */}
-          {activeStill && (
-            <p className="telemetry text-meta text-foreground/70 drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
-              {activeStill.name}
-              {version && ` · ${version}`}
-            </p>
-          )}
+          <p className="telemetry text-meta text-foreground/70 drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
+            {RELEASE_NAME}
+            {version && ` · ${version}`}
+          </p>
           <div className="mt-1 h-0.5 w-7 rounded-[1px] bg-accent/85" aria-hidden />
         </div>
         <span

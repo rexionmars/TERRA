@@ -63,10 +63,14 @@ git push origin v0.3.0
 
 ## Code names and the splash still
 
-Each release is named for a splash photograph, and that photograph is what the
-first launch after the update shows. It then joins the rotation rather than
-replacing it — featuring one permanently would discard the others, and never
-featuring it would make the name decorative.
+Each release has a code name, fixed for the version the way Sierra and Sonoma
+are. It is shown on the splash under the wordmark, beside the version number,
+and does not change from launch to launch.
+
+The stills carry names from the same set, and the release is named for one of
+them: that photograph is what the first launch after an update shows, before
+joining the rotation. The correspondence is deliberate but not a dependency —
+the release keeps its name whichever photograph the rotation lands on.
 
 Names come from one set: **what is observable from orbit**. `Meander`,
 `Terraces`, `Vortex`, `Windfarm`, `Ember`. The coherence is the point — a set
@@ -94,9 +98,11 @@ consistent. Check the result by eye before committing — skies and open water
 are where WebP bands first, and every one of these is mostly sky.
 
 Then add an entry to `SPLASH_STILLS` in
-[`splashBackground.ts`](../frontend/src/lib/splashBackground.ts) and point
-`FEATURED_STILL` at it. Nothing else needs editing: `index.html` receives the
-list at build time, and a path with no file on disk fails the build.
+[`splashBackground.ts`](../frontend/src/lib/splashBackground.ts), point
+`FEATURED_STILL` at it, and set `RELEASE_NAME` in
+[`brand.ts`](../frontend/src/lib/brand.ts) to match. Nothing else needs
+editing: `index.html` receives both at build time, and a path with no file on
+disk fails the build.
 
 ## Current line
 

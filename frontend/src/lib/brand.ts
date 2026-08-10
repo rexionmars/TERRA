@@ -25,3 +25,21 @@
  * value -- the same treatment the splash image list needed, for the same reason.
  */
 export const BRAND_TAGLINE = "earth observation · energy"
+
+/**
+ * The name of this release.
+ *
+ * Fixed for the version, the way Sierra and Sonoma are: it identifies the
+ * release, not whatever is on screen at the moment. It briefly followed the
+ * splash still, which made it change from launch to launch as the rotation
+ * advanced -- a name that moves is not a name, it is a caption.
+ *
+ * The stills carry names from the same set, and the one this release is named
+ * for is featured on the first launch after an update (FEATURED_STILL in
+ * splashBackground.ts). That is a deliberate correspondence, not a dependency:
+ * the release keeps this name whichever photograph the rotation happens to
+ * land on.
+ *
+ * Bump it with AppVersion in version.go -- see docs/RELEASING.md.
+ */
+export const RELEASE_NAME = "Ember"

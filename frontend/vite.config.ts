@@ -47,17 +47,6 @@ function htmlConstants(): Plugin {
         throw new Error('SPLASH_STILLS declares no paths')
       }
 
-      // The code names, so the pre-bundle splash can label its own still
-      // rather than having the name appear only once React mounts.
-      const names = [...block[1].matchAll(/name:\s*"([^"]+)"/g)].map(
-        (m) => m[1]
-      )
-      if (names.length !== images.length) {
-        throw new Error(
-          `SPLASH_STILLS has ${names.length} names for ${images.length} paths`
-        )
-      }
-
       // The subtitle, from the module that owns it. Hard-coded here it was one
       // more copy nobody would remember to change -- and the line it replaced
       // had already outlived the product it described.
@@ -69,6 +58,16 @@ function htmlConstants(): Plugin {
         throw new Error('BRAND_TAGLINE not found in brand.ts')
       }
       html = html.replace('__BRAND_TAGLINE__', brand[1])
+
+      // The release name, so the pre-bundle splash carries it too rather than
+      // having it appear a beat later when React mounts.
+      const release = fs
+        .readFileSync(brandSource, 'utf8')
+        .match(/export const RELEASE_NAME = "([^"]+)"/)
+      if (!release) {
+        throw new Error('RELEASE_NAME not found in brand.ts')
+      }
+      html = html.replace('__RELEASE_NAME__', release[1])
       // Every path must exist, or the splash paints nothing and the only
       // symptom is a dark window at launch.
       for (const img of images) {
@@ -77,7 +76,6 @@ function htmlConstants(): Plugin {
           throw new Error(`splash image missing: ${img}`)
         }
       }
-      html = html.replace('__SPLASH_NAMES__', JSON.stringify(names))
       return html.replace('__SPLASH_IMAGES__', JSON.stringify(images))
     },
   }
