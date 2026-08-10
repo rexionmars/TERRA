@@ -200,6 +200,14 @@ export interface LULCRequest {
 }
 
 export interface PredictResult {
+  /**
+   * The saved run this result became, when one was saved.
+   *
+   * Set by the backend after persisting, so it is absent from the stored copy
+   * of a run's own result. Compositions made while this result is on screen
+   * attach to it.
+   */
+  run_id?: string
   extent: Bounds
   overlay_uri: string
   confidence_uri: string
@@ -313,6 +321,14 @@ export interface Project {
 export interface ProjectOverlay {
   id: string
   project_id: string
+  /**
+   * The run on screen when this composition was made.
+   *
+   * Empty for one made with no run open, and for every row written before the
+   * column existed. Empty means "belongs to the project", so those are scoped
+   * by their recorded extent instead.
+   */
+  run_id?: string
   kind: string
   title: string
   meta_json?: string
@@ -324,6 +340,8 @@ export interface ProjectOverlay {
 }
 
 export interface SaveProjectOverlayRequest {
+  /** The run on screen when the composition was made, when there was one. */
+  run_id?: string
   project_id: string
   kind: string
   title: string
@@ -403,6 +421,8 @@ export interface CompositionOverlay {
   sceneDate?: string
   /** Local GeoTIFF path for export (when available). */
   raster_tif?: string
+  /** The run this was made under; empty for a project-level composition. */
+  runId?: string
 }
 
 export type WaterIndex = "NDWI" | "MNDWI" | "AWEI"

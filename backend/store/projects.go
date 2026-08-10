@@ -307,9 +307,9 @@ func (s *Store) AddProjectOverlay(userID string, o ProjectOverlay) (*ProjectOver
 	}
 	_, err := s.db.Exec(
 		`INSERT INTO project_overlays
-		 (id, project_id, kind, title, meta_json, png_relpath, tif_relpath, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		o.ID, o.ProjectID, o.Kind, o.Title, o.MetaJSON,
+		 (id, project_id, run_id, kind, title, meta_json, png_relpath, tif_relpath, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		o.ID, o.ProjectID, nullIfEmpty(o.RunID), o.Kind, o.Title, o.MetaJSON,
 		nullIfEmpty(o.PNGRelPath), nullIfEmpty(o.TIFRelPath), o.CreatedAt,
 	)
 	if err != nil {
@@ -328,7 +328,7 @@ func (s *Store) ListProjectOverlays(userID, projectID string) ([]ProjectOverlay,
 		return nil, err
 	}
 	rows, err := s.db.Query(
-		`SELECT id, project_id, kind, title, meta_json,
+		`SELECT id, project_id, COALESCE(run_id,''), kind, title, meta_json,
 		        COALESCE(png_relpath,''), COALESCE(tif_relpath,''), created_at
 		 FROM project_overlays WHERE project_id = ?
 		 ORDER BY created_at DESC`,
@@ -342,7 +342,7 @@ func (s *Store) ListProjectOverlays(userID, projectID string) ([]ProjectOverlay,
 	for rows.Next() {
 		var o ProjectOverlay
 		if err := rows.Scan(
-			&o.ID, &o.ProjectID, &o.Kind, &o.Title, &o.MetaJSON,
+			&o.ID, &o.ProjectID, &o.RunID, &o.Kind, &o.Title, &o.MetaJSON,
 			&o.PNGRelPath, &o.TIFRelPath, &o.CreatedAt,
 		); err != nil {
 			return nil, err

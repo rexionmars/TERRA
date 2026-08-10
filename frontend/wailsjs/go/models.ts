@@ -3476,6 +3476,7 @@ export namespace backend {
 	    true_color_uri: string;
 	    reference_uri: string;
 	    raster_tif: string;
+	    run_id?: string;
 	    mean_confidence: number;
 	    confidence_floor?: number;
 	    n_dates: number;
@@ -3506,6 +3507,7 @@ export namespace backend {
 	        this.true_color_uri = source["true_color_uri"];
 	        this.reference_uri = source["reference_uri"];
 	        this.raster_tif = source["raster_tif"];
+	        this.run_id = source["run_id"];
 	        this.mean_confidence = source["mean_confidence"];
 	        this.confidence_floor = source["confidence_floor"];
 	        this.n_dates = source["n_dates"];
@@ -3906,6 +3908,7 @@ export namespace main {
 	
 	export class SaveProjectOverlayRequest {
 	    project_id: string;
+	    run_id: string;
 	    kind: string;
 	    title: string;
 	    meta_json: string;
@@ -3919,6 +3922,7 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.project_id = source["project_id"];
+	        this.run_id = source["run_id"];
 	        this.kind = source["kind"];
 	        this.title = source["title"];
 	        this.meta_json = source["meta_json"];
@@ -4102,6 +4106,7 @@ export namespace store {
 	export class ProjectOverlay {
 	    id: string;
 	    project_id: string;
+	    run_id?: string;
 	    kind: string;
 	    title: string;
 	    meta_json?: string;
@@ -4119,6 +4124,7 @@ export namespace store {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.project_id = source["project_id"];
+	        this.run_id = source["run_id"];
 	        this.kind = source["kind"];
 	        this.title = source["title"];
 	        this.meta_json = source["meta_json"];

@@ -366,13 +366,17 @@ type lulcSidecarPayload struct {
 // PredictResult is returned to the frontend. The overlay is delivered as a
 // base64 data URI so Leaflet can render it without an asset-server path.
 type PredictResult struct {
-	Extent         Bounds  `json:"extent"`
-	OverlayURI     string  `json:"overlay_uri"`
-	ConfidenceURI  string  `json:"confidence_uri"`
-	NDVIMeanURI    string  `json:"ndvi_mean_uri"`
-	TrueColorURI   string  `json:"true_color_uri"`
-	ReferenceURI   string  `json:"reference_uri"`
-	RasterTIF      string  `json:"raster_tif"`
+	Extent        Bounds `json:"extent"`
+	OverlayURI    string `json:"overlay_uri"`
+	ConfidenceURI string `json:"confidence_uri"`
+	NDVIMeanURI   string `json:"ndvi_mean_uri"`
+	TrueColorURI  string `json:"true_color_uri"`
+	ReferenceURI  string `json:"reference_uri"`
+	RasterTIF     string `json:"raster_tif"`
+	// The saved run this result became, set after persisting so the stored
+	// copy does not carry its own row id. Empty when nothing was saved.
+	// Compositions made while this result is on screen attach to it.
+	RunID          string  `json:"run_id,omitempty"`
 	MeanConfidence float64 `json:"mean_confidence"`
 	// The floor MeanConfidence cannot go below: confidence is
 	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
