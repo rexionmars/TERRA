@@ -110,6 +110,10 @@ export function InspectPython(arg1) {
   return window['go']['main']['App']['InspectPython'](arg1);
 }
 
+export function InspectStorage() {
+  return window['go']['main']['App']['InspectStorage']();
+}
+
 export function ListDataCube(arg1) {
   return window['go']['main']['App']['ListDataCube'](arg1);
 }
@@ -152,6 +156,10 @@ export function OpenExternal(arg1) {
 
 export function Predict(arg1) {
   return window['go']['main']['App']['Predict'](arg1);
+}
+
+export function PurgeOrphanedRunAssets() {
+  return window['go']['main']['App']['PurgeOrphanedRunAssets']();
 }
 
 export function Register(arg1, arg2, arg3) {

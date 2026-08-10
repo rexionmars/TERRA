@@ -58,6 +58,8 @@ export function InspectEnvironment():Promise<main.EnvironmentState>;
 
 export function InspectPython(arg1:string):Promise<backend.EnvReport>;
 
+export function InspectStorage():Promise<store.StorageReport>;
+
 export function ListDataCube(arg1:backend.DataCubeRequest):Promise<backend.DataCubeResult>;
 
 export function ListEmbeddedAreas():Promise<Array<backend.Area>>;
@@ -79,6 +81,8 @@ export function Logout():Promise<void>;
 export function OpenExternal(arg1:string):Promise<void>;
 
 export function Predict(arg1:backend.PredictRequest):Promise<backend.PredictResult>;
+
+export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 

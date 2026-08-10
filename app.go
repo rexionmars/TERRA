@@ -942,6 +942,40 @@ func (a *App) RestoreBackup(archivePath string) (*store.RestoreResult, error) {
 	return result, nil
 }
 
+// InspectStorage reports what the local data is made of.
+//
+// Measured by walking the directory rather than inferred from the database:
+// the database records what was saved, not what is on disk, and this screen is
+// only worth having if it is believed when it says where the space went.
+func (a *App) InspectStorage() (*store.StorageReport, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+	return st.InspectStorage()
+}
+
+// PurgeOrphanedRunAssets removes run files with no analysis pointing at them.
+//
+// The only deletion offered without naming what is being deleted, because
+// these are the only files nothing can reach. Anything else is removed by
+// removing the analysis it belongs to, which the user does deliberately.
+func (a *App) PurgeOrphanedRunAssets() (*store.PurgeResult, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+	removed, freed, err := st.PurgeOrphanedRunAssets()
+	if err != nil {
+		return nil, err
+	}
+	return &store.PurgeResult{Removed: removed, FreedBytes: freed}, nil
+}
+
 // ExportOverlayFile saves an overlay asset via SaveFileDialog.
 // src may be a filesystem path or a data:image/png;base64,... URI.
 func (a *App) ExportOverlayFile(src string, defaultFilename string) (string, error) {

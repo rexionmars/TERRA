@@ -4050,6 +4050,20 @@ export namespace store {
 	        this.raster_tif = source["raster_tif"];
 	    }
 	}
+	export class PurgeResult {
+	    removed: number;
+	    freed_bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PurgeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.removed = source["removed"];
+	        this.freed_bytes = source["freed_bytes"];
+	    }
+	}
 	export class RestoreCurrent {
 	    runs: number;
 	    projects: number;
@@ -4120,6 +4134,87 @@ export namespace store {
 	        this.password_reset_required = source["password_reset_required"];
 	    }
 	}
+	export class StorageBucket {
+	    label: string;
+	    bytes: number;
+	    files: number;
+	    consequence: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageBucket(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.bytes = source["bytes"];
+	        this.files = source["files"];
+	        this.consequence = source["consequence"];
+	    }
+	}
+	export class StorageRunItem {
+	    run_id: string;
+	    label: string;
+	    kind: string;
+	    created_at: string;
+	    bytes: number;
+	    empty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageRunItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
+	        this.label = source["label"];
+	        this.kind = source["kind"];
+	        this.created_at = source["created_at"];
+	        this.bytes = source["bytes"];
+	        this.empty = source["empty"];
+	    }
+	}
+	export class StorageReport {
+	    data_dir: string;
+	    total_bytes: number;
+	    buckets: StorageBucket[];
+	    largest_runs: StorageRunItem[];
+	    orphan_bytes: number;
+	    orphan_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data_dir = source["data_dir"];
+	        this.total_bytes = source["total_bytes"];
+	        this.buckets = this.convertValues(source["buckets"], StorageBucket);
+	        this.largest_runs = this.convertValues(source["largest_runs"], StorageRunItem);
+	        this.orphan_bytes = source["orphan_bytes"];
+	        this.orphan_count = source["orphan_count"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class User {
 	    id: string;
 	    email: string;

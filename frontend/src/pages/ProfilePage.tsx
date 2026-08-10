@@ -4,6 +4,7 @@ import {
   ChartColumn,
   Download,
   FolderOpen,
+  HardDrive,
   Loader2,
   LogOut,
   Save,
@@ -13,6 +14,8 @@ import {
 import {
   ChooseBackupArchive,
   ExportBackup,
+  InspectStorage,
+  PurgeOrphanedRunAssets,
   RestoreBackup,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
@@ -58,7 +61,7 @@ const SECTIONS: {
   /** How many settings the page holds, where that is a countable thing. */
   count?: number
 }[] = [
-  { id: "account", label: "Account", count: 9 },
+  { id: "account", label: "Account", count: 10 },
   // No count. The other page is a list of controls, and the number says how
   // long the list is. This one reports the state of an environment and offers
   // what to do about it, so "(1)" would be counting the wrong thing.
@@ -102,6 +105,10 @@ export function ProfilePage({
     useState<store.RestorePreview | null>(null)
   const [restoreResult, setRestoreResult] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [storage, setStorage] = useState<store.StorageReport | null>(null)
+  const [storageBusy, setStorageBusy] = useState(false)
+  const [storageNote, setStorageNote] = useState<string | null>(null)
+  const [storageError, setStorageError] = useState<string | null>(null)
   /*
     Account unless something asked for a particular page -- the first-run gate
     asks for System, since an unusable interpreter is the reason it opened
@@ -247,6 +254,53 @@ export function ProfilePage({
       setBackupError(e instanceof Error ? e.message : String(e))
     } finally {
       setBackupBusy(false)
+    }
+  }
+
+  /*
+    Measured on demand, not on mount.
+
+    Walking the data directory costs real time once there are hundreds of
+    analyses, and Account is opened to change a display name far more often
+    than to look at disk usage. Paying for it every visit would slow the common
+    case for the rare one.
+  */
+  const loadStorage = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    setStorageNote(null)
+    try {
+      setStorage(await InspectStorage())
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Clears only the folders no analysis points at.
+
+    No confirmation, deliberately: nothing in the application can open these
+    files and no export includes them, so there is nothing for the user to
+    weigh. A dialog asking them to approve deleting something they cannot see
+    or reach would be theatre.
+  */
+  const purgeOrphans = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    try {
+      const result = await PurgeOrphanedRunAssets()
+      setStorageNote(
+        `Cleared ${formatBytes(result.freed_bytes)} from ${result.removed} ${
+          result.removed === 1 ? "folder" : "folders"
+        }.`
+      )
+      setStorage(await InspectStorage())
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
     }
   }
 
@@ -559,6 +613,142 @@ export function ProfilePage({
                 )}
               </SettingRow>
 
+              {/* Where the space went, measured rather than estimated.
+                  Nothing else reports this: the data directory grows with
+                  every analysis and the application never mentions it, so a
+                  user whose disk is filling has no way to learn that this is
+                  where it went or what is safe to remove. */}
+              <SettingRow
+                id="account.storage"
+                title="Storage"
+                description="What the saved data is made of, measured on disk. Analyses are removed by deleting them in the project hub; only unreferenced leftovers can be cleared here."
+                focused={focusedSetting === "account.storage"}
+                onFocus={() => setFocusedSetting("account.storage")}
+              >
+                {!storage ? (
+                  <button
+                    type="button"
+                    disabled={storageBusy}
+                    onClick={() => void loadStorage()}
+                    className={btnGhost}
+                  >
+                    {storageBusy ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <HardDrive className="h-3 w-3" />
+                    )}
+                    Measure storage
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-body text-foreground">
+                      {formatBytes(storage.total_bytes)} in total
+                    </p>
+
+                    <ul className="flex flex-col gap-1.5">
+                      {storage.buckets.map((b) => (
+                        <li
+                          key={b.label}
+                          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-sm border border-border bg-background px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <span className="text-body text-foreground">
+                              {b.label}
+                            </span>
+                            {/* What deleting it would cost, next to the
+                                number. A size with no stated consequence
+                                invites clearing it. */}
+                            <p className="text-micro text-muted-foreground">
+                              {b.consequence}
+                            </p>
+                          </div>
+                          <span className="telemetry shrink-0 text-body text-muted-foreground">
+                            {formatBytes(b.bytes)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {storage.largest_runs.length > 0 && (
+                      <div>
+                        <p className="eyebrow mb-1.5">Largest analyses</p>
+                        <ul className="flex flex-col gap-1">
+                          {storage.largest_runs.map((r) => (
+                            <li
+                              key={r.run_id}
+                              className="flex items-baseline justify-between gap-3 text-body"
+                            >
+                              <span className="min-w-0 truncate text-muted-foreground">
+                                {displayRunLabel(r.label) || r.kind}
+                              </span>
+                              <span className="telemetry shrink-0 text-muted-foreground">
+                                {formatBytes(r.bytes)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* The only thing offered for deletion: files no analysis
+                        points at, so nothing in the application can open them
+                        and no export includes them. */}
+                    {storage.orphan_count > 0 ? (
+                      <div className="rounded-sm border border-border bg-background px-3 py-2">
+                        <p className="text-body text-foreground">
+                          {formatBytes(storage.orphan_bytes)} in{" "}
+                          {storage.orphan_count}{" "}
+                          {storage.orphan_count === 1 ? "folder" : "folders"} no
+                          analysis refers to.
+                        </p>
+                        <p className="mt-0.5 text-micro text-muted-foreground">
+                          Left behind by analyses that were deleted. Nothing can
+                          open these.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={storageBusy}
+                          onClick={() => void purgeOrphans()}
+                          className={cn(btnGhost, "mt-2")}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Clear them
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-body text-muted-foreground">
+                        Nothing here is unreferenced — every file belongs to an
+                        analysis or a project.
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={storageBusy}
+                        onClick={() => void loadStorage()}
+                        className={btnGhost}
+                      >
+                        {storageBusy && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        Measure again
+                      </button>
+                      {storageNote && (
+                        <span className="text-body text-muted-foreground">
+                          {storageNote}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {storageError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {storageError}
+                  </p>
+                )}
+              </SettingRow>
+
               {/* A restore replaces everything, so it is two steps: choose a
                   file and read what it holds, then confirm. One click from a
                   file dialog to a replaced database is the wrong weight for an
@@ -770,6 +960,26 @@ function SettingRow({
       <div className="mt-2.5">{children}</div>
     </div>
   )
+}
+
+/**
+ * Bytes as something a person can compare.
+ *
+ * Binary units, since that is what a file manager reports and a figure here
+ * that disagrees with Finder reads as a bug in this screen. One decimal below
+ * 10 units, none above: "1.4 GB" is worth the digit, "847.3 MB" is not.
+ */
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit++
+  }
+  const digits = value < 10 && unit > 0 ? 1 : 0
+  return `${value.toFixed(digits)} ${units[unit]}`
 }
 
 function readAsDataURL(file: File): Promise<string> {
