@@ -308,16 +308,6 @@ function App() {
 
   const hasArea = !!customPolygon || !!activeExample
 
-  const handleSelectExample = (id: string) => {
-    const area = areas.find((a) => a.id === id)
-    if (!area) return
-    setActiveExample(id)
-    setCustomPolygon(area.geometry)
-    setResult(null)
-    setShowPredictionOverlay(true)
-    setAnalysisLabel(undefined)
-  }
-
   const clearArea = () => {
     setCustomPolygon(null)
     setActiveExample("")
@@ -436,7 +426,6 @@ function App() {
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
-            onSelectExample={handleSelectExample}
             onClearArea={clearArea}
             onImportPolygon={handleImportPolygon}
           />
@@ -499,7 +488,6 @@ function AppBody(props: {
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
-  onSelectExample: (id: string) => void
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
@@ -2332,7 +2320,6 @@ function AppBody(props: {
                   composeOpacity={composeOpacity}
                   onViewChange={handleViewChange}
                   onPolygonDrawn={handlePolygonDrawn}
-                  onSelectExample={props.onSelectExample}
                   onLocationSelect={(lat, lon) =>
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }
@@ -2452,7 +2439,6 @@ function AppBody(props: {
                   hasArea={props.hasArea}
                   areas={props.areas}
                   activeExample={props.activeExample}
-                  onSelectExample={props.onSelectExample}
                   customPolygon={props.customPolygon}
                   onPolygonDrawn={handlePolygonDrawn}
                   onImportPolygon={props.onImportPolygon}

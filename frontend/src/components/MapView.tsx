@@ -43,7 +43,6 @@ interface MapViewProps {
   activeExample: string
   customPolygon: GeoJSONGeometry | null
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
-  onSelectExample: (id: string) => void
   flyTo: { lat: number; lon: number; key: number } | null
   result: PredictResult | null
   overlayOpacity: number
@@ -987,7 +986,6 @@ export function MapView({
   activeExample,
   customPolygon,
   onPolygonDrawn,
-  onSelectExample,
   flyTo,
   result,
   overlayOpacity,
@@ -1228,10 +1226,6 @@ export function MapView({
             ? "Terrain irradiation"
             : "Overlay"
 
-  // Example outlines are shown only when no custom polygon is active, as faint
-  // clickable shortcuts to the article's validated sites.
-  const showExamples = !customPolygon
-
   const aoiGeometry = useMemo(() => {
     if (customPolygon) return customPolygon
     if (activeExample) {
@@ -1282,21 +1276,6 @@ export function MapView({
           />
         </LayersControl.BaseLayer>
       </LayersControl>
-
-      {showExamples &&
-        areas.map((area) => (
-          <GeoJSON
-            key={area.id}
-            data={area.geometry as GeoJSON.Geometry}
-            style={{
-              color: activeExample === area.id ? "#22d3ee" : "#c2703d",
-              weight: 1.5,
-              fillOpacity: 0.04,
-              dashArray: "4 3",
-            }}
-            eventHandlers={{ click: () => onSelectExample(area.id) }}
-          />
-        ))}
 
       {compositionLayer}
       {solarLayer}

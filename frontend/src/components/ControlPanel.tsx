@@ -1,4 +1,4 @@
-import { forwardRef, useState } from "react"
+import { forwardRef } from "react"
 import { motion } from "motion/react"
 import {
   Play,
@@ -7,22 +7,18 @@ import {
   Upload,
   Trash2,
   ChevronLeft,
-  ChevronRight,
-  Layers,
   CheckCircle2,
   Circle,
   Globe2,
 } from "lucide-react"
-import type { Area, GeoJSONGeometry, ModelKind } from "@/lib/types"
+import type { GeoJSONGeometry, ModelKind } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { todayISO } from "@/lib/dates"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
 
 interface ControlPanelProps {
-  areas: Area[]
   activeExample: string
-  onSelectExample: (id: string) => void
   customPolygon: GeoJSONGeometry | null
   hasArea: boolean
   onClearArea: () => void
@@ -56,9 +52,7 @@ interface ControlPanelProps {
 export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
   function ControlPanel(props, ref) {
   const {
-    areas,
     activeExample,
-    onSelectExample,
     customPolygon,
     hasArea,
     onClearArea,
@@ -86,7 +80,6 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
     onCollapse,
   } = props
 
-  const [showExamples, setShowExamples] = useState(false)
   const canLULC = hasArea
   const busy = running || lulcRunning
 
@@ -155,41 +148,6 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
             : "No area defined"}
         </div>
 
-        {/* Examples: secondary launcher, collapsed by default */}
-        <div className="flex flex-col gap-1.5">
-          <button
-            onClick={() => setShowExamples((s) => !s)}
-            className="flex items-center gap-1.5 self-start text-[11px] text-muted-foreground hover:text-foreground"
-          >
-            <Layers className="size-3" />
-            Reference examples
-            {showExamples ? (
-              <ChevronLeft className="size-3 rotate-90" />
-            ) : (
-              <ChevronRight className="size-3 rotate-90" />
-            )}
-          </button>
-          {showExamples && (
-            <div className="grid grid-cols-3 gap-1.5">
-              {areas.map((a) => (
-                <button
-                  key={a.id}
-                  disabled={busy}
-                  onClick={() => onSelectExample(a.id)}
-                  title={a.label}
-                  className={cn(
-                    "rounded-sm border px-2 py-1 text-xs disabled:opacity-50",
-                    activeExample === a.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-secondary"
-                  )}
-                >
-                  {a.id}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </Section>
 
       <hr className="hairline" />

@@ -146,7 +146,6 @@ export interface EnergyScreenProps {
   hasArea: boolean
   areas: Area[]
   activeExample: string
-  onSelectExample: (id: string) => void
   customPolygon: GeoJSONGeometry | null
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   onImportPolygon: () => void
@@ -356,7 +355,6 @@ export function EnergyScreen(props: EnergyScreenProps) {
         activeExample={props.activeExample}
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
-        onSelectExample={props.onSelectExample}
         flyTo={props.flyTo}
         solarOverlays={solarOverlays}
         // The classification chrome is pinned off rather than exposed: there is
@@ -392,9 +390,7 @@ export function EnergyScreen(props: EnergyScreenProps) {
       />
       <AoiSection
         note={AOI_NOTE_SOLAR}
-        areas={props.areas}
         activeExample={props.activeExample}
-        onSelectExample={props.onSelectExample}
         hasArea={props.hasArea}
         hasCustomPolygon={!!props.customPolygon}
         onImportPolygon={props.onImportPolygon}
@@ -449,9 +445,7 @@ export function EnergyScreen(props: EnergyScreenProps) {
     <>
       <AoiSection
         note={AOI_NOTE_WIND}
-        areas={props.areas}
         activeExample={props.activeExample}
-        onSelectExample={props.onSelectExample}
         hasArea={props.hasArea}
         hasCustomPolygon={!!props.customPolygon}
         onImportPolygon={props.onImportPolygon}
