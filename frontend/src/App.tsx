@@ -532,12 +532,47 @@ function AppBody(props: {
     if (!user || envGateDone.current) return
     envGateDone.current = true
     void (async () => {
+      /*
+        It says why before it moves anyone.
+
+        This used to redirect in silence: the map appeared, then settings
+        replaced it a moment later with nothing on screen accounting for the
+        jump. That is indistinguishable from a navigation bug, and it was read
+        as one -- the person it was trying to help concluded the application
+        was broken, which is worse than the silence it replaced.
+
+        The toast names what is missing rather than saying "something is
+        wrong", because the specific package is what the user has to act on and
+        the page it lands them on can only repeat it.
+      */
       try {
         const state = await InspectEnvironment()
-        if (!state.active?.usable) goProfile("system")
-      } catch {
+        if (state.active?.usable) return
+
+        const missing = (state.active?.packages ?? []).filter(
+          (p) => !p.optional && (!p.present || p.version_problem)
+        )
+        const detail = state.active?.unreachable
+          ? state.active.unreachable
+          : missing.length > 0
+            ? `Missing: ${missing
+                .slice(0, 3)
+                .map((p) => p.distribution)
+                .join(", ")}${missing.length > 3 ? ` and ${missing.length - 3} more` : ""}.`
+            : "The selected interpreter cannot run the analysis sidecar."
+
+        notifyError(
+          "Analyses cannot run yet — opening Settings › System",
+          `${detail} Choose a Python there, or let TERRA build one.`,
+          { duration: 9000 }
+        )
+        goProfile("system")
+      } catch (e) {
         // Failing to inspect is itself a reason to show the page: it is the
         // only place that can report what went wrong.
+        notifyError("Could not check the Python environment", e, {
+          duration: 9000,
+        })
         goProfile("system")
       }
     })()

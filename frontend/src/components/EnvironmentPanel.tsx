@@ -163,6 +163,28 @@ export function EnvironmentPanel() {
       )}
       {problem && <Notice tone="error">{problem}</Notice>}
 
+      {/*
+        The state of things, said plainly, at the top.
+
+        Everything below reports detail -- which interpreter, which package,
+        which path -- and detail only answers a question the reader already
+        has. Someone sent here by the first-run gate does not have it yet: they
+        pressed nothing and arrived anyway. This is the sentence that tells
+        them what is true before the evidence for it.
+      */}
+      {active && !active.usable && (
+        <Notice tone="error">
+          No analysis can run yet.{" "}
+          {active.unreachable
+            ? "The selected interpreter could not be started."
+            : !active.python_ok
+              ? `TERRA needs Python ${active.min_python} or newer.`
+              : "The selected interpreter is missing packages the sidecar imports."}{" "}
+          Pick a Python below and press <strong>Build environment</strong> —
+          TERRA installs the rest itself.
+        </Notice>
+      )}
+
       {/* What is in use, and whether it works. */}
       <section className="rounded-sm border border-border bg-secondary/50 p-4">
         <p className="eyebrow mb-3">In use</p>
