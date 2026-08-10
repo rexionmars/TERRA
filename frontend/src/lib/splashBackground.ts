@@ -144,7 +144,9 @@ export function claimSplashSlideForLaunch(
         if (featured >= 0 && featured < count) {
           localStorage.setItem(SPLASH_SEEN_VERSION_KEY, version)
           // The rotation resumes after it rather than repeating it.
-          localStorage.setItem(SPLASH_NEXT_KEY, String((featured + 1) % count))
+          // Next launch is a rotation slot, so the featured still does not
+          // appear twice in a row right after an update.
+          localStorage.setItem(SPLASH_NEXT_KEY, "0")
           sessionStorage.setItem(SPLASH_CURRENT_KEY, String(featured))
           return featured
         }
@@ -163,7 +165,65 @@ export function claimSplashSlideForLaunch(
     /* localStorage unavailable */
   }
 
-  const index = ((next % count) + count) % count
+  /*
+    The counter counts LAUNCHES, not images.
+
+    It runs over twice the number of stills because every second launch is the
+    featured slot, so a full cycle takes two launches per still. The image
+    index is derived from it below; conflating the two is what broke the first
+    attempt at this.
+  */
+  const featuredIndex = SPLASH_STILLS.findIndex((s) => s.name === FEATURED_STILL)
+  /*
+    Alternation needs a featured still and something to alternate with. Below
+    three stills, or with FEATURED_STILL naming nothing, the cycle collapses to
+    the plain rotation -- otherwise every image would simply show twice in a
+    row, which is a repeat rather than a rotation.
+  */
+  const alternating = featuredIndex >= 0 && featuredIndex < count && count > 2
+
+  const cycle = alternating ? count * 2 : count
+  const tick = ((next % cycle) + cycle) % cycle
+  const index = alternating ? Math.floor(tick / 2) % count : tick
+
+  /*
+    The release's own still, every other launch.
+
+    A flat rotation gave it one launch in five, which is little presence for
+    the image the version is named for. Every second launch shows it; the ones
+    between walk the rotation, so the whole set still appears.
+
+    The counter advances on EVERY launch, including the featured ones, and the
+    parity is read off the counter rather than off a separate flag. An earlier
+    version advanced only on the rotation launches, which meant the counter
+    visited even indices exclusively -- two of the five stills were never
+    reachable and the featured one landed twice in a row whenever the walk
+    passed over its own index.
+
+    Alternating rather than weighted-random keeps the sequence derivable from
+    the stored counter alone, which is what makes it testable and what stops
+    the same image landing twice by chance. The featured index is skipped in
+    the walk, since showing it as "one of the others" would waste a slot that
+    is already half the launches.
+  */
+  let shown = index
+  if (alternating) {
+    if (tick % 2 === 1) {
+      shown = featuredIndex
+    } else if (index === featuredIndex) {
+      // The walk landed on the featured still on a rotation launch. Take the
+      // next one instead, so its extra presence comes only from its own slot.
+      shown = (featuredIndex + 1) % count
+    }
+  }
+
+  try {
+    localStorage.setItem(SPLASH_NEXT_KEY, String((tick + 1) % cycle))
+    sessionStorage.setItem(SPLASH_CURRENT_KEY, String(shown))
+  } catch {
+    /* ignore quota / private mode */
+  }
+  return shown
   try {
     localStorage.setItem(SPLASH_NEXT_KEY, String((index + 1) % count))
     sessionStorage.setItem(SPLASH_CURRENT_KEY, String(index))
