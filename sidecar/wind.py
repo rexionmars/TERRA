@@ -801,8 +801,10 @@ def shear_sensitivity(df: pd.DataFrame, alpha_bulk: float, hub_height_m: float,
         rows.append({
             "shear_exponent": _round(float(alpha), 4),
             "roughness_length_m": None if z0 is None else z0,
-            "basis": "derived from the record" if z0 is None
-                     else "neutral log profile at the stated roughness length",
+            # The roughness column beside it already states the length, and
+            # every derived row uses the same profile, so the repeated clause
+            # said nothing the table did not.
+            "basis": "measured" if z0 is None else "log profile",
             "hub_speed_ms": _round(float(v_hub.mean()), 4),
             "capacity_factor_pct": _round(capacity_factor(power), 3),
             "annual_energy_mwh": _round(annual_energy_mwh(power), 1),

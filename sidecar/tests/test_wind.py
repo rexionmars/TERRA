@@ -725,7 +725,7 @@ def test_shear_sensitivity_names_a_surface_for_every_exponent():
     assert len(rows) >= 4
     derived = [r for r in rows if r["roughness_length_m"] is None]
     assert len(derived) == 1
-    assert derived[0]["basis"] == "derived from the record"
+    assert derived[0]["basis"] == "measured"
     for row in rows:
         assert row["basis"]
         assert row["capacity_factor_pct"] is not None
