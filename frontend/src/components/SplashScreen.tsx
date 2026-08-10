@@ -4,6 +4,7 @@ import { GetAppVersion, GetBootLogs } from "../../wailsjs/go/main/App"
 import {
   SPLASH_CURRENT_KEY,
   SPLASH_IMAGES,
+  SPLASH_SEEN_VERSION_KEY,
   SPLASH_STILLS,
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
@@ -45,10 +46,16 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
   /*
     The featured still, on the first launch after an update.
 
-    The version lives in the Go binary, so it arrives after the first paint.
-    Re-claiming with it in hand is a no-op on every launch but that first one,
-    where the index already claimed is replaced by the image the release is
-    named for.
+    THE CLAIM IS NOT DISCARDED. This used to clear SPLASH_CURRENT_KEY before
+    re-claiming, on the reasoning that re-claiming would be a no-op except
+    after an update. It was the opposite: clearing the key is what removed the
+    evidence of index.html's claim, so every single launch re-picked and the
+    image visibly swapped a moment after the window opened. The HTML paints
+    first and its choice is the one that stands.
+
+    Only a genuinely new version overrides it, and that is decided by reading
+    the stored version rather than by throwing the claim away and seeing what
+    comes back.
   */
   useEffect(() => {
     let cancelled = false
@@ -56,10 +63,21 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
       .then((version) => {
         if (cancelled || !version) return
         setVersion(version)
+
+        let seen: string | null = null
+        try {
+          seen = localStorage.getItem(SPLASH_SEEN_VERSION_KEY)
+        } catch {
+          /* storage unavailable: keep what the HTML chose */
+        }
+        if (seen === version) return
+
+        // First launch on this version: the release's own still takes over,
+        // and claiming records the version so this does not repeat.
         try {
           sessionStorage.removeItem(SPLASH_CURRENT_KEY)
         } catch {
-          /* storage unavailable: the plain rotation stands */
+          /* storage unavailable: keep what the HTML chose */
         }
         setSlide(claimSplashSlideForLaunch(SPLASH_IMAGES.length, version))
       })
