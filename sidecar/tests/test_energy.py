@@ -224,8 +224,6 @@ def test_applied_ratio_defaults_to_the_benchmarked_reference():
     low, high = ratio["gsa_implied_band"]
     assert low <= ratio["reference"] <= high
     assert ratio["applied"] != ratio["derived"]
-    assert "no external benchmark" in ratio["derived_source"]
-    assert "Global Solar Atlas" in ratio["reference_source"]
 
 
 def test_user_override_is_recorded_as_a_user_value():
@@ -719,7 +717,6 @@ def test_the_fleet_dc_ac_ratio_is_not_the_inverter_oversize_constant():
     assert density["ac_to_dc_conversion_applied"] is True
     assert energy.FLEET_DC_AC_RATIO != solar.INVERTER_OVERSIZE_RATIO
     assert abs(energy.FLEET_DC_AC_RATIO - 35482.0 / 27001.0) < 1e-12
-    assert "not the model-internal inverter" in density["fleet_dc_ac_ratio_source"]
     dc_denominated = energy.resolve_capacity_density("bolinger_fixed_direct")
     assert dc_denominated["ac_to_dc_conversion_applied"] is False
 
@@ -784,7 +781,6 @@ def test_the_p50_factor_is_reported_as_measured_rather_than_forced_to_unity():
     table = energy.exceedance_table(_annual_totals())
     p50 = [r for r in table["levels"] if r["level"] == 50][0]
     assert p50["factor_empirical"] != 1.0
-    assert "median" in table["p50_note"]
 
 
 def test_the_crosswalk_shows_the_two_conventions_are_one_number():
@@ -1160,11 +1156,6 @@ def test_module_efficiency_cancels_from_the_ground_coverage_ratio():
     ) < 1e-12
     with pytest.raises(ValueError):
         energy.bolinger_implied_gcr(0.0)
-
-    note = energy._module_efficiency_note()
-    assert f"{a['gcr_ratio']:.4f} at both" in note
-    assert "does not move with it" in note
-    assert "0.7 percentage points" not in note
 
 
 def test_every_payload_crosses_the_sidecar_boundary_as_json():

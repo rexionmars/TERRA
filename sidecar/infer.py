@@ -1999,7 +1999,6 @@ def main():
                         float(density['value_mw_dc_per_ha']), 6),
                     'shading_applied': shading_applied,
                     'shading_derate': shading_derate,
-                    'resolution_note': solar_mod.GRID_NOTE,
                     'note': (
                         'Every energy figure in this response was computed at '
                         'the applied performance ratio and the reporting basis '
@@ -2105,12 +2104,6 @@ def main():
                 'roughness_band_m': list(roughness_band),
                 'calm_threshold_ms': calm_threshold,
                 'record_max_floor_ms': record_max_floor,
-                'conventions_note': (
-                    'Hub height, the assumed roughness band, the calm '
-                    'threshold and the record-maximum floor are project '
-                    'conventions the user can edit. They are not measurements '
-                    'and they have no published basis at this site.'
-                ),
                 'qualifier': wind_mod.RESULT_QUALIFIER,
                 'excluded_losses': list(wind_mod.EXCLUDED_LOSSES),
                 'comparison_note': (
@@ -2120,7 +2113,6 @@ def main():
                     'ratio benchmarked against the Global Solar Atlas; this '
                     'one carries no external validation and no plant losses.'
                 ),
-                'resolution_note': wind_mod.GRID_NOTE,
             },
         })
 

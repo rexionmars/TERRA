@@ -308,7 +308,6 @@ export namespace backend {
 	    capacity_density_mw_dc_per_ha: number;
 	    shading_applied: boolean;
 	    shading_derate: number;
-	    resolution_note: string;
 	    note: string;
 	
 	    static createFrom(source: any = {}) {
@@ -334,7 +333,6 @@ export namespace backend {
 	        this.capacity_density_mw_dc_per_ha = source["capacity_density_mw_dc_per_ha"];
 	        this.shading_applied = source["shading_applied"];
 	        this.shading_derate = source["shading_derate"];
-	        this.resolution_note = source["resolution_note"];
 	        this.note = source["note"];
 	    }
 	}
@@ -372,9 +370,7 @@ export namespace backend {
 	    source: string;
 	    acre_conversion: string;
 	    buildable_fraction: number;
-	    buildable_fraction_source: string;
 	    fleet_dc_ac_ratio: number;
-	    fleet_dc_ac_ratio_source: string;
 	    ac_to_dc_conversion_applied: boolean;
 	    note: string;
 	
@@ -393,9 +389,7 @@ export namespace backend {
 	        this.source = source["source"];
 	        this.acre_conversion = source["acre_conversion"];
 	        this.buildable_fraction = source["buildable_fraction"];
-	        this.buildable_fraction_source = source["buildable_fraction_source"];
 	        this.fleet_dc_ac_ratio = source["fleet_dc_ac_ratio"];
-	        this.fleet_dc_ac_ratio_source = source["fleet_dc_ac_ratio_source"];
 	        this.ac_to_dc_conversion_applied = source["ac_to_dc_conversion_applied"];
 	        this.note = source["note"];
 	    }
@@ -488,7 +482,6 @@ export namespace backend {
 	    test: string;
 	    statistic: number;
 	    p_value: number;
-	    interpretation: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EnergyNormality(source);
@@ -499,7 +492,6 @@ export namespace backend {
 	        this.test = source["test"];
 	        this.statistic = source["statistic"];
 	        this.p_value = source["p_value"];
-	        this.interpretation = source["interpretation"];
 	    }
 	}
 	export class EnergyExceedanceLevel {
@@ -533,7 +525,6 @@ export namespace backend {
 	    std_kwh_m2_year: number;
 	    cv_pct: number;
 	    levels: EnergyExceedanceLevel[];
-	    p50_note: string;
 	    normality: EnergyNormality;
 	    crosswalk: EnergyExceedanceCrosswalk;
 	    linearity_assumption: string;
@@ -552,7 +543,6 @@ export namespace backend {
 	        this.std_kwh_m2_year = source["std_kwh_m2_year"];
 	        this.cv_pct = source["cv_pct"];
 	        this.levels = this.convertValues(source["levels"], EnergyExceedanceLevel);
-	        this.p50_note = source["p50_note"];
 	        this.normality = this.convertValues(source["normality"], EnergyNormality);
 	        this.crosswalk = this.convertValues(source["crosswalk"], EnergyExceedanceCrosswalk);
 	        this.linearity_assumption = source["linearity_assumption"];
@@ -1396,7 +1386,6 @@ export namespace backend {
 	    gcr_ratio: number;
 	    basis: string;
 	    note: string;
-	    module_efficiency_note: string;
 	    parity: EnergyParityGCR;
 	
 	    static createFrom(source: any = {}) {
@@ -1412,7 +1401,6 @@ export namespace backend {
 	        this.gcr_ratio = source["gcr_ratio"];
 	        this.basis = source["basis"];
 	        this.note = source["note"];
-	        this.module_efficiency_note = source["module_efficiency_note"];
 	        this.parity = this.convertValues(source["parity"], EnergyParityGCR);
 	    }
 	
@@ -1673,9 +1661,7 @@ export namespace backend {
 	    axis_azimuth_deg: number;
 	    axis_azimuth_convention: string;
 	    max_angle_deg: number;
-	    max_angle_source: string;
 	    backtrack: boolean;
-	    backtrack_note: string;
 	    terrain: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1688,9 +1674,7 @@ export namespace backend {
 	        this.axis_azimuth_deg = source["axis_azimuth_deg"];
 	        this.axis_azimuth_convention = source["axis_azimuth_convention"];
 	        this.max_angle_deg = source["max_angle_deg"];
-	        this.max_angle_source = source["max_angle_source"];
 	        this.backtrack = source["backtrack"];
-	        this.backtrack_note = source["backtrack_note"];
 	        this.terrain = source["terrain"];
 	    }
 	}
@@ -1701,7 +1685,6 @@ export namespace backend {
 	    per_hectare: EnergyPerHectare;
 	    performance_ratio: EnergyTrackingPR;
 	    excluded: string;
-	    resolution_note: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EnergyTracking(source);
@@ -1715,7 +1698,6 @@ export namespace backend {
 	        this.per_hectare = this.convertValues(source["per_hectare"], EnergyPerHectare);
 	        this.performance_ratio = this.convertValues(source["performance_ratio"], EnergyTrackingPR);
 	        this.excluded = source["excluded"];
-	        this.resolution_note = source["resolution_note"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1798,10 +1780,8 @@ export namespace backend {
 	    applied: number;
 	    applied_source: string;
 	    reference: number;
-	    reference_source: string;
 	    modelled: number;
 	    derived: number;
-	    derived_source: string;
 	    derived_if_optional_at_pvwatts_defaults: number;
 	    declared_loss_factor: number;
 	    optional_loss_factor: number;
@@ -1812,7 +1792,6 @@ export namespace backend {
 	    degradation_factor: number;
 	    degradation_rate_per_year: number;
 	    analysis_period_years: number;
-	    degradation_source: string;
 	    gsa_implied_band: number[];
 	
 	    static createFrom(source: any = {}) {
@@ -1824,10 +1803,8 @@ export namespace backend {
 	        this.applied = source["applied"];
 	        this.applied_source = source["applied_source"];
 	        this.reference = source["reference"];
-	        this.reference_source = source["reference_source"];
 	        this.modelled = source["modelled"];
 	        this.derived = source["derived"];
-	        this.derived_source = source["derived_source"];
 	        this.derived_if_optional_at_pvwatts_defaults = source["derived_if_optional_at_pvwatts_defaults"];
 	        this.declared_loss_factor = source["declared_loss_factor"];
 	        this.optional_loss_factor = source["optional_loss_factor"];
@@ -1838,7 +1815,6 @@ export namespace backend {
 	        this.degradation_factor = source["degradation_factor"];
 	        this.degradation_rate_per_year = source["degradation_rate_per_year"];
 	        this.analysis_period_years = source["analysis_period_years"];
-	        this.degradation_source = source["degradation_source"];
 	        this.gsa_implied_band = source["gsa_implied_band"];
 	    }
 	
@@ -2506,11 +2482,9 @@ export namespace backend {
 	    roughness_band_m: number[];
 	    calm_threshold_ms: number;
 	    record_max_floor_ms: number;
-	    conventions_note: string;
 	    qualifier: string;
 	    excluded_losses: string[];
 	    comparison_note: string;
-	    resolution_note: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WindAssumptions(source);
@@ -2527,11 +2501,9 @@ export namespace backend {
 	        this.roughness_band_m = source["roughness_band_m"];
 	        this.calm_threshold_ms = source["calm_threshold_ms"];
 	        this.record_max_floor_ms = source["record_max_floor_ms"];
-	        this.conventions_note = source["conventions_note"];
 	        this.qualifier = source["qualifier"];
 	        this.excluded_losses = source["excluded_losses"];
 	        this.comparison_note = source["comparison_note"];
-	        this.resolution_note = source["resolution_note"];
 	    }
 	}
 	export class WindTurbine {
@@ -2551,7 +2523,6 @@ export namespace backend {
 	    citation_url: string;
 	    curve_source_url: string;
 	    curve_source_commit: string;
-	    drivetrain_note: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WindTurbine(source);
@@ -2575,7 +2546,6 @@ export namespace backend {
 	        this.citation_url = source["citation_url"];
 	        this.curve_source_url = source["curve_source_url"];
 	        this.curve_source_commit = source["curve_source_commit"];
-	        this.drivetrain_note = source["drivetrain_note"];
 	    }
 	}
 	export class WindShearDiagnostics {
@@ -2584,7 +2554,6 @@ export namespace backend {
 	    assumed_roughness_band_m: number[];
 	    expected_shear_exponent_band: number[];
 	    consistent_with_assumed_cover: boolean;
-	    roughness_band_note: string;
 	    shear_exponent_hourly_mean: number;
 	    shear_exponent_hourly_median: number;
 	    shear_exponent_day: number;
@@ -2602,7 +2571,6 @@ export namespace backend {
 	        this.assumed_roughness_band_m = source["assumed_roughness_band_m"];
 	        this.expected_shear_exponent_band = source["expected_shear_exponent_band"];
 	        this.consistent_with_assumed_cover = source["consistent_with_assumed_cover"];
-	        this.roughness_band_note = source["roughness_band_note"];
 	        this.shear_exponent_hourly_mean = source["shear_exponent_hourly_mean"];
 	        this.shear_exponent_hourly_median = source["shear_exponent_hourly_median"];
 	        this.shear_exponent_day = source["shear_exponent_day"];
@@ -2619,9 +2587,7 @@ export namespace backend {
 	    record_maximum_ms: Record<string, number>;
 	    record_maximum_floor_ms: number;
 	    record_maximum_plausible: boolean;
-	    record_maximum_floor_note: string;
 	    calm_fraction_2m_flag_pct: number;
-	    calm_fraction_2m_note: string;
 	    nan_count: Record<string, number>;
 	    shear: WindShearDiagnostics;
 	    flags: string[];
@@ -2641,9 +2607,7 @@ export namespace backend {
 	        this.record_maximum_ms = source["record_maximum_ms"];
 	        this.record_maximum_floor_ms = source["record_maximum_floor_ms"];
 	        this.record_maximum_plausible = source["record_maximum_plausible"];
-	        this.record_maximum_floor_note = source["record_maximum_floor_note"];
 	        this.calm_fraction_2m_flag_pct = source["calm_fraction_2m_flag_pct"];
-	        this.calm_fraction_2m_note = source["calm_fraction_2m_note"];
 	        this.nan_count = source["nan_count"];
 	        this.shear = this.convertValues(source["shear"], WindShearDiagnostics);
 	        this.flags = source["flags"];
@@ -2743,9 +2707,7 @@ export namespace backend {
 	    gross_capacity_factor_no_density_correction_pct: number;
 	    gross_annual_energy_mwh_per_turbine: number;
 	    operating_regime: WindOperatingRegime;
-	    density_normalisation_note: string;
 	    hours_per_year: number;
-	    hours_per_year_note: string;
 	    excluded_losses: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -2764,9 +2726,7 @@ export namespace backend {
 	        this.gross_capacity_factor_no_density_correction_pct = source["gross_capacity_factor_no_density_correction_pct"];
 	        this.gross_annual_energy_mwh_per_turbine = source["gross_annual_energy_mwh_per_turbine"];
 	        this.operating_regime = this.convertValues(source["operating_regime"], WindOperatingRegime);
-	        this.density_normalisation_note = source["density_normalisation_note"];
 	        this.hours_per_year = source["hours_per_year"];
-	        this.hours_per_year_note = source["hours_per_year_note"];
 	        this.excluded_losses = source["excluded_losses"];
 	    }
 	
@@ -2875,7 +2835,6 @@ export namespace backend {
 	    air_density_mean_kg_m3: number;
 	    air_density_min_kg_m3: number;
 	    air_density_max_kg_m3: number;
-	    humidity_note: string;
 	    monthly_mean_speed_50m: WindMonthlySpeed[];
 	    direction: WindDirection;
 	    direction_energy_rose_50m: WindRoseSector[];
@@ -2898,7 +2857,6 @@ export namespace backend {
 	        this.air_density_mean_kg_m3 = source["air_density_mean_kg_m3"];
 	        this.air_density_min_kg_m3 = source["air_density_min_kg_m3"];
 	        this.air_density_max_kg_m3 = source["air_density_max_kg_m3"];
-	        this.humidity_note = source["humidity_note"];
 	        this.monthly_mean_speed_50m = this.convertValues(source["monthly_mean_speed_50m"], WindMonthlySpeed);
 	        this.direction = this.convertValues(source["direction"], WindDirection);
 	        this.direction_energy_rose_50m = this.convertValues(source["direction_energy_rose_50m"], WindRoseSector);
@@ -2931,7 +2889,6 @@ export namespace backend {
 	    record_window: string;
 	    hub_height_m: number;
 	    qualifier: string;
-	    loads_note: string;
 	    measured: WindMeasured;
 	    hub: WindHub;
 	    shear_sensitivity: WindShearRow[];
@@ -2954,7 +2911,6 @@ export namespace backend {
 	        this.record_window = source["record_window"];
 	        this.hub_height_m = source["hub_height_m"];
 	        this.qualifier = source["qualifier"];
-	        this.loads_note = source["loads_note"];
 	        this.measured = this.convertValues(source["measured"], WindMeasured);
 	        this.hub = this.convertValues(source["hub"], WindHub);
 	        this.shear_sensitivity = this.convertValues(source["shear_sensitivity"], WindShearRow);

@@ -910,10 +910,8 @@ type EnergyPerformanceRatio struct {
 	Applied                            float64                  `json:"applied"`
 	AppliedSource                      string                   `json:"applied_source"`
 	Reference                          float64                  `json:"reference"`
-	ReferenceSource                    string                   `json:"reference_source"`
 	Modelled                           float64                  `json:"modelled"`
 	Derived                            float64                  `json:"derived"`
-	DerivedSource                      string                   `json:"derived_source"`
 	DerivedIfOptionalAtPVWattsDefaults float64                  `json:"derived_if_optional_at_pvwatts_defaults"`
 	DeclaredLossFactor                 float64                  `json:"declared_loss_factor"`
 	OptionalLossFactor                 float64                  `json:"optional_loss_factor"`
@@ -924,7 +922,6 @@ type EnergyPerformanceRatio struct {
 	DegradationFactor                  float64                  `json:"degradation_factor"`
 	DegradationRatePerYear             float64                  `json:"degradation_rate_per_year"`
 	AnalysisPeriodYears                int                      `json:"analysis_period_years"`
-	DegradationSource                  string                   `json:"degradation_source"`
 	// Ratio implied by the Global Solar Atlas benchmark at this site, as a
 	// two-element band. The only external validation the applied ratio has.
 	GSAImpliedBand []float64 `json:"gsa_implied_band"`
@@ -1045,9 +1042,7 @@ type EnergyTrackerConfiguration struct {
 	AxisAzimuthDeg        float64 `json:"axis_azimuth_deg"`
 	AxisAzimuthConvention string  `json:"axis_azimuth_convention"`
 	MaxAngleDeg           float64 `json:"max_angle_deg"`
-	MaxAngleSource        string  `json:"max_angle_source"`
 	Backtrack             bool    `json:"backtrack"`
-	BacktrackNote         string  `json:"backtrack_note"`
 	Terrain               string  `json:"terrain"`
 }
 
@@ -1150,7 +1145,6 @@ type EnergyModelDerivedLandUse struct {
 	GCRRatio              float64         `json:"gcr_ratio"`
 	Basis                 string          `json:"basis"`
 	Note                  string          `json:"note"`
-	ModuleEfficiencyNote  string          `json:"module_efficiency_note"`
 	Parity                EnergyParityGCR `json:"parity"`
 }
 
@@ -1191,7 +1185,6 @@ type EnergyTracking struct {
 	PerHectare       EnergyPerHectare           `json:"per_hectare"`
 	PerformanceRatio EnergyTrackingPR           `json:"performance_ratio"`
 	Excluded         string                     `json:"excluded"`
-	ResolutionNote   string                     `json:"resolution_note"`
 }
 
 // EnergyTimeStandard labels the diurnal profile. UTCOffsetHours is null when
@@ -1251,20 +1244,18 @@ type EnergyGenerationProfile struct {
 // area basis it is measured on. The basis moves the answer further than the
 // exceedance band does, so it is never reported without it.
 type EnergyCapacityDensity struct {
-	Basis                   string  `json:"basis"`
-	ValueMWPerHa            float64 `json:"value_mw_per_ha"`
-	Units                   string  `json:"units"`
-	ValueMWDCPerHa          float64 `json:"value_mw_dc_per_ha"`
-	AreaBasis               string  `json:"area_basis"`
-	Mounting                string  `json:"mounting"`
-	Source                  string  `json:"source"`
-	AcreConversion          string  `json:"acre_conversion"`
-	BuildableFraction       float64 `json:"buildable_fraction"`
-	BuildableFractionSource string  `json:"buildable_fraction_source"`
+	Basis             string  `json:"basis"`
+	ValueMWPerHa      float64 `json:"value_mw_per_ha"`
+	Units             string  `json:"units"`
+	ValueMWDCPerHa    float64 `json:"value_mw_dc_per_ha"`
+	AreaBasis         string  `json:"area_basis"`
+	Mounting          string  `json:"mounting"`
+	Source            string  `json:"source"`
+	AcreConversion    string  `json:"acre_conversion"`
+	BuildableFraction float64 `json:"buildable_fraction"`
 	// Separately sourced from the model-internal inverter oversizing factor:
 	// the two are unrelated quantities and must not be substituted.
 	FleetDCACRatio          float64 `json:"fleet_dc_ac_ratio"`
-	FleetDCACRatioSource    string  `json:"fleet_dc_ac_ratio_source"`
 	ACToDCConversionApplied bool    `json:"ac_to_dc_conversion_applied"`
 	Note                    string  `json:"note"`
 }
@@ -1332,10 +1323,9 @@ type EnergyExceedanceLevel struct {
 // EnergyNormality is the test behind using a normal fit at all, reported rather
 // than assumed.
 type EnergyNormality struct {
-	Test           string  `json:"test"`
-	Statistic      float64 `json:"statistic"`
-	PValue         float64 `json:"p_value"`
-	Interpretation string  `json:"interpretation"`
+	Test      string  `json:"test"`
+	Statistic float64 `json:"statistic"`
+	PValue    float64 `json:"p_value"`
 }
 
 // EnergyExceedanceCrosswalk states that the exceedance P90 and the statistical
@@ -1357,7 +1347,6 @@ type EnergyExceedance struct {
 	StdKWhM2Year        float64                   `json:"std_kwh_m2_year"`
 	CVPct               float64                   `json:"cv_pct"`
 	Levels              []EnergyExceedanceLevel   `json:"levels"`
-	P50Note             string                    `json:"p50_note"`
 	Normality           EnergyNormality           `json:"normality"`
 	Crosswalk           EnergyExceedanceCrosswalk `json:"crosswalk"`
 	LinearityAssumption string                    `json:"linearity_assumption"`
@@ -1422,7 +1411,6 @@ type EnergyAssumptions struct {
 	CapacityDensityMWDCPerHa float64 `json:"capacity_density_mw_dc_per_ha"`
 	ShadingApplied           bool    `json:"shading_applied"`
 	ShadingDerate            float64 `json:"shading_derate"`
-	ResolutionNote           string  `json:"resolution_note"`
 	Note                     string  `json:"note"`
 }
 
@@ -1530,7 +1518,6 @@ type WindMeasured struct {
 	AirDensityMeanKgM3     float64             `json:"air_density_mean_kg_m3"`
 	AirDensityMinKgM3      float64             `json:"air_density_min_kg_m3"`
 	AirDensityMaxKgM3      float64             `json:"air_density_max_kg_m3"`
-	HumidityNote           string              `json:"humidity_note"`
 	MonthlyMeanSpeed50m    []WindMonthlySpeed  `json:"monthly_mean_speed_50m"`
 	Direction              WindDirection       `json:"direction"`
 	DirectionEnergyRose50m []WindRoseSector    `json:"direction_energy_rose_50m"`
@@ -1570,9 +1557,7 @@ type WindHub struct {
 	GrossCapacityFactorNoDensityCorrectionPct float64             `json:"gross_capacity_factor_no_density_correction_pct"`
 	GrossAnnualEnergyMWhPerTurbine            float64             `json:"gross_annual_energy_mwh_per_turbine"`
 	OperatingRegime                           WindOperatingRegime `json:"operating_regime"`
-	DensityNormalisationNote                  string              `json:"density_normalisation_note"`
 	HoursPerYear                              float64             `json:"hours_per_year"`
-	HoursPerYearNote                          string              `json:"hours_per_year_note"`
 	ExcludedLosses                            []string            `json:"excluded_losses"`
 }
 
@@ -1601,7 +1586,6 @@ type WindShearDiagnostics struct {
 	AssumedRoughnessBandM      []float64 `json:"assumed_roughness_band_m"`
 	ExpectedShearExponentBand  []float64 `json:"expected_shear_exponent_band"`
 	ConsistentWithAssumedCover bool      `json:"consistent_with_assumed_cover"`
-	RoughnessBandNote          string    `json:"roughness_band_note"`
 	ShearExponentHourlyMean    float64   `json:"shear_exponent_hourly_mean"`
 	ShearExponentHourlyMedian  float64   `json:"shear_exponent_hourly_median"`
 	ShearExponentDay           float64   `json:"shear_exponent_day"`
@@ -1621,9 +1605,7 @@ type WindDataQuality struct {
 	RecordMaximumMS        map[string]float64   `json:"record_maximum_ms"`
 	RecordMaximumFloorMS   float64              `json:"record_maximum_floor_ms"`
 	RecordMaximumPlausible bool                 `json:"record_maximum_plausible"`
-	RecordMaximumFloorNote string               `json:"record_maximum_floor_note"`
 	CalmFraction2mFlagPct  float64              `json:"calm_fraction_2m_flag_pct"`
-	CalmFraction2mNote     string               `json:"calm_fraction_2m_note"`
 	NaNCount               map[string]int       `json:"nan_count"`
 	Shear                  WindShearDiagnostics `json:"shear"`
 	Flags                  []string             `json:"flags"`
@@ -1649,7 +1631,6 @@ type WindTurbine struct {
 	CitationURL       string  `json:"citation_url"`
 	CurveSourceURL    string  `json:"curve_source_url"`
 	CurveSourceCommit string  `json:"curve_source_commit"`
-	DrivetrainNote    string  `json:"drivetrain_note"`
 }
 
 // WindAssumptions repeats the conventions the figures rest on, including the
@@ -1665,11 +1646,9 @@ type WindAssumptions struct {
 	RoughnessBandM      []float64 `json:"roughness_band_m"`
 	CalmThresholdMS     float64   `json:"calm_threshold_ms"`
 	RecordMaxFloorMS    float64   `json:"record_max_floor_ms"`
-	ConventionsNote     string    `json:"conventions_note"`
 	Qualifier           string    `json:"qualifier"`
 	ExcludedLosses      []string  `json:"excluded_losses"`
 	ComparisonNote      string    `json:"comparison_note"`
-	ResolutionNote      string    `json:"resolution_note"`
 }
 
 // WindAnalysis is a wind resource screening at the AOI, from reanalysis hourly
@@ -1686,7 +1665,6 @@ type WindAnalysis struct {
 	RecordWindow   string    `json:"record_window"`
 	HubHeightM     float64   `json:"hub_height_m"`
 	Qualifier      string    `json:"qualifier"`
-	LoadsNote      string    `json:"loads_note"`
 
 	Measured         WindMeasured    `json:"measured"`
 	Hub              WindHub         `json:"hub"`

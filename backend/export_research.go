@@ -300,6 +300,12 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 		manifest["wind_gross_annual_energy_mwh_per_turbine"] = wd.Hub.GrossAnnualEnergyMWhPerTurbine
 		manifest["wind_turbine"] = wd.Turbine.Name
 		manifest["wind_turbine_citation"] = wd.Turbine.Citation
+		// Which power curve, from where, at which revision. The citation names
+		// the turbine; these say which file the numbers were read from, which
+		// is what a reader needs to obtain the same curve.
+		manifest["wind_turbine_citation_url"] = wd.Turbine.CitationURL
+		manifest["wind_turbine_curve_source_url"] = wd.Turbine.CurveSourceURL
+		manifest["wind_turbine_curve_source_commit"] = wd.Turbine.CurveSourceCommit
 		manifest["wind_excluded_losses"] = wd.Hub.ExcludedLosses
 		manifest["wind_all_checks_passed"] = wd.DataQuality.AllChecksPassed
 		manifest["wind_flags"] = wd.DataQuality.Flags

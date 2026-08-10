@@ -779,10 +779,8 @@ export interface EnergyPerformanceRatio {
   applied: number
   applied_source: string
   reference: number
-  reference_source: string
   modelled: number
   derived: number
-  derived_source: string
   derived_if_optional_at_pvwatts_defaults: number
   declared_loss_factor: number
   optional_loss_factor: number
@@ -793,7 +791,6 @@ export interface EnergyPerformanceRatio {
   degradation_factor: number
   degradation_rate_per_year: number
   analysis_period_years: number
-  degradation_source: string
   /** Band implied by the Global Solar Atlas at this site: [low, high]. */
   gsa_implied_band: number[]
 }
@@ -896,9 +893,7 @@ export interface EnergyTrackerConfiguration {
   axis_azimuth_deg: number
   axis_azimuth_convention: string
   max_angle_deg: number
-  max_angle_source: string
   backtrack: boolean
-  backtrack_note: string
   terrain: string
 }
 
@@ -988,7 +983,6 @@ export interface EnergyModelDerivedLandUse {
   gcr_ratio: number
   basis: string
   note: string
-  module_efficiency_note: string
   parity: EnergyParityGCR
 }
 
@@ -1022,7 +1016,6 @@ export interface EnergyTracking {
   per_hectare: EnergyPerHectare
   performance_ratio: EnergyTrackingPR
   excluded: string
-  resolution_note: string
 }
 
 /** utc_offset_hours is null when none was supplied; the hours are then UTC. */
@@ -1089,9 +1082,7 @@ export interface EnergyCapacityDensity {
   source: string
   acre_conversion: string
   buildable_fraction: number
-  buildable_fraction_source: string
   fleet_dc_ac_ratio: number
-  fleet_dc_ac_ratio_source: string
   ac_to_dc_conversion_applied: boolean
   note: string
 }
@@ -1151,7 +1142,6 @@ export interface EnergyNormality {
   test: string
   statistic: number
   p_value: number
-  interpretation: string
 }
 
 export interface EnergyExceedanceCrosswalk {
@@ -1171,7 +1161,6 @@ export interface EnergyExceedance {
   std_kwh_m2_year: number
   cv_pct: number
   levels: EnergyExceedanceLevel[]
-  p50_note: string
   normality: EnergyNormality
   crosswalk: EnergyExceedanceCrosswalk
   linearity_assumption: string
@@ -1237,7 +1226,6 @@ export interface EnergyAssumptions {
   capacity_density_mw_dc_per_ha: number
   shading_applied: boolean
   shading_derate: number
-  resolution_note: string
   note: string
 }
 
@@ -1337,7 +1325,6 @@ export interface WindMeasured {
   air_density_mean_kg_m3: number
   air_density_min_kg_m3: number
   air_density_max_kg_m3: number
-  humidity_note: string
   monthly_mean_speed_50m: WindMonthlySpeed[]
   direction: WindDirection
   direction_energy_rose_50m: WindRoseSector[]
@@ -1375,9 +1362,7 @@ export interface WindHub {
   gross_capacity_factor_no_density_correction_pct: number
   gross_annual_energy_mwh_per_turbine: number
   operating_regime: WindOperatingRegime
-  density_normalisation_note: string
   hours_per_year: number
-  hours_per_year_note: string
   excluded_losses: string[]
 }
 
@@ -1406,7 +1391,6 @@ export interface WindShearDiagnostics {
   assumed_roughness_band_m: number[]
   expected_shear_exponent_band: number[]
   consistent_with_assumed_cover: boolean
-  roughness_band_note: string
   shear_exponent_hourly_mean: number
   shear_exponent_hourly_median: number
   shear_exponent_day: number
@@ -1428,9 +1412,7 @@ export interface WindDataQuality {
   record_maximum_ms: Record<string, number>
   record_maximum_floor_ms: number
   record_maximum_plausible: boolean
-  record_maximum_floor_note: string
   calm_fraction_2m_flag_pct: number
-  calm_fraction_2m_note: string
   nan_count: Record<string, number>
   shear: WindShearDiagnostics
   flags: string[]
@@ -1455,7 +1437,6 @@ export interface WindTurbine {
   citation_url: string
   curve_source_url: string
   curve_source_commit: string
-  drivetrain_note: string
 }
 
 export interface WindAssumptions {
@@ -1468,12 +1449,10 @@ export interface WindAssumptions {
   roughness_band_m: number[]
   calm_threshold_ms: number
   record_max_floor_ms: number
-  conventions_note: string
   qualifier: string
   excluded_losses: string[]
   /** States that the wind capacity factor is not comparable with the PV one. */
   comparison_note: string
-  resolution_note: string
 }
 
 /**
@@ -1498,7 +1477,6 @@ export interface WindAnalysis {
   record_window: string
   hub_height_m: number
   qualifier: string
-  loads_note: string
   measured: WindMeasured
   hub: WindHub
   shear_sensitivity: WindShearRow[]

@@ -208,7 +208,6 @@ def test_shear_plausibility_reports_the_band_it_judged_against():
     assert inside["consistent_with_assumed_cover"] is True
     assert inside["assumed_roughness_band_m"] == [0.03, 0.10]
     assert inside["expected_shear_exponent_band"] == [0.1520, 0.1862]
-    assert "convention" in inside["roughness_band_note"]
 
     outside = wind.shear_plausibility(0.3797)
     assert outside["consistent_with_assumed_cover"] is False
@@ -340,8 +339,6 @@ def test_power_curve_is_the_published_table():
     assert wind.CURVE_SPEED_MS[-1] == 25.0
     assert abs(wind.CURVE_POWER_W.max() - 3370104.925) < 1e-3
     spec = wind.turbine_specification()
-    assert "3.370105" in spec["drivetrain_note"]
-    assert "3.597987" in spec["drivetrain_note"]
     assert spec["curve_source_commit"] == "d0e12b296d025a1c8aa99d5ba7630654837cc59e"
     assert "NREL/TP-5000-73492" in spec["citation"]
     assert spec["power_curve_column"] == "rotor electrical power"
@@ -453,15 +450,12 @@ def test_equivalent_speed_reduces_the_speed_below_reference_density():
     assert float(wind.equivalent_speed(v, dense).iloc[0]) > 8.0
 
 
-def test_density_note_states_the_exponent_without_citing_an_unverified_clause():
+def test_density_normalisation_applies_the_cube_root_to_the_speed():
     """
-    The attribution of the speed-side normalisation to a clause of
-    IEC 61400-12-1 was not checked against the standard in this project. The
-    note may state the exponent and its basis; it must not cite the clause.
+    The exponent follows from the cubic dependence of the power flux on speed.
+    Its attribution to a clause of IEC 61400-12-1 was never checked against the
+    standard, which is why no clause is cited for it anywhere.
     """
-    note = wind.DENSITY_NORMALISATION_NOTE
-    assert "(rho / 1.225)^(1/3)" in note
-    assert "has not been checked" in note
     assert abs(wind.DENSITY_EXPONENT - 1.0 / 3.0) < 1e-12
 
 
@@ -672,7 +666,6 @@ def test_every_result_carries_the_gross_and_unvalidated_qualifier():
     assert "Global Wind Atlas" in wind.RESULT_QUALIFIER
     assert "per turbine" in wind.RESULT_QUALIFIER
     assert "not been compared" in wind.MEASURED_QUALIFIER
-    assert "turbulence intensity" in out["loads_note"]
 
 
 def test_qualifier_names_every_excluded_loss():
@@ -795,7 +788,6 @@ def test_project_conventions_are_labelled_as_conventions():
     assert wind.SENSITIVITY_ROUGHNESS_M == (0.01, 0.40)
     assert "no published basis" in wind.RECORD_MAX_FLOOR_NOTE
     assert "no published basis" in wind.CALM_2M_NOTE
-    assert "project convention" in wind.ROUGHNESS_BAND_NOTE
 
 
 def test_grid_note_states_what_the_cell_does_and_does_not_resolve():
