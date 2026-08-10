@@ -48,15 +48,23 @@ type BackupManifest struct {
 	// Stated rather than implied. Someone opening this archive in a year should
 	// not have to infer from an empty column that the credentials were dropped
 	// on purpose.
-	Excluded []string `json:"excluded"`
-	Counts   struct {
-		Users    int `json:"users"`
-		Runs     int `json:"runs"`
-		Projects int `json:"projects"`
-		Overlays int `json:"overlays"`
-		Assets   int `json:"assets"`
-	} `json:"counts"`
-	AssetBytes int64 `json:"asset_bytes"`
+	Excluded   []string     `json:"excluded"`
+	Counts     BackupCounts `json:"counts"`
+	AssetBytes int64        `json:"asset_bytes"`
+}
+
+// BackupCounts is what an archive holds.
+//
+// A named type rather than an anonymous struct because this crosses into
+// TypeScript: the Wails binding generator cannot name an anonymous struct, so
+// it emits `any` and every field read on the other side loses its checking. It
+// says so while generating, in a line that scrolls past in a successful build.
+type BackupCounts struct {
+	Users    int `json:"users"`
+	Runs     int `json:"runs"`
+	Projects int `json:"projects"`
+	Overlays int `json:"overlays"`
+	Assets   int `json:"assets"`
 }
 
 const backupFormatVersion = 1

@@ -46,12 +46,20 @@ type RestorePreview struct {
 	ArchivePath string         `json:"archive_path"`
 	Manifest    BackupManifest `json:"manifest"`
 	// What is here now, so the two can be compared.
-	Current struct {
-		Runs     int `json:"runs"`
-		Projects int `json:"projects"`
-	} `json:"current"`
+	Current RestoreCurrent `json:"current"`
 	// Set when the archive cannot be restored, saying why.
 	Problem string `json:"problem,omitempty"`
+}
+
+// RestoreCurrent is what the restore would displace.
+//
+// Named for the same reason as BackupCounts: an anonymous struct reaches
+// TypeScript as `any`, and the confirmation screen reads these fields to tell
+// the user what they are about to replace -- the one place a wrong field name
+// should not compile.
+type RestoreCurrent struct {
+	Runs     int `json:"runs"`
+	Projects int `json:"projects"`
 }
 
 // InspectBackup reads an archive's manifest and checks it can be restored.

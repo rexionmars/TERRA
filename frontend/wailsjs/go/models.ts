@@ -3866,13 +3866,32 @@ export namespace store {
 	        this.count = source["count"];
 	    }
 	}
+	export class BackupCounts {
+	    users: number;
+	    runs: number;
+	    projects: number;
+	    overlays: number;
+	    assets: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.users = source["users"];
+	        this.runs = source["runs"];
+	        this.projects = source["projects"];
+	        this.overlays = source["overlays"];
+	        this.assets = source["assets"];
+	    }
+	}
 	export class BackupManifest {
 	    format_version: number;
 	    created_at: string;
 	    app_version: string;
 	    excluded: string[];
-	    // Go type: struct { Users int "json:\"users\""; Runs int "json:\"runs\""; Projects int "json:\"projects\""; Overlays int "json:\"overlays\""; Assets int "json:\"assets\"" }
-	    counts: any;
+	    counts: BackupCounts;
 	    asset_bytes: number;
 	
 	    static createFrom(source: any = {}) {
@@ -3885,7 +3904,7 @@ export namespace store {
 	        this.created_at = source["created_at"];
 	        this.app_version = source["app_version"];
 	        this.excluded = source["excluded"];
-	        this.counts = this.convertValues(source["counts"], Object);
+	        this.counts = this.convertValues(source["counts"], BackupCounts);
 	        this.asset_bytes = source["asset_bytes"];
 	    }
 	
@@ -4031,11 +4050,24 @@ export namespace store {
 	        this.raster_tif = source["raster_tif"];
 	    }
 	}
+	export class RestoreCurrent {
+	    runs: number;
+	    projects: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RestoreCurrent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runs = source["runs"];
+	        this.projects = source["projects"];
+	    }
+	}
 	export class RestorePreview {
 	    archive_path: string;
 	    manifest: BackupManifest;
-	    // Go type: struct { Runs int "json:\"runs\""; Projects int "json:\"projects\"" }
-	    current: any;
+	    current: RestoreCurrent;
 	    problem?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -4046,7 +4078,7 @@ export namespace store {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.archive_path = source["archive_path"];
 	        this.manifest = this.convertValues(source["manifest"], BackupManifest);
-	        this.current = this.convertValues(source["current"], Object);
+	        this.current = this.convertValues(source["current"], RestoreCurrent);
 	        this.problem = source["problem"];
 	    }
 	
