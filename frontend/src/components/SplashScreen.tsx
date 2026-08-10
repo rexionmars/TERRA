@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime"
-import { GetBootLogs } from "../../wailsjs/go/main/App"
+import { GetAppVersion, GetBootLogs } from "../../wailsjs/go/main/App"
 import {
+  SPLASH_CURRENT_KEY,
   SPLASH_IMAGES,
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
@@ -30,7 +31,35 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
     nobody can see is a still, so this is a still: one image per launch, the
     next one next time.
   */
-  const [slide] = useState(() => claimSplashSlideForLaunch(SPLASH_IMAGES.length))
+  const [slide, setSlide] = useState(() =>
+    claimSplashSlideForLaunch(SPLASH_IMAGES.length)
+  )
+
+  /*
+    The featured still, on the first launch after an update.
+
+    The version lives in the Go binary, so it arrives after the first paint.
+    Re-claiming with it in hand is a no-op on every launch but that first one,
+    where the index already claimed is replaced by the image the release is
+    named for.
+  */
+  useEffect(() => {
+    let cancelled = false
+    GetAppVersion()
+      .then((version) => {
+        if (cancelled || !version) return
+        try {
+          sessionStorage.removeItem(SPLASH_CURRENT_KEY)
+        } catch {
+          /* storage unavailable: the plain rotation stands */
+        }
+        setSlide(claimSplashSlideForLaunch(SPLASH_IMAGES.length, version))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false

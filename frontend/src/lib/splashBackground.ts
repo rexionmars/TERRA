@@ -1,42 +1,127 @@
 /**
- * The splash stills, and which one this launch shows.
+ * The splash stills: what they are, where they came from, and which one shows.
  *
- * THE ONE SOURCE. These paths used to exist twice -- here, and hard-coded in a
- * script tag in index.html that paints the background before any JavaScript
- * bundle loads -- with "keep in sync" comments on both, which is the admission
- * that nothing kept them in sync. Changing an image meant three coordinated
- * edits, and missing one made the HTML paint one photo and React swap to
- * another the moment it mounted.
+ * A MANIFEST, NOT A LIST OF PATHS. This was three URLs whose filenames were
+ * their upload IDs -- pexels-andrey-kwin-145997290-10436186 says nothing about
+ * a photograph of terraced farmland, so nobody could tell which file to replace
+ * without opening all of them. It also recorded no source, so a year from now
+ * there would be no way back to the original to re-encode it at a different
+ * size.
  *
- * The HTML now receives this list at build time (see the splashImages plugin in
- * vite.config.ts), so there is one place to edit and no way for the two to
- * disagree.
+ * Each still carries a code name, and each release features one. That is the
+ * point of the code name: a version focused on solar and wind ships an image of
+ * turbines at dusk, and the name is how the release is referred to afterwards.
  *
- * WebP, sized for the window rather than for print: these were 4-megapixel
- * JPEGs totalling 4.2 MB, embedded in the binary, for a screen that shows one
- * of them for about a second.
+ * THE ONE SOURCE. index.html paints a background before any bundle loads, so it
+ * cannot import this -- the paths used to be duplicated into a script tag with
+ * "keep in sync" comments on both copies, which is the admission that nothing
+ * did. A Vite plugin now substitutes them at build time from here.
+ *
+ * WebP sized for the window rather than for print: the originals are 24-megapixel
+ * photographs, and the window is 420x280.
  */
-export const SPLASH_IMAGES = [
-  "/terra-splash-images/pexels-aleksandar069-15509901.webp",
-  "/terra-splash-images/pexels-andrey-kwin-145997290-10436186.webp",
-  "/terra-splash-images/pexels-zelch-30596252.webp",
-] as const
+
+export type SplashStill = {
+  /** The code name. Names the release that introduced it. */
+  name: string
+  path: string
+  /** What the photograph shows, for whoever has to pick one later. */
+  subject: string
+  /**
+   * Where it came from. Not a licence obligation -- these are Pexels images,
+   * which require no attribution -- but the only way back to the original if it
+   * ever needs re-encoding at a different size.
+   */
+  source: string
+  photographer: string
+  /** The application version that introduced it. */
+  since: string
+}
+
+/**
+ * Named for what is observable from orbit, which is what this application is
+ * about. A set rather than a list of one-offs: the coherence is what makes the
+ * names read as deliberate, and there are enough of these for many releases.
+ */
+export const SPLASH_STILLS: SplashStill[] = [
+  {
+    name: "Meander",
+    path: "/terra-splash-images/meander.webp",
+    subject: "a river meandering through cultivated land, from altitude",
+    source: "https://www.pexels.com/photo/15509901/",
+    photographer: "Aleksandar Pasaric",
+    since: "0.1.0",
+  },
+  {
+    name: "Terraces",
+    path: "/terra-splash-images/terraces.webp",
+    subject: "terraced farmland",
+    source: "https://www.pexels.com/photo/10436186/",
+    photographer: "Andrey Kwin",
+    since: "0.1.0",
+  },
+  {
+    name: "Vortex",
+    path: "/terra-splash-images/vortex.webp",
+    subject: "a cyclone over the southern ocean, from orbit",
+    source: "https://www.pexels.com/photo/30596252/",
+    photographer: "Zelch Csaba",
+    since: "0.1.0",
+  },
+  {
+    name: "Windfarm",
+    path: "/terra-splash-images/windfarm.webp",
+    subject: "three turbines silhouetted against a sunset",
+    source: "https://www.pexels.com/photo/34316533/",
+    photographer: "Arlind Photography",
+    since: "0.4.0",
+  },
+  {
+    name: "Ember",
+    path: "/terra-splash-images/ember.webp",
+    subject: "turbines under a burning sky",
+    source: "https://www.pexels.com/photo/19564402/",
+    photographer: "stonesdonotdisappear",
+    since: "0.4.0",
+  },
+]
+
+/**
+ * The still this release is named for.
+ *
+ * Shown on the first launch after an update, then it takes its place in the
+ * rotation. Featuring it permanently would discard the others and turn a
+ * rotating splash into a fixed one; showing it never would make the code name
+ * decorative.
+ */
+export const FEATURED_STILL = "Ember"
+
+/** Paths alone, for the places that only need to load them. */
+export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)
 
 export const SPLASH_NEXT_KEY = "terra.splash.next"
 export const SPLASH_CURRENT_KEY = "terra.splash.current"
+/** The version whose featured still has already been shown. */
+export const SPLASH_SEEN_VERSION_KEY = "terra.splash.seenVersion"
 
 /**
- * Pick the splash image for this app launch and advance the counter for the
- * next open.
+ * Pick the still for this launch and advance the counter for the next open.
  *
- * Safe to call once per boot: the HTML claims the index first and writes it to
- * sessionStorage, and React reads that back rather than advancing again --
- * otherwise the still would change under the user between the two splashes.
+ * Safe to call once per boot: index.html claims the index first and writes it
+ * to sessionStorage, and React reads that back rather than advancing again --
+ * otherwise the image would change under the user between the two splashes.
+ *
+ * `version` opts into the featured-first behaviour. Without it -- which is how
+ * the pre-bundle HTML calls it, since it has no version to compare -- this is
+ * the plain rotation it always was.
  */
 export function claimSplashSlideForLaunch(
-  count: number = SPLASH_IMAGES.length
+  count: number = SPLASH_IMAGES.length,
+  version?: string
 ): number {
   if (count <= 0) return 0
+
+  // Already claimed this launch.
   try {
     const existing = sessionStorage.getItem(SPLASH_CURRENT_KEY)
     if (existing != null) {
@@ -47,6 +132,26 @@ export function claimSplashSlideForLaunch(
     }
   } catch {
     /* sessionStorage unavailable */
+  }
+
+  // First launch on a new version: show what the release is named for.
+  if (version) {
+    try {
+      if (localStorage.getItem(SPLASH_SEEN_VERSION_KEY) !== version) {
+        const featured = SPLASH_STILLS.findIndex(
+          (s) => s.name === FEATURED_STILL
+        )
+        if (featured >= 0 && featured < count) {
+          localStorage.setItem(SPLASH_SEEN_VERSION_KEY, version)
+          // The rotation resumes after it rather than repeating it.
+          localStorage.setItem(SPLASH_NEXT_KEY, String((featured + 1) % count))
+          sessionStorage.setItem(SPLASH_CURRENT_KEY, String(featured))
+          return featured
+        }
+      }
+    } catch {
+      /* storage unavailable: fall through to the plain rotation */
+    }
   }
 
   let next = 0

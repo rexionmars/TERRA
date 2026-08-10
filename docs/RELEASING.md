@@ -49,7 +49,8 @@ JOSS acceptance / production-ready install story).
    (or pass `-ldflags "-X main.AppVersion=X.Y.Z"` in the release build), and add a
    matching entry in [`frontend/src/lib/whatsNew.ts`](../frontend/src/lib/whatsNew.ts)
    if the release should show a What’s New modal.
-5. Tag and push:
+5. Pick the release's still and code name — see below.
+6. Tag and push:
 
 ```bash
 git checkout main && git pull
@@ -57,8 +58,45 @@ git tag -a v0.3.0 -m "TERRA v0.3.0 — short reason"
 git push origin v0.3.0
 ```
 
-6. Confirm the Release workflow finished and assets appear on
+7. Confirm the Release workflow finished and assets appear on
    [Releases](https://github.com/rexionmars/TERRA/releases).
+
+## Code names and the splash still
+
+Each release is named for a splash photograph, and that photograph is what the
+first launch after the update shows. It then joins the rotation rather than
+replacing it — featuring one permanently would discard the others, and never
+featuring it would make the name decorative.
+
+Names come from one set: **what is observable from orbit**. `Meander`,
+`Terraces`, `Vortex`, `Windfarm`, `Ember`. The coherence is the point — a set
+is what makes the names read as deliberate rather than arbitrary — and it does
+not run out. Pick a name that fits the image, and an image that fits what the
+release is about: a version focused on solar and wind ships turbines at dusk.
+
+### Adding one
+
+Images are photographs from [Pexels](https://www.pexels.com), which needs no
+attribution. The manifest records the photographer and URL anyway: it is the
+only route back to the original if the file ever needs re-encoding.
+
+Downloads are full-resolution — 24 megapixels is normal — and the splash window
+is 420x280. Resize and convert before committing, or the binary grows by
+megabytes for an image shown for about a second:
+
+```bash
+sips -Z 1600 original.jpg --out /tmp/resized.jpg
+cwebp -q 82 /tmp/resized.jpg -o frontend/public/terra-splash-images/<name>.webp
+```
+
+1600px and q82 are what the existing stills use; keeping to them keeps the set
+consistent. Check the result by eye before committing — skies and open water
+are where WebP bands first, and every one of these is mostly sky.
+
+Then add an entry to `SPLASH_STILLS` in
+[`splashBackground.ts`](../frontend/src/lib/splashBackground.ts) and point
+`FEATURED_STILL` at it. Nothing else needs editing: `index.html` receives the
+list at build time, and a path with no file on disk fails the build.
 
 ## Current line
 

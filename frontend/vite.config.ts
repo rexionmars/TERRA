@@ -29,18 +29,22 @@ function htmlConstants(): Plugin {
       const source = path.resolve(__dirname, 'src/lib/splashBackground.ts')
       const text = fs.readFileSync(source, 'utf8')
 
+      // Read off the manifest's path fields rather than a plain array, since
+      // each still now carries a code name and its provenance beside its path.
       const block = text.match(
-        /export const SPLASH_IMAGES = \[([\s\S]*?)\] as const/
+        /export const SPLASH_STILLS: SplashStill\[\] = \[([\s\S]*?)\n\]/
       )
       if (!block) {
         throw new Error(
-          'SPLASH_IMAGES not found in splashBackground.ts; the splash HTML ' +
+          'SPLASH_STILLS not found in splashBackground.ts; the splash HTML ' +
             'cannot be given its image list'
         )
       }
-      const images = [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+      const images = [
+        ...block[1].matchAll(/path:\s*"([^"]+)"/g),
+      ].map((m) => m[1])
       if (images.length === 0) {
-        throw new Error('SPLASH_IMAGES is empty')
+        throw new Error('SPLASH_STILLS declares no paths')
       }
 
       // The subtitle, from the module that owns it. Hard-coded here it was one
