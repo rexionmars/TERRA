@@ -122,10 +122,6 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
                     : s.cumulative_ratio.toFixed(6)}
                 </span>
               </div>
-              <p className="mt-1 pl-7 text-[10px] leading-relaxed text-muted-foreground">
-                {s.source}
-                {s.note ? ` — ${s.note}` : ""}
-              </p>
             </li>
           )
         })}
@@ -314,9 +310,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
       <p className="eyebrow">Fixed tilt against one-axis tracking</p>
 
       <div>
-        <p className="mb-2 text-[11px] leading-relaxed text-foreground">
-          Per hectare, as published. {t.per_hectare.note}
-        </p>
+            <p className="eyebrow !text-[9px] mb-2">Per hectare, as published</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="rounded-sm border border-border bg-secondary px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
@@ -335,9 +329,6 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
             </div>
             <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
               {bol.source}
-            </p>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-              {bol.note}
             </p>
           </div>
           <div className="rounded-sm border border-border bg-secondary px-3 py-2">
@@ -362,9 +353,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
             <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
               {ong.source}
             </p>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-              {ong.note}
-            </p>
+                <p className="text-[10px] text-muted-foreground">tracking land per unit energy</p>
           </div>
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
@@ -391,16 +380,10 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
           {md.gcr_ratio.toFixed(4)}
         </div>
         <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {md.basis}. {md.note}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
           Sign parity at a tracker ground coverage of{" "}
           {md.parity.gcr_tracker.toFixed(4)}, that is{" "}
           {md.parity.gcr_ratio.toFixed(3)} of the fixed-tilt value, searched
           over {md.parity.search_range.join(" to ")}. {md.parity.note}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {md.module_efficiency_note}
         </p>
       </div>
 
@@ -435,9 +418,6 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
             }
           />
         </div>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {t.per_kwp.note}
-        </p>
       </div>
 
       <div
@@ -484,9 +464,6 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {t.seasonal.note}
-        </p>
       </div>
 
       <div
@@ -553,9 +530,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
           {g.time_standard.hour_label}
         </p>
       </div>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        {g.time_standard.note} {g.note}
-      </p>
+          <p className="text-[10px] text-muted-foreground">before applied performance ratio</p>
 
       <div className="edge-fade-x -mx-1 overflow-x-auto px-1">
         <div className="min-w-[34rem]">
@@ -647,9 +622,6 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {g.monthly.note}
-        </p>
       </div>
 
       <div
@@ -743,11 +715,6 @@ function PlantClassCard({
         {cls.contiguity.n_patches} patches at {cls.contiguity.connectivity}-way
         connectivity. {cls.contiguity.note}
       </p>
-      {cls.note && (
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {cls.note}
-        </p>
-      )}
     </div>
   )
 }
@@ -771,9 +738,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
           basis {p.reporting_basis} · {ex.convention} convention
         </p>
       </div>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        {p.areas_note}
-      </p>
+          <p className="text-[10px] text-muted-foreground">areas are not additive</p>
 
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         {p.suitable.area_ha > 0 && (
@@ -883,9 +848,10 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
             </ul>
           </div>
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          {p.uncertainty.statement} {p.uncertainty.dominant_term}
-        </p>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              resource variability only · dominant term{" "}
+              <span className="telemetry">{p.uncertainty.dominant_term}</span>
+            </p>
       </div>
 
       <div
@@ -978,9 +944,6 @@ export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) 
           sub={`azimuth ${g.surface_azimuth_deg.toFixed(0)}° · plane-of-array ${g.poa_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
         />
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-        {d.note}
-      </p>
 
       <div
         className="mt-4 border-t pt-4"
