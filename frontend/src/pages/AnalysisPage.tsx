@@ -1710,10 +1710,14 @@ export function AnalysisPage({
               </div>
               {result.water.occurrence_uri && (
                 <div className="mb-3">
+                  {/* Spans the panel rather than sitting in a grid column, so
+                      its height is bounded instead of following a 4:3 ratio of
+                      the full width. */}
                   <PanelTile
                     title="Water occurrence"
                     uri={result.water.occurrence_uri}
                     empty="No occurrence raster"
+                    fullWidth
                   />
                   <ContinuousRamp
                     palette="blues"

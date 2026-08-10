@@ -287,10 +287,13 @@ export function SolarSitingSection({
   return (
     <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <p className="eyebrow mb-3">Photovoltaic siting</p>
+      {/* Full-width, like the water occurrence tile: a 4:3 box across a whole
+          panel runs off the bottom of the window on a wide screen. */}
       <PanelTile
         title="Suitability classes"
         uri={siting.overlay_uri}
         empty="No siting raster"
+        fullWidth
       />
       <div className="mb-3 mt-3 grid grid-cols-2 gap-3">
         <WaterFigure
