@@ -427,12 +427,9 @@ export function AnalysisPage({
     }
   }, [hubView, selectedProjectId, loadProjectDetail, loadUnassigned])
 
-  const [openedRunId, setOpenedRunId] = useState<string | null>(null)
-
   const handleOpenRun = useCallback(
     async (run: InferenceRun) => {
       setOpenedOverlay(null)
-      setOpenedRunId(run.id)
       if (run.project_id) {
         setSelectedProjectId(run.project_id)
         setHubView("detail")
@@ -616,10 +613,6 @@ export function AnalysisPage({
           await loadUnassigned()
         }
         clearSelection()
-        if (result && openedRunId === run.id) {
-          setOpenedRunId(null)
-          onBackToList()
-        }
         notifySuccess("Analysis deleted")
       } catch (e) {
         notifyError("Could not delete analysis", e)
@@ -633,9 +626,6 @@ export function AnalysisPage({
       loadProjectDetail,
       loadUnassigned,
       clearSelection,
-      result,
-      openedRunId,
-      onBackToList,
     ]
   )
 
@@ -717,55 +707,63 @@ export function AnalysisPage({
     )
   }
 
-  const runsPanel = (
-    <SavedRunsPanel
-      title={panelTitle}
-      /*
-        The list is filtered by project and by nothing else, so it holds every
-        run kind -- classification, surface water, solar and wind alike. The
-        caption named only the first and even listed its three models, twenty
-        lines above the code that branches on r.kind to draw the other three.
-        Inside a project it says nothing at all now: the tab above already does.
-      */
-      caption={
-        hubView === "unassigned"
-          ? "Runs of any product not yet assigned to a project."
-          : undefined
-      }
-      runs={scopedRuns}
-      loading={!!loadingRun || comparing || hubLoading}
-      selectedIds={selectedIds}
-      onToggleSelect={toggleSelect}
-      onClearSelection={clearSelection}
-      onCompare={() => void startCompare()}
-      comparing={comparing}
-      onOpen={handleOpenRun}
-      onDelete={(run) => void handleDeleteRun(run)}
-      onRefresh={() => {
-        void refreshRuns()
-        if (hubView === "detail" && selectedProjectId) void loadProjectDetail(selectedProjectId)
-        if (hubView === "unassigned") void loadUnassigned()
-      }}
-      projects={projects}
-      onAssignProject={
-        hubView === "unassigned"
-          ? async (runId, projectId) => {
-              try {
-                await SetRunProject(runId, projectId)
-                await refreshRuns()
-                await loadUnassigned()
-                await refreshProjects()
-                notifySuccess("Assigned to project")
-              } catch (e) {
-                notifyError("Could not assign run", e)
-              }
-            }
-          : undefined
-      }
-    />
-  )
-
   if (!result) {
+    /*
+      Scoped to the hub, where the list IS the screen. It used to be built out
+      here and placed a third time at the foot of an open analysis, so reading
+      one result ended in the roster of every other one -- a list of forty-eight
+      runs answering a question the reader had already left behind. The header
+      of the detail view carries "Saved analyses" for going back, and comparing,
+      deleting and assigning all live on the hub the button returns to.
+    */
+    const runsPanel = (
+      <SavedRunsPanel
+        title={panelTitle}
+        /*
+          The list is filtered by project and by nothing else, so it holds every
+          run kind -- classification, surface water, solar and wind alike. The
+          caption named only the first and even listed its three models, twenty
+          lines above the code that branches on r.kind to draw the other three.
+          Inside a project it says nothing at all now: the tab above already does.
+        */
+        caption={
+          hubView === "unassigned"
+            ? "Runs of any product not yet assigned to a project."
+            : undefined
+        }
+        runs={scopedRuns}
+        loading={!!loadingRun || comparing || hubLoading}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
+        onClearSelection={clearSelection}
+        onCompare={() => void startCompare()}
+        comparing={comparing}
+        onOpen={handleOpenRun}
+        onDelete={(run) => void handleDeleteRun(run)}
+        onRefresh={() => {
+          void refreshRuns()
+          if (hubView === "detail" && selectedProjectId) void loadProjectDetail(selectedProjectId)
+          if (hubView === "unassigned") void loadUnassigned()
+        }}
+        projects={projects}
+        onAssignProject={
+          hubView === "unassigned"
+            ? async (runId, projectId) => {
+                try {
+                  await SetRunProject(runId, projectId)
+                  await refreshRuns()
+                  await loadUnassigned()
+                  await refreshProjects()
+                  notifySuccess("Assigned to project")
+                } catch (e) {
+                  notifyError("Could not assign run", e)
+                }
+              }
+            : undefined
+        }
+      />
+    )
+
     const hubSelection =
       hubView === "list"
         ? ("all" as const)
@@ -1811,8 +1809,6 @@ export function AnalysisPage({
               </div>
             </section>
           )}
-
-          {runsPanel}
         </div>
       </PageBody>
 
