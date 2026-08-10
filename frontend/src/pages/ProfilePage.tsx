@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Camera, ChartColumn, FolderOpen, LogOut, Save, Trash2 } from "lucide-react"
+import {
+  Camera,
+  ChartColumn,
+  Download,
+  FolderOpen,
+  Loader2,
+  LogOut,
+  Save,
+  Trash2,
+} from "lucide-react"
+import { ExportBackup } from "../../wailsjs/go/main/App"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
@@ -42,7 +52,7 @@ const SECTIONS: {
   /** How many settings the page holds, where that is a countable thing. */
   count?: number
 }[] = [
-  { id: "account", label: "Account", count: 7 },
+  { id: "account", label: "Account", count: 8 },
   // No count. The other page is a list of controls, and the number says how
   // long the list is. This one reports the state of an environment and offers
   // what to do about it, so "(1)" would be counting the wrong thing.
@@ -78,6 +88,9 @@ export function ProfilePage({
   const [name, setName] = useState("")
   const [theme, setTheme] = useState("dark")
   const [busy, setBusy] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupResult, setBackupResult] = useState<string | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
   /*
     Account unless something asked for a particular page -- the first-run gate
     asks for System, since an unusable interpreter is the reason it opened
@@ -201,6 +214,28 @@ export function ProfilePage({
       await updateProfile(name.trim())
     } finally {
       setBusy(false)
+    }
+  }
+
+  /*
+    The archive is built before the save dialog opens, so a large history
+    spends its time with the button showing it is working rather than behind a
+    dialog the user has already answered.
+
+    An empty path means the dialog was cancelled, which is not an error and not
+    a success -- it clears both and says nothing.
+  */
+  const exportBackup = async () => {
+    setBackupBusy(true)
+    setBackupError(null)
+    setBackupResult(null)
+    try {
+      const dest = await ExportBackup()
+      if (dest) setBackupResult(`Saved to ${dest}`)
+    } catch (e) {
+      setBackupError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBackupBusy(false)
     }
   }
 
@@ -418,6 +453,44 @@ export function ProfilePage({
                       </li>
                     ))}
                   </ul>
+                )}
+              </SettingRow>
+
+              {/* Everything this application saves lives in one directory on
+                  one machine: no server, no account holding a second copy. A
+                  reinstalled laptop takes every analysis with it, and until
+                  now there was no way out. */}
+              <SettingRow
+                id="account.backup"
+                title="Backup"
+                description="Writes your analyses, projects and their images to a single ZIP file. Passwords and sessions are left out, so the file can be stored or sent without carrying a credential."
+                focused={focusedSetting === "account.backup"}
+                onFocus={() => setFocusedSetting("account.backup")}
+              >
+                <button
+                  type="button"
+                  disabled={backupBusy}
+                  onClick={() => void exportBackup()}
+                  className={btnGhost}
+                >
+                  {backupBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3" />
+                  )}
+                  {backupBusy ? "Writing backup" : "Export backup"}
+                </button>
+                {/* The written path, not just "done". A file the user chose
+                    the location of is one they have to find again. */}
+                {backupResult && (
+                  <p className="telemetry mt-2 break-all text-micro text-muted-foreground">
+                    {backupResult}
+                  </p>
+                )}
+                {backupError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {backupError}
+                  </p>
                 )}
               </SettingRow>
 

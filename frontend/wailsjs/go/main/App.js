@@ -62,6 +62,10 @@ export function DeleteProjectOverlay(arg1) {
   return window['go']['main']['App']['DeleteProjectOverlay'](arg1);
 }
 
+export function ExportBackup() {
+  return window['go']['main']['App']['ExportBackup']();
+}
+
 export function ExportClassification(arg1) {
   return window['go']['main']['App']['ExportClassification'](arg1);
 }

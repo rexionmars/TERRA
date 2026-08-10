@@ -34,6 +34,8 @@ export function DeleteProject(arg1:string):Promise<void>;
 
 export function DeleteProjectOverlay(arg1:string):Promise<void>;
 
+export function ExportBackup():Promise<string>;
+
 export function ExportClassification(arg1:string):Promise<string>;
 
 export function ExportOverlayFile(arg1:string,arg2:string):Promise<string>;

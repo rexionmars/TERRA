@@ -788,6 +788,59 @@ func (a *App) ExportResearchPack(meta backend.ResearchExportMeta, result *backen
 	return dest, nil
 }
 
+/*
+ExportBackup writes the local database and its files to a ZIP the user places.
+
+Everything this application saves lives in one directory on one machine: there
+is no server and no account holding a second copy, so a reinstalled laptop
+takes every analysis and project with it. This is the only way out.
+
+Password hashes and session tokens are left out of the archive. A backup is a
+file people mail to themselves and attach to support threads, and any of those
+turns a stored credential into one that has left the machine. Restoring returns
+the analyses and projects and asks for a new password; the archive says so in
+its README, and so does the button that makes it.
+
+Returns the path written, or an empty string when the user cancels the dialog.
+*/
+func (a *App) ExportBackup() (string, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return "", errors.New("the local store is not open")
+	}
+
+	// Built before the dialog opens. A large history takes a moment to archive,
+	// and doing it after would leave the user looking at a chosen filename with
+	// nothing happening, unable to tell a slow write from a stuck one.
+	zipBytes, err := st.ExportBackup(a.GetAppVersion())
+	if err != nil {
+		return "", err
+	}
+
+	dest, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
+		Title:           "Export backup",
+		DefaultFilename: store.DefaultBackupFilename(time.Now()),
+		Filters: []wruntime.FileFilter{
+			{DisplayName: "ZIP archive", Pattern: "*.zip"},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	if dest == "" {
+		return "", nil
+	}
+	if !strings.HasSuffix(strings.ToLower(dest), ".zip") {
+		dest += ".zip"
+	}
+	if err := os.WriteFile(dest, zipBytes, 0o600); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
 // ExportOverlayFile saves an overlay asset via SaveFileDialog.
 // src may be a filesystem path or a data:image/png;base64,... URI.
 func (a *App) ExportOverlayFile(src string, defaultFilename string) (string, error) {
