@@ -34,6 +34,15 @@
           'url("' + images[index] + '") center / cover no-repeat';
         document.documentElement.style.setProperty("--splash-html-bg", css);
 
+        // The still's code name, so it does not appear only once React mounts.
+        // Names are substituted alongside the paths; this splash has no version
+        // to add, and React fills that in when the Go side answers.
+        var names = __SPLASH_NAMES__;
+        document.addEventListener("DOMContentLoaded", function () {
+          var el = document.getElementById("splash-still");
+          if (el && names[index]) el.textContent = names[index];
+        });
+
         // Only this launch's still is fetched. The React splash used to render
         // all three as background layers, so the browser pulled every one --
         // two of three downloads wasted on a window that shows one, competing
@@ -96,6 +105,15 @@
         color: rgb(196, 186, 172);
         text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
       }
+      #splash .splash-still {
+        margin: 0;
+        min-height: 0.8rem;
+        font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.58rem;
+        letter-spacing: 0.08em;
+        color: rgba(226, 220, 212, 0.7);
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+      }
       #splash .splash-log {
         position: absolute;
         left: 1rem;
@@ -137,6 +155,7 @@
   <img class="splash-logo" src="/terra-logo.png" alt="" width="56" height="56"/>
   <p class="splash-brand">TERRA</p>
   <p class="splash-eyebrow">__BRAND_TAGLINE__</p>
+  <p class="splash-still" id="splash-still"></p>
   <p class="splash-log" id="splash-log">booting…</p>
   <div class="splash-led" aria-hidden="true"></div>
 </div>

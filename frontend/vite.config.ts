@@ -47,6 +47,17 @@ function htmlConstants(): Plugin {
         throw new Error('SPLASH_STILLS declares no paths')
       }
 
+      // The code names, so the pre-bundle splash can label its own still
+      // rather than having the name appear only once React mounts.
+      const names = [...block[1].matchAll(/name:\s*"([^"]+)"/g)].map(
+        (m) => m[1]
+      )
+      if (names.length !== images.length) {
+        throw new Error(
+          `SPLASH_STILLS has ${names.length} names for ${images.length} paths`
+        )
+      }
+
       // The subtitle, from the module that owns it. Hard-coded here it was one
       // more copy nobody would remember to change -- and the line it replaced
       // had already outlived the product it described.
@@ -66,6 +77,7 @@ function htmlConstants(): Plugin {
           throw new Error(`splash image missing: ${img}`)
         }
       }
+      html = html.replace('__SPLASH_NAMES__', JSON.stringify(names))
       return html.replace('__SPLASH_IMAGES__', JSON.stringify(images))
     },
   }

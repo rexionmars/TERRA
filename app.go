@@ -204,20 +204,20 @@ func (a *App) probeSidecar(ctx context.Context) {
 	}
 
 	/*
-		A floor, not a performance.
+		How long the splash is held when the boot finishes sooner.
 
-		This was five seconds, held so the splash "reads as a real boot screen",
-		with a "warming up…" line describing no work at all -- opening SQLite,
-		resolving paths and asking an interpreter its version take a fraction of
-		that. With the 480ms fade and the 120ms reveal after it, every launch
-		cost the user about 5.6 seconds of watching a screen that had finished.
+		This was five seconds, held so it "reads as a real boot screen" while
+		logging "warming up…" over no work at all -- opening SQLite, resolving
+		paths and asking an interpreter its version take a fraction of that.
+		With the fade and reveal after it, every launch cost about 5.6 seconds
+		of watching a screen that had finished.
 
-		What a floor is actually for is the opposite case: a boot that completes
-		in 50ms would flash the splash and tear it away, which reads as a glitch
-		rather than as speed. 900ms is enough for the fade to look deliberate
-		and short enough that nobody waits on it.
+		Three seconds is the deliberate choice: long enough to read the release
+		name and see the still it is named for, short enough that nobody is
+		waiting on it. The Ken Burns pan is timed against this -- see
+		.splash-kenburns in index.css.
 	*/
-	const minSplash = 900 * time.Millisecond
+	const minSplash = 3 * time.Second
 	if a.bootStarted.IsZero() {
 		a.bootStarted = time.Now()
 	}

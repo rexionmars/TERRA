@@ -4,6 +4,7 @@ import { GetAppVersion, GetBootLogs } from "../../wailsjs/go/main/App"
 import {
   SPLASH_CURRENT_KEY,
   SPLASH_IMAGES,
+  SPLASH_STILLS,
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
 import { BRAND_TAGLINE } from "@/lib/brand"
@@ -36,6 +37,12 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
   )
 
   /*
+    Null until the Go side answers, so the line renders without it and gains it
+    a frame later rather than reserving blank space for it.
+  */
+  const [version, setVersion] = useState<string | null>(null)
+
+  /*
     The featured still, on the first launch after an update.
 
     The version lives in the Go binary, so it arrives after the first paint.
@@ -48,6 +55,7 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
     GetAppVersion()
       .then((version) => {
         if (cancelled || !version) return
+        setVersion(version)
         try {
           sessionStorage.removeItem(SPLASH_CURRENT_KEY)
         } catch {
@@ -88,7 +96,8 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
   }, [])
 
   const statusLine = logs[logs.length - 1] ?? "booting…"
-  const activeImage = SPLASH_IMAGES[slide] ?? SPLASH_IMAGES[0]
+  const activeStill = SPLASH_STILLS[slide] ?? SPLASH_STILLS[0]
+  const activeImage = activeStill?.path ?? SPLASH_IMAGES[0]
 
   return (
     <div
@@ -127,6 +136,20 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
           <p className="eyebrow drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
             {BRAND_TAGLINE}
           </p>
+          {/*
+            The still on screen, named.
+
+            Its own name rather than the release's: they are the same image on
+            the first launch after an update and different on every launch
+            after, and printing "Ember" over a photograph of a river would be
+            the interface stating something the user can see is false.
+          */}
+          {activeStill && (
+            <p className="telemetry text-meta text-foreground/70 drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
+              {activeStill.name}
+              {version && ` · ${version}`}
+            </p>
+          )}
           <div className="mt-1 h-0.5 w-7 rounded-[1px] bg-accent/85" aria-hidden />
         </div>
         <span

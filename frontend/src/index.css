@@ -411,21 +411,21 @@
   z-index: 1;
 }
 /*
-  Six seconds, not sixteen.
+  Timed against the splash, which is held for three seconds plus the fade.
 
-  The pan ran for 16s with `forwards` while the splash was up for about five,
-  so it never reached a third of its travel -- and now that the boot floor is
-  under a second it would be a still image with a CSS animation attached. Six
-  seconds covers a slow boot and makes the motion visible in a fast one.
+  It ran for 16s with `forwards` against a screen up for five, so it never
+  reached a third of its travel and the pan read as a slow drift with no shape.
+  Four seconds completes most of the move within the window and still has
+  somewhere to go if a boot runs long.
 */
 .splash-kenburns.is-active.splash-kenburns--1 {
-  animation: splash-kenburns-a 6s ease-out forwards;
+  animation: splash-kenburns-a 4s ease-out forwards;
 }
 .splash-kenburns.is-active.splash-kenburns--2 {
-  animation: splash-kenburns-b 6s ease-out forwards;
+  animation: splash-kenburns-b 4s ease-out forwards;
 }
 .splash-kenburns.is-active.splash-kenburns--3 {
-  animation: splash-kenburns-c 6s ease-out forwards;
+  animation: splash-kenburns-c 4s ease-out forwards;
 }
 
 /*
