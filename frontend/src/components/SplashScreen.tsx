@@ -6,23 +6,30 @@ import {
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
 
-const SLIDE_MS = 7000
-
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
   exiting?: boolean
 }
 
 /**
- * Compact boot UI for the small splash window (before the main shell).
- * Full-bleed aerial stills with sliding zoom; brand centered, status as one line.
- * Starting still rotates on each program launch.
+ * Compact boot UI for the small splash window, before the main shell.
+ *
+ * A full-bleed aerial still with a slow pan, the brand centred, and the boot
+ * log's last line along the bottom. The still rotates per launch rather than
+ * during one: the window is up for about a second.
  */
 export function SplashScreen({ exiting = false }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])
-  const [slide, setSlide] = useState(() =>
-    claimSplashSlideForLaunch(SPLASH_IMAGES.length)
-  )
+  /*
+    Claimed once, and never advanced.
+
+    There used to be a 7-second carousel here. The splash lives for about a
+    second now, so the interval never fired and the Ken Burns pan -- 16 seconds
+    with `forwards` -- never reached its second keyframe either. A rotation
+    nobody can see is a still, so this is a still: one image per launch, the
+    next one next time.
+  */
+  const [slide] = useState(() => claimSplashSlideForLaunch(SPLASH_IMAGES.length))
 
   useEffect(() => {
     let cancelled = false
@@ -50,15 +57,8 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
     }
   }, [])
 
-  useEffect(() => {
-    if (exiting || SPLASH_IMAGES.length < 2) return
-    const id = window.setInterval(() => {
-      setSlide((i) => (i + 1) % SPLASH_IMAGES.length)
-    }, SLIDE_MS)
-    return () => window.clearInterval(id)
-  }, [exiting])
-
   const statusLine = logs[logs.length - 1] ?? "booting…"
+  const activeImage = SPLASH_IMAGES[slide] ?? SPLASH_IMAGES[0]
 
   return (
     <div
@@ -66,16 +66,21 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
         exiting ? "splash-screen--exit" : ""
       }`}
     >
+      {/*
+        One layer, for the still this launch claimed.
+
+        All three used to render at once, each with its own background-image, so
+        the browser fetched every one -- two of three downloads thrown away on a
+        window that shows one, pulled at exactly the moment the bundle it is
+        covering wants the network. The HTML preloads this one before any of
+        this runs, so by here it is already in cache.
+      */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
-        {SPLASH_IMAGES.map((src, i) => (
-          <div
-            key={src}
-            className={`splash-kenburns splash-kenburns--${(i % 3) + 1} ${
-              i === slide ? "is-active" : ""
-            }`}
-            style={{ backgroundImage: `url(${src})` }}
-          />
-        ))}
+        <div
+          key={activeImage}
+          className={`splash-kenburns splash-kenburns--${(slide % 3) + 1} is-active`}
+          style={{ backgroundImage: `url(${activeImage})` }}
+        />
         <div className="splash-kenburns-scrim absolute inset-0" />
       </div>
 

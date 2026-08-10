@@ -203,13 +203,25 @@ func (a *App) probeSidecar(ctx context.Context) {
 		}
 	}
 
-	// Keep the splash visible for at least 5s so it reads as a real boot screen.
-	const minSplash = 5 * time.Second
+	/*
+		A floor, not a performance.
+
+		This was five seconds, held so the splash "reads as a real boot screen",
+		with a "warming up…" line describing no work at all -- opening SQLite,
+		resolving paths and asking an interpreter its version take a fraction of
+		that. With the 480ms fade and the 120ms reveal after it, every launch
+		cost the user about 5.6 seconds of watching a screen that had finished.
+
+		What a floor is actually for is the opposite case: a boot that completes
+		in 50ms would flash the splash and tear it away, which reads as a glitch
+		rather than as speed. 900ms is enough for the fade to look deliberate
+		and short enough that nobody waits on it.
+	*/
+	const minSplash = 900 * time.Millisecond
 	if a.bootStarted.IsZero() {
 		a.bootStarted = time.Now()
 	}
 	if wait := minSplash - time.Since(a.bootStarted); wait > 0 {
-		a.bootLog("warming up…")
 		timer := time.NewTimer(wait)
 		select {
 		case <-timer.C:

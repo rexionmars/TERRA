@@ -239,9 +239,28 @@ function App() {
     let exitTimer: number | undefined
     let revealTimer: number | undefined
 
-    const finish = async () => {
+    /*
+      boot:ready carries whether the probe succeeded, and nothing read it.
+
+      A sidecar that failed its probe wrote the reason into the boot log, the
+      splash showed it for a moment, and then the splash was replaced by an
+      application that looked healthy -- the one report of the failure went
+      away with the screen that carried it.
+
+      The environment gate covers an unusable interpreter specifically. This
+      covers the rest: a missing sidecar script, a probe that timed out, a
+      runner that never built. Reported once, as a notification the user can
+      read after the window opens.
+    */
+    const finish = async (ok?: boolean) => {
       if (cancelled || started) return
       started = true
+      if (ok === false) {
+        notifyError(
+          "TERRA started, but the analysis sidecar did not respond. " +
+            "Settings › System reports what is wrong."
+        )
+      }
       setSplashExiting(true)
       // Match .splash-screen--exit transition (~480ms).
       exitTimer = window.setTimeout(async () => {
@@ -259,7 +278,18 @@ function App() {
     }
 
     EventsOn("boot:ready", finish)
-    const safety = window.setTimeout(finish, 20_000)
+    /*
+      The backstop, for a boot:ready that never arrives.
+
+      Twelve seconds rather than twenty: the probe caps itself at eight and the
+      floor below it is under a second, so anything past that is something
+      genuinely stuck -- and the old timeout meant staring at a frozen splash
+      for twenty seconds before the window would open at all.
+
+      Called with no argument, so it is not reported as a failed probe. Nothing
+      is known here; the probe may still answer after this fires.
+    */
+    const safety = window.setTimeout(() => void finish(), 12_000)
     return () => {
       cancelled = true
       EventsOff("boot:ready")

@@ -410,14 +410,47 @@
   opacity: 1;
   z-index: 1;
 }
+/*
+  Six seconds, not sixteen.
+
+  The pan ran for 16s with `forwards` while the splash was up for about five,
+  so it never reached a third of its travel -- and now that the boot floor is
+  under a second it would be a still image with a CSS animation attached. Six
+  seconds covers a slow boot and makes the motion visible in a fast one.
+*/
 .splash-kenburns.is-active.splash-kenburns--1 {
-  animation: splash-kenburns-a 16s ease-in-out forwards;
+  animation: splash-kenburns-a 6s ease-out forwards;
 }
 .splash-kenburns.is-active.splash-kenburns--2 {
-  animation: splash-kenburns-b 16s ease-in-out forwards;
+  animation: splash-kenburns-b 6s ease-out forwards;
 }
 .splash-kenburns.is-active.splash-kenburns--3 {
-  animation: splash-kenburns-c 16s ease-in-out forwards;
+  animation: splash-kenburns-c 6s ease-out forwards;
+}
+
+/*
+  Motion is the first thing this application shows, and a full-bleed zoom-and-
+  pan is exactly what this setting exists to turn off. The still, the scrim and
+  the brand all stay; only the movement stops.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .splash-kenburns.is-active.splash-kenburns--1,
+  .splash-kenburns.is-active.splash-kenburns--2,
+  .splash-kenburns.is-active.splash-kenburns--3 {
+    animation: none;
+    transform: scale(1.04);
+  }
+  .splash-screen,
+  .splash-screen--exit {
+    transition: opacity 480ms ease;
+    transform: none;
+  }
+  /* The boot pulse blinks at a fixed rate whatever the boot is doing, so it is
+     decoration rather than status and has nothing to report by moving. */
+  .splash-screen .animate-pulse {
+    animation: none;
+    opacity: 0.85;
+  }
 }
 @keyframes splash-kenburns-a {
   from {
