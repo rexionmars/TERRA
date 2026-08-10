@@ -2,28 +2,40 @@
  * The wind screening, as shown on screen.
  *
  * Lives outside AnalysisPage so the energy screen and the analysis screen render
- * it from one definition. Duplicating it would let the two drift, and this is
- * the block whose figures each carry the assumption that produced them.
+ * it from one definition. Duplicating it would let the two drift.
+ *
+ * STATISTICS, NOT PROSE. This block used to carry nineteen explanatory passages
+ * from the payload -- method, convention, citation, derivation -- several of
+ * which restated what the headings already said: a paragraph opening "screening
+ * indication, not a resource assessment" sat under a heading reading "Wind
+ * screening" beside chips reading "gross" and "unvalidated". The qualifiers
+ * that do work are structural and stay: the heading, the chips, and the word
+ * Gross in the figure labels.
+ *
+ * The passages that carried numbers inside sentences -- the Weibull fit check,
+ * the air density range, the operating regime -- are still here as figures.
+ * Nothing measured was dropped; it stopped being written out longhand.
  */
 import type { WindAnalysis } from "@/lib/types"
-import { Chip, PowerProvenanceNote, rampStop, WaterFigure } from "@/components/analysisPrimitives"
+import { Chip, PowerProvenanceNote, WaterFigure } from "@/components/analysisPrimitives"
 import { PALETTE_STOPS } from "@/lib/palettes"
-import { cn } from "@/lib/utils"
 
-/**
- * The wind screening, in its own section.
- *
- * Its capacity factor is gross, carries no external validation and rests on a
- * power-law extrapolation above the highest level the reanalysis holds, while
- * the photovoltaic figure beside it is computed at a ratio benchmarked against
- * the Global Solar Atlas. The two are never placed in a shared comparison and
- * the qualifier is printed before the first number.
- */
+/** A dense label/value pair for a figure that does not need its own tile. */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="truncate text-[10px] text-muted-foreground">{label}</span>
+      <span className="telemetry shrink-0 text-[11px] text-foreground">{value}</span>
+    </div>
+  )
+}
+
 export function WindScreening({ wind }: { wind: WindAnalysis }) {
   const m = wind.measured
   const h = wind.hub
   const q = wind.data_quality
   const shear = q.shear
+  const fit = m.weibull_fit_check_50m
   const roseMax = Math.max(
     ...m.direction_energy_rose_50m.map((s) => Math.max(s.energy_pct, s.hours_pct)),
     0.001
@@ -35,26 +47,24 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
 
   return (
     <section className="rounded-sm border border-border bg-secondary/50 p-4">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex flex-wrap items-baseline gap-2">
           <p className="eyebrow">Wind screening</p>
           <Chip>separate product</Chip>
           <Chip>gross</Chip>
           <Chip>unvalidated</Chip>
         </div>
+        {/*
+          The grid cell, kept where the paragraph about it was removed. Two AOIs
+          tens of kilometres apart fall in one MERRA-2 cell and return the same
+          series, so without this the identical numbers have no explanation.
+        */}
         <p className="telemetry text-[10px] text-muted-foreground">
-          {wind.record_window} · {wind.record_years.toFixed(3)} years · cell
-          centre {wind.grid_cell_centre[1]?.toFixed(3)},{" "}
+          {wind.record_window} · {wind.record_years.toFixed(3)} years · one
+          0.5×0.625° cell at {wind.grid_cell_centre[1]?.toFixed(3)},{" "}
           {wind.grid_cell_centre[0]?.toFixed(3)}
         </p>
       </div>
-
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        {wind.qualifier}
-      </p>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        {wind.assumptions.comparison_note}
-      </p>
 
       <div
         className="mt-3 border-t pt-3"
@@ -67,39 +77,41 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
           <WaterFigure
             label="Mean speed 10 m"
             value={`${m.mean_speed_10m_ms.toFixed(4)} m/s`}
-            sub="level held in the record"
           />
           <WaterFigure
             label="Mean speed 50 m"
             value={`${m.mean_speed_50m_ms.toFixed(4)} m/s`}
-            sub="highest level held in the record"
           />
           <WaterFigure
             label="Weibull 50 m"
             value={`k ${m.weibull_k_50m.toFixed(4)}`}
-            sub={`c ${m.weibull_c_50m_ms.toFixed(4)} m/s · ${m.weibull_fit_check_50m.estimator}`}
+            sub={`c ${m.weibull_c_50m_ms.toFixed(4)} m/s`}
           />
           <WaterFigure
             label="Power density 50 m"
             value={`${m.wind_power_density_50m_w_m2.toFixed(2)} W/m2`}
-            sub={`energy pattern factor ${m.energy_pattern_factor_50m.toFixed(4)}`}
+            sub={`pattern factor ${m.energy_pattern_factor_50m.toFixed(4)}`}
           />
         </div>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {m.qualifier}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          Weibull fit against the record: mean{" "}
-          {m.weibull_fit_check_50m.weibull_mean_ms.toFixed(4)} against{" "}
-          {m.weibull_fit_check_50m.empirical_mean_ms.toFixed(4)} m/s (
-          {m.weibull_fit_check_50m.mean_error_pct.toFixed(3)}%), mean cube{" "}
-          {m.weibull_fit_check_50m.weibull_mean_cube_m3s3.toFixed(3)} against{" "}
-          {m.weibull_fit_check_50m.empirical_mean_cube_m3s3.toFixed(3)} m3/s3 (
-          {m.weibull_fit_check_50m.mean_cube_error_pct.toFixed(3)}%). Air
-          density mean {m.air_density_mean_kg_m3.toFixed(4)} kg/m3, range{" "}
-          {m.air_density_min_kg_m3.toFixed(4)} to{" "}
-          {m.air_density_max_kg_m3.toFixed(4)}. {m.humidity_note}
-        </p>
+        {/* The fit check and the density range, which were a paragraph. */}
+        <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+          <Stat
+            label="Weibull mean vs record"
+            value={`${fit.weibull_mean_ms.toFixed(4)} / ${fit.empirical_mean_ms.toFixed(4)} m/s · ${fit.mean_error_pct.toFixed(3)}%`}
+          />
+          <Stat
+            label="Weibull mean cube vs record"
+            value={`${fit.weibull_mean_cube_m3s3.toFixed(3)} / ${fit.empirical_mean_cube_m3s3.toFixed(3)} m3/s3 · ${fit.mean_cube_error_pct.toFixed(3)}%`}
+          />
+          <Stat
+            label="Air density mean"
+            value={`${m.air_density_mean_kg_m3.toFixed(4)} kg/m3`}
+          />
+          <Stat
+            label="Air density range"
+            value={`${m.air_density_min_kg_m3.toFixed(4)} – ${m.air_density_max_kg_m3.toFixed(4)} kg/m3`}
+          />
+        </div>
       </div>
 
       <div
@@ -109,46 +121,47 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
         <p className="eyebrow !text-[9px] mb-2">
           At the {wind.hub_height_m.toFixed(0)} m hub · extrapolated
         </p>
-        <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
-          {h.extrapolation.statement}
-        </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <WaterFigure
             label="Hub speed"
             value={`${h.mean_speed_ms.toFixed(4)} m/s`}
-            sub={`power law at ${wind.assumptions.shear_exponent.toFixed(4)}, ${h.extrapolation.height_ratio.toFixed(1)}x above the top level`}
+            sub={`power law α ${wind.assumptions.shear_exponent.toFixed(4)}, ${h.extrapolation.height_ratio.toFixed(1)}× the top level`}
           />
           <WaterFigure
             label="Gross capacity factor"
             value={`${h.gross_capacity_factor_pct.toFixed(3)}%`}
-            sub={`no plant loss applied; ${h.gross_capacity_factor_no_density_correction_pct.toFixed(3)}% without the density correction`}
+            sub={`${h.gross_capacity_factor_no_density_correction_pct.toFixed(3)}% undensity-corrected`}
           />
           <WaterFigure
             label="Gross annual energy"
             value={`${h.gross_annual_energy_mwh_per_turbine.toFixed(1)} MWh`}
-            sub={`per turbine over ${h.hours_per_year.toFixed(0)} hours; not to be multiplied by a plant size`}
+            sub={`per turbine · ${h.hours_per_year.toFixed(0)} h/yr`}
           />
           <WaterFigure
             label="Power density"
             value={`${h.wind_power_density_w_m2.toFixed(2)} W/m2`}
-            sub={`Weibull k ${h.weibull_k.toFixed(4)}, c ${h.weibull_c_ms.toFixed(4)} m/s`}
+            sub={`k ${h.weibull_k.toFixed(4)}, c ${h.weibull_c_ms.toFixed(4)} m/s`}
           />
         </div>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          Operating regime: above cut-in{" "}
-          {h.operating_regime.above_cut_in_pct.toFixed(3)}% of hours, at or
-          above rated {h.operating_regime.at_or_above_rated_pct.toFixed(3)}%,
-          above cut-out {h.operating_regime.above_cut_out_pct.toFixed(3)}%, on a
-          curve with cut-in {h.operating_regime.cut_in_ms.toFixed(1)}, rated{" "}
-          {h.operating_regime.rated_ms.toFixed(4)} and cut-out{" "}
-          {h.operating_regime.cut_out_ms.toFixed(1)} m/s.
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {h.density_normalisation_note} {h.hours_per_year_note}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          Excluded from these figures: {h.excluded_losses.join("; ")}.
-        </p>
+        {/* The operating regime, which was a sentence. */}
+        <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
+          <Stat
+            label="Hours above cut-in"
+            value={`${h.operating_regime.above_cut_in_pct.toFixed(3)}%`}
+          />
+          <Stat
+            label="Hours at or above rated"
+            value={`${h.operating_regime.at_or_above_rated_pct.toFixed(3)}%`}
+          />
+          <Stat
+            label="Hours above cut-out"
+            value={`${h.operating_regime.above_cut_out_pct.toFixed(3)}%`}
+          />
+          <Stat
+            label="Cut-in / rated / cut-out"
+            value={`${h.operating_regime.cut_in_ms.toFixed(1)} / ${h.operating_regime.rated_ms.toFixed(4)} / ${h.operating_regime.cut_out_ms.toFixed(1)} m/s`}
+          />
+        </div>
       </div>
 
       <div
@@ -160,23 +173,22 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
           <WaterFigure
             label={`Hours below ${q.calm_threshold_ms} m/s`}
             value={`${(q.calm_fraction_pct["10m"] ?? 0).toFixed(3)}%`}
-            sub={`at 10 m; 50 m ${(q.calm_fraction_pct["50m"] ?? 0).toFixed(3)}%, 2 m ${(q.calm_fraction_pct["2m"] ?? 0).toFixed(3)}%`}
+            sub={`50 m ${(q.calm_fraction_pct["50m"] ?? 0).toFixed(3)}%, 2 m ${(q.calm_fraction_pct["2m"] ?? 0).toFixed(3)}%`}
           />
           <WaterFigure
             label="Record maximum 10 m"
             value={`${(q.record_maximum_ms["10m"] ?? 0).toFixed(2)} m/s`}
-            sub={`over ${q.record_hours} hours; floor ${q.record_maximum_floor_ms.toFixed(1)} m/s, ${q.record_maximum_plausible ? "met" : "not met"}`}
+            sub={`floor ${q.record_maximum_floor_ms.toFixed(1)} m/s · ${q.record_maximum_plausible ? "met" : "not met"}`}
           />
           <WaterFigure
             label="Shear exponent"
             value={shear.shear_exponent.toFixed(4)}
-            sub={`10 m to 50 m long-term means; day ${shear.shear_exponent_day.toFixed(4)}, night ${shear.shear_exponent_night.toFixed(4)}`}
+            sub={`day ${shear.shear_exponent_day.toFixed(4)}, night ${shear.shear_exponent_night.toFixed(4)}`}
           />
           {/* Null when the exponent lies outside what a neutral logarithmic
               profile between 10 m and 50 m can produce for any roughness
               length. Rendered as a number it printed "0.000 m", a physically
-              meaningful-looking roughness that was never computed, beside the
-              flag stating that the inversion has no root. */}
+              meaningful-looking roughness that was never computed. */}
           <WaterFigure
             label="Implied roughness"
             value={
@@ -186,38 +198,36 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
             }
             sub={
               shear.implied_roughness_length_m == null
-                ? `no roughness length inverts this exponent; assumed cover ${shear.assumed_roughness_band_m.join(" to ")} m`
-                : `assumed cover ${shear.assumed_roughness_band_m.join(" to ")} m, ${shear.consistent_with_assumed_cover ? "consistent" : "not consistent"}`
+                ? `no inversion; assumed ${shear.assumed_roughness_band_m.join("–")} m`
+                : `assumed ${shear.assumed_roughness_band_m.join("–")} m · ${shear.consistent_with_assumed_cover ? "consistent" : "not consistent"}`
             }
           />
         </div>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          The assumed roughness band supports a shear exponent of{" "}
-          {shear.expected_shear_exponent_band.map((v) => v.toFixed(3)).join(" to ")}
-          . {shear.roughness_band_note}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {q.record_maximum_floor_note} {q.calm_fraction_2m_note}
-        </p>
-        {q.flags.length > 0 && (
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {q.flags.map((f) => (
-              <li
-                key={f}
-                className="border-l-2 pl-2 text-[10px] leading-relaxed text-muted-foreground"
-                style={{ borderColor: PALETTE_STOPS.rdbu_r[14] }}
-              >
-                {f}
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {q.all_checks_passed
-            ? "Every record check passed."
-            : `${q.flags.length} record check${q.flags.length === 1 ? "" : "s"} did not pass, so the hub figures rest on a series the checks do not support.`}{" "}
-          Record {q.record_hours} hours against {q.expected_hours} expected.
-        </p>
+        {/*
+          The checks as a count. Each flag was a multi-sentence string that
+          restated a number already above it; the outcome is what the reader
+          acts on, and every input to it is a figure in this block.
+        */}
+        <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
+          <Stat
+            label="Record checks"
+            value={
+              q.all_checks_passed
+                ? "all passed"
+                : `${q.flags.length} not passed`
+            }
+          />
+          <Stat
+            label="Record hours"
+            value={`${q.record_hours} / ${q.expected_hours} expected`}
+          />
+          <Stat
+            label="Shear band supported"
+            value={shear.expected_shear_exponent_band
+              .map((v) => v.toFixed(3))
+              .join(" – ")}
+          />
+        </div>
       </div>
 
       <div
@@ -288,7 +298,7 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
         </div>
         <div>
           <p className="eyebrow !text-[9px] mb-2">
-            Direction at 50 m · share of energy against share of hours
+            Direction at 50 m · energy against hours
           </p>
           <ul className="flex flex-col gap-1">
             {m.direction_energy_rose_50m.map((s) => (
@@ -321,42 +331,57 @@ export function WindScreening({ wind }: { wind: WindAnalysis }) {
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-            Upper bar energy, lower bar hours; they differ because the power
-            flux goes as the cube of speed. {m.direction.convention_note}{" "}
-            Circular mean {m.direction.circular_mean_deg_50m.toFixed(2)}° at 50
-            m and {m.direction.circular_mean_deg_10m.toFixed(2)}° at 10 m,
-            median turning {m.direction.median_turning_deg.toFixed(1)}°.
-          </p>
+          <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1">
+            <Stat
+              label="Circular mean 50 m / 10 m"
+              value={`${m.direction.circular_mean_deg_50m.toFixed(2)}° / ${m.direction.circular_mean_deg_10m.toFixed(2)}°`}
+            />
+            <Stat
+              label="Median turning"
+              value={`${m.direction.median_turning_deg.toFixed(1)}°`}
+            />
+          </div>
         </div>
       </div>
 
+      {/*
+        The reference curve, as its parameters. It was a paragraph ending in a
+        citation, a drivetrain note and the name of the column the points were
+        read from; the curve is identified by its name and its numbers.
+      */}
       <div
-        className="mt-3 border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
+        className="mt-3 border-t pt-3"
         style={{ borderColor: "var(--border)" }}
       >
-        <p>
-          Reference power curve: {wind.turbine.name},{" "}
-          {(wind.turbine.rated_power_w / 1e6).toFixed(3)} MW,{" "}
-          {wind.turbine.rotor_diameter_m.toFixed(0)} m rotor,{" "}
-          {wind.turbine.blades} blades, {wind.turbine.iec_class} turbulence
-          class {wind.turbine.turbulence_class}, hub{" "}
-          {wind.turbine.hub_height_m.toFixed(0)} m,{" "}
-          {wind.turbine.power_curve_points} curve points read from the{" "}
-          {wind.turbine.power_curve_column} column. It is a reference curve, not
-          a turbine selected for this site. {wind.turbine.drivetrain_note}
+        <p className="eyebrow !text-[9px] mb-2">
+          Reference power curve · not a turbine selected for this site
         </p>
-        <p className="mt-1">{wind.turbine.citation}</p>
-        <p className="mt-1">
-          Hub height {wind.assumptions.hub_height_m.toFixed(0)} m:{" "}
-          {wind.assumptions.hub_height_source} Shear exponent{" "}
-          {wind.assumptions.shear_exponent.toFixed(4)}:{" "}
-          {wind.assumptions.shear_exponent_source}
-        </p>
-        <p className="mt-1">{wind.assumptions.conventions_note}</p>
-        <p className="mt-1">{wind.loads_note}</p>
-        <p className="mt-1">{wind.grid_note}</p>
-        <PowerProvenanceNote provenance={wind.power_provenance} />
+        <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+          <Stat label="Model" value={wind.turbine.name} />
+          <Stat
+            label="Rated power"
+            value={`${(wind.turbine.rated_power_w / 1e6).toFixed(3)} MW`}
+          />
+          <Stat
+            label="Rotor / blades"
+            value={`${wind.turbine.rotor_diameter_m.toFixed(0)} m · ${wind.turbine.blades}`}
+          />
+          <Stat
+            label="Class"
+            value={`${wind.turbine.iec_class} · turbulence ${wind.turbine.turbulence_class}`}
+          />
+          <Stat
+            label="Curve hub height"
+            value={`${wind.turbine.hub_height_m.toFixed(0)} m`}
+          />
+          <Stat
+            label="Curve points"
+            value={String(wind.turbine.power_curve_points)}
+          />
+        </div>
+        <div className="mt-2">
+          <PowerProvenanceNote provenance={wind.power_provenance} />
+        </div>
       </div>
     </section>
   )
