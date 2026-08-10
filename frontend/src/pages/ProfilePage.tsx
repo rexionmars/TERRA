@@ -114,24 +114,32 @@ export function ProfilePage({
   const [storageError, setStorageError] = useState<string | null>(null)
   const [storageOpen, setStorageOpen] = useState(false)
   /*
-    Account unless something asked for a particular page -- the first-run gate
-    asks for System, since an unusable interpreter is the reason it opened
-    settings at all.
+    Account, always, unless something asks otherwise while this is open.
+
+    It used to initialise from settingsPage, which made opening settings by
+    hand land on System: useState only reads its argument on the first render,
+    so a request left over from the first-run gate steered every later arrival
+    that reused the same mount, and re-mounting read a value that had not been
+    cleared yet. Either way the user pressed Settings and got the Python
+    environment.
+
+    The request is applied by the effect below instead, which runs when the
+    request actually arrives rather than whenever this component happens to
+    mount.
   */
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>(
-    settingsPage ?? "account"
-  )
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("account")
 
   /*
-    Read once, then cleared.
+    Applied once, then cleared.
 
-    The request steers one arrival. Left standing it would survive this page
-    unmounting -- opening settings by hand afterwards would land on System
-    again, overriding the page the user last chose, with nothing on screen
-    explaining why it keeps jumping there.
+    Clearing is what keeps it to one arrival: left standing, the next visit
+    would be steered by a request nobody made this time, with nothing on screen
+    explaining why settings keeps opening somewhere the user did not choose.
   */
   useEffect(() => {
-    if (settingsPage) consumeSettingsPage()
+    if (!settingsPage) return
+    setActiveSection(settingsPage)
+    consumeSettingsPage()
   }, [settingsPage, consumeSettingsPage])
   const [focusedSetting, setFocusedSetting] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
