@@ -79,6 +79,29 @@ def fail(msg):
     sys.exit(1)
 
 
+def require_torch(product):
+    """
+    Fail with an explanation when PyTorch is absent.
+
+    torch is deliberately outside requirements.txt -- it outweighs everything
+    else the application ships -- so the models that need it are opt-in. A bare
+    `import torch` raises ModuleNotFoundError, which leaves the process as a
+    traceback and an exit status: the caller reported "sidecar failed: exit
+    status 1" and the user had no way to learn that one optional package was
+    the whole of the problem.
+
+    Named here rather than inlined because two products need it, and a check
+    that exists in one place is a check the other forgets.
+    """
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        fail(f'{product} needs PyTorch, which is not installed in this '
+             f'environment. Install it there, or choose the Random Forest '
+             f'model, which needs nothing further. '
+             f'Settings > System reports what each interpreter has.')
+
+
 # --- Request parameters ----------------------------------------------------
 #
 # ABSENCE SELECTS THE DEFAULT, NOT FALSINESS. `float(req.get(key) or default)`
@@ -675,6 +698,7 @@ def compute_aoi_vi_series(products, polygon, ref_prof):
 
 def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
     """Classify with the mestrado Temporal Transformer (T×6 reflectance)."""
+    require_torch("The Temporal Transformer")
     import torch
     import temporal_transformer as tt
 
@@ -835,6 +859,9 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
     and the matching Random Forest head. mode is 'pixel' or 'patch'.
     Returns a (H, W) map of MapBiomas class ids (-1 = invalid).
     """
+    # prithvi imports torch on the way in, so the same absence surfaces here as
+    # an unexplained traceback rather than as a missing package.
+    require_torch("Prithvi-EO 2.0")
     import prithvi as pv
 
     rf_path = model_dir / f'prithvi_rf_{mode}.joblib'
