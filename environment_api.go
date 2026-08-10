@@ -63,12 +63,15 @@ type EnvironmentState struct {
 	// True when the active interpreter is the one this application built, and
 	// therefore the one it may rebuild without asking.
 	ManagedActive bool `json:"managed_active"`
-	// Set when GEOSENSE_PYTHON is forcing the choice, so the screen can say why
+	// Set when TERRA_PYTHON is forcing the choice, so the screen can say why
 	// the selection it offers will not take effect.
 	EnvOverride string `json:"env_override"`
 	Building    bool   `json:"building"`
 	// Where the application is reading its parts from, for diagnosis.
 	Paths []ResolvedPath `json:"paths"`
+	// GEOSENSE_* variables still set in this environment. They no longer do
+	// anything; reporting them is what keeps the rename from failing silently.
+	RetiredVars []string `json:"retired_vars"`
 	// The settings file itself, so the screen can point at what to delete when
 	// a saved choice needs undoing outside the application.
 	ConfigPath string `json:"config_path"`
@@ -122,6 +125,7 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 		state.ManagedActive = python == venvInterpreter(managed)
 	}
 	state.Paths = resolvedPaths(runner, data)
+	state.RetiredVars = retiredVars()
 
 	appDir := ""
 	if runner != nil {
@@ -135,7 +139,7 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 resolvedPaths lists where the application is reading its parts from.
 
 Each entry names the environment variable that decided it, when one did. That is
-the case this exists for: a GEOSENSE_MODEL_DIR exported months ago in a shell
+the case this exists for: a TERRA_MODEL_DIR exported months ago in a shell
 profile keeps applying to every launch from that terminal, and until now nothing
 on screen said so -- the classification simply came from a model directory the
 user had forgotten about.
@@ -161,25 +165,25 @@ func resolvedPaths(runner *backend.Runner, dataDir string) []ResolvedPath {
 		ResolvedPath{
 			Label:  "Sidecar",
 			Path:   runner.SidecarPath(),
-			Source: sourceVar("GEOSENSE_APP_DIR"),
+			Source: sourceVar("TERRA_APP_DIR"),
 			Blocks: "every analysis",
 		},
 		ResolvedPath{
 			Label:  "Model",
 			Path:   runner.ModelDir(),
-			Source: sourceVar("GEOSENSE_MODEL_DIR"),
+			Source: sourceVar("TERRA_MODEL_DIR"),
 			Blocks: "the Random Forest classification",
 		},
 		ResolvedPath{
 			Label:  "Areas",
 			Path:   runner.AreasDir(),
-			Source: sourceVar("GEOSENSE_APP_DIR"),
+			Source: sourceVar("TERRA_APP_DIR"),
 			Blocks: "the embedded study areas A, B and C",
 		},
 		ResolvedPath{
 			Label:  "Repository root",
 			Path:   runner.RepoRoot(),
-			Source: sourceVar("GEOSENSE_ROOT"),
+			Source: sourceVar("TERRA_ROOT"),
 			Blocks: "the local MapBiomas rasters for embedded areas",
 		},
 	)
@@ -193,6 +197,35 @@ func sourceVar(name string) string {
 		return ""
 	}
 	return name
+}
+
+/*
+retiredVars lists GEOSENSE_* variables that are still set.
+
+The GEOSENSE_ prefix was retired in favour of TERRA_ -- geosense is the
+research repository this application grew out of, not the application. The old
+names were dropped outright rather than kept as aliases, which is the clean
+outcome and also the dangerous one: a GEOSENSE_PYTHON in a shell profile stops
+having any effect, and an environment variable that silently stops working is
+the worst way for a rename to arrive.
+
+So the screen that reports which variable decides each path also reports the
+ones that no longer decide anything. Nothing else can: by definition these are
+values the application has stopped reading.
+*/
+func retiredVars() []string {
+	var found []string
+	for _, name := range []string{
+		"GEOSENSE_PYTHON",
+		"GEOSENSE_APP_DIR",
+		"GEOSENSE_MODEL_DIR",
+		"GEOSENSE_ROOT",
+	} {
+		if os.Getenv(name) != "" {
+			found = append(found, name)
+		}
+	}
+	return found
 }
 
 func withExistence(paths []ResolvedPath) []ResolvedPath {
@@ -319,11 +352,11 @@ func (a *App) rebuildRunner(python string) error {
 	return nil
 }
 
-// envOverride reports GEOSENSE_PYTHON when it is set. The screen states it
+// envOverride reports TERRA_PYTHON when it is set. The screen states it
 // rather than hiding it: with the variable set, a selection made in the UI is
 // saved and then overruled, and a control that silently does nothing is worse
 // than one that explains why.
-func envOverride() string { return os.Getenv("GEOSENSE_PYTHON") }
+func envOverride() string { return os.Getenv("TERRA_PYTHON") }
 
 func venvInterpreter(dir string) string { return backend.VenvInterpreter(dir) }
 
@@ -337,8 +370,8 @@ func venvInterpreter(dir string) string { return backend.VenvInterpreter(dir) }
 // that explains what they are looking at.
 func originOf(path, managedDir string, cfg backend.AppConfig) string {
 	switch {
-	case os.Getenv("GEOSENSE_PYTHON") != "":
-		return "GEOSENSE_PYTHON"
+	case os.Getenv("TERRA_PYTHON") != "":
+		return "TERRA_PYTHON"
 	case path == backend.VenvInterpreter(managedDir):
 		return "managed"
 	case cfg.PythonPath != "" && path == cfg.PythonPath:

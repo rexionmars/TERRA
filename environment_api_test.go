@@ -76,7 +76,7 @@ func TestResolvedPathsReportsMissingPaths(t *testing.T) {
 // environment variable says which one.
 //
 // This is the whole reason the section shows a source at all: a
-// GEOSENSE_MODEL_DIR exported once in a shell profile keeps selecting a model
+// TERRA_MODEL_DIR exported once in a shell profile keeps selecting a model
 // directory on every launch from that terminal, and it is the last thing anyone
 // suspects when a classification looks wrong.
 func TestResolvedPathsNamesTheDecidingVariable(t *testing.T) {
@@ -85,7 +85,7 @@ func TestResolvedPathsNamesTheDecidingVariable(t *testing.T) {
 		t.Fatal(err)
 	}
 	elsewhere := t.TempDir()
-	t.Setenv("GEOSENSE_MODEL_DIR", elsewhere)
+	t.Setenv("TERRA_MODEL_DIR", elsewhere)
 
 	runner, err := backend.NewRunner(appDir, "")
 	if err != nil {
@@ -95,18 +95,18 @@ func TestResolvedPathsNamesTheDecidingVariable(t *testing.T) {
 
 	model := paths["Model"]
 	if model.Path != elsewhere {
-		t.Errorf("model path is %q, want the value of GEOSENSE_MODEL_DIR %q",
+		t.Errorf("model path is %q, want the value of TERRA_MODEL_DIR %q",
 			model.Path, elsewhere)
 	}
-	if model.Source != "GEOSENSE_MODEL_DIR" {
-		t.Errorf("model source is %q, want it to name GEOSENSE_MODEL_DIR",
+	if model.Source != "TERRA_MODEL_DIR" {
+		t.Errorf("model source is %q, want it to name TERRA_MODEL_DIR",
 			model.Source)
 	}
 
 	// Unset variables must not be named, or every row would claim to be
 	// overridden and the label would stop meaning anything.
 	if got := paths["Repository root"].Source; got != "" {
-		t.Errorf("GEOSENSE_ROOT is unset, but the repository root claims %q", got)
+		t.Errorf("TERRA_ROOT is unset, but the repository root claims %q", got)
 	}
 }
 

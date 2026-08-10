@@ -6,8 +6,8 @@
 
 - Prefer a **FULL** release (`*-full.zip`), which embeds Python.
 - For **LITE**: install Python 3.12 and `pip install -r requirements.txt`.
-- Set `GEOSENSE_PYTHON` to the absolute path of that interpreter if needed.
-- Confirm: `"$GEOSENSE_PYTHON" -c "import rasterio, sklearn, pystac_client; print('ok')"`.
+- Set `TERRA_PYTHON` to the absolute path of that interpreter if needed.
+- Confirm: `"$TERRA_PYTHON" -c "import rasterio, sklearn, pystac_client; print('ok')"`.
 
 ### `InconsistentVersionWarning` or joblib load errors
 
@@ -47,7 +47,7 @@ pip install 'scikit-learn>=1.8,<1.9'
 
 - MapBiomas COG fetch is intended for AOIs inside Brazil.
 - Embedded areas A/B/C may also look for local TIFFs under a sibling
-  `global/data/mapbiomas/` tree (`GEOSENSE_ROOT`); without those files, COG
+  `global/data/mapbiomas/` tree (`TERRA_ROOT`); without those files, COG
   fetch is used when possible.
 - Classification still works without a reference overlay.
 
@@ -60,7 +60,7 @@ you trust the release build.
 
 ### Wrong model directory or missing `sidecar/infer.py`
 
-Set `GEOSENSE_APP_DIR` to the directory that contains `sidecar/`, `areas/`, and
+Set `TERRA_APP_DIR` to the directory that contains `sidecar/`, `areas/`, and
 `model/` (the repo root when developing from source).
 
 ### Saved analyses missing after reinstall

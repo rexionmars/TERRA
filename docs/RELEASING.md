@@ -12,7 +12,7 @@ For this desktop app, treat as user-facing surface:
 
 - Documented workflows (AOI → Classify → Analysis → Compare)
 - Install flavors (LITE / FULL) and layout of release zips
-- Environment variables (`GEOSENSE_*`) and sidecar JSON contracts
+- Environment variables (`TERRA_*`) and sidecar JSON contracts
 - Documented model choices and runtime requirements
 
 Internal refactors, tests, and CI that do not change the above are not release-worthy by themselves.

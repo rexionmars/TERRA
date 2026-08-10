@@ -21,7 +21,7 @@ import (
 // script, and runs inference requests.
 type Runner struct {
 	repoRoot   string // GeoSense repository root
-	pythonPath string // Python interpreter (.venv/bin/python or GEOSENSE_PYTHON)
+	pythonPath string // Python interpreter (.venv/bin/python or TERRA_PYTHON)
 	sidecar    string // path to sidecar/infer.py
 	modelDir   string // path to the trained model directory
 	areasDir   string // path to embedded area GeoJSONs
@@ -33,10 +33,10 @@ func hasSidecar(dir string) bool {
 }
 
 // resolveAppDir finds the directory that contains sidecar/, areas/, and model/.
-// Order: GEOSENSE_APP_DIR, provided appDir, macOS Contents/Resources, then
+// Order: TERRA_APP_DIR, provided appDir, macOS Contents/Resources, then
 // parents of the executable.
 func resolveAppDir(appDir string) string {
-	if env := os.Getenv("GEOSENSE_APP_DIR"); env != "" {
+	if env := os.Getenv("TERRA_APP_DIR"); env != "" {
 		return env
 	}
 	if hasSidecar(appDir) {
@@ -73,7 +73,7 @@ func resolveAppDir(appDir string) string {
 	return appDir
 }
 
-// resolvePython picks the interpreter: GEOSENSE_PYTHON, the choice saved in the
+// resolvePython picks the interpreter: TERRA_PYTHON, the choice saved in the
 // UI, bundled python/, repo .venv, then PATH.
 //
 // The saved choice sits second on purpose. It has to beat every heuristic
@@ -87,7 +87,7 @@ func resolveAppDir(appDir string) string {
 // interpreter that cannot work and defers the error to the middle of an
 // analysis. That is what the setup screen exists to replace.
 func resolvePython(appDir, repoRoot, configured string) string {
-	if env := os.Getenv("GEOSENSE_PYTHON"); env != "" {
+	if env := os.Getenv("TERRA_PYTHON"); env != "" {
 		return env
 	}
 	if configured != "" {
@@ -123,7 +123,7 @@ func resolvePython(appDir, repoRoot, configured string) string {
 // NewRunner resolves all required paths.
 //
 // appDir is the directory holding sidecar/, areas/ and model/, resolved from
-// GEOSENSE_APP_DIR, a candidate that actually contains sidecar/, or the value
+// TERRA_APP_DIR, a candidate that actually contains sidecar/, or the value
 // given. configuredPython is the interpreter chosen in the UI, empty when none
 // has been; see resolvePython for where it sits in the order.
 func NewRunner(appDir, configuredPython string) (*Runner, error) {
@@ -135,7 +135,7 @@ func NewRunner(appDir, configuredPython string) (*Runner, error) {
 		// …/TERRA.app/Contents/Resources → repoRoot stays Contents (unused for models)
 		repoRoot = filepath.Dir(filepath.Dir(appDir))
 	}
-	if env := os.Getenv("GEOSENSE_ROOT"); env != "" {
+	if env := os.Getenv("TERRA_ROOT"); env != "" {
 		repoRoot = env
 	}
 
@@ -144,10 +144,10 @@ func NewRunner(appDir, configuredPython string) (*Runner, error) {
 	sidecar := filepath.Join(appDir, "sidecar", "infer.py")
 	areasDir := filepath.Join(appDir, "areas")
 
-	// Model directory resolution (in order): GEOSENSE_MODEL_DIR, the bundled
+	// Model directory resolution (in order): TERRA_MODEL_DIR, the bundled
 	// model/ directory inside the app (self-contained repo), or the legacy
 	// training-output path in the research repo.
-	modelDir := os.Getenv("GEOSENSE_MODEL_DIR")
+	modelDir := os.Getenv("TERRA_MODEL_DIR")
 	if modelDir == "" {
 		local := filepath.Join(appDir, "model")
 		if _, err := os.Stat(filepath.Join(local, "rf_classifier.joblib")); err == nil {
@@ -194,8 +194,8 @@ func (r *Runner) Probe(ctx context.Context) (string, error) {
 		filepath.Base(filepath.Dir(r.pythonPath)) == "python" {
 		src = "bundled"
 	}
-	if os.Getenv("GEOSENSE_PYTHON") != "" {
-		src = "GEOSENSE_PYTHON"
+	if os.Getenv("TERRA_PYTHON") != "" {
+		src = "TERRA_PYTHON"
 	}
 	return fmt.Sprintf("sidecar ready · python %s (%s) · %s", ver, src, filepath.Base(r.sidecar)), nil
 }
@@ -327,7 +327,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		return nil, fmt.Errorf("no area or polygon provided")
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-run-")
+	workDir, err := os.MkdirTemp("", "terra-run-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -566,7 +566,7 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 	}
 	// mbPath may be empty for custom polygons — Python fetches MapBiomas on demand.
 
-	workDir, err := os.MkdirTemp("", "geosense-lulc-")
+	workDir, err := os.MkdirTemp("", "terra-lulc-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -706,7 +706,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 		return nil, fmt.Errorf("no area or polygon provided")
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-cube-")
+	workDir, err := os.MkdirTemp("", "terra-cube-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -861,7 +861,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 		stretch = []float64{2, 98}
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-comp-")
+	workDir, err := os.MkdirTemp("", "terra-comp-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -1016,7 +1016,7 @@ func promoteExportFile(src, basename string) (string, error) {
 	if _, err := os.Stat(src); err != nil {
 		return "", err
 	}
-	dir := filepath.Join(os.TempDir(), "geosense-exports")
+	dir := filepath.Join(os.TempDir(), "terra-exports")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
@@ -1062,7 +1062,7 @@ func (r *Runner) AnalyzeWater(ctx context.Context, req WaterRequest) (*WaterAnal
 		maxCloud = 100
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-water-")
+	workDir, err := os.MkdirTemp("", "terra-water-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -1245,7 +1245,7 @@ func (r *Runner) AnalyzeSolar(ctx context.Context, req SolarRequest) (*SolarAnal
 		return nil, fmt.Errorf("no area or polygon provided")
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-solar-")
+	workDir, err := os.MkdirTemp("", "terra-solar-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -1304,7 +1304,7 @@ func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainReques
 		return nil, fmt.Errorf("no area or polygon provided")
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-solar-terrain-")
+	workDir, err := os.MkdirTemp("", "terra-solar-terrain-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -1374,7 +1374,7 @@ func (r *Runner) AnalyzeSolarSiting(ctx context.Context, req SolarSitingRequest)
 		return nil, fmt.Errorf("no area or polygon provided")
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-solar-siting-")
+	workDir, err := os.MkdirTemp("", "terra-solar-siting-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -1452,7 +1452,7 @@ func (r *Runner) AnalyzeEnergyModel(ctx context.Context, req EnergyModelRequest)
 		return nil, fmt.Errorf("no area or polygon provided")
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-energy-model-")
+	workDir, err := os.MkdirTemp("", "terra-energy-model-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}
@@ -1656,7 +1656,7 @@ func (r *Runner) AnalyzeWind(ctx context.Context, req WindRequest) (*WindAnalysi
 		return nil, fmt.Errorf("no area or polygon provided")
 	}
 
-	workDir, err := os.MkdirTemp("", "geosense-wind-")
+	workDir, err := os.MkdirTemp("", "terra-wind-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create work dir: %w", err)
 	}

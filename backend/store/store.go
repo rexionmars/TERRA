@@ -123,6 +123,16 @@ type ProjectOverlay struct {
 
 // LocalUserID owns analyses saved when nobody is signed in.
 const LocalUserID = "00000000-0000-0000-0000-000000000001"
+
+/*
+LocalUserEmail identifies the guest account.
+
+Left at the old domain by the rename, deliberately. It is not an address and is
+never shown; it is the key ensureLocalUser matches on. Changed, that lookup
+finds nothing on an existing install and inserts a second local account, and
+every run and project belonging to the first becomes unreachable -- a rename
+that silently orphans a user's work, in exchange for a string nobody reads.
+*/
 const LocalUserEmail = "local@geosense.local"
 
 // Store is the local SQLite-backed user database.
@@ -131,17 +141,76 @@ type Store struct {
 	dataDir string
 }
 
-// Open creates (or opens) the app database under UserConfigDir/geosense-infer.
+// legacyDirName is where the data lived when the application carried the name
+// of the research repository it grew out of.
+const legacyDirName = "geosense-infer"
+
+// dataDirName is where it lives now.
+const dataDirName = "terra"
+
+/*
+dbFileName is the database inside that directory.
+
+Deliberately unchanged by the rename. Moving the directory is one operation
+that either works or does not; also renaming the file inside it would add a
+second, which has to be applied to a directory that may have been moved by the
+step before, may have been restored from an archive written under either name,
+or may be a fresh install. Every one of those is a case where getting it wrong
+means opening an empty database beside a full one.
+
+The file name is not something a user sees -- the directory is. So the rename
+takes the visible half and leaves the half whose only effect would be more ways
+to lose data.
+*/
+const dbFileName = "geosense.db"
+
+/*
+adoptLegacyDataDir moves a pre-rename data directory to the current name.
+
+The directory holds every saved analysis, project and image. Renaming the
+application without moving it would point a working installation at an empty
+directory: nothing is deleted, but the user opens TERRA and finds none of their
+work, which is indistinguishable from having lost it.
+
+Moved, not copied. A copy leaves two directories that both look current, and
+the next release has to guess which one the user has been adding to since.
+
+Only when the new location does not exist. If both are present the new one
+wins, untouched: that is either a restore, a fresh install beside an old one,
+or a migration that already happened, and in none of those cases is silently
+replacing the current data with older data the right answer.
+*/
+func adoptLegacyDataDir(cfg, dataDir string) error {
+	if _, err := os.Stat(dataDir); err == nil {
+		return nil // Already here.
+	}
+	legacy := filepath.Join(cfg, legacyDirName)
+	info, err := os.Stat(legacy)
+	if err != nil || !info.IsDir() {
+		return nil // Nothing to adopt.
+	}
+	if err := os.Rename(legacy, dataDir); err != nil {
+		return fmt.Errorf("moving %s to %s: %w", legacy, dataDir, err)
+	}
+	return nil
+}
+
+// Open creates (or opens) the app database under UserConfigDir/terra.
 func Open() (*Store, error) {
 	cfg, err := os.UserConfigDir()
 	if err != nil {
 		return nil, fmt.Errorf("user config dir: %w", err)
 	}
-	dataDir := filepath.Join(cfg, "geosense-infer")
+	dataDir := filepath.Join(cfg, dataDirName)
+	// Before the directory is created, or the rename below would find the
+	// destination already occupied by an empty directory and decline.
+	if err := adoptLegacyDataDir(cfg, dataDir); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("mkdir data dir: %w", err)
 	}
-	dbPath := filepath.Join(dataDir, "geosense.db")
+	dbPath := filepath.Join(dataDir, dbFileName)
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)

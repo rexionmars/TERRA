@@ -14,7 +14,7 @@ property of THIS INSTALLATION, not of the person signed in: the application has
 accounts and a local guest, and the Python that works does not change when
 someone else logs in.
 
-NOT an environment variable either, which is the point. GEOSENSE_PYTHON only
+NOT an environment variable either, which is the point. TERRA_PYTHON only
 reaches a process launched from a shell that exported it -- and a desktop
 application opened from Finder or the Start menu inherits the session
 environment, not a shell profile. So the one setting a LITE user most needs was

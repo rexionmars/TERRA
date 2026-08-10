@@ -48,7 +48,7 @@ const ORIGIN_LABEL: Record<string, string> = {
   // fallback. Said plainly, because the alternative is a selection that
   // silently stopped applying.
   abandoned: "detected automatically · the interpreter chosen here is gone",
-  GEOSENSE_PYTHON: "forced by GEOSENSE_PYTHON",
+  TERRA_PYTHON: "forced by TERRA_PYTHON",
 }
 
 /*
@@ -138,9 +138,27 @@ export function EnvironmentPanel() {
     <div className="flex flex-col gap-3">
       {state?.env_override && (
         <Notice tone="warning">
-          <span className="telemetry">GEOSENSE_PYTHON</span> is set to{" "}
+          <span className="telemetry">TERRA_PYTHON</span> is set to{" "}
           <span className="telemetry">{state.env_override}</span>, and it overrides
           everything chosen here. Unset it to let this screen decide.
+        </Notice>
+      )}
+      {/*
+        The GEOSENSE_ prefix was retired in favour of TERRA_, and the old names
+        were dropped rather than kept as aliases. Nothing else can report that:
+        by definition these are values the application has stopped reading, so
+        a GEOSENSE_PYTHON left in a shell profile simply stops working with no
+        symptom anywhere.
+      */}
+      {(state?.retired_vars ?? []).length > 0 && (
+        <Notice tone="warning">
+          {(state?.retired_vars ?? []).length === 1 ? "This variable is" : "These variables are"}{" "}
+          set and no longer read:{" "}
+          <span className="telemetry">
+            {(state?.retired_vars ?? []).join(", ")}
+          </span>
+          . The prefix is now <span className="telemetry">TERRA_</span> — rename
+          them, or unset them to stop them being misleading.
         </Notice>
       )}
       {problem && <Notice tone="error">{problem}</Notice>}
@@ -261,7 +279,7 @@ export function EnvironmentPanel() {
         launches TERRA, by someone who already has one.
 
         What was missing was seeing them. Until now these appeared only in the
-        boot log, behind a splash screen, so a GEOSENSE_MODEL_DIR exported and
+        boot log, behind a splash screen, so a TERRA_MODEL_DIR exported and
         forgotten kept selecting a model directory with nothing on screen
         saying which.
       */}

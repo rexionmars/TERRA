@@ -13,7 +13,7 @@ import (
 // an interpreter has to win over every guess, or their choice would silently
 // lose to one and they would have no way to tell.
 func TestConfiguredPythonBeatsTheHeuristics(t *testing.T) {
-	t.Setenv("GEOSENSE_PYTHON", "")
+	t.Setenv("TERRA_PYTHON", "")
 	root := t.TempDir()
 
 	// A bundled interpreter, which outranks everything except a saved choice.
@@ -46,7 +46,7 @@ func TestConfiguredPythonBeatsTheHeuristics(t *testing.T) {
 // after it was chosen; falling back to the heuristics gets the user to a
 // working screen where they can choose again.
 func TestConfiguredPythonIsIgnoredWhenItIsGone(t *testing.T) {
-	t.Setenv("GEOSENSE_PYTHON", "")
+	t.Setenv("TERRA_PYTHON", "")
 	root := t.TempDir()
 	got := resolvePython(root, root, filepath.Join(root, "deleted-python"))
 	if got == filepath.Join(root, "deleted-python") {
@@ -58,7 +58,7 @@ func TestConfiguredPythonIsIgnoredWhenItIsGone(t *testing.T) {
 // switching interpreters per run should not have to edit a file the UI also
 // writes, and should not find their export quietly ignored.
 func TestEnvironmentVariableStillWins(t *testing.T) {
-	t.Setenv("GEOSENSE_PYTHON", "/from/env/python")
+	t.Setenv("TERRA_PYTHON", "/from/env/python")
 	root := t.TempDir()
 	if got := resolvePython(root, root, "/from/config/python"); got != "/from/env/python" {
 		t.Fatalf("resolvePython=%q, want the environment variable", got)

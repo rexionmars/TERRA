@@ -12,7 +12,7 @@ page is the short path through the current desktop app.
   — prefer **FULL** (`*-full.zip`) for spectral RF without installing Python —
   **or** a from-source install (`wails dev` / `wails build`).
 - For **LITE** builds: Python 3.12 with [`requirements.txt`](../requirements.txt),
-  and `GEOSENSE_PYTHON` if the interpreter is not on `PATH`.
+  and `TERRA_PYTHON` if the interpreter is not on `PATH`.
 - Network access to the Microsoft Planetary Computer STAC catalog (and Hugging
   Face if you use Prithvi).
 
