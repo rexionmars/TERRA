@@ -126,7 +126,7 @@ All field and academic research I conduct undergoes review by my professors (som
    `pip install -r requirements.txt` for **LITE** — [Install](docs/INSTALL.md).
 2. Download from [releases](https://github.com/rexionmars/TERRA/releases) or run
    `wails dev` from source.
-3. Open TERRA (`GEOSENSE_PYTHON` only if LITE / custom interpreter).
+3. Open TERRA (`TERRA_PYTHON` only if LITE / custom interpreter).
 4. Project → AOI (example **A**, draw, or import) → date range → model
    **spectral** → **Classify**.
 5. **Overlay Tools** (visibility, swipe, export) → **Analysis** (cover map, VI,
@@ -214,7 +214,7 @@ TERRA/
 - **Prithvi (optional):** [`requirements-prithvi.txt`](requirements-prithvi.txt)
 - **From source:** Go 1.23+, Node.js 18+, [Wails CLI](https://wails.io)
 
-Interpreter: `GEOSENSE_PYTHON` → bundled `python/` (FULL) → `.venv` → `python3`.
+Interpreter: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` → `python3`.
 
 ## Development
 
@@ -238,9 +238,9 @@ pytest sidecar/tests -q
 
 | Variable | Purpose |
 |----------|---------|
-| `GEOSENSE_PYTHON` | Python for the sidecar |
-| `GEOSENSE_APP_DIR` | Directory with `sidecar/`, `areas/`, `model/` |
-| `GEOSENSE_MODEL_DIR` | Model directory (default `model/`) |
+| `TERRA_PYTHON` | Python for the sidecar |
+| `TERRA_APP_DIR` | Directory with `sidecar/`, `areas/`, `model/` |
+| `TERRA_MODEL_DIR` | Model directory (default `model/`) |
 
 ## Data sources
 

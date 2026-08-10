@@ -30,6 +30,18 @@ export function AnalyzeWind(arg1) {
   return window['go']['main']['App']['AnalyzeWind'](arg1);
 }
 
+export function BuildManagedEnvironment(arg1) {
+  return window['go']['main']['App']['BuildManagedEnvironment'](arg1);
+}
+
+export function CancelEnvironmentBuild() {
+  return window['go']['main']['App']['CancelEnvironmentBuild']();
+}
+
+export function ChooseBackupArchive() {
+  return window['go']['main']['App']['ChooseBackupArchive']();
+}
+
 export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
 }
@@ -52,6 +64,10 @@ export function DeleteProject(arg1) {
 
 export function DeleteProjectOverlay(arg1) {
   return window['go']['main']['App']['DeleteProjectOverlay'](arg1);
+}
+
+export function ExportBackup() {
+  return window['go']['main']['App']['ExportBackup']();
 }
 
 export function ExportClassification(arg1) {
@@ -84,6 +100,18 @@ export function GetPreferences() {
 
 export function GetProject(arg1) {
   return window['go']['main']['App']['GetProject'](arg1);
+}
+
+export function InspectEnvironment() {
+  return window['go']['main']['App']['InspectEnvironment']();
+}
+
+export function InspectPython(arg1) {
+  return window['go']['main']['App']['InspectPython'](arg1);
+}
+
+export function InspectStorage() {
+  return window['go']['main']['App']['InspectStorage']();
 }
 
 export function ListDataCube(arg1) {
@@ -130,12 +158,20 @@ export function Predict(arg1) {
   return window['go']['main']['App']['Predict'](arg1);
 }
 
+export function PurgeOrphanedRunAssets() {
+  return window['go']['main']['App']['PurgeOrphanedRunAssets']();
+}
+
 export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }
 
 export function RenderComposite(arg1) {
   return window['go']['main']['App']['RenderComposite'](arg1);
+}
+
+export function RestoreBackup(arg1) {
+  return window['go']['main']['App']['RestoreBackup'](arg1);
 }
 
 export function RevealMainWindow() {
@@ -176,4 +212,8 @@ export function UpdateProjectAOI(arg1, arg2, arg3, arg4) {
 
 export function UpdateProjectRunLabels(arg1, arg2) {
   return window['go']['main']['App']['UpdateProjectRunLabels'](arg1, arg2);
+}
+
+export function UseInterpreter(arg1) {
+  return window['go']['main']['App']['UseInterpreter'](arg1);
 }

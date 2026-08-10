@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react"
 import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime"
-import { GetBootLogs } from "../../wailsjs/go/main/App"
+import { GetAppVersion, GetBootLogs } from "../../wailsjs/go/main/App"
 import {
+  SPLASH_CURRENT_KEY,
   SPLASH_IMAGES,
+  SPLASH_SEEN_VERSION_KEY,
+  SPLASH_STILLS,
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
-
-const SLIDE_MS = 7000
+import { BRAND_TAGLINE, RELEASE_NAME } from "@/lib/brand"
 
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
@@ -14,15 +16,76 @@ type SplashScreenProps = {
 }
 
 /**
- * Compact boot UI for the small splash window (before the main shell).
- * Full-bleed aerial stills with sliding zoom; brand centered, status as one line.
- * Starting still rotates on each program launch.
+ * Compact boot UI for the small splash window, before the main shell.
+ *
+ * A full-bleed aerial still with a slow pan, the brand centred, and the boot
+ * log's last line along the bottom. The still rotates per launch rather than
+ * during one: the window is up for about a second.
  */
 export function SplashScreen({ exiting = false }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])
+  /*
+    Claimed once, and never advanced.
+
+    There used to be a 7-second carousel here. The splash lives for about a
+    second now, so the interval never fired and the Ken Burns pan -- 16 seconds
+    with `forwards` -- never reached its second keyframe either. A rotation
+    nobody can see is a still, so this is a still: one image per launch, the
+    next one next time.
+  */
   const [slide, setSlide] = useState(() =>
     claimSplashSlideForLaunch(SPLASH_IMAGES.length)
   )
+
+  /*
+    Null until the Go side answers, so the line renders without it and gains it
+    a frame later rather than reserving blank space for it.
+  */
+  const [version, setVersion] = useState<string | null>(null)
+
+  /*
+    The featured still, on the first launch after an update.
+
+    THE CLAIM IS NOT DISCARDED. This used to clear SPLASH_CURRENT_KEY before
+    re-claiming, on the reasoning that re-claiming would be a no-op except
+    after an update. It was the opposite: clearing the key is what removed the
+    evidence of index.html's claim, so every single launch re-picked and the
+    image visibly swapped a moment after the window opened. The HTML paints
+    first and its choice is the one that stands.
+
+    Only a genuinely new version overrides it, and that is decided by reading
+    the stored version rather than by throwing the claim away and seeing what
+    comes back.
+  */
+  useEffect(() => {
+    let cancelled = false
+    GetAppVersion()
+      .then((version) => {
+        if (cancelled || !version) return
+        setVersion(version)
+
+        let seen: string | null = null
+        try {
+          seen = localStorage.getItem(SPLASH_SEEN_VERSION_KEY)
+        } catch {
+          /* storage unavailable: keep what the HTML chose */
+        }
+        if (seen === version) return
+
+        // First launch on this version: the release's own still takes over,
+        // and claiming records the version so this does not repeat.
+        try {
+          sessionStorage.removeItem(SPLASH_CURRENT_KEY)
+        } catch {
+          /* storage unavailable: keep what the HTML chose */
+        }
+        setSlide(claimSplashSlideForLaunch(SPLASH_IMAGES.length, version))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -50,15 +113,8 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
     }
   }, [])
 
-  useEffect(() => {
-    if (exiting || SPLASH_IMAGES.length < 2) return
-    const id = window.setInterval(() => {
-      setSlide((i) => (i + 1) % SPLASH_IMAGES.length)
-    }, SLIDE_MS)
-    return () => window.clearInterval(id)
-  }, [exiting])
-
   const statusLine = logs[logs.length - 1] ?? "booting…"
+  const activeImage = SPLASH_STILLS[slide]?.path ?? SPLASH_IMAGES[0]
 
   return (
     <div
@@ -66,16 +122,21 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
         exiting ? "splash-screen--exit" : ""
       }`}
     >
+      {/*
+        One layer, for the still this launch claimed.
+
+        All three used to render at once, each with its own background-image, so
+        the browser fetched every one -- two of three downloads thrown away on a
+        window that shows one, pulled at exactly the moment the bundle it is
+        covering wants the network. The HTML preloads this one before any of
+        this runs, so by here it is already in cache.
+      */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
-        {SPLASH_IMAGES.map((src, i) => (
-          <div
-            key={src}
-            className={`splash-kenburns splash-kenburns--${(i % 3) + 1} ${
-              i === slide ? "is-active" : ""
-            }`}
-            style={{ backgroundImage: `url(${src})` }}
-          />
-        ))}
+        <div
+          key={activeImage}
+          className={`splash-kenburns splash-kenburns--${(slide % 3) + 1} is-active`}
+          style={{ backgroundImage: `url(${activeImage})` }}
+        />
         <div className="splash-kenburns-scrim absolute inset-0" />
       </div>
 
@@ -90,7 +151,19 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
             TERRA
           </p>
           <p className="eyebrow drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
-            land cover · sentinel-2
+            {BRAND_TAGLINE}
+          </p>
+          {/*
+            The release, named. Fixed for the version.
+
+            This briefly showed the name of the still on screen, which made it
+            change every launch as the rotation advanced -- a name that moves
+            is a caption, not a name. The photograph rotates; the release does
+            not.
+          */}
+          <p className="telemetry text-meta text-foreground/70 drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
+            {RELEASE_NAME}
+            {version && ` · ${version}`}
           </p>
           <div className="mt-1 h-0.5 w-7 rounded-[1px] bg-accent/85" aria-hidden />
         </div>

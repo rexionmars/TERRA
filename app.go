@@ -30,6 +30,7 @@ type App struct {
 	sessionToken string
 	currentUser  *store.User
 
+	envBuilder  backend.EnvBuilder
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
@@ -38,6 +39,27 @@ type App struct {
 // NewApp creates a new App.
 func NewApp() *App {
 	return &App{}
+}
+
+/*
+currentRunner is the runner as it stands right now.
+
+Every read of a.runner goes through here because the field is no longer written
+once at startup and left alone: choosing an interpreter rebuilds it, and each
+method bound to the frontend runs on its own goroutine. A bare read racing that
+write is a data race on a pointer -- the kind that survives every test and
+appears once, in a build nobody can reproduce.
+
+Returning the pointer rather than holding the lock for the call is deliberate.
+An analysis runs for minutes; holding the lock across it would make choosing an
+interpreter wait for the run to finish. A run that started on the previous
+interpreter finishes on it, which is the honest outcome: it is the one it
+loaded its model into.
+*/
+func (a *App) currentRunner() *backend.Runner {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.runner
 }
 
 func (a *App) bootLog(msg string) {
@@ -103,17 +125,12 @@ func (a *App) startup(ctx context.Context) {
 	if err != nil {
 		appDir = "."
 	}
-	a.bootLog("resolving sidecar paths…")
-	runner, err := backend.NewRunner(appDir)
-	if err != nil {
-		a.bootLog("runner init failed: " + err.Error())
-		wruntime.LogError(ctx, "failed to init runner: "+err.Error())
-	} else {
-		a.runner = runner
-		a.bootLog("python · " + filepath.Base(runner.PythonPath()))
-		a.bootLog("model · " + filepath.Base(runner.ModelDir()))
-	}
 
+	// The store opens BEFORE the runner, which is the reverse of what it was.
+	// The interpreter chosen in the UI lives in a file beside the database, so
+	// the runner cannot be built until that directory is known -- built first,
+	// it could only ever guess, which is what left the choice to an environment
+	// variable a desktop launch never sees.
 	a.bootLog("opening local store…")
 	st, err := store.Open()
 	if err != nil {
@@ -123,6 +140,25 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.store = st
 	a.bootLog("store ready")
+
+	cfg := backend.LoadAppConfig(st.DataDir())
+	a.bootLog("resolving sidecar paths…")
+	runner, err := backend.NewRunner(appDir, cfg.PythonPath)
+	if err != nil {
+		a.bootLog("runner init failed: " + err.Error())
+		wruntime.LogError(ctx, "failed to init runner: "+err.Error())
+	} else {
+		// Written under the lock like every other assignment to it. Startup runs
+		// before the frontend can call anything, so nothing races this one today
+		// -- but a field that is guarded in one place and bare in another is
+		// read as safe to touch bare, which is how the guarding gets lost.
+		a.mu.Lock()
+		a.runner = runner
+		a.mu.Unlock()
+		a.bootLog("python · " + filepath.Base(runner.PythonPath()))
+		a.bootLog("model · " + filepath.Base(runner.ModelDir()))
+	}
+
 	if u, token, err := st.RestoreSession(); err == nil {
 		a.mu.Lock()
 		a.currentUser = u
@@ -151,13 +187,14 @@ func (a *App) domReady(ctx context.Context) {
 func (a *App) probeSidecar(ctx context.Context) {
 	a.bootLog("probing sidecar…")
 	ok := true
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		a.bootLog("sidecar unavailable")
 		ok = false
 	} else {
 		probeCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 		defer cancel()
-		line, err := a.runner.Probe(probeCtx)
+		line, err := runner.Probe(probeCtx)
 		if err != nil {
 			a.bootLog("sidecar probe: " + err.Error())
 			ok = false
@@ -166,13 +203,25 @@ func (a *App) probeSidecar(ctx context.Context) {
 		}
 	}
 
-	// Keep the splash visible for at least 5s so it reads as a real boot screen.
-	const minSplash = 5 * time.Second
+	/*
+		How long the splash is held when the boot finishes sooner.
+
+		This was five seconds, held so it "reads as a real boot screen" while
+		logging "warming up…" over no work at all -- opening SQLite, resolving
+		paths and asking an interpreter its version take a fraction of that.
+		With the fade and reveal after it, every launch cost about 5.6 seconds
+		of watching a screen that had finished.
+
+		Three seconds is the deliberate choice: long enough to read the release
+		name and see the still it is named for, short enough that nobody is
+		waiting on it. The Ken Burns pan is timed against this -- see
+		.splash-kenburns in index.css.
+	*/
+	const minSplash = 3 * time.Second
 	if a.bootStarted.IsZero() {
 		a.bootStarted = time.Now()
 	}
 	if wait := minSplash - time.Since(a.bootStarted); wait > 0 {
-		a.bootLog("warming up…")
 		timer := time.NewTimer(wait)
 		select {
 		case <-timer.C:
@@ -187,18 +236,20 @@ func (a *App) probeSidecar(ctx context.Context) {
 
 // ListEmbeddedAreas returns the embedded study areas (A/B/C).
 func (a *App) ListEmbeddedAreas() []backend.Area {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return []backend.Area{}
 	}
-	return a.runner.ListAreas()
+	return runner.ListAreas()
 }
 
 // Predict runs the inference sidecar for the given request.
 func (a *App) Predict(req backend.PredictRequest) (*backend.PredictResult, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.Predict(a.ctx, req)
+	res, err := runner.Predict(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -210,35 +261,39 @@ func (a *App) Predict(req backend.PredictRequest) (*backend.PredictResult, error
 // without Sentinel imagery. Embedded areas use local TIFFs; custom AOIs in
 // Brazil fetch a MapBiomas Collection 10 COG window on demand.
 func (a *App) AnalyzeLULC(req backend.LULCRequest) (*backend.LULCAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.AnalyzeLULC(a.ctx, req)
+	return runner.AnalyzeLULC(a.ctx, req)
 }
 
 // ListDataCube inventories Sentinel-2 L2A scenes for the AOI (before Classify).
 func (a *App) ListDataCube(req backend.DataCubeRequest) (*backend.DataCubeResult, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.ListDataCube(a.ctx, req)
+	return runner.ListDataCube(a.ctx, req)
 }
 
 // RenderComposite builds an RGB / false-color or spectral-index overlay for one scene.
 func (a *App) RenderComposite(req backend.CompositeRequest) (*backend.CompositeResult, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	return a.runner.RenderComposite(a.ctx, req)
+	return runner.RenderComposite(a.ctx, req)
 }
 
 // AnalyzeWater maps surface water over a period from spectral water indices.
 // Descriptive: a thresholded index, with no model and no trained legend.
 func (a *App) AnalyzeWater(req backend.WaterRequest) (*backend.WaterAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeWater(a.ctx, req)
+	res, err := runner.AnalyzeWater(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -327,10 +382,11 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 
 // AnalyzeSolar computes the solar resource and photovoltaic yield at the AOI.
 func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeSolar(a.ctx, req)
+	res, err := runner.AnalyzeSolar(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -413,10 +469,11 @@ func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalys
 
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
 func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.SolarTerrainAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeSolarTerrain(a.ctx, req)
+	res, err := runner.AnalyzeSolarTerrain(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -427,10 +484,11 @@ func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.Sol
 
 // AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
 func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.SolarSitingAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeSolarSiting(a.ctx, req)
+	res, err := runner.AnalyzeSolarSiting(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -511,10 +569,11 @@ func (a *App) persistSolarRaster(
 
 // AnalyzeEnergyModel runs the photovoltaic energy model over the AOI.
 func (a *App) AnalyzeEnergyModel(req backend.EnergyModelRequest) (*backend.EnergyModelAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeEnergyModel(a.ctx, req)
+	res, err := runner.AnalyzeEnergyModel(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -610,10 +669,11 @@ func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend
 
 // AnalyzeWind screens the wind resource at the AOI.
 func (a *App) AnalyzeWind(req backend.WindRequest) (*backend.WindAnalysis, error) {
-	if a.runner == nil {
+	runner := a.currentRunner()
+	if runner == nil {
 		return nil, errors.New("runner not initialized")
 	}
-	res, err := a.runner.AnalyzeWind(a.ctx, req)
+	res, err := runner.AnalyzeWind(a.ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -738,6 +798,194 @@ func (a *App) ExportResearchPack(meta backend.ResearchExportMeta, result *backen
 		return "", err
 	}
 	return dest, nil
+}
+
+/*
+ExportBackup writes the local database and its files to a ZIP the user places.
+
+Everything this application saves lives in one directory on one machine: there
+is no server and no account holding a second copy, so a reinstalled laptop
+takes every analysis and project with it. This is the only way out.
+
+Password hashes and session tokens are left out of the archive. A backup is a
+file people mail to themselves and attach to support threads, and any of those
+turns a stored credential into one that has left the machine. Restoring returns
+the analyses and projects and asks for a new password; the archive says so in
+its README, and so does the button that makes it.
+
+Returns the path written, or an empty string when the user cancels the dialog.
+*/
+func (a *App) ExportBackup() (string, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return "", errors.New("the local store is not open")
+	}
+
+	// Built before the dialog opens. A large history takes a moment to archive,
+	// and doing it after would leave the user looking at a chosen filename with
+	// nothing happening, unable to tell a slow write from a stuck one.
+	zipBytes, err := st.ExportBackup(a.GetAppVersion())
+	if err != nil {
+		return "", err
+	}
+
+	dest, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
+		Title:           "Export backup",
+		DefaultFilename: store.DefaultBackupFilename(time.Now()),
+		Filters: []wruntime.FileFilter{
+			{DisplayName: "ZIP archive", Pattern: "*.zip"},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	if dest == "" {
+		return "", nil
+	}
+	if !strings.HasSuffix(strings.ToLower(dest), ".zip") {
+		dest += ".zip"
+	}
+	if err := os.WriteFile(dest, zipBytes, 0o600); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
+// ChooseBackupArchive opens a file dialog and describes the archive picked,
+// without changing anything.
+//
+// Separate from RestoreBackup so the user is told what they are about to get
+// and what it will displace before it happens. A restore replaces everything;
+// an operation of that weight should not be one click from a file dialog.
+func (a *App) ChooseBackupArchive() (*store.RestorePreview, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+
+	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
+		Title: "Choose a TERRA backup",
+		Filters: []wruntime.FileFilter{
+			{DisplayName: "ZIP archive", Pattern: "*.zip"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if path == "" {
+		return nil, nil // Cancelled.
+	}
+
+	preview, err := st.InspectBackup(path)
+	if err != nil {
+		return nil, err
+	}
+	preview.ArchivePath = path
+	return preview, nil
+}
+
+/*
+RestoreBackup replaces the local data with the archive at the given path.
+
+The path comes from ChooseBackupArchive rather than from the frontend picking a
+file itself, so the thing restored is the thing that was described.
+
+The store is closed, replaced and reopened here. The database file is swapped
+underneath the connection, and a connection held across that points at a file
+that no longer exists -- so every later query would fail in a way that looks
+like corruption rather than like a restore.
+*/
+func (a *App) RestoreBackup(archivePath string) (*store.RestoreResult, error) {
+	if strings.TrimSpace(archivePath) == "" {
+		return nil, errors.New("no backup was chosen")
+	}
+
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+
+	// Checked again here, not only in the preview: the file may have been
+	// replaced between describing it and restoring it, and this is the last
+	// point at which refusing costs nothing.
+	preview, err := st.InspectBackup(archivePath)
+	if err != nil {
+		return nil, err
+	}
+	if preview.Problem != "" {
+		return nil, errors.New(preview.Problem)
+	}
+
+	// Closed before the swap. RestoreBackup renames the directory this
+	// connection's file lives in.
+	if err := st.Close(); err != nil {
+		return nil, fmt.Errorf("closing the local store: %w", err)
+	}
+
+	result, restoreErr := st.RestoreBackup(archivePath)
+
+	// Reopened whether or not the restore worked. A failed restore leaves the
+	// previous data in place, and leaving the application with a closed store
+	// would turn a recoverable failure into one that needs a relaunch.
+	reopened, openErr := store.Open()
+	if openErr != nil {
+		if restoreErr != nil {
+			return nil, restoreErr
+		}
+		return nil, fmt.Errorf("the data was restored but could not be reopened: %w", openErr)
+	}
+	a.mu.Lock()
+	a.store = reopened
+	// The session belonged to the replaced database. Restored accounts carry no
+	// password hash, so there is nothing to be signed in as.
+	a.currentUser = nil
+	a.sessionToken = ""
+	a.mu.Unlock()
+
+	if restoreErr != nil {
+		return nil, restoreErr
+	}
+	return result, nil
+}
+
+// InspectStorage reports what the local data is made of.
+//
+// Measured by walking the directory rather than inferred from the database:
+// the database records what was saved, not what is on disk, and this screen is
+// only worth having if it is believed when it says where the space went.
+func (a *App) InspectStorage() (*store.StorageReport, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+	return st.InspectStorage()
+}
+
+// PurgeOrphanedRunAssets removes run files with no analysis pointing at them.
+//
+// The only deletion offered without naming what is being deleted, because
+// these are the only files nothing can reach. Anything else is removed by
+// removing the analysis it belongs to, which the user does deliberately.
+func (a *App) PurgeOrphanedRunAssets() (*store.PurgeResult, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+	removed, freed, err := st.PurgeOrphanedRunAssets()
+	if err != nil {
+		return nil, err
+	}
+	return &store.PurgeResult{Removed: removed, FreedBytes: freed}, nil
 }
 
 // ExportOverlayFile saves an overlay asset via SaveFileDialog.

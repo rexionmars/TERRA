@@ -18,6 +18,12 @@ export function AnalyzeWater(arg1:backend.WaterRequest):Promise<backend.WaterAna
 
 export function AnalyzeWind(arg1:backend.WindRequest):Promise<backend.WindAnalysis>;
 
+export function BuildManagedEnvironment(arg1:string):Promise<void>;
+
+export function CancelEnvironmentBuild():Promise<void>;
+
+export function ChooseBackupArchive():Promise<store.RestorePreview>;
+
 export function ClearAvatar():Promise<store.User>;
 
 export function CreateProject(arg1:string,arg2:string):Promise<store.Project>;
@@ -29,6 +35,8 @@ export function DeleteAnalysis(arg1:string):Promise<void>;
 export function DeleteProject(arg1:string):Promise<void>;
 
 export function DeleteProjectOverlay(arg1:string):Promise<void>;
+
+export function ExportBackup():Promise<string>;
 
 export function ExportClassification(arg1:string):Promise<string>;
 
@@ -45,6 +53,12 @@ export function GetBootLogs():Promise<Array<string>>;
 export function GetPreferences():Promise<store.Preferences>;
 
 export function GetProject(arg1:string):Promise<store.Project>;
+
+export function InspectEnvironment():Promise<main.EnvironmentState>;
+
+export function InspectPython(arg1:string):Promise<backend.EnvReport>;
+
+export function InspectStorage():Promise<store.StorageReport>;
 
 export function ListDataCube(arg1:backend.DataCubeRequest):Promise<backend.DataCubeResult>;
 
@@ -68,9 +82,13 @@ export function OpenExternal(arg1:string):Promise<void>;
 
 export function Predict(arg1:backend.PredictRequest):Promise<backend.PredictResult>;
 
+export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
+
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
 export function RenderComposite(arg1:backend.CompositeRequest):Promise<backend.CompositeResult>;
+
+export function RestoreBackup(arg1:string):Promise<store.RestoreResult>;
 
 export function RevealMainWindow():Promise<void>;
 
@@ -91,3 +109,5 @@ export function UpdateProject(arg1:store.Project):Promise<store.Project>;
 export function UpdateProjectAOI(arg1:string,arg2:string,arg3:string,arg4:string):Promise<store.Project>;
 
 export function UpdateProjectRunLabels(arg1:string,arg2:string):Promise<number>;
+
+export function UseInterpreter(arg1:string):Promise<backend.EnvReport>;

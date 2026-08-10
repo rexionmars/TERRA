@@ -2,38 +2,73 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Camera,
   ChartColumn,
+  Download,
   FolderOpen,
+  HardDrive,
+  Loader2,
   LogOut,
   Save,
   Trash2,
+  Upload,
 } from "lucide-react"
+import {
+  ChooseBackupArchive,
+  ExportBackup,
+  InspectStorage,
+  PurgeOrphanedRunAssets,
+  RestoreBackup,
+} from "../../wailsjs/go/main/App"
+import type { store } from "../../wailsjs/go/models"
+import { AnimatePresence } from "motion/react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import { ActivityGrid } from "@/components/ActivityGrid"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
+import { EnvironmentPanel } from "@/components/EnvironmentPanel"
+import { StorageModal } from "@/components/StorageModal"
 import { cn } from "@/lib/utils"
 import type { InferenceRun, Preferences } from "@/lib/types"
-import {
-  mergePreferenceExtras,
-} from "@/lib/preferenceExtras"
+import { mergePreferenceExtras } from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import { formatBytes } from "@/lib/formatBytes"
 import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
 
-type SettingsSectionId = "account" | "classification" | "appearance" | "session"
+type SettingsSectionId = "account" | "system"
 
+/**
+ * The pages of settings, grouped by subject.
+ *
+ * There were five, and two were the same subject: "Account" held who you are
+ * and "Session" held your work, split for no reason anyone chose -- they grew
+ * apart. Worse, "Session" contained no session at all, which made the run list
+ * read as something signing out would take with it. Sign out itself was in
+ * neither, sitting in the column's footer, as far from the account it ends as
+ * the layout allowed.
+ *
+ * "Analysis" is gone. It held the default model and the overlay opacity, and
+ * both are already set where they are used -- the model in the Classification
+ * panel, the opacity in the overlay tools -- so the page was a second place to
+ * change something the map changes better, next to the thing it affects.
+ *
+ * "Appearance" is gone as a page but not as a setting: the colour theme moved
+ * into Account. One control was never a page, and the theme belongs to the
+ * person signed in rather than to the installation, which is what Account is.
+ */
 const SECTIONS: {
   id: SettingsSectionId
   label: string
-  count: number
+  /** How many settings the page holds, where that is a countable thing. */
+  count?: number
 }[] = [
-  { id: "account", label: "Account", count: 3 },
-  { id: "classification", label: "Classification", count: 2 },
-  { id: "appearance", label: "Appearance", count: 1 },
-  { id: "session", label: "Session", count: 2 },
+  { id: "account", label: "Account", count: 10 },
+  // No count. The other page is a list of controls, and the number says how
+  // long the list is. This one reports the state of an environment and offers
+  // what to do about it, so "(1)" would be counting the wrong thing.
+  { id: "system", label: "System" },
 ]
 
 const focusRing =
@@ -58,28 +93,59 @@ export function ProfilePage({
     refreshRuns,
     goAuth,
     goAnalysis,
+    settingsPage,
+    consumeSettingsPage,
   } = useAuth()
   const { setTheme: setNextTheme } = useTheme()
   const [name, setName] = useState("")
-  const [model, setModel] = useState("spectral")
-  const [opacity, setOpacity] = useState(0.75)
   const [theme, setTheme] = useState("dark")
   const [busy, setBusy] = useState(false)
-  const [activeSection, setActiveSection] =
-    useState<SettingsSectionId>("account")
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupResult, setBackupResult] = useState<string | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
+  const [restoreBusy, setRestoreBusy] = useState(false)
+  const [restorePreview, setRestorePreview] =
+    useState<store.RestorePreview | null>(null)
+  const [restoreResult, setRestoreResult] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [storage, setStorage] = useState<store.StorageReport | null>(null)
+  const [storageBusy, setStorageBusy] = useState(false)
+  const [storageNote, setStorageNote] = useState<string | null>(null)
+  const [storageError, setStorageError] = useState<string | null>(null)
+  const [storageOpen, setStorageOpen] = useState(false)
+  /*
+    Account, always, unless something asks otherwise while this is open.
+
+    It used to initialise from settingsPage, which made opening settings by
+    hand land on System: useState only reads its argument on the first render,
+    so a request left over from the first-run gate steered every later arrival
+    that reused the same mount, and re-mounting read a value that had not been
+    cleared yet. Either way the user pressed Settings and got the Python
+    environment.
+
+    The request is applied by the effect below instead, which runs when the
+    request actually arrives rather than whenever this component happens to
+    mount.
+  */
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("account")
+
+  /*
+    Applied once, then cleared.
+
+    Clearing is what keeps it to one arrival: left standing, the next visit
+    would be steered by a request nobody made this time, with nothing on screen
+    explaining why settings keeps opening somewhere the user did not choose.
+  */
+  useEffect(() => {
+    if (!settingsPage) return
+    setActiveSection(settingsPage)
+    consumeSettingsPage()
+  }, [settingsPage, consumeSettingsPage])
   const [focusedSetting, setFocusedSetting] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const contentRef = useRef<HTMLDivElement | null>(null)
-  const sectionRefs = useRef<Partial<Record<SettingsSectionId, HTMLElement | null>>>(
-    {}
-  )
   const prefsReady = useRef(false)
   const savePrefsTimer = useRef<number | null>(null)
-  const prefsDraftRef = useRef({
-    model: "spectral",
-    opacity: 0.75,
-    theme: "dark",
-  })
+  const prefsDraftRef = useRef({ theme: "dark" })
 
   useEffect(() => {
     if (!user) {
@@ -92,32 +158,29 @@ export function ProfilePage({
 
   useEffect(() => {
     if (!prefs) return
-    const next = {
-      model: prefs.default_model || "spectral",
-      opacity: prefs.overlay_opacity ?? 0.75,
-      theme: prefs.theme || "dark",
-    }
-    setModel(next.model)
-    setOpacity(next.opacity)
+    const next = { theme: prefs.theme || "dark" }
     setTheme(next.theme)
     prefsDraftRef.current = next
     prefsReady.current = true
   }, [prefs])
 
+  /*
+    The model and the opacity are written back exactly as they were read.
+
+    This page no longer edits them -- both are set where they are used, on the
+    map -- but Preferences carries them, so a save that omitted them would
+    write a zero opacity and an empty model over whatever is stored. Passing
+    the stored value through keeps a theme change to being a theme change.
+  */
   const persistPreferences = useCallback(
-    async (next: {
-      model: string
-      opacity: number
-      theme: string
-    }) => {
+    async (next: { theme: string }) => {
       if (!user) return
       const payload: Preferences = {
         user_id: user.id,
-        default_model: next.model,
-        overlay_opacity: next.opacity,
+        default_model: prefs?.default_model || "spectral",
+        overlay_opacity: prefs?.overlay_opacity ?? 0.75,
         theme: next.theme,
-        extras_json: mergePreferenceExtras(prefs?.extras_json, {
-        }),
+        extras_json: mergePreferenceExtras(prefs?.extras_json, {}),
       }
       await savePrefs(payload)
       if (
@@ -128,15 +191,18 @@ export function ProfilePage({
         setNextTheme(next.theme)
       }
     },
-    [prefs?.extras_json, savePrefs, setNextTheme, user]
+    [
+      prefs?.default_model,
+      prefs?.overlay_opacity,
+      prefs?.extras_json,
+      savePrefs,
+      setNextTheme,
+      user,
+    ]
   )
 
   const schedulePrefsSave = useCallback(
-    (patch: Partial<{
-      model: string
-      opacity: number
-      theme: string
-    }>) => {
+    (patch: Partial<{ theme: string }>) => {
       if (!prefsReady.current) return
       prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
       if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
@@ -155,33 +221,19 @@ export function ProfilePage({
 
   const recentRuns = useMemo(() => runs.slice(0, 3), [runs])
 
-  const scrollToSection = (id: SettingsSectionId) => {
-    setActiveSection(id)
-    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }
+  /*
+    The column switches the page; it does not scroll to a heading.
 
-  useEffect(() => {
-    const root = contentRef.current
-    if (!root) return
-    const nodes = SECTIONS.map((s) => sectionRefs.current[s.id]).filter(
-      Boolean
-    ) as HTMLElement[]
-    if (nodes.length === 0) return
+    Every section used to be mounted at once in one scrolling page, with the
+    column scrolling to an anchor and an IntersectionObserver guessing which
+    heading was in view to light the right entry. Two consequences, both bad:
+    the page grows without bound as settings are added, and the column looks
+    like navigation while behaving like a table of contents.
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        const top = visible[0]?.target as HTMLElement | undefined
-        const id = top?.dataset.section as SettingsSectionId | undefined
-        if (id) setActiveSection(id)
-      },
-      { root, rootMargin: "-12% 0px -70% 0px", threshold: 0 }
-    )
-    for (const n of nodes) io.observe(n)
-    return () => io.disconnect()
-  }, [user])
+    Rendering one section at a time is what the column already appeared to do,
+    and it removes the observer, the scroll and the refs that fed them.
+  */
+  const page = SECTIONS.find((s) => s.id === activeSection) ?? SECTIONS[0]
 
   if (!user) return null
 
@@ -192,6 +244,155 @@ export function ProfilePage({
       await updateProfile(name.trim())
     } finally {
       setBusy(false)
+    }
+  }
+
+  /*
+    The archive is built before the save dialog opens, so a large history
+    spends its time with the button showing it is working rather than behind a
+    dialog the user has already answered.
+
+    An empty path means the dialog was cancelled, which is not an error and not
+    a success -- it clears both and says nothing.
+  */
+  const exportBackup = async () => {
+    setBackupBusy(true)
+    setBackupError(null)
+    setBackupResult(null)
+    try {
+      const dest = await ExportBackup()
+      if (dest) setBackupResult(`Saved to ${dest}`)
+    } catch (e) {
+      setBackupError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  /*
+    Measured on demand, not on mount.
+
+    Walking the data directory costs real time once there are hundreds of
+    analyses, and Account is opened to change a display name far more often
+    than to look at disk usage. Paying for it every visit would slow the common
+    case for the rare one.
+  */
+  const loadStorage = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    setStorageNote(null)
+    try {
+      setStorage(await InspectStorage())
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Measured before the modal opens, not after.
+
+    Opening first would render the dialog against no data, so its first frame
+    would be an empty shell -- and every field in it would have to guard
+    against a report that is not there yet. The button carries the wait
+    instead, where the user already clicked.
+
+    The error stays on the settings row for the same reason: a modal that opens
+    only to say it could not measure anything is a worse way to say it than a
+    line under the button.
+  */
+  const openStorage = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    setStorageNote(null)
+    try {
+      setStorage(await InspectStorage())
+      setStorageOpen(true)
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Clears only the folders no analysis points at.
+
+    No confirmation, deliberately: nothing in the application can open these
+    files and no export includes them, so there is nothing for the user to
+    weigh. A dialog asking them to approve deleting something they cannot see
+    or reach would be theatre.
+  */
+  const purgeOrphans = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    try {
+      const result = await PurgeOrphanedRunAssets()
+      setStorageNote(
+        `Cleared ${formatBytes(result.freed_bytes)} from ${result.removed} ${
+          result.removed === 1 ? "folder" : "folders"
+        }.`
+      )
+      setStorage(await InspectStorage())
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Choosing a backup describes it and changes nothing.
+
+    An archive that cannot be restored says so here, before the user has agreed
+    to replace anything -- a refusal at this point costs them a file dialog,
+    the same refusal after the swap would cost them their data.
+  */
+  const chooseBackup = async () => {
+    setRestoreBusy(true)
+    setRestoreError(null)
+    setRestoreResult(null)
+    try {
+      const preview = await ChooseBackupArchive()
+      if (!preview) return // Cancelled.
+      if (preview.problem) {
+        setRestoreError(preview.problem)
+        return
+      }
+      setRestorePreview(preview)
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRestoreBusy(false)
+    }
+  }
+
+  /*
+    The restore itself.
+
+    Signing out afterwards is not tidiness: the session belonged to the database
+    that was just replaced, and every restored account carries no password hash.
+    Staying on a profile page describing a user who no longer exists would be
+    the application lying about its own state.
+  */
+  const runRestore = async () => {
+    if (!restorePreview) return
+    setRestoreBusy(true)
+    setRestoreError(null)
+    try {
+      const result = await RestoreBackup(restorePreview.archive_path)
+      setRestorePreview(null)
+      setRestoreResult(
+        `Restored ${result.runs_restored} analyses and ${result.projects_restored} projects. ` +
+          `Your previous data is at ${result.previous_data_path}. Sign in again to continue.`
+      )
+      // Read before signing out: goAuth unmounts this page.
+      window.setTimeout(() => void logout(), 2500)
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRestoreBusy(false)
     }
   }
 
@@ -226,7 +427,7 @@ export function ProfilePage({
             <button
               key={s.id}
               type="button"
-              onClick={() => scrollToSection(s.id)}
+              onClick={() => setActiveSection(s.id)}
               aria-current={activeSection === s.id ? "true" : undefined}
               className={cn(
                 "nav-item flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-emphasis",
@@ -238,16 +439,18 @@ export function ProfilePage({
               {/* Muted reads 3.20 to 1 on the active row's accent fill, under
                   the 4.5 floor, so the count follows the label up on that row
                   rather than staying the one unreadable thing on it. */}
-              <span
-                className={cn(
-                  "telemetry shrink-0 text-meta",
-                  activeSection === s.id
-                    ? "text-foreground/80"
-                    : "text-muted-foreground"
-                )}
-              >
-                ({s.count})
-              </span>
+              {s.count !== undefined && (
+                <span
+                  className={cn(
+                    "telemetry shrink-0 text-meta",
+                    activeSection === s.id
+                      ? "text-foreground/80"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  ({s.count})
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -259,22 +462,20 @@ export function ProfilePage({
           <p className="telemetry text-meta text-muted-foreground">
             Preferences apply automatically
           </p>
-          <button type="button" onClick={() => void logout()} className={btnGhost}>
-            <LogOut className="h-3 w-3" />
-            Sign out
-          </button>
         </div>
       </PageAside>
 
-      <PageBody scrollRef={contentRef}>
+      <PageBody>
         <div className="mx-auto w-full max-w-3xl px-5 py-4 sm:px-8">
-            <Section
-              id="account"
-              title="Account"
-              sectionRef={(el) => {
-                sectionRefs.current.account = el
-              }}
-            >
+          {/* The page's one heading. Each section used to carry its own, which
+              is why System showed "System" and then "Python environment"
+              directly beneath it. */}
+          <h2 className="mb-1 border-b border-border pb-2 font-display text-heading font-semibold tracking-wide text-foreground">
+            {page.label}
+          </h2>
+
+          {activeSection === "account" && (
+            <Section>
               <SettingRow
                 id="account.photo"
                 title="Profile photo"
@@ -289,9 +490,7 @@ export function ProfilePage({
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif"
                     className="hidden"
-                    onChange={(e) =>
-                      void onPickPhoto(e.target.files?.[0] ?? null)
-                    }
+                    onChange={(e) => void onPickPhoto(e.target.files?.[0] ?? null)}
                   />
                   <button
                     type="button"
@@ -354,121 +553,29 @@ export function ProfilePage({
                   readOnly
                 />
               </SettingRow>
-            </Section>
 
-            <Section
-              id="classification"
-              title="Classification"
-              sectionRef={(el) => {
-                sectionRefs.current.classification = el
-              }}
-            >
+              {/* Was a section called "Session", which held no session: it held
+                  your work. Your identity and your history are the same
+                  subject, and splitting them put the run list under a heading
+                  that suggested it would be lost on sign-out. */}
               <SettingRow
-                id="classification.model"
-                title="Default model"
-                description="Model pre-selected in the Classification panel on the map."
-                focused={focusedSetting === "classification.model"}
-                onFocus={() => setFocusedSetting("classification.model")}
-              >
-                <select
-                  className="field-input max-w-md focus-visible:ring-1 focus-visible:ring-ring"
-                  value={model}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    setModel(next)
-                    schedulePrefsSave({ model: next })
-                  }}
-                >
-                  <option value="spectral">Random Forest (spectral)</option>
-                  <option value="temporal_transformer">
-                    Temporal Transformer
-                  </option>
-                  <option value="prithvi">Prithvi-EO 2.0</option>
-                </select>
-              </SettingRow>
-
-              <SettingRow
-                id="classification.opacity"
-                title={`Overlay opacity · ${opacity.toFixed(2)}`}
-                description="Default opacity for prediction and composition overlays on the map."
-                focused={focusedSetting === "classification.opacity"}
-                onFocus={() => setFocusedSetting("classification.opacity")}
-              >
-                <input
-                  type="range"
-                  min={0.2}
-                  max={1}
-                  step={0.05}
-                  value={opacity}
-                  className="w-full max-w-md rounded-sm accent-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onChange={(e) => {
-                    const next = Number(e.target.value)
-                    setOpacity(next)
-                    schedulePrefsSave({ opacity: next })
-                  }}
-                />
-              </SettingRow>
-            </Section>
-
-            <Section
-              id="appearance"
-              title="Appearance"
-              sectionRef={(el) => {
-                sectionRefs.current.appearance = el
-              }}
-            >
-              <SettingRow
-                id="appearance.theme"
-                title="Color theme"
-                description="Controls the overall light/dark appearance of TERRA."
-                focused={focusedSetting === "appearance.theme"}
-                onFocus={() => setFocusedSetting("appearance.theme")}
-              >
-                <select
-                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
-                  value={theme}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    setTheme(next)
-                    schedulePrefsSave({ theme: next })
-                  }}
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                  <option value="system">System</option>
-                </select>
-              </SettingRow>
-            </Section>
-
-            <Section
-              id="session"
-              title="Session"
-              sectionRef={(el) => {
-                sectionRefs.current.session = el
-              }}
-            >
-              <SettingRow
-                id="session.activity"
+                id="account.activity"
                 title="Activity"
                 description="Runs per day over the last year. A run is one classification, composition, water, solar or wind analysis."
-                focused={focusedSetting === "session.activity"}
-                onFocus={() => setFocusedSetting("session.activity")}
+                focused={focusedSetting === "account.activity"}
+                onFocus={() => setFocusedSetting("account.activity")}
               >
                 <ActivityGrid />
               </SettingRow>
 
               <SettingRow
-                id="session.analyses"
+                id="account.analyses"
                 title="Saved analyses"
-                description="Full history lives in the Analysis hub. Recent runs are listed below."
-                focused={focusedSetting === "session.analyses"}
-                onFocus={() => setFocusedSetting("session.analyses")}
+                description="Full history lives in the project hub. The most recent are listed here."
+                focused={focusedSetting === "account.analyses"}
+                onFocus={() => setFocusedSetting("account.analyses")}
               >
-                <button
-                  type="button"
-                  onClick={goAnalysis}
-                  className={btnGhost}
-                >
+                <button type="button" onClick={goAnalysis} className={btnGhost}>
                   <ChartColumn className="h-3 w-3" />
                   Open project hub
                 </button>
@@ -505,36 +612,257 @@ export function ProfilePage({
                   </ul>
                 )}
               </SettingRow>
+
+              {/* Everything this application saves lives in one directory on
+                  one machine: no server, no account holding a second copy. A
+                  reinstalled laptop takes every analysis with it, and until
+                  now there was no way out. */}
+              <SettingRow
+                id="account.backup"
+                title="Backup"
+                description="Writes your analyses, projects and their images to a single ZIP file. Passwords and sessions are left out, so the file can be stored or sent without carrying a credential."
+                focused={focusedSetting === "account.backup"}
+                onFocus={() => setFocusedSetting("account.backup")}
+              >
+                <button
+                  type="button"
+                  disabled={backupBusy}
+                  onClick={() => void exportBackup()}
+                  className={btnGhost}
+                >
+                  {backupBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3" />
+                  )}
+                  {backupBusy ? "Writing backup" : "Export backup"}
+                </button>
+                {/* The written path, not just "done". A file the user chose
+                    the location of is one they have to find again. */}
+                {backupResult && (
+                  <p className="telemetry mt-2 break-all text-micro text-muted-foreground">
+                    {backupResult}
+                  </p>
+                )}
+                {backupError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {backupError}
+                  </p>
+                )}
+              </SettingRow>
+
+              {/* Where the space went, measured rather than estimated.
+                  Nothing else reports this: the data directory grows with
+                  every analysis and the application never mentions it, so a
+                  user whose disk is filling has no way to learn that this is
+                  where it went or what is safe to remove. */}
+              <SettingRow
+                id="account.storage"
+                title="Storage"
+                description="What the saved data is made of, measured on disk. Opens a full breakdown by analysis, type and project."
+                focused={focusedSetting === "account.storage"}
+                onFocus={() => setFocusedSetting("account.storage")}
+              >
+                <button
+                  type="button"
+                  disabled={storageBusy}
+                  onClick={() => void openStorage()}
+                  className={btnGhost}
+                >
+                  {storageBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <HardDrive className="h-3 w-3" />
+                  )}
+                  {storage
+                    ? `${formatBytes(storage.total_bytes)} used`
+                    : "Measure storage"}
+                </button>
+                {storageError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {storageError}
+                  </p>
+                )}
+              </SettingRow>
+
+              {/* A restore replaces everything, so it is two steps: choose a
+                  file and read what it holds, then confirm. One click from a
+                  file dialog to a replaced database is the wrong weight for an
+                  operation this size. */}
+              <SettingRow
+                id="account.restore"
+                title="Restore from backup"
+                description="Replaces everything here with the contents of a backup. Your current data is moved aside rather than deleted, and accounts come back needing a new password."
+                focused={focusedSetting === "account.restore"}
+                onFocus={() => setFocusedSetting("account.restore")}
+              >
+                {!restorePreview ? (
+                  <button
+                    type="button"
+                    disabled={restoreBusy}
+                    onClick={() => void chooseBackup()}
+                    className={btnGhost}
+                  >
+                    {restoreBusy ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Upload className="h-3 w-3" />
+                    )}
+                    Choose a backup
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2 rounded-sm border border-border bg-background px-3 py-2">
+                    {/* What is about to arrive, and what it displaces. Stated
+                        before the action, not reported after it. */}
+                    <p className="text-body text-foreground">
+                      This backup holds {restorePreview.manifest.counts.runs}{" "}
+                      {restorePreview.manifest.counts.runs === 1
+                        ? "analysis"
+                        : "analyses"}{" "}
+                      and {restorePreview.manifest.counts.projects}{" "}
+                      {restorePreview.manifest.counts.projects === 1
+                        ? "project"
+                        : "projects"}
+                      , written {restorePreview.manifest.created_at.slice(0, 10)}.
+                    </p>
+                    <p className="text-body text-muted-foreground">
+                      Restoring replaces the{" "}
+                      {restorePreview.current.runs}{" "}
+                      {restorePreview.current.runs === 1
+                        ? "analysis"
+                        : "analyses"}{" "}
+                      and {restorePreview.current.projects}{" "}
+                      {restorePreview.current.projects === 1
+                        ? "project"
+                        : "projects"}{" "}
+                      currently here. You will be signed out and will need to set
+                      a password again.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={restoreBusy}
+                        onClick={() => void runRestore()}
+                        className={btnPrimary}
+                      >
+                        {restoreBusy && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        Replace my data
+                      </button>
+                      <button
+                        type="button"
+                        disabled={restoreBusy}
+                        onClick={() => setRestorePreview(null)}
+                        className={btnGhost}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {restoreResult && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <p className="text-body text-foreground">{restoreResult}</p>
+                  </div>
+                )}
+                {restoreError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {restoreError}
+                  </p>
+                )}
+              </SettingRow>
+
+              {/* Was a page of its own holding this one control. A single
+                  setting is not a page, and the theme is a property of the
+                  person signed in rather than of the installation -- which is
+                  the difference between this page and System. */}
+              <SettingRow
+                id="account.theme"
+                title="Color theme"
+                description="Controls the overall light/dark appearance of TERRA."
+                focused={focusedSetting === "account.theme"}
+                onFocus={() => setFocusedSetting("account.theme")}
+              >
+                <select
+                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                  value={theme}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setTheme(next)
+                    schedulePrefsSave({ theme: next })
+                  }}
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="system">System</option>
+                </select>
+              </SettingRow>
+
+              {/* Sign out belongs to the account, not to the bottom of a
+                  column. It sat in the aside footer, as far from the identity
+                  it ends as the layout allowed. */}
+              <SettingRow
+                id="account.signout"
+                title="Sign out"
+                description="Saved runs and projects stay on this machine and are here when you sign back in."
+                focused={focusedSetting === "account.signout"}
+                onFocus={() => setFocusedSetting("account.signout")}
+              >
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className={btnGhost}
+                >
+                  <LogOut className="h-3 w-3" />
+                  Sign out
+                </button>
+              </SettingRow>
             </Section>
-          </div>
+          )}
+
+          {/* Not wrapped in a SettingRow. A row is a labelled field with a
+              description beside it, which is right for a name or a slider and
+              wrong for this: wrapped, the page showed its title twice and
+              indented the whole thing as though it were one control's value. */}
+          {activeSection === "system" && (
+            <Section>
+              <div className="pt-3">
+                <EnvironmentPanel />
+              </div>
+            </Section>
+          )}
+        </div>
       </PageBody>
+
+      {/* Rendered only with a report in hand: openStorage measures first, so
+          the dialog never has to guard against data that has not arrived. */}
+      <AnimatePresence>
+        {storageOpen && storage && (
+          <StorageModal
+            report={storage}
+            busy={storageBusy}
+            note={storageNote}
+            problem={storageError}
+            onRefresh={() => void loadStorage()}
+            onPurge={() => void purgeOrphans()}
+            onClose={() => setStorageOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </PageShell>
   )
 }
 
-function Section({
-  id,
-  title,
-  children,
-  sectionRef,
-}: {
-  id: SettingsSectionId
-  title: string
-  children: React.ReactNode
-  sectionRef: (el: HTMLElement | null) => void
-}) {
-  return (
-    <section
-      ref={sectionRef}
-      data-section={id}
-      className="mb-8 scroll-mt-3"
-    >
-      <h2 className="mb-1 border-b border-border pb-2 font-display text-heading font-semibold tracking-wide text-foreground">
-        {title}
-      </h2>
-      <div className="flex flex-col">{children}</div>
-    </section>
-  )
+/**
+ * One page of settings.
+ *
+ * It carries no heading and no anchor any more: one page is mounted at a time
+ * and the body titles it once, so a heading here would print the same word
+ * twice, and there is nothing left to scroll to.
+ */
+function Section({ children }: { children: React.ReactNode }) {
+  return <section className="flex flex-col">{children}</section>
 }
 
 function SettingRow({

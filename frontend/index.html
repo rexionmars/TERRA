@@ -14,13 +14,11 @@
          and would otherwise set L.Browser.touch=true, closing polygons at 3 pts. -->
     <script>window.L_NO_TOUCH = true</script>
     <script>
-      // Rotate splash still per launch (keep paths in sync with splashBackground.ts).
+      // Rotates the splash still per launch. The list is substituted at build
+      // time from src/lib/splashBackground.ts, which owns it -- this used to be
+      // a second hard-coded copy that nothing kept in step.
       (function () {
-        var images = [
-          "/terra-splash-images/pexels-aleksandar069-15509901.jpg",
-          "/terra-splash-images/pexels-andrey-kwin-145997290-10436186.jpg",
-          "/terra-splash-images/pexels-zelch-30596252.jpg",
-        ];
+        var images = __SPLASH_IMAGES__;
         var nextKey = "terra.splash.next";
         var currentKey = "terra.splash.current";
         var index = 0;
@@ -35,6 +33,16 @@
           "linear-gradient(to bottom, rgba(23,23,23,0.22) 0%, rgba(23,23,23,0.28) 40%, rgba(23,23,23,0.55) 100%)," +
           'url("' + images[index] + '") center / cover no-repeat';
         document.documentElement.style.setProperty("--splash-html-bg", css);
+
+        // Only this launch's still is fetched. The React splash used to render
+        // all three as background layers, so the browser pulled every one --
+        // two of three downloads wasted on a window that shows one, competing
+        // with the bundle for the boot it is meant to cover.
+        var link = document.createElement("link");
+        link.rel = "preload";
+        link.as = "image";
+        link.href = images[index];
+        document.head.appendChild(link);
       })();
     </script>
     <style>
@@ -88,6 +96,15 @@
         color: rgb(196, 186, 172);
         text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
       }
+      #splash .splash-still {
+        margin: 0;
+        min-height: 0.8rem;
+        font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.58rem;
+        letter-spacing: 0.08em;
+        color: rgba(226, 220, 212, 0.7);
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+      }
       #splash .splash-log {
         position: absolute;
         left: 1rem;
@@ -112,6 +129,12 @@
         background: rgb(242, 86, 35);
         animation: splash-blink 1.2s ease-in-out infinite;
       }
+      /* The pulse is decoration, not status: it blinks at a fixed rate whatever
+         the boot is doing. Held steady when motion is unwelcome. */
+      @media (prefers-reduced-motion: reduce) {
+        #splash .splash-led { animation: none; opacity: 0.85; }
+        #splash { transition: none; }
+      }
       @keyframes splash-blink {
         0%, 100% { opacity: 0.35; }
         50% { opacity: 1; }
@@ -122,7 +145,10 @@
 <div id="splash" aria-hidden="true">
   <img class="splash-logo" src="/terra-logo.png" alt="" width="56" height="56"/>
   <p class="splash-brand">TERRA</p>
-  <p class="splash-eyebrow">land cover · sentinel-2</p>
+  <p class="splash-eyebrow">__BRAND_TAGLINE__</p>
+  <!-- The release name, fixed for the version. React adds the version number
+       to it once the Go side answers. -->
+  <p class="splash-still">__RELEASE_NAME__</p>
   <p class="splash-log" id="splash-log">booting…</p>
   <div class="splash-led" aria-hidden="true"></div>
 </div>

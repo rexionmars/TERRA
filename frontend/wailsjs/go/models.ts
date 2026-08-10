@@ -2042,6 +2042,80 @@ export namespace backend {
 	
 	
 	
+	export class EnvPackage {
+	    module: string;
+	    distribution: string;
+	    blocks: string;
+	    optional: boolean;
+	    present: boolean;
+	    version: string;
+	    wanted: string;
+	    version_problem: string;
+	    why: string;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnvPackage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.module = source["module"];
+	        this.distribution = source["distribution"];
+	        this.blocks = source["blocks"];
+	        this.optional = source["optional"];
+	        this.present = source["present"];
+	        this.version = source["version"];
+	        this.wanted = source["wanted"];
+	        this.version_problem = source["version_problem"];
+	        this.why = source["why"];
+	        this.error = source["error"];
+	    }
+	}
+	export class EnvReport {
+	    executable: string;
+	    python_version: string;
+	    python_ok: boolean;
+	    min_python: string;
+	    packages: EnvPackage[];
+	    usable: boolean;
+	    origin: string;
+	    unreachable: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnvReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.executable = source["executable"];
+	        this.python_version = source["python_version"];
+	        this.python_ok = source["python_ok"];
+	        this.min_python = source["min_python"];
+	        this.packages = this.convertValues(source["packages"], EnvPackage);
+	        this.usable = source["usable"];
+	        this.origin = source["origin"];
+	        this.unreachable = source["unreachable"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	export class GeocodeResult {
 	    display_name: string;
@@ -3389,6 +3463,20 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class PythonCandidate {
+	    path: string;
+	    origin: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PythonCandidate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.origin = source["origin"];
+	    }
+	}
 	export class ResearchExportMeta {
 	    model_kind: string;
 	    area_id: string;
@@ -3670,6 +3758,73 @@ export namespace backend {
 
 export namespace main {
 	
+	export class ResolvedPath {
+	    label: string;
+	    path: string;
+	    source?: string;
+	    exists: boolean;
+	    blocks?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResolvedPath(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.path = source["path"];
+	        this.source = source["source"];
+	        this.exists = source["exists"];
+	        this.blocks = source["blocks"];
+	    }
+	}
+	export class EnvironmentState {
+	    active?: backend.EnvReport;
+	    candidates: backend.PythonCandidate[];
+	    managed_dir: string;
+	    managed_active: boolean;
+	    env_override: string;
+	    building: boolean;
+	    paths: ResolvedPath[];
+	    retired_vars: string[];
+	    config_path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnvironmentState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.active = this.convertValues(source["active"], backend.EnvReport);
+	        this.candidates = this.convertValues(source["candidates"], backend.PythonCandidate);
+	        this.managed_dir = source["managed_dir"];
+	        this.managed_active = source["managed_active"];
+	        this.env_override = source["env_override"];
+	        this.building = source["building"];
+	        this.paths = this.convertValues(source["paths"], ResolvedPath);
+	        this.retired_vars = source["retired_vars"];
+	        this.config_path = source["config_path"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class SaveProjectOverlayRequest {
 	    project_id: string;
 	    kind: string;
@@ -3710,6 +3865,66 @@ export namespace store {
 	        this.day = source["day"];
 	        this.count = source["count"];
 	    }
+	}
+	export class BackupCounts {
+	    users: number;
+	    runs: number;
+	    projects: number;
+	    overlays: number;
+	    assets: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.users = source["users"];
+	        this.runs = source["runs"];
+	        this.projects = source["projects"];
+	        this.overlays = source["overlays"];
+	        this.assets = source["assets"];
+	    }
+	}
+	export class BackupManifest {
+	    format_version: number;
+	    created_at: string;
+	    app_version: string;
+	    excluded: string[];
+	    counts: BackupCounts;
+	    asset_bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupManifest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.format_version = source["format_version"];
+	        this.created_at = source["created_at"];
+	        this.app_version = source["app_version"];
+	        this.excluded = source["excluded"];
+	        this.counts = this.convertValues(source["counts"], BackupCounts);
+	        this.asset_bytes = source["asset_bytes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class InferenceRun {
 	    id: string;
@@ -3835,6 +4050,215 @@ export namespace store {
 	        this.raster_tif = source["raster_tif"];
 	    }
 	}
+	export class PurgeResult {
+	    removed: number;
+	    freed_bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PurgeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.removed = source["removed"];
+	        this.freed_bytes = source["freed_bytes"];
+	    }
+	}
+	export class RestoreCurrent {
+	    runs: number;
+	    projects: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RestoreCurrent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runs = source["runs"];
+	        this.projects = source["projects"];
+	    }
+	}
+	export class RestorePreview {
+	    archive_path: string;
+	    manifest: BackupManifest;
+	    current: RestoreCurrent;
+	    problem?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RestorePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.archive_path = source["archive_path"];
+	        this.manifest = this.convertValues(source["manifest"], BackupManifest);
+	        this.current = this.convertValues(source["current"], RestoreCurrent);
+	        this.problem = source["problem"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RestoreResult {
+	    previous_data_path: string;
+	    runs_restored: number;
+	    projects_restored: number;
+	    assets_restored: number;
+	    password_reset_required: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RestoreResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.previous_data_path = source["previous_data_path"];
+	        this.runs_restored = source["runs_restored"];
+	        this.projects_restored = source["projects_restored"];
+	        this.assets_restored = source["assets_restored"];
+	        this.password_reset_required = source["password_reset_required"];
+	    }
+	}
+	export class StorageBucket {
+	    label: string;
+	    bytes: number;
+	    files: number;
+	    consequence: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageBucket(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.bytes = source["bytes"];
+	        this.files = source["files"];
+	        this.consequence = source["consequence"];
+	    }
+	}
+	export class StorageGroup {
+	    key: string;
+	    label: string;
+	    bytes: number;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.bytes = source["bytes"];
+	        this.count = source["count"];
+	    }
+	}
+	export class StorageProjectItem {
+	    project_id: string;
+	    name: string;
+	    bytes: number;
+	    overlays: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageProjectItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.project_id = source["project_id"];
+	        this.name = source["name"];
+	        this.bytes = source["bytes"];
+	        this.overlays = source["overlays"];
+	    }
+	}
+	export class StorageRunItem {
+	    run_id: string;
+	    label: string;
+	    kind: string;
+	    created_at: string;
+	    bytes: number;
+	    empty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageRunItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
+	        this.label = source["label"];
+	        this.kind = source["kind"];
+	        this.created_at = source["created_at"];
+	        this.bytes = source["bytes"];
+	        this.empty = source["empty"];
+	    }
+	}
+	export class StorageReport {
+	    data_dir: string;
+	    total_bytes: number;
+	    buckets: StorageBucket[];
+	    runs: StorageRunItem[];
+	    by_kind: StorageGroup[];
+	    by_file_type: StorageGroup[];
+	    by_project: StorageProjectItem[];
+	    empty_runs: number;
+	    orphan_bytes: number;
+	    orphan_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data_dir = source["data_dir"];
+	        this.total_bytes = source["total_bytes"];
+	        this.buckets = this.convertValues(source["buckets"], StorageBucket);
+	        this.runs = this.convertValues(source["runs"], StorageRunItem);
+	        this.by_kind = this.convertValues(source["by_kind"], StorageGroup);
+	        this.by_file_type = this.convertValues(source["by_file_type"], StorageGroup);
+	        this.by_project = this.convertValues(source["by_project"], StorageProjectItem);
+	        this.empty_runs = source["empty_runs"];
+	        this.orphan_bytes = source["orphan_bytes"];
+	        this.orphan_count = source["orphan_count"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class User {
 	    id: string;
 	    email: string;

@@ -8,6 +8,7 @@ import {
   Predict,
   AnalyzeLULC,
   ListDataCube,
+  InspectEnvironment,
   RenderComposite,
   RevealMainWindow,
   SaveProjectOverlay,
@@ -238,9 +239,28 @@ function App() {
     let exitTimer: number | undefined
     let revealTimer: number | undefined
 
-    const finish = async () => {
+    /*
+      boot:ready carries whether the probe succeeded, and nothing read it.
+
+      A sidecar that failed its probe wrote the reason into the boot log, the
+      splash showed it for a moment, and then the splash was replaced by an
+      application that looked healthy -- the one report of the failure went
+      away with the screen that carried it.
+
+      The environment gate covers an unusable interpreter specifically. This
+      covers the rest: a missing sidecar script, a probe that timed out, a
+      runner that never built. Reported once, as a notification the user can
+      read after the window opens.
+    */
+    const finish = async (ok?: boolean) => {
       if (cancelled || started) return
       started = true
+      if (ok === false) {
+        notifyError(
+          "TERRA started, but the analysis sidecar did not respond. " +
+            "Settings › System reports what is wrong."
+        )
+      }
       setSplashExiting(true)
       // Match .splash-screen--exit transition (~480ms).
       exitTimer = window.setTimeout(async () => {
@@ -258,7 +278,18 @@ function App() {
     }
 
     EventsOn("boot:ready", finish)
-    const safety = window.setTimeout(finish, 20_000)
+    /*
+      The backstop, for a boot:ready that never arrives.
+
+      Twelve seconds rather than twenty: the probe caps itself at eight and the
+      floor below it is under a second, so anything past that is something
+      genuinely stuck -- and the old timeout meant staring at a frozen splash
+      for twenty seconds before the window would open at all.
+
+      Called with no argument, so it is not reported as a failed probe. Nothing
+      is known here; the probe may still answer after this fires.
+    */
+    const safety = window.setTimeout(() => void finish(), 12_000)
     return () => {
       cancelled = true
       EventsOff("boot:ready")
@@ -465,9 +496,87 @@ function AppBody(props: {
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, runs, projects, prefs, savePrefs } =
+  const { user, refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
+
+  /**
+   * Open settings at System when nothing can be computed.
+   *
+   * Checked here rather than during boot: it imports every dependency in the
+   * target interpreter, which costs seconds, and the splash has a fast probe
+   * for the interpreter itself. This runs once the shell is already up.
+   *
+   * Sending the user somewhere is the point. Without it the application opens
+   * looking healthy, the user draws an area, chooses a period, waits, and the
+   * run dies on an import -- this moves that failure earlier, to the page that
+   * can fix it.
+   *
+   * It goes to a settings page rather than a screen of its own. Configuring the
+   * interpreter is a setting; giving it a separate full-screen route meant the
+   * same subject could be reached three ways and left the window with no way
+   * back to anything else.
+   *
+   * Once per session, and never over an explicit navigation: this is a
+   * first-run gate, not a guard that keeps pulling someone out of a screen
+   * they chose to open.
+   *
+   * Waits for a signed-in user. goProfile sends anyone without one to the auth
+   * screen instead, so firing before sign-in spent the one attempt this gate
+   * gets on a redirect to a page it did not mean -- and an unusable interpreter
+   * then went unreported for the rest of the session, which is precisely the
+   * silence the gate exists to break.
+   */
+  const envGateDone = useRef(false)
+  useEffect(() => {
+    if (!user || envGateDone.current) return
+    envGateDone.current = true
+    void (async () => {
+      /*
+        It says why before it moves anyone.
+
+        This used to redirect in silence: the map appeared, then settings
+        replaced it a moment later with nothing on screen accounting for the
+        jump. That is indistinguishable from a navigation bug, and it was read
+        as one -- the person it was trying to help concluded the application
+        was broken, which is worse than the silence it replaced.
+
+        The toast names what is missing rather than saying "something is
+        wrong", because the specific package is what the user has to act on and
+        the page it lands them on can only repeat it.
+      */
+      try {
+        const state = await InspectEnvironment()
+        if (state.active?.usable) return
+
+        const missing = (state.active?.packages ?? []).filter(
+          (p) => !p.optional && (!p.present || p.version_problem)
+        )
+        const detail = state.active?.unreachable
+          ? state.active.unreachable
+          : missing.length > 0
+            ? `Missing: ${missing
+                .slice(0, 3)
+                .map((p) => p.distribution)
+                .join(", ")}${missing.length > 3 ? ` and ${missing.length - 3} more` : ""}.`
+            : "The selected interpreter cannot run the analysis sidecar."
+
+        notifyError(
+          "Analyses cannot run yet — opening Settings › System",
+          `${detail} Choose a Python there, or let TERRA build one.`,
+          { duration: 9000 }
+        )
+        goProfile("system")
+      } catch (e) {
+        // Failing to inspect is itself a reason to show the page: it is the
+        // only place that can report what went wrong.
+        notifyError("Could not check the Python environment", e, {
+          duration: 9000,
+        })
+        goProfile("system")
+      }
+    })()
+  }, [user, goProfile])
   /**
    * Open tool tab of the map's left dock.
    *
