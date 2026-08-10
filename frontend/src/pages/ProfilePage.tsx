@@ -19,6 +19,7 @@ import {
   RestoreBackup,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
+import { AnimatePresence } from "motion/react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
@@ -26,10 +27,12 @@ import { ActivityGrid } from "@/components/ActivityGrid"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
+import { StorageModal } from "@/components/StorageModal"
 import { cn } from "@/lib/utils"
 import type { InferenceRun, Preferences } from "@/lib/types"
 import { mergePreferenceExtras } from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import { formatBytes } from "@/lib/formatBytes"
 import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
@@ -109,6 +112,7 @@ export function ProfilePage({
   const [storageBusy, setStorageBusy] = useState(false)
   const [storageNote, setStorageNote] = useState<string | null>(null)
   const [storageError, setStorageError] = useState<string | null>(null)
+  const [storageOpen, setStorageOpen] = useState(false)
   /*
     Account unless something asked for a particular page -- the first-run gate
     asks for System, since an unusable interpreter is the reason it opened
@@ -271,6 +275,32 @@ export function ProfilePage({
     setStorageNote(null)
     try {
       setStorage(await InspectStorage())
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Measured before the modal opens, not after.
+
+    Opening first would render the dialog against no data, so its first frame
+    would be an empty shell -- and every field in it would have to guard
+    against a report that is not there yet. The button carries the wait
+    instead, where the user already clicked.
+
+    The error stays on the settings row for the same reason: a modal that opens
+    only to say it could not measure anything is a worse way to say it than a
+    line under the button.
+  */
+  const openStorage = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    setStorageNote(null)
+    try {
+      setStorage(await InspectStorage())
+      setStorageOpen(true)
     } catch (e) {
       setStorageError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -621,127 +651,25 @@ export function ProfilePage({
               <SettingRow
                 id="account.storage"
                 title="Storage"
-                description="What the saved data is made of, measured on disk. Analyses are removed by deleting them in the project hub; only unreferenced leftovers can be cleared here."
+                description="What the saved data is made of, measured on disk. Opens a full breakdown by analysis, type and project."
                 focused={focusedSetting === "account.storage"}
                 onFocus={() => setFocusedSetting("account.storage")}
               >
-                {!storage ? (
-                  <button
-                    type="button"
-                    disabled={storageBusy}
-                    onClick={() => void loadStorage()}
-                    className={btnGhost}
-                  >
-                    {storageBusy ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <HardDrive className="h-3 w-3" />
-                    )}
-                    Measure storage
-                  </button>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <p className="text-body text-foreground">
-                      {formatBytes(storage.total_bytes)} in total
-                    </p>
-
-                    <ul className="flex flex-col gap-1.5">
-                      {storage.buckets.map((b) => (
-                        <li
-                          key={b.label}
-                          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-sm border border-border bg-background px-3 py-2"
-                        >
-                          <div className="min-w-0">
-                            <span className="text-body text-foreground">
-                              {b.label}
-                            </span>
-                            {/* What deleting it would cost, next to the
-                                number. A size with no stated consequence
-                                invites clearing it. */}
-                            <p className="text-micro text-muted-foreground">
-                              {b.consequence}
-                            </p>
-                          </div>
-                          <span className="telemetry shrink-0 text-body text-muted-foreground">
-                            {formatBytes(b.bytes)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {storage.largest_runs.length > 0 && (
-                      <div>
-                        <p className="eyebrow mb-1.5">Largest analyses</p>
-                        <ul className="flex flex-col gap-1">
-                          {storage.largest_runs.map((r) => (
-                            <li
-                              key={r.run_id}
-                              className="flex items-baseline justify-between gap-3 text-body"
-                            >
-                              <span className="min-w-0 truncate text-muted-foreground">
-                                {displayRunLabel(r.label) || r.kind}
-                              </span>
-                              <span className="telemetry shrink-0 text-muted-foreground">
-                                {formatBytes(r.bytes)}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* The only thing offered for deletion: files no analysis
-                        points at, so nothing in the application can open them
-                        and no export includes them. */}
-                    {storage.orphan_count > 0 ? (
-                      <div className="rounded-sm border border-border bg-background px-3 py-2">
-                        <p className="text-body text-foreground">
-                          {formatBytes(storage.orphan_bytes)} in{" "}
-                          {storage.orphan_count}{" "}
-                          {storage.orphan_count === 1 ? "folder" : "folders"} no
-                          analysis refers to.
-                        </p>
-                        <p className="mt-0.5 text-micro text-muted-foreground">
-                          Left behind by analyses that were deleted. Nothing can
-                          open these.
-                        </p>
-                        <button
-                          type="button"
-                          disabled={storageBusy}
-                          onClick={() => void purgeOrphans()}
-                          className={cn(btnGhost, "mt-2")}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          Clear them
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-body text-muted-foreground">
-                        Nothing here is unreferenced — every file belongs to an
-                        analysis or a project.
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={storageBusy}
-                        onClick={() => void loadStorage()}
-                        className={btnGhost}
-                      >
-                        {storageBusy && (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        )}
-                        Measure again
-                      </button>
-                      {storageNote && (
-                        <span className="text-body text-muted-foreground">
-                          {storageNote}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  disabled={storageBusy}
+                  onClick={() => void openStorage()}
+                  className={btnGhost}
+                >
+                  {storageBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <HardDrive className="h-3 w-3" />
+                  )}
+                  {storage
+                    ? `${formatBytes(storage.total_bytes)} used`
+                    : "Measure storage"}
+                </button>
                 {storageError && (
                   <p className="mt-2 text-body text-destructive-quiet">
                     {storageError}
@@ -898,6 +826,22 @@ export function ProfilePage({
           )}
         </div>
       </PageBody>
+
+      {/* Rendered only with a report in hand: openStorage measures first, so
+          the dialog never has to guard against data that has not arrived. */}
+      <AnimatePresence>
+        {storageOpen && storage && (
+          <StorageModal
+            report={storage}
+            busy={storageBusy}
+            note={storageNote}
+            problem={storageError}
+            onRefresh={() => void loadStorage()}
+            onPurge={() => void purgeOrphans()}
+            onClose={() => setStorageOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </PageShell>
   )
 }
@@ -960,26 +904,6 @@ function SettingRow({
       <div className="mt-2.5">{children}</div>
     </div>
   )
-}
-
-/**
- * Bytes as something a person can compare.
- *
- * Binary units, since that is what a file manager reports and a figure here
- * that disagrees with Finder reads as a bug in this screen. One decimal below
- * 10 units, none above: "1.4 GB" is worth the digit, "847.3 MB" is not.
- */
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB"
-  const units = ["B", "KB", "MB", "GB", "TB"]
-  let value = bytes
-  let unit = 0
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024
-    unit++
-  }
-  const digits = value < 10 && unit > 0 ? 1 : 0
-  return `${value.toFixed(digits)} ${units[unit]}`
 }
 
 function readAsDataURL(file: File): Promise<string> {

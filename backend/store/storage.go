@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 /*
@@ -45,13 +46,44 @@ type StorageRunItem struct {
 	Empty bool `json:"empty"`
 }
 
+// StorageGroup is a share of the whole, broken down some way.
+//
+// Used for two different cuts -- by what an analysis is, and by what its files
+// are -- because they answer different questions. "Solar takes half your disk"
+// tells you which work to prune; "GeoTIFFs take half your disk" tells you the
+// rasters are the weight, whatever produced them.
+type StorageGroup struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Bytes int64  `json:"bytes"`
+	Count int    `json:"count"`
+}
+
+// StorageProjectItem is one project and what it holds.
+type StorageProjectItem struct {
+	ProjectID string `json:"project_id"`
+	Name      string `json:"name"`
+	Bytes     int64  `json:"bytes"`
+	Overlays  int    `json:"overlays"`
+}
+
 // StorageReport is the whole picture.
 type StorageReport struct {
 	DataDir    string          `json:"data_dir"`
 	TotalBytes int64           `json:"total_bytes"`
 	Buckets    []StorageBucket `json:"buckets"`
-	// The heaviest analyses, so deleting is aimed rather than indiscriminate.
-	LargestRuns []StorageRunItem `json:"largest_runs"`
+	// Every analysis with files, largest first. The whole list rather than a
+	// top slice: this is what the screen is for, and a cap would leave the
+	// question "what else is in there" unanswerable from inside the app.
+	Runs []StorageRunItem `json:"runs"`
+	// The same bytes cut two ways, for the two questions a user actually has.
+	ByKind     []StorageGroup       `json:"by_kind"`
+	ByFileType []StorageGroup       `json:"by_file_type"`
+	ByProject  []StorageProjectItem `json:"by_project"`
+	// Analyses whose row exists but whose files do not. Not reclaimable space
+	// -- there is nothing to reclaim -- but worth stating, since a run that
+	// opens onto nothing is otherwise a puzzle.
+	EmptyRuns int `json:"empty_runs"`
 	// Directories under runs/ with no row in the database. These are the only
 	// files here that nothing can reach, so they are the only ones the
 	// application offers to delete on its own.
@@ -68,13 +100,6 @@ type PurgeResult struct {
 	Removed    int   `json:"removed"`
 	FreedBytes int64 `json:"freed_bytes"`
 }
-
-// maxListedRuns bounds the list the screen shows.
-//
-// The point is to find what is worth deleting, and that is at the top; a
-// hundred rows of a few kilobytes each is a list nobody reads. The total above
-// it always covers everything, so nothing is hidden by this -- only unlisted.
-const maxListedRuns = 12
 
 // InspectStorage measures the data directory.
 func (s *Store) InspectStorage() (*StorageReport, error) {
@@ -117,10 +142,152 @@ func (s *Store) InspectStorage() (*StorageReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	report.LargestRuns = runs
+	report.Runs = runs
 	report.OrphanBytes = orphanBytes
 	report.OrphanCount = orphanCount
+
+	for _, r := range runs {
+		if r.Empty {
+			report.EmptyRuns++
+		}
+	}
+	report.ByKind = groupRunsByKind(runs)
+	report.ByFileType = s.groupByFileType()
+	report.ByProject = s.measureProjects()
 	return report, nil
+}
+
+// kindLabel names a run kind the way the rest of the interface does.
+func kindLabel(kind string) string {
+	switch kind {
+	case RunKindClassification:
+		return "Classification"
+	case RunKindWater:
+		return "Surface water"
+	case RunKindSolar:
+		return "Solar"
+	case RunKindWind:
+		return "Wind"
+	default:
+		return kind
+	}
+}
+
+// groupRunsByKind totals the runs by what they are, largest first.
+func groupRunsByKind(runs []StorageRunItem) []StorageGroup {
+	byKey := map[string]*StorageGroup{}
+	for _, r := range runs {
+		g, ok := byKey[r.Kind]
+		if !ok {
+			g = &StorageGroup{Key: r.Kind, Label: kindLabel(r.Kind)}
+			byKey[r.Kind] = g
+		}
+		g.Bytes += r.Bytes
+		g.Count++
+	}
+	return sortedGroups(byKey)
+}
+
+/*
+groupByFileType totals every file under the data directory by extension.
+
+Answers a question the per-analysis list cannot: whether the weight is the
+rasters or the previews. A GeoTIFF is the export-quality artefact and a PNG is
+what the map draws, so "most of this is TIFFs" and "most of this is PNGs" point
+at different decisions.
+
+Walks the whole directory rather than the runs alone, since project overlays
+and avatars are files too and a total that skipped them would not match the
+buckets above.
+*/
+func (s *Store) groupByFileType() []StorageGroup {
+	byKey := map[string]*StorageGroup{}
+
+	for _, dir := range []string{"runs", "projects", "avatars"} {
+		root := filepath.Join(s.dataDir, dir)
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info == nil || info.IsDir() || !info.Mode().IsRegular() {
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(path))
+			key, label := fileTypeLabel(ext)
+			g, ok := byKey[key]
+			if !ok {
+				g = &StorageGroup{Key: key, Label: label}
+				byKey[key] = g
+			}
+			g.Bytes += info.Size()
+			g.Count++
+			return nil
+		})
+	}
+	return sortedGroups(byKey)
+}
+
+// fileTypeLabel names an extension by what it is for, not by what it is called.
+func fileTypeLabel(ext string) (string, string) {
+	switch ext {
+	case ".tif", ".tiff":
+		return "geotiff", "GeoTIFF rasters"
+	case ".png":
+		return "png", "Map overlays"
+	case ".jpg", ".jpeg", ".webp":
+		return "image", "Photos"
+	case ".json", ".geojson":
+		return "json", "Geometry and metadata"
+	case ".csv":
+		return "csv", "Tables"
+	default:
+		return "other", "Other files"
+	}
+}
+
+// measureProjects sizes each project directory, largest first.
+func (s *Store) measureProjects() []StorageProjectItem {
+	root := filepath.Join(s.dataDir, "projects")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+
+	var items []StorageProjectItem
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		bytes, files := dirSize(filepath.Join(root, e.Name()))
+		if bytes == 0 {
+			continue
+		}
+		// A project directory whose row is gone still shows, named by its id:
+		// it is space that exists, and hiding it would make the parts stop
+		// adding up to the total.
+		name := e.Name()
+		var stored string
+		if err := s.db.QueryRow(
+			`SELECT name FROM projects WHERE id = ?`, e.Name(),
+		).Scan(&stored); err == nil && stored != "" {
+			name = stored
+		}
+		items = append(items, StorageProjectItem{
+			ProjectID: e.Name(),
+			Name:      name,
+			Bytes:     bytes,
+			Overlays:  files,
+		})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Bytes > items[j].Bytes })
+	return items
+}
+
+// sortedGroups turns the accumulator into a list, largest first.
+func sortedGroups(byKey map[string]*StorageGroup) []StorageGroup {
+	out := make([]StorageGroup, 0, len(byKey))
+	for _, g := range byKey {
+		out = append(out, *g)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Bytes > out[j].Bytes })
+	return out
 }
 
 /*
@@ -170,9 +337,6 @@ func (s *Store) measureRuns() ([]StorageRunItem, int64, int, error) {
 	}
 
 	sort.Slice(items, func(i, j int) bool { return items[i].Bytes > items[j].Bytes })
-	if len(items) > maxListedRuns {
-		items = items[:maxListedRuns]
-	}
 	return items, orphanBytes, orphanCount, nil
 }
 

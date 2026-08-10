@@ -4152,6 +4152,42 @@ export namespace store {
 	        this.consequence = source["consequence"];
 	    }
 	}
+	export class StorageGroup {
+	    key: string;
+	    label: string;
+	    bytes: number;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.bytes = source["bytes"];
+	        this.count = source["count"];
+	    }
+	}
+	export class StorageProjectItem {
+	    project_id: string;
+	    name: string;
+	    bytes: number;
+	    overlays: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageProjectItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.project_id = source["project_id"];
+	        this.name = source["name"];
+	        this.bytes = source["bytes"];
+	        this.overlays = source["overlays"];
+	    }
+	}
 	export class StorageRunItem {
 	    run_id: string;
 	    label: string;
@@ -4178,7 +4214,11 @@ export namespace store {
 	    data_dir: string;
 	    total_bytes: number;
 	    buckets: StorageBucket[];
-	    largest_runs: StorageRunItem[];
+	    runs: StorageRunItem[];
+	    by_kind: StorageGroup[];
+	    by_file_type: StorageGroup[];
+	    by_project: StorageProjectItem[];
+	    empty_runs: number;
 	    orphan_bytes: number;
 	    orphan_count: number;
 	
@@ -4191,7 +4231,11 @@ export namespace store {
 	        this.data_dir = source["data_dir"];
 	        this.total_bytes = source["total_bytes"];
 	        this.buckets = this.convertValues(source["buckets"], StorageBucket);
-	        this.largest_runs = this.convertValues(source["largest_runs"], StorageRunItem);
+	        this.runs = this.convertValues(source["runs"], StorageRunItem);
+	        this.by_kind = this.convertValues(source["by_kind"], StorageGroup);
+	        this.by_file_type = this.convertValues(source["by_file_type"], StorageGroup);
+	        this.by_project = this.convertValues(source["by_project"], StorageProjectItem);
+	        this.empty_runs = source["empty_runs"];
 	        this.orphan_bytes = source["orphan_bytes"];
 	        this.orphan_count = source["orphan_count"];
 	    }

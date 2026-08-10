@@ -66,14 +66,14 @@ func TestInspectStorageMeasuresWhatIsOnDisk(t *testing.T) {
 	}
 
 	// Largest first, so deleting can be aimed.
-	if len(report.LargestRuns) != 2 {
-		t.Fatalf("report lists %d runs, want 2", len(report.LargestRuns))
+	if len(report.Runs) != 2 {
+		t.Fatalf("report lists %d runs, want 2", len(report.Runs))
 	}
-	if report.LargestRuns[0].RunID != "run-big" {
-		t.Errorf("largest run is %q, want run-big", report.LargestRuns[0].RunID)
+	if report.Runs[0].RunID != "run-big" {
+		t.Errorf("largest run is %q, want run-big", report.Runs[0].RunID)
 	}
-	if report.LargestRuns[0].Label != "Big analysis" {
-		t.Errorf("the run is not labelled: %q", report.LargestRuns[0].Label)
+	if report.Runs[0].Label != "Big analysis" {
+		t.Errorf("the run is not labelled: %q", report.Runs[0].Label)
 	}
 	if report.TotalBytes < 4608 {
 		t.Errorf("total is %d, below the runs alone", report.TotalBytes)
@@ -107,8 +107,8 @@ func TestOrphanedAssetsAreFoundAndOnlyThose(t *testing.T) {
 		t.Errorf("orphan bytes %d, want 2048", report.OrphanBytes)
 	}
 	// The live run is listed as a run, not counted as an orphan.
-	if len(report.LargestRuns) != 1 || report.LargestRuns[0].RunID != "live-run" {
-		t.Errorf("the live run was not listed: %+v", report.LargestRuns)
+	if len(report.Runs) != 1 || report.Runs[0].RunID != "live-run" {
+		t.Errorf("the live run was not listed: %+v", report.Runs)
 	}
 
 	removed, freed, err := s.PurgeOrphanedRunAssets()
@@ -167,8 +167,8 @@ func TestInspectStorageOnAFreshInstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a fresh install failed to report storage: %v", err)
 	}
-	if len(report.LargestRuns) != 0 {
-		t.Errorf("a fresh install lists %d runs", len(report.LargestRuns))
+	if len(report.Runs) != 0 {
+		t.Errorf("a fresh install lists %d runs", len(report.Runs))
 	}
 	// The database exists, so the total is not zero -- and every bucket has a
 	// consequence line, since a number with no stated cost invites deleting it.
@@ -182,11 +182,19 @@ func TestInspectStorageOnAFreshInstall(t *testing.T) {
 	}
 }
 
-// TestLargestRunsIsBounded checks the list stays short enough to read.
-func TestLargestRunsIsBounded(t *testing.T) {
+/*
+TestEveryRunIsListed checks the report holds them all.
+
+It used to return a top slice. A capped list leaves "what else is in there"
+unanswerable from inside the application, which is the question this screen
+exists to answer -- the modal can page or scroll, but the data has to be there
+to page through.
+*/
+func TestEveryRunIsListed(t *testing.T) {
 	s := openStoreIn(t, filepath.Join(t.TempDir(), "data"))
 
-	for i := 0; i < maxListedRuns+5; i++ {
+	const n = 20
+	for i := 0; i < n; i++ {
 		id := "run-" + string(rune('a'+i))
 		writeRunAssets(t, s, id, 100+i)
 		insertRun(t, s, LocalUserID, id, "Analysis")
@@ -196,24 +204,99 @@ func TestLargestRunsIsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(report.LargestRuns) != maxListedRuns {
-		t.Errorf("listed %d runs, want the cap of %d",
-			len(report.LargestRuns), maxListedRuns)
+	if len(report.Runs) != n {
+		t.Errorf("listed %d runs, want all %d", len(report.Runs), n)
 	}
-	// The total still covers everything: the cap hides nothing, it only
-	// shortens the list.
+	// Largest first, so the modal opens on what matters.
+	for i := 1; i < len(report.Runs); i++ {
+		if report.Runs[i-1].Bytes < report.Runs[i].Bytes {
+			t.Errorf("runs are not ordered by size at %d", i)
+			break
+		}
+	}
+	// And the listed bytes account for the whole bucket: nothing is hidden.
 	var listed int64
-	for _, r := range report.LargestRuns {
+	for _, r := range report.Runs {
 		listed += r.Bytes
 	}
+	for _, b := range report.Buckets {
+		if b.Label == "Analyses" && b.Bytes != listed {
+			t.Errorf("bucket says %d bytes, listed runs total %d", b.Bytes, listed)
+		}
+	}
+}
+
+/*
+TestBreakdownsAgreeWithTheTotal checks the two cuts against the same bytes.
+
+By-kind and by-file-type are the same space counted two ways, so either one
+disagreeing with the bucket it came from means one of them is wrong -- and a
+breakdown that does not add up is worse than no breakdown, because it is still
+believed.
+*/
+func TestBreakdownsAgreeWithTheTotal(t *testing.T) {
+	s := openStoreIn(t, filepath.Join(t.TempDir(), "data"))
+
+	// Two kinds, and two file types within one analysis.
+	writeRunAssets(t, s, "run-class", 1000)
+	insertRun(t, s, LocalUserID, "run-class", "A classification")
+	writeRunAssets(t, s, "run-solar", 3000)
+	insertRun(t, s, LocalUserID, "run-solar", "A solar study")
+	if _, err := s.db.Exec(
+		`UPDATE inference_runs SET kind = ? WHERE id = ?`, RunKindSolar, "run-solar",
+	); err != nil {
+		t.Fatal(err)
+	}
+	// A GeoTIFF beside a PNG, so the file-type cut has more than one row.
+	tif := filepath.Join(s.dataDir, "runs", "run-solar", "raster.tif")
+	if err := os.WriteFile(tif, make([]byte, 500), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := s.InspectStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	var runsBucket int64
 	for _, b := range report.Buckets {
 		if b.Label == "Analyses" {
 			runsBucket = b.Bytes
 		}
 	}
-	if runsBucket <= listed {
-		t.Error("the bucket total does not exceed the capped list, so the cap " +
-			"is hiding space rather than shortening a list")
+
+	var byKind int64
+	for _, g := range report.ByKind {
+		byKind += g.Bytes
+	}
+	if byKind != runsBucket {
+		t.Errorf("by-kind totals %d, the Analyses bucket is %d", byKind, runsBucket)
+	}
+
+	// The file-type cut spans every directory, so it matches the sum of the
+	// file buckets rather than the runs alone.
+	var fileBuckets int64
+	for _, b := range report.Buckets {
+		if b.Label != "Database" {
+			fileBuckets += b.Bytes
+		}
+	}
+	var byType int64
+	for _, g := range report.ByFileType {
+		byType += g.Bytes
+	}
+	if byType != fileBuckets {
+		t.Errorf("by-file-type totals %d, the file buckets total %d",
+			byType, fileBuckets)
+	}
+
+	// And the kinds are named, not passed through as raw keys.
+	for _, g := range report.ByKind {
+		if g.Label == "" || g.Label == g.Key {
+			t.Errorf("kind %q reaches the screen unlabelled", g.Key)
+		}
+	}
+	if len(report.ByFileType) < 2 {
+		t.Errorf("expected GeoTIFF and PNG rows, got %d", len(report.ByFileType))
 	}
 }
