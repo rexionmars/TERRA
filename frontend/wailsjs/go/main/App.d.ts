@@ -22,6 +22,8 @@ export function BuildManagedEnvironment(arg1:string):Promise<void>;
 
 export function CancelEnvironmentBuild():Promise<void>;
 
+export function ChooseBackupArchive():Promise<store.RestorePreview>;
+
 export function ClearAvatar():Promise<store.User>;
 
 export function CreateProject(arg1:string,arg2:string):Promise<store.Project>;
@@ -81,6 +83,8 @@ export function Predict(arg1:backend.PredictRequest):Promise<backend.PredictResu
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
 export function RenderComposite(arg1:backend.CompositeRequest):Promise<backend.CompositeResult>;
+
+export function RestoreBackup(arg1:string):Promise<store.RestoreResult>;
 
 export function RevealMainWindow():Promise<void>;
 

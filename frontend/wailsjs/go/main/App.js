@@ -38,6 +38,10 @@ export function CancelEnvironmentBuild() {
   return window['go']['main']['App']['CancelEnvironmentBuild']();
 }
 
+export function ChooseBackupArchive() {
+  return window['go']['main']['App']['ChooseBackupArchive']();
+}
+
 export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
 }
@@ -156,6 +160,10 @@ export function Register(arg1, arg2, arg3) {
 
 export function RenderComposite(arg1) {
   return window['go']['main']['App']['RenderComposite'](arg1);
+}
+
+export function RestoreBackup(arg1) {
+  return window['go']['main']['App']['RestoreBackup'](arg1);
 }
 
 export function RevealMainWindow() {

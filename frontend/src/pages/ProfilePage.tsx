@@ -8,8 +8,14 @@ import {
   LogOut,
   Save,
   Trash2,
+  Upload,
 } from "lucide-react"
-import { ExportBackup } from "../../wailsjs/go/main/App"
+import {
+  ChooseBackupArchive,
+  ExportBackup,
+  RestoreBackup,
+} from "../../wailsjs/go/main/App"
+import type { store } from "../../wailsjs/go/models"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
@@ -52,7 +58,7 @@ const SECTIONS: {
   /** How many settings the page holds, where that is a countable thing. */
   count?: number
 }[] = [
-  { id: "account", label: "Account", count: 8 },
+  { id: "account", label: "Account", count: 9 },
   // No count. The other page is a list of controls, and the number says how
   // long the list is. This one reports the state of an environment and offers
   // what to do about it, so "(1)" would be counting the wrong thing.
@@ -91,6 +97,11 @@ export function ProfilePage({
   const [backupBusy, setBackupBusy] = useState(false)
   const [backupResult, setBackupResult] = useState<string | null>(null)
   const [backupError, setBackupError] = useState<string | null>(null)
+  const [restoreBusy, setRestoreBusy] = useState(false)
+  const [restorePreview, setRestorePreview] =
+    useState<store.RestorePreview | null>(null)
+  const [restoreResult, setRestoreResult] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
   /*
     Account unless something asked for a particular page -- the first-run gate
     asks for System, since an unusable interpreter is the reason it opened
@@ -236,6 +247,60 @@ export function ProfilePage({
       setBackupError(e instanceof Error ? e.message : String(e))
     } finally {
       setBackupBusy(false)
+    }
+  }
+
+  /*
+    Choosing a backup describes it and changes nothing.
+
+    An archive that cannot be restored says so here, before the user has agreed
+    to replace anything -- a refusal at this point costs them a file dialog,
+    the same refusal after the swap would cost them their data.
+  */
+  const chooseBackup = async () => {
+    setRestoreBusy(true)
+    setRestoreError(null)
+    setRestoreResult(null)
+    try {
+      const preview = await ChooseBackupArchive()
+      if (!preview) return // Cancelled.
+      if (preview.problem) {
+        setRestoreError(preview.problem)
+        return
+      }
+      setRestorePreview(preview)
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRestoreBusy(false)
+    }
+  }
+
+  /*
+    The restore itself.
+
+    Signing out afterwards is not tidiness: the session belonged to the database
+    that was just replaced, and every restored account carries no password hash.
+    Staying on a profile page describing a user who no longer exists would be
+    the application lying about its own state.
+  */
+  const runRestore = async () => {
+    if (!restorePreview) return
+    setRestoreBusy(true)
+    setRestoreError(null)
+    try {
+      const result = await RestoreBackup(restorePreview.archive_path)
+      setRestorePreview(null)
+      setRestoreResult(
+        `Restored ${result.runs_restored} analyses and ${result.projects_restored} projects. ` +
+          `Your previous data is at ${result.previous_data_path}. Sign in again to continue.`
+      )
+      // Read before signing out: goAuth unmounts this page.
+      window.setTimeout(() => void logout(), 2500)
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRestoreBusy(false)
     }
   }
 
@@ -490,6 +555,94 @@ export function ProfilePage({
                 {backupError && (
                   <p className="mt-2 text-body text-destructive-quiet">
                     {backupError}
+                  </p>
+                )}
+              </SettingRow>
+
+              {/* A restore replaces everything, so it is two steps: choose a
+                  file and read what it holds, then confirm. One click from a
+                  file dialog to a replaced database is the wrong weight for an
+                  operation this size. */}
+              <SettingRow
+                id="account.restore"
+                title="Restore from backup"
+                description="Replaces everything here with the contents of a backup. Your current data is moved aside rather than deleted, and accounts come back needing a new password."
+                focused={focusedSetting === "account.restore"}
+                onFocus={() => setFocusedSetting("account.restore")}
+              >
+                {!restorePreview ? (
+                  <button
+                    type="button"
+                    disabled={restoreBusy}
+                    onClick={() => void chooseBackup()}
+                    className={btnGhost}
+                  >
+                    {restoreBusy ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Upload className="h-3 w-3" />
+                    )}
+                    Choose a backup
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2 rounded-sm border border-border bg-background px-3 py-2">
+                    {/* What is about to arrive, and what it displaces. Stated
+                        before the action, not reported after it. */}
+                    <p className="text-body text-foreground">
+                      This backup holds {restorePreview.manifest.counts.runs}{" "}
+                      {restorePreview.manifest.counts.runs === 1
+                        ? "analysis"
+                        : "analyses"}{" "}
+                      and {restorePreview.manifest.counts.projects}{" "}
+                      {restorePreview.manifest.counts.projects === 1
+                        ? "project"
+                        : "projects"}
+                      , written {restorePreview.manifest.created_at.slice(0, 10)}.
+                    </p>
+                    <p className="text-body text-muted-foreground">
+                      Restoring replaces the{" "}
+                      {restorePreview.current.runs}{" "}
+                      {restorePreview.current.runs === 1
+                        ? "analysis"
+                        : "analyses"}{" "}
+                      and {restorePreview.current.projects}{" "}
+                      {restorePreview.current.projects === 1
+                        ? "project"
+                        : "projects"}{" "}
+                      currently here. You will be signed out and will need to set
+                      a password again.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={restoreBusy}
+                        onClick={() => void runRestore()}
+                        className={btnPrimary}
+                      >
+                        {restoreBusy && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        Replace my data
+                      </button>
+                      <button
+                        type="button"
+                        disabled={restoreBusy}
+                        onClick={() => setRestorePreview(null)}
+                        className={btnGhost}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {restoreResult && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <p className="text-body text-foreground">{restoreResult}</p>
+                  </div>
+                )}
+                {restoreError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {restoreError}
                   </p>
                 )}
               </SettingRow>

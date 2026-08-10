@@ -841,6 +841,107 @@ func (a *App) ExportBackup() (string, error) {
 	return dest, nil
 }
 
+// ChooseBackupArchive opens a file dialog and describes the archive picked,
+// without changing anything.
+//
+// Separate from RestoreBackup so the user is told what they are about to get
+// and what it will displace before it happens. A restore replaces everything;
+// an operation of that weight should not be one click from a file dialog.
+func (a *App) ChooseBackupArchive() (*store.RestorePreview, error) {
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+
+	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
+		Title: "Choose a TERRA backup",
+		Filters: []wruntime.FileFilter{
+			{DisplayName: "ZIP archive", Pattern: "*.zip"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if path == "" {
+		return nil, nil // Cancelled.
+	}
+
+	preview, err := st.InspectBackup(path)
+	if err != nil {
+		return nil, err
+	}
+	preview.ArchivePath = path
+	return preview, nil
+}
+
+/*
+RestoreBackup replaces the local data with the archive at the given path.
+
+The path comes from ChooseBackupArchive rather than from the frontend picking a
+file itself, so the thing restored is the thing that was described.
+
+The store is closed, replaced and reopened here. The database file is swapped
+underneath the connection, and a connection held across that points at a file
+that no longer exists -- so every later query would fail in a way that looks
+like corruption rather than like a restore.
+*/
+func (a *App) RestoreBackup(archivePath string) (*store.RestoreResult, error) {
+	if strings.TrimSpace(archivePath) == "" {
+		return nil, errors.New("no backup was chosen")
+	}
+
+	a.mu.RLock()
+	st := a.store
+	a.mu.RUnlock()
+	if st == nil {
+		return nil, errors.New("the local store is not open")
+	}
+
+	// Checked again here, not only in the preview: the file may have been
+	// replaced between describing it and restoring it, and this is the last
+	// point at which refusing costs nothing.
+	preview, err := st.InspectBackup(archivePath)
+	if err != nil {
+		return nil, err
+	}
+	if preview.Problem != "" {
+		return nil, errors.New(preview.Problem)
+	}
+
+	// Closed before the swap. RestoreBackup renames the directory this
+	// connection's file lives in.
+	if err := st.Close(); err != nil {
+		return nil, fmt.Errorf("closing the local store: %w", err)
+	}
+
+	result, restoreErr := st.RestoreBackup(archivePath)
+
+	// Reopened whether or not the restore worked. A failed restore leaves the
+	// previous data in place, and leaving the application with a closed store
+	// would turn a recoverable failure into one that needs a relaunch.
+	reopened, openErr := store.Open()
+	if openErr != nil {
+		if restoreErr != nil {
+			return nil, restoreErr
+		}
+		return nil, fmt.Errorf("the data was restored but could not be reopened: %w", openErr)
+	}
+	a.mu.Lock()
+	a.store = reopened
+	// The session belonged to the replaced database. Restored accounts carry no
+	// password hash, so there is nothing to be signed in as.
+	a.currentUser = nil
+	a.sessionToken = ""
+	a.mu.Unlock()
+
+	if restoreErr != nil {
+		return nil, restoreErr
+	}
+	return result, nil
+}
+
 // ExportOverlayFile saves an overlay asset via SaveFileDialog.
 // src may be a filesystem path or a data:image/png;base64,... URI.
 func (a *App) ExportOverlayFile(src string, defaultFilename string) (string, error) {

@@ -64,7 +64,7 @@ const backupFormatVersion = 1
 // backupDBName is the database inside the archive. Named for what it is rather
 // than after the live file, so unzipping into a data directory by hand cannot
 // silently overwrite the database in use.
-const backupDBName = "database/geosense-backup.db"
+const backupDBName = "database/terra.db"
 
 // assetDirs are the directories holding files the database points at.
 //
