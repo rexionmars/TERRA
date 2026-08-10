@@ -5,21 +5,27 @@ import fs from 'fs'
 import path from 'path'
 
 /**
- * Give index.html the splash image list from the module that owns it.
+ * Give index.html the values it cannot import: the splash image list and the
+ * brand tagline.
  *
  * The HTML paints a background before any bundle loads, so it cannot import
  * anything -- which is why the paths were duplicated into a script tag with a
  * "keep in sync" comment on both copies. Nothing enforced that: a renamed image
  * meant the HTML painted one photo and React swapped to another on mount.
  *
- * The list is read out of splashBackground.ts and substituted for the
- * __SPLASH_IMAGES__ placeholder at transform time, so one edit reaches both and
- * a missing file is a build error rather than a blank splash.
+ * Both are read out of the modules that own them and substituted for
+ * placeholders at transform time, so one edit reaches both copies.
+ *
+ * The image paths are checked to exist here, because nothing else would catch
+ * a renamed file -- the symptom would be a splash that paints nothing. The
+ * tagline needs no such check: the React splash imports it, so `tsc` fails the
+ * build first and names the module.
  */
-function splashImages(): Plugin {
+function htmlConstants(): Plugin {
   return {
-    name: 'terra-splash-images',
-    transformIndexHtml(html) {
+    name: 'terra-html-constants',
+    transformIndexHtml(input) {
+      let html = input
       const source = path.resolve(__dirname, 'src/lib/splashBackground.ts')
       const text = fs.readFileSync(source, 'utf8')
 
@@ -36,6 +42,18 @@ function splashImages(): Plugin {
       if (images.length === 0) {
         throw new Error('SPLASH_IMAGES is empty')
       }
+
+      // The subtitle, from the module that owns it. Hard-coded here it was one
+      // more copy nobody would remember to change -- and the line it replaced
+      // had already outlived the product it described.
+      const brandSource = path.resolve(__dirname, 'src/lib/brand.ts')
+      const brand = fs
+        .readFileSync(brandSource, 'utf8')
+        .match(/export const BRAND_TAGLINE = "([^"]+)"/)
+      if (!brand) {
+        throw new Error('BRAND_TAGLINE not found in brand.ts')
+      }
+      html = html.replace('__BRAND_TAGLINE__', brand[1])
       // Every path must exist, or the splash paints nothing and the only
       // symptom is a dark window at launch.
       for (const img of images) {
@@ -51,7 +69,7 @@ function splashImages(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), splashImages()],
+  plugins: [react(), tailwindcss(), htmlConstants()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

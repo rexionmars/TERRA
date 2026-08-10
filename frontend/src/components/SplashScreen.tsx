@@ -5,6 +5,7 @@ import {
   SPLASH_IMAGES,
   claimSplashSlideForLaunch,
 } from "@/lib/splashBackground"
+import { BRAND_TAGLINE } from "@/lib/brand"
 
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
@@ -95,7 +96,7 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
             TERRA
           </p>
           <p className="eyebrow drop-shadow-[0_1px_6px_rgb(0_0_0_/_0.55)]">
-            land cover · sentinel-2
+            {BRAND_TAGLINE}
           </p>
           <div className="mt-1 h-0.5 w-7 rounded-[1px] bg-accent/85" aria-hidden />
         </div>
