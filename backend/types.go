@@ -178,6 +178,58 @@ type LULCCompareRow struct {
 	NReferenceCells int `json:"n_reference_cells,omitempty"`
 }
 
+/*
+LULCAgreement is the accuracy assessment of the classification against the
+MapBiomas reference.
+
+Computed over the reference's native 30 m cells rather than the 10 m pixels
+they were resampled onto: about nine pixels carry one label observation, so a
+pixel-level assessment would claim nine times the sample size it has and an
+interval roughly three times too narrow.
+*/
+type LULCAgreement struct {
+	// Independent label observations the assessment rests on.
+	NReferenceCells int `json:"n_reference_cells"`
+	// Share of cells where the classification and the reference agree, with a
+	// Wilson score interval at 95%.
+	OverallPct float64   `json:"overall_pct"`
+	OverallCI  []float64 `json:"overall_ci"`
+	// Pontius & Millones (2011): total disagreement splits into holding
+	// different amounts of a class, and holding the same amounts in different
+	// places. The composition comparison shows the first and hides the second.
+	QuantityDisagreementPct   float64 `json:"quantity_disagreement_pct"`
+	AllocationDisagreementPct float64 `json:"allocation_disagreement_pct"`
+
+	PerClass []LULCClassAccuracy `json:"per_class"`
+	// Reference cells carrying a class the classifier has no label for. Not
+	// errors -- the share of the area the assessment is silent about.
+	NOutsideLegend int     `json:"n_outside_legend"`
+	Matrix         [][]int `json:"matrix"`
+	MatrixClasses  []int   `json:"matrix_classes"`
+}
+
+/*
+LULCClassAccuracy is one class's producer's and user's accuracy.
+
+Both, never one. Producer's alone hides commission and user's alone hides
+omission: a classifier that labels the whole scene soybean has perfect
+producer's accuracy for soybean and is useless.
+*/
+type LULCClassAccuracy struct {
+	ClassID int    `json:"class_id"`
+	Name    string `json:"name"`
+	Color   string `json:"color"`
+	// Of the reference cells of this class, the share the classifier found.
+	// Nil when the reference holds none, which is absent rather than zero.
+	ProducersPct *float64  `json:"producers_pct"`
+	ProducersCI  []float64 `json:"producers_ci,omitempty"`
+	// Of the cells called this class, the share that really are.
+	UsersPct   *float64  `json:"users_pct"`
+	UsersCI    []float64 `json:"users_ci,omitempty"`
+	NReference int       `json:"n_reference"`
+	NPredicted int       `json:"n_predicted"`
+}
+
 // LULCAnalysis is the descriptive land cover / land use payload.
 type LULCAnalysis struct {
 	Year        int              `json:"year"`
@@ -195,6 +247,11 @@ type LULCAnalysis struct {
 	// agreement statistic must be computed over. Zero when unavailable.
 	ComparePixels         int `json:"compare_pixels,omitempty"`
 	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
+	// Agreement against the reference, which the composition rows above cannot
+	// express: two maps with identical class proportions can disagree on every
+	// cell. Nil when the reference cell mapping was unavailable, since without
+	// it there is no honest denominator.
+	Agreement *LULCAgreement `json:"agreement,omitempty"`
 }
 
 // LULCRequest selects an embedded area (or explicit polygon + MapBiomas path).
@@ -260,14 +317,19 @@ type CompositeResult struct {
 
 // sidecarResult is the raw JSON returned by the sidecar on stdout.
 type sidecarResult struct {
-	Extent          Bounds                `json:"extent"`
-	OverlayPNG      string                `json:"overlay_png"`
-	RasterTIF       string                `json:"raster_tif"`
-	ConfidencePNG   string                `json:"confidence_png"`
-	NDVIMeanPNG     string                `json:"ndvi_mean_png"`
-	TrueColorPNG    string                `json:"true_color_png"`
-	ReferencePNG    string                `json:"reference_png"`
-	MeanConfidence  float64               `json:"mean_confidence"`
+	Extent         Bounds  `json:"extent"`
+	OverlayPNG     string  `json:"overlay_png"`
+	RasterTIF      string  `json:"raster_tif"`
+	ConfidencePNG  string  `json:"confidence_png"`
+	NDVIMeanPNG    string  `json:"ndvi_mean_png"`
+	TrueColorPNG   string  `json:"true_color_png"`
+	ReferencePNG   string  `json:"reference_png"`
+	MeanConfidence float64 `json:"mean_confidence"`
+	// The floor MeanConfidence cannot go below: confidence is
+	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
+	// approaches zero. Without it the figure reads on a 0-100 scale it does
+	// not occupy. Zero when the class count was unavailable.
+	ConfidenceFloor float64               `json:"confidence_floor,omitempty"`
 	NDates          int                   `json:"n_dates"`
 	DateRange       []string              `json:"date_range"`
 	ClassStats      []ClassStat           `json:"class_stats"`
@@ -294,19 +356,29 @@ type lulcSidecarPayload struct {
 	// agreement statistic must be computed over. Zero when unavailable.
 	ComparePixels         int `json:"compare_pixels,omitempty"`
 	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
+	// Agreement against the reference, which the composition rows above cannot
+	// express: two maps with identical class proportions can disagree on every
+	// cell. Nil when the reference cell mapping was unavailable, since without
+	// it there is no honest denominator.
+	Agreement *LULCAgreement `json:"agreement,omitempty"`
 }
 
 // PredictResult is returned to the frontend. The overlay is delivered as a
 // base64 data URI so Leaflet can render it without an asset-server path.
 type PredictResult struct {
-	Extent          Bounds                `json:"extent"`
-	OverlayURI      string                `json:"overlay_uri"`
-	ConfidenceURI   string                `json:"confidence_uri"`
-	NDVIMeanURI     string                `json:"ndvi_mean_uri"`
-	TrueColorURI    string                `json:"true_color_uri"`
-	ReferenceURI    string                `json:"reference_uri"`
-	RasterTIF       string                `json:"raster_tif"`
-	MeanConfidence  float64               `json:"mean_confidence"`
+	Extent         Bounds  `json:"extent"`
+	OverlayURI     string  `json:"overlay_uri"`
+	ConfidenceURI  string  `json:"confidence_uri"`
+	NDVIMeanURI    string  `json:"ndvi_mean_uri"`
+	TrueColorURI   string  `json:"true_color_uri"`
+	ReferenceURI   string  `json:"reference_uri"`
+	RasterTIF      string  `json:"raster_tif"`
+	MeanConfidence float64 `json:"mean_confidence"`
+	// The floor MeanConfidence cannot go below: confidence is
+	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
+	// approaches zero. Without it the figure reads on a 0-100 scale it does
+	// not occupy. Zero when the class count was unavailable.
+	ConfidenceFloor float64               `json:"confidence_floor,omitempty"`
 	NDates          int                   `json:"n_dates"`
 	DateRange       []string              `json:"date_range"`
 	ClassStats      []ClassStat           `json:"class_stats"`

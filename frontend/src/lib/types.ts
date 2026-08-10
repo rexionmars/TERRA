@@ -139,6 +139,43 @@ export interface LULCCompareRow {
   n_reference_cells?: number
 }
 
+/** One class's producer's and user's accuracy, each with a 95% interval. */
+export interface LULCClassAccuracy {
+  class_id: number
+  name: string
+  color: string
+  /** Of the reference cells of this class, the share the classifier found. */
+  producers_pct: number | null
+  producers_ci?: [number, number]
+  /** Of the cells called this class, the share that really are. */
+  users_pct: number | null
+  users_ci?: [number, number]
+  n_reference: number
+  n_predicted: number
+}
+
+/**
+ * Agreement against the reference — what the composition comparison cannot say.
+ *
+ * Two maps holding identical proportions of every class can disagree on every
+ * cell, so the composition rows and this measure different things. Computed
+ * over the reference's native 30 m cells, not the 10 m pixels resampled from
+ * them, because nine pixels carrying one label are one observation.
+ */
+export interface LULCAgreement {
+  n_reference_cells: number
+  overall_pct: number
+  overall_ci: [number, number]
+  /** Pontius & Millones (2011): different amounts vs. different places. */
+  quantity_disagreement_pct: number
+  allocation_disagreement_pct: number
+  per_class: LULCClassAccuracy[]
+  /** Reference cells whose class the classifier has no label for. */
+  n_outside_legend: number
+  matrix: number[][]
+  matrix_classes: number[]
+}
+
 export interface LULCAnalysis {
   year: number
   source: string
@@ -152,6 +189,8 @@ export interface LULCAnalysis {
   compare_pixels?: number
   /** Distinct native reference cells behind them; the comparison sample size. */
   compare_reference_cells?: number
+  /** Absent when the reference cell mapping was unavailable. */
+  agreement?: LULCAgreement
 }
 
 export interface LULCRequest {
@@ -168,7 +207,16 @@ export interface PredictResult {
   true_color_uri: string
   reference_uri: string
   raster_tif: string
+  /**
+   * Mean of max(predict_proba) over classified pixels.
+   *
+   * Ensemble vote share, not a calibrated probability of being correct:
+   * Random Forest vote fractions are biased toward the middle of the range
+   * (Niculescu-Mizil & Caruana 2005). Read it with confidence_floor.
+   */
   mean_confidence: number
+  /** 1/K for a K-class model; the value mean_confidence cannot go below. */
+  confidence_floor?: number
   n_dates: number
   // Go marshals a nil slice as null, and a run that produced no classification
   // -- a water or solar run, which needs no scene -- leaves every one of these

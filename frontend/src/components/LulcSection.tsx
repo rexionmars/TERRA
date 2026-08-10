@@ -1,4 +1,4 @@
-import type { LULCAnalysis } from "@/lib/types"
+import type { LULCAgreement, LULCAnalysis } from "@/lib/types"
 
 const CALENDAR_NOTES: Record<string, string> = {
   A: "Wheat → Soybean → Fallow → Oat → Soybean",
@@ -100,7 +100,18 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
         </div>
         {hasCompare && (
           <div className="rounded-sm border border-border bg-secondary p-3 md:col-span-2 xl:col-span-1">
-            <p className="eyebrow mb-1">MapBiomas vs predicted (shared pixels)</p>
+            {/*
+              Named for what it measures. "MapBiomas vs predicted" reads as
+              validation, and it is not: these are two marginal distributions
+              compared side by side, which agree whenever the two maps hold the
+              same amount of a class regardless of where. The agreement panel
+              below is the one that answers whether they agree.
+            */}
+            <p className="eyebrow mb-1">Class composition · reference vs predicted</p>
+            <p className="mb-1 text-[10px] text-muted-foreground">
+              How much of each class each map holds — not whether they agree on
+              where.
+            </p>
             {/*
               The reference is native at 30 m and is resampled onto the 10 m
               classification grid, so roughly nine pixels carry one label
@@ -169,11 +180,113 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
         )}
       </div>
 
+      {lulc.agreement && <AgreementPanel a={lulc.agreement} />}
+
       <p className="mt-3 text-[10px] text-muted-foreground">
         *Agricultural = annual cropland (39+41) + mosaic (21). Annual MapBiomas
         labels compress crop rotations into a single cover class.
       </p>
     </section>
+  )
+}
+
+/**
+ * Agreement against the reference, beside the composition it corrects.
+ *
+ * The panel above compares how much of each class each map holds. That is not
+ * agreement: a classifier that swaps soybean for other temporary crops in equal
+ * measure reproduces the reference composition exactly and is wrong on every
+ * cell it swapped. Pontius & Millones (2011) name the two halves — quantity, in
+ * the panel above; allocation, invisible until here.
+ */
+function AgreementPanel({ a }: { a: LULCAgreement }) {
+  const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`)
+  const ci = (v?: [number, number]) =>
+    v ? `${v[0].toFixed(0)}–${v[1].toFixed(0)}` : ""
+
+  return (
+    <div
+      className="mt-4 rounded-sm border border-border bg-secondary p-3"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">Agreement with MapBiomas</p>
+        {/* The denominator, stated where the figures are. These are native
+            30 m cells, not the 10 m pixels resampled from them: nine pixels
+            carrying one label are one observation, and counting pixels would
+            narrow every interval below by about three. */}
+        <p className="telemetry text-[10px] text-muted-foreground">
+          n = {a.n_reference_cells.toLocaleString()} reference cells
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Metric
+          label="Overall accuracy"
+          value={`${a.overall_pct.toFixed(1)}%`}
+          sub={`95% CI ${ci(a.overall_ci)}`}
+        />
+        <Metric
+          label="Quantity disagr."
+          value={`${a.quantity_disagreement_pct.toFixed(1)}%`}
+          sub="different amounts"
+        />
+        <Metric
+          label="Allocation disagr."
+          value={`${a.allocation_disagreement_pct.toFixed(1)}%`}
+          sub="same amounts, wrong places"
+        />
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-1 grid grid-cols-[7rem_1fr_1fr] gap-2 text-[10px] text-muted-foreground">
+          <span />
+          <span>Producer&rsquo;s (found)</span>
+          <span>User&rsquo;s (correct)</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          {a.per_class.map((c) => (
+            <div
+              key={c.class_id}
+              className="grid grid-cols-[7rem_1fr_1fr] items-baseline gap-2 text-[11px]"
+            >
+              <span className="flex items-center gap-1.5 truncate text-muted-foreground">
+                <span
+                  className="size-2 shrink-0 rounded-[2px]"
+                  style={{ backgroundColor: c.color }}
+                />
+                {c.class_id} {c.name}
+              </span>
+              <span className="telemetry text-foreground">
+                {pct(c.producers_pct)}
+                <span className="ml-1 text-[9px] text-muted-foreground">
+                  {ci(c.producers_ci)}
+                </span>
+              </span>
+              <span className="telemetry text-foreground">
+                {pct(c.users_pct)}
+                <span className="ml-1 text-[9px] text-muted-foreground">
+                  {ci(c.users_ci)}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {a.n_outside_legend > 0 && (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          {a.n_outside_legend.toLocaleString()} further reference cells carry a
+          class the classifier has no label for. They are excluded rather than
+          counted as errors, so this assessment is silent about them.
+        </p>
+      )}
+      <p className="mt-1.5 text-[10px] text-muted-foreground">
+        Producer&rsquo;s and user&rsquo;s accuracy are reported together because
+        neither means anything alone: a map calling everything soybean scores
+        100% producer&rsquo;s for soybean. Intervals are Wilson score at 95%.
+      </p>
+    </div>
   )
 }
 

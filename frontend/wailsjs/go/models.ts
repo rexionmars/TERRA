@@ -2135,6 +2135,80 @@ export namespace backend {
 	        this.bounding_box = source["bounding_box"];
 	    }
 	}
+	export class LULCClassAccuracy {
+	    class_id: number;
+	    name: string;
+	    color: string;
+	    producers_pct?: number;
+	    producers_ci?: number[];
+	    users_pct?: number;
+	    users_ci?: number[];
+	    n_reference: number;
+	    n_predicted: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LULCClassAccuracy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class_id = source["class_id"];
+	        this.name = source["name"];
+	        this.color = source["color"];
+	        this.producers_pct = source["producers_pct"];
+	        this.producers_ci = source["producers_ci"];
+	        this.users_pct = source["users_pct"];
+	        this.users_ci = source["users_ci"];
+	        this.n_reference = source["n_reference"];
+	        this.n_predicted = source["n_predicted"];
+	    }
+	}
+	export class LULCAgreement {
+	    n_reference_cells: number;
+	    overall_pct: number;
+	    overall_ci: number[];
+	    quantity_disagreement_pct: number;
+	    allocation_disagreement_pct: number;
+	    per_class: LULCClassAccuracy[];
+	    n_outside_legend: number;
+	    matrix: number[][];
+	    matrix_classes: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LULCAgreement(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.n_reference_cells = source["n_reference_cells"];
+	        this.overall_pct = source["overall_pct"];
+	        this.overall_ci = source["overall_ci"];
+	        this.quantity_disagreement_pct = source["quantity_disagreement_pct"];
+	        this.allocation_disagreement_pct = source["allocation_disagreement_pct"];
+	        this.per_class = this.convertValues(source["per_class"], LULCClassAccuracy);
+	        this.n_outside_legend = source["n_outside_legend"];
+	        this.matrix = source["matrix"];
+	        this.matrix_classes = source["matrix_classes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LULCCompareRow {
 	    class_id: number;
 	    name: string;
@@ -2243,6 +2317,7 @@ export namespace backend {
 	    pred_vs_ref: LULCCompareRow[];
 	    compare_pixels?: number;
 	    compare_reference_cells?: number;
+	    agreement?: LULCAgreement;
 	
 	    static createFrom(source: any = {}) {
 	        return new LULCAnalysis(source);
@@ -2261,6 +2336,7 @@ export namespace backend {
 	        this.pred_vs_ref = this.convertValues(source["pred_vs_ref"], LULCCompareRow);
 	        this.compare_pixels = source["compare_pixels"];
 	        this.compare_reference_cells = source["compare_reference_cells"];
+	        this.agreement = this.convertValues(source["agreement"], LULCAgreement);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2281,6 +2357,7 @@ export namespace backend {
 		    return a;
 		}
 	}
+	
 	
 	
 	
@@ -3400,6 +3477,7 @@ export namespace backend {
 	    reference_uri: string;
 	    raster_tif: string;
 	    mean_confidence: number;
+	    confidence_floor?: number;
 	    n_dates: number;
 	    date_range: string[];
 	    class_stats: ClassStat[];
@@ -3429,6 +3507,7 @@ export namespace backend {
 	        this.reference_uri = source["reference_uri"];
 	        this.raster_tif = source["raster_tif"];
 	        this.mean_confidence = source["mean_confidence"];
+	        this.confidence_floor = source["confidence_floor"];
 	        this.n_dates = source["n_dates"];
 	        this.date_range = source["date_range"];
 	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);

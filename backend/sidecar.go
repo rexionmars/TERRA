@@ -523,6 +523,7 @@ func convertLULC(raw *lulcSidecarPayload) *LULCAnalysis {
 		PredVsRef:             raw.PredVsRef,
 		ComparePixels:         raw.ComparePixels,
 		CompareReferenceCells: raw.CompareReferenceCells,
+		Agreement:             raw.Agreement,
 	}
 	if out.Composition == nil {
 		out.Composition = []LULCClassRow{}

@@ -2641,6 +2641,18 @@ def main():
         write_overlay_png(ref_cls, reference_png)
         reference_path = str(reference_png)
     mean_conf = float(confidence_map[classification_map >= 0].mean()) if np.any(classification_map >= 0) else 0.0
+    # The floor this figure cannot go below.
+    #
+    # confidence is max(predict_proba), so with K classes it lives on [1/K, 1]
+    # and never approaches zero. Reported as a bare percentage it reads on a
+    # 0-100 scale it does not occupy: 38% over five classes is a fifth of the
+    # way from maximum uncertainty to certainty, not a third. The consumer
+    # needs K to say that, and only this side knows it.
+    conf_floor = (
+        1.0 / len(label_encoder.classes_)
+        if label_encoder is not None and len(getattr(label_encoder, 'classes_', [])) > 0
+        else 0.0
+    )
 
     lulc_payload = None
     if mapbiomas_path and Path(mapbiomas_path).exists():
@@ -2672,6 +2684,13 @@ def main():
                 n_cells = lulc_mod.distinct_reference_cells(cell_ids, valid)
                 if n_cells is not None:
                     lulc_payload['compare_reference_cells'] = n_cells
+                # Agreement, which the composition comparison beside it cannot
+                # show: equal marginals are not equal maps.
+                agreement = lulc_mod.agreement_against_reference(
+                    classification_map, ref_grid, cell_ids=cell_ids
+                )
+                if agreement is not None:
+                    lulc_payload['agreement'] = agreement
         except Exception as e:
             sys.stderr.write(json.dumps({
                 'progress': -1, 'msg': f'lulc analysis skipped: {e}'
@@ -2692,6 +2711,7 @@ def main():
         'true_color_png': true_color_path,
         'reference_png': reference_path,
         'mean_confidence': round(mean_conf, 4),
+        'confidence_floor': round(conf_floor, 4),
         'n_dates': len(products),
         'date_range': [
             products[0]['date'].strftime('%Y-%m-%d'),
