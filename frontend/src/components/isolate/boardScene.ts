@@ -406,11 +406,26 @@ export function createBoard(
       spread can produce and far above the rounding it has to absorb.
     */
     const nearest = hits[0].distance
-    const hit = hits.reduce((best, h) =>
-      h.distance <= nearest + 1e-3 && h.object.renderOrder > best.object.renderOrder
-        ? h
-        : best
-    )
+    const tied = hits.filter((h) => h.distance <= nearest + 1e-3)
+    /*
+      The layer already chosen wins the tie, and only then the topmost.
+
+      A selection is an intention the user has already stated, in the tree
+      beside this. Where several planes lie under the pointer at the same
+      place, a press that overrode it would take the layer they had picked and
+      hand them the one above -- which is what happened: with prediction
+      selected and confidence over it, pressing to drag prediction selected and
+      moved confidence instead. Preferring the selection also makes the drag
+      that follows act on the thing the panel is describing.
+
+      Where the selected plane is not among them, the plane painted last is the
+      plane on top, so it is the one a press lands on.
+    */
+    const hit =
+      tied.find((h) => keyOfMesh.get(h.object as Mesh) === selectedKey) ??
+      tied.reduce((best, h) =>
+        h.object.renderOrder > best.object.renderOrder ? h : best
+      )
     const mesh = hit.object as Mesh
     // The area that was pressed is the one that moves. With one area on the
     // board this is the only area; with two it is the difference between
@@ -717,6 +732,8 @@ export function createBoard(
   })
   /** Which area a plane belongs to, for the drag and for the hit test. */
   const groupOfMesh = new Map<Mesh, GroupRuntime>()
+  /** Its key, so a hit can be compared against the selection without a search. */
+  const keyOfMesh = new Map<Mesh, string>()
 
   /*
     The separation in force, and the one place a plane's height is decided.
@@ -827,6 +844,7 @@ export function createBoard(
       mesh.visible = now?.visible ?? true
       rt.meshes[index] = mesh
       groupOfMesh.set(mesh, rt)
+      keyOfMesh.set(mesh, planeKey(rt.id, card.id))
       rt.root.add(mesh)
       disposables.push(geometry, material, t)
 
