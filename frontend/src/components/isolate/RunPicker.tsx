@@ -144,14 +144,31 @@ export function RunPicker({
               onClick={() => setOpen(false)}
             />
             {/*
-              `.panel` rather than a surface of its own, so it reads as one of
-              the application's menus. The project menu it sits beside is
-              built the same way, and two popovers a few pixels apart that do
-              not match read as two different applications.
+              Its own raised surface, NOT `.panel`.
+
+              `.panel` is `rgb(var(--p-ink) / 0.55)` over a backdrop blur. Over
+              the map that reads, because the map is imagery and the blur has
+              something to work on. Over this board it is invisible: the board
+              is painted in flat `--p-ink`, so ink at 55 % composited on ink is
+              ink -- measured at a contrast ratio of 1.000 against its own
+              background, with only a 28 %-alpha border to say it was there.
+
+              Making it match the project menu was the wrong kind of
+              consistency: the two menus sit over different surfaces, and
+              matching the paint made this one disappear. --p-surface-raised
+              gives 1.333 against the board, which with a strong border and a
+              shadow is a thing lying on top of another thing.
             */}
             <div
-              className="panel fixed z-[5001] flex flex-col overflow-hidden rounded-sm shadow-lg"
-              style={{ top: pos.top, left: pos.left, width: PICKER_W, height: pos.height }}
+              className="fixed z-[5001] flex flex-col overflow-hidden rounded-sm border shadow-xl"
+              style={{
+                top: pos.top,
+                left: pos.left,
+                width: PICKER_W,
+                height: pos.height,
+                background: "rgb(var(--p-surface-raised))",
+                borderColor: "rgb(var(--p-line-strong) / 0.5)",
+              }}
             >
               <label className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
                 style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}>
@@ -190,7 +207,7 @@ export function RunPicker({
                       */}
                       <p
                         className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
-                        style={{ background: "rgb(var(--p-surface))" }}
+                        style={{ background: "rgb(var(--p-surface-raised))" }}
                       >
                         {g.name}
                       </p>
@@ -203,7 +220,7 @@ export function RunPicker({
                             onPick(r)
                           }}
                           title={runRowLine(r)}
-                          className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-surface-raised/60"
+                          className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-secondary/70"
                         >
                           <span className="w-full truncate text-meta text-foreground">
                             {displayRunLabel(r.label) || r.model_kind}
