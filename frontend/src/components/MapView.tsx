@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { createPortal } from "react-dom"
 import {
   MapContainer,
   TileLayer,
@@ -86,6 +87,8 @@ interface MapViewProps {
   onAoiContourSchemeChange: (id: AoiContourSchemeId) => void
   onClearArea: () => void
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
+  /** Placed in Leaflet's bottom-right stack, under the zoom and draw tools. */
+  bottomRightSlot?: React.ReactNode
   /** Which basemap is showing, so its credit can be drawn outside the map. */
   onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
 }
@@ -266,6 +269,46 @@ function BasemapDateAttribution({
   }, [basemap, dateLabel, onCreditChange])
 
   return null
+}
+
+/**
+ * Renders its children into Leaflet's own bottom-right control stack.
+ *
+ * The alternative was to place the button absolutely and clear the stack by
+ * hand, which this file already has one victim of: ConfidenceLegend sits at a
+ * hand-tuned `bottom: 15.25rem` measured against the zoom and draw toolbars as
+ * they were. The stack's height is not constant -- the draw toolbar grows an
+ * edit button once a polygon exists -- so anything that clears it by arithmetic
+ * is right until the map is used.
+ *
+ * Inside the stack Leaflet does the arithmetic, and a control added after the
+ * others lands under them, which is where the caller wants this one: away from
+ * the top-right corner the panels open from, so a panel no longer looks like
+ * something that button produced.
+ */
+function BottomRightSlot({ children }: { children: React.ReactNode }) {
+  const map = useMap()
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const control = new L.Control({ position: "bottomright" })
+    control.onAdd = () => {
+      const div = L.DomUtil.create("div", "leaflet-control")
+      // Without these a click reaches the map underneath and starts a drag, and
+      // a wheel over the button zooms the map behind it.
+      L.DomEvent.disableClickPropagation(div)
+      L.DomEvent.disableScrollPropagation(div)
+      setHost(div)
+      return div
+    }
+    control.addTo(map)
+    return () => {
+      control.remove()
+      setHost(null)
+    }
+  }, [map])
+
+  return host ? createPortal(children, host) : null
 }
 
 function FlyToController({
@@ -1037,6 +1080,7 @@ export function MapView({
   onClearArea,
   onViewChange,
   onCreditChange,
+  bottomRightSlot,
 }: MapViewProps) {
   // Continental default, used only when there is no remembered view.
   const center = useMemo<[number, number]>(
@@ -1319,6 +1363,7 @@ export function MapView({
 
       <DrawControl customPolygon={customPolygon} onPolygonDrawn={onPolygonDrawn} />
       <ContainerResizeSync />
+      {bottomRightSlot && <BottomRightSlot>{bottomRightSlot}</BottomRightSlot>}
       <FlyToController flyTo={flyTo} />
       <FitBounds customPolygon={customPolygon} result={result} />
       <FitComposition composition={composition} hasPrediction={!!result} />

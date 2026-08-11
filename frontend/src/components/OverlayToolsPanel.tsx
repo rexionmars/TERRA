@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import {
+  Blend,
   SlidersHorizontal,
   Download,
   Palette,
@@ -734,12 +735,26 @@ export function OverlayToolsButton({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "overlay-tools-btn panel app-no-drag absolute right-[10px] top-[3.35rem] z-[1000] flex h-8 w-8 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+        // No anchor of its own: it is handed to Leaflet's bottom-right stack,
+        // which places it under the zoom and draw tools. It used to sit at the
+        // top-right, a few pixels from where this panel opens, so the panel
+        // read as something the button had produced.
+        //
+        // Sized to the stack it joins rather than to the 2rem it was: the zoom
+        // and draw buttons are 2.125rem, and a narrower one beside them reads
+        // as a different kind of control.
+        "overlay-tools-btn panel app-no-drag flex h-[2.125rem] w-[2.125rem] items-center justify-center rounded-sm text-muted-foreground transition-colors",
         "hover:bg-secondary hover:text-foreground",
         active && "border-primary/50 bg-primary/15 text-foreground"
       )}
     >
-      <SlidersHorizontal className="size-3.5" strokeWidth={1.75} />
+      {/*
+        Blend, not sliders. Two sliders icons had come to mean two different
+        things a few pixels apart -- this one and the dock bar's parameters --
+        and overlapping discs say what this panel actually governs: how the
+        layers sit over one another, their opacity and their comparison.
+      */}
+      <Blend className="size-3.5" strokeWidth={1.75} />
     </button>
   )
 }

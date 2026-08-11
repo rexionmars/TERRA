@@ -407,6 +407,16 @@ export function MapScreen(props: MapScreenProps) {
         onClearArea={props.onClearArea}
         onViewChange={props.onViewChange}
         onCreditChange={props.onCreditChange}
+        // Handed to Leaflet rather than positioned here: it joins the zoom and
+        // draw stack at the bottom-right, under them.
+        bottomRightSlot={
+          <OverlayToolsButton
+            active={rightDrawer === "overlays"}
+            onClick={() =>
+              setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
+            }
+          />
+        }
       />
 
       <SearchBar onSelectLocation={props.onLocationSelect} />
@@ -461,12 +471,6 @@ export function MapScreen(props: MapScreenProps) {
         )}
       </AnimatePresence>
 
-      <OverlayToolsButton
-        active={rightDrawer === "overlays"}
-        onClick={() =>
-          setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
-        }
-      />
       <OverlayToolsPanel
         open={rightDrawer === "overlays"}
         onClose={() => setRightDrawer(null)}
