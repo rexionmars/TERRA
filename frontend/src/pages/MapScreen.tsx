@@ -37,6 +37,7 @@ import { BoardRunBar } from "@/components/whiteboard/BoardRunBar"
 import { rasterLayers } from "@/lib/mapLayers"
 import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
+import { useRunLog } from "@/lib/runLog"
 import { boardHoldsOtherAreas } from "@/components/whiteboard/boardMemory"
 import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
@@ -580,6 +581,17 @@ export function MapScreen(props: MapScreenProps) {
         }
       : run
 
+  /*
+    What the run in progress has said. Built from the SAME resolved run the band
+    reports, so the log cannot come from one product while the button reports
+    another.
+  */
+  const runLog = useRunLog({
+    running: boardRun.running,
+    progress: boardRun.progress,
+    message: boardRun.progressMsg,
+  })
+
   /**
    * The three products' controls, in whichever container the layout gives
    * them. One switch, called from two places: the docked column below, and
@@ -988,6 +1000,8 @@ export function MapScreen(props: MapScreenProps) {
                 the solar scale are what it means -- they live on the payload
                 and stop here otherwise.
               */
+              runLog={runLog}
+              runRunning={boardRun.running}
               legendSources={{
                 result: props.result,
                 water: props.water,

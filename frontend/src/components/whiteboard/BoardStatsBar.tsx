@@ -30,7 +30,9 @@
  * send you somewhere else to act. All three are on the map, one board-close
  * away, where their consequences are stated.
  */
+import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
+import type { RunLogEntry } from "@/lib/runLog"
 import type { LayerLegend } from "@/lib/layerLegend"
 
 export interface StatsEntry {
@@ -48,6 +50,52 @@ export interface StatsEntry {
    * figures beside them are only comparable once it is said which made which.
    */
   model?: string
+}
+
+/**
+ * What the run has said, while it is saying it.
+ *
+ * The progress message used to be spent on the run button's tooltip, and the
+ * argument for that was sound about a single line: one that rewrites itself
+ * several times a second costs more attention than it returns. A log is the
+ * other thing -- each line is read once and stays, and the stack of them is the
+ * only account of what the run actually did. The sidecar's stages carry their
+ * own detail, and it was being thrown away several times a second.
+ */
+function RunLog({ entries }: { entries: RunLogEntry[] }) {
+  const endRef = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    // Scrolled to the foot, which is where a log is read: the stage in
+    // progress is the one being waited on.
+    endRef.current?.scrollIntoView({ block: "end" })
+  }, [entries.length])
+
+  return (
+    <ul className="panel-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-2">
+      {entries.map((e, i) => (
+        <li
+          key={`${i}-${e.text}`}
+          ref={i === entries.length - 1 ? endRef : undefined}
+          className="flex items-baseline gap-2"
+        >
+          <span className="telemetry w-8 shrink-0 text-right text-[9px] text-muted-foreground">
+            {Math.round(e.at)}%
+          </span>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-meta",
+              // The last is what is happening; the rest is what happened.
+              i === entries.length - 1
+                ? "text-foreground"
+                : "text-muted-foreground"
+            )}
+          >
+            {e.text}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 /** The width a block's prose and figures are held to. */
@@ -199,11 +247,23 @@ function Entry({ entry }: { entry: StatsEntry }) {
 export function BoardStatsBar({
   entries,
   leftOffset,
+  runLog = [],
+  running = false,
 }: {
   /** The selected rasters, in the order they were picked. */
   entries: StatsEntry[]
   /** Where the board's column ends, matching the run band below. */
   leftOffset: string
+  /**
+   * What the run has said so far.
+   *
+   * It takes the band while a run is going, and the reason is that the figures
+   * it displaces are STALE: they describe the rasters from before, and the
+   * question in front of the reader is what the run is doing now. When it
+   * finishes they come back.
+   */
+  runLog?: RunLogEntry[]
+  running?: boolean
 }) {
   return (
     <div
@@ -221,7 +281,9 @@ export function BoardStatsBar({
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >
-      {entries.length === 0 ? (
+      {running && runLog.length > 0 ? (
+        <RunLog entries={runLog} />
+      ) : entries.length === 0 ? (
         <p className="flex items-center text-meta text-muted-foreground">
           Pick a raster to read its legend. Shift-pick a second to compare.
         </p>

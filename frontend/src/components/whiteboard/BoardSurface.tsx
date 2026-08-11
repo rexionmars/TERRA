@@ -27,6 +27,7 @@ import {
 import { BoardCompareModal } from "@/components/whiteboard/BoardCompareModal"
 import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
 import { legendFor, type LegendSources } from "@/lib/layerLegend"
+import type { RunLogEntry } from "@/lib/runLog"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { modelLabel, runAssets } from "@/lib/runAssets"
 import type { ModelKind } from "@/lib/types"
@@ -170,6 +171,8 @@ function useKept<T>(key: string, initial: T | (() => T)) {
 export function BoardSurface({
   layers,
   legendSources,
+  runLog,
+  runRunning,
   assets,
   runId,
   runPeriod,
@@ -200,6 +203,9 @@ export function BoardSurface({
    * it means. Fetched areas carry their own inside `extraRuns`.
    */
   legendSources?: LegendSources
+  /** What the run in progress has said, for the statistics band. */
+  runLog?: RunLogEntry[]
+  runRunning?: boolean
   /**
    * Everything the run produced, drawn or not.
    *
@@ -1260,6 +1266,8 @@ export function BoardSurface({
       */}
       <BoardStatsBar
         leftOffset="15rem"
+        runLog={runLog}
+        running={runRunning}
         entries={selection
           .map(rowTarget)
           .filter((t): t is { areaId: string; layerId: string } => !!t?.layerId)
