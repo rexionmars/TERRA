@@ -3,15 +3,18 @@ import {
   ArrowLeft,
   Camera,
   ChartColumn,
+  Heart,
   Download,
   FolderOpen,
   HardDrive,
   Loader2,
   LogOut,
   Save,
+  Star,
   Trash2,
   Upload,
 } from "lucide-react"
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime"
 import {
   ChooseBackupArchive,
   ExportBackup,
@@ -63,6 +66,15 @@ type SettingsSectionId = "account" | "system"
  * into Account. One control was never a page, and the theme belongs to the
  * person signed in rather than to the installation, which is what Account is.
  */
+/*
+  The project and the way to support it. Both taken from what the repository
+  already declares -- the remote, and .github/FUNDING.yml, which names
+  `github: rexionmars` -- rather than guessed: a sponsor button that leads
+  nowhere is worse than no button.
+*/
+const REPO_URL = "https://github.com/rexionmars/TERRA"
+const SPONSOR_URL = "https://github.com/sponsors/rexionmars"
+
 const SECTIONS: {
   id: SettingsSectionId
   label: string
@@ -908,6 +920,43 @@ export function ProfilePage({
               </div>
             </Section>
           )}
+
+          {/*
+            Outside the section switch, so it closes the page rather than one
+            of its tabs -- and last, because an ask placed above the settings
+            someone came here to change is an ask that interrupts them.
+
+            Both links open in the system browser through BrowserOpenURL: this
+            is a WKWebView with no createWebViewWith delegate, so an anchor
+            with target="_blank" is silently ignored.
+          */}
+          <div
+            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <p className="min-w-0 flex-1 text-meta leading-relaxed text-muted-foreground">
+              TERRA is open source. If it is useful to you, a star helps other
+              people find it, and sponsoring pays for the time that goes into it.
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL(REPO_URL)}
+                className={btnGhost}
+              >
+                <Star className="h-3 w-3" />
+                Star on GitHub
+              </button>
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL(SPONSOR_URL)}
+                className={btnGhost}
+              >
+                <Heart className="h-3 w-3" />
+                Sponsor
+              </button>
+            </div>
+          </div>
         </div>
       </PageBody>
 
