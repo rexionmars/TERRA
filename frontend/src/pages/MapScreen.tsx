@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Suspense, lazy, useState } from "react"
 import { AnimatePresence } from "motion/react"
 import type {
   Area,
@@ -25,6 +25,19 @@ import type { MapToolId } from "@/lib/mapTools"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
+import { IsolateBoardButton } from "@/components/isolate/IsolateBoardButton"
+
+/*
+  Lazy, and reached only from here. IsolateBoard imports the scene, which
+  imports three; a static import would put the whole library in the chunk that
+  loads with the map screen.
+*/
+const IsolateBoard = lazy(() =>
+  import("@/components/isolate/IsolateBoard").then((m) => ({
+    default: m.IsolateBoard,
+  }))
+)
+const prefetchBoard = () => void import("@/components/isolate/IsolateBoard")
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
@@ -176,6 +189,15 @@ export function MapScreen(props: MapScreenProps) {
    */
   const [barWidthPx, setBarWidthPx] = useState(0)
   const workspace = props.layoutMode === "workspace"
+  /**
+   * Whether the analysis is lifted off the map onto the board.
+   *
+   * Local, and deliberately not persisted -- the opposite of the reasoning
+   * that holds leftPanel in the caller. This screen remounts on every return,
+   * and coming back to the map should give the map, not a board left open
+   * twenty minutes ago.
+   */
+  const [isolate, setIsolate] = useState(false)
   const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only
@@ -410,12 +432,20 @@ export function MapScreen(props: MapScreenProps) {
         // Handed to Leaflet rather than positioned here: it joins the zoom and
         // draw stack at the bottom-right, under them.
         bottomRightSlot={
-          <OverlayToolsButton
-            active={rightDrawer === "overlays"}
-            onClick={() =>
-              setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
-            }
-          />
+          <>
+            <IsolateBoardButton
+              active={isolate}
+              disabled={!props.result?.overlay_uri}
+              onClick={() => setIsolate((o) => !o)}
+              onPrefetch={prefetchBoard}
+            />
+            <OverlayToolsButton
+              active={rightDrawer === "overlays"}
+              onClick={() =>
+                setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
+              }
+            />
+          </>
         }
       />
 
@@ -448,6 +478,19 @@ export function MapScreen(props: MapScreenProps) {
               : undefined
         }
       />
+
+      <AnimatePresence>
+        {isolate && props.result?.overlay_uri && (
+          <Suspense fallback={null}>
+            <IsolateBoard
+              key="isolate-board"
+              textureUri={props.result.overlay_uri}
+              title={props.areaLabel || "Analysis"}
+              onClose={() => setIsolate(false)}
+            />
+          </Suspense>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {workspace && (
