@@ -22,10 +22,15 @@ import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
+import type { LayoutMode } from "@/lib/types"
+import type { BasemapKind } from "@/lib/basemaps"
+import { WorkspaceBar } from "@/components/WorkspaceBar"
+import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
 import { ConfidenceLegend } from "@/components/ConfidenceLegend"
+import { statusPanelInset } from "@/components/analysisPrimitives"
 import {
   OverlayToolsButton,
   OverlayToolsPanel,
@@ -37,6 +42,10 @@ export interface MapScreenProps {
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
   leftPanel: MapToolId | null
   onLeftPanelChange: (id: MapToolId | null) => void
+  /** Which layout draws this screen. See lib/types LayoutMode. */
+  layoutMode?: LayoutMode
+  /** Go to another destination, for the dock layout's bar. */
+  onNavigate: (groupId: string, itemId?: string) => void
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -84,6 +93,8 @@ export interface MapScreenProps {
   composeStretchHigh: number
   composeOpacity: number
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
+  /** Which basemap is showing, for the credit in the title bar. */
+  onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   onLocationSelect: (lat: number, lon: number) => void
   onClearArea: () => void
@@ -143,11 +154,28 @@ export function MapScreen(props: MapScreenProps) {
   // every return -- including a return from a water run, which left a water
   // raster on the map with the classification panel open beside it.
   const { leftPanel, onLeftPanelChange } = props
-  const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
-  // The panel sits against the navigation column now that the tool rail is
-  // gone: the column lists the same three tools and is always visible, so a
-  // floating strip repeating them was a second answer to one question.
-  const panelOffsetClass = "left-3"
+  /**
+   * Which right-edge drawer is open, at most one.
+   *
+   * The two occupy the same slot -- same anchor, same width, same layer -- and
+   * a user reading run parameters is not simultaneously adjusting overlay
+   * opacity, so they exclude each other rather than being stacked or offset.
+   * A boolean per drawer would let both open onto the same rectangle.
+   *
+   * The docked layout never sets "config", so its behaviour is unchanged.
+   */
+  const [rightDrawer, setRightDrawer] = useState<"config" | "overlays" | null>(
+    null
+  )
+  /**
+   * The workspace island's measured width, so the period track can retract past
+   * it the way it already retracts past the docked column.
+   *
+   * Measured rather than declared: the island sizes to its contents, and the
+   * run button's label changes with the product and with whether it is running.
+   */
+  const [barWidthPx, setBarWidthPx] = useState(0)
+  const workspace = props.layoutMode === "workspace"
   const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only
@@ -173,9 +201,176 @@ export function MapScreen(props: MapScreenProps) {
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
     null
 
+  /**
+   * The run action for whichever product is in view.
+   *
+   * The three panels each own a run button with its own label, its own progress
+   * state and its own enabling rule, and the rules genuinely differ:
+   * classification additionally requires both dates, and a composition
+   * additionally requires a selected scene. The workspace bar carries one
+   * button, so the differences are gathered here rather than being flattened
+   * into a single condition that would be wrong for two of the three.
+   *
+   * Composition is the one this fixes rather than moves: its Apply button sits
+   * inside a section called "Display", under the stretch inputs, where a reader
+   * looking for the action does not pass.
+   */
+  const run =
+    leftPanel === "water"
+      ? {
+          running: props.waterRunning,
+          progress: props.waterProgress,
+          progressMsg: props.waterProgressMsg,
+          label: props.waterRunning ? "Mapping" : "Map water",
+          canRun: props.hasArea,
+          onRun: props.onRunWater,
+        }
+      : leftPanel === "compose"
+        ? {
+            running: props.composeRunning,
+            progress: props.composeProgress,
+            progressMsg: props.composeProgressMsg,
+            label: props.composeRunning ? "Applying" : "Apply",
+            canRun: props.hasArea && !!props.selectedSceneId,
+            onRun: props.onApplyComposition,
+          }
+        : {
+            running: props.running,
+            progress: props.progress,
+            progressMsg: props.progressMsg,
+            label: props.running ? "Classifying" : "Classify",
+            canRun: props.hasArea && !!props.start && !!props.end,
+            onRun: props.onRun,
+          }
+
+  /**
+   * The three products' controls, in whichever container the layout gives
+   * them. One switch, called from two places: the docked column below, and
+   * the workspace layout's right drawer. Writing it twice would let the two
+   * layouts drift in which props each panel receives.
+   */
+  const renderPanel = (placement: PanelPlacement, show: boolean) => {
+    /*
+      Dismissing means different things in the two containers. Closing the
+      docked column clears the open tool, because the column IS the tool
+      selection -- there is nothing left selected once it is gone. In the
+      workspace layout the bar keeps the selection, so closing the drawer must
+      close only the drawer; clearing the tool there would empty the segmented
+      control and leave the run button acting on nothing.
+    */
+    const dismiss =
+      placement === "drawer"
+        ? () => setRightDrawer(null)
+        : () => setLeftPanel(null)
+    return (
+      <AnimatePresence mode="wait" initial={false}>
+        {!show ? null : leftPanel === "classify" ? (
+          <ControlPanel
+            key="classify"
+            placement={placement}
+            activeExample={props.activeExample}
+            customPolygon={props.customPolygon}
+            hasArea={props.hasArea}
+            onClearArea={props.onClearArea}
+            onImportPolygon={props.onImportPolygon}
+            start={props.start}
+            end={props.end}
+            onStartChange={props.onStartChange}
+            onEndChange={props.onEndChange}
+            maxCloud={props.maxCloud}
+            onMaxCloudChange={props.onMaxCloudChange}
+            monthlyBest={props.monthlyBest}
+            onMonthlyBestChange={props.onMonthlyBestChange}
+            mode={props.mode}
+            onModeChange={props.onModeChange}
+            modelKind={props.modelKind}
+            onModelKindChange={props.onModelKindChange}
+            prithviMode={props.prithviMode}
+            onPrithviModeChange={props.onPrithviModeChange}
+            running={props.running}
+            progress={props.progress}
+            progressMsg={props.progressMsg}
+            onRun={props.onRun}
+            onAnalyzeLULC={props.onAnalyzeLULC}
+            lulcRunning={props.lulcRunning}
+            onCollapse={dismiss}
+          />
+        ) : leftPanel === "water" ? (
+          <WaterPanel
+            key="water"
+            placement={placement}
+            hasArea={props.hasArea}
+            start={props.start}
+            end={props.end}
+            onStartChange={props.onStartChange}
+            onEndChange={props.onEndChange}
+            maxCloud={props.maxCloud}
+            onMaxCloudChange={props.onMaxCloudChange}
+            monthlyBest={props.monthlyBest}
+            onMonthlyBestChange={props.onMonthlyBestChange}
+            index={props.waterIndex}
+            onIndexChange={props.onWaterIndexChange}
+            running={props.waterRunning}
+            progress={props.waterProgress}
+            progressMsg={props.waterProgressMsg}
+            hasResult={!!props.water}
+            onRun={props.onRunWater}
+            onClear={props.onClearWater}
+            onCollapse={dismiss}
+          />
+        ) : leftPanel === "compose" ? (
+          <CompositionPanel
+            key="compose"
+            placement={placement}
+            hasArea={props.hasArea}
+            start={props.start}
+            end={props.end}
+            onStartChange={props.onStartChange}
+            onEndChange={props.onEndChange}
+            maxCloud={props.maxCloud}
+            onMaxCloudChange={props.onMaxCloudChange}
+            monthlyBest={props.monthlyBest}
+            onMonthlyBestChange={props.onMonthlyBestChange}
+            scenes={props.composeScenes}
+            scenesLoading={props.composeScenesLoading}
+            scenesError={props.composeScenesError}
+            selectedSceneId={props.selectedSceneId}
+            onSelectScene={props.onSelectScene}
+            kind={props.composeKind}
+            onKindChange={props.onComposeKindChange}
+            bands={props.composeBands}
+            onBandsChange={props.onComposeBandsChange}
+            index={props.composeIndex}
+            onIndexChange={props.onComposeIndexChange}
+            stretchLow={props.composeStretchLow}
+            stretchHigh={props.composeStretchHigh}
+            onStretchChange={props.onComposeStretchChange}
+            running={props.composeRunning}
+            progress={props.composeProgress}
+            progressMsg={props.composeProgressMsg}
+            hasOverlay={!!props.composition}
+            onApply={props.onApplyComposition}
+            onClear={props.onClearComposition}
+            onCollapse={dismiss}
+          />
+        ) : null}
+      </AnimatePresence>
+    )
+  }
+
   return (
     <div
       className="relative h-full min-h-0 w-full"
+      /*
+        The height of the period track, which is the only thing that spans the
+        foot from edge to edge. Surfaces anchored to the bottom clear it by
+        measuring from here.
+
+        The workspace bar does NOT enter this: it is an island at the left, and
+        raising the reservation to clear it lifted the tile attribution at the
+        opposite edge by four rem it had no reason to move, tearing it off the
+        track it is meant to sit flush against.
+      */
       style={{ "--map-foot": "3.0625rem" } as React.CSSProperties}
     >
       <MapView
@@ -211,6 +406,17 @@ export function MapScreen(props: MapScreenProps) {
         onAoiContourSchemeChange={props.onAoiContourSchemeChange}
         onClearArea={props.onClearArea}
         onViewChange={props.onViewChange}
+        onCreditChange={props.onCreditChange}
+        // Handed to Leaflet rather than positioned here: it joins the zoom and
+        // draw stack at the bottom-right, under them.
+        bottomRightSlot={
+          <OverlayToolsButton
+            active={rightDrawer === "overlays"}
+            onClick={() =>
+              setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
+            }
+          />
+        }
       />
 
       <SearchBar onSelectLocation={props.onLocationSelect} />
@@ -225,20 +431,49 @@ export function MapScreen(props: MapScreenProps) {
         onListScenes={props.onListComposeScenes}
         onOpenListing={props.onViewDataCube}
         disabled={props.running || props.composeRunning}
-        // Clears the open tool column, matching the offset the status panels
-        // already use so the two agree on where the map's free width begins.
-        leftOffsetClass={
-          leftPanel ? "left-[20.5rem] rounded-tl-md" : "left-0"
+        /*
+          Retracted past whatever occupies the foot's left end: the docked
+          column at its fixed 19rem plus its two 0.75rem gutters, or the
+          workspace island, which is flush into the corner and so needs only
+          the gap between the two segments added to its measured width.
+        */
+        flushLeft={workspace}
+        leftOffset={
+          workspace
+            ? barWidthPx
+              ? `calc(${barWidthPx}px + 0.75rem)`
+              : undefined
+            : leftPanel
+              ? "20.5rem"
+              : undefined
         }
       />
 
-      <OverlayToolsButton
-        active={overlayToolsOpen}
-        onClick={() => setOverlayToolsOpen((o) => !o)}
-      />
+      <AnimatePresence>
+        {workspace && (
+          <WorkspaceBar
+            key="workspace-bar"
+            groupId="map"
+            activeId={leftPanel}
+            onNavigate={props.onNavigate}
+            running={run.running}
+            progress={run.progress}
+            progressMsg={run.progressMsg}
+            runLabel={run.label}
+            canRun={run.canRun}
+            onRun={run.onRun}
+            onWidthChange={setBarWidthPx}
+            configOpen={rightDrawer === "config"}
+            onConfigToggle={() =>
+              setRightDrawer((d) => (d === "config" ? null : "config"))
+            }
+          />
+        )}
+      </AnimatePresence>
+
       <OverlayToolsPanel
-        open={overlayToolsOpen}
-        onClose={() => setOverlayToolsOpen(false)}
+        open={rightDrawer === "overlays"}
+        onClose={() => setRightDrawer(null)}
         result={props.result}
         composition={props.composition}
         compositionGallery={props.compositionGallery ?? []}
@@ -283,108 +518,30 @@ export function MapScreen(props: MapScreenProps) {
         }
       />
 
-      <AnimatePresence mode="wait" initial={false}>
-        {leftPanel === "classify" ? (
-          <ControlPanel
-            key="classify"
-            panelOffsetClass={panelOffsetClass}
-            activeExample={props.activeExample}
-            customPolygon={props.customPolygon}
-            hasArea={props.hasArea}
-            onClearArea={props.onClearArea}
-            onImportPolygon={props.onImportPolygon}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            mode={props.mode}
-            onModeChange={props.onModeChange}
-            modelKind={props.modelKind}
-            onModelKindChange={props.onModelKindChange}
-            prithviMode={props.prithviMode}
-            onPrithviModeChange={props.onPrithviModeChange}
-            running={props.running}
-            progress={props.progress}
-            progressMsg={props.progressMsg}
-            onRun={props.onRun}
-            onAnalyzeLULC={props.onAnalyzeLULC}
-            lulcRunning={props.lulcRunning}
-            onCollapse={() => setLeftPanel(null)}
-          />
-        ) : leftPanel === "water" ? (
-          <WaterPanel
-            key="water"
-            panelOffsetClass={panelOffsetClass}
-            hasArea={props.hasArea}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            index={props.waterIndex}
-            onIndexChange={props.onWaterIndexChange}
-            running={props.waterRunning}
-            progress={props.waterProgress}
-            progressMsg={props.waterProgressMsg}
-            hasResult={!!props.water}
-            onRun={props.onRunWater}
-            onClear={props.onClearWater}
-            onCollapse={() => setLeftPanel(null)}
-          />
-        ) : leftPanel === "compose" ? (
-          <CompositionPanel
-            key="compose"
-            panelOffsetClass={panelOffsetClass}
-            hasArea={props.hasArea}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            scenes={props.composeScenes}
-            scenesLoading={props.composeScenesLoading}
-            scenesError={props.composeScenesError}
-            selectedSceneId={props.selectedSceneId}
-            onSelectScene={props.onSelectScene}
-            kind={props.composeKind}
-            onKindChange={props.onComposeKindChange}
-            bands={props.composeBands}
-            onBandsChange={props.onComposeBandsChange}
-            index={props.composeIndex}
-            onIndexChange={props.onComposeIndexChange}
-            stretchLow={props.composeStretchLow}
-            stretchHigh={props.composeStretchHigh}
-            onStretchChange={props.onComposeStretchChange}
-            running={props.composeRunning}
-            progress={props.composeProgress}
-            progressMsg={props.composeProgressMsg}
-            hasOverlay={!!props.composition}
-            onApply={props.onApplyComposition}
-            onClear={props.onClearComposition}
-            onCollapse={() => setLeftPanel(null)}
-          />
-        ) : null}
-      </AnimatePresence>
+      {/*
+        The docked column. The workspace layout has no column to dock to -- its
+        parameters open in a drawer from the bar instead, which is the same
+        switch in the other container.
+      */}
+      {renderPanel("docked", !workspace)}
+      {/*
+        The presence stays mounted and its child is what comes and goes. Gating
+        the AnimatePresence itself removed the exit animation: closing the
+        drawer unmounted the thing that was supposed to be animating it out.
+      */}
+      {renderPanel("drawer", workspace && rightDrawer === "config")}
 
       <AnimatePresence mode="wait" initial={false}>
         {showWaterStatus ? (
           <WaterStatusPanel
+            leftOffsetClass={statusPanelInset(workspace)}
             key="water-status"
             water={props.water ?? null}
             onClear={props.onClearWater}
           />
         ) : showCompositionStatus ? (
           <CompositionStatusPanel
+            leftOffsetClass={statusPanelInset(workspace)}
             key="composition-status"
             composition={props.composition}
             sceneDate={selectedSceneDate}
@@ -393,6 +550,7 @@ export function MapScreen(props: MapScreenProps) {
           />
         ) : showPredictionStatus ? (
           <ResultsPanel
+            leftOffsetClass={statusPanelInset(workspace)}
             key="prediction-status"
             result={props.result!}
             onClose={props.onCloseResult}

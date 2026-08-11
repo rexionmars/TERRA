@@ -1,11 +1,27 @@
-import { Minus, Square, X } from "lucide-react"
+import {
+  LogIn,
+  Minus,
+  PanelBottom,
+  PanelLeft,
+  Square,
+  UserRound,
+  X,
+} from "lucide-react"
+import { AvatarCircle } from "@/components/AvatarCircle"
 import type { ReactNode } from "react"
 import {
+  BrowserOpenURL,
   WindowMinimise,
   WindowToggleMaximise,
   Quit,
 } from "../../wailsjs/runtime/runtime"
-import type { PredictResult } from "@/lib/types"
+import type { LayoutMode, PredictResult } from "@/lib/types"
+import {
+  LEAFLET_CREDIT,
+  basemapByKind,
+  type BasemapKind,
+  type CreditPart,
+} from "@/lib/basemaps"
 import { useAuth, type AppScreen } from "@/lib/auth"
 
 interface TitleBarProps {
@@ -18,6 +34,49 @@ interface TitleBarProps {
    * placeholder standing in for a run that does not exist.
    */
   runLabel?: string | null
+  /**
+   * The map layout, and the way to change it.
+   *
+   * This bar is the only chrome mounted in both layouts, which is why the
+   * control lives here: in the workspace layout the navigation column is gone,
+   * so a toggle placed there would be unreachable from the mode it exits.
+   *
+   * It is a view mode rather than a destination, so it does not contradict this
+   * bar's rule against per-page navigation icons.
+   */
+  layoutMode?: LayoutMode
+  onLayoutModeChange?: (mode: LayoutMode) => void
+  /**
+   * Which basemap is showing, and the date of the imagery under the centre.
+   *
+   * Drawn here rather than over the map's bottom-right corner, where Leaflet
+   * puts it by default. It is a licensing obligation and not chrome, so it
+   * moved rather than went: the links each licence asks for are rendered as
+   * real anchors from the table in lib/basemaps.
+   */
+  credit?: { kind: BasemapKind; date: string | null }
+}
+
+/**
+ * One credited party, reachable where its licence asks it to be.
+ *
+ * A button calling BrowserOpenURL rather than an anchor with target="_blank".
+ * This is a WKWebView, and Wails declares WKUIDelegate without implementing
+ * createWebViewWith, so a blank-target link is silently ignored -- the click
+ * does nothing at all. On a link the ODbL requires to be reachable, silently
+ * nothing is the one outcome that cannot be shipped.
+ */
+function Credit({ part }: { part: CreditPart }) {
+  if (!part.href) return <span>{part.label}</span>
+  return (
+    <button
+      type="button"
+      onClick={() => BrowserOpenURL(part.href!)}
+      className="hover:text-foreground hover:underline"
+    >
+      {part.label}
+    </button>
+  )
 }
 
 /**
@@ -57,8 +116,11 @@ export function TitleBar({
   result,
   projectSwitcher,
   runLabel,
+  layoutMode = "docked",
+  onLayoutModeChange,
+  credit,
 }: TitleBarProps) {
-  const { screen } = useAuth()
+  const { screen, user, loading, goProfile, goAuth } = useAuth()
   const onMap = screen === "map"
   const hasMap = onMap || screen === "energy"
   const run = runLabel?.trim()
@@ -114,6 +176,23 @@ export function TitleBar({
             <span>
               Z <span className="text-foreground">{view.zoom.toFixed(0)}</span>
             </span>
+            {credit && (
+              <>
+                <span className="hairline h-4 w-px self-center border-l" />
+                {/* Not telemetry, so it is not in the mono face the readings
+                    use -- it is a sentence about who the imagery belongs to. */}
+                <span className="hidden max-w-[26rem] truncate font-sans normal-case xl:inline">
+                  <Credit part={LEAFLET_CREDIT} />
+                  {credit.date ? ` \u00b7 imagery ${credit.date}` : ""}
+                  {basemapByKind(credit.kind).credit.map((c, i) => (
+                    <span key={c.label}>
+                      {i === 0 ? " | " : " \u2014 "}
+                      <Credit part={c} />
+                    </span>
+                  ))}
+                </span>
+              </>
+            )}
             {/* The pill counts the scenes behind a classification, which the
                 energy products never read, so it stays on the map screen. */}
             {onMap && result && (
@@ -129,6 +208,60 @@ export function TitleBar({
               </>
             )}
           </div>
+        )}
+
+        {/*
+          The way into settings while the navigation column is withheld.
+          Exactly when the column is gone: on the two screens that draw a map,
+          in the layout that replaces the column with surfaces inside it. The
+          column carries this item everywhere else, and two of them at once
+          would be two answers to one question.
+
+          Icon only. The column can afford the word beside it down 13.5rem;
+          here it would sit between the coordinate readout and the window
+          buttons, which is the narrowest part of the bar.
+        */}
+        {hasMap && layoutMode === "workspace" && !loading && (
+          <button
+            type="button"
+            onClick={() => (user ? goProfile() : goAuth())}
+            className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            title={user ? "Settings" : "Sign in"}
+          >
+            {user?.avatar_uri ? (
+              <AvatarCircle uri={user.avatar_uri} size="sm" />
+            ) : user ? (
+              <UserRound className="size-4" />
+            ) : (
+              <LogIn className="size-4" />
+            )}
+          </button>
+        )}
+
+        {/* Wherever there is a map to lay out. */}
+        {hasMap && onLayoutModeChange && (
+          <button
+            type="button"
+            onClick={() =>
+              onLayoutModeChange(layoutMode === "docked" ? "workspace" : "docked")
+            }
+            className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            title={
+              layoutMode === "docked"
+                ? "Switch to workspace layout"
+                : "Switch to docked layout"
+            }
+            aria-pressed={layoutMode === "workspace"}
+          >
+            {/* The icon names the layout it switches TO, not the one in use:
+                the button is read as an action, and showing the current state
+                made every user press it to find out what it did. */}
+            {layoutMode === "docked" ? (
+              <PanelBottom className="size-4" />
+            ) : (
+              <PanelLeft className="size-4" />
+            )}
+          </button>
         )}
 
         <div className="app-no-drag flex items-center gap-1">

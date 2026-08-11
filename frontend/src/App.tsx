@@ -26,6 +26,7 @@ import {
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
   Area,
+  LayoutMode,
   PredictResult,
   PredictRequest,
   ProgressEvent,
@@ -59,7 +60,11 @@ import type {
   WindAnalysis,
   WindRequest,
 } from "@/lib/types"
-import { parsePreferenceExtras } from "@/lib/preferenceExtras"
+import {
+  layoutModeFromPrefs,
+  mergePreferenceExtras,
+  parsePreferenceExtras,
+} from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import {
   projectOverlayToComposition,
@@ -84,6 +89,7 @@ import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { AppNav } from "@/components/AppNav"
 import { MapScreen } from "@/pages/MapScreen"
 import type { MapToolId } from "@/lib/mapTools"
+import type { BasemapKind } from "@/lib/basemaps"
 import { EnergyScreen, type EnergyTab } from "@/pages/EnergyScreen"
 import { useSolarState, useWindState } from "@/lib/energyState"
 import type {
@@ -580,6 +586,94 @@ function AppBody(props: {
    * panel on every return.
    */
   const [leftPanel, setLeftPanel] = useState<MapToolId | null>("classify")
+  /**
+   * Which map layout is drawn.
+   *
+   * Read in exactly two places -- here, to decide whether the navigation column
+   * is rendered, and inside MapScreen -- which are a parent and its direct
+   * child. That is one level of travel, so it stays a useState rather than
+   * joining the auth context, which already carries user, prefs, runs,
+   * projects, screen and settings page.
+   *
+   * Seeded from prefs below rather than in the initialiser: prefs arrive after
+   * the first render, so an initialiser would read null and pin every session
+   * to docked.
+   */
+  /**
+   * Which basemap the map is showing, for the credit line in the title bar.
+   *
+   * Held here rather than in either screen because both draw a map and the bar
+   * is above both: a credit owned by one screen would be blank on the other.
+   */
+  const [credit, setCredit] = useState<{
+    kind: BasemapKind
+    date: string | null
+  }>({ kind: "esri", date: null })
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
+
+  /**
+   * Go to a destination from the dock layout's bar.
+   *
+   * Written here because navigating is two moves that live at this level: the
+   * screen, which is in the auth context, and the sub-tab, which is the state
+   * just above. The navigation table in lib/navigation carries the structure
+   * and deliberately not this, so the table cannot reach into either.
+   */
+  const navigateTo = useCallback(
+    (groupId: string, itemId?: string) => {
+      if (groupId === "energy") {
+        if (itemId) setEnergyTab(itemId as EnergyTab)
+        goEnergy()
+      } else if (groupId === "analysis") {
+        goAnalysis()
+      } else {
+        if (itemId) setLeftPanel(itemId as MapToolId)
+        goMap()
+      }
+    },
+    [goEnergy, goAnalysis, goMap]
+  )
+  /**
+   * The last value this component wrote, so its own save does not echo back.
+   *
+   * The mode is state rather than derived from prefs because savePrefs
+   * round-trips to Go and SQLite before the context updates, and a layout
+   * toggle that waits on a disk write does not feel like a toggle. But the
+   * settings page writes the same preference, so a stored value this component
+   * did not write is one to follow -- which is also how it is seeded on start.
+   */
+  const lastWrittenLayoutRef = useRef<LayoutMode | null>(null)
+  useEffect(() => {
+    if (!prefs) return
+    const stored = layoutModeFromPrefs(prefs)
+    if (stored === lastWrittenLayoutRef.current) return
+    lastWrittenLayoutRef.current = stored
+    setLayoutMode(stored)
+  }, [prefs])
+
+  const changeLayoutMode = useCallback(
+    (mode: LayoutMode) => {
+      setLayoutMode(mode)
+      lastWrittenLayoutRef.current = mode
+      if (!prefs) return
+      // Silent: this fires on a toggle the user just watched happen, and a
+      // "Preferences saved" toast on every flip is noise about a result that
+      // is already on screen.
+      void savePrefs(
+        {
+          ...prefs,
+          extras_json: mergePreferenceExtras(prefs.extras_json, {
+            layout_mode: mode,
+          }),
+        },
+        { silent: true }
+      ).catch(() => {
+        // A layout that fails to persist still applies for this session. The
+        // next start falls back to docked, which is the safe direction.
+      })
+    },
+    [prefs, savePrefs]
+  )
   /**
    * Open tab of the energy screen, held here for the same reason as the dock
    * tab above: that screen unmounts on every navigation away, so a local value
@@ -2217,6 +2311,9 @@ function AppBody(props: {
         view={props.view}
         result={props.result}
         runLabel={currentRunLabel}
+        layoutMode={layoutMode}
+        onLayoutModeChange={changeLayoutMode}
+        credit={credit}
         /*
           Wherever a run is filed under the active project. The energy handlers
           send project_id exactly as the classification ones do, so a solar or
@@ -2241,20 +2338,35 @@ function AppBody(props: {
       />
 
       <div className="flex min-h-0 flex-1">
-        <AppNav
-          hasAnalysis={!!props.result || runs.length > 0}
-          onAnalysisClick={() => {
-            // Tested on the payload the page is actually showing, not on the
-            // classification: a water or solar run has no classification and
-            // would otherwise leave the list unreachable.
-            if (screen === "analysis" && resultWithWater) backToAnalysesList()
-            else goAnalysis()
-          }}
-          leftPanel={leftPanel}
-          onLeftPanelChange={setLeftPanel}
-          energyTab={energyTab}
-          onEnergyTabChange={setEnergyTab}
-        />
+        {/*
+          The dock layout replaces this column with surfaces inside the map, so
+          it is withheld on the two screens that draw one. The project hub and
+          settings keep it: they have no map to put a bar over, and hiding it
+          there would leave them with no navigation at all.
+
+          The column is in flow, not floating, so omitting it returns 13.5rem
+          of width to the stage and the map fills it without being told.
+        */}
+        <AnimatePresence initial={false}>
+          {(layoutMode === "docked" ||
+            (screen !== "map" && screen !== "energy")) && (
+            <AppNav
+              key="app-nav"
+              hasAnalysis={!!props.result || runs.length > 0}
+              onAnalysisClick={() => {
+                // Tested on the payload the page is actually showing, not on the
+                // classification: a water or solar run has no classification and
+                // would otherwise leave the list unreachable.
+                if (screen === "analysis" && resultWithWater) backToAnalysesList()
+                else goAnalysis()
+              }}
+              leftPanel={leftPanel}
+              onLeftPanelChange={setLeftPanel}
+              energyTab={energyTab}
+              onEnergyTabChange={setEnergyTab}
+            />
+          )}
+        </AnimatePresence>
         <div className="relative min-h-0 min-w-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
             {screen === "map" && (
@@ -2267,8 +2379,11 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MapScreen
+                  onCreditChange={setCredit}
                   initialView={initialMapView}
                   leftPanel={leftPanel}
+                  layoutMode={layoutMode}
+                  onNavigate={navigateTo}
                   onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
                   activeExample={props.activeExample}
@@ -2421,6 +2536,9 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <EnergyScreen
+                  onCreditChange={setCredit}
+                  layoutMode={layoutMode}
+                  onNavigate={navigateTo}
                   solar={solar}
                   solarDispatch={solarDispatch}
                   wind={wind}

@@ -1,7 +1,5 @@
 import { forwardRef, useMemo, useState } from "react"
-import { motion } from "motion/react"
 import {
-  ChevronLeft,
   Loader2,
   CheckCircle2,
   Pencil,
@@ -17,28 +15,11 @@ import { RGB_PRESETS, INDICES } from "@/lib/compositeCatalog"
 import { cn } from "@/lib/utils"
 import { todayISO } from "@/lib/dates"
 import { btnPrimary } from "@/components/ui/buttons"
+import type { PanelPlacement } from "@/components/ui/PanelShell"
+import { PanelShell } from "@/components/ui/PanelShell"
+import { PanelSection as Section } from "@/components/ui/PanelSection"
 
 const S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"] as const
-
-function Section({
-  step,
-  title,
-  children,
-}: {
-  step: string
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="telemetry text-[10px] text-primary">{step}</span>
-        <span className="eyebrow !text-foreground">{title}</span>
-      </div>
-      {children}
-    </div>
-  )
-}
 
 export interface CompositionPanelProps {
   hasArea: boolean
@@ -71,8 +52,8 @@ export interface CompositionPanelProps {
   onApply: () => void
   onClear: () => void
   onCollapse: () => void
-  /** Tailwind left offset, e.g. left-3 or left-14 */
-  panelOffsetClass?: string
+  /** Which container draws this panel. See ui/PanelShell. */
+  placement?: PanelPlacement
 }
 
 export const CompositionPanel = forwardRef<
@@ -122,25 +103,12 @@ export const CompositionPanel = forwardRef<
   }, [scenes, selectedSceneId])
 
   return (
-      <motion.div
+      <PanelShell
         ref={ref}
-        className={`panel app-no-drag panel-scroll absolute ${props.panelOffsetClass ?? "left-3"} top-3 bottom-3 z-[1000] flex w-[19rem] flex-col gap-4 overflow-y-auto rounded-md p-4`}
-        initial={{ opacity: 0, x: -28 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -28 }}
-        transition={{ type: "spring", stiffness: 360, damping: 34 }}
+        title="Compositions"
+        placement={props.placement}
+        onCollapse={onCollapse}
       >
-        <div className="flex items-center justify-between">
-          <h1 className="text-sm font-semibold">Compositions</h1>
-          <button
-            type="button"
-            onClick={onCollapse}
-            className="text-muted-foreground hover:text-foreground"
-            title="Hide panel"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-        </div>
 
         <Section step="01" title="Area">
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -414,6 +382,6 @@ export const CompositionPanel = forwardRef<
             opacity from Overlay Tools.
           </p>
         </Section>
-      </motion.div>
+      </PanelShell>
   )
 })

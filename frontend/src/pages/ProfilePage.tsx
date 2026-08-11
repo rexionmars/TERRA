@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
+  ArrowLeft,
   Camera,
   ChartColumn,
+  Heart,
   Download,
   FolderOpen,
   HardDrive,
   Loader2,
   LogOut,
   Save,
+  Star,
   Trash2,
   Upload,
 } from "lucide-react"
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime"
 import {
   ChooseBackupArchive,
   ExportBackup,
@@ -29,8 +33,12 @@ import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { StorageModal } from "@/components/StorageModal"
 import { cn } from "@/lib/utils"
-import type { InferenceRun, Preferences } from "@/lib/types"
-import { mergePreferenceExtras } from "@/lib/preferenceExtras"
+import type { InferenceRun, LayoutMode, Preferences } from "@/lib/types"
+import {
+  layoutModeFromPrefs,
+  mergePreferenceExtras,
+} from "@/lib/preferenceExtras"
+import { NAV_GROUPS } from "@/lib/navigation"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { formatBytes } from "@/lib/formatBytes"
 import { runRowLine } from "@/lib/runSummary"
@@ -58,6 +66,15 @@ type SettingsSectionId = "account" | "system"
  * into Account. One control was never a page, and the theme belongs to the
  * person signed in rather than to the installation, which is what Account is.
  */
+/*
+  The project and the way to support it. Both taken from what the repository
+  already declares -- the remote, and .github/FUNDING.yml, which names
+  `github: rexionmars` -- rather than guessed: a sponsor button that leads
+  nowhere is worse than no button.
+*/
+const REPO_URL = "https://github.com/rexionmars/TERRA"
+const SPONSOR_URL = "https://github.com/sponsors/rexionmars"
+
 const SECTIONS: {
   id: SettingsSectionId
   label: string
@@ -95,6 +112,8 @@ export function ProfilePage({
     goAnalysis,
     settingsPage,
     consumeSettingsPage,
+    settingsReturnTo,
+    leaveSettings,
   } = useAuth()
   const { setTheme: setNextTheme } = useTheme()
   const [name, setName] = useState("")
@@ -173,14 +192,17 @@ export function ProfilePage({
     the stored value through keeps a theme change to being a theme change.
   */
   const persistPreferences = useCallback(
-    async (next: { theme: string }) => {
+    async (next: { theme: string; layoutMode?: LayoutMode }) => {
       if (!user) return
       const payload: Preferences = {
         user_id: user.id,
         default_model: prefs?.default_model || "spectral",
         overlay_opacity: prefs?.overlay_opacity ?? 0.75,
         theme: next.theme,
-        extras_json: mergePreferenceExtras(prefs?.extras_json, {}),
+        extras_json: mergePreferenceExtras(
+          prefs?.extras_json,
+          next.layoutMode ? { layout_mode: next.layoutMode } : {}
+        ),
       }
       await savePrefs(payload)
       if (
@@ -201,8 +223,18 @@ export function ProfilePage({
     ]
   )
 
+  const layoutMode = layoutModeFromPrefs(prefs)
+
+  /*
+    Named from the navigation table so the button and the column agree on what
+    the destination is called. A screen with no entry there -- there is none
+    today -- would fall back to the neutral word rather than to a blank.
+  */
+  const returnLabel =
+    NAV_GROUPS.find((g) => g.id === settingsReturnTo)?.label ?? "the map"
+
   const schedulePrefsSave = useCallback(
-    (patch: Partial<{ theme: string }>) => {
+    (patch: Partial<{ theme: string; layoutMode: LayoutMode }>) => {
       if (!prefsReady.current) return
       prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
       if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
@@ -416,6 +448,34 @@ export function ProfilePage({
         {/* Whose settings, which the removed header used to say twice. The
             display name rather than the literal "User": it is the one thing
             here the title bar does not already carry. */}
+        {/*
+          The way out, named after where it goes.
+          
+          Settings is the only screen with no work of its own to return to, and
+          leaving it meant picking a destination from the navigation column --
+          which required remembering what you had been doing, and landed you
+          beside it rather than back in it: from the solar tab, the nearest
+          column entry is Classification, which is a different product on a
+          different screen.
+          
+          The label comes from the navigation table, so it is the same word the
+          column uses for the place it returns to.
+        */}
+        <button
+          type="button"
+          onClick={leaveSettings}
+          className={cn(
+            "flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-emphasis",
+            "text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground",
+            focusRing
+          )}
+        >
+          <ArrowLeft className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">
+            Back to {returnLabel}
+          </span>
+        </button>
+
         <div className="border-b border-border px-3 py-3">
           <p className="telemetry text-meta text-accent-quiet">SETTINGS</p>
           <p className="mt-1 truncate text-emphasis font-medium text-foreground">
@@ -799,6 +859,34 @@ export function ProfilePage({
                 </select>
               </SettingRow>
 
+              <SettingRow
+                id="account.layout"
+                title="Map layout"
+                description="How the map and energy screens are arranged. The title bar switches between them too; this is where the choice is explained and where it is restored from on start."
+                focused={focusedSetting === "account.layout"}
+                onFocus={() => setFocusedSetting("account.layout")}
+              >
+                <div className="flex max-w-md flex-col gap-2">
+                  <select
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                    value={layoutMode}
+                    onChange={(e) =>
+                      schedulePrefsSave({
+                        layoutMode: e.target.value as LayoutMode,
+                      })
+                    }
+                  >
+                    <option value="docked">Sidebar and column</option>
+                    <option value="workspace">Dock</option>
+                  </select>
+                  <p className="text-meta leading-relaxed text-muted-foreground">
+                    {layoutMode === "workspace"
+                      ? "Controls sit in a bar at the foot of the map, with parameters in a drawer. The map takes the full width."
+                      : "A navigation column on the left and the product's controls in a panel beside it."}
+                  </p>
+                </div>
+              </SettingRow>
+
               {/* Sign out belongs to the account, not to the bottom of a
                   column. It sat in the aside footer, as far from the identity
                   it ends as the layout allowed. */}
@@ -832,6 +920,43 @@ export function ProfilePage({
               </div>
             </Section>
           )}
+
+          {/*
+            Outside the section switch, so it closes the page rather than one
+            of its tabs -- and last, because an ask placed above the settings
+            someone came here to change is an ask that interrupts them.
+
+            Both links open in the system browser through BrowserOpenURL: this
+            is a WKWebView with no createWebViewWith delegate, so an anchor
+            with target="_blank" is silently ignored.
+          */}
+          <div
+            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <p className="min-w-0 flex-1 text-meta leading-relaxed text-muted-foreground">
+              TERRA is open source. If it is useful to you, a star helps other
+              people find it, and sponsoring pays for the time that goes into it.
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL(REPO_URL)}
+                className={btnGhost}
+              >
+                <Star className="h-3 w-3" />
+                Star on GitHub
+              </button>
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL(SPONSOR_URL)}
+                className={btnGhost}
+              >
+                <Heart className="h-3 w-3" />
+                Sponsor
+              </button>
+            </div>
+          </div>
         </div>
       </PageBody>
 

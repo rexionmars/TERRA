@@ -1,12 +1,10 @@
 import { forwardRef } from "react"
-import { motion } from "motion/react"
 import {
   Play,
   Loader2,
   Pencil,
   Upload,
   Trash2,
-  ChevronLeft,
   CheckCircle2,
   Circle,
   Globe2,
@@ -16,6 +14,8 @@ import { cn } from "@/lib/utils"
 import { todayISO } from "@/lib/dates"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
+import type { PanelPlacement } from "@/components/ui/PanelShell"
+import { PanelShell } from "@/components/ui/PanelShell"
 
 interface ControlPanelProps {
   activeExample: string
@@ -45,8 +45,8 @@ interface ControlPanelProps {
   lulcRunning?: boolean
   /** Hide this panel (dock tabs remain). */
   onCollapse?: () => void
-  /** Tailwind left offset, e.g. left-3 or left-14 */
-  panelOffsetClass?: string
+  /** Which container draws this panel. See ui/PanelShell. */
+  placement?: PanelPlacement
 }
 
 export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
@@ -84,25 +84,12 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
   const busy = running || lulcRunning
 
   return (
-      <motion.div
+      <PanelShell
         ref={ref}
-        className={`panel app-no-drag panel-scroll absolute ${props.panelOffsetClass ?? "left-3"} top-3 bottom-3 z-[1000] flex w-[19rem] flex-col gap-4 overflow-y-auto rounded-md p-4`}
-        initial={{ opacity: 0, x: -28 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -28 }}
-        transition={{ type: "spring", stiffness: 360, damping: 34 }}
+        title="New classification"
+        placement={props.placement}
+        onCollapse={() => onCollapse?.()}
       >
-      <div className="flex items-center justify-between">
-        <h1 className="text-sm font-semibold">New classification</h1>
-        <button
-          type="button"
-          onClick={() => onCollapse?.()}
-          className="text-muted-foreground hover:text-foreground"
-          title="Hide panel"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-      </div>
 
       {/* STEP 1 — area */}
       <Section step="01" title="Area">
@@ -363,6 +350,6 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
           )}
         </button>
       </div>
-      </motion.div>
+      </PanelShell>
   )
 })

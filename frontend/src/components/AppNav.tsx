@@ -25,11 +25,13 @@ import {
   UserRound,
   Zap,
 } from "lucide-react"
+import { motion } from "motion/react"
 import { useState, type ReactNode } from "react"
 import { useAuth, type AppScreen } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
+import { ENERGY_TABS } from "@/lib/navigation"
 import type { EnergyTab } from "@/pages/EnergyScreen"
 
 export interface AppNavProps {
@@ -99,23 +101,32 @@ export function AppNav({
     },
   }))
 
-  const energyChildren: NavChild[] = (
-    [
-      { key: "solar", label: "Solar" },
-      { key: "wind", label: "Wind" },
-    ] as const
-  ).map((c) => ({
-    key: c.key,
+  const energyChildren: NavChild[] = ENERGY_TABS.map((c) => ({
+    key: c.id,
     label: c.label,
-    active: onEnergy && energyTab === c.key,
+    active: onEnergy && energyTab === c.id,
     onSelect: () => {
-      onEnergyTabChange(c.key)
+      onEnergyTabChange(c.id as typeof energyTab)
       goEnergy()
     },
   }))
 
   return (
-    <aside className="app-no-drag flex w-[13.5rem] shrink-0 flex-col border-r border-border/60 bg-ink">
+    /*
+      The width animates, the contents do not. This column is a flex item, so
+      withholding it is a layout change rather than a fade: collapsing the
+      outer width lets the map take the space over the same beat, while the
+      inner element keeps its full measure so the labels slide out of view
+      instead of reflowing into a narrower column on the way.
+    */
+    <motion.aside
+      className="app-no-drag shrink-0 overflow-hidden border-r border-border/60 bg-ink"
+      initial={{ width: 0 }}
+      animate={{ width: "13.5rem" }}
+      exit={{ width: 0 }}
+      transition={{ type: "spring", stiffness: 360, damping: 34 }}
+    >
+    <div className="flex h-full w-[13.5rem] flex-col">
       {projectSwitcher && (
         <div className="border-b border-border/60 p-2">{projectSwitcher}</div>
       )}
@@ -173,7 +184,8 @@ export function AppNav({
           />
         )}
       </div>
-    </aside>
+    </div>
+    </motion.aside>
   )
 }
 

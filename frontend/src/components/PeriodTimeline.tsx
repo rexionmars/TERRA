@@ -88,7 +88,27 @@ export interface PeriodTimelineProps {
    * start handle sit behind it: the edge a user reaches for to widen the window
    * backwards is the one the panel covers.
    */
-  leftOffsetClass?: string
+  /**
+   * How far the track's left edge is pushed in, as a CSS length.
+   *
+   * A length rather than a class because what it clears is not always a fixed
+   * width: the docked column is 19rem by construction, but the workspace
+   * layout's island is sized by its own contents and changes with the label on
+   * its run button. The rounded corner follows automatically -- a retracted
+   * track meets something at that edge, and a square corner there reads as the
+   * track having been cut off rather than as having made room.
+   */
+  leftOffset?: string
+  /**
+   * Whether what the track retracts for sits on the frame rather than floating
+   * above it.
+   *
+   * The rounded corner exists to meet a floating panel, which carries its own
+   * radius and its own gutter off the bottom. Against a segment flush with the
+   * frame there is nothing to meet: the two are one band, and a curve on one
+   * side of the seam reads as a misalignment.
+   */
+  flushLeft?: boolean
 }
 
 export function PeriodTimeline({
@@ -101,7 +121,8 @@ export function PeriodTimeline({
   onListScenes,
   onOpenListing,
   disabled,
-  leftOffsetClass = "left-0",
+  leftOffset,
+  flushLeft = false,
 }: PeriodTimelineProps) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState<"start" | "end" | null>(null)
@@ -216,8 +237,9 @@ export function PeriodTimeline({
         // Animated, because the panel it clears opens and closes: a track that
         // jumped its left edge would read as a different control appearing.
         "transition-[left] duration-200 ease-out",
-        leftOffsetClass
+        leftOffset && !flushLeft ? "rounded-tl-md" : null
       )}
+      style={{ left: leftOffset ?? 0 }}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 16 }}

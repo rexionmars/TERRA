@@ -284,6 +284,15 @@ export interface Preferences {
 /** How vertical left-dock tabs behave (stored in extras_json.left_dock_tabs). */
 export type LeftDockTabsMode = "retracted_only" | "always"
 
+/**
+ * Which map layout is in use (stored in extras_json.layout_mode).
+ *
+ * `docked` names what it is -- the navigation column plus a panel docked to a
+ * column beside it -- rather than "default" or "classic", either of which
+ * becomes a lie the day the other one wins.
+ */
+export type LayoutMode = "docked" | "workspace"
+
 export interface InferenceRun {
   id: string
   user_id: string
