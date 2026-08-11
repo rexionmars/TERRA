@@ -2,7 +2,9 @@
  * A value you drag, or type, or step with the arrow keys.
  *
  * The widget every dense editor uses where a web page would reach for a range
- * input, and it is not a matter of taste. A slider spends a whole row on one
+ * input, and it is not a matter of taste. In `components/ui` rather than with
+ * the whiteboard because the product panels need it too: a slider in a 15rem
+ * column spends the width of the column on a value it cannot show. A slider spends a whole row on one
  * value and still cannot express it: the number it holds is never shown unless
  * a second element is added to show it, its precision is bounded by how many
  * pixels of track are available, and returning to an exact value after moving

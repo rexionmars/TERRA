@@ -49,6 +49,7 @@ export function WorkspaceBar({
   runLabel,
   canRun,
   onRun,
+  runElsewhere,
   configOpen,
   onConfigToggle,
   boardSlot,
@@ -73,6 +74,16 @@ export function WorkspaceBar({
   runLabel: string
   canRun: boolean
   onRun: () => void
+  /**
+   * The whiteboard is up, and running belongs to it.
+   *
+   * The bar exists because in this layout the parameters live in a drawer; the
+   * board carries the same panels under its Run tab, so a second button that
+   * starts the same run is a second button for one action. Dropped rather than
+   * disabled: a control that cannot be used and cannot be explained is worse
+   * than one that is not there.
+   */
+  runElsewhere?: boolean
   configOpen: boolean
   onConfigToggle: () => void
   /**
@@ -294,6 +305,7 @@ export function WorkspaceBar({
           <Settings2 className="size-4" />
         </button>
 
+        {!runElsewhere && (
         <button
           type="button"
           onClick={onRun}
@@ -311,6 +323,7 @@ export function WorkspaceBar({
           )}
           {runLabel}
         </button>
+        )}
 
         {/*
           The progress hairline rides the island's own bottom edge, so it

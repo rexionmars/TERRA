@@ -15,6 +15,7 @@ import { todayISO } from "@/lib/dates"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
 import { useCompactPanel } from "@/components/ui/PanelDensity"
+import { NumberField } from "@/components/ui/NumberField"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { PanelShell } from "@/components/ui/PanelShell"
 
@@ -193,18 +194,48 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
             <span className="eyebrow">max cloud</span>
-            <span className="telemetry text-xs text-foreground">{maxCloud}%</span>
+            {!compact && (
+              <span className="telemetry text-xs text-foreground">
+                {maxCloud}%
+              </span>
+            )}
           </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={maxCloud}
-            disabled={busy}
-            onChange={(e) => onMaxCloudChange(parseInt(e.target.value))}
-            className="accent-[var(--primary)]"
-          />
+          {/*
+            A field where the column is narrow, a track where there is room.
+
+            A slider spends the whole width on a value it cannot show, so the
+            percentage needs a second element beside it; in 15rem that is most
+            of the row for one number. The field holds the label and the value
+            on one line and is dragged, typed or stepped -- and the precision
+            no longer depends on how many pixels of track there are.
+          */}
+          {compact ? (
+            <NumberField
+              label="Max cloud"
+              value={maxCloud}
+              min={0}
+              max={100}
+              step={5}
+              format={(v) => `${Math.round(v)}%`}
+              parse={(t) => {
+                const v = parseFloat(t.replace("%", "").trim())
+                return Number.isFinite(v) ? v : null
+              }}
+              disabled={busy}
+              onChange={(v) => onMaxCloudChange(Math.round(v))}
+            />
+          ) : (
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={maxCloud}
+              disabled={busy}
+              onChange={(e) => onMaxCloudChange(parseInt(e.target.value))}
+              className="accent-[var(--primary)]"
+            />
+          )}
         </div>
         <button
           onClick={() => onMonthlyBestChange(!monthlyBest)}
@@ -236,16 +267,24 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
               disabled={busy}
               onClick={() => onModelKindChange(m)}
               className={cn(
-                "rounded-sm border p-2 text-left text-xs disabled:opacity-50",
+                "rounded-sm border text-left disabled:opacity-50",
+                compact ? "p-1.5 text-meta leading-tight" : "p-2 text-xs",
                 modelKind === m
                   ? "border-primary bg-primary/10"
                   : "border-border hover:bg-secondary"
               )}
             >
               <span className="block font-medium">{label}</span>
-              <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                {sub}
-              </span>
+              {/*
+                The subtitle says what a model is FOR, which matters when
+                choosing one and not when reading back the choice. In a column
+                it doubles each card's height for a line nobody re-reads.
+              */}
+              {!compact && (
+                <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                  {sub}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -263,7 +302,8 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
                   disabled={busy}
                   onClick={() => onPrithviModeChange(m)}
                   className={cn(
-                    "rounded-sm border p-1.5 text-left text-[11px] disabled:opacity-50",
+                    "rounded-sm border text-left disabled:opacity-50",
+                    compact ? "p-1 text-meta" : "p-1.5 text-[11px]",
                     prithviMode === m
                       ? "border-primary bg-primary/10"
                       : "border-border hover:bg-secondary"
@@ -298,16 +338,24 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
               disabled={busy || (m === "temporal" && modelKind !== "spectral")}
               onClick={() => onModeChange(m)}
               className={cn(
-                "rounded-sm border p-2 text-left text-xs disabled:opacity-50",
+                "rounded-sm border text-left disabled:opacity-50",
+                compact ? "p-1.5 text-meta leading-tight" : "p-2 text-xs",
                 mode === m
                   ? "border-primary bg-primary/10"
                   : "border-border hover:bg-secondary"
               )}
             >
               <span className="block font-medium">{label}</span>
-              <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                {sub}
-              </span>
+              {/*
+                The subtitle says what a model is FOR, which matters when
+                choosing one and not when reading back the choice. In a column
+                it doubles each card's height for a line nobody re-reads.
+              */}
+              {!compact && (
+                <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                  {sub}
+                </span>
+              )}
             </button>
           ))}
         </div>

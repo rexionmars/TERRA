@@ -1,3 +1,4 @@
+import { Droplet, Grid2x2, Image as ImageIcon, type LucideIcon } from "lucide-react"
 import { Suspense, lazy, useEffect, useState } from "react"
 import { AnimatePresence } from "motion/react"
 import type {
@@ -22,6 +23,16 @@ import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
+/*
+  A glyph per tool, so the two that are not chosen can be shown without their
+  names. The same glyphs the whiteboard's tree uses for the rasters each tool
+  produces, because a tool and its output are the same subject.
+*/
+const TOOL_ICON: Record<MapToolId, LucideIcon> = {
+  classify: Grid2x2,
+  compose: ImageIcon,
+  water: Droplet,
+}
 import { cn } from "@/lib/utils"
 import { PanelDensityProvider } from "@/components/ui/PanelDensity"
 import { rasterLayers } from "@/lib/mapLayers"
@@ -546,44 +557,52 @@ export function MapScreen(props: MapScreenProps) {
    * answers.
    */
   const runPanel = (
-    <div className="flex flex-col gap-3">
+    // The strip stays; the parameters scroll under it. A column that scrolled
+    // whole took the choice of what to run off the top as soon as anything was
+    // read.
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       {/*
-        A list, not a segmented control.
+        Horizontal, and named only where it is chosen.
 
         Three labels of eleven to fourteen characters do not fit across 15rem:
-        "Surface water" wrapped to a second line and sat off its own baseline.
+        laid out in full, "Surface water" wrapped and sat off its own baseline.
         Shortening them would fork lib/mapTools.ts, which is the one table
         these names come from -- a label that exists twice is a label that can
         disagree with itself.
 
-        So they stack, in the shape the column already uses for everything
-        else: a row per thing, the chosen one on a raised plate.
+        So the chosen one carries its name and the others carry their glyph.
+        One full label and two icons is a row that fits, and the name of what
+        is being run is the one that has to be readable.
       */}
-      <div role="tablist" aria-label="What to run" className="flex flex-col">
-        {MAP_TOOLS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={leftPanel === t.id}
-            onClick={() => setLeftPanel(t.id)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-sm px-2 py-1 text-left text-meta transition-colors",
-              "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-              leftPanel === t.id
-                ? "bg-surface-raised text-foreground"
-                : "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
-            )}
-          >
-            <span
+      <div
+        role="tablist"
+        aria-label="What to run"
+        className="flex shrink-0 gap-0.5"
+      >
+        {MAP_TOOLS.map((t) => {
+          const on = leftPanel === t.id
+          const Icon = TOOL_ICON[t.id]
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setLeftPanel(t.id)}
+              title={t.label}
               className={cn(
-                "size-1 shrink-0 rounded-full",
-                leftPanel === t.id ? "bg-accent" : "bg-transparent"
+                "flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-meta transition-colors",
+                "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                on
+                  ? "min-w-0 flex-1 bg-surface-raised text-foreground"
+                  : "shrink-0 text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
               )}
-            />
-            {t.label}
-          </button>
-        ))}
+            >
+              <Icon className="size-3.5 shrink-0" strokeWidth={1.75} />
+              {on && <span className="min-w-0 truncate">{t.label}</span>}
+            </button>
+          )
+        })}
       </div>
 
       {/*
@@ -591,7 +610,9 @@ export function MapScreen(props: MapScreenProps) {
         column is open, which is a question about the map's layout and not
         about this one.
       */}
-      {renderPanel("inline", !!leftPanel)}
+      <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
+        {renderPanel("inline", !!leftPanel)}
+      </div>
       {!leftPanel && (
         <p className="px-1 text-meta leading-relaxed text-muted-foreground">
           Choose what to run on this area.
@@ -807,6 +828,17 @@ export function MapScreen(props: MapScreenProps) {
             runLabel={run.label}
             canRun={run.canRun}
             onRun={run.onRun}
+            /*
+              While the board is up, running belongs to the board: it carries
+              the same panels under its Run tab, and two buttons for one action
+              are two things to read before pressing either.
+
+              Not conditioned on WHICH tab the board is showing. That state
+              lives inside the board, and mirroring it here to hide a button
+              would be this screen holding a copy of another surface's tab --
+              a second answer to a question the board already answers.
+            */
+            runElsewhere={boardOpen}
             onWidthChange={setBarWidthPx}
             boardSlot={
               <BoardButton

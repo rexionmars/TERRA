@@ -50,7 +50,7 @@ import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
-import { NumberField } from "@/components/whiteboard/NumberField"
+import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
 
 /**
@@ -1118,7 +1118,16 @@ export function BoardSidebar({
       {mode === "data" && <div className="shrink-0">{addRun}</div>}
 
       {mode === "tasks" && (
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">{runPanel}</div>
+        /*
+          The run panel governs its own scrolling.
+
+          A single scroller here took the tool strip with it: the choice of
+          what to run left the top of the column as soon as the parameters
+          were read, and coming back to it meant scrolling up past everything
+          you had just set. The panel keeps the strip fixed and scrolls only
+          the parameters -- see MapScreen's runPanel.
+        */
+        <div className="flex min-h-0 flex-1 flex-col p-2">{runPanel}</div>
       )}
 
       {/*
