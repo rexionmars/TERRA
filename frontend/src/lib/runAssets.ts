@@ -35,6 +35,25 @@ import type {
 } from "@/lib/types"
 import { isZeroExtent } from "@/lib/mapLayers"
 
+/**
+ * One run's output, as a branch of the data tree.
+ *
+ * The board holds more than one run's worth of rasters, and two runs each have
+ * an asset called `prediction`. Grouping them under the run they came from is
+ * what makes the list readable at that point, and what gives every key a run
+ * to be qualified by.
+ */
+export interface AssetRun {
+  /** The board area this run's rasters are, or would be, drawn as. */
+  areaId: string
+  runId: string
+  /** The run's name. */
+  title: string
+  /** The period analysed, which is what distinguishes two runs of one area. */
+  period: string
+  assets: RunAsset[]
+}
+
 /** How a GeoTIFF leaves the application. */
 export type TifExport =
   /** The classification's own raster, which the backend writes itself. */

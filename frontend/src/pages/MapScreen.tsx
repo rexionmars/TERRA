@@ -640,6 +640,23 @@ export function MapScreen(props: MapScreenProps) {
               key="isolate-board"
               layers={boardLayers}
               assets={boardAssets}
+              /*
+                The run on screen may never have been saved, so it has no id of
+                its own to give. The board only needs one that is stable while
+                it is open, and distinct from the ids of runs loaded beside it.
+              */
+              runId={props.result?.run_id || "current"}
+              /*
+                The period the run covered, which is what tells two runs of one
+                area apart. The result's own range where the sidecar reported
+                one, since it names the scenes actually used rather than the
+                window that was asked for.
+              */
+              runPeriod={
+                props.result?.date_range?.length === 2
+                  ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`
+                  : `${props.start} → ${props.end}`
+              }
               onLayerChange={changeBoardLayer}
               onSelectComposition={props.onSelectComposition}
               onRemoveComposition={props.onRemoveComposition}

@@ -44,7 +44,7 @@ import {
   Wrench,
 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
-import type { RunAsset } from "@/lib/runAssets"
+import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
 import { NumberField } from "@/components/isolate/NumberField"
 import { cn } from "@/lib/utils"
@@ -74,6 +74,20 @@ export interface LayerPatch {
  */
 export const COLLECTION_ROW = "::stack"
 const MAJORITY_SUFFIX = "::majority"
+
+/*
+  The data tree's own keys, kept apart from the scene tree's.
+
+  Both trees share one expansion set and one active-row idea, and both are
+  keyed by strings someone else chose -- layer ids, area ids. A prefix is what
+  stops a run called `prediction` folding the classification.
+*/
+const runRowKey = (areaId: string) => `run::${areaId}`
+const assetRowKey = (areaId: string, assetId: string) =>
+  `asset::${areaId}::${assetId}`
+/** An asset's place in the scene, in the key space setAppearance uses. */
+export const sceneKey = (areaId: string, sceneId: string) =>
+  `${areaId}\u0000${sceneId}`
 
 /** The layer a row acts on, or null for rows that act on the whole stack. */
 export function rowLayerId(rowId: string | null): string | null {
@@ -140,8 +154,9 @@ interface Row {
 
 export function BoardSidebar({
   layers,
-  assets,
+  assetRuns,
   sceneIds,
+  areaId,
   mode,
   areaLabel,
   activeRow,
@@ -166,8 +181,14 @@ export function BoardSidebar({
 }: {
   /** Every layer the run could draw, bottom of the stack first. */
   layers: RasterLayer[]
-  /** Everything the run produced, drawn or not. */
-  assets: RunAsset[]
+  /**
+   * The runs whose output can be put on the board, each with its own assets.
+   *
+   * A tree rather than a list, because the board holds more than one run and
+   * two runs each have an asset called `prediction`: a flat list would put
+   * them side by side with nothing saying which came from where.
+   */
+  assetRuns: AssetRun[]
   /**
    * Which assets are planes on the board right now.
    *
@@ -176,9 +197,14 @@ export function BoardSidebar({
    * distinction the data list exists to let someone change.
    */
   sceneIds: ReadonlySet<string>
-  /** Both take an id in the SCENE's space -- see RunAsset.sceneId. */
-  onAddToScene: (id: string) => void
-  onRemoveFromScene: (id: string) => void
+  /**
+   * Both take the area and the id the asset carries in the scene.
+   *
+   * The area is part of it because two runs each produce a `prediction`, and
+   * an instruction naming only the layer would be an instruction about both.
+   */
+  onAddToScene: (areaId: string, sceneId: string) => void
+  onRemoveFromScene: (areaId: string, sceneId: string) => void
   /**
    * Names the board has been given, over the ones the products carry.
    *
@@ -199,6 +225,8 @@ export function BoardSidebar({
   onRemoveComposition?: (id: string) => void
   /** Names the collection row, as the scene's own name does in an outliner. */
   areaLabel: string
+  /** Which area the scene tree is showing. One, while the board holds one. */
+  areaId: string
   /** The row the panel below is editing, and the plane the board outlines. */
   activeRow: string | null
   expanded: ReadonlySet<string>
@@ -299,7 +327,35 @@ export function BoardSidebar({
   const activeLayer =
     layers.find((l) => l.id === rowLayerId(activeRow)) ?? null
 
-  const asset = assets.find((a) => a.id === activeAsset) ?? assets[0] ?? null
+  /*
+    The data tree, flattened: a run, then its assets. Same shape as the scene
+    tree above and for the same reason -- one array is what arrow keys walk and
+    what a roving tabindex indexes into.
+  */
+  interface AssetRow {
+    key: string
+    run: AssetRun
+    asset: RunAsset | null
+  }
+  const assetRows: AssetRow[] = []
+  for (const r of assetRuns) {
+    assetRows.push({ key: runRowKey(r.areaId), run: r, asset: null })
+    if (!expanded.has(runRowKey(r.areaId))) continue
+    for (const a of r.assets) {
+      assetRows.push({ key: assetRowKey(r.areaId, a.id), run: r, asset: a })
+    }
+  }
+  /*
+    Every asset row of every run, open or not, for the panel below -- collapsing
+    a run must not empty the panel that is describing one of its assets, for the
+    same reason folding the stack must not.
+  */
+  const allAssetRows: AssetRow[] = assetRuns.flatMap((r) =>
+    r.assets.map((a) => ({ key: assetRowKey(r.areaId, a.id), run: r, asset: a }))
+  )
+  const activeAssetRow =
+    allAssetRows.find((x) => x.key === activeAsset) ?? allAssetRows[0] ?? null
+  const asset = activeAssetRow?.asset ?? null
 
   const rowRefs = useRef(new Map<string, HTMLElement>())
   const [editing, setEditing] = useState<string | null>(null)
@@ -432,7 +488,7 @@ export function BoardSidebar({
             ? layers.length > 0
               ? `${layers.filter((l) => l.visible).length}/${layers.length}`
               : null
-            : assets.length || null}
+            : allAssetRows.length || null}
         </span>
       </div>
 
@@ -576,7 +632,7 @@ export function BoardSidebar({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onRemoveFromScene(row.removeId!)
+                      onRemoveFromScene(areaId, row.removeId!)
                     }}
                     tabIndex={-1}
                     aria-label={`Remove ${row.title} from the board`}
@@ -631,28 +687,67 @@ export function BoardSidebar({
           the scene mode uses, for the same reason.
         */
         <div
-          role="listbox"
-          aria-label="Rasters this run produced"
+          role="tree"
+          aria-label="Rasters these runs produced"
           className="min-h-0 flex-1 overflow-y-auto py-1"
         >
-          {assets.map((a) => {
-            const isActive = a.id === asset?.id
+          {assetRows.map((row) => {
+            const isActive = row.asset
+              ? row.key === activeAssetRow?.key
+              : false
+            const isOpen = expanded.has(row.key)
+            if (!row.asset) {
+              /*
+                A run: what produced the rasters under it. Named with the
+                period it covers, because two runs of one area differ by when
+                they looked rather than by where.
+              */
+              return (
+                <div
+                  key={row.key}
+                  role="treeitem"
+                  aria-level={1}
+                  aria-expanded={isOpen}
+                  tabIndex={-1}
+                  onClick={() => onToggleExpanded(row.key)}
+                  className="flex cursor-default select-none items-center gap-1.5 py-[3px] pl-1.5 pr-2 transition-colors hover:bg-surface-raised/40"
+                >
+                  {isOpen ? (
+                    <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                  )}
+                  <Layers
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    strokeWidth={1.75}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
+                    {row.run.title}
+                  </span>
+                  <span className="telemetry shrink-0 text-meta text-muted-foreground">
+                    {row.run.period}
+                  </span>
+                </div>
+              )
+            }
+            const a = row.asset
             return (
               <div
-                key={a.id}
-                role="option"
+                key={row.key}
+                role="treeitem"
+                aria-level={2}
                 aria-selected={isActive}
                 tabIndex={isActive ? 0 : -1}
-                onClick={() => onActivateAsset(a.id)}
+                onClick={() => onActivateAsset(row.key)}
                 onKeyDown={(e) => {
                   if (e.target !== e.currentTarget) return
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
-                    onActivateAsset(a.id)
+                    onActivateAsset(row.key)
                   }
                 }}
                 className={cn(
-                  "flex cursor-default select-none items-center gap-2 py-[3px] pl-1.5 pr-2 transition-colors",
+                  "flex cursor-default select-none items-center gap-2 py-[3px] pl-6 pr-2 transition-colors",
                   "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
                   isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40"
                 )}
@@ -681,25 +776,18 @@ export function BoardSidebar({
                 >
                   {a.title}
                 </span>
-                {/*
-                  In or out of the stack, in the same right-hand column the
-                  scene tree puts its eye in -- and a different question from
-                  that eye, which hides a plane that is still there. An asset
-                  with no extent cannot be placed at all, so the control says
-                  so rather than putting the raster across the null island.
-                */}
                 <SceneToggle
-                  inScene={sceneIds.has(a.sceneId)}
+                  inScene={sceneIds.has(sceneKey(row.run.areaId, a.sceneId))}
                   placeable={!!a.extent}
                   title={a.title}
-                  onAdd={() => onAddToScene(a.sceneId)}
-                  onRemove={() => onRemoveFromScene(a.sceneId)}
+                  onAdd={() => onAddToScene(row.run.areaId, a.sceneId)}
+                  onRemove={() => onRemoveFromScene(row.run.areaId, a.sceneId)}
                 />
               </div>
             )
           })}
 
-          {!assets.length && (
+          {!allAssetRows.length && (
             <p className="px-3 py-1 text-meta leading-relaxed text-muted-foreground">
               Nothing produced yet. Classify, map surface water, or apply a
               composition.
@@ -797,17 +885,24 @@ export function BoardSidebar({
               someone looks for what can be DONE with a thing is the panel.
             */}
             {asset.extent &&
-              (sceneIds.has(asset.sceneId) ? (
+              activeAssetRow &&
+              (sceneIds.has(
+                sceneKey(activeAssetRow.run.areaId, asset.sceneId)
+              ) ? (
                 <AssetAction
                   icon={Minus}
                   label="Remove"
-                  onClick={() => onRemoveFromScene(asset.sceneId)}
+                  onClick={() =>
+                    onRemoveFromScene(activeAssetRow.run.areaId, asset.sceneId)
+                  }
                 />
               ) : (
                 <AssetAction
                   icon={Plus}
                   label="Add"
-                  onClick={() => onAddToScene(asset.sceneId)}
+                  onClick={() =>
+                    onAddToScene(activeAssetRow.run.areaId, asset.sceneId)
+                  }
                 />
               ))}
             {asset.selectId && onSelectComposition && (

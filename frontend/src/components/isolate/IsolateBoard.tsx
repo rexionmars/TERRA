@@ -20,8 +20,9 @@ import {
   BoardSidebar,
   COLLECTION_ROW,
   rowLayerId,
+  sceneKey,
 } from "@/components/isolate/BoardSidebar"
-import type { RunAsset } from "@/lib/runAssets"
+import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import type { CardGroup } from "@/lib/isolateCards"
 import { layoutGroups } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -93,6 +94,8 @@ const CURRENT_AREA = "current"
 export function IsolateBoard({
   layers,
   assets,
+  runId,
+  runPeriod,
   onLayerChange,
   onSelectComposition,
   onRemoveComposition,
@@ -119,6 +122,12 @@ export function IsolateBoard({
    * mean and the true-colour scene are assets and never layers.
    */
   assets: RunAsset[]
+  /**
+   * The run's id and the period it covers, for the branch that carries its
+   * assets. Two runs of one area differ by when they looked, not by where.
+   */
+  runId: string
+  runPeriod: string
   onLayerChange: (id: string, patch: LayerPatch) => void
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
@@ -195,8 +204,14 @@ export function IsolateBoard({
 
   const stackLayers = [...layers.filter((l) => !removed.has(l.id)), ...extraLayers]
   const extraIds = new Set(extraLayers.map((l) => l.id))
-  /** Which assets are planes on the board right now, for the data list. */
-  const sceneIds = new Set(stackLayers.map((l) => l.id))
+  /*
+    Which assets are planes on the board, keyed by area and scene id together.
+    Two runs each produce a `prediction`, so the layer id alone would report
+    one run's raster as being on the board because the other's was.
+  */
+  const sceneIds = new Set(
+    stackLayers.map((l) => sceneKey(CURRENT_AREA, l.id))
+  )
 
   const changeLayer = (id: string, patch: LayerPatch) => {
     // An added asset answers to this component; a base layer answers to the
@@ -214,7 +229,11 @@ export function IsolateBoard({
     onLayerChange(id, patch)
   }
 
-  const addToScene = (id: string) => {
+  const addToScene = (areaId: string, id: string) => {
+    // One area while the board opens from one run. Adding a raster produced by
+    // ANOTHER run is how a second area appears, and it is the next step: it
+    // has to create the area, not add a plane to this one.
+    if (areaId !== CURRENT_AREA) return
     // Putting back one the board had taken out, rather than adding a copy.
     if (baseIds.has(id)) {
       setRemoved((prev) => {
@@ -227,7 +246,8 @@ export function IsolateBoard({
     setAdded((prev) => (prev.includes(id) ? prev : [...prev, id]))
   }
 
-  const removeFromScene = (id: string) => {
+  const removeFromScene = (areaId: string, id: string) => {
+    if (areaId !== CURRENT_AREA) return
     if (baseIds.has(id)) {
       setRemoved((prev) => new Set(prev).add(id))
       return
@@ -327,6 +347,25 @@ export function IsolateBoard({
       else delete next[rowId]
       return next
     })
+
+  /**
+   * The data tree's branches: one run each.
+   *
+   * A list of one while the board opens from a single run, and a list because
+   * the next thing it holds is another run's output -- which is what a second
+   * area on the board is made from.
+   */
+  const assetRuns: AssetRun[] = assets.length
+    ? [
+        {
+          areaId: CURRENT_AREA,
+          runId,
+          title,
+          period: runPeriod,
+          assets,
+        },
+      ]
+    : []
 
   const [mode, setMode] = useState<OutlinerMode>("scene")
   const [activeAsset, setActiveAsset] = useState<string | null>(null)
@@ -486,7 +525,8 @@ export function IsolateBoard({
 
       <BoardSidebar
         layers={stackLayers}
-        assets={assets}
+        areaId={CURRENT_AREA}
+        assetRuns={assetRuns}
         sceneIds={sceneIds}
         onAddToScene={addToScene}
         onRemoveFromScene={removeFromScene}
