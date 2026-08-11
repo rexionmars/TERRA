@@ -643,12 +643,15 @@ export function BoardSidebar({
   return (
     <div
       /*
-        Stops at the foot rather than running to the bottom. The workspace
-        island and the period track stay above the board by design, and they
-        occupy exactly that band on the left -- a column running under them was
-        a column with its last rows hidden.
+        All the way down. It used to stop at the foot's reservation because the
+        workspace island and the period track stood in that band on the left,
+        and a column running under them was a column with its last rows hidden.
+        Neither is there any more -- the island is withheld while the board is
+        up, and the run band starts where this column ends rather than passing
+        beneath it -- so the last rows are reachable and the two surfaces meet
+        edge to edge instead of one crossing the other.
       */
-      className="app-no-drag absolute bottom-[var(--map-foot,0px)] left-0 top-0 z-[10] flex w-[15rem] flex-col border-r"
+      className="app-no-drag absolute bottom-0 left-0 top-0 z-[10] flex w-[15rem] flex-col border-r"
       style={{
         /*
           The board's own ink, not --p-surface: that token is a warm, lighter

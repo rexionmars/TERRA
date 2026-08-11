@@ -121,10 +121,13 @@ function Choice({
 
 export interface BoardRunBarProps {
   /**
-   * How far in the band's own left end is already spoken for.
+   * Where the band's left edge is, not how far its content is indented.
    *
-   * The board's column and the workspace island both stand there, and a band
-   * that started at zero would run underneath them.
+   * It was a padding, which put the band UNDER the board's column and merely
+   * moved its contents clear -- so the column had to stop short of the foot to
+   * stay readable. Now the band begins where the column ends and the column
+   * runs to the bottom, which is the same total width with one fewer surface
+   * crossing another.
    */
   leftOffset?: string
 
@@ -168,15 +171,16 @@ export function BoardRunBar(props: BoardRunBarProps) {
   return (
     <div
       /*
-        Where the period timeline sits on the map. It takes the foot's own
-        reservation so the sidebar, the island and this band still meet without
-        overlapping -- see --map-foot in index.css.
+        Where the period timeline sits on the map, at the same height, taking
+        the foot's own reservation -- see --map-foot in index.css. It starts at
+        the column's right edge rather than spanning the window, so the two are
+        neighbours rather than one lying over the other.
       */
-      className="app-no-drag absolute inset-x-0 bottom-0 z-[900] flex h-[var(--map-foot,3.0625rem)] items-center border-t"
+      className="app-no-drag absolute bottom-0 right-0 z-[900] flex h-[var(--map-foot,3.0625rem)] items-center border-t"
       style={{
+        left: props.leftOffset ?? 0,
         background: "rgb(var(--p-ink))",
         borderColor: "rgb(var(--p-line) / 0.28)",
-        paddingLeft: props.leftOffset,
       }}
     >
       {/*

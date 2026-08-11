@@ -722,7 +722,13 @@ export function MapScreen(props: MapScreenProps) {
           onRun={run.onRun}
           onAnalyzeLULC={props.onAnalyzeLULC}
           lulcRunning={props.lulcRunning}
-          // Past the board's column, which stands at the band's left end.
+          /*
+            The board column's width, so the band begins where the column ends.
+            The two are neighbours along the foot rather than one crossing the
+            other, which is why the column can now run to the bottom. Matches
+            w-[15rem] in BoardSidebar -- one number said twice, and the seam
+            shows immediately if they drift.
+          */
           leftOffset="15rem"
         />
       ) : (
