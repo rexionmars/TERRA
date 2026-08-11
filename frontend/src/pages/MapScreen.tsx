@@ -25,7 +25,13 @@ import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
-import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
+import {
+  MAP_TOOLS,
+  isMapTool,
+  type BoardToolId,
+  type MapToolId,
+} from "@/lib/mapTools"
+import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
 import { BoardRunBar } from "@/components/whiteboard/BoardRunBar"
 import { rasterLayers } from "@/lib/mapLayers"
@@ -207,6 +213,21 @@ export interface MapScreenProps {
     id: "terrain" | "siting",
     patch: { visible?: boolean; opacity?: number }
   ) => void
+  /**
+   * The solar inputs, so the board can START a solar run and not only draw one.
+   *
+   * The whole flat set is passed rather than the four the two raster products
+   * read, because it is one store and slicing it here would be this screen
+   * deciding which parameters exist. The band shows the four that reach a
+   * request; the rest are the energy screen's business.
+   */
+  solarParams?: SolarParams
+  onSolarParamsChange?: (patch: Partial<SolarParams>) => void
+  /** Absent where solar cannot be run; the band then does not offer it. */
+  onRunSolar?: (product: "terrain" | "siting") => void
+  solarBusy?: boolean
+  solarProgress?: number
+  solarProgressMsg?: string
   waterIndex: WaterIndex
   waterRunning: boolean
   waterProgress: number
@@ -257,6 +278,22 @@ export function MapScreen(props: MapScreenProps) {
    * twenty minutes ago.
    */
   const [board, setBoard] = useState(false)
+  /**
+   * The band's own tool, which is the map's plus solar.
+   *
+   * Not `leftPanel`, and the difference is the point: `leftPanel` is a
+   * MapToolId, read by the navigation column and by this screen's dock, and a
+   * fourth id would put solar back on a screen that removed it deliberately.
+   * Choosing a MAP tool here still writes leftPanel, so the two agree about the
+   * three they share; choosing solar leaves it alone.
+   *
+   * Null until the band is used, so it opens on whatever the map was showing.
+   */
+  const [boardTool, setBoardTool] = useState<BoardToolId | null>(null)
+  /** Which of the two raster-producing solar products the band will run. */
+  const [solarProduct, setSolarProduct] = useState<"terrain" | "siting">(
+    "terrain"
+  )
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
@@ -480,6 +517,32 @@ export function MapScreen(props: MapScreenProps) {
             canRun: props.hasArea && !!props.start && !!props.end,
             onRun: props.onRun,
           }
+
+  /*
+    The band's run, which is the island's for the three map tools and its own
+    for solar. Kept apart from `run` above rather than adding a branch to it:
+    that object also feeds the workspace bar, which belongs to the map and has
+    no solar to start.
+  */
+  const bandTool: BoardToolId | null = boardTool ?? leftPanel
+  const solarRunnable = !!props.solarParams && !!props.onRunSolar
+  const boardRun =
+    bandTool === "solar" && solarRunnable
+      ? {
+          running: props.solarBusy ?? false,
+          progress: props.solarProgress ?? 0,
+          progressMsg: props.solarProgressMsg ?? "",
+          label: props.solarBusy
+            ? "Running"
+            : solarProduct === "terrain"
+              ? "Map irradiation"
+              : "Map siting",
+          // One sidecar run at a time, which solar already enforces across its
+          // own products; the board must not be a second way past it.
+          canRun: props.hasArea && !props.solarBusy,
+          onRun: () => props.onRunSolar?.(solarProduct),
+        }
+      : run
 
   /**
    * The three products' controls, in whichever container the layout gives
@@ -748,8 +811,34 @@ export function MapScreen(props: MapScreenProps) {
       */}
       {boardOpen ? (
         <BoardRunBar
-          tool={leftPanel}
-          onToolChange={setLeftPanel}
+          tool={bandTool}
+          onToolChange={(id) => {
+            setBoardTool(id)
+            // The map's dock and navigation read leftPanel, and solar is not
+            // one of their ids -- see BoardToolId in lib/mapTools.
+            if (isMapTool(id)) setLeftPanel(id)
+          }}
+          solar={
+            props.solarParams && props.onRunSolar
+              ? {
+                  product: solarProduct,
+                  onProductChange: setSolarProduct,
+                  hourlyYears: props.solarParams.hourlyYears,
+                  onHourlyYearsChange: (v) =>
+                    props.onSolarParamsChange?.({ hourlyYears: v }),
+                  season: props.solarParams.season,
+                  onSeasonChange: (season) =>
+                    props.onSolarParamsChange?.({ season }),
+                  slopeAcceptableDeg: props.solarParams.slopeAcceptableDeg,
+                  slopeRestrictiveDeg: props.solarParams.slopeRestrictiveDeg,
+                  onSlopeChange: (acceptable, restrictive) =>
+                    props.onSolarParamsChange?.({
+                      slopeAcceptableDeg: acceptable,
+                      slopeRestrictiveDeg: restrictive,
+                    }),
+                }
+              : undefined
+          }
           hasArea={props.hasArea}
           activeExample={props.activeExample}
           onImportPolygon={props.onImportPolygon}
@@ -771,19 +860,21 @@ export function MapScreen(props: MapScreenProps) {
             and this band. Two resolutions of "can this go" would be two
             answers.
           */
-          runLabel={run.label}
-          running={run.running}
-          progress={run.progress}
-          progressMsg={run.progressMsg}
-          canRun={run.canRun}
+          runLabel={boardRun.label}
+          running={boardRun.running}
+          progress={boardRun.progress}
+          progressMsg={boardRun.progressMsg}
+          canRun={boardRun.canRun}
           blockedBy={
             !props.hasArea
               ? "Draw an area on the map first."
-              : leftPanel === "compose" && !props.selectedSceneId
-                ? "Choose a scene under Compositions on the map."
-                : undefined
+              : bandTool === "solar" && props.solarBusy
+                ? "The sidecar runs one analysis at a time."
+                : bandTool === "compose" && !props.selectedSceneId
+                  ? "Choose a scene under Compositions on the map."
+                  : undefined
           }
-          onRun={run.onRun}
+          onRun={boardRun.onRun}
           onAnalyzeLULC={props.onAnalyzeLULC}
           lulcRunning={props.lulcRunning}
           /*

@@ -2540,6 +2540,22 @@ function AppBody(props: {
                   solarTerrainOpacity={solar.layers.terrainOpacity}
                   solarSitingOpacity={solar.layers.sitingOpacity}
                   onSolarLayerChange={setSolarBoardLayer}
+                  /*
+                    And the inputs, so the board can start a solar run rather
+                    than only draw one somebody else started. The same store the
+                    energy screen edits -- a second copy would let the two
+                    disagree about what the next run will compute.
+                  */
+                  solarParams={solar.params}
+                  onSolarParamsChange={setSolarParams}
+                  onRunSolar={(product) => {
+                    if (product === "terrain") void handleRunSolarTerrain()
+                    else void handleRunSolarSiting()
+                  }}
+                  // Any solar product blocks the rest: one sidecar run at a time.
+                  solarBusy={solar.run.active !== null}
+                  solarProgress={solar.run.progress}
+                  solarProgressMsg={solar.run.message}
                   initialView={initialMapView}
                   leftPanel={leftPanel}
                   layoutMode={layoutMode}

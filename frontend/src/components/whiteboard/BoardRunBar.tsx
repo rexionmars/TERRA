@@ -26,6 +26,7 @@ import {
   Loader2,
   type LucideIcon,
   Play,
+  Sun,
   Trash2,
   Upload,
 } from "lucide-react"
@@ -37,8 +38,9 @@ import {
   modeBlockedBy,
   type ClassifyMode,
 } from "@/lib/classifyOptions"
-import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
-import type { ModelKind } from "@/lib/types"
+import { BOARD_TOOLS, type BoardToolId } from "@/lib/mapTools"
+import type { ModelKind, SolarSeason } from "@/lib/types"
+import { SOLAR_SEASONS } from "@/lib/solarOptions"
 import { cn } from "@/lib/utils"
 
 /*
@@ -46,10 +48,11 @@ import { cn } from "@/lib/utils"
   names. The same glyphs the board's tree uses for the rasters each tool
   produces, because a tool and its output are one subject.
 */
-const TOOL_ICON: Record<MapToolId, LucideIcon> = {
+const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
   classify: Grid2x2,
   compose: ImageIcon,
   water: Droplet,
+  solar: Sun,
 }
 
 /** A named group of controls. */
@@ -131,8 +134,27 @@ export interface BoardRunBarProps {
    */
   leftOffset?: string
 
-  tool: MapToolId | null
-  onToolChange: (id: MapToolId) => void
+  tool: BoardToolId | null
+  onToolChange: (id: BoardToolId) => void
+  /**
+   * Everything the solar tool needs, or absent where it cannot be run.
+   *
+   * One object rather than nine loose props, because they arrive and leave
+   * together: a band with no way to start a solar run must not offer solar in
+   * its strip, and absence is how it says so. Only the two products that draw
+   * a raster are here -- the other two produce figures, which no plane can be.
+   */
+  solar?: {
+    product: "terrain" | "siting"
+    onProductChange: (p: "terrain" | "siting") => void
+    hourlyYears: number
+    onHourlyYearsChange: (v: number) => void
+    season: SolarSeason
+    onSeasonChange: (s: SolarSeason) => void
+    slopeAcceptableDeg: number
+    slopeRestrictiveDeg: number
+    onSlopeChange: (acceptable: number, restrictive: number) => void
+  }
 
   hasArea: boolean
   activeExample: string
@@ -191,7 +213,12 @@ export function BoardRunBar(props: BoardRunBarProps) {
       */}
       <div className="panel-scroll flex min-w-0 flex-1 items-center overflow-x-auto py-1">
         <div className="flex shrink-0 items-center gap-0.5 pl-2.5">
-          {MAP_TOOLS.map((t) => {
+          {/*
+            Solar only where this band was given a way to run it. Offering a
+            tool that cannot be started is the dead control this file's
+            neighbour argues against, and it would be a whole tab of one.
+          */}
+          {BOARD_TOOLS.filter((t) => t.id !== "solar" || !!props.solar).map((t) => {
             const on = props.tool === t.id
             const Icon = TOOL_ICON[t.id]
             return (
@@ -243,6 +270,15 @@ export function BoardRunBar(props: BoardRunBarProps) {
           </button>
         </Group>
 
+        {/*
+          Withheld for solar, which reads none of these four. SolarTerrainRequest
+          carries hourly_years and season; SolarSitingRequest carries the two
+          slope limits. Neither sends a date, a cloud ceiling or a monthly pick,
+          so leaving them drawn would be four controls that change nothing --
+          worse than four absent ones, because they read as inputs to the run.
+        */}
+        {props.tool !== "solar" && (
+          <>
         <Divider />
 
         <Group label="Period">
@@ -292,6 +328,121 @@ export function BoardRunBar(props: BoardRunBarProps) {
             best/month
           </label>
         </Group>
+          </>
+        )}
+
+        {props.tool === "solar" && props.solar && (
+          <>
+            <Divider />
+            <Group label="Product">
+              <Choice
+                label="Irradiation"
+                chosen={props.solar.product === "terrain"}
+                disabled={busy}
+                onPick={() => props.solar?.onProductChange("terrain")}
+              />
+              <Choice
+                label="Siting"
+                chosen={props.solar.product === "siting"}
+                disabled={busy}
+                onPick={() => props.solar?.onProductChange("siting")}
+              />
+            </Group>
+
+            {props.solar.product === "terrain" && (
+              <>
+                <Divider />
+                <Group label="Record">
+                  <div className="w-24 shrink-0">
+                    <NumberField
+                      label="Hourly"
+                      value={props.solar.hourlyYears}
+                      min={3}
+                      max={20}
+                      step={1}
+                      disabled={busy}
+                      format={(v) => `${Math.round(v)} yr`}
+                      parse={(t) => {
+                        const v = parseFloat(t.replace("yr", "").trim())
+                        return Number.isFinite(v) ? v : null
+                      }}
+                      onChange={(v) =>
+                        props.solar?.onHourlyYearsChange(Math.round(v))
+                      }
+                    />
+                  </div>
+                </Group>
+                <Divider />
+                {/*
+                  Choice rather than a select, for the reason the Period group
+                  states above: a platform picker opens below the field, and
+                  this band has nothing below it. Six short labels fit.
+                */}
+                <Group label="Season">
+                  {SOLAR_SEASONS.map((o) => (
+                    <Choice
+                      key={o.id}
+                      label={o.label}
+                      chosen={props.solar?.season === o.id}
+                      disabled={busy}
+                      onPick={() => props.solar?.onSeasonChange(o.id)}
+                    />
+                  ))}
+                </Group>
+              </>
+            )}
+
+            {props.solar.product === "siting" && (
+              <>
+                <Divider />
+                <Group label="Slope">
+                  <div className="w-28 shrink-0">
+                    <NumberField
+                      label="Acceptable"
+                      value={props.solar.slopeAcceptableDeg}
+                      min={1}
+                      max={45}
+                      step={1}
+                      disabled={busy}
+                      format={(v) => `${Math.round(v)}°`}
+                      parse={(t) => {
+                        const v = parseFloat(t.replace("°", "").trim())
+                        return Number.isFinite(v) ? v : null
+                      }}
+                      onChange={(v) =>
+                        props.solar?.onSlopeChange(
+                          Math.round(v),
+                          props.solar.slopeRestrictiveDeg
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="w-28 shrink-0">
+                    <NumberField
+                      label="Restrictive"
+                      value={props.solar.slopeRestrictiveDeg}
+                      min={1}
+                      max={45}
+                      step={1}
+                      disabled={busy}
+                      format={(v) => `${Math.round(v)}°`}
+                      parse={(t) => {
+                        const v = parseFloat(t.replace("°", "").trim())
+                        return Number.isFinite(v) ? v : null
+                      }}
+                      onChange={(v) =>
+                        props.solar?.onSlopeChange(
+                          props.solar.slopeAcceptableDeg,
+                          Math.round(v)
+                        )
+                      }
+                    />
+                  </div>
+                </Group>
+              </>
+            )}
+          </>
+        )}
 
         {props.tool === "classify" && (
           <>
