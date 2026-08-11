@@ -42,6 +42,7 @@ import {
   Sun,
   Trash2,
   Wrench,
+  X,
 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
@@ -73,8 +74,30 @@ export interface LayerPatch {
  * all is `solar:<n>` -- so a row id splits back into a layer id unambiguously,
  * and the board can outline the plane a modifier belongs to.
  */
-export const COLLECTION_ROW = "::stack"
-const MAJORITY_SUFFIX = "::majority"
+/*
+  Row keys.
+
+  Every one names the AREA it belongs to. The board holds more than one, and
+  both have a layer called `prediction` -- a key that was the layer alone
+  selected two rows at once, and folding one folded the other. The prefixes
+  keep the three kinds of row apart from each other and from the data tree's.
+*/
+export const stackRow = (areaId: string) => `stack::${areaId}`
+const layerRow = (areaId: string, layerId: string) =>
+  `layer::${areaId}::${layerId}`
+const modifierRow = (areaId: string, layerId: string) =>
+  `mod::${areaId}::${layerId}`
+
+/** What a scene row acts on, or null for a row that acts on a whole area. */
+export function rowTarget(
+  rowId: string | null
+): { areaId: string; layerId: string | null } | null {
+  if (!rowId) return null
+  const [kind, areaId, layerId] = rowId.split("::")
+  if (kind === "stack") return { areaId, layerId: null }
+  if (kind === "layer" || kind === "mod") return { areaId, layerId }
+  return null
+}
 
 /*
   The data tree's own keys, kept apart from the scene tree's.
@@ -89,12 +112,6 @@ const assetRowKey = (areaId: string, assetId: string) =>
 /** An asset's place in the scene, in the key space setAppearance uses. */
 export const sceneKey = (areaId: string, sceneId: string) =>
   `${areaId}\u0000${sceneId}`
-
-/** The layer a row acts on, or null for rows that act on the whole stack. */
-export function rowLayerId(rowId: string | null): string | null {
-  if (!rowId || rowId === COLLECTION_ROW) return null
-  return rowId.split("::")[0]
-}
 
 /**
  * A glyph per kind of raster.
@@ -113,6 +130,9 @@ function layerIcon(id: string): LucideIcon {
 
 interface Row {
   id: string
+  /** Which area the row belongs to, and which of its layers where there is one. */
+  areaId: string
+  layerId: string | null
   title: string
   icon: LucideIcon
   /** Indent level: the stack at 0, its rasters at 1, their modifiers at 2. */
@@ -154,13 +174,12 @@ interface Row {
 }
 
 export function BoardSidebar({
-  layers,
+  areas,
   assetRuns,
   sceneIds,
   areaId,
   addRun,
   mode,
-  areaLabel,
   activeRow,
   activeAsset,
   expanded,
@@ -174,6 +193,7 @@ export function BoardSidebar({
   onRemoveFromScene,
   names,
   onRename,
+  onDropRun,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -181,8 +201,14 @@ export function BoardSidebar({
   onSelectComposition,
   onRemoveComposition,
 }: {
-  /** Every layer the run could draw, bottom of the stack first. */
-  layers: RasterLayer[]
+  /**
+   * The areas on the board, each with its own stack, bottom first.
+   *
+   * More than one is the point of the surface: a map cannot show two analyses
+   * of areas hundreds of kilometres apart side by side, because it puts them
+   * where they are.
+   */
+  areas: { id: string; title: string; layers: RasterLayer[] }[]
   /**
    * The runs whose output can be put on the board, each with its own assets.
    *
@@ -217,6 +243,13 @@ export function BoardSidebar({
    */
   names: Readonly<Record<string, string>>
   onRename: (rowId: string, name: string) => void
+  /**
+   * Take a loaded run off the data tree.
+   *
+   * Absent for the run the board opened from: that one is not a thing the
+   * board fetched, and dropping it would mean closing the board.
+   */
+  onDropRun?: (runId: string) => void
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -225,9 +258,13 @@ export function BoardSidebar({
   /** Switches the board to a composition from the gallery. */
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
-  /** Names the collection row, as the scene's own name does in an outliner. */
-  areaLabel: string
-  /** Which area the scene tree is showing. One, while the board holds one. */
+  /**
+   * The area the map's own run occupies.
+   *
+   * Named because it is the only one whose layers answer to the map: its
+   * classification carries the majority filter, and it cannot be dropped --
+   * closing the board is what dropping it would mean.
+   */
   areaId: string
   /**
    * The control that puts another run's output on the board.
@@ -248,25 +285,28 @@ export function BoardSidebar({
   onActivate: (rowId: string) => void
   onToggleExpanded: (rowId: string) => void
   onGapChange: (v: number) => void
-  onLayerChange: (id: string, patch: LayerPatch) => void
+  onLayerChange: (areaId: string, id: string, patch: LayerPatch) => void
   onSmoothChange: (v: boolean) => void
 }) {
-  // Topmost first, so the tree reads in the order the eye meets the planes.
-  const stack = [...layers].reverse()
-  const allVisible = layers.length > 0 && layers.every((l) => l.visible)
-
   /*
-    Every row the tree has, open or not. What is DRAWN is filtered from this
-    below; the properties panel reads from the full set, because collapsing a
-    parent hides a row without stopping it being the active one -- and a panel
-    that emptied when the stack was folded would lose the thing being edited to
-    a gesture about layout.
+    Every row the scene tree has, open or not, for every area on the board.
+
+    What is DRAWN is filtered from this below; the properties panel reads from
+    the full set, because collapsing a parent hides a row without stopping it
+    being the active one -- and a panel that emptied when an area was folded
+    would lose the thing being edited to a gesture about layout.
   */
   const allRows: Row[] = []
-  if (layers.length) {
+  for (const area of areas) {
+    // Topmost first, so each area reads in the order the eye meets its planes.
+    const stack = [...area.layers].reverse()
+    const allVisible =
+      area.layers.length > 0 && area.layers.every((l) => l.visible)
     allRows.push({
-      id: COLLECTION_ROW,
-      title: names[COLLECTION_ROW] ?? (areaLabel || "Stack"),
+      id: stackRow(area.id),
+      areaId: area.id,
+      layerId: null,
+      title: names[stackRow(area.id)] ?? area.title,
       icon: Layers,
       depth: 0,
       visible: allVisible,
@@ -276,67 +316,82 @@ export function BoardSidebar({
         parent's eye means anywhere it exists.
       */
       toggle: () =>
-        layers.forEach((l) => onLayerChange(l.id, { visible: !allVisible })),
+        area.layers.forEach((l) =>
+          onLayerChange(area.id, l.id, { visible: !allVisible })
+        ),
       expandable: true,
       dimmed: false,
       renamable: true,
-      // The stack itself is not taken out of the stack; closing the board is
-      // what that would mean.
+      /*
+        No remove on an area's own row. An area exists because rasters are on
+        it, so it is ended by taking the last one off -- and the run behind it
+        is dropped from the data tree, where the control says what it drops.
+        A second way to make an area vanish would be a second answer.
+      */
       removeId: null,
-      posinset: 1,
-      setsize: 1,
+      posinset: areas.indexOf(area) + 1,
+      setsize: areas.length,
     })
-  }
 
-  for (const l of stack) {
-    // Only the classification carries a transform, so it is the only row
-    // with anything under it. The others reserve the space and stay flat.
-    const hasModifier = l.id === "prediction"
-    allRows.push({
-      id: l.id,
-      title: names[l.id] ?? l.title,
-      icon: layerIcon(l.id),
-      depth: 1,
-      visible: l.visible,
-      toggle: () => onLayerChange(l.id, { visible: !l.visible }),
-      expandable: hasModifier,
-      dimmed: !l.visible,
-      renamable: true,
-      removeId: l.id,
-      posinset: stack.indexOf(l) + 1,
-      setsize: stack.length,
-    })
-    if (hasModifier) {
+    for (const l of stack) {
+      // Only the current run's classification carries a transform: the
+      // majority filter is the map's switch, and a loaded run does not answer
+      // to the map.
+      const hasModifier = area.id === areaId && l.id === "prediction"
       allRows.push({
-        id: l.id + MAJORITY_SUFFIX,
-        title: "Majority filter",
-        icon: Wrench,
-        depth: 2,
-        visible: smooth,
-        toggle: () => onSmoothChange(!smooth),
-        expandable: false,
+        id: layerRow(area.id, l.id),
+        areaId: area.id,
+        layerId: l.id,
+        title: names[layerRow(area.id, l.id)] ?? l.title,
+        icon: layerIcon(l.id),
+        depth: 1,
+        visible: l.visible,
+        toggle: () => onLayerChange(area.id, l.id, { visible: !l.visible }),
+        expandable: hasModifier,
         dimmed: !l.visible,
-        renamable: false,
-        // A transform is not a plane; it leaves with the raster it acts on.
-        removeId: null,
-        posinset: 1,
-        setsize: 1,
+        renamable: true,
+        removeId: l.id,
+        posinset: stack.indexOf(l) + 1,
+        setsize: stack.length,
       })
+      if (hasModifier) {
+        allRows.push({
+          id: modifierRow(area.id, l.id),
+          areaId: area.id,
+          layerId: l.id,
+          title: "Majority filter",
+          icon: Wrench,
+          depth: 2,
+          visible: smooth,
+          toggle: () => onSmoothChange(!smooth),
+          expandable: false,
+          dimmed: !l.visible,
+          renamable: false,
+          // A transform is not a plane; it leaves with the raster it acts on.
+          removeId: null,
+          posinset: 1,
+          setsize: 1,
+        })
+      }
     }
   }
 
   // Shown only where every ancestor is open. Depth is enough to decide it,
   // because a row's parent is the nearest shallower row above it.
-  const rows = allRows.filter(
-    (r) =>
-      r.depth === 0 ||
-      (expanded.has(COLLECTION_ROW) &&
-        (r.depth === 1 || expanded.has(r.id.split("::")[0])))
-  )
+  const rows = allRows.filter((r) => {
+    if (r.depth === 0) return true
+    if (!expanded.has(stackRow(r.areaId))) return false
+    return r.depth === 1 || expanded.has(layerRow(r.areaId, r.layerId!))
+  })
 
   const active = allRows.find((r) => r.id === activeRow) ?? null
+  const activeTarget = rowTarget(activeRow)
   const activeLayer =
-    layers.find((l) => l.id === rowLayerId(activeRow)) ?? null
+    (activeTarget?.layerId
+      ? areas
+          .find((a) => a.id === activeTarget.areaId)
+          ?.layers.find((l) => l.id === activeTarget.layerId)
+      : null) ?? null
 
   /*
     The data tree, flattened: a run, then its assets. Same shape as the scene
@@ -496,8 +551,8 @@ export function BoardSidebar({
         </div>
         <span className="telemetry shrink-0 text-meta text-muted-foreground">
           {mode === "scene"
-            ? layers.length > 0
-              ? `${layers.filter((l) => l.visible).length}/${layers.length}`
+            ? allRows.some((r) => r.depth === 1)
+              ? `${allRows.filter((r) => r.depth === 1 && r.visible).length}/${allRows.filter((r) => r.depth === 1).length}`
               : null
             : allAssetRows.length || null}
         </span>
@@ -643,7 +698,7 @@ export function BoardSidebar({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onRemoveFromScene(areaId, row.removeId!)
+                      onRemoveFromScene(row.areaId, row.removeId!)
                     }}
                     tabIndex={-1}
                     aria-label={`Remove ${row.title} from the board`}
@@ -708,6 +763,10 @@ export function BoardSidebar({
               : false
             const isOpen = expanded.has(row.key)
             if (!row.asset) {
+              // In use: at least one of this run's rasters is a plane.
+              const inUse = row.run.assets.some((a) =>
+                sceneIds.has(sceneKey(row.run.areaId, a.sceneId))
+              )
               /*
                 A run: what produced the rasters under it. Named with the
                 period it covers, because two runs of one area differ by when
@@ -741,6 +800,41 @@ export function BoardSidebar({
                   >
                     {datesByMonth(row.run.period)}
                   </span>
+                  {/*
+                    Only a run the board fetched, and only while none of its
+                    rasters is on the board.
+
+                    Refused rather than hidden while it is in use, with the
+                    reason on the control: dropping it then would take planes
+                    off the board through something that says nothing about
+                    them, and the user would be left looking for what had
+                    gone. Taking its last raster off is what makes it go.
+                  */}
+                  {onDropRun && row.run.areaId !== areaId && (
+                    <button
+                      type="button"
+                      disabled={inUse}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDropRun(row.run.runId)
+                      }}
+                      tabIndex={-1}
+                      aria-label={`Drop ${row.run.title}`}
+                      title={
+                        inUse
+                          ? "On the board: remove its rasters first"
+                          : "Drop this run"
+                      }
+                      className={cn(
+                        "shrink-0 rounded-sm transition-colors",
+                        inUse
+                          ? "cursor-not-allowed text-muted-foreground/25"
+                          : "text-muted-foreground/50 hover:text-foreground"
+                      )}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
                 </div>
               )
             }
@@ -830,7 +924,7 @@ export function BoardSidebar({
             <span className="truncate">{active.title}</span>
           </p>
 
-          {activeLayer && activeRow === activeLayer.id ? (
+          {activeLayer && activeTarget?.layerId === activeLayer.id ? (
             <>
               <div className="mt-2">
                 <NumberField
@@ -847,7 +941,9 @@ export function BoardSidebar({
                     return Number.isFinite(v) ? v / 100 : null
                   }}
                   onChange={(v) =>
-                    onLayerChange(activeLayer.id, { opacity: v })
+                    onLayerChange(activeTarget!.areaId, activeLayer.id, {
+                      opacity: v,
+                    })
                   }
                 />
               </div>
@@ -865,10 +961,11 @@ export function BoardSidebar({
                 </span>
               </p>
             </>
-          ) : activeRow === COLLECTION_ROW ? (
+          ) : activeTarget && !activeTarget.layerId ? (
             <p className="mt-1.5 text-meta leading-relaxed text-muted-foreground">
-              {layers.length} raster{layers.length === 1 ? "" : "s"} from one
-              run, stacked in draw order.
+              {areas.find((a) => a.id === activeTarget.areaId)?.layers.length ??
+                0}{" "}
+              rasters from one run, stacked in draw order.
             </p>
           ) : (
             <p className="mt-1.5 text-meta leading-relaxed text-muted-foreground">
@@ -961,7 +1058,7 @@ export function BoardSidebar({
         tree, so it stays out of the panel that edits one and stays visible
         whatever is active.
       */}
-      {mode === "scene" && layers.length > 1 && (
+      {mode === "scene" && allRows.filter((r) => r.depth === 1).length > 1 && (
         <div
           className="shrink-0 border-t px-3 py-2.5"
           style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}

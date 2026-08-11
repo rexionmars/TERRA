@@ -18,9 +18,9 @@ import type { LayerPatch } from "@/components/isolate/BoardSidebar"
 import type { OutlinerMode } from "@/components/isolate/BoardSidebar"
 import {
   BoardSidebar,
-  COLLECTION_ROW,
-  rowLayerId,
+  rowTarget,
   sceneKey,
+  stackRow,
 } from "@/components/isolate/BoardSidebar"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { runAssets } from "@/lib/runAssets"
@@ -158,176 +158,6 @@ export function IsolateBoard({
   const boardRef = useRef<BoardHandle | null>(null)
 
   /**
-   * What the board is stacking, as opposed to what the map is drawing.
-   *
-   * The two are not the same set and never were: NDVI mean and the true-colour
-   * scene are produced by every run and the map has no control for either, so
-   * they existed only as entries in a gallery. Putting one on the board is
-   * what this state records.
-   *
-   * Two sets rather than one list of members, so that products appearing and
-   * disappearing under it need no reconciling: a run that finishes adds its
-   * rasters to the base set and they are in the stack because nothing removed
-   * them, not because something remembered to add them.
-   */
-  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
-  const [added, setAdded] = useState<readonly string[]>([])
-  /**
-   * Opacity and visibility for the assets the board added.
-   *
-   * Board-local, and that is the honest place for it: these rasters are not on
-   * the map, so there is no map state for them to share. The base layers keep
-   * sharing theirs, which is what stops the two surfaces disagreeing about
-   * what is on screen.
-   */
-  const [extraState, setExtraState] = useState<
-    Readonly<Record<string, { opacity: number; visible: boolean }>>
-  >({})
-
-  const baseIds = new Set(layers.map((l) => l.id))
-  const extraLayers: RasterLayer[] = added
-    // Matched on the id the asset carries IN THE SCENE, not its own. The two
-    // differ for the water raster and for the active composition, and those
-    // are base layers -- so today they never reach this list. Matching on the
-    // scene id anyway means a later asset whose two ids differ cannot slip
-    // through as a plane that nothing can find again.
-    .map((id) => assets.find((a) => a.sceneId === id))
-    .filter((a): a is RunAsset => !!a && !!a.extent && !baseIds.has(a.sceneId))
-    .map((a, n) => ({
-      id: a.sceneId,
-      title: a.title,
-      uri: a.previewUri,
-      extent: a.extent!,
-      opacity: extraState[a.id]?.opacity ?? 1,
-      // Above everything the map put there: an asset was added to be looked
-      // at, and burying it under the stack it was added to would be a strange
-      // reading of the request.
-      order: 1000 + n,
-      pixelated: a.pixelated,
-      // No majority filter: it is the classification's, and these are not it.
-      smooth: false,
-      visible: extraState[a.id]?.visible ?? true,
-    }))
-
-  const stackLayers = [...layers.filter((l) => !removed.has(l.id)), ...extraLayers]
-  const extraIds = new Set(extraLayers.map((l) => l.id))
-  /*
-    Which assets are planes on the board, keyed by area and scene id together.
-    Two runs each produce a `prediction`, so the layer id alone would report
-    one run's raster as being on the board because the other's was.
-  */
-  const sceneIds = new Set(
-    stackLayers.map((l) => sceneKey(CURRENT_AREA, l.id))
-  )
-
-  const changeLayer = (id: string, patch: LayerPatch) => {
-    // An added asset answers to this component; a base layer answers to the
-    // map, which is where its switch has always lived.
-    if (extraIds.has(id)) {
-      setExtraState((prev) => ({
-        ...prev,
-        [id]: {
-          opacity: patch.opacity ?? prev[id]?.opacity ?? 1,
-          visible: patch.visible ?? prev[id]?.visible ?? true,
-        },
-      }))
-      return
-    }
-    onLayerChange(id, patch)
-  }
-
-  const addToScene = (areaId: string, id: string) => {
-    // One area while the board opens from one run. Adding a raster produced by
-    // ANOTHER run is how a second area appears, and it is the next step: it
-    // has to create the area, not add a plane to this one.
-    if (areaId !== CURRENT_AREA) return
-    // Putting back one the board had taken out, rather than adding a copy.
-    if (baseIds.has(id)) {
-      setRemoved((prev) => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-      return
-    }
-    setAdded((prev) => (prev.includes(id) ? prev : [...prev, id]))
-  }
-
-  const removeFromScene = (areaId: string, id: string) => {
-    if (areaId !== CURRENT_AREA) return
-    if (baseIds.has(id)) {
-      setRemoved((prev) => new Set(prev).add(id))
-      return
-    }
-    setAdded((prev) => prev.filter((x) => x !== id))
-  }
-
-  /*
-    Read through refs by the effect that builds the scene, so neither can put
-    the scene in that effect's dependencies.
-
-    `onClose` was in them, and it is written inline at the call site -- a new
-    function on every render of the map screen. So the GL context was disposed
-    and recreated on EVERY RENDER, which defeated the structural comparison
-    below entirely and, worse, rebuilt each plane from a card that no longer
-    described the current state. Toggling a layer hid it and then immediately
-    restored it from the rebuild, which read as the eye not working at all.
-  */
-  const closeRef = useRef(onClose)
-  closeRef.current = onClose
-  /**
-   * Where each area was left.
-   *
-   * A ref rather than state, because nothing renders from it: the scene owns
-   * the position while the board is open, and this is the copy that outlives a
-   * rebuild -- without it, changing a raster would send an area the user had
-   * dragged back to where the layout first put it.
-   */
-  const placesRef = useRef<Record<string, { x: number; z: number }>>({})
-  const appearanceRef = useRef<PlaneState[]>([])
-  appearanceRef.current = stackLayers.map((l) => ({
-    groupId: CURRENT_AREA,
-    id: l.id,
-    opacity: l.opacity,
-    visible: l.visible,
-  }))
-  const [gap, setGap] = useState(STACK_GAP)
-
-  /**
-   * The active row of the outliner, and through it the plane the board
-   * outlines.
-   *
-   * Corrected as it is read rather than repaired by an effect. The set of
-   * layers changes under it -- a run finishes, a composition is cleared -- and
-   * an effect that noticed afterwards would leave one render showing a panel
-   * for a raster that is no longer on the board.
-   *
-   * Falls back to the last layer, which is the top of the stack and so the
-   * first row under the collection -- the confidence raster where there is
-   * one, the classification otherwise. The tree opens on its own first row
-   * rather than on a particular product.
-   */
-  const [activeRow, setActiveRow] = useState<string | null>(null)
-  const rowIsLive =
-    activeRow === COLLECTION_ROW ||
-    (!!activeRow && stackLayers.some((l) => l.id === rowLayerId(activeRow)))
-  const active = rowIsLive
-    ? activeRow
-    : (stackLayers[stackLayers.length - 1]?.id ?? null)
-  // A modifier's row points at the plane it acts on; the stack's points at no
-  // single one.
-  const selected = rowLayerId(active)
-
-  /**
-   * Which rows are open. The stack starts open, or the tree would present a
-   * single collapsed row and the layers would have to be found before they
-   * could be used.
-   */
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    () => new Set([COLLECTION_ROW])
-  )
-
-  /**
    * What the column is listing, and which asset it is describing.
    *
    * Opens on the scene, because the board is the reason this surface exists
@@ -419,6 +249,279 @@ export function IsolateBoard({
     })),
   ]
 
+  /**
+   * What the board is stacking, as opposed to what the map is drawing.
+   *
+   * The two are not the same set and never were: NDVI mean and the true-colour
+   * scene are produced by every run and the map has no control for either, so
+   * they existed only as entries in a gallery. Putting one on the board is
+   * what this state records.
+   *
+   * Two sets rather than one list of members, so that products appearing and
+   * disappearing under it need no reconciling: a run that finishes adds its
+   * rasters to the base set and they are in the stack because nothing removed
+   * them, not because something remembered to add them.
+   */
+  /**
+   * Which of the current run's rasters the board has taken off its stack.
+   *
+   * Only the current area has any: its layers arrive from the map, so taking
+   * one off is recorded as a subtraction. Every other area is made ENTIRELY of
+   * additions -- nothing put a loaded run on the board except someone asking
+   * for it -- so for those, membership is the added list and nothing else.
+   */
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
+  /** Scene ids added, per area, in the order they were added. */
+  const [added, setAdded] = useState<
+    Readonly<Record<string, readonly string[]>>
+  >({})
+  /**
+   * Opacity and visibility for rasters the board added.
+   *
+   * Board-local, and that is the honest place for it: these are not on the
+   * map, so there is no map state for them to share. The current area's base
+   * layers keep sharing theirs, which is what stops the two surfaces
+   * disagreeing about what is on screen.
+   */
+  const [extraState, setExtraState] = useState<
+    Readonly<Record<string, { opacity: number; visible: boolean }>>
+  >({})
+
+  /** The current run's own layers, which are the map's and answer to it. */
+  const baseIds = new Set(layers.map((l) => l.id))
+
+  const assetOf = (areaId: string, sceneId: string) =>
+    assetRuns
+      .find((r) => r.areaId === areaId)
+      ?.assets.find((a) => a.sceneId === sceneId)
+
+  /*
+    Rasters the board added to an area, as layers.
+
+    Matched on the id the asset carries IN THE SCENE, not its own. The two
+    differ for the water raster and for the active composition, and an asset
+    whose two ids differ would otherwise slip through as a plane that nothing
+    could find again.
+  */
+  const extrasFor = (areaId: string, startOrder: number): RasterLayer[] =>
+    (added[areaId] ?? [])
+      .map((sid) => assetOf(areaId, sid))
+      .filter((a): a is RunAsset => !!a && !!a.extent)
+      .map((a, n) => {
+        const st = extraState[sceneKey(areaId, a.sceneId)]
+        return {
+          id: a.sceneId,
+          title: a.title,
+          uri: a.previewUri,
+          extent: a.extent!,
+          opacity: st?.opacity ?? 1,
+          // Above whatever the map put there: an asset was added to be looked
+          // at, and burying it under the stack it joined would be a strange
+          // reading of the request.
+          order: startOrder + n,
+          pixelated: a.pixelated,
+          // No majority filter: it is the classification's, and these are not.
+          smooth: false,
+          visible: st?.visible ?? true,
+        }
+      })
+
+  /**
+   * Every area on the board, each with its own stack.
+   *
+   * The current run is one of them and the runs loaded beside it are the rest.
+   * An area with nothing on it is not an area: adding the first raster from a
+   * loaded run is what brings its area into being, and taking the last one off
+   * is what ends it.
+   */
+  const areas = [
+    {
+      id: CURRENT_AREA,
+      title,
+      layers: [
+        ...layers.filter(
+          (l) => !removed.has(sceneKey(CURRENT_AREA, l.id))
+        ),
+        ...extrasFor(CURRENT_AREA, 1000),
+      ],
+    },
+    ...assetRuns
+      .filter((r) => r.areaId !== CURRENT_AREA)
+      .map((r) => ({
+        id: r.areaId,
+        title: names[stackRow(r.areaId)] ?? r.title,
+        layers: extrasFor(r.areaId, 400),
+      })),
+  ].filter((a) => a.layers.length > 0)
+
+  /*
+    Which rasters are planes on the board, keyed by area and scene id together.
+    Two runs each produce a `prediction`, so the layer id alone would report
+    one run's raster as being on the board because the other's was.
+  */
+  const sceneIds = new Set(
+    areas.flatMap((a) => a.layers.map((l) => sceneKey(a.id, l.id)))
+  )
+  /** Layers the board owns the state of, as opposed to the map. */
+  const localKeys = new Set(
+    areas.flatMap((a) =>
+      a.layers
+        .filter((l) => a.id !== CURRENT_AREA || !baseIds.has(l.id))
+        .map((l) => sceneKey(a.id, l.id))
+    )
+  )
+
+  const changeLayer = (areaId: string, id: string, patch: LayerPatch) => {
+    // A raster the board added answers to this component; one of the current
+    // run's own answers to the map, which is where its switch has always been.
+    const key = sceneKey(areaId, id)
+    if (localKeys.has(key)) {
+      setExtraState((prev) => ({
+        ...prev,
+        [key]: {
+          opacity: patch.opacity ?? prev[key]?.opacity ?? 1,
+          visible: patch.visible ?? prev[key]?.visible ?? true,
+        },
+      }))
+      return
+    }
+    onLayerChange(id, patch)
+  }
+
+  const addToScene = (areaId: string, id: string) => {
+    // Putting back one the board had taken out, rather than adding a copy.
+    if (areaId === CURRENT_AREA && baseIds.has(id)) {
+      setRemoved((prev) => {
+        const next = new Set(prev)
+        next.delete(sceneKey(areaId, id))
+        return next
+      })
+      return
+    }
+    setAdded((prev) => {
+      const list = prev[areaId] ?? []
+      return list.includes(id) ? prev : { ...prev, [areaId]: [...list, id] }
+    })
+  }
+
+  const removeFromScene = (areaId: string, id: string) => {
+    if (areaId === CURRENT_AREA && baseIds.has(id)) {
+      setRemoved((prev) => new Set(prev).add(sceneKey(areaId, id)))
+      return
+    }
+    setAdded((prev) => ({
+      ...prev,
+      [areaId]: (prev[areaId] ?? []).filter((x) => x !== id),
+    }))
+  }
+
+  /**
+   * Drops a loaded run from the data tree.
+   *
+   * Refused while any of its rasters is on the board. Removing it then would
+   * take planes off the board through a control that says nothing about them,
+   * and the user would be left looking for what had gone.
+   */
+  const dropRun = (runId: string) => {
+    if ((added[runId] ?? []).length > 0) return
+    setExtraRuns((prev) => prev.filter((x) => x.run.id !== runId))
+    setAdded((prev) => {
+      const next = { ...prev }
+      delete next[runId]
+      return next
+    })
+  }
+
+  /*
+    Read through refs by the effect that builds the scene, so neither can put
+    the scene in that effect's dependencies.
+
+    `onClose` was in them, and it is written inline at the call site -- a new
+    function on every render of the map screen. So the GL context was disposed
+    and recreated on EVERY RENDER, which defeated the structural comparison
+    below entirely and, worse, rebuilt each plane from a card that no longer
+    described the current state. Toggling a layer hid it and then immediately
+    restored it from the rebuild, which read as the eye not working at all.
+  */
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  /**
+   * Where each area was left.
+   *
+   * A ref rather than state, because nothing renders from it: the scene owns
+   * the position while the board is open, and this is the copy that outlives a
+   * rebuild -- without it, changing a raster would send an area the user had
+   * dragged back to where the layout first put it.
+   */
+  const placesRef = useRef<Record<string, { x: number; z: number }>>({})
+  const appearanceRef = useRef<PlaneState[]>([])
+  appearanceRef.current = areas.flatMap((a) =>
+    a.layers.map((l) => ({
+      groupId: a.id,
+      id: l.id,
+      opacity: l.opacity,
+      visible: l.visible,
+    }))
+  )
+  const [gap, setGap] = useState(STACK_GAP)
+
+  /**
+   * The active row of the outliner, and through it the plane the board
+   * outlines.
+   *
+   * Corrected as it is read rather than repaired by an effect. The set of
+   * layers changes under it -- a run finishes, a composition is cleared -- and
+   * an effect that noticed afterwards would leave one render showing a panel
+   * for a raster that is no longer on the board.
+   *
+   * Falls back to the last layer, which is the top of the stack and so the
+   * first row under the collection -- the confidence raster where there is
+   * one, the classification otherwise. The tree opens on its own first row
+   * rather than on a particular product.
+   */
+  const [activeRow, setActiveRow] = useState<string | null>(null)
+  const target = rowTarget(activeRow)
+  const targetArea = areas.find((a) => a.id === target?.areaId)
+  const rowIsLive =
+    !!targetArea &&
+    (!target?.layerId || targetArea.layers.some((l) => l.id === target.layerId))
+  const first = areas[0]
+  const active = rowIsLive
+    ? activeRow
+    : first
+      ? // The first area's topmost layer, which is the tree's first layer row.
+        `layer::${first.id}::${first.layers[first.layers.length - 1]?.id}`
+      : null
+  const activeTarget = rowTarget(active)
+  // A modifier's row points at the plane it acts on; an area's row points at
+  // no single one.
+  const selected = activeTarget?.layerId ?? null
+  const selectedArea = activeTarget?.areaId ?? null
+
+  /**
+   * Which rows are open. The stack starts open, or the tree would present a
+   * single collapsed row and the layers would have to be found before they
+   * could be used.
+   */
+  /*
+    Areas start open. A tree of collapsed collections shows the board's areas
+    and none of its rasters, which is the wrong half to show first; and an area
+    that has just been created by adding a raster must show the raster.
+  */
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set([stackRow(CURRENT_AREA)])
+  )
+  useEffect(() => {
+    setExpanded((prev) => {
+      const missing = areas.filter((a) => !prev.has(stackRow(a.id)))
+      if (!missing.length) return prev
+      const next = new Set(prev)
+      for (const a of missing) next.add(stackRow(a.id))
+      return next
+    })
+  }, [areas.map((a) => a.id).join("|")])
+
+
   const [mode, setMode] = useState<OutlinerMode>("scene")
   const [activeAsset, setActiveAsset] = useState<string | null>(null)
   const toggleExpanded = (id: string) =>
@@ -446,22 +549,28 @@ export function IsolateBoard({
       // Every layer, hidden ones included: the scene builds them all so that
       // hiding one is a flag on an existing plane rather than a different
       // scene, which would reset the camera on every eye toggle.
-      stackLayers.map(async (l) =>
-        l.smooth
-          ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
-          : l
-      )
+      areas.map(async (a) => ({
+        ...a,
+        layers: await Promise.all(
+          a.layers.map(async (l) =>
+            l.smooth
+              ? {
+                  ...l,
+                  uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri),
+                }
+              : l
+          )
+        ),
+      }))
     ).then((resolved) => {
       if (cancelled) return
       const next = layoutGroups(
-        [
-          {
-            id: CURRENT_AREA,
-            title,
-            layers: resolved,
-            at: placesRef.current[CURRENT_AREA],
-          },
-        ],
+        resolved.map((a) => ({
+          id: a.id,
+          title: a.title,
+          layers: a.layers,
+          at: placesRef.current[a.id],
+        })),
         STACK_GAP
       )
       setGroups((prev) => (prev && sameStructure(prev, next) ? prev : next))
@@ -479,7 +588,7 @@ export function IsolateBoard({
       render, so this runs often; sameStructure below is what makes that cheap,
       and majoritySmoothOverlay is memoised on its source.
     */
-  }, [stackLayers])
+  }, [areas])
 
   useEffect(() => {
     const host = hostRef.current
@@ -532,8 +641,10 @@ export function IsolateBoard({
     of the map screen; the layers themselves are read through a ref so that
     identity does not drag the effect along with it.
   */
-  const appearanceKey = stackLayers
-    .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.opacity}`)
+  const appearanceKey = areas
+    .flatMap((a) =>
+      a.layers.map((l) => `${a.id}/${l.id}:${l.visible ? 1 : 0}:${l.opacity}`)
+    )
     .join("|")
   useEffect(() => {
     boardRef.current?.setAppearance(appearanceRef.current)
@@ -542,8 +653,8 @@ export function IsolateBoard({
   // Re-applied when the scene is rebuilt as well as when the selection moves:
   // a fresh scene has no outline shown until it is told which one.
   useEffect(() => {
-    boardRef.current?.setSelected(selected ? CURRENT_AREA : null, selected)
-  }, [selected, groups])
+    boardRef.current?.setSelected(selectedArea, selected)
+  }, [selectedArea, selected, groups])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -576,7 +687,7 @@ export function IsolateBoard({
       <div ref={hostRef} className="absolute inset-0" />
 
       <BoardSidebar
-        layers={stackLayers}
+        areas={areas}
         areaId={CURRENT_AREA}
         assetRuns={assetRuns}
         addRun={
@@ -599,7 +710,6 @@ export function IsolateBoard({
         onActivateAsset={setActiveAsset}
         onSelectComposition={onSelectComposition}
         onRemoveComposition={onRemoveComposition}
-        areaLabel={title}
         activeRow={active}
         expanded={expanded}
         gap={gap}
@@ -609,6 +719,7 @@ export function IsolateBoard({
         onToggleExpanded={toggleExpanded}
         onGapChange={setGap}
         onLayerChange={changeLayer}
+        onDropRun={dropRun}
         onSmoothChange={onSmoothChange}
       />
 
