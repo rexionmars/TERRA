@@ -30,6 +30,7 @@ import { layoutGroups } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import { RunPicker } from "@/components/isolate/RunPicker"
 import {
+  CURRENT_AREA,
   keptObject,
   readBoardMemory,
   writeBoardMemory,
@@ -104,8 +105,6 @@ function sameStructure(a: CardGroup[], b: CardGroup[]): boolean {
  * a layer together -- two areas both have a layer called `prediction`, and a
  * key that was the layer alone would address both.
  */
-const CURRENT_AREA = "current"
-
 /**
  * State that outlives a close.
  *

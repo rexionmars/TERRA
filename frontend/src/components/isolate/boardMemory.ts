@@ -20,6 +20,15 @@
 
 const kept = new Map<string, unknown>()
 
+/**
+ * The area the map's own run occupies.
+ *
+ * Here rather than in IsolateBoard because the map screen needs it and must
+ * not import that module: IsolateBoard reaches `three`, and importing it
+ * eagerly would put half a megabyte back into the map screen's chunk.
+ */
+export const CURRENT_AREA = "current"
+
 /** Forget everything. For a board that should open empty. */
 export function clearBoardMemory(): void {
   kept.clear()
@@ -43,4 +52,24 @@ export function writeBoardMemory(key: string, value: unknown): void {
 export function keptObject<T extends object>(key: string, initial: () => T): T {
   if (!kept.has(key)) kept.set(key, initial())
   return kept.get(key) as T
+}
+
+/**
+ * Whether the board is holding an area other than the map's own run.
+ *
+ * The map screen decides whether to mount the board, and it can only see its
+ * OWN layers -- so discarding the current result emptied that list and closed
+ * a board that still had a second area on it, with a raster the user had gone
+ * and fetched. Read at render rather than subscribed to: the moment that
+ * matters is a render of the map screen, since it is the map screen's own
+ * state that changes when a result is discarded.
+ */
+export function boardHoldsOtherAreas(): boolean {
+  const added = kept.get("added") as
+    | Record<string, readonly string[]>
+    | undefined
+  if (!added) return false
+  return Object.entries(added).some(
+    ([areaId, ids]) => areaId !== CURRENT_AREA && ids.length > 0
+  )
 }

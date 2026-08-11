@@ -24,6 +24,7 @@ import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
 import { rasterLayers } from "@/lib/mapLayers"
 import { runAssets } from "@/lib/runAssets"
+import { boardHoldsOtherAreas } from "@/components/isolate/boardMemory"
 import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
@@ -281,11 +282,16 @@ export function MapScreen(props: MapScreenProps) {
    * No board, no way back into it (its button reads the same condition and had
    * gone disabled), and no overlay tools to turn a layer back on.
    *
-   * The condition is whether there is a raster to lift AT ALL. Everything that
-   * hides while the board is up reads this same value, so there is no state
-   * where the board is gone and what it replaced is still hidden.
+   * The condition is whether there is a raster to lift AT ALL -- from this run
+   * OR from another the board has fetched. The second half was missing, and
+   * discarding the current result closed a board that still held a second
+   * area: the map screen can only see its own layers, and the board's other
+   * areas are not among them. Everything that hides while the board is up
+   * reads this same value, so there is no state where the board is gone and
+   * what it replaced is still hidden.
    */
-  const boardOpen = isolate && boardLayers.length > 0
+  const boardOpen =
+    isolate && (boardLayers.length > 0 || boardHoldsOtherAreas())
 
   /*
     The same table the overlay tools panel lists, so the board's data mode and
