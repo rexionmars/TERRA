@@ -185,6 +185,7 @@ export function BoardSidebar({
   addRun,
   mode,
   activeRow,
+  selection,
   activeAsset,
   expanded,
   gap,
@@ -320,14 +321,24 @@ export function BoardSidebar({
    * to reach a picker it merely contains.
    */
   addRun?: ReactNode
-  /** The row the panel below is editing, and the plane the board outlines. */
+  /** The row the panel below is editing, and the last one chosen. */
   activeRow: string | null
+  /**
+   * Every chosen row, in the order it was chosen.
+   *
+   * Shown as an order rather than as a set: the number beside a row is its
+   * place in the path the board draws, and a highlight alone would say which
+   * rows were picked without saying in what order -- which is the only thing
+   * the path is for.
+   */
+  selection: string[]
   expanded: ReadonlySet<string>
   gap: number
   gapMax: number
   /** The map's majority filter, which decides where a class boundary falls. */
   smooth: boolean
-  onActivate: (rowId: string) => void
+  /** Additive where the modifier was held: shift builds an order. */
+  onActivate: (rowId: string, additive?: boolean) => void
   onToggleExpanded: (rowId: string) => void
   onGapChange: (v: number) => void
   onLayerChange: (areaId: string, id: string, patch: LayerPatch) => void
@@ -722,7 +733,8 @@ export function BoardSidebar({
           className="min-h-0 flex-1 overflow-y-auto py-1"
         >
           {rows.map((row) => {
-            const isActive = row.id === activeRow
+            const order = selection.indexOf(row.id)
+            const isActive = row.id === activeRow || order >= 0
             const isOpen = expanded.has(row.id)
             return (
               <div
@@ -745,10 +757,10 @@ export function BoardSidebar({
                   dragRef.current = null
                   setDropAt(null)
                 }}
-                onClick={() => {
+                onClick={(e) => {
                   // A press that travelled was a reorder, not a choice.
                   if (dragRef.current?.moved) return
-                  onActivate(row.id)
+                  onActivate(row.id, e.shiftKey)
                 }}
                 onKeyDown={(e) => {
                   /*
@@ -760,7 +772,7 @@ export function BoardSidebar({
                   if (e.target !== e.currentTarget) return
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
-                    onActivate(row.id)
+                    onActivate(row.id, e.shiftKey)
                   }
                 }}
                 className={cn(
@@ -866,6 +878,20 @@ export function BoardSidebar({
                   Toggling does not activate the row: hiding something is a
                   glance at the stack, not a decision to start editing it.
                 */}
+                {/*
+                  Its place in the path, where there is one. A number rather
+                  than a brighter highlight, because the order is the thing
+                  being read and a highlight cannot count.
+                */}
+                {order >= 0 && selection.length > 1 && (
+                  <span
+                    className="telemetry shrink-0 rounded-[2px] px-1 text-[9px] text-accent"
+                    style={{ background: "rgb(var(--p-accent) / 0.15)" }}
+                    title={`${order + 1} of ${selection.length} in the path`}
+                  >
+                    {order + 1}
+                  </span>
+                )}
                 {/*
                   Left of the eye, so the eyes stay in one column down the
                   whole tree whether or not a row can be removed.

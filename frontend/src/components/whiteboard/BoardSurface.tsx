@@ -745,6 +745,27 @@ export function BoardSurface({
    * rather than on a particular product.
    */
   const [activeRow, setActiveRow] = useKept<string | null>("activeRow", null)
+  /**
+   * Rows chosen, in the order they were chosen.
+   *
+   * An ORDER, not a set: picking three rasters one after another is someone
+   * saying "read this, then this, then this", and the board draws that as an
+   * arrowed path. Keeping only which ones were picked would throw the
+   * statement away and leave three highlighted planes with nothing between
+   * them.
+   */
+  const [selection, setSelection] = useKept<string[]>("selection", [])
+  const chooseRow = (rowId: string, additive?: boolean) => {
+    setActiveRow(rowId)
+    setSelection((prev) => {
+      if (!additive) return [rowId]
+      // Shift on a row already in the path takes it out, so a sequence built
+      // by hand can be corrected without starting it again.
+      return prev.includes(rowId)
+        ? prev.filter((r) => r !== rowId)
+        : [...prev, rowId]
+    })
+  }
   const target = rowTarget(activeRow)
   const targetArea = areas.find((a) => a.id === target?.areaId)
   const rowIsLive =
@@ -958,9 +979,27 @@ export function BoardSurface({
 
   // Re-applied when the scene is rebuilt as well as when the selection moves:
   // a fresh scene has no outline shown until it is told which one.
+  /*
+    The path the scene draws, in the order it was picked.
+
+    Only rows that are a plane: an area's row and a modifier's have no raster
+    to run a line to, so they take part in the selection without taking part
+    in the path.
+  */
+  const selectedPlanes = selection
+    .map(rowTarget)
+    .filter(
+      (t): t is { areaId: string; layerId: string } => !!t?.layerId
+    )
+    .map((t) => ({ groupId: t.areaId, id: t.layerId }))
+  const selectionKey = selectedPlanes
+    .map((p) => `${p.groupId}/${p.id}`)
+    .join("|")
+  const selectedPlanesRef = useRef(selectedPlanes)
+  selectedPlanesRef.current = selectedPlanes
   useEffect(() => {
-    boardRef.current?.setSelected(selectedArea, selected)
-  }, [selectedArea, selected, groups])
+    boardRef.current?.setSelection(selectedPlanesRef.current)
+  }, [selectionKey, groups])
 
   useEffect(() => {
     boardRef.current?.setLinks(links)
@@ -1066,11 +1105,12 @@ export function BoardSurface({
         onSelectComposition={onSelectComposition}
         onRemoveComposition={onRemoveComposition}
         activeRow={active}
+        selection={selection}
         expanded={expanded}
         gap={gap}
         gapMax={GAP_MAX}
         smooth={smooth}
-        onActivate={setActiveRow}
+        onActivate={chooseRow}
         onToggleExpanded={toggleExpanded}
         onGapChange={setGap}
         onLayerChange={changeLayer}

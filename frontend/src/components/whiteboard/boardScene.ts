@@ -23,6 +23,7 @@ import {
   BufferGeometry,
   Clock,
   Color,
+  ConeGeometry,
   EdgesGeometry,
   Float32BufferAttribute,
   Fog,
@@ -63,6 +64,10 @@ import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
  * Measured against three 0.185: `rgb(23 23 23)` parses to ffffff,
  * `rgb(23,23,23)` to 171717.
  */
+/** Arrowhead size, in board units where the largest area's side is 1. */
+const ARROW_RADIUS = 0.018
+const ARROW_LENGTH = 0.055
+
 export function tokenColor(name: string, fallback: string): string {
   const raw = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
@@ -132,7 +137,16 @@ export interface BoardHandle {
    * where two rasters of the same AOI look much alike, that is the difference
    * between a list you read and a list you can use.
    */
-  setSelected: (groupId: string | null, id: string | null) => void
+  /**
+   * Outline these planes, in this order, and draw the path through them.
+   *
+   * An ORDER rather than a set, because the order is the point: several
+   * rasters selected one after another is someone saying "read this, then
+   * this", and an arrowed path is that statement made visible. A set would
+   * have thrown the statement away and left three highlighted planes with
+   * nothing between them.
+   */
+  setSelection: (keys: { groupId: string; id: string }[]) => void
   /**
    * Put an area where a saved arrangement says it was.
    *
@@ -461,7 +475,10 @@ export function createBoard(
       plane on top, so it is the one a press lands on.
     */
     const hit =
-      tied.find((h) => keyOfMesh.get(h.object as Mesh) === selectedKey) ??
+      tied.find((h) => {
+        const k = keyOfMesh.get(h.object as Mesh)
+        return !!k && selectedKeys.includes(k)
+      }) ??
       tied.reduce((best, h) =>
         h.object.renderOrder > best.object.renderOrder ? h : best
       )
@@ -902,6 +919,109 @@ export function createBoard(
   world.add(links)
   disposables.push(linkGeometry, linkMaterial)
 
+  /*
+    The path through the selection, and the arrowheads that give it direction.
+
+    A separate object from the links: those say what BELONGS together and are
+    a property of the board, while this says in what ORDER to read a few things
+    someone picked, and is a property of a gesture. Drawn in the accent, over
+    the planes rather than under them -- an instruction about how to read the
+    board is not part of the board.
+
+    Arrowheads are cones at each segment's midpoint. At an end they would be
+    hidden under the raster they point at, and the midpoint is where the eye
+    already is when it follows a line.
+  */
+  const pathMaterial = new LineBasicMaterial({
+    color: new Color(opts.accent),
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+  })
+  const arrowMaterial = new MeshBasicMaterial({
+    color: new Color(opts.accent),
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+  })
+  const pathGeometry = new BufferGeometry()
+  const pathBuffer = new Float32Array(pending * 2 * 3)
+  const pathAttribute = new BufferAttribute(pathBuffer, 3)
+  pathGeometry.setAttribute("position", pathAttribute)
+  pathGeometry.setDrawRange(0, 0)
+  const pathLine = new LineSegments(pathGeometry, pathMaterial)
+  pathLine.renderOrder = pending * 4
+  world.add(pathLine)
+  disposables.push(pathGeometry, pathMaterial, arrowMaterial)
+
+  /** One cone per segment, kept and reused rather than rebuilt. */
+  const arrows: Mesh[] = []
+  const arrowFrom = new Vector3()
+  const arrowTo = new Vector3()
+  const arrowDir = new Vector3()
+  /** Cones point along +Y by default; this is the axis to rotate from. */
+  const CONE_AXIS = new Vector3(0, 1, 0)
+
+  const updatePath = () => {
+    const points: Vector3[] = []
+    for (const key of selectedKeys) {
+      for (const rt of runtimes) {
+        const i = rt.meshes.findIndex(
+          (m, n) => !!m && planeKey(rt.id, rt.cards[n].id) === key
+        )
+        const mesh = i >= 0 ? rt.meshes[i] : null
+        // Only what is drawn: a path through a hidden raster would point at
+        // nothing, and it would still claim a reading order that cannot be
+        // followed on screen.
+        if (mesh && mesh.visible) {
+          points.push(
+            new Vector3(
+              rt.root.position.x + mesh.position.x,
+              rt.root.position.y + mesh.position.y,
+              rt.root.position.z + mesh.position.z
+            )
+          )
+        }
+      }
+    }
+
+    let n = 0
+    for (let i = 1; i < points.length; i++) {
+      for (const p of [points[i - 1], points[i]]) {
+        pathBuffer[n++] = p.x
+        pathBuffer[n++] = p.y
+        pathBuffer[n++] = p.z
+      }
+    }
+    pathAttribute.needsUpdate = true
+    pathGeometry.setDrawRange(0, n / 3)
+
+    const segments = Math.max(0, points.length - 1)
+    // Grown on demand and hidden rather than destroyed: a selection changes
+    // often, and a cone per change would be a geometry allocated per click.
+    while (arrows.length < segments) {
+      const cone = new Mesh(
+        new ConeGeometry(ARROW_RADIUS, ARROW_LENGTH, 8),
+        arrowMaterial
+      )
+      cone.renderOrder = pending * 4 + 1
+      arrows.push(cone)
+      world.add(cone)
+      disposables.push(cone.geometry)
+    }
+    arrows.forEach((cone, i) => {
+      cone.visible = i < segments
+      if (!cone.visible) return
+      arrowFrom.copy(points[i])
+      arrowTo.copy(points[i + 1])
+      cone.position.copy(arrowFrom).lerp(arrowTo, 0.5)
+      arrowDir.copy(arrowTo).sub(arrowFrom)
+      if (arrowDir.lengthSq() > 0) {
+        cone.quaternion.setFromUnitVectors(CONE_AXIS, arrowDir.normalize())
+      }
+    })
+  }
+
   /**
    * Re-points the lines at where the planes are now.
    *
@@ -957,6 +1077,7 @@ export function createBoard(
       })
     }
     updateLinks()
+    updatePath()
   }
 
   /**
@@ -964,7 +1085,8 @@ export function createBoard(
    * planes appear as their textures decode and a selection made before one
    * arrives has to survive until it does.
    */
-  let selectedKey: string | null = null
+  /** Selected planes in the order they were chosen, by key. */
+  let selectedKeys: string[] = []
   /*
     The one place a plane's state lives. Seeded from the caller and updated by
     setAppearance; the mesh reads it when it is created and whenever it is
@@ -1140,7 +1262,7 @@ export function createBoard(
           )
         : new LineSegments(new EdgesGeometry(geometry), outlineMaterial)
       outline.renderOrder = totalPlanes + order
-      outline.visible = selectedKey === planeKey(rt.id, card.id)
+      outline.visible = selectedKeys.includes(planeKey(rt.id, card.id))
       mesh.add(outline)
       disposables.push(outline.geometry)
 
@@ -1173,18 +1295,22 @@ export function createBoard(
       applyHeights()
       render()
     },
-    setSelected(groupId, id) {
-      const next = groupId && id ? planeKey(groupId, id) : null
-      if (next === selectedKey) return
-      selectedKey = next
+    setSelection(keys) {
+      const next = keys.map((k) => planeKey(k.groupId, k.id))
+      if (next.length === selectedKeys.length &&
+          next.every((k, i) => k === selectedKeys[i])) {
+        return
+      }
+      selectedKeys = next
       for (const rt of runtimes) {
         rt.meshes.forEach((mesh, i) => {
-          // Its own outline is the only child a plane has.
+          // Its own outline is the first child a plane has.
           const outline = mesh?.children[0]
           if (!mesh || !outline) return
-          outline.visible = planeKey(rt.id, rt.cards[i].id) === next
+          outline.visible = next.includes(planeKey(rt.id, rt.cards[i].id))
         })
       }
+      updatePath()
       render()
     },
     setLabels(on) {
@@ -1254,6 +1380,7 @@ export function createBoard(
         // Hiding a raster takes its line with it: a line to something that is
         // not drawn points at nothing.
         updateLinks()
+        updatePath()
         render()
       }
     },
