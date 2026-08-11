@@ -2330,6 +2330,7 @@ function AppBody(props: {
                 <MapScreen
                   initialView={initialMapView}
                   leftPanel={leftPanel}
+                  layoutMode={layoutMode}
                   onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
                   activeExample={props.activeExample}

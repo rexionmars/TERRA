@@ -878,9 +878,14 @@
   spans the full width, and tile attribution is a licensing requirement rather
   than chrome that may be covered.
 
-  --map-foot has to be the bar's exact height. Set generously it leaves a strip
-  of map between the two, and the attribution reads as a rectangle floating over
-  the imagery rather than as chrome docked to the bar below it.
+  --map-foot is the TOTAL reservation at the foot, not one bar's height. In the
+  docked layout that is the period track alone and the attribution sits flush on
+  its top edge. In the workspace layout it also covers the floating control bar
+  above the track, so the attribution clears both.
+
+  It has to be exact for whatever it is reserving. Set generously it leaves a
+  strip of map between the two, and the attribution reads as a rectangle
+  floating over the imagery rather than as chrome docked below it.
 */
 .leaflet-bottom {
   margin-bottom: var(--map-foot, 0px);

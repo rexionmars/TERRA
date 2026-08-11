@@ -22,6 +22,8 @@ import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
+import type { LayoutMode } from "@/lib/types"
+import { WorkspaceBar } from "@/components/WorkspaceBar"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
@@ -37,6 +39,8 @@ export interface MapScreenProps {
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
   leftPanel: MapToolId | null
   onLeftPanelChange: (id: MapToolId | null) => void
+  /** Which layout draws this screen. See lib/types LayoutMode. */
+  layoutMode?: LayoutMode
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -144,6 +148,7 @@ export function MapScreen(props: MapScreenProps) {
   // raster on the map with the classification panel open beside it.
   const { leftPanel, onLeftPanelChange } = props
   const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
+  const workspace = props.layoutMode === "workspace"
   const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only
@@ -169,10 +174,64 @@ export function MapScreen(props: MapScreenProps) {
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
     null
 
+  /**
+   * The run action for whichever product is in view.
+   *
+   * The three panels each own a run button with its own label, its own progress
+   * state and its own enabling rule, and the rules genuinely differ:
+   * classification additionally requires both dates, and a composition
+   * additionally requires a selected scene. The workspace bar carries one
+   * button, so the differences are gathered here rather than being flattened
+   * into a single condition that would be wrong for two of the three.
+   *
+   * Composition is the one this fixes rather than moves: its Apply button sits
+   * inside a section called "Display", under the stretch inputs, where a reader
+   * looking for the action does not pass.
+   */
+  const run =
+    leftPanel === "water"
+      ? {
+          running: props.waterRunning,
+          progress: props.waterProgress,
+          progressMsg: props.waterProgressMsg,
+          label: props.waterRunning ? "Mapping" : "Map water",
+          canRun: props.hasArea,
+          onRun: props.onRunWater,
+        }
+      : leftPanel === "compose"
+        ? {
+            running: props.composeRunning,
+            progress: props.composeProgress,
+            progressMsg: props.composeProgressMsg,
+            label: props.composeRunning ? "Applying" : "Apply",
+            canRun: props.hasArea && !!props.selectedSceneId,
+            onRun: props.onApplyComposition,
+          }
+        : {
+            running: props.running,
+            progress: props.progress,
+            progressMsg: props.progressMsg,
+            label: props.running ? "Classifying" : "Classify",
+            canRun: props.hasArea && !!props.start && !!props.end,
+            onRun: props.onRun,
+          }
+
   return (
     <div
       className="relative h-full min-h-0 w-full"
-      style={{ "--map-foot": "3.0625rem" } as React.CSSProperties}
+      /*
+        What the foot of the map has spoken for, which every surface anchored
+        to the bottom measures from. The docked layout reserves the period
+        timeline alone; the workspace layout adds the floating bar above it --
+        its 3rem plus the 1rem it sits off the timeline.
+      */
+      style={
+        {
+          "--map-foot": workspace
+            ? "calc(3.0625rem + 4rem)"
+            : "3.0625rem",
+        } as React.CSSProperties
+      }
     >
       <MapView
         initialView={props.initialView}
@@ -224,9 +283,27 @@ export function MapScreen(props: MapScreenProps) {
         // Clears the open tool column, matching the offset the status panels
         // already use so the two agree on where the map's free width begins.
         leftOffsetClass={
-          leftPanel ? "left-[20.5rem] rounded-tl-md" : "left-0"
+          !workspace && leftPanel ? "left-[20.5rem] rounded-tl-md" : "left-0"
         }
       />
+
+      <AnimatePresence>
+        {workspace && (
+          <WorkspaceBar
+            key="workspace-bar"
+            tool={leftPanel}
+            onToolChange={setLeftPanel}
+            running={run.running}
+            progress={run.progress}
+            progressMsg={run.progressMsg}
+            runLabel={run.label}
+            canRun={run.canRun}
+            onRun={run.onRun}
+            configOpen={false}
+            onConfigToggle={() => {}}
+          />
+        )}
+      </AnimatePresence>
 
       <OverlayToolsButton
         active={overlayToolsOpen}
@@ -279,8 +356,13 @@ export function MapScreen(props: MapScreenProps) {
         }
       />
 
+      {/*
+        The docked column. The workspace layout has no column to dock to -- its
+        parameters open in a drawer from the bar instead -- so the switch is
+        withheld there rather than the panels being taught about the layout.
+      */}
       <AnimatePresence mode="wait" initial={false}>
-        {leftPanel === "classify" ? (
+        {workspace ? null : leftPanel === "classify" ? (
           <ControlPanel
             key="classify"
             activeExample={props.activeExample}
