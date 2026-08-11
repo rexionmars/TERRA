@@ -54,6 +54,13 @@ export interface AssetRun {
   title: string
   /** The period analysed, which is what distinguishes two runs of one area. */
   period: string
+  /**
+   * What produced it, where the run says.
+   *
+   * The other thing that distinguishes two runs of one AOI, and the one the
+   * board exists to compare: same ground, same window, different estimator.
+   */
+  model?: string
   assets: RunAsset[]
 }
 
@@ -112,7 +119,8 @@ export interface RunAsset {
   exportTif: TifExport | null
 }
 
-function modelLabel(kind?: ModelKind): string {
+/** Exported: the board names a run's model where two of them are compared. */
+export function modelLabel(kind?: ModelKind): string {
   switch (kind) {
     case "prithvi":
       return "Prithvi-EO"

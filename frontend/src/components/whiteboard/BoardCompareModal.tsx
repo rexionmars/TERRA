@@ -29,6 +29,15 @@ export interface CompareSide {
   /** Area and layer, so a title can say which stack it came from. */
   areaTitle?: string
   layerTitle: string
+  /**
+   * What produced this raster.
+   *
+   * The reason the comparison exists. With the same ground and the same window,
+   * the estimator is what the two sides differ by, so it leads the label: two
+   * corners reading "Prediction" and "Prediction" name nothing the reader is
+   * choosing between.
+   */
+  model?: string
   uri: string
   pixelated: boolean
   legend: LayerLegend
@@ -170,8 +179,17 @@ export function BoardCompareModal({
     }
   }, [from.uri, to.uri, sameGround])
 
+  /** The header, which has the room to say everything. */
   const label = (s: CompareSide) =>
-    s.areaTitle ? `${s.layerTitle} · ${s.areaTitle}` : s.layerTitle
+    [s.model, s.layerTitle, s.areaTitle].filter(Boolean).join(" · ")
+  /*
+    The swipe's corners, which do not. The model leads and the area is dropped:
+    the corner is a 2rem chip over the imagery, its title is trimmed to fit, and
+    the run id an area is named by would push out the one word that says which
+    side is which.
+  */
+  const corner = (s: CompareSide) =>
+    [s.model, s.layerTitle].filter(Boolean).join(" · ")
 
   return (
     <ModalShell
@@ -248,14 +266,14 @@ export function BoardCompareModal({
           <PlotSwipeView
             left={{
               id: "from",
-              title: label(from),
+              title: corner(from),
               uri: from.uri,
               exportPngName: "",
               pixelated: from.pixelated,
             }}
             right={{
               id: "to",
-              title: label(to),
+              title: corner(to),
               uri: to.uri,
               exportPngName: "",
               pixelated: to.pixelated,

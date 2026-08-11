@@ -991,6 +991,7 @@ export function MapScreen(props: MapScreenProps) {
                 its own to give. The board only needs one that is stable while
                 it is open, and distinct from the ids of runs loaded beside it.
               */
+              modelKind={props.modelKind}
               onNewRun={props.onNewClassification}
               onCloseResult={props.onCloseResult}
               runId={props.result?.run_id || "current"}

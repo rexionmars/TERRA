@@ -27,7 +27,8 @@ import { BoardCompareModal } from "@/components/whiteboard/BoardCompareModal"
 import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
 import { legendFor, type LegendSources } from "@/lib/layerLegend"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
-import { runAssets } from "@/lib/runAssets"
+import { modelLabel, runAssets } from "@/lib/runAssets"
+import type { ModelKind } from "@/lib/types"
 import type { CardGroup } from "@/lib/boardLayout"
 import { layoutGroups } from "@/lib/boardLayout"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -135,6 +136,7 @@ function useKept<T>(key: string, initial: T | (() => T)) {
 export function BoardSurface({
   layers,
   legendSources,
+  modelKind,
   onNewRun,
   onCloseResult,
   assets,
@@ -167,6 +169,8 @@ export function BoardSurface({
    * it means. Fetched areas carry their own inside `extraRuns`.
    */
   legendSources?: LegendSources
+  /** What produced the map screen's own run; a fetched one carries its own. */
+  modelKind?: ModelKind
   /**
    * The result panel's actions, since the statistics band replaced the panel.
    *
@@ -351,7 +355,16 @@ export function BoardSurface({
    */
   const assetRuns: AssetRun[] = [
     ...(assets.length
-      ? [{ areaId: CURRENT_AREA, runId, title, period: runPeriod, assets }]
+      ? [
+          {
+            areaId: CURRENT_AREA,
+            runId,
+            title,
+            period: runPeriod,
+            model: modelKind ? modelLabel(modelKind) : undefined,
+            assets,
+          },
+        ]
       : []),
     ...extraRuns.map(({ run, result }) => ({
       // The run's own id names its area: it is unique, it is stable across a
@@ -359,6 +372,7 @@ export function BoardSurface({
       areaId: run.id,
       runId: run.id,
       title: displayRunLabel(run.label) || run.model_kind,
+      model: modelLabel(run.model_kind as ModelKind),
       period:
         result.date_range?.length === 2
           ? `${result.date_range[0]} → ${result.date_range[1]}`
@@ -1219,6 +1233,7 @@ export function BoardSurface({
           return {
             areaTitle: areas.length > 1 ? area?.title : undefined,
             layerTitle: names[layerRow(t.groupId, t.id)] ?? layer.title,
+            model: assetRuns.find((r) => r.areaId === t.groupId)?.model,
             uri: card.uri,
             pixelated: layer.pixelated,
             legend: legendFor(t.id, legendByArea.get(t.groupId) ?? {}),
