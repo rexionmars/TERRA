@@ -599,6 +599,29 @@ function AppBody(props: {
    * to docked.
    */
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
+
+  /**
+   * Go to a destination from the dock layout's bar.
+   *
+   * Written here because navigating is two moves that live at this level: the
+   * screen, which is in the auth context, and the sub-tab, which is the state
+   * just above. The navigation table in lib/navigation carries the structure
+   * and deliberately not this, so the table cannot reach into either.
+   */
+  const navigateTo = useCallback(
+    (groupId: string, itemId?: string) => {
+      if (groupId === "energy") {
+        if (itemId) setEnergyTab(itemId as EnergyTab)
+        goEnergy()
+      } else if (groupId === "analysis") {
+        goAnalysis()
+      } else {
+        if (itemId) setLeftPanel(itemId as MapToolId)
+        goMap()
+      }
+    },
+    [goEnergy, goAnalysis, goMap]
+  )
   const didSeedLayoutRef = useRef(false)
   useEffect(() => {
     if (didSeedLayoutRef.current || !prefs) return
@@ -2335,6 +2358,7 @@ function AppBody(props: {
                   initialView={initialMapView}
                   leftPanel={leftPanel}
                   layoutMode={layoutMode}
+                  onNavigate={navigateTo}
                   onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
                   activeExample={props.activeExample}
@@ -2488,6 +2512,7 @@ function AppBody(props: {
               >
                 <EnergyScreen
                   layoutMode={layoutMode}
+                  onNavigate={navigateTo}
                   solar={solar}
                   solarDispatch={solarDispatch}
                   wind={wind}

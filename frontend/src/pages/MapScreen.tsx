@@ -21,8 +21,7 @@ import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
-import { Map as MapIcon } from "lucide-react"
-import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
+import type { MapToolId } from "@/lib/mapTools"
 import type { LayoutMode } from "@/lib/types"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
@@ -43,6 +42,8 @@ export interface MapScreenProps {
   onLeftPanelChange: (id: MapToolId | null) => void
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
+  /** Go to another destination, for the dock layout's bar. */
+  onNavigate: (groupId: string, itemId?: string) => void
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
@@ -437,11 +438,9 @@ export function MapScreen(props: MapScreenProps) {
         {workspace && (
           <WorkspaceBar
             key="workspace-bar"
-            icon={MapIcon}
-            groupLabel="Map"
-            items={MAP_TOOLS}
+            groupId="map"
             activeId={leftPanel}
-            onSelect={(id) => setLeftPanel(id as MapToolId)}
+            onNavigate={props.onNavigate}
             running={run.running}
             progress={run.progress}
             progressMsg={run.progressMsg}

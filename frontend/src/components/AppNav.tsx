@@ -31,6 +31,7 @@ import { useAuth, type AppScreen } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
+import { ENERGY_TABS } from "@/lib/navigation"
 import type { EnergyTab } from "@/pages/EnergyScreen"
 
 export interface AppNavProps {
@@ -100,17 +101,12 @@ export function AppNav({
     },
   }))
 
-  const energyChildren: NavChild[] = (
-    [
-      { key: "solar", label: "Solar" },
-      { key: "wind", label: "Wind" },
-    ] as const
-  ).map((c) => ({
-    key: c.key,
+  const energyChildren: NavChild[] = ENERGY_TABS.map((c) => ({
+    key: c.id,
     label: c.label,
-    active: onEnergy && energyTab === c.key,
+    active: onEnergy && energyTab === c.id,
     onSelect: () => {
-      onEnergyTabChange(c.key)
+      onEnergyTabChange(c.id as typeof energyTab)
       goEnergy()
     },
   }))

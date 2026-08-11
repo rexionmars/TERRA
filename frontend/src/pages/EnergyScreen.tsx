@@ -26,22 +26,10 @@
  * host did not use.
  */
 import { AnimatePresence } from "motion/react"
-import { Zap } from "lucide-react"
 import type { LayoutMode } from "@/lib/types"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import { PanelShell, type PanelPlacement } from "@/components/ui/PanelShell"
 
-/**
- * The two resources, named as the navigation column names them.
- *
- * Written here rather than imported because the column builds its own copy
- * inline; if a third resource is ever added, this is the second place it has
- * to appear, and that is a reason to lift both into lib/ at that point.
- */
-const ENERGY_TABS = [
-  { id: "solar", label: "Solar" },
-  { id: "wind", label: "Wind" },
-] as const
 import {
   useCallback,
   useMemo,
@@ -150,6 +138,8 @@ export interface EnergyScreenProps {
   onRunWind: () => void
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
+  /** Go to another destination, for the dock layout's bar. */
+  onNavigate: (groupId: string, itemId?: string) => void
   /**
    * Opens the analysis screen, where the long blocks live -- the loss
    * waterfall, the generation profile, the tracking comparison. They render
@@ -607,11 +597,9 @@ export function EnergyScreen(props: EnergyScreenProps) {
         {workspace && (
           <WorkspaceBar
             key="energy-bar"
-            icon={Zap}
-            groupLabel="Energy"
-            items={ENERGY_TABS}
+            groupId="energy"
             activeId={tab}
-            onSelect={(id) => setTab(id as EnergyTab)}
+            onNavigate={props.onNavigate}
             running={run.running}
             progress={run.progress}
             progressMsg={run.progressMsg}

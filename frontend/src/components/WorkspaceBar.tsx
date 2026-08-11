@@ -26,16 +26,23 @@
  */
 import { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { ChevronUp, Loader2, Play, Settings2, type LucideIcon } from "lucide-react"
+import { ChevronUp, Loader2, Play, Settings2 } from "lucide-react"
+import { NAV_GROUPS } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 
+/** One row of the menu, in the vocabulary the navigation column already uses. */
+const ROW =
+  "flex h-8 w-full items-center px-3 text-left text-emphasis transition-colors " +
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+const ROW_ON = "bg-surface-raised text-foreground"
+const ROW_OFF =
+  "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
+
 export function WorkspaceBar({
-  icon: Icon,
-  groupLabel,
-  items,
+  groupId,
   activeId,
-  onSelect,
+  onNavigate,
   running,
   progress,
   progressMsg,
@@ -46,13 +53,18 @@ export function WorkspaceBar({
   onConfigToggle,
   onWidthChange,
 }: {
-  /** The group's own mark, matching the one the navigation column gives it. */
-  icon: LucideIcon
-  /** What the group is called when nothing under it is selected. */
-  groupLabel: string
-  items: readonly { id: string; label: string }[]
+  /** The group this screen belongs to, which is the one shown on the trigger. */
+  groupId: string
+  /** Which of that group's items is in view. */
   activeId: string | null
-  onSelect: (id: string) => void
+  /**
+   * Go to a destination. The item is absent for a group that is a single place.
+   *
+   * The bar carries every destination, not just the one it is on, because the
+   * dock layout hides the navigation column: without this the only way from the
+   * map to energy was to leave the layout, switch, and come back.
+   */
+  onNavigate: (groupId: string, itemId?: string) => void
   running: boolean
   progress: number
   progressMsg: string
@@ -107,7 +119,9 @@ export function WorkspaceBar({
   // that is right: a bare Math.max(4, ...) draws a started run before it has
   // started, and a bare Math.max(0, ...) lets a stale value run past the end.
   const pct = Math.max(0, Math.min(100, progress))
-  const active = items.find((t) => t.id === activeId)
+  const group = NAV_GROUPS.find((g) => g.id === groupId)
+  const Icon = group?.icon
+  const active = group?.items.find((t) => t.id === activeId)
 
   return (
     <motion.div
@@ -140,27 +154,64 @@ export function WorkspaceBar({
             exit={{ opacity: 0, y: 8 }}
             transition={{ type: "spring", stiffness: 400, damping: 32 }}
           >
-            {items.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelect(t.id)
-                    setOpen(false)
-                  }}
-                  aria-current={t.id === activeId ? "true" : undefined}
-                  className={cn(
-                    "flex h-8 w-full items-center px-3 text-left text-emphasis transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-                    t.id === activeId
-                      ? "bg-surface-raised text-foreground"
-                      : "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
+            {/*
+              Every destination, grouped as the navigation column groups them.
+              This is that column lying down: the same three headings, the same
+              children under each, so a user who learned one has learned both.
+            */}
+            {NAV_GROUPS.map((g) => {
+              const onThisGroup = g.id === groupId
+              const GroupIcon = g.icon
+              return (
+                <li key={g.id}>
+                  {g.items.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onNavigate(g.id)
+                        setOpen(false)
+                      }}
+                      aria-current={onThisGroup ? "true" : undefined}
+                      className={cn(ROW, "gap-2", onThisGroup ? ROW_ON : ROW_OFF)}
+                    >
+                      <GroupIcon className="size-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">{g.label}</span>
+                    </button>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 px-3 pb-0.5 pt-1.5">
+                        <GroupIcon className="size-3.5 shrink-0 text-primary" />
+                        <span className="eyebrow !text-[9px]">{g.label}</span>
+                      </div>
+                      <ul>
+                        {g.items.map((t) => {
+                          const here = onThisGroup && t.id === activeId
+                          return (
+                            <li key={t.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onNavigate(g.id, t.id)
+                                  setOpen(false)
+                                }}
+                                aria-current={here ? "true" : undefined}
+                                className={cn(
+                                  ROW,
+                                  "pl-8",
+                                  here ? ROW_ON : ROW_OFF
+                                )}
+                              >
+                                <span className="min-w-0 truncate">{t.label}</span>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
                   )}
-                >
-                  <span className="min-w-0 truncate">{t.label}</span>
-                </button>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </motion.ul>
         )}
       </AnimatePresence>
@@ -201,9 +252,9 @@ export function WorkspaceBar({
               : "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
           )}
         >
-          <Icon className="size-4 shrink-0 text-primary" />
+          {Icon && <Icon className="size-4 shrink-0 text-primary" />}
           <span className="text-emphasis text-foreground">
-            {active?.label ?? groupLabel}
+            {active?.label ?? group?.label ?? "Go to"}
           </span>
           <ChevronUp
             className={cn(
