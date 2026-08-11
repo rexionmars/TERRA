@@ -21,7 +21,7 @@
  * as one edge in two registers: what the run WILL do below, what the selected
  * rasters ARE above.
  */
-import { ChartColumn, Plus, X } from "lucide-react"
+import { ChartColumn } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import type { LayerLegend } from "@/lib/layerLegend"
@@ -173,24 +173,11 @@ function Entry({ entry }: { entry: StatsEntry }) {
 export function BoardStatsBar({
   entries,
   leftOffset,
-  onNewRun,
-  onCloseResult,
 }: {
   /** The selected rasters, in the order they were picked. */
   entries: StatsEntry[]
   /** Where the board's column ends, matching the run band below. */
   leftOffset: string
-  /**
-   * What the result panel used to carry, since this band replaced it.
-   *
-   * The panel showed the same composition this band shows, so over the board it
-   * was one table said twice -- and collapsing it only shrank the repetition,
-   * because its header repeated the subject line too. Removed, then: but the
-   * figures were never the only thing on it. These were, and they come across
-   * rather than being stranded.
-   */
-  onNewRun?: () => void
-  onCloseResult?: () => void
 }) {
   // Reached here rather than threaded through three components, which is how
   // the panel this replaces reached it too.
@@ -232,48 +219,33 @@ export function BoardStatsBar({
         </div>
       )}
 
-      {(onNewRun || onCloseResult) && (
-        /*
-          Pinned at the right end, outside the scroller: they are the run's
-          actions rather than any one layer's, and they must be reachable
-          however far the blocks beside them run.
-        */
-        <div className="ml-3 flex shrink-0 items-center gap-1 self-center">
-          <button
-            type="button"
-            onClick={goAnalysis}
-            title="Open analysis"
-            className="flex items-center gap-1 rounded-sm px-2 py-1 text-meta text-primary transition-colors hover:bg-primary/10"
-          >
-            <ChartColumn className="size-3.5" />
-            Analysis
-          </button>
-          {onNewRun && (
-            <button
-              type="button"
-              onClick={onNewRun}
-              title="Start a new classification"
-              className={cn(
-                "flex items-center gap-1 rounded-sm px-2 py-1 text-meta transition-colors",
-                "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
-              )}
-            >
-              <Plus className="size-3.5" />
-              New
-            </button>
-          )}
-          {onCloseResult && (
-            <button
-              type="button"
-              onClick={onCloseResult}
-              title="Discard this result"
-              className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
-      )}
+      {/*
+        Analysis, and nothing that destroys anything.
+
+        This band replaced the result panel, so its actions came across with its
+        figures -- and two of them were session-level and irreversible. `New`
+        clears the result, the water, every solar product, the wind and the AOI;
+        the X discards the run whose planes are on screen. On a panel headed
+        RESULT their consequence is legible. At the end of a row of statistics
+        it is not: a bare X reads as "close this", and there is nothing here to
+        close, which is how an imported AOI's whole analysis was lost to one.
+
+        A readout is not where a session is ended. Both still sit on the map's
+        result panel, one board-close away, where the header names what is being
+        discarded -- and where discarding is not done while looking at a surface
+        full of the thing's own rasters.
+      */}
+      <div className="ml-3 flex shrink-0 items-center self-center">
+        <button
+          type="button"
+          onClick={goAnalysis}
+          title="Open analysis"
+          className="flex items-center gap-1 rounded-sm px-2 py-1 text-meta text-primary transition-colors hover:bg-primary/10"
+        >
+          <ChartColumn className="size-3.5" />
+          Analysis
+        </button>
+      </div>
     </div>
   )
 }

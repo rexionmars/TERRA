@@ -136,8 +136,6 @@ function useKept<T>(key: string, initial: T | (() => T)) {
 export function BoardSurface({
   layers,
   legendSources,
-  onNewRun,
-  onCloseResult,
   assets,
   runId,
   runPeriod,
@@ -168,15 +166,6 @@ export function BoardSurface({
    * it means. Fetched areas carry their own inside `extraRuns`.
    */
   legendSources?: LegendSources
-  /**
-   * The result panel's actions, since the statistics band replaced the panel.
-   *
-   * Over the board that panel showed the same composition the band shows, one
-   * table said twice. Its figures were not the only thing on it, so these come
-   * across with it rather than being stranded.
-   */
-  onNewRun?: () => void
-  onCloseResult?: () => void
   /**
    * Everything the run produced, drawn or not.
    *
@@ -1223,15 +1212,6 @@ export function BoardSurface({
             period: assetRuns.find((r) => r.areaId === t.areaId)?.period,
             model: assetRuns.find((r) => r.areaId === t.areaId)?.model,
           }))}
-        /*
-          Only for the map's own run. A fetched area's run is not this screen's
-          to discard or to start over from, and offering it would act on the
-          wrong one silently.
-        */
-        onNewRun={target?.areaId === CURRENT_AREA ? onNewRun : undefined}
-        onCloseResult={
-          target?.areaId === CURRENT_AREA ? onCloseResult : undefined
-        }
       />
 
       {comparing && (() => {
