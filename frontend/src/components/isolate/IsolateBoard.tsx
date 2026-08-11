@@ -287,6 +287,22 @@ export function IsolateBoard({
     Readonly<Record<string, { opacity: number; visible: boolean }>>
   >({})
 
+  /**
+   * Layers dropped to the base of their stack.
+   *
+   * Board-local for every layer, including the map's own: where a raster sits
+   * in this stack is a fact about looking at it here, and the map has no
+   * stack to have an opinion about.
+   */
+  const [flat, setFlat] = useState<ReadonlySet<string>>(() => new Set())
+  const toggleFlat = (areaId: string, layerId: string) =>
+    setFlat((prev) => {
+      const next = new Set(prev)
+      const k = sceneKey(areaId, layerId)
+      if (!next.delete(k)) next.add(k)
+      return next
+    })
+
   /** The current run's own layers, which are the map's and answer to it. */
   const baseIds = new Set(layers.map((l) => l.id))
 
@@ -454,6 +470,8 @@ export function IsolateBoard({
    * dragged back to where the layout first put it.
    */
   const placesRef = useRef<Record<string, { x: number; z: number }>>({})
+  /** The spread, for the build, which must not depend on it to run again. */
+  const gapRef = useRef(STACK_GAP)
   const appearanceRef = useRef<PlaneState[]>([])
   appearanceRef.current = areas.flatMap((a) =>
     a.layers.map((l) => ({
@@ -461,6 +479,7 @@ export function IsolateBoard({
       id: l.id,
       opacity: l.opacity,
       visible: l.visible,
+      flat: flat.has(sceneKey(a.id, l.id)),
     }))
   )
   const [gap, setGap] = useState(STACK_GAP)
@@ -602,6 +621,9 @@ export function IsolateBoard({
         background: tokenColor("--p-ink", "#171717"),
         line: tokenColor("--p-line", "#404040"),
         accent: tokenColor("--p-accent", "#f25623"),
+        // The separation in force at the moment of the build, so a plane lands
+        // at its true height rather than at the base for a frame.
+        gap: gapRef.current,
         // Current at the moment of the build, whatever the cards were created
         // with -- the cards are kept stable on purpose and are older than this.
         appearance: appearanceRef.current,
@@ -630,6 +652,7 @@ export function IsolateBoard({
 
   // Moves the existing planes rather than rebuilding the scene, so the camera
   // stays where the user put it while they adjust the separation.
+  gapRef.current = gap
   useEffect(() => {
     boardRef.current?.setGap(gap)
   }, [gap, groups])
@@ -643,7 +666,12 @@ export function IsolateBoard({
   */
   const appearanceKey = areas
     .flatMap((a) =>
-      a.layers.map((l) => `${a.id}/${l.id}:${l.visible ? 1 : 0}:${l.opacity}`)
+      a.layers.map(
+        (l) =>
+          `${a.id}/${l.id}:${l.visible ? 1 : 0}:${l.opacity}:${
+            flat.has(sceneKey(a.id, l.id)) ? 1 : 0
+          }`
+      )
     )
     .join("|")
   useEffect(() => {
@@ -720,6 +748,8 @@ export function IsolateBoard({
         onGapChange={setGap}
         onLayerChange={changeLayer}
         onDropRun={dropRun}
+        flat={flat}
+        onToggleFlat={toggleFlat}
         onSmoothChange={onSmoothChange}
       />
 

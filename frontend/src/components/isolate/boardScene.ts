@@ -82,6 +82,21 @@ export interface PlaneState {
   id: string
   opacity: number
   visible: boolean
+  /**
+   * Sits at the base of its stack rather than at its own height.
+   *
+   * The stack separates layers along Y so orbiting pulls them apart, which is
+   * what makes the order visible. That same separation is in the way when the
+   * question is not "what is the order" but "does this line up with that": from
+   * overhead, a layer a step above the base reads as floating over it rather
+   * than lying on it, and moving the two together to compare a boundary means
+   * comparing across a gap the board introduced.
+   *
+   * Held as a flag rather than as a Y value, because the height it returns to
+   * is whatever the spread control says at the time -- a stored Y would be
+   * right until the spread was moved once.
+   */
+  flat: boolean
 }
 
 export interface BoardHandle {
@@ -148,6 +163,14 @@ export function createBoard(
     line: string
     /** --p-accent, for the selected plane's outline. */
     accent: string
+    /**
+     * Separation between layers at the moment of the build.
+     *
+     * Passed so a plane can be placed at its true height as its texture lands.
+     * Without it the scene would have to guess until the first setGap arrived,
+     * and every plane would appear at the base for a frame.
+     */
+    gap: number
     /**
      * How each plane starts.
      *
@@ -617,6 +640,25 @@ export function createBoard(
   /** Which area a plane belongs to, for the drag and for the hit test. */
   const groupOfMesh = new Map<Mesh, GroupRuntime>()
 
+  /*
+    The separation in force, and the one place a plane's height is decided.
+
+    Height comes from three things -- position in the stack, the spread, and
+    whether the plane has been dropped to the base -- and two of them change
+    without the scene being rebuilt. Deriving it in one function is what keeps
+    setGap and setAppearance from each having their own opinion.
+  */
+  let currentGap = opts.gap
+  const heightOf = (rt: GroupRuntime, index: number) =>
+    state.get(planeKey(rt.id, rt.cards[index].id))?.flat ? 0 : index * currentGap
+  const applyHeights = () => {
+    for (const rt of runtimes) {
+      rt.meshes.forEach((mesh, i) => {
+        if (mesh) mesh.position.y = heightOf(rt, i)
+      })
+    }
+  }
+
   /**
    * Which plane is outlined. Held here rather than passed in, because the
    * planes appear as their textures decode and a selection made before one
@@ -700,7 +742,7 @@ export function createBoard(
       })
       const mesh = new Mesh(geometry, material)
       mesh.rotation.x = -Math.PI / 2
-      mesh.position.set(card.x, card.y, card.z)
+      mesh.position.set(card.x, heightOf(rt, index), card.z)
       mesh.renderOrder = order
       // Built whether or not it is shown, so hiding one later is a flag on an
       // existing plane rather than a different scene.
@@ -749,11 +791,8 @@ export function createBoard(
       // showing one again puts it back where the stack left a space for it.
       // Per area, so two areas keep the same separation rather than one
       // stacking above the other.
-      for (const rt of runtimes) {
-        rt.meshes.forEach((mesh, i) => {
-          if (mesh) mesh.position.y = i * gap
-        })
-      }
+      currentGap = gap
+      applyHeights()
       render()
     },
     setSelected(groupId, id) {
@@ -797,6 +836,11 @@ export function createBoard(
         }
         if (material.opacity !== c.opacity) {
           material.opacity = c.opacity
+          changed = true
+        }
+        const y = heightOf(rt!, i!)
+        if (mesh.position.y !== y) {
+          mesh.position.y = y
           changed = true
         }
       }

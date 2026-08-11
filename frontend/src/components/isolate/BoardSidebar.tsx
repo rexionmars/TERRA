@@ -26,6 +26,7 @@
  */
 import { type ReactNode, useRef, useState } from "react"
 import {
+  AlignVerticalJustifyEnd,
   ChevronDown,
   ChevronRight,
   Download,
@@ -194,6 +195,8 @@ export function BoardSidebar({
   names,
   onRename,
   onDropRun,
+  flat,
+  onToggleFlat,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -250,6 +253,14 @@ export function BoardSidebar({
    * board fetched, and dropping it would mean closing the board.
    */
   onDropRun?: (runId: string) => void
+  /**
+   * Layers dropped to the base of their stack, by scene key.
+   *
+   * The base layer of an area is never in it: it IS the level, so there is
+   * nothing for it to descend to.
+   */
+  flat: ReadonlySet<string>
+  onToggleFlat: (areaId: string, layerId: string) => void
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -386,6 +397,18 @@ export function BoardSidebar({
 
   const active = allRows.find((r) => r.id === activeRow) ?? null
   const activeTarget = rowTarget(activeRow)
+  /*
+    Whether the active layer is the bottom of its own stack. Null where no
+    layer is active, which is a different thing from "it is not the base".
+  */
+  const activeArea = areas.find((a) => a.id === activeTarget?.areaId) ?? null
+  const activeIsBase = activeTarget?.layerId
+    ? activeArea?.layers[0]?.id === activeTarget.layerId
+    : null
+  const isFlat = !!(
+    activeTarget?.layerId &&
+    flat.has(sceneKey(activeTarget.areaId, activeTarget.layerId))
+  )
   const activeLayer =
     (activeTarget?.layerId
       ? areas
@@ -951,6 +974,45 @@ export function BoardSidebar({
                   }
                 />
               </div>
+              {/*
+                Only where there is a level below to descend to.
+
+                The stack separates layers along Y so orbiting pulls them
+                apart, which is what makes the draw order visible. That
+                separation is in the way when the question is not "what is the
+                order" but "does this line up with that": from overhead a layer
+                one step up reads as floating over the base rather than lying
+                on it. The base layer itself is the level, so it is offered
+                nothing.
+              */}
+              {activeIsBase === false && activeTarget && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onToggleFlat(activeTarget.areaId, activeLayer.id)
+                  }
+                  aria-pressed={isFlat}
+                  className={cn(
+                    "mt-2 flex w-full items-center gap-1.5 rounded-sm px-1.5 py-1 text-meta transition-colors",
+                    "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                    isFlat
+                      ? "bg-surface-raised text-foreground"
+                      : "bg-surface-raised/40 text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
+                  )}
+                  title={
+                    isFlat
+                      ? "Return it to its own height in the stack"
+                      : "Lay it at the base layer's level"
+                  }
+                >
+                  <AlignVerticalJustifyEnd
+                    className="size-3 shrink-0"
+                    strokeWidth={1.75}
+                  />
+                  {isFlat ? "At base level" : "Drop to base level"}
+                </button>
+              )}
+
               {/*
                 Not a control. Class rasters are drawn without interpolation
                 because a bilinear sample between two classes is a colour that
