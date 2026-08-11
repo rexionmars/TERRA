@@ -84,6 +84,25 @@ function Entry({ entry }: { entry: StatsEntry }) {
         )}
       </div>
 
+      {legend?.kind === "classes" && legend.rows && (
+        /*
+          Above the shares, on one line. What qualifies the whole map is read
+          before what it is made of -- a 71% class under a mean vote share of
+          37% is a different statement from the same 71% under 80% -- and one
+          line is what the band's height can spare for it.
+        */
+        <ul className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
+          {legend.rows.map((r) => (
+            <li key={r.label} className="flex shrink-0 items-baseline gap-1">
+              <span className="eyebrow !text-[9px]">{r.label}</span>
+              <span className="telemetry whitespace-nowrap text-meta text-foreground">
+                {r.value}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {legend?.kind === "classes" && (
         <ul className="flex min-h-0 flex-1 flex-col flex-wrap content-start gap-x-5 gap-y-0.5">
           {legend.entries.map((e) => (

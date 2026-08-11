@@ -48,8 +48,28 @@ export interface LegendClass {
   areaHa?: number
 }
 
+/** A measured figure, for a block that also has something else to show. */
+export interface LegendRow {
+  label: string
+  value: string
+}
+
 export type LayerLegend =
-  | { kind: "classes"; subject: string; entries: LegendClass[] }
+  | {
+      kind: "classes"
+      subject: string
+      entries: LegendClass[]
+      /**
+       * What qualifies the whole map, beside what it is made of.
+       *
+       * A composition says the shares; it does not say how well the map is
+       * believed, or how many scenes it saw. Confidence is the case that
+       * matters -- a 71% class under a mean vote share of 37% is a different
+       * statement from the same 71% under 80% -- and it is reported with its
+       * floor so it cannot be read alone.
+       */
+      rows?: LegendRow[]
+    }
   | {
       kind: "ramp"
       subject: string
@@ -67,7 +87,7 @@ export type LayerLegend =
   | {
       kind: "stats"
       subject: string
-      rows: { label: string; value: string }[]
+      rows: LegendRow[]
       /**
        * The colour mapping, where it is computable rather than tabulated.
        *
@@ -130,6 +150,24 @@ export function legendFor(
           pct: c.pct,
           areaHa: c.area_ha,
         })),
+        /*
+          No confidence here, and its absence is not an omission: this map was
+          not predicted, it was read. What it can report is its own extent and
+          how many classes it resolves.
+
+          `metrics` is declared non-optional and is not: Go marshals a missing
+          struct as null, which is how a field like this took the application
+          down once before. Read through, not into.
+        */
+        rows: lulc.metrics
+          ? [
+              {
+                label: "Mapped",
+                value: `${lulc.metrics.area_ha.toFixed(0)} ha`,
+              },
+              { label: "Classes", value: String(lulc.metrics.n_classes) },
+            ]
+          : undefined,
       }
     }
 
@@ -152,6 +190,21 @@ export function legendFor(
 
     const stats = r?.class_stats
     if (!stats?.length) return null
+    const rows: LegendRow[] = []
+    if (r?.mean_confidence !== undefined) {
+      rows.push({
+        label: "Confidence",
+        value:
+          r.confidence_floor !== undefined
+            ? `${(r.mean_confidence * 100).toFixed(1)}% · floor ${(r.confidence_floor * 100).toFixed(1)}%`
+            : `${(r.mean_confidence * 100).toFixed(1)}%`,
+      })
+    }
+    if (r?.n_dates) rows.push({ label: "Scenes", value: String(r.n_dates) })
+    const total = stats.reduce((sum, c) => sum + c.area_ha, 0)
+    if (total > 0) {
+      rows.push({ label: "Mapped", value: `${total.toFixed(0)} ha` })
+    }
     return {
       kind: "classes",
       subject: "Land cover",
@@ -161,12 +214,14 @@ export function legendFor(
         pct: c.pct,
         areaHa: c.area_ha,
       })),
+      rows: rows.length ? rows : undefined,
     }
   }
 
   if (layerId === "solar:siting") {
-    const cls = src.solarSiting?.classes
-    if (!cls?.length) return null
+    const s = src.solarSiting
+    const cls = s?.classes
+    if (!s || !cls?.length) return null
     return {
       kind: "classes",
       subject: "Siting suitability",
@@ -176,6 +231,29 @@ export function legendFor(
         pct: c.pct,
         areaHa: c.area_ha,
       })),
+      /*
+        The two suitable figures stay apart. types.ts says it beside the field:
+        never summed with the cropland class, because the trade-off between
+        siting on free land and siting on cropland is the finding.
+
+        Each read defensively: a payload from an older sidecar carries the
+        classes without one of these, and a missing figure must drop out rather
+        than take the block down with it.
+      */
+      rows: [
+        typeof s.suitable_no_conflict_ha === "number" && {
+          label: "Suitable",
+          value: `${s.suitable_no_conflict_ha.toFixed(0)} ha`,
+        },
+        typeof s.suitable_cropland_ha === "number" && {
+          label: "On cropland",
+          value: `${s.suitable_cropland_ha.toFixed(0)} ha`,
+        },
+        s.thresholds && {
+          label: "Slope",
+          value: `${s.thresholds.slope_acceptable_deg}-${s.thresholds.slope_restrictive_deg} deg`,
+        },
+      ].filter(Boolean) as LegendRow[],
     }
   }
 
