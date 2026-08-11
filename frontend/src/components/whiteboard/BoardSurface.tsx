@@ -80,11 +80,36 @@ const GAP_MAX = 0.35
  * first thing string equality tests. The full compare runs only when a raster
  * has genuinely been replaced, which is when a rebuild is wanted anyway.
  */
+/** Two area outlines, by their points; either may be absent. */
+function sameOutline(
+  a: { x: number; z: number }[] | undefined,
+  b: { x: number; z: number }[] | undefined
+): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  if (a.length !== b.length) return false
+  return a.every((p, i) => p.x === b[i].x && p.z === b[i].z)
+}
+
 function sameStructure(a: CardGroup[], b: CardGroup[]): boolean {
   if (a.length !== b.length) return false
   return a.every((g, i) => {
     const h = b[i]
     if (g.id !== h.id || g.cards.length !== h.cards.length) return false
+    /*
+      The OUTLINE counts, and leaving it out had a symptom: an area drawn on
+      the board's own map appeared to do nothing. Its shape was in hand -- the
+      run button enabled on it -- but an area that gains a polygon and no
+      rasters has zero cards before and zero after, so this called it unchanged
+      and the previous groups were kept. Nothing reached the scene until a
+      raster arrived and changed the card count for it.
+
+      Compared by its points rather than its identity: the ring is rebuilt on
+      every render, so identity is always new and would rebuild the scene
+      constantly. Length first, which settles the common case without walking
+      anything.
+    */
+    if (!sameOutline(g.outline, h.outline)) return false
     // An area's PLACE is deliberately absent. Where it sits is changed by
     // dragging it and by restoring an arrangement, and neither is a reason to
     // rebuild the scene -- setGroupPosition moves what is already there.
