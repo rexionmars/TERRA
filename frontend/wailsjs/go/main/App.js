@@ -58,6 +58,10 @@ export function DeleteAnalysis(arg1) {
   return window['go']['main']['App']['DeleteAnalysis'](arg1);
 }
 
+export function DeleteComparison(arg1) {
+  return window['go']['main']['App']['DeleteComparison'](arg1);
+}
+
 export function DeleteProject(arg1) {
   return window['go']['main']['App']['DeleteProject'](arg1);
 }
@@ -94,6 +98,10 @@ export function GetBootLogs() {
   return window['go']['main']['App']['GetBootLogs']();
 }
 
+export function GetComparison(arg1) {
+  return window['go']['main']['App']['GetComparison'](arg1);
+}
+
 export function GetPreferences() {
   return window['go']['main']['App']['GetPreferences']();
 }
@@ -112,6 +120,10 @@ export function InspectPython(arg1) {
 
 export function InspectStorage() {
   return window['go']['main']['App']['InspectStorage']();
+}
+
+export function ListComparisons() {
+  return window['go']['main']['App']['ListComparisons']();
 }
 
 export function ListDataCube(arg1) {
@@ -166,6 +178,10 @@ export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }
 
+export function RenameComparison(arg1, arg2) {
+  return window['go']['main']['App']['RenameComparison'](arg1, arg2);
+}
+
 export function RenderComposite(arg1) {
   return window['go']['main']['App']['RenderComposite'](arg1);
 }
@@ -180,6 +196,10 @@ export function RevealMainWindow() {
 
 export function RunActivity(arg1) {
   return window['go']['main']['App']['RunActivity'](arg1);
+}
+
+export function SaveComparison(arg1) {
+  return window['go']['main']['App']['SaveComparison'](arg1);
 }
 
 export function SavePreferences(arg1) {
