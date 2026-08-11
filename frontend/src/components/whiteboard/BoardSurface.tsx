@@ -801,6 +801,13 @@ export function BoardSurface({
     })
   }
   /*
+    Read through a ref for the same reason `onClose` is: the scene is built once
+    and an inline closure here is new on every render, which would rebuild it.
+  */
+  const chooseRowRef = useRef(chooseRow)
+  chooseRowRef.current = chooseRow
+
+  /*
     The legend material per area. The current one is handed in; a fetched one
     travels in its own payload, which is where its classes and scales already
     are -- so a second area explains itself without the map screen knowing it
@@ -975,7 +982,15 @@ export function BoardSurface({
           Read through refs for the same reason `onClose` is: an inline closure
           here is new on every render and would rebuild the scene.
         */
-        onSelect: (groupId, id) => setActiveRow(layerRow(groupId, id)),
+        /*
+          Through chooseRow, not setActiveRow. This path set the active row and
+          left `selection` alone, so picking a plane on the board never entered
+          the selection at all: the tree highlighted one row, the statistics
+          band saw an empty list, and Shift on a plane could not add a second.
+          The tree's own rows have always gone through chooseRow.
+        */
+        onSelect: (groupId, id, additive) =>
+          chooseRowRef.current(layerRow(groupId, id), additive),
         onLabels: (spots) => placeLabelsRef.current(spots),
         onMove: (groupId, layerId, x, z) => {
           // Into the kept object rather than replacing the ref: replacing it

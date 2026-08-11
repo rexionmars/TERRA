@@ -249,7 +249,12 @@ export function createBoard(
      * that waited for the release would make the first drag of a plane act on
      * whichever one happened to be selected before.
      */
-    onSelect: (groupId: string, id: string) => void
+    /**
+     * A plane was picked. `additive` where Shift was held on a press that did
+     * not turn into a drag -- see the press handler for why it cannot fire
+     * immediately.
+     */
+    onSelect: (groupId: string, id: string, additive: boolean) => void
     /**
      * Something was dragged, and where it came to rest.
      *
@@ -417,6 +422,18 @@ export function createBoard(
   const grabOffset = new Vector3()
   let dragging = false
   /**
+   * A Shift press waiting to be told apart from a Shift drag.
+   *
+   * Shift means two things on this surface -- extend the selection, as the tree
+   * beside it does, and drag a whole area -- and which one a press meant is not
+   * knowable until it is released. The pointer's position at the press is kept
+   * so the release can measure how far it travelled.
+   */
+  let pressed: { groupId: string; id: string; x: number; y: number } | null =
+    null
+  /** How far a press may travel and still be a pick rather than a drag. */
+  const PICK_SLOP_PX = 4
+  /**
    * What the pointer is moving: an area, or one plane inside it.
    *
    * `mesh` null means the area. Both are held because a plane's position is
@@ -499,7 +516,26 @@ export function createBoard(
     const rt = groupOfMesh.get(mesh)
     if (!rt) return
     const index = rt.meshes.indexOf(mesh)
-    if (index >= 0) opts.onSelect(rt.id, rt.cards[index].id)
+    /*
+      A plain press selects at once, as it always has. A SHIFT press cannot,
+      because Shift is already the area drag below -- firing on press would
+      make every attempt to arrange two areas also rewrite the selection.
+
+      So it is remembered and resolved at pointerup: released without having
+      moved, it was a pick and extends the selection; released after moving, it
+      was the drag it looked like and the selection is left alone. The two
+      gestures are told apart by what actually happened rather than by giving
+      one of them a different modifier from the tree's.
+    */
+    if (index >= 0) {
+      const cardId = rt.cards[index].id
+      if (e.shiftKey) {
+        pressed = { groupId: rt.id, id: cardId, x: e.clientX, y: e.clientY }
+      } else {
+        pressed = null
+        opts.onSelect(rt.id, cardId, false)
+      }
+    }
     /*
       The plane that was grabbed moves, and Shift moves the whole area.
 
@@ -576,6 +612,18 @@ export function createBoard(
       const i = mesh ? rt.meshes.indexOf(mesh) : -1
       const p = mesh ? mesh.position : rt.root.position
       opts.onMove(rt.id, i >= 0 ? rt.cards[i].id : null, p.x, p.z)
+    }
+    /*
+      Below the slop a press is a pick, not a drag of nothing. Four pixels is
+      the hand's own tremor on a trackpad; anything above it was an attempt to
+      move something, however short.
+    */
+    if (pressed) {
+      const still =
+        Math.abs(e.clientX - pressed.x) <= PICK_SLOP_PX &&
+        Math.abs(e.clientY - pressed.y) <= PICK_SLOP_PX
+      if (still) opts.onSelect(pressed.groupId, pressed.id, true)
+      pressed = null
     }
     dragged = null
     dragging = false
