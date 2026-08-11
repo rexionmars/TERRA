@@ -121,6 +121,32 @@ export interface VisibleLayerInput {
   }[]
 }
 
+/** Which of the three maps the `prediction` layer draws. */
+export type PredictionSource = "classification" | "lulc" | "reference"
+
+/**
+ * Which raster the `prediction` layer draws, and where it came from.
+ *
+ * Exported because more than one thing has to answer this question, and when
+ * two of them answered it separately they disagreed. The legend preferred the
+ * MapBiomas map wherever one existed while this preferred the classification,
+ * so a run carrying both drew the classification under a MapBiomas legend --
+ * a plane whose purple was soybean, described as 71% sugar cane.
+ *
+ * The order is the layer's own and the only one: a run's own classification
+ * first, then a MapBiomas map produced for it, then the reference it was
+ * scored against.
+ */
+export function predictionSource(
+  r: PredictResult | null | undefined
+): { source: PredictionSource; uri: string } | null {
+  if (!r) return null
+  if (r.overlay_uri) return { source: "classification", uri: r.overlay_uri }
+  if (r.lulc?.map_uri) return { source: "lulc", uri: r.lulc.map_uri }
+  if (r.reference_uri) return { source: "reference", uri: r.reference_uri }
+  return null
+}
+
 /** Just the drawn ones, for a surface that only paints. */
 export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
   return rasterLayers(i).filter((l) => l.visible)
@@ -187,14 +213,24 @@ export function rasterLayers(i: VisibleLayerInput): RasterLayer[] {
     })
   }
 
-  const predictionUri =
-    i.result?.overlay_uri || i.result?.lulc?.map_uri || i.result?.reference_uri
+  const prediction = predictionSource(i.result)
+  const predictionUri = prediction?.uri
   const predictionUnderConfidence = !i.showConfidence || i.confidenceOnTop
 
   if (i.result && predictionUri && !isZeroExtent(i.result.extent)) {
     layers.push({
       id: "prediction",
-      title: "Classification",
+      /*
+        Named for what it IS, not for the slot it occupies. The three sources
+        are three different maps with three different class sets, and calling
+        the MapBiomas one "Classification" is the same mistake the legend made.
+      */
+      title:
+        prediction?.source === "lulc"
+          ? `MapBiomas ${i.result.lulc?.year ?? ""}`.trim()
+          : prediction?.source === "reference"
+            ? "Reference map"
+            : "Classification",
       uri: predictionUri,
       extent: i.result.extent,
       opacity: i.overlayOpacity,

@@ -23,6 +23,8 @@
  * apart because the split is the finding, the dates that survived masking.
  */
 import { INDICES } from "@/lib/compositeCatalog"
+import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
+import { predictionSource } from "@/lib/mapLayers"
 import { paletteGradient } from "@/lib/palettes"
 import type {
   CompositionOverlay,
@@ -89,13 +91,23 @@ export function legendFor(
 ): LayerLegend {
   if (layerId === "prediction") {
     /*
-      The run's own stamped colours, not a shared palette. A classification and
-      a MapBiomas map are both drawn here and they have different class sets;
-      reading the legend off the result is what keeps the swatch and the pixel
-      the same byte whichever produced it.
+      WHICH of the three maps is drawn decides which legend this is, and that
+      question is answered in lib/mapLayers.ts and nowhere else. This file used
+      to answer it separately -- preferring a MapBiomas map wherever one
+      existed, while the layer prefers the run's own classification -- so a run
+      carrying both drew the classification under the MapBiomas legend. The
+      plane's purple was soybean and the legend called it 71% sugar cane.
+
+      Within a source, the colours are the ones the run stamped rather than a
+      shared palette, which is what keeps a swatch and its pixel the same byte.
     */
-    const lulc = src.result?.lulc
-    if (lulc?.map_uri && lulc.composition?.length) {
+    const r = src.result
+    const source = predictionSource(r)?.source
+    if (!source) return null
+
+    if (source === "lulc") {
+      const lulc = r?.lulc
+      if (!lulc?.composition?.length) return null
       return {
         kind: "classes",
         subject: `MapBiomas ${lulc.year}`,
@@ -107,20 +119,36 @@ export function legendFor(
         })),
       }
     }
-    const stats = src.result?.class_stats
-    if (stats?.length) {
+
+    if (source === "reference") {
+      /*
+        The reference map has no per-run statistics -- it is the ground truth a
+        run was scored against, not something the run measured -- so its legend
+        carries names and colours and no shares. Inventing shares from the
+        classification's would describe a different raster.
+      */
       return {
         kind: "classes",
-        subject: "Land cover",
-        entries: stats.map((c) => ({
-          name: c.name,
-          color: c.color,
-          pct: c.pct,
-          areaHa: c.area_ha,
+        subject: "Reference map",
+        entries: MAPBIOMAS_CLASS_LEGEND.map((e) => ({
+          name: e.name,
+          color: e.color,
         })),
       }
     }
-    return null
+
+    const stats = r?.class_stats
+    if (!stats?.length) return null
+    return {
+      kind: "classes",
+      subject: "Land cover",
+      entries: stats.map((c) => ({
+        name: c.name,
+        color: c.color,
+        pct: c.pct,
+        areaHa: c.area_ha,
+      })),
+    }
   }
 
   if (layerId === "solar:siting") {
