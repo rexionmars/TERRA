@@ -144,10 +144,6 @@ export function MapScreen(props: MapScreenProps) {
   // raster on the map with the classification panel open beside it.
   const { leftPanel, onLeftPanelChange } = props
   const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
-  // The panel sits against the navigation column now that the tool rail is
-  // gone: the column lists the same three tools and is always visible, so a
-  // floating strip repeating them was a second answer to one question.
-  const panelOffsetClass = "left-3"
   const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only
@@ -287,7 +283,6 @@ export function MapScreen(props: MapScreenProps) {
         {leftPanel === "classify" ? (
           <ControlPanel
             key="classify"
-            panelOffsetClass={panelOffsetClass}
             activeExample={props.activeExample}
             customPolygon={props.customPolygon}
             hasArea={props.hasArea}
@@ -318,7 +313,6 @@ export function MapScreen(props: MapScreenProps) {
         ) : leftPanel === "water" ? (
           <WaterPanel
             key="water"
-            panelOffsetClass={panelOffsetClass}
             hasArea={props.hasArea}
             start={props.start}
             end={props.end}
@@ -341,7 +335,6 @@ export function MapScreen(props: MapScreenProps) {
         ) : leftPanel === "compose" ? (
           <CompositionPanel
             key="compose"
-            panelOffsetClass={panelOffsetClass}
             hasArea={props.hasArea}
             start={props.start}
             end={props.end}
