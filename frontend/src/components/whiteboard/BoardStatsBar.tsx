@@ -20,9 +20,16 @@
  * Twice the run band's height and starting where it starts, so the foot reads
  * as one edge in two registers: what the run WILL do below, what the selected
  * rasters ARE above.
+ *
+ * IT CARRIES NO ACTIONS, and that is the rule rather than the current state.
+ * It replaced the result panel and took that panel's buttons with it, which was
+ * wrong twice over: two of them ended the session -- an X on a row of class
+ * shares reads as "close this bar" and took an imported AOI's whole analysis --
+ * and the last one navigated to the legacy analysis page, which is the surface
+ * this one is replacing. A readout describes; it does not act, and it does not
+ * send you somewhere else to act. All three are on the map, one board-close
+ * away, where their consequences are stated.
  */
-import { ChartColumn } from "lucide-react"
-import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import type { LayerLegend } from "@/lib/layerLegend"
 
@@ -179,10 +186,6 @@ export function BoardStatsBar({
   /** Where the board's column ends, matching the run band below. */
   leftOffset: string
 }) {
-  // Reached here rather than threaded through three components, which is how
-  // the panel this replaces reached it too.
-  const { goAnalysis } = useAuth()
-
   return (
     <div
       className="app-no-drag absolute right-0 z-[20] flex items-stretch overflow-hidden border-t px-3 py-2"
@@ -219,33 +222,6 @@ export function BoardStatsBar({
         </div>
       )}
 
-      {/*
-        Analysis, and nothing that destroys anything.
-
-        This band replaced the result panel, so its actions came across with its
-        figures -- and two of them were session-level and irreversible. `New`
-        clears the result, the water, every solar product, the wind and the AOI;
-        the X discards the run whose planes are on screen. On a panel headed
-        RESULT their consequence is legible. At the end of a row of statistics
-        it is not: a bare X reads as "close this", and there is nothing here to
-        close, which is how an imported AOI's whole analysis was lost to one.
-
-        A readout is not where a session is ended. Both still sit on the map's
-        result panel, one board-close away, where the header names what is being
-        discarded -- and where discarding is not done while looking at a surface
-        full of the thing's own rasters.
-      */}
-      <div className="ml-3 flex shrink-0 items-center self-center">
-        <button
-          type="button"
-          onClick={goAnalysis}
-          title="Open analysis"
-          className="flex items-center gap-1 rounded-sm px-2 py-1 text-meta text-primary transition-colors hover:bg-primary/10"
-        >
-          <ChartColumn className="size-3.5" />
-          Analysis
-        </button>
-      </div>
     </div>
   )
 }
