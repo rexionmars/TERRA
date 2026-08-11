@@ -14,6 +14,8 @@ import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
+import type { LayerPatch } from "@/components/isolate/BoardSidebar"
+import { BoardSidebar } from "@/components/isolate/BoardSidebar"
 import type { CardPlane } from "@/lib/isolateCards"
 import { layoutCards } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -29,17 +31,23 @@ import { createBoard, tokenColor } from "@/components/isolate/boardScene"
  * as unrelated sheets.
  */
 const STACK_GAP = 0.1
-const GAP_MIN = 0
 const GAP_MAX = 0.35
 
 export function IsolateBoard({
   layers,
+  onLayerChange,
   title,
   showClose,
   onClose,
 }: {
-  /** What the map is drawing, from the shared table. */
+  /**
+   * Every layer the run could draw, drawn or not.
+   *
+   * Including the hidden ones is what lets the sidebar offer the switch that
+   * turns one back on; the scene takes only those marked visible.
+   */
   layers: RasterLayer[]
+  onLayerChange: (id: string, patch: LayerPatch) => void
   title: string
   /**
    * Whether this surface draws its own way out.
@@ -72,11 +80,13 @@ export function IsolateBoard({
   useEffect(() => {
     let cancelled = false
     Promise.all(
-      layers.map(async (l) =>
-        l.smooth
-          ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
-          : l
-      )
+      layers
+        .filter((l) => l.visible)
+        .map(async (l) =>
+          l.smooth
+            ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
+            : l
+        )
     ).then((resolved) => {
       if (!cancelled) setCards(layoutCards(resolved, STACK_GAP))
     })
@@ -147,6 +157,14 @@ export function IsolateBoard({
     >
       <div ref={hostRef} className="absolute inset-0" />
 
+      <BoardSidebar
+        layers={layers}
+        gap={gap}
+        gapMax={GAP_MAX}
+        onGapChange={setGap}
+        onLayerChange={onLayerChange}
+      />
+
       {/*
         Left, and clear of the top-right corner where the search bar sits.
 
@@ -157,33 +175,13 @@ export function IsolateBoard({
         Leaflet's control stack, which this covers, so without an X the only
         way out would be Escape, a key nobody is told about.
       */}
-      <div className="absolute left-3 top-3 flex min-w-0 max-w-[24rem] items-start gap-2">
+      <div className="absolute left-[16rem] top-3 flex min-w-0 max-w-[24rem] items-start gap-2">
         <div className="min-w-0">
           <p className="eyebrow !text-foreground">Isolated</p>
           <p className="mt-0.5 truncate text-emphasis text-muted-foreground">
             {title}
           </p>
         </div>
-        {/*
-          Only where there is a stack to separate. With one layer the control
-          would move nothing, and a control that does nothing is one the reader
-          has to test to find out.
-        */}
-        {cards && cards.length > 1 && (
-          <label className="flex shrink-0 items-center gap-2 pt-0.5">
-            <span className="eyebrow !text-[9px] shrink-0">Spread</span>
-            <input
-              type="range"
-              min={GAP_MIN}
-              max={GAP_MAX}
-              step={0.005}
-              value={gap}
-              onChange={(e) => setGap(Number(e.target.value))}
-              className="w-24 accent-primary"
-              title="Separation between layers"
-            />
-          </label>
-        )}
         {showClose && (
           <button
             type="button"

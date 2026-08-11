@@ -45,6 +45,15 @@ export interface RasterLayer {
    * prevent.
    */
   smooth: boolean
+  /**
+   * Whether it is currently drawn.
+   *
+   * The table returns layers that COULD be drawn, not only those that are, so
+   * a list of them can offer the switch that turns a hidden one back on. A
+   * table that omitted what is off would let the user hide something and then
+   * have nowhere to find it again.
+   */
+  visible: boolean
 }
 
 /**
@@ -98,20 +107,24 @@ export interface VisibleLayerInput {
   solarOverlays?: { id: string; title: string; uri: string; extent: Bounds; opacity: number }[]
 }
 
+/** Just the drawn ones, for a surface that only paints. */
+export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
+  return rasterLayers(i).filter((l) => l.visible)
+}
+
 /**
- * The rasters currently drawn, bottom of the stack first.
+ * Every raster this run could draw, bottom of the stack first.
  *
  * The prediction slot falls back through the classification, the MapBiomas
  * descriptive map and the reference: a run that carries no classification
  * still has something to show, and which one it is has never been the caller's
  * business.
  */
-export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
+export function rasterLayers(i: VisibleLayerInput): RasterLayer[] {
   const layers: RasterLayer[] = []
 
   if (
     i.composition &&
-    i.showCompositionOverlay &&
     i.composition.overlay_uri &&
     !isZeroExtent(i.composition.extent)
   ) {
@@ -125,6 +138,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       // A composite is continuous colour, not classes.
       pixelated: false,
       smooth: false,
+      visible: i.showCompositionOverlay,
     })
   }
 
@@ -139,14 +153,13 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       order: 358 + n,
       pixelated: false,
       smooth: false,
+      // Solar rasters are drawn by having been produced; the energy screen
+      // clears them rather than hiding them.
+      visible: true,
     })
   }
 
-  if (
-    i.water?.occurrence_uri &&
-    i.showWaterOverlay &&
-    !isZeroExtent(i.water.extent)
-  ) {
+  if (i.water?.occurrence_uri && !isZeroExtent(i.water.extent)) {
     layers.push({
       id: "water",
       title: "Surface water",
@@ -156,6 +169,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       order: 360,
       pixelated: false,
       smooth: false,
+      visible: i.showWaterOverlay,
     })
   }
 
@@ -163,13 +177,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
     i.result?.overlay_uri || i.result?.lulc?.map_uri || i.result?.reference_uri
   const predictionUnderConfidence = !i.showConfidence || i.confidenceOnTop
 
-  if (
-    i.result &&
-    predictionUri &&
-    i.showPredictionOverlay &&
-    predictionUnderConfidence &&
-    !isZeroExtent(i.result.extent)
-  ) {
+  if (i.result && predictionUri && !isZeroExtent(i.result.extent)) {
     layers.push({
       id: "prediction",
       title: "Classification",
@@ -179,14 +187,14 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       order: 400,
       pixelated: true,
       smooth: i.smoothOverlay,
+      // Two conditions, and the second is not the user's switch: with the
+      // confidence raster on top and "keep prediction under" off, the
+      // classification is withheld so the confidence can be read alone.
+      visible: i.showPredictionOverlay && predictionUnderConfidence,
     })
   }
 
-  if (
-    i.result?.confidence_uri &&
-    i.showConfidence &&
-    !isZeroExtent(i.result.extent)
-  ) {
+  if (i.result?.confidence_uri && !isZeroExtent(i.result.extent)) {
     layers.push({
       id: "confidence",
       title: "Confidence",
@@ -196,6 +204,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       order: 450,
       pixelated: false,
       smooth: false,
+      visible: i.showConfidence,
     })
   }
 

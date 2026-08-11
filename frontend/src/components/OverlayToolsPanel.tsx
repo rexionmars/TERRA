@@ -30,14 +30,6 @@ import {
 import { cn } from "@/lib/utils"
 
 export interface OverlayToolsPanelProps {
-  /**
-   * Which edge the panel opens from, following its button.
-   *
-   * "foot" on the map, where the button is in Leaflet's control stack;
-   * "top" on the isolate board, where the map's controls are gone and the
-   * button takes the space the search field vacated.
-   */
-  anchor?: "foot" | "top"
   open: boolean
   onClose: () => void
   result: PredictResult | null
@@ -245,7 +237,6 @@ function modelLabel(kind?: ModelKind): string {
 export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
   const {
     open,
-    anchor = "foot",
     onClose,
     result,
     composition,
@@ -503,25 +494,17 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
         <motion.div
           className={cn(
             "panel app-no-drag absolute right-14 z-[1100] flex w-[19rem] flex-col overflow-hidden rounded-md",
-            // Anchored to whichever end its button is at. On the map that is
-            // Leaflet's bottom-right stack, and 0.625rem is the stack's own
-            // margin under the last control, so the two share a baseline. On
-            // the isolate board the map's controls are gone with the map, the
-            // button takes the top the search field vacated, and the panel
-            // follows it -- a panel that opens at the far end from the thing
-            // that opened it is the defect this anchoring exists to avoid.
-            anchor === "top"
-              ? "top-3 max-h-[min(36rem,calc(100%-6rem))]"
-              : [
-                  "bottom-[calc(var(--map-foot,0px)+0.625rem)]",
-                  "max-h-[min(36rem,calc(100%-var(--map-foot,0px)-5rem))]",
-                ]
+            // Bottom-aligned with the control stack its button sits in, and
+            // 0.625rem is that stack's own margin under the last control, so
+            // the two share a baseline. A panel that opens at the far end from
+            // the thing that opened it is the defect this avoids.
+            "bottom-[calc(var(--map-foot,0px)+0.625rem)]",
+            "max-h-[min(36rem,calc(100%-var(--map-foot,0px)-5rem))]"
           )}
-          // Rises from the foot, or descends from the top: it enters from the
-          // edge it is attached to.
-          initial={{ opacity: 0, x: 16, y: anchor === "top" ? -8 : 8 }}
+          // Rises from the edge it is attached to.
+          initial={{ opacity: 0, x: 16, y: 8 }}
           animate={{ opacity: 1, x: 0, y: 0 }}
-          exit={{ opacity: 0, x: 16, y: anchor === "top" ? -8 : 8 }}
+          exit={{ opacity: 0, x: 16, y: 8 }}
           transition={{ type: "spring", stiffness: 380, damping: 32 }}
         >
           <div className="flex items-center justify-between px-3 py-2">

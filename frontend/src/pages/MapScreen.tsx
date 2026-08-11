@@ -22,7 +22,7 @@ import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
-import { visibleRasterLayers } from "@/lib/mapLayers"
+import { rasterLayers } from "@/lib/mapLayers"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
@@ -226,7 +226,7 @@ export function MapScreen(props: MapScreenProps) {
     under the confidence -- therefore governs both, and neither can drift into
     disagreeing with the other about what is on screen.
   */
-  const boardLayers = visibleRasterLayers({
+  const boardLayers = rasterLayers({
     result: props.result,
     showPredictionOverlay: props.showPredictionOverlay,
     overlayOpacity: props.overlayOpacity,
@@ -240,6 +240,42 @@ export function MapScreen(props: MapScreenProps) {
     showWaterOverlay: props.showWaterOverlay,
     waterOpacity: props.waterOpacity,
   })
+
+  /**
+   * Turns a row of the board's layer list back into the state it came from.
+   *
+   * The table describes what exists; the switches that govern it live here,
+   * one per product. Routing through this rather than giving each layer its
+   * own callback keeps the table free of behaviour -- it names rasters, and
+   * whose state a raster answers to is this screen's business.
+   *
+   * Prediction and confidence share overlayOpacity, so moving either moves
+   * both. That is the existing model rather than something introduced here:
+   * the map's own panel has one slider for the pair.
+   */
+  const changeBoardLayer = (id: string, patch: { visible?: boolean; opacity?: number }) => {
+    if (id === "composition") {
+      if (patch.visible !== undefined) props.onShowCompositionOverlayChange(patch.visible)
+      if (patch.opacity !== undefined) props.onComposeOpacityChange(patch.opacity)
+      return
+    }
+    if (id === "water") {
+      if (patch.visible !== undefined) props.onShowWaterOverlayChange(patch.visible)
+      if (patch.opacity !== undefined) props.onWaterOpacityChange(patch.opacity)
+      return
+    }
+    if (id === "confidence") {
+      if (patch.visible !== undefined) props.onShowConfidenceChange(patch.visible)
+      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity)
+      return
+    }
+    if (id === "prediction") {
+      if (patch.visible !== undefined) props.onShowPredictionOverlayChange(patch.visible)
+      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity)
+    }
+    // Solar rasters carry no switch: the energy screen clears them rather than
+    // hiding them, so a row for one is a readout.
+  }
 
   const selectedSceneDate =
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
@@ -464,8 +500,17 @@ export function MapScreen(props: MapScreenProps) {
             {!workspace && (
               <IsolateBoardButton
                 active={isolate}
-                disabled={boardLayers.length === 0}
-                onClick={() => setIsolate((o) => !o)}
+                disabled={!boardLayers.some((l) => l.visible)}
+                onClick={() =>
+                setIsolate((o) => {
+                  // Closing the overlay drawer on the way in: the sidebar
+                  // carries what governs the board, and a drawer left open
+                  // from the map would be a second surface for the same
+                  // controls, floating over a surface that already has them.
+                  if (!o) setRightDrawer(null)
+                  return !o
+                })
+              }
                 onPrefetch={prefetchBoard}
               />
             )}
@@ -494,21 +539,10 @@ export function MapScreen(props: MapScreenProps) {
       {!isolate && <SearchBar onSelectLocation={props.onLocationSelect} />}
 
       {/*
-        Overlay tools stay -- opacity, confidence and smoothing all still apply
-        to what the board is drawing -- but their button is inside the map, and
-        the board covers it. It takes the top the search field vacated, on the
-        right so its panel can open under it rather than across the surface.
+        Overlay tools have no button while the board is open: the sidebar
+        carries what governs the board, so a second surface for the same
+        controls would be a second place to look for one of them.
       */}
-      {isolate && (
-        <div className="app-no-drag absolute right-3 top-3 z-[600]">
-          <OverlayToolsButton
-            active={rightDrawer === "overlays"}
-            onClick={() =>
-              setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
-            }
-          />
-        </div>
-      )}
 
       <PeriodTimeline
         start={props.start}
@@ -539,11 +573,12 @@ export function MapScreen(props: MapScreenProps) {
       />
 
       <AnimatePresence>
-        {isolate && boardLayers.length > 0 && (
+        {isolate && boardLayers.some((l) => l.visible) && (
           <Suspense fallback={null}>
             <IsolateBoard
               key="isolate-board"
               layers={boardLayers}
+              onLayerChange={changeBoardLayer}
               title={props.areaLabel || "Analysis"}
               showClose={!workspace}
               onClose={() => setIsolate(false)}
@@ -569,8 +604,17 @@ export function MapScreen(props: MapScreenProps) {
             isolateSlot={
               <IsolateBoardButton
                 active={isolate}
-                disabled={boardLayers.length === 0}
-                onClick={() => setIsolate((o) => !o)}
+                disabled={!boardLayers.some((l) => l.visible)}
+                onClick={() =>
+                setIsolate((o) => {
+                  // Closing the overlay drawer on the way in: the sidebar
+                  // carries what governs the board, and a drawer left open
+                  // from the map would be a second surface for the same
+                  // controls, floating over a surface that already has them.
+                  if (!o) setRightDrawer(null)
+                  return !o
+                })
+              }
                 onPrefetch={prefetchBoard}
                 inBar
               />
@@ -585,7 +629,6 @@ export function MapScreen(props: MapScreenProps) {
 
       <OverlayToolsPanel
         open={rightDrawer === "overlays"}
-        anchor={isolate ? "top" : "foot"}
         onClose={() => setRightDrawer(null)}
         result={props.result}
         composition={props.composition}
