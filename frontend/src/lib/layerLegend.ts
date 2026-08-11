@@ -12,9 +12,15 @@
  * described by up to 40 of 255 on three stops. So a ramp is drawn only where
  * something names a PaletteName -- solar irradiation carries one in its
  * `scale`, an index composition through the catalogue's `cmap` -- and where
- * nothing does, this returns the quantity and its domain without a bar rather
- * than inventing one. A legend that is wrong is worse than a plane with none:
- * the plane admits it needs explaining.
+ * nothing does, this reports the FIGURES THE RUN MEASURED instead of a bar. A
+ * legend that is wrong is worse than a plane with none: the plane at least
+ * admits it needs explaining.
+ *
+ * And a line of prose about a ramp -- "0 to 100%, dark low to bright high" --
+ * describes the colouring and says nothing about the data. Where the run
+ * reported numbers, those are what belongs here: the mean confidence against
+ * the floor it cannot go below, the persistent and ephemeral water areas kept
+ * apart because the split is the finding, the dates that survived masking.
  */
 import { INDICES } from "@/lib/compositeCatalog"
 import { paletteGradient } from "@/lib/palettes"
@@ -31,6 +37,8 @@ export interface LegendClass {
   color: string
   /** Share of the AOI, where the run reported one. */
   pct?: number
+  /** Its extent on the ground; a share alone does not say how much land. */
+  areaHa?: number
 }
 
 export type LayerLegend =
@@ -43,7 +51,20 @@ export type LayerLegend =
       low: string
       high: string
     }
-  /** The quantity is known and its colour mapping is not published. */
+  /**
+   * Figures the run reported, for a raster whose colour mapping is not
+   * published. A prose line saying "0 to 100%, dark low to bright high"
+   * describes the RAMP and says nothing about the data; these are what the run
+   * actually measured.
+   */
+  | {
+      kind: "stats"
+      subject: string
+      rows: { label: string; value: string }[]
+      /** A caveat that changes how the figures must be read, where one applies. */
+      note?: string
+    }
+  /** The quantity is known, the mapping is not published, and nothing was measured. */
   | { kind: "note"; subject: string; note: string }
   | null
 
@@ -82,6 +103,7 @@ export function legendFor(
           name: c.name,
           color: c.color,
           pct: c.pct,
+          areaHa: c.area_ha,
         })),
       }
     }
@@ -90,7 +112,12 @@ export function legendFor(
       return {
         kind: "classes",
         subject: "Land cover",
-        entries: stats.map((c) => ({ name: c.name, color: c.color, pct: c.pct })),
+        entries: stats.map((c) => ({
+          name: c.name,
+          color: c.color,
+          pct: c.pct,
+          areaHa: c.area_ha,
+        })),
       }
     }
     return null
@@ -102,7 +129,12 @@ export function legendFor(
     return {
       kind: "classes",
       subject: "Siting suitability",
-      entries: cls.map((c) => ({ name: c.name, color: c.color, pct: c.pct })),
+      entries: cls.map((c) => ({
+        name: c.name,
+        color: c.color,
+        pct: c.pct,
+        areaHa: c.area_ha,
+      })),
     }
   }
 
@@ -152,31 +184,97 @@ export function legendFor(
 
   if (layerId === "confidence") {
     /*
-      No bar. The ramp this plane is drawn with lives in the sidecar and is
-      published nowhere -- the CSS gradient the map's legend uses is a
-      transcription, and it already drifts by 1/255 at two stops. The honest
-      statement is the domain and the direction, which are facts.
+      No bar: the ramp lives in the sidecar and is published nowhere, and the
+      CSS gradient the map's legend uses is a transcription that already drifts
+      by 1/255 at two stops.
+
+      The figures instead, and the caveat with them. mean_confidence is the mean
+      of max(predict_proba) over classified pixels -- an ensemble VOTE SHARE,
+      not a calibrated probability of being right, and Random Forest vote
+      fractions are biased toward the middle of their range. It is meaningless
+      without the floor, which is 1/K and the value it cannot go below, so the
+      two are reported together or not at all.
     */
+    const r = src.result
+    if (r?.mean_confidence === undefined) return null
+    const rows = [
+      { label: "Mean", value: `${(r.mean_confidence * 100).toFixed(1)}%` },
+    ]
+    if (r.confidence_floor !== undefined) {
+      rows.push({
+        label: "Floor",
+        value: `${(r.confidence_floor * 100).toFixed(1)}%`,
+      })
+      rows.push({
+        label: "Above floor",
+        value: `${((r.mean_confidence - r.confidence_floor) * 100).toFixed(1)} pp`,
+      })
+    }
+    if (r.class_stats?.length) {
+      rows.push({ label: "Classes", value: String(r.class_stats.length) })
+    }
     return {
-      kind: "note",
+      kind: "stats",
       subject: "Confidence",
-      note: "0 to 100%, dark low to bright high",
+      rows,
+      note: "Ensemble vote share over classified pixels, not a calibrated probability. Read against the floor.",
     }
   }
 
   if (layerId === "water") {
     const w = src.water
+    if (!w) return null
+    /*
+      Persistent and ephemeral are reported separately and are never summed
+      here: the split IS the finding. A pond that is always there and a floodway
+      that is water on a few dates are the same hectares and not the same thing.
+    */
     return {
-      kind: "note",
-      subject: "Water occurrence",
-      note: w?.index
-        ? `${w.index}, share of dates classified water`
-        : "share of dates classified water",
+      kind: "stats",
+      subject: `Water occurrence · ${w.index}`,
+      rows: [
+        { label: "Dates", value: String(w.n_dates) },
+        { label: "Persistent", value: `${w.persistent_area_ha.toFixed(1)} ha` },
+        { label: "Ephemeral", value: `${w.ephemeral_area_ha.toFixed(1)} ha` },
+        { label: "AOI", value: `${w.aoi_area_ha.toFixed(1)} ha` },
+        {
+          label: "Peak",
+          value: `${w.peak_water_fraction_pct.toFixed(1)}% · ${w.peak_date}`,
+        },
+      ],
+      note: "Share of dates a pixel was classified water, on a fixed 0 to 1 scale.",
     }
   }
 
   if (layerId === "ndvi") {
-    return { kind: "note", subject: "NDVI mean", note: "temporal mean, 0 to 1" }
+    const r = src.result
+    if (!r) return null
+    const rows: { label: string; value: string }[] = []
+    if (r.n_dates) rows.push({ label: "Dates", value: String(r.n_dates) })
+    /*
+      The range of the AOI mean ACROSS the series, labelled as that and not as
+      the raster's own range. This plane is a per-pixel temporal mean; the mean
+      of the series would equal it only if every pixel were valid on every date,
+      which cloud masking is exactly what prevents. Reporting the series honestly
+      says more than reporting a raster statistic nobody computed.
+    */
+    const series = r.vi_series?.map((v) => v.ndvi_mean) ?? []
+    if (series.length) {
+      rows.push({
+        label: "AOI mean per date",
+        value: `${Math.min(...series).toFixed(2)} to ${Math.max(...series).toFixed(2)}`,
+      })
+    }
+    if (r.date_range?.length === 2) {
+      rows.push({ label: "Window", value: r.date_range.join(" to ") })
+    }
+    if (!rows.length) return null
+    return {
+      kind: "stats",
+      subject: "NDVI mean",
+      rows,
+      note: "Per-pixel mean over the dates that survived cloud masking.",
+    }
   }
 
   // True colour and anything unrecognised: a photograph explains itself, and a

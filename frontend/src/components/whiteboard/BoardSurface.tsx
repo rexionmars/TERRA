@@ -23,7 +23,7 @@ import {
   sceneKey,
   stackRow,
 } from "@/components/whiteboard/BoardSidebar"
-import { BoardLegend } from "@/components/whiteboard/BoardLegend"
+import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
 import { legendFor, type LegendSources } from "@/lib/layerLegend"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { runAssets } from "@/lib/runAssets"
@@ -1136,20 +1136,20 @@ export function BoardSurface({
       )}
 
       {/*
-        The selected plane's legend, top-right -- the one corner the board
-        leaves free, with the column at the left, the band at the foot and the
-        surface's own header at the top-left.
+        The selected plane's legend, as a band on the run band rather than a
+        card over the planes. Starts where the column ends, the same 15rem the
+        band below uses, so the foot is one edge in two registers.
       */}
-      <BoardLegend
+      <BoardStatsBar
+        leftOffset="15rem"
         legend={
           target?.layerId
             ? legendFor(target.layerId, legendByArea.get(target.areaId) ?? {})
             : null
         }
-        area={
-          areas.length > 1
-            ? areas.find((a) => a.id === target?.areaId)?.title
-            : undefined
+        area={areas.find((a) => a.id === target?.areaId)?.title}
+        period={
+          assetRuns.find((r) => r.areaId === target?.areaId)?.period ?? undefined
         }
       />
 

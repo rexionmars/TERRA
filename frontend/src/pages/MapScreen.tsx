@@ -55,6 +55,34 @@ const BoardSurface = lazy(() =>
   }))
 )
 const prefetchBoard = () => void import("@/components/whiteboard/BoardSurface")
+
+/**
+ * The run band's height, in rem.
+ *
+ * Measured rather than chosen: a 9px eyebrow on a ~14px line, the 4px gap under
+ * it, and the tallest control at 1.375rem come to 40px, plus the scroller's
+ * py-1. What is left is the air the one-line band did not have.
+ */
+const BAND_REM = 4
+/**
+ * The statistics band that sits on it, at twice its height.
+ *
+ * A legend used to be a card floating over the planes, which is the one thing
+ * the board is for; and thirteen MapBiomas classes as a vertical list make a
+ * column tall enough to hide what it explains. Twice the run band turns that
+ * list into four short columns.
+ */
+const STATS_REM = BAND_REM * 2
+/**
+ * What actually stands in the foot, which the reservation must equal.
+ *
+ * Arithmetic here rather than `calc()` in the variable, and the reason is not
+ * style: boardScene reads --map-foot with parseFloat to lift the axis helper
+ * clear of the foot, and parseFloat of a calc() expression is NaN, which the
+ * `|| 0` there turns into no clearance at all. The helper would sit under both
+ * bands and nothing would report it.
+ */
+const FOOT_REM = BAND_REM + STATS_REM
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
@@ -700,13 +728,14 @@ export function MapScreen(props: MapScreenProps) {
       */
       style={
         {
+          "--map-band": `${BAND_REM}rem`,
+          "--map-stats": `${STATS_REM}rem`,
           /*
-            4rem is measured, not chosen: a 9px eyebrow on a ~14px line, the
-            4px gap under it, and the tallest control at 1.375rem come to 40px,
-            plus the scroller's py-1. The remaining 24px is the air the one-line
-            band did not have. The map's 3.0625rem is the period track's own.
+            Everything anchored to the bottom measures from here: the result
+            panel, the drawers, and the scene's axis helper. On the map it is
+            the period track alone.
           */
-          "--map-foot": boardOpen ? "4rem" : "3.0625rem",
+          "--map-foot": boardOpen ? `${FOOT_REM}rem` : "3.0625rem",
         } as React.CSSProperties
       }
     >

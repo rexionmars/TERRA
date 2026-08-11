@@ -250,7 +250,7 @@ export function BoardRunBar(props: BoardRunBarProps) {
         the column's right edge rather than spanning the window, so the two are
         neighbours rather than one lying over the other.
       */
-      className="app-no-drag absolute bottom-0 right-0 z-[900] flex h-[var(--map-foot,3.0625rem)] items-center border-t"
+      className="app-no-drag absolute bottom-0 right-0 z-[900] flex h-[var(--map-band,3.0625rem)] items-center border-t"
       style={{
         left: props.leftOffset ?? 0,
         background: "rgb(var(--p-ink))",
