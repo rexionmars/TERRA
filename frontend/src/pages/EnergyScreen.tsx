@@ -29,6 +29,7 @@ import { AnimatePresence } from "motion/react"
 import type { LayoutMode } from "@/lib/types"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import { PanelShell, type PanelPlacement } from "@/components/ui/PanelShell"
+import { statusPanelInset } from "@/components/analysisPrimitives"
 
 import {
   useCallback,
@@ -636,6 +637,7 @@ export function EnergyScreen(props: EnergyScreenProps) {
       <AnimatePresence initial={false}>
         {hasResult && (
           <EnergyStatusPanel
+            leftOffsetClass={statusPanelInset(workspace)}
             key={`${tab}-${selected}`}
             tab={tab}
             selected={selected}

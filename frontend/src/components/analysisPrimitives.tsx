@@ -202,3 +202,22 @@ export function PowerProvenanceNote({
     </p>
   )
 }
+
+/**
+ * Where a status panel's left edge sits, which decides what it is centred in.
+ *
+ * The four panels are all `right-16 mx-auto` with a capped width, so the left
+ * inset is the whole of the horizontal placement. Two cases, and they are not
+ * the same rule:
+ *
+ * - The docked layout clears the 19rem column plus its gutters, which centres
+ *   the panel in the map's free width. Centred on the window it would sit half
+ *   under the column.
+ * - The dock layout has no column, so the inset matches the right one and the
+ *   panel centres on the window itself. `right-16` is there to clear Leaflet's
+ *   zoom stack, and only a matching left inset makes mx-auto find the true
+ *   centre rather than a point 2rem left of it.
+ */
+export function statusPanelInset(dock: boolean): string {
+  return dock ? "left-16" : "left-[23.5rem]"
+}

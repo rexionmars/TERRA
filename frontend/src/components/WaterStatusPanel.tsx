@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils"
 import { forwardRef, useState } from "react"
 import { motion } from "motion/react"
 import { AlertTriangle, ChevronDown, ChevronUp, Trash2, X } from "lucide-react"
@@ -7,6 +8,11 @@ import { BLUES_STOPS } from "@/lib/compositeCatalog"
 interface WaterStatusPanelProps {
   water: WaterAnalysis | null
   onClear: () => void
+  /**
+   * Left inset, which decides what the panel is centred within. See
+   * statusPanelInset in analysisPrimitives.
+   */
+  leftOffsetClass?: string
 }
 
 function Ramp({
@@ -69,7 +75,10 @@ function Metric({
 export const WaterStatusPanel = forwardRef<
   HTMLDivElement,
   WaterStatusPanelProps
->(function WaterStatusPanel({ water, onClear }, ref) {
+>(function WaterStatusPanel(
+  { water, onClear, leftOffsetClass = "left-[23.5rem]" },
+  ref
+) {
   const [collapsed, setCollapsed] = useState(false)
   const hasResult = !!water
 
@@ -85,7 +94,10 @@ export const WaterStatusPanel = forwardRef<
   return (
     <motion.div
       ref={ref}
-      className="panel app-no-drag absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] left-[23.5rem] right-16 z-[1000] mx-auto max-w-[36rem] rounded-md"
+      className={cn(
+          "panel app-no-drag absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] right-16 z-[1000] mx-auto max-w-[36rem] rounded-md",
+          leftOffsetClass
+        )}
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 24 }}

@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils"
 import { forwardRef, useMemo, useState } from "react"
 import { motion } from "motion/react"
 import { X, ChevronDown, ChevronUp, Trash2, SlidersHorizontal } from "lucide-react"
@@ -15,6 +16,11 @@ interface CompositionStatusPanelProps {
   sceneDate?: string | null
   composeOpacity: number
   onClear: () => void
+  /**
+   * Left inset, which decides what the panel is centred within. See
+   * statusPanelInset in analysisPrimitives.
+   */
+  leftOffsetClass?: string
 }
 
 function CmapLegend({
@@ -46,7 +52,7 @@ export const CompositionStatusPanel = forwardRef<
   HTMLDivElement,
   CompositionStatusPanelProps
 >(function CompositionStatusPanel(
-  { composition, sceneDate, composeOpacity, onClear },
+  { composition, sceneDate, composeOpacity, onClear, leftOffsetClass = "left-[23.5rem]" },
   ref
 ) {
   const [collapsed, setCollapsed] = useState(false)
@@ -105,7 +111,10 @@ export const CompositionStatusPanel = forwardRef<
   return (
     <motion.div
       ref={ref}
-      className="panel app-no-drag absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] left-[23.5rem] right-16 z-[1000] mx-auto max-w-[36rem] rounded-md"
+      className={cn(
+          "panel app-no-drag absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] right-16 z-[1000] mx-auto max-w-[36rem] rounded-md",
+          leftOffsetClass
+        )}
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 24 }}

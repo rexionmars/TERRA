@@ -29,6 +29,7 @@ import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
 import { ConfidenceLegend } from "@/components/ConfidenceLegend"
+import { statusPanelInset } from "@/components/analysisPrimitives"
 import {
   OverlayToolsButton,
   OverlayToolsPanel,
@@ -525,12 +526,14 @@ export function MapScreen(props: MapScreenProps) {
       <AnimatePresence mode="wait" initial={false}>
         {showWaterStatus ? (
           <WaterStatusPanel
+            leftOffsetClass={statusPanelInset(workspace)}
             key="water-status"
             water={props.water ?? null}
             onClear={props.onClearWater}
           />
         ) : showCompositionStatus ? (
           <CompositionStatusPanel
+            leftOffsetClass={statusPanelInset(workspace)}
             key="composition-status"
             composition={props.composition}
             sceneDate={selectedSceneDate}
@@ -539,6 +542,7 @@ export function MapScreen(props: MapScreenProps) {
           />
         ) : showPredictionStatus ? (
           <ResultsPanel
+            leftOffsetClass={statusPanelInset(workspace)}
             key="prediction-status"
             result={props.result!}
             onClose={props.onCloseResult}
