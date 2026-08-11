@@ -29,6 +29,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react"
+import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"
 import {
   MODEL_OPTIONS,
@@ -163,8 +164,6 @@ export interface BoardRunBarProps {
 }
 export function BoardRunBar(props: BoardRunBarProps) {
   const busy = props.running
-  const dateField =
-    "telemetry rounded-sm bg-surface-raised px-1.5 py-0.5 text-meta text-foreground outline-none disabled:opacity-40"
 
   return (
     <div
@@ -244,24 +243,23 @@ export function BoardRunBar(props: BoardRunBarProps) {
 
         <Group label="Period">
           {/*
-            Native date inputs, kept. They are the one control here that opens
-            a calendar, and a field that only accepted typing would be worse at
-            the thing dates are hardest at.
+            Not `<input type="date">`. The platform draws its picker BELOW the
+            field, and a field on the foot band has nothing below it -- the
+            calendar rendered over the dock, cut off, with no way to reach the
+            days it had hidden. Where that picker opens is not something a page
+            can ask the platform to change, so the calendar is drawn by
+            DateField and opens upward.
           */}
-          <input
-            type="date"
+          <DateField
             value={props.start}
             disabled={busy}
-            onChange={(e) => props.onStartChange(e.target.value)}
-            className={dateField}
+            onChange={props.onStartChange}
           />
           <span className="shrink-0 text-meta text-muted-foreground">→</span>
-          <input
-            type="date"
+          <DateField
             value={props.end}
             disabled={busy}
-            onChange={(e) => props.onEndChange(e.target.value)}
-            className={dateField}
+            onChange={props.onEndChange}
           />
           <div className="w-24 shrink-0">
             <NumberField
