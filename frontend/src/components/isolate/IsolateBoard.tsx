@@ -298,10 +298,11 @@ export function IsolateBoard({
   const [flat, setFlat] = useState<ReadonlySet<string>>(() => new Set())
 
   /**
-   * Whether corresponding rasters of different areas are joined by a line.
+   * Whether each area's rasters are joined to one another by a line.
    *
-   * Off by default. With one area there is nothing to connect, and a board
-   * that does not need the lines is only made busier by them.
+   * Off by default: an area whose planes are still stacked needs no line to
+   * say they belong together, and a board that does not need them is only
+   * made busier.
    */
   const [links, setLinks] = useState(false)
   const toggleFlat = (areaId: string, layerId: string) =>
@@ -805,8 +806,8 @@ export function IsolateBoard({
         onToggleFlat={toggleFlat}
         links={links}
         onLinksChange={setLinks}
-        // Nothing to join while the board holds one area.
-        canLink={areas.length > 1}
+        // Nothing to join until some area holds more than one raster.
+        canLink={areas.some((a) => a.layers.length > 1)}
         onSmoothChange={onSmoothChange}
       />
 

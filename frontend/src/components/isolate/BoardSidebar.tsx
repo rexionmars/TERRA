@@ -264,10 +264,10 @@ export function BoardSidebar({
    */
   flat: ReadonlySet<string>
   onToggleFlat: (areaId: string, layerId: string) => void
-  /** Lines joining corresponding rasters of different areas. */
+  /** Lines joining each area's rasters to one another. */
   links: boolean
   onLinksChange: (v: boolean) => void
-  /** False while there is one area, which has nothing to be joined to. */
+  /** False until some area holds more than one raster. */
   canLink: boolean
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
@@ -1140,8 +1140,8 @@ export function BoardSidebar({
           <p className="eyebrow !text-[9px]">View</p>
           {/*
             A property of the view rather than of any area, so it sits with the
-            spread. Offered only with something to join: with one area on the
-            board there is no correspondence to draw.
+            spread. Offered only with something to join: a single raster has
+            nothing to belong to.
           */}
           {canLink && (
             <label className="mt-1.5 flex items-center gap-2 text-meta text-muted-foreground">
@@ -1151,7 +1151,7 @@ export function BoardSidebar({
                 onChange={(e) => onLinksChange(e.target.checked)}
                 className="accent-primary"
               />
-              Link matching rasters
+              Link each area's rasters
             </label>
           )}
           <div className="mt-1.5">

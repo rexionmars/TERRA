@@ -154,13 +154,13 @@ export interface BoardHandle {
     z: number
   ) => void
   /**
-   * Draw lines between corresponding rasters of different areas.
+   * Draw lines joining the rasters of each area to one another.
    *
-   * Two areas dragged apart are two islands, and nothing on the board says
-   * they are being compared or which raster answers to which -- both areas
-   * have a classification, and once they are far enough apart the eye has no
-   * way to pair them. Off by default: with one area there is nothing to
-   * connect, and lines across a board that does not need them are clutter.
+   * A plane can be dragged out of its stack, which is what makes comparing one
+   * raster against another possible -- and it dissolves the area as something
+   * you can see. With two areas on the board, six rasters lying about say
+   * nothing about which three belong together. Off by default: an area whose
+   * planes are still stacked needs no line to say so.
    */
   setLinks: (on: boolean) => void
   /** Release the GL context and every resource attached to it. */
@@ -785,28 +785,26 @@ export function createBoard(
   const updateLinks = () => {
     if (!links.visible) return
     /*
-      Paired by layer id across areas: the classification of one area to the
-      classification of the next. That is the correspondence worth drawing --
-      a line from a classification to a confidence raster would connect two
-      things that are not the same measurement.
+      Chained WITHIN an area, in stack order.
+
+      What the lines have to say is membership: which scattered rasters are one
+      area's. Once a plane can be dragged out of its stack, an area stops being
+      a thing you can see and becomes rasters lying about, and with two areas
+      on the board there is nothing to tell one constellation from the other.
+
+      Not across areas. Joining one area's classification to another's would
+      draw the comparison rather than the grouping -- and it is the grouping
+      that is lost when planes move, since the comparison is what the person
+      moving them is holding in their head.
     */
-    const byLayer = new Map<string, { rt: GroupRuntime; mesh: Mesh }[]>()
-    for (const rt of runtimes) {
-      rt.meshes.forEach((mesh, i) => {
-        if (!mesh || !mesh.visible) return
-        const id = rt.cards[i].id
-        const list = byLayer.get(id)
-        if (list) list.push({ rt, mesh })
-        else byLayer.set(id, [{ rt, mesh }])
-      })
-    }
     let n = 0
-    for (const list of byLayer.values()) {
-      for (let i = 1; i < list.length; i++) {
-        for (const end of [list[i - 1], list[i]]) {
-          linkBuffer[n++] = end.rt.root.position.x + end.mesh.position.x
-          linkBuffer[n++] = end.rt.root.position.y + end.mesh.position.y
-          linkBuffer[n++] = end.rt.root.position.z + end.mesh.position.z
+    for (const rt of runtimes) {
+      const drawn = rt.meshes.filter((m): m is Mesh => !!m && m.visible)
+      for (let i = 1; i < drawn.length; i++) {
+        for (const mesh of [drawn[i - 1], drawn[i]]) {
+          linkBuffer[n++] = rt.root.position.x + mesh.position.x
+          linkBuffer[n++] = rt.root.position.y + mesh.position.y
+          linkBuffer[n++] = rt.root.position.z + mesh.position.z
         }
       }
     }
