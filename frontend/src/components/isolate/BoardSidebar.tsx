@@ -901,14 +901,18 @@ export function BoardSidebar({
               composition.
             </p>
           )}
-
-          {/*
-            Under the branches rather than in the header: it adds a branch, and
-            a control sits with what it produces.
-          */}
-          {addRun}
         </div>
       )}
+
+      {/*
+        Under the branches and OUTSIDE the scroller.
+
+        Inside it, the control scrolled away with the list it adds to, and the
+        list it opens had to escape a clip its own container imposed. Out here
+        it is pinned to the foot of the tree and its list is placed against
+        the column, which is the thing it should be measured from anyway.
+      */}
+      {mode === "data" && <div className="shrink-0">{addRun}</div>}
 
       {/*
         The properties of whatever is active. One panel however many layers

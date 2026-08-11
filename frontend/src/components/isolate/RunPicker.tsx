@@ -10,22 +10,21 @@
  * in one list, the names alone do not separate them. The period is what tells
  * two runs of one project apart, so it is on every row.
  *
- * In a portal for the same reason the project menu is: the column it opens
- * from is 15rem wide and scrolls, so a list rendered inside it would be
- * clipped by the thing it is trying to escape.
+ * NO PORTAL, and no measured position. The first version put the list in a
+ * portal on document.body and computed a place for it from the button's
+ * rectangle -- a portal to escape a clip, a layout effect to measure, a
+ * viewport-relative position to keep in step, and three ways for the list to
+ * be somewhere other than where it was wanted. It is a sibling of the button
+ * now, placed by CSS against the column itself: `left-full` puts it beside the
+ * column, and because its containing block is the column rather than the
+ * scrolling tree inside it, the scroller does not clip it.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { createPortal } from "react-dom"
-import { Plus, Search } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Plus, Search, X } from "lucide-react"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { datesByMonth, runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
 import { cn } from "@/lib/utils"
-
-const PICKER_W = 264
-/** Enough for the field and a few rows; below this the list is not a list. */
-const MIN_H = 168
-const MAX_H = 320
 
 export function RunPicker({
   runs,
@@ -43,38 +42,6 @@ export function RunPicker({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const [pos, setPos] = useState<{
-    top: number
-    left: number
-    height: number
-  } | null>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
-
-  const place = () => {
-    const el = btnRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    /*
-      Anchored to the control, not floated somewhere near it.
-
-      The first version measured from the button's BOTTOM upward and clamped
-      the result to the top of the window -- and since this control sits near
-      the top of a column, the clamp always won: the list opened detached from
-      the button, over the application's own title bar. It opens downward from
-      the button's top edge, takes what room is left below, and only flips
-      above when there is more room there than below.
-    */
-    const margin = 12
-    const below = window.innerHeight - r.top - margin
-    const above = r.bottom - margin
-    const flip = below < MIN_H && above > below
-    const height = Math.min(MAX_H, Math.max(MIN_H, flip ? above : below))
-    setPos({
-      top: flip ? Math.max(margin, r.bottom - height) : r.top,
-      left: Math.min(r.right + 6, window.innerWidth - PICKER_W - 8),
-      height,
-    })
-  }
 
   /**
    * The runs on offer, by project, with the ones already on the board removed.
@@ -117,7 +84,6 @@ export function RunPicker({
   return (
     <>
       <button
-        ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={busy}
@@ -125,125 +91,117 @@ export function RunPicker({
         className={cn(
           "flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-meta transition-colors",
           "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-          "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground",
-          "disabled:cursor-not-allowed disabled:opacity-50"
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          open
+            ? "bg-surface-raised text-foreground"
+            : "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
         )}
       >
         <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
         {busy ? "Loading…" : "Add a run"}
       </button>
 
-      {open &&
-        pos &&
-        createPortal(
-          <>
+      {open && (
+        /*
+          Its own raised surface, not `.panel`.
+
+          `.panel` is `rgb(var(--p-ink) / 0.55)` over a backdrop blur. Over the
+          map that reads, because the map is imagery and the blur has something
+          to work on. This board is painted in flat `--p-ink`, so ink at 55 %
+          composited on ink is ink -- a contrast ratio of 1.000 against its own
+          background, with a 28 %-alpha border as the only evidence it is
+          there. Measured, after making exactly that mistake in the name of
+          matching the project menu. --p-surface-raised gives 1.333.
+        */
+        <div
+          className="absolute bottom-2 left-full z-[20] ml-1.5 flex max-h-[22rem] w-[17rem] flex-col overflow-hidden rounded-sm border shadow-xl"
+          style={{
+            background: "rgb(var(--p-surface-raised))",
+            borderColor: "rgb(var(--p-line-strong) / 0.5)",
+          }}
+        >
+          <label
+            className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
+            style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
+          >
+            <Search className="size-3 shrink-0 text-muted-foreground" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // The board closes on Escape from a listener on the window;
+                // here it should close the list and no more.
+                e.stopPropagation()
+                if (e.key === "Escape") setOpen(false)
+              }}
+              placeholder="Find a run"
+              className="min-w-0 flex-1 border-0 bg-transparent text-meta text-foreground outline-none placeholder:text-muted-foreground"
+            />
             <button
               type="button"
-              className="fixed inset-0 z-[5000] cursor-default"
-              aria-label="Close run picker"
               onClick={() => setOpen(false)}
-            />
-            {/*
-              Its own raised surface, NOT `.panel`.
-
-              `.panel` is `rgb(var(--p-ink) / 0.55)` over a backdrop blur. Over
-              the map that reads, because the map is imagery and the blur has
-              something to work on. Over this board it is invisible: the board
-              is painted in flat `--p-ink`, so ink at 55 % composited on ink is
-              ink -- measured at a contrast ratio of 1.000 against its own
-              background, with only a 28 %-alpha border to say it was there.
-
-              Making it match the project menu was the wrong kind of
-              consistency: the two menus sit over different surfaces, and
-              matching the paint made this one disappear. --p-surface-raised
-              gives 1.333 against the board, which with a strong border and a
-              shadow is a thing lying on top of another thing.
-            */}
-            <div
-              className="fixed z-[5001] flex flex-col overflow-hidden rounded-sm border shadow-xl"
-              style={{
-                top: pos.top,
-                left: pos.left,
-                width: PICKER_W,
-                height: pos.height,
-                background: "rgb(var(--p-surface-raised))",
-                borderColor: "rgb(var(--p-line-strong) / 0.5)",
-              }}
+              aria-label="Close"
+              className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
             >
-              <label className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
-                style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}>
-                <Search className="size-3 shrink-0 text-muted-foreground" />
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    // The board closes on Escape from a listener on the
-                    // window; here it should close the picker and no more.
-                    e.stopPropagation()
-                    if (e.key === "Escape") setOpen(false)
-                  }}
-                  placeholder="Find a run"
-                  className="min-w-0 flex-1 border-0 bg-transparent text-meta text-foreground outline-none placeholder:text-muted-foreground"
-                />
-              </label>
+              <X className="size-3" />
+            </button>
+          </label>
 
-              <div className="min-h-0 flex-1 overflow-y-auto py-1">
-                {total === 0 ? (
-                  <p className="px-2.5 py-2 text-meta leading-relaxed text-muted-foreground">
-                    {query.trim()
-                      ? "No run matches that."
-                      : runs.length === 0
-                        ? "No saved runs yet."
-                        : "Every saved run is already on the board."}
+          <div className="min-h-0 flex-1 overflow-y-auto py-1">
+            {total === 0 ? (
+              <p className="px-2.5 py-2 text-meta leading-relaxed text-muted-foreground">
+                {query.trim()
+                  ? "No run matches that."
+                  : runs.length === 0
+                    ? "No saved runs yet."
+                    : "Every saved run is already on the board."}
+              </p>
+            ) : (
+              groups.map((g) => (
+                <div key={g.id || "none"}>
+                  {/*
+                    Sticky, because the list scrolls past several projects and
+                    a row seen without its heading says what was analysed
+                    without saying where.
+                  */}
+                  <p
+                    className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
+                    style={{ background: "rgb(var(--p-surface-raised))" }}
+                  >
+                    {g.name}
                   </p>
-                ) : (
-                  groups.map((g) => (
-                    <div key={g.id || "none"}>
+                  {g.runs.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => {
+                        setOpen(false)
+                        onPick(r)
+                      }}
+                      title={runRowLine(r)}
+                      className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-secondary/70"
+                    >
+                      <span className="w-full truncate text-meta text-foreground">
+                        {displayRunLabel(r.label) || r.model_kind}
+                      </span>
                       {/*
-                        Sticky, because the list scrolls past several projects
-                        and a row seen without its heading says what was
-                        analysed without saying where.
+                        What actually separates two runs of one project. The
+                        label above is near-identical across a project's runs
+                        -- it is `run-<area>-<timestamp>` -- so this is the
+                        line being read.
                       */}
-                      <p
-                        className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
-                        style={{ background: "rgb(var(--p-surface-raised))" }}
-                      >
-                        {g.name}
-                      </p>
-                      {g.runs.map((r) => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => {
-                            setOpen(false)
-                            onPick(r)
-                          }}
-                          title={runRowLine(r)}
-                          className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-secondary/70"
-                        >
-                          <span className="w-full truncate text-meta text-foreground">
-                            {displayRunLabel(r.label) || r.model_kind}
-                          </span>
-                          {/*
-                            What actually separates two runs of one project.
-                            The label above is near-identical across a
-                            project's runs -- it is `run-<area>-<timestamp>` --
-                            so this line is the one being read.
-                          */}
-                          <span className="telemetry w-full truncate text-[9px] text-muted-foreground">
-                            {datesByMonth(runRowLine(r))}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </>,
-          document.body
-        )}
+                      <span className="telemetry w-full truncate text-[9px] text-muted-foreground">
+                        {datesByMonth(runRowLine(r))}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </>
   )
 }
