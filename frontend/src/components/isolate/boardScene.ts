@@ -21,7 +21,10 @@ import {
   Box3,
   Clock,
   Color,
+  Fog,
+  GridHelper,
   Group,
+  type LineBasicMaterial,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
@@ -74,7 +77,12 @@ export interface BoardHandle {
  */
 export function createBoard(
   host: HTMLElement,
-  opts: { cards: CardPlane[]; background: string }
+  opts: {
+    cards: CardPlane[]
+    background: string
+    /** --p-line, for the grid. */
+    line: string
+  }
 ): BoardHandle {
   const renderer = new WebGLRenderer({ antialias: true })
   /*
@@ -93,6 +101,18 @@ export function createBoard(
   scene.background = new Color(opts.background)
 
   const FOV = 45
+  /*
+    Fog in the background colour, so the grid dissolves into it instead of
+    ending at a hard rectangular edge. This is the cheapest thing that makes
+    the surface read as a space rather than as a small object floating in
+    void, and it costs one line -- a visible boundary is what tells the eye
+    the ground is a finite plate.
+
+    Near and far are set once the cards are laid out, since both depend on how
+    large the stack turned out to be.
+  */
+  scene.fog = new Fog(new Color(opts.background).getHex(), 1, 10)
+
   const camera = new PerspectiveCamera(FOV, 1, 0.01, 1000)
 
   const controls = new OrbitControls(camera, renderer.domElement)
@@ -180,6 +200,8 @@ export function createBoard(
 
   /** The sphere the raster sits in, once it is known. */
   let fitRadius = 0
+  /** The grid's full width, for placing the fog's far plane. */
+  let gridSpan = 0
 
   /** Distance at which that sphere just fits the current viewport. */
   const fitDistance = () => {
@@ -187,6 +209,53 @@ export function createBoard(
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
     // The tighter of the two axes decides, or the object overflows the other.
     return (fitRadius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.12
+  }
+
+  /**
+   * The ground the stack sits over: a sparse grid, fading out.
+   *
+   * Sparse and dim on purpose. A dense bright grid is what makes a surface
+   * read as a 3D editor; at a wide pitch and low alpha it reads as graph
+   * paper, which is what a board is. It exists at all because without it the
+   * stack has nothing to sit over -- with an empty background there is no
+   * parallax cue, so orbiting moves the rasters against nothing and the sense
+   * of turning around an object is lost.
+   */
+  const addGround = (radius: number) => {
+    // Ten cells across the object, out to four times its radius: fine enough
+    // to read motion against, coarse enough not to draw attention.
+    const span = radius * 8
+    const grid = new GridHelper(span, 20, opts.line, opts.line)
+    const material = grid.material as LineBasicMaterial
+    material.transparent = true
+    material.opacity = 0.14
+    material.depthWrite = false
+    // Below the lowest plane, so it never fights the rasters for the surface.
+    grid.position.y = -radius * 0.35
+    scene.add(grid)
+    disposables.push(grid.geometry, material)
+
+    gridSpan = span
+  }
+
+  /**
+   * Keeps the fog behind the stack as the camera moves.
+   *
+   * Fog is measured from the CAMERA, not from the scene origin, so a fixed
+   * near plane is only correct at one zoom. Set from the scene's own extent it
+   * began inside the stack -- the camera sits about 2.6 radii out, so a near
+   * plane at 2.2 radii dimmed the far half of the raster it was meant to leave
+   * alone.
+   *
+   * Tied to the current distance instead: it starts just past the far side of
+   * the stack and ends within the grid, at every zoom.
+   */
+  const updateFog = () => {
+    const fog = scene.fog as Fog | null
+    if (!fog || !fitRadius) return
+    const d = camera.position.distanceTo(controls.target)
+    fog.near = d + fitRadius * 1.2
+    fog.far = d + gridSpan * 0.5
   }
 
   const frame = (radius: number) => {
@@ -226,6 +295,7 @@ export function createBoard(
     raf = requestAnimationFrame(() => {
       raf = 0
       controls.update()
+      updateFog()
       renderer.clear()
       renderer.render(scene, camera)
       // After the scene and without clearing it: the helper draws into a
@@ -343,6 +413,7 @@ export function createBoard(
         const box = new Box3().setFromObject(stack)
         const sphere = box.getBoundingSphere(new Sphere())
         stack.position.y = -sphere.center.y
+        addGround(sphere.radius)
         frame(sphere.radius)
       }
       render()

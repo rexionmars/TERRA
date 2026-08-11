@@ -91,6 +91,7 @@ export function IsolateBoard({
       board = createBoard(host, {
         cards,
         background: tokenColor("--p-ink", "#171717"),
+        line: tokenColor("--p-line", "#404040"),
       })
     } catch {
       // A context can fail to be created even where the capability exists --
