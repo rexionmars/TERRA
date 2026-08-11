@@ -433,12 +433,20 @@ export function MapScreen(props: MapScreenProps) {
         // draw stack at the bottom-right, under them.
         bottomRightSlot={
           <>
-            <IsolateBoardButton
-              active={isolate}
-              disabled={!props.result?.overlay_uri}
-              onClick={() => setIsolate((o) => !o)}
-              onPrefetch={prefetchBoard}
-            />
+            {/*
+              Only where there is no bar to carry it. In the dock layout the
+              toggle sits on the island, which stays visible over the board, so
+              it can also close it -- here the stack goes under the board and
+              the button would be an entry with no matching exit.
+            */}
+            {!workspace && (
+              <IsolateBoardButton
+                active={isolate}
+                disabled={!props.result?.overlay_uri}
+                onClick={() => setIsolate((o) => !o)}
+                onPrefetch={prefetchBoard}
+              />
+            )}
             <OverlayToolsButton
               active={rightDrawer === "overlays"}
               onClick={() =>
@@ -486,6 +494,7 @@ export function MapScreen(props: MapScreenProps) {
               key="isolate-board"
               textureUri={props.result.overlay_uri}
               title={props.areaLabel || "Analysis"}
+              showClose={!workspace}
               onClose={() => setIsolate(false)}
             />
           </Suspense>
@@ -506,6 +515,15 @@ export function MapScreen(props: MapScreenProps) {
             canRun={run.canRun}
             onRun={run.onRun}
             onWidthChange={setBarWidthPx}
+            isolateSlot={
+              <IsolateBoardButton
+                active={isolate}
+                disabled={!props.result?.overlay_uri}
+                onClick={() => setIsolate((o) => !o)}
+                onPrefetch={prefetchBoard}
+                inBar
+              />
+            }
             configOpen={rightDrawer === "config"}
             onConfigToggle={() =>
               setRightDrawer((d) => (d === "config" ? null : "config"))

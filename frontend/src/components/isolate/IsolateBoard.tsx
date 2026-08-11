@@ -19,10 +19,21 @@ import { createBoard, tokenColor } from "@/components/isolate/boardScene"
 export function IsolateBoard({
   textureUri,
   title,
+  showClose,
   onClose,
 }: {
   textureUri: string
   title: string
+  /**
+   * Whether this surface draws its own way out.
+   *
+   * False where the toggle that opened the board stays visible over it -- the
+   * dock layout's island -- because one control that turns a thing on and off
+   * is one control. True where the toggle is in Leaflet's stack, which this
+   * surface covers: there the button cannot be pressed again and its absence
+   * would leave Escape as the only exit.
+   */
+  showClose: boolean
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -59,13 +70,17 @@ export function IsolateBoard({
   return (
     <motion.div
       /*
-        Opaque, and above the panels at 1000 and the foot tracks at 900 while
-        staying under the modals at 2000 -- the ladder ModalShell documents.
-        Opaque because excluding the rest of the map is the premise: the map,
-        the period track and the island keep rendering underneath as siblings,
-        and a translucent scrim would leave tiles moving behind the board.
+        Above the map, which sits at z-0, and below every piece of chrome: the
+        foot track at 900, the island and the panels at 1000, the drawers at
+        1100. What this excludes is the MAP, not the application -- the board
+        is a working surface, so the controls have to stay within reach of it.
+        Covering them turned it into a modal takeover, which is not what a
+        whiteboard is.
+
+        Opaque, because the map keeps rendering underneath as a sibling and a
+        translucent scrim would leave tiles moving behind the rasters.
       */
-      className="app-no-drag absolute inset-0 z-[1500] overflow-hidden"
+      className="app-no-drag absolute inset-0 z-[500] overflow-hidden"
       style={{ background: "rgb(var(--p-ink))" }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -74,21 +89,33 @@ export function IsolateBoard({
     >
       <div ref={hostRef} className="absolute inset-0" />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3">
+      {/*
+        Left, and clear of the top-right corner where the search bar sits.
+
+        The close button appears only where the toggle that opened the board is
+        hidden behind it. In the dock layout the toggle sits on the island,
+        which stays above this surface and turns it off again -- a second exit
+        there would be a second answer. In the sidebar layout the toggle is in
+        Leaflet's control stack, which this covers, so without an X the only
+        way out would be Escape, a key nobody is told about.
+      */}
+      <div className="absolute left-3 top-3 flex min-w-0 max-w-[24rem] items-start gap-2">
         <div className="min-w-0">
           <p className="eyebrow !text-foreground">Isolated</p>
           <p className="mt-0.5 truncate text-emphasis text-muted-foreground">
             {title}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          title="Close (Esc)"
-          className="pointer-events-auto flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <X className="size-4" />
-        </button>
+        {showClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            title="Close (Esc)"
+            className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </div>
     </motion.div>
   )

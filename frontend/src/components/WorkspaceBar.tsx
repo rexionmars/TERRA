@@ -51,6 +51,7 @@ export function WorkspaceBar({
   onRun,
   configOpen,
   onConfigToggle,
+  isolateSlot,
   onWidthChange,
 }: {
   /** The group this screen belongs to, which is the one shown on the trigger. */
@@ -74,6 +75,15 @@ export function WorkspaceBar({
   onRun: () => void
   configOpen: boolean
   onConfigToggle: () => void
+  /**
+   * The isolate toggle, passed in rather than built here.
+   *
+   * The bar must not import the board's button module directly: that module
+   * is deliberately kept out of the graph that reaches `three`, and a bar
+   * that reached for it would put the boundary one import away from being
+   * lost. A slot keeps the bar ignorant of what it is holding.
+   */
+  isolateSlot?: React.ReactNode
   /** The island's measured width, for whatever has to make room for it. */
   onWidthChange?: (px: number) => void
 }) {
@@ -265,6 +275,8 @@ export function WorkspaceBar({
         </button>
 
         <span className="hairline mx-1 h-5 w-px self-center border-l" />
+
+        {isolateSlot}
 
         <button
           type="button"

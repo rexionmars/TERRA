@@ -18,6 +18,7 @@ export function IsolateBoardButton({
   disabled,
   onClick,
   onPrefetch,
+  inBar,
 }: {
   active: boolean
   /** No raster on screen: an empty board is a dead end, so it says so. */
@@ -25,6 +26,16 @@ export function IsolateBoardButton({
   onClick: () => void
   /** Warms the board's chunk on hover, so the click does not wait on a fetch. */
   onPrefetch?: () => void
+  /**
+   * Drawn for the dock layout's island rather than for Leaflet's control stack.
+   *
+   * The two surfaces have different vocabularies and it is not a detail: the
+   * stack's buttons carry `.panel`, their own border and 2.125rem to match the
+   * zoom and draw controls beside them, while the island's are 2.25rem, borderless
+   * and painted on the island's own plate. A button dressed for the wrong one
+   * reads as something that fell in from elsewhere.
+   */
+  inBar?: boolean
 }) {
   return (
     <button
@@ -39,12 +50,22 @@ export function IsolateBoardButton({
           : "Isolate the analysis from the map"
       }
       className={cn(
-        // Sized to the zoom and draw buttons it sits under. A narrower one
-        // beside them reads as a different kind of control.
-        "panel app-no-drag flex h-[2.125rem] w-[2.125rem] items-center justify-center rounded-sm text-muted-foreground transition-colors",
-        "hover:bg-secondary hover:text-foreground",
-        "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground",
-        active && "border-primary/50 bg-primary/15 text-foreground"
+        "flex items-center justify-center rounded-sm transition-colors",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "disabled:cursor-not-allowed disabled:opacity-40",
+        inBar
+          ? [
+              "size-9 text-muted-foreground",
+              "enabled:hover:bg-surface-raised/70 enabled:hover:text-foreground",
+              active && "bg-surface-raised text-foreground",
+            ]
+          : [
+              // Sized to the zoom and draw buttons it sits under. A narrower
+              // one beside them reads as a different kind of control.
+              "panel app-no-drag h-[2.125rem] w-[2.125rem] text-muted-foreground",
+              "enabled:hover:bg-secondary enabled:hover:text-foreground",
+              active && "border-primary/50 bg-primary/15 text-foreground",
+            ]
       )}
     >
       <Layers3 className="size-3.5" strokeWidth={1.75} />
