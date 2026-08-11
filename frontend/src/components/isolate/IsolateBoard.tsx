@@ -23,9 +23,16 @@ import {
   sceneKey,
 } from "@/components/isolate/BoardSidebar"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
+import { runAssets } from "@/lib/runAssets"
 import type { CardGroup } from "@/lib/isolateCards"
 import { layoutGroups } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
+import { RunPicker } from "@/components/isolate/RunPicker"
+import { useAuth } from "@/lib/auth"
+import { displayRunLabel } from "@/lib/aoiLabel"
+import { notifyError } from "@/lib/notify"
+import { LoadAnalysis } from "../../../wailsjs/go/main/App"
+import type { InferenceRun, PredictResult } from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/isolate/boardScene"
 import { createBoard, tokenColor } from "@/components/isolate/boardScene"
 
@@ -349,23 +356,68 @@ export function IsolateBoard({
     })
 
   /**
+   * Runs fetched to sit beside the one the board opened from.
+   *
+   * Loaded through LoadAnalysis directly rather than through the map screen's
+   * openSavedAnalysis, and that is the point: openSavedAnalysis REPLACES the
+   * analysis on screen, which is the opposite of what a comparison needs. The
+   * board holds these itself and the map never learns about them.
+   */
+  const [extraRuns, setExtraRuns] = useState<
+    readonly { run: InferenceRun; result: PredictResult }[]
+  >([])
+  const [loadingRun, setLoadingRun] = useState(false)
+  const { runs, projects } = useAuth()
+
+  const addRun = async (run: InferenceRun) => {
+    setLoadingRun(true)
+    try {
+      const result = (await LoadAnalysis(run.id)) as unknown as PredictResult
+      setExtraRuns((prev) =>
+        prev.some((x) => x.run.id === run.id) ? prev : [...prev, { run, result }]
+      )
+    } catch (e) {
+      notifyError("Could not load that run", e)
+    } finally {
+      setLoadingRun(false)
+    }
+  }
+
+  /**
    * The data tree's branches: one run each.
    *
    * A list of one while the board opens from a single run, and a list because
    * the next thing it holds is another run's output -- which is what a second
    * area on the board is made from.
    */
-  const assetRuns: AssetRun[] = assets.length
-    ? [
-        {
-          areaId: CURRENT_AREA,
-          runId,
-          title,
-          period: runPeriod,
-          assets,
-        },
-      ]
-    : []
+  const assetRuns: AssetRun[] = [
+    ...(assets.length
+      ? [{ areaId: CURRENT_AREA, runId, title, period: runPeriod, assets }]
+      : []),
+    ...extraRuns.map(({ run, result }) => ({
+      // The run's own id names its area: it is unique, it is stable across a
+      // reopen, and it is what a saved arrangement will record.
+      areaId: run.id,
+      runId: run.id,
+      title: displayRunLabel(run.label) || run.model_kind,
+      period:
+        result.date_range?.length === 2
+          ? `${result.date_range[0]} → ${result.date_range[1]}`
+          : `${run.period_start} → ${run.period_end}`,
+      assets: runAssets({
+        result,
+        composition: null,
+        compositionGallery: [],
+        water: null,
+        // A loaded run brings its own rasters and none of the map's state:
+        // nothing here is drawn on the map, so nothing here has a switch there.
+        showCompositionOverlay: false,
+        showWaterOverlay: false,
+        composeOpacity: 1,
+        waterOpacity: 1,
+      }),
+    })),
+  ]
 
   const [mode, setMode] = useState<OutlinerMode>("scene")
   const [activeAsset, setActiveAsset] = useState<string | null>(null)
@@ -527,6 +579,15 @@ export function IsolateBoard({
         layers={stackLayers}
         areaId={CURRENT_AREA}
         assetRuns={assetRuns}
+        addRun={
+          <RunPicker
+            runs={runs}
+            projects={projects}
+            excludeRunIds={new Set(assetRuns.map((r) => r.runId))}
+            busy={loadingRun}
+            onPick={(r) => void addRun(r)}
+          />
+        }
         sceneIds={sceneIds}
         onAddToScene={addToScene}
         onRemoveFromScene={removeFromScene}

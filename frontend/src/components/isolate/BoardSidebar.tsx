@@ -24,7 +24,7 @@
  * Read top to bottom as the stack is seen: the topmost layer is the topmost
  * row.
  */
-import { useRef, useState } from "react"
+import { type ReactNode, useRef, useState } from "react"
 import {
   ChevronDown,
   ChevronRight,
@@ -157,6 +157,7 @@ export function BoardSidebar({
   assetRuns,
   sceneIds,
   areaId,
+  addRun,
   mode,
   areaLabel,
   activeRow,
@@ -227,6 +228,15 @@ export function BoardSidebar({
   areaLabel: string
   /** Which area the scene tree is showing. One, while the board holds one. */
   areaId: string
+  /**
+   * The control that puts another run's output on the board.
+   *
+   * Passed in rather than built here, because choosing a run needs the saved
+   * runs and the projects they belong to -- neither of which this column has
+   * any other use for, and both of which would have to be threaded through it
+   * to reach a picker it merely contains.
+   */
+  addRun?: ReactNode
   /** The row the panel below is editing, and the plane the board outlines. */
   activeRow: string | null
   expanded: ReadonlySet<string>
@@ -724,8 +734,17 @@ export function BoardSidebar({
                   <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
                     {row.run.title}
                   </span>
-                  <span className="telemetry shrink-0 text-meta text-muted-foreground">
-                    {row.run.period}
+                  {/*
+                    Months, not full dates. The name identifies the run and the
+                    period only separates two of them; spelled in full on both
+                    ends it took enough of a 15rem column to truncate "Custom
+                    AOI" to "Cust...".
+                  */}
+                  <span
+                    className="telemetry shrink-0 text-meta text-muted-foreground"
+                    title={row.run.period}
+                  >
+                    {row.run.period.replace(/(\d{4}-\d{2})-\d{2}/g, "$1")}
                   </span>
                 </div>
               )
@@ -793,6 +812,12 @@ export function BoardSidebar({
               composition.
             </p>
           )}
+
+          {/*
+            Under the branches rather than in the header: it adds a branch, and
+            a control sits with what it produces.
+          */}
+          {addRun}
         </div>
       )}
 
