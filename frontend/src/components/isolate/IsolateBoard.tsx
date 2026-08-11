@@ -309,6 +309,26 @@ export function IsolateBoard({
   const [flat, setFlat] = useState<ReadonlySet<string>>(() => new Set())
 
   /**
+   * A stack order the user has set, per area, bottom first.
+   *
+   * The default comes from each product's own ordering number -- a
+   * classification reads over surface water, confidence reads over the
+   * classification -- which is a sensible answer and not the only one. With
+   * rasters the order decides what can be seen at all, so it has to be
+   * something the person looking can change.
+   *
+   * Absent for an area nobody has reordered. A product appearing after an
+   * order was set is not in that list, so it goes on top rather than being
+   * dropped: something new is worth seeing, and burying it under a list
+   * written before it existed would hide it with no way to tell why.
+   */
+  const [order, setOrder] = useState<Readonly<Record<string, string[]>>>({})
+  const reorderArea = (areaId: string, topFirst: string[]) =>
+    // Stored bottom first, which is how a stack is built and how layoutGroups
+    // reads it; the tree hands it over top first, which is how it reads.
+    setOrder((prev) => ({ ...prev, [areaId]: [...topFirst].reverse() }))
+
+  /**
    * Whether each area's rasters are joined to one another by a line.
    *
    * Off by default: an area whose planes are still stacked needs no line to
@@ -371,23 +391,39 @@ export function IsolateBoard({
    * loaded run is what brings its area into being, and taking the last one off
    * is what ends it.
    */
+  /**
+   * The area's layers in the order the board should stack them.
+   *
+   * Default is each product's own ordering number, which encodes a decision
+   * worth keeping: a classification reads over surface water, and confidence
+   * reads over the classification. A stored order replaces it for the layers
+   * it names.
+   */
+  const applyOrder = (areaId: string, ls: RasterLayer[]): RasterLayer[] => {
+    const want = order[areaId]
+    if (!want) return ls
+    const rank = new Map(want.map((id, i) => [id, i]))
+    const known = ls
+      .filter((l) => rank.has(l.id))
+      .sort((a, b) => rank.get(a.id)! - rank.get(b.id)!)
+    return [...known, ...ls.filter((l) => !rank.has(l.id))]
+  }
+
   const areas = [
     {
       id: CURRENT_AREA,
       title,
-      layers: [
-        ...layers.filter(
-          (l) => !removed.has(sceneKey(CURRENT_AREA, l.id))
-        ),
+      layers: applyOrder(CURRENT_AREA, [
+        ...layers.filter((l) => !removed.has(sceneKey(CURRENT_AREA, l.id))),
         ...extrasFor(CURRENT_AREA, 1000),
-      ],
+      ]),
     },
     ...assetRuns
       .filter((r) => r.areaId !== CURRENT_AREA)
       .map((r) => ({
         id: r.areaId,
         title: names[stackRow(r.areaId)] ?? r.title,
-        layers: extrasFor(r.areaId, 400),
+        layers: applyOrder(r.areaId, extrasFor(r.areaId, 400)),
       })),
   ].filter((a) => a.layers.length > 0)
 
@@ -841,6 +877,7 @@ export function IsolateBoard({
         onDropRun={dropRun}
         flat={flat}
         onToggleFlat={toggleFlat}
+        onReorder={reorderArea}
         links={links}
         onLinksChange={setLinks}
         // Nothing to join until some area holds more than one raster.

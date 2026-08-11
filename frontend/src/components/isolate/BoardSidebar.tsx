@@ -197,6 +197,7 @@ export function BoardSidebar({
   onDropRun,
   flat,
   onToggleFlat,
+  onReorder,
   links,
   onLinksChange,
   canLink,
@@ -264,6 +265,14 @@ export function BoardSidebar({
    */
   flat: ReadonlySet<string>
   onToggleFlat: (areaId: string, layerId: string) => void
+  /**
+   * A new stack order for one area, given TOP FIRST -- as the tree reads.
+   *
+   * The tree is the only place the order is visible, so it is the place to
+   * change it; and it lists an area from the top down, so that is the order it
+   * hands back rather than making the caller reverse what it just showed.
+   */
+  onReorder: (areaId: string, layerIdsTopFirst: string[]) => void
   /** Lines joining each area's rasters to one another. */
   links: boolean
   onLinksChange: (v: boolean) => void
@@ -455,6 +464,86 @@ export function BoardSidebar({
   const asset = activeAssetRow?.asset ?? null
 
   const rowRefs = useRef(new Map<string, HTMLElement>())
+
+  /*
+    Reordering by dragging a row.
+
+    The transient part is a ref and only the insertion mark is state: a drag
+    reports every pixel, and re-rendering a tree on each of them to move a line
+    two pixels is work for nothing.
+
+    A threshold separates it from a click, because the same press does both --
+    below it the row is being selected, above it the stack is being reordered.
+  */
+  const DRAG_SLOP_PX = 4
+  const dragRef = useRef<{
+    areaId: string
+    layerId: string
+    startY: number
+    moved: boolean
+  } | null>(null)
+  const [dropAt, setDropAt] = useState<{ areaId: string; index: number } | null>(
+    null
+  )
+
+  /** The area's layer rows, top first, as the tree lists them. */
+  const layerRowsOf = (areaId: string) =>
+    allRows.filter((r) => r.areaId === areaId && r.depth === 1)
+
+  /**
+   * Where a pointer at this height would insert, in the area's tree order.
+   *
+   * Measured against each row's midpoint rather than its edges, so the mark
+   * follows the pointer without the row it is over having to be left first.
+   */
+  const insertionAt = (areaId: string, clientY: number) => {
+    const rows = layerRowsOf(areaId)
+    for (const [i, r] of rows.entries()) {
+      const el = rowRefs.current.get(r.id)
+      if (!el) continue
+      const box = el.getBoundingClientRect()
+      if (clientY < box.top + box.height / 2) return i
+    }
+    return rows.length
+  }
+
+  const beginRowDrag = (e: React.PointerEvent, row: Row) => {
+    if (e.button !== 0 || row.depth !== 1 || !row.layerId) return
+    dragRef.current = {
+      areaId: row.areaId,
+      layerId: row.layerId,
+      startY: e.clientY,
+      moved: false,
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const moveRowDrag = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    if (!d) return
+    if (!d.moved && Math.abs(e.clientY - d.startY) < DRAG_SLOP_PX) return
+    d.moved = true
+    setDropAt({ areaId: d.areaId, index: insertionAt(d.areaId, e.clientY) })
+  }
+
+  const endRowDrag = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    dragRef.current = null
+    setDropAt(null)
+    if (!d) return
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    if (!d.moved) return
+    const ids = layerRowsOf(d.areaId).map((r) => r.layerId!)
+    const from = ids.indexOf(d.layerId)
+    let to = insertionAt(d.areaId, e.clientY)
+    // The mark sits between rows, so an item moving DOWN passes its own slot
+    // and the index it was counted in has to come back off.
+    if (to > from) to -= 1
+    if (from < 0 || to === from) return
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    onReorder(d.areaId, ids)
+  }
+
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
 
@@ -617,7 +706,18 @@ export function BoardSidebar({
                 aria-selected={isActive}
                 aria-expanded={row.expandable ? isOpen : undefined}
                 tabIndex={isActive ? 0 : -1}
-                onClick={() => onActivate(row.id)}
+                onPointerDown={(e) => beginRowDrag(e, row)}
+                onPointerMove={moveRowDrag}
+                onPointerUp={endRowDrag}
+                onPointerCancel={() => {
+                  dragRef.current = null
+                  setDropAt(null)
+                }}
+                onClick={() => {
+                  // A press that travelled was a reorder, not a choice.
+                  if (dragRef.current?.moved) return
+                  onActivate(row.id)
+                }}
                 onKeyDown={(e) => {
                   /*
                     Only when the row itself has focus. A press on the eye bubbles
@@ -632,10 +732,24 @@ export function BoardSidebar({
                   }
                 }}
                 className={cn(
-                  "flex cursor-default select-none items-center gap-1.5 py-[3px] pr-2 transition-colors",
+                  "relative flex cursor-default select-none items-center gap-1.5 py-[3px] pr-2 transition-colors",
                   "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
                   isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40",
-                  row.dimmed && !isActive && "opacity-50"
+                  row.dimmed && !isActive && "opacity-50",
+                  /*
+                    Where the row would land. Drawn on the row the mark sits
+                    ABOVE, and on the last row's underside for the end of the
+                    list, which has no row after it to draw on.
+                  */
+                  dropAt?.areaId === row.areaId &&
+                    row.depth === 1 &&
+                    dropAt.index === layerRowsOf(row.areaId).indexOf(row) &&
+                    "before:absolute before:inset-x-1 before:top-0 before:h-px before:bg-accent",
+                  dropAt?.areaId === row.areaId &&
+                    row.depth === 1 &&
+                    dropAt.index === layerRowsOf(row.areaId).length &&
+                    layerRowsOf(row.areaId).at(-1) === row &&
+                    "after:absolute after:inset-x-1 after:bottom-0 after:h-px after:bg-accent"
                 )}
                 // Indent by depth, from a fixed gutter. Inline because the depth
                 // is data: a Tailwind class per level would be a class per level.
