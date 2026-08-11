@@ -9,11 +9,21 @@ import type { Bounds } from "@/lib/types"
 import type { RasterLayer } from "@/lib/mapLayers"
 import { lonScaleAtLat } from "@/lib/geometry"
 
+/**
+ * A plane to build, and nothing about its current state.
+ *
+ * Opacity and visibility used to live here and had to leave. This type is what
+ * the scene is BUILT from, and IsolateBoard keeps it stable across renders so
+ * the scene is not rebuilt for every change -- which means a card outlives the
+ * state it was created with. A card carrying `visible` was a card that could
+ * resurrect an old answer the moment anything rebuilt the scene, and something
+ * did. State reaches the scene through setAppearance, which is one path
+ * instead of two.
+ */
 export interface CardPlane {
   id: string
   title: string
   uri: string
-  opacity: number
   pixelated: boolean
   /** Size in world units, the union's longest side being 1. */
   width: number
@@ -23,16 +33,6 @@ export interface CardPlane {
   z: number
   /** Height in the stack, from the layer's order. */
   y: number
-  /**
-   * Whether it is drawn right now.
-   *
-   * Hidden layers are still laid out and still built. Dropping them would make
-   * every eye toggle change the SET of planes, and a changed set is a rebuilt
-   * scene -- so hiding one layer would throw the camera back to its opening
-   * angle. Kept in place, hiding is a property of a plane that already exists,
-   * and the heights of the others do not shift under it either.
-   */
-  visible: boolean
 }
 
 function union(extents: Bounds[]): Bounds {
@@ -82,7 +82,6 @@ export function layoutCards(layers: RasterLayer[], gap: number): CardPlane[] {
       id: l.id,
       title: l.title,
       uri: l.uri,
-      opacity: l.opacity,
       pixelated: l.pixelated,
       width: ((e.lon_max - e.lon_min) * kx) / scale,
       height: (e.lat_max - e.lat_min) / scale,
@@ -92,7 +91,6 @@ export function layoutCards(layers: RasterLayer[], gap: number): CardPlane[] {
       // By position in the sorted list rather than by the order number, so the
       // spacing is even however far apart the z-indices happen to be.
       y: i * gap,
-      visible: l.visible,
     }
   })
 }

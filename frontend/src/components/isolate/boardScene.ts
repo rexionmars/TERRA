@@ -68,6 +68,13 @@ export function tokenColor(name: string, fallback: string): string {
   return channels.length === 3 ? `rgb(${channels.join(",")})` : fallback
 }
 
+/** What can change about a plane without the scene being rebuilt. */
+export interface PlaneState {
+  id: string
+  opacity: number
+  visible: boolean
+}
+
 export interface BoardHandle {
   /** Redraw once. The board renders on demand, not in a permanent loop. */
   render: () => void
@@ -87,9 +94,7 @@ export interface BoardHandle {
    * and recreate the GL context while the user drags -- resetting the camera
    * dozens of times and leaking a context each time the disposal missed one.
    */
-  setAppearance: (
-    cards: { id: string; opacity: number; visible: boolean }[]
-  ) => void
+  setAppearance: (next: PlaneState[]) => void
   /**
    * Outline one plane, or none.
    *
@@ -119,6 +124,15 @@ export function createBoard(
     line: string
     /** --p-accent, for the selected plane's outline. */
     accent: string
+    /**
+     * How each plane starts.
+     *
+     * Passed apart from the cards, and read again as each texture lands rather
+     * than copied onto the mesh once. Textures decode asynchronously, so a
+     * setAppearance can arrive before the plane it describes exists; holding
+     * the state here means that call is not lost, it just applies later.
+     */
+    appearance: PlaneState[]
     /**
      * A plane was pressed.
      *
@@ -527,6 +541,16 @@ export function createBoard(
    */
   let selectedId: string | null = null
   /*
+    The one place a plane's state lives. Seeded from the caller and updated by
+    setAppearance; the mesh reads it when it is created and whenever it is
+    changed. Two paths to the same property is what produced the fault this
+    replaces: the card said one thing, the handle said another, and whichever
+    ran last won.
+  */
+  const state = new Map<string, PlaneState>(
+    opts.appearance.map((a) => [a.id, a])
+  )
+  /*
     One material for every outline: the colour is the same and a material per
     plane would be a shader program per plane for no difference on screen.
     The geometries differ -- each is the edge of its own rectangle -- so those
@@ -570,10 +594,11 @@ export function createBoard(
         camera -- which flips as you orbit, and would make layers swap places
         while you look at them.
       */
+      const now = state.get(card.id)
       const material = new MeshBasicMaterial({
         map: t,
         transparent: true,
-        opacity: card.opacity,
+        opacity: now?.opacity ?? 1,
         depthWrite: false,
       })
       const mesh = new Mesh(geometry, material)
@@ -582,7 +607,7 @@ export function createBoard(
       mesh.renderOrder = index
       // Built whether or not it is shown, so hiding one later is a flag on an
       // existing plane rather than a different scene.
-      mesh.visible = card.visible
+      mesh.visible = now?.visible ?? true
       meshes[index] = mesh
       stack.add(mesh)
       disposables.push(geometry, material, t)
@@ -641,10 +666,14 @@ export function createBoard(
     setAppearance(next) {
       let changed = false
       for (const c of next) {
+        // Recorded whether or not the plane exists yet: a texture still
+        // decoding will read this when it lands.
+        state.set(c.id, c)
         const i = indexById.get(c.id)
         const mesh = i === undefined ? null : meshes[i]
-        // Absent while its texture is still decoding. Nothing to do: the mesh
-        // is built from the card, so it arrives carrying this state already.
+        // Absent while its texture is still decoding. Nothing further to do:
+        // the record above is what the mesh reads when it is created, so the
+        // call is applied late rather than lost.
         if (!mesh) continue
         const material = mesh.material as MeshBasicMaterial
         if (mesh.visible !== c.visible) {

@@ -25,7 +25,7 @@ import type { RunAsset } from "@/lib/runAssets"
 import type { CardPlane } from "@/lib/isolateCards"
 import { layoutCards } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
-import type { BoardHandle } from "@/components/isolate/boardScene"
+import type { BoardHandle, PlaneState } from "@/components/isolate/boardScene"
 import { createBoard, tokenColor } from "@/components/isolate/boardScene"
 
 /**
@@ -122,6 +122,26 @@ export function IsolateBoard({
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
+
+  /*
+    Read through refs by the effect that builds the scene, so neither can put
+    the scene in that effect's dependencies.
+
+    `onClose` was in them, and it is written inline at the call site -- a new
+    function on every render of the map screen. So the GL context was disposed
+    and recreated on EVERY RENDER, which defeated the structural comparison
+    below entirely and, worse, rebuilt each plane from a card that no longer
+    described the current state. Toggling a layer hid it and then immediately
+    restored it from the rebuild, which read as the eye not working at all.
+  */
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const appearanceRef = useRef<PlaneState[]>([])
+  appearanceRef.current = layers.map((l) => ({
+    id: l.id,
+    opacity: l.opacity,
+    visible: l.visible,
+  }))
   const [gap, setGap] = useState(STACK_GAP)
 
   /**
@@ -218,6 +238,9 @@ export function IsolateBoard({
         background: tokenColor("--p-ink", "#171717"),
         line: tokenColor("--p-line", "#404040"),
         accent: tokenColor("--p-accent", "#f25623"),
+        // Current at the moment of the build, whatever the cards were created
+        // with -- the cards are kept stable on purpose and are older than this.
+        appearance: appearanceRef.current,
         // The state setter is stable, so this does not drag the scene into
         // being rebuilt the way an inline closure would. A plane maps to its
         // own row, which is the row whose id is the layer's.
@@ -227,7 +250,7 @@ export function IsolateBoard({
       // A context can fail to be created even where the capability exists --
       // too many live contexts, or a driver reset. The board closes rather
       // than sitting blank, because a blank surface says nothing.
-      onClose()
+      closeRef.current()
       return
     }
     boardRef.current = board
@@ -235,7 +258,9 @@ export function IsolateBoard({
       boardRef.current = null
       board?.dispose()
     }
-  }, [cards, onClose])
+    // `cards` alone: everything else the build needs is read through a ref,
+    // because the scene must outlive a render that changed none of its shape.
+  }, [cards])
 
   // Moves the existing planes rather than rebuilding the scene, so the camera
   // stays where the user put it while they adjust the separation.
@@ -253,16 +278,8 @@ export function IsolateBoard({
   const appearanceKey = layers
     .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.opacity}`)
     .join("|")
-  const layersRef = useRef(layers)
-  layersRef.current = layers
   useEffect(() => {
-    boardRef.current?.setAppearance(
-      layersRef.current.map((l) => ({
-        id: l.id,
-        opacity: l.opacity,
-        visible: l.visible,
-      }))
-    )
+    boardRef.current?.setAppearance(appearanceRef.current)
   }, [appearanceKey, cards])
 
   // Re-applied when the scene is rebuilt as well as when the selection moves:
