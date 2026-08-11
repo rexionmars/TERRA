@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
+import type { Whiteboard } from "@/lib/whiteboards"
+import { listWhiteboards, openWhiteboard } from "@/lib/whiteboards"
+import {
+  restoreBoard,
+  writeBoardMemory,
+} from "@/components/isolate/boardMemory"
 import { useTheme } from "next-themes"
 import {
   ListEmbeddedAreas,
@@ -500,6 +506,65 @@ function AppBody(props: {
   const { user, refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
+
+  /**
+   * Saved whiteboards, and the request to open one.
+   *
+   * The nonce is how the map screen is told to open its board: the board's
+   * open state is that screen's, and a boolean would only fire the first time
+   * -- opening the same whiteboard twice in a row has to work.
+   */
+  const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
+  const [openBoardNonce, setOpenBoardNonce] = useState(0)
+  const refreshWhiteboards = useCallback(async () => {
+    try {
+      setWhiteboards(await listWhiteboards())
+    } catch {
+      // A board list that cannot be read is an empty menu section, not an
+      // error in front of whatever the user was actually doing.
+    }
+  }, [])
+  useEffect(() => {
+    void refreshWhiteboards()
+  }, [refreshWhiteboards])
+
+  const handleOpenWhiteboard = useCallback(
+    async (board: Whiteboard) => {
+      try {
+        const opened = await openWhiteboard(board.id)
+        if (!opened.snapshot) {
+          notifyError(
+            "Could not read this whiteboard",
+            new Error("its arrangement is unreadable")
+          )
+          return
+        }
+        restoreBoard(opened.snapshot)
+        /*
+          The rasters are fetched by the board itself, where LoadAnalysis
+          already lives. Members whose run has been deleted are left out with
+          a word rather than silently: a board that opened with one side
+          missing and said nothing would look like it had been built that way.
+        */
+        const wanted = opened.snapshot.runIds.filter(
+          (id) => !opened.missingRunIds.includes(id)
+        )
+        writeBoardMemory("pendingRunIds", wanted)
+        writeBoardMemory("savedId", board.id)
+        writeBoardMemory("savedName", board.name)
+        if (opened.missingRunIds.length) {
+          notifyInfo(
+            `${opened.missingRunIds.length} run(s) on this whiteboard no longer exist.`
+          )
+        }
+        goMap()
+        setOpenBoardNonce((n) => n + 1)
+      } catch (e) {
+        notifyError("Could not open this whiteboard", e)
+      }
+    },
+    [goMap]
+  )
 
   /**
    * Open settings at System when nothing can be computed.
@@ -2341,6 +2406,9 @@ function AppBody(props: {
               projects={projects}
               activeProjectId={activeProjectId}
               runs={runs}
+              whiteboards={whiteboards}
+              onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
+              onMenuOpen={() => void refreshWhiteboards()}
               busy={loadingRun}
               onSelect={(id) => void activateProject(id)}
               onCreate={() => void handleCreateProjectFromAoi()}
@@ -2524,6 +2592,7 @@ function AppBody(props: {
                   onRun={handleRun}
                   onAnalyzeLULC={handleAnalyzeLULC}
                   lulcRunning={props.lulcRunning}
+                  openBoardNonce={openBoardNonce}
                   onCloseResult={() => {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)

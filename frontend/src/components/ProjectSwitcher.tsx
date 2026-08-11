@@ -1,10 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { FolderKanban, ChevronDown, Check, ChevronRight } from "lucide-react"
+import {
+  FolderKanban,
+  ChevronDown,
+  Check,
+  ChevronRight,
+  Layers3,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
+import type { Whiteboard } from "@/lib/whiteboards"
 
 /** Width of the run list, and what deciding to flip it is measured against. */
 const SUBMENU_W = 248
@@ -21,6 +28,9 @@ export function ProjectSwitcher({
   projects,
   activeProjectId,
   runs,
+  whiteboards,
+  onOpenWhiteboard,
+  onMenuOpen,
   onSelect,
   onCreate,
   onOpenRun,
@@ -39,6 +49,28 @@ export function ProjectSwitcher({
   onSelect: (id: string | null) => void
   onCreate: () => void
   onOpenRun: (run: InferenceRun) => void
+  /**
+   * Saved boards, listed beside the projects.
+   *
+   * Here rather than only in the hub because a board is a place someone
+   * RETURNS to -- it is where several runs were arranged -- and the hub is a
+   * detour when the menu that switches context is already open. The hub is
+   * still where one is deleted.
+   *
+   * Not under a project: a board's members can come from several, which is
+   * what it exists for, so filing it under one would make its own purpose the
+   * exception.
+   */
+  whiteboards: Whiteboard[]
+  onOpenWhiteboard: (board: Whiteboard) => void
+  /**
+   * The menu is opening.
+   *
+   * Whiteboards are saved from the board, which this menu knows nothing about,
+   * so the list is refreshed when it is about to be read rather than kept in
+   * step by something watching for saves.
+   */
+  onMenuOpen?: () => void
   /** A run is being loaded; a second click would race the first. */
   busy?: boolean
   onOpenHub?: () => void
@@ -207,6 +239,37 @@ export function ProjectSwitcher({
               })
             )}
           </div>
+          {whiteboards.length > 0 && (
+            <>
+              <hr className="hairline" />
+              <p className="px-2.5 pb-0.5 pt-2 text-[9px] uppercase tracking-wide text-muted-foreground">
+                Whiteboards
+              </p>
+              <div className="max-h-40 overflow-y-auto">
+                {whiteboards.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] hover:bg-secondary/50"
+                    onClick={() => {
+                      setOpen(false)
+                      onOpenWhiteboard(b)
+                    }}
+                  >
+                    <Layers3 className="size-3 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                    {/*
+                      How many runs are arranged on it, which is the only thing
+                      about a board that says how much is there.
+                    */}
+                    <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                      {b.member_count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <hr className="hairline" />
           <button
             type="button"
@@ -285,7 +348,12 @@ export function ProjectSwitcher({
       <button
         ref={btnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() =>
+          setOpen((o) => {
+            if (!o) onMenuOpen?.()
+            return !o
+          })
+        }
         className="panel flex max-w-[14rem] items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[11px] text-foreground hover:bg-secondary/40"
         title="Active project"
       >

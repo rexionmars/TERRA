@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
-import { X } from "lucide-react"
+import { Save, X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/isolate/BoardSidebar"
 import type { OutlinerMode } from "@/components/isolate/BoardSidebar"
@@ -34,13 +34,15 @@ import {
   CURRENT_AREA,
   keptObject,
   readBoardMemory,
+  snapshotBoard,
   writeBoardMemory,
 } from "@/components/isolate/boardMemory"
 import { useAuth } from "@/lib/auth"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
 import { polygonOuterRing, resolveProjectGeometry } from "@/lib/geometry"
-import { notifyError } from "@/lib/notify"
+import { notifyError, notifySuccess } from "@/lib/notify"
+import { saveWhiteboard } from "@/lib/whiteboards"
 import { LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type { InferenceRun, PredictResult } from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/isolate/boardScene"
@@ -243,6 +245,67 @@ export function IsolateBoard({
   >("extraRuns", [])
   const [loadingRun, setLoadingRun] = useState(false)
   const { runs, projects } = useAuth()
+
+  /**
+   * The board's own identity, once it has been saved under a name.
+   *
+   * Kept with the arrangement, so a board saved, closed and reopened saves
+   * again over itself rather than making a second copy of the same work.
+   */
+  const [savedId, setSavedId] = useKept<string | null>("savedId", null)
+  const [savedName, setSavedName] = useKept<string | null>("savedName", null)
+  const [naming, setNaming] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  /*
+    Runs a whiteboard named that are not on the board yet.
+
+    Opening a saved board restores the arrangement immediately -- it is plain
+    data -- but its rasters have to be fetched, and fetching belongs here where
+    LoadAnalysis already lives. The list is consumed rather than read, so a
+    board reopened twice does not queue the same runs twice.
+  */
+  useEffect(() => {
+    const pending = readBoardMemory<string[]>("pendingRunIds", [])
+    if (!pending.length) return
+    writeBoardMemory("pendingRunIds", [])
+    void (async () => {
+      for (const runId of pending) {
+        const run = runs.find((r) => r.id === runId)
+        if (!run) continue
+        await addRun(run)
+      }
+    })()
+    // Once, on mount: the list is emptied as it is taken, and re-running on a
+    // change to `runs` would fetch nothing and cost a pass over the array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const doSave = async (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setSaving(true)
+    try {
+      const runIds = areas
+        .map((a) => (a.id === CURRENT_AREA ? runId : a.id))
+        // A board is saved as a set of RUNS, and an area whose run was never
+        // saved has no id to record. Left out rather than saved as a hole.
+        .filter((id) => id && id !== "current")
+      const board = await saveWhiteboard(
+        trimmed,
+        snapshotBoard(runIds),
+        savedId ?? undefined
+      )
+      setSavedId(board.id)
+      setSavedName(board.name)
+      setNaming(null)
+      notifySuccess(`Whiteboard "${board.name}" saved.`)
+    } catch (e) {
+      notifyError("Could not save this whiteboard", e)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const addRun = async (run: InferenceRun) => {
     setLoadingRun(true)
@@ -1035,13 +1098,54 @@ export function IsolateBoard({
         Leaflet's control stack, which this covers, so without an X the only
         way out would be Escape, a key nobody is told about.
       */}
-      <div className="absolute left-[16rem] top-3 flex min-w-0 max-w-[24rem] items-start gap-2">
+      <div className="absolute left-[16rem] top-3 flex min-w-0 max-w-[30rem] items-start gap-2">
         <div className="min-w-0">
-          <p className="eyebrow !text-foreground">Isolated</p>
+          <p className="eyebrow !text-foreground">
+            {savedName ?? "Whiteboard"}
+          </p>
           <p className="mt-0.5 truncate text-emphasis text-muted-foreground">
             {title}
           </p>
         </div>
+        {/*
+          Saving names the board. Unnamed it asks for one; named it writes over
+          itself, because a second copy of the same work under the same name is
+          not what pressing save again means.
+        */}
+        {naming === null ? (
+          <button
+            type="button"
+            onClick={() =>
+              savedName ? void doSave(savedName) : setNaming("")
+            }
+            disabled={saving}
+            title={
+              savedName
+                ? `Save over "${savedName}"`
+                : "Save this whiteboard under a name"
+            }
+            className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Save className="size-3.5" strokeWidth={1.75} />
+            {saving ? "Saving…" : "Save"}
+          </button>
+        ) : (
+          <input
+            autoFocus
+            value={naming}
+            placeholder="Name this whiteboard"
+            onChange={(e) => setNaming(e.target.value)}
+            onBlur={() => setNaming(null)}
+            onKeyDown={(e) => {
+              // Escape closes the board from a listener on the window, so a
+              // name abandoned here must not leave the board with it.
+              e.stopPropagation()
+              if (e.key === "Enter") void doSave(naming)
+              else if (e.key === "Escape") setNaming(null)
+            }}
+            className="app-no-drag h-7 w-48 shrink-0 rounded-sm border-0 bg-surface-raised px-2 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
+          />
+        )}
         {showClose && (
           <button
             type="button"

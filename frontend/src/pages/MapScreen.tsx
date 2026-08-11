@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react"
+import { Suspense, lazy, useEffect, useState } from "react"
 import { AnimatePresence } from "motion/react"
 import type {
   Area,
@@ -145,6 +145,14 @@ export interface MapScreenProps {
   onAnalyzeLULC: () => void
   lulcRunning?: boolean
   onCloseResult: () => void
+  /**
+   * A request to open the board, bumped each time one arrives.
+   *
+   * A nonce rather than a boolean: the board's open state is this screen's, and
+   * a flag would fire only on its first change -- opening the same whiteboard
+   * twice in a row has to work.
+   */
+  openBoardNonce?: number
   onNewClassification: () => void
   onViewDataCube: () => void
   dataCubeLoading?: boolean
@@ -203,6 +211,11 @@ export function MapScreen(props: MapScreenProps) {
    * twenty minutes ago.
    */
   const [isolate, setIsolate] = useState(false)
+  const nonce = props.openBoardNonce ?? 0
+  useEffect(() => {
+    // Zero is the resting value, not a request.
+    if (nonce > 0) setIsolate(true)
+  }, [nonce])
   const setLeftPanel = onLeftPanelChange
 
   // The three status panels share one slot at the bottom of the map, so only

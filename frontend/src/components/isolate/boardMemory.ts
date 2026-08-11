@@ -73,3 +73,92 @@ export function boardHoldsOtherAreas(): boolean {
     ([areaId, ids]) => areaId !== CURRENT_AREA && ids.length > 0
   )
 }
+
+/**
+ * The whole arrangement, as plain data.
+ *
+ * Sets become arrays and back, because a Set does not survive JSON and the
+ * store keeps these as text. Everything else is already plain.
+ *
+ * Deliberately NOT a dump of the map: naming the fields is what makes an old
+ * saved board readable by a newer application. A dump would carry whatever
+ * keys existed on the day it was written, and reading one back would mean
+ * guessing which of them still mean anything.
+ */
+export interface BoardSnapshot {
+  /** Runs on the board, by id, in the order their areas were created. */
+  runIds: string[]
+  /** Scene ids added per area. */
+  added: Record<string, string[]>
+  removed: string[]
+  flat: string[]
+  order: Record<string, string[]>
+  names: Record<string, string>
+  extraState: Record<string, { opacity: number; visible: boolean }>
+  places: Record<string, { x: number; z: number }>
+  planePlaces: Record<string, { x: number; z: number }>
+  gap: number
+  links: boolean
+  labels: boolean
+}
+
+export function snapshotBoard(runIds: string[]): BoardSnapshot {
+  return {
+    runIds,
+    added: Object.fromEntries(
+      Object.entries(
+        readBoardMemory<Record<string, readonly string[]>>("added", {})
+      ).map(([k, v]) => [k, [...v]])
+    ),
+    removed: [...readBoardMemory<ReadonlySet<string>>("removed", new Set())],
+    flat: [...readBoardMemory<ReadonlySet<string>>("flat", new Set())],
+    order: { ...readBoardMemory<Record<string, string[]>>("order", {}) },
+    names: { ...readBoardMemory<Record<string, string>>("names", {}) },
+    extraState: {
+      ...readBoardMemory<
+        Record<string, { opacity: number; visible: boolean }>
+      >("extraState", {}),
+    },
+    places: { ...keptObject<Record<string, { x: number; z: number }>>("places", () => ({})) },
+    planePlaces: {
+      ...keptObject<Record<string, { x: number; z: number }>>(
+        "planePlaces",
+        () => ({})
+      ),
+    },
+    gap: readBoardMemory("gap", 0.1),
+    links: readBoardMemory("links", false),
+    labels: readBoardMemory("labels", false),
+  }
+}
+
+/**
+ * Replace everything with what a saved board holds.
+ *
+ * Cleared first, so opening a board gives that board rather than that board
+ * mixed with whatever was on screen. The kept objects are refilled in place,
+ * because refs elsewhere point at them.
+ */
+export function restoreBoard(snap: BoardSnapshot): void {
+  clearBoardMemory()
+  writeBoardMemory("added", snap.added)
+  writeBoardMemory("removed", new Set(snap.removed))
+  writeBoardMemory("flat", new Set(snap.flat))
+  writeBoardMemory("order", snap.order)
+  writeBoardMemory("names", snap.names)
+  writeBoardMemory("extraState", snap.extraState)
+  writeBoardMemory("gap", snap.gap)
+  writeBoardMemory("links", snap.links)
+  writeBoardMemory("labels", snap.labels)
+  Object.assign(
+    keptObject<Record<string, { x: number; z: number }>>("places", () => ({})),
+    snap.places
+  )
+  Object.assign(
+    keptObject<Record<string, { x: number; z: number }>>(
+      "planePlaces",
+      () => ({})
+    ),
+    snap.planePlaces
+  )
+}
