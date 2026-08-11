@@ -18,6 +18,7 @@ import "./leafletDrawPatch"
 import type { LatLngBoundsExpression } from "leaflet"
 import type { Area, PredictResult, GeoJSONGeometry, CompositionOverlay } from "@/lib/types"
 import { BASEMAPS, basemapByName, type BasemapKind } from "@/lib/basemaps"
+import { boundsToLatLng, isZeroExtent } from "@/lib/mapLayers"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import {
   polygonOuterRing,
@@ -361,20 +362,8 @@ function FitBounds({
   const map = useMap()
   useEffect(() => {
     if (result) {
-      const e = result.extent
-      if (
-        !e ||
-        (e.lon_min === 0 && e.lon_max === 0 && e.lat_min === 0 && e.lat_max === 0)
-      ) {
-        return
-      }
-      map.fitBounds(
-        [
-          [e.lat_min, e.lon_min],
-          [e.lat_max, e.lon_max],
-        ],
-        { padding: [40, 40] }
-      )
+      const b = boundsToLatLng(result.extent)
+      if (b) map.fitBounds(b, { padding: [40, 40] })
     }
   }, [map, customPolygon, result])
   return null
@@ -390,20 +379,8 @@ function FitComposition({
   const map = useMap()
   useEffect(() => {
     if (!composition || hasPrediction) return
-    const e = composition.extent
-    if (
-      !e ||
-      (e.lon_min === 0 && e.lon_max === 0 && e.lat_min === 0 && e.lat_max === 0)
-    ) {
-      return
-    }
-    map.fitBounds(
-      [
-        [e.lat_min, e.lon_min],
-        [e.lat_max, e.lon_max],
-      ],
-      { padding: [40, 40] }
-    )
+    const b = boundsToLatLng(composition.extent)
+    if (b) map.fitBounds(b, { padding: [40, 40] })
   }, [map, composition?.overlay_uri, hasPrediction])
   return null
 }
@@ -1106,34 +1083,16 @@ export function MapView({
 
   const overlayUrl =
     result?.overlay_uri || result?.lulc?.map_uri || result?.reference_uri || ""
+  // Both of these were separate before: bounds built unconditionally, and a
+  // zero test beside them. Every reader of the bounds already carried the test,
+  // so folding it in changes nothing and leaves one rule instead of two.
   const overlayBounds: LatLngBoundsExpression | null = result
-    ? [
-        [result.extent.lat_min, result.extent.lon_min],
-        [result.extent.lat_max, result.extent.lon_max],
-      ]
+    ? boundsToLatLng(result.extent)
     : null
-  const hasValidExtent =
-    !!result?.extent &&
-    !(
-      result.extent.lon_min === 0 &&
-      result.extent.lon_max === 0 &&
-      result.extent.lat_min === 0 &&
-      result.extent.lat_max === 0
-    )
-
-  const compositionBounds: LatLngBoundsExpression | null =
-    composition &&
-    !(
-      composition.extent.lon_min === 0 &&
-      composition.extent.lon_max === 0 &&
-      composition.extent.lat_min === 0 &&
-      composition.extent.lat_max === 0
-    )
-      ? [
-          [composition.extent.lat_min, composition.extent.lon_min],
-          [composition.extent.lat_max, composition.extent.lon_max],
-        ]
-      : null
+  const hasValidExtent = !isZeroExtent(result?.extent)
+  const compositionBounds: LatLngBoundsExpression | null = composition
+    ? boundsToLatLng(composition.extent)
+    : null
 
   // Confidence is semi-transparent, so prediction always shows through unless
   // we hide it. When confidenceOnTop is off, show confidence alone.
@@ -1165,22 +1124,10 @@ export function MapView({
   // A zero extent is what the sidecar returns when it resolved no window, so a
   // raster carrying one would be stretched across the null island.
   const drawableSolar = (solarOverlays ?? [])
-    .filter((o) => o.uri && o.extent)
-    .filter(
-      (o) =>
-        !(
-          o.extent.lon_min === 0 &&
-          o.extent.lon_max === 0 &&
-          o.extent.lat_min === 0 &&
-          o.extent.lat_max === 0
-        )
-    )
+    .filter((o) => o.uri && !isZeroExtent(o.extent))
     .map((o) => ({
       ...o,
-      bounds: [
-        [o.extent.lat_min, o.extent.lon_min],
-        [o.extent.lat_max, o.extent.lon_max],
-      ] as LatLngBoundsExpression,
+      bounds: boundsToLatLng(o.extent) as LatLngBoundsExpression,
     }))
 
   const solarVisible = drawableSolar.length > 0
@@ -1199,20 +1146,9 @@ export function MapView({
 
   // Surface-water occurrence sits above the composition and below the
   // prediction, so a classification run stays readable over it.
-  const waterBounds: LatLngBoundsExpression | null =
-    waterOverlay &&
-    waterOverlay.extent &&
-    !(
-      waterOverlay.extent.lon_min === 0 &&
-      waterOverlay.extent.lon_max === 0 &&
-      waterOverlay.extent.lat_min === 0 &&
-      waterOverlay.extent.lat_max === 0
-    )
-      ? [
-          [waterOverlay.extent.lat_min, waterOverlay.extent.lon_min],
-          [waterOverlay.extent.lat_max, waterOverlay.extent.lon_max],
-        ]
-      : null
+  const waterBounds: LatLngBoundsExpression | null = waterOverlay
+    ? boundsToLatLng(waterOverlay.extent)
+    : null
 
   const waterLayer =
     waterOverlay && waterBounds && waterOverlay.uri ? (
