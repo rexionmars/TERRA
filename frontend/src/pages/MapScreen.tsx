@@ -227,7 +227,13 @@ export function MapScreen(props: MapScreenProps) {
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
-    if (nonce > 0) setBoard(true)
+    if (nonce > 0) {
+      setBoard(true)
+      // What the two toggle handlers do inline. This path skipped it, and with
+      // the island withheld there is no longer a button on screen to shut a
+      // drawer that opened before the board did.
+      setRightDrawer(null)
+    }
   }, [nonce])
   const setLeftPanel = onLeftPanelChange
 
@@ -799,7 +805,18 @@ export function MapScreen(props: MapScreenProps) {
       </AnimatePresence>
 
       <AnimatePresence>
-        {workspace && (
+        {/*
+          Withheld while the board is up, like the search field above and the
+          overlay-tools button beside it. What it carried that the board also
+          carries is now said once, on the band; what it carried that the board
+          does not -- the destinations outside this screen, and the parameter
+          drawer -- comes back the moment the board closes.
+
+          The child is what comes and goes, not the AnimatePresence: gating the
+          presence itself unmounts the thing that was supposed to animate the
+          exit, which this file already learned once further down.
+        */}
+        {workspace && !boardOpen && (
           <WorkspaceBar
             key="workspace-bar"
             groupId="map"
@@ -811,17 +828,6 @@ export function MapScreen(props: MapScreenProps) {
             runLabel={run.label}
             canRun={run.canRun}
             onRun={run.onRun}
-            /*
-              While the board is up, running belongs to the board: it carries
-              the same panels under its Run tab, and two buttons for one action
-              are two things to read before pressing either.
-
-              Not conditioned on WHICH tab the board is showing. That state
-              lives inside the board, and mirroring it here to hide a button
-              would be this screen holding a copy of another surface's tab --
-              a second answer to a question the board already answers.
-            */
-            runElsewhere={boardOpen}
             onWidthChange={setBarWidthPx}
             configOpen={rightDrawer === "config"}
             onConfigToggle={() =>

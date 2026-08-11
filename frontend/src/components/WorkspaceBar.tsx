@@ -49,7 +49,6 @@ export function WorkspaceBar({
   runLabel,
   canRun,
   onRun,
-  runElsewhere,
   configOpen,
   onConfigToggle,
   onWidthChange,
@@ -82,7 +81,6 @@ export function WorkspaceBar({
    * disabled: a control that cannot be used and cannot be explained is worse
    * than one that is not there.
    */
-  runElsewhere?: boolean
   configOpen: boolean
   onConfigToggle: () => void
   /** The island's measured width, for whatever has to make room for it. */
@@ -293,7 +291,6 @@ export function WorkspaceBar({
           <Settings2 className="size-4" />
         </button>
 
-        {!runElsewhere && (
         <button
           type="button"
           onClick={onRun}
@@ -311,7 +308,6 @@ export function WorkspaceBar({
           )}
           {runLabel}
         </button>
-        )}
 
         {/*
           The progress hairline rides the island's own bottom edge, so it
