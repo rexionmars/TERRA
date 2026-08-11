@@ -21,10 +21,12 @@ import {
   Box3,
   Clock,
   Color,
+  EdgesGeometry,
   Fog,
   GridHelper,
   Group,
-  type LineBasicMaterial,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
@@ -88,6 +90,16 @@ export interface BoardHandle {
   setAppearance: (
     cards: { id: string; opacity: number; visible: boolean }[]
   ) => void
+  /**
+   * Outline one plane, or none.
+   *
+   * The list and the board are two views of one set of objects, and without
+   * this the correspondence runs one way only: a row would say which plane it
+   * meant and the plane would not say which row. On a stack seen at an angle,
+   * where two rasters of the same AOI look much alike, that is the difference
+   * between a list you read and a list you can use.
+   */
+  setSelected: (id: string | null) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -105,6 +117,17 @@ export function createBoard(
     background: string
     /** --p-line, for the grid. */
     line: string
+    /** --p-accent, for the selected plane's outline. */
+    accent: string
+    /**
+     * A plane was pressed.
+     *
+     * Fired on pointerdown, before any drag: pressing an object and then
+     * moving it is one gesture in every editor built this way, and a selection
+     * that waited for the release would make the first drag of a plane act on
+     * whichever one happened to be selected before.
+     */
+    onSelect: (id: string) => void
   }
 ): BoardHandle {
   const renderer = new WebGLRenderer({ antialias: true })
@@ -251,10 +274,24 @@ export function createBoard(
   }
 
   const onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0 || !stack.children.length) return
+    if (e.button !== 0) return
+    /*
+      Only the planes that are drawn. A hidden layer is built rather than
+      omitted, so that hiding one does not rebuild the scene -- but three's
+      raycaster does not test visibility, and without this filter an invisible
+      plane would still catch the pointer and start a drag over empty board.
+
+      Non-recursive, so the selection outlines hanging off each plane are not
+      hit-tested as geometry of their own.
+    */
+    const targets = meshes.filter((m): m is Mesh => !!m && m.visible)
+    if (!targets.length) return
     toPointer(e)
     raycaster.setFromCamera(pointer, camera)
-    if (!raycaster.intersectObjects(stack.children, false).length) return
+    const hit = raycaster.intersectObjects(targets, false)[0]
+    if (!hit) return
+    const index = meshes.indexOf(hit.object as Mesh)
+    if (index >= 0) opts.onSelect(opts.cards[index].id)
     // The plane the drag runs on passes through the stack's current height, so
     // the grab point does not jump to y=0 on the first move.
     dragPlane.constant = -stack.position.y
@@ -483,6 +520,26 @@ export function createBoard(
   const meshes: (Mesh | null)[] = opts.cards.map(() => null)
   const indexById = new Map(opts.cards.map((c, i) => [c.id, i]))
 
+  /**
+   * Which plane is outlined. Held here rather than passed in, because the
+   * planes appear as their textures decode and a selection made before one
+   * arrives has to survive until it does.
+   */
+  let selectedId: string | null = null
+  /*
+    One material for every outline: the colour is the same and a material per
+    plane would be a shader program per plane for no difference on screen.
+    The geometries differ -- each is the edge of its own rectangle -- so those
+    are per plane and disposed individually.
+  */
+  const outlineMaterial = new LineBasicMaterial({
+    color: new Color(opts.accent),
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+  })
+  disposables.push(outlineMaterial)
+
   opts.cards.forEach((card, index) => {
     loader.load(card.uri, (t) => {
       if (disposed) {
@@ -530,6 +587,21 @@ export function createBoard(
       stack.add(mesh)
       disposables.push(geometry, material, t)
 
+      /*
+        The selection outline, as a child so it inherits the plane's position,
+        its rotation and every later move of the spread control without being
+        told about any of them. Drawn after all the planes, so an outline is
+        never buried under the raster of the layer above it.
+      */
+      const outline = new LineSegments(
+        new EdgesGeometry(geometry),
+        outlineMaterial
+      )
+      outline.renderOrder = opts.cards.length + index
+      outline.visible = card.id === selectedId
+      mesh.add(outline)
+      disposables.push(outline.geometry)
+
       if (--pending === 0) {
         // Framed once every plane is placed, or the first to arrive would set
         // the distance and the rest would fall outside it.
@@ -552,6 +624,18 @@ export function createBoard(
       meshes.forEach((mesh, i) => {
         if (mesh) mesh.position.y = i * gap
       })
+      render()
+    },
+    setSelected(id) {
+      if (id === selectedId) return
+      selectedId = id
+      for (const mesh of meshes) {
+        // Its own outline is the only child a plane has.
+        const outline = mesh?.children[0]
+        if (!mesh || !outline) continue
+        const index = meshes.indexOf(mesh)
+        outline.visible = opts.cards[index].id === id
+      }
       render()
     },
     setAppearance(next) {

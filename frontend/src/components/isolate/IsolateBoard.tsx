@@ -15,7 +15,11 @@ import { motion } from "motion/react"
 import { X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/isolate/BoardSidebar"
-import { BoardSidebar } from "@/components/isolate/BoardSidebar"
+import {
+  BoardSidebar,
+  COLLECTION_ROW,
+  rowLayerId,
+} from "@/components/isolate/BoardSidebar"
 import type { CardPlane } from "@/lib/isolateCards"
 import { layoutCards } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -106,6 +110,46 @@ export function IsolateBoard({
   const [gap, setGap] = useState(STACK_GAP)
 
   /**
+   * The active row of the outliner, and through it the plane the board
+   * outlines.
+   *
+   * Corrected as it is read rather than repaired by an effect. The set of
+   * layers changes under it -- a run finishes, a composition is cleared -- and
+   * an effect that noticed afterwards would leave one render showing a panel
+   * for a raster that is no longer on the board.
+   *
+   * Falls back to the last layer, which is the top of the stack and so the
+   * first row under the collection -- the confidence raster where there is
+   * one, the classification otherwise. The tree opens on its own first row
+   * rather than on a particular product.
+   */
+  const [activeRow, setActiveRow] = useState<string | null>(null)
+  const rowIsLive =
+    activeRow === COLLECTION_ROW ||
+    (!!activeRow && layers.some((l) => l.id === rowLayerId(activeRow)))
+  const active = rowIsLive
+    ? activeRow
+    : (layers[layers.length - 1]?.id ?? null)
+  // A modifier's row points at the plane it acts on; the stack's points at no
+  // single one.
+  const selected = rowLayerId(active)
+
+  /**
+   * Which rows are open. The stack starts open, or the tree would present a
+   * single collapsed row and the layers would have to be found before they
+   * could be used.
+   */
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set([COLLECTION_ROW])
+  )
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+
+  /**
    * The layers with the majority filter already applied where the table asks
    * for it, so the board draws the same class boundaries the map does.
    *
@@ -148,6 +192,11 @@ export function IsolateBoard({
         cards,
         background: tokenColor("--p-ink", "#171717"),
         line: tokenColor("--p-line", "#404040"),
+        accent: tokenColor("--p-accent", "#f25623"),
+        // The state setter is stable, so this does not drag the scene into
+        // being rebuilt the way an inline closure would. A plane maps to its
+        // own row, which is the row whose id is the layer's.
+        onSelect: setActiveRow,
       })
     } catch {
       // A context can fail to be created even where the capability exists --
@@ -191,6 +240,12 @@ export function IsolateBoard({
     )
   }, [appearanceKey, cards])
 
+  // Re-applied when the scene is rebuilt as well as when the selection moves:
+  // a fresh scene has no outline shown until it is told which one.
+  useEffect(() => {
+    boardRef.current?.setSelected(selected)
+  }, [selected, cards])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
@@ -223,9 +278,14 @@ export function IsolateBoard({
 
       <BoardSidebar
         layers={layers}
+        areaLabel={title}
+        activeRow={active}
+        expanded={expanded}
         gap={gap}
         gapMax={GAP_MAX}
         smooth={smooth}
+        onActivate={setActiveRow}
+        onToggleExpanded={toggleExpanded}
         onGapChange={setGap}
         onLayerChange={onLayerChange}
         onSmoothChange={onSmoothChange}
