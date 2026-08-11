@@ -462,14 +462,20 @@ export function IsolateBoard({
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   /**
-   * Where each area was left.
+   * Where things were left: areas by their id, planes by their scene key.
    *
    * A ref rather than state, because nothing renders from it: the scene owns
-   * the position while the board is open, and this is the copy that outlives a
-   * rebuild -- without it, changing a raster would send an area the user had
-   * dragged back to where the layout first put it.
+   * the positions while the board is open, and this is the copy that outlives
+   * a rebuild -- without it, changing a raster would send everything the user
+   * had dragged back to where the layout first put it.
+   *
+   * Two maps because they are two facts: an area's place on the board, and a
+   * plane's place inside its area. A rebuild restores planes from their cards,
+   * which know only the layout's first answer, so the moved ones are
+   * re-applied afterwards.
    */
   const placesRef = useRef<Record<string, { x: number; z: number }>>({})
+  const planePlacesRef = useRef<Record<string, { x: number; z: number }>>({})
   /** The spread, for the build, which must not depend on it to run again. */
   const gapRef = useRef(STACK_GAP)
   const appearanceRef = useRef<PlaneState[]>([])
@@ -630,8 +636,15 @@ export function IsolateBoard({
         // Read through refs for the same reason `onClose` is: an inline
         // closure here is new on every render and would rebuild the scene.
         onSelect: (_groupId, id) => setActiveRow(id),
-        onMove: (groupId, x, z) => {
-          placesRef.current = { ...placesRef.current, [groupId]: { x, z } }
+        onMove: (groupId, layerId, x, z) => {
+          if (layerId === null) {
+            placesRef.current = { ...placesRef.current, [groupId]: { x, z } }
+            return
+          }
+          planePlacesRef.current = {
+            ...planePlacesRef.current,
+            [sceneKey(groupId, layerId)]: { x, z },
+          }
         },
       })
     } catch {
@@ -656,6 +669,22 @@ export function IsolateBoard({
   useEffect(() => {
     boardRef.current?.setGap(gap)
   }, [gap, groups])
+
+  /*
+    Planes moved since the layout first placed them, re-applied after a build.
+
+    A rebuild puts every plane back where its card says, and a card is the
+    layout's first answer -- so without this, changing a raster would undo
+    every slide the user had made.
+  */
+  useEffect(() => {
+    const board = boardRef.current
+    if (!board || !groups) return
+    for (const [key, at] of Object.entries(planePlacesRef.current)) {
+      const [groupId, layerId] = key.split("\u0000")
+      board.setPlanePosition(groupId, layerId, at.x, at.z)
+    }
+  }, [groups])
 
   /*
     The same for what the eye toggles and the opacity sliders change.

@@ -137,6 +137,20 @@ export interface BoardHandle {
    * knows nothing better, and this is how it is told better.
    */
   setGroupPosition: (groupId: string, x: number, z: number) => void
+  /**
+   * Put one plane where a saved arrangement says it was.
+   *
+   * Separate from setGroupPosition because the two are different facts: an
+   * area's place on the board, and a plane's place within its area. A rebuild
+   * restores planes from their cards, which know only where the layout first
+   * put them, so anything moved since has to be re-applied.
+   */
+  setPlanePosition: (
+    groupId: string,
+    layerId: string,
+    x: number,
+    z: number
+  ) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -190,13 +204,19 @@ export function createBoard(
      */
     onSelect: (groupId: string, id: string) => void
     /**
-     * An area was dragged, and where it came to rest.
+     * Something was dragged, and where it came to rest.
      *
-     * Reported rather than kept to the scene, because where the areas sit IS
-     * the arrangement -- it is what a saved comparison is mostly made of, and
-     * a position only three.js knew about could not be written down.
+     * Reported rather than kept to the scene, because where things sit IS the
+     * arrangement -- it is what a saved comparison is mostly made of, and a
+     * position only three.js knew about could not be written down.
      */
-    onMove: (groupId: string, x: number, z: number) => void
+    onMove: (
+      groupId: string,
+      /** The plane that moved, or null where the whole area did. */
+      layerId: string | null,
+      x: number,
+      z: number
+    ) => void
   }
 ): BoardHandle {
   const renderer = new WebGLRenderer({ antialias: true })
@@ -333,8 +353,13 @@ export function createBoard(
   const hitPoint = new Vector3()
   const grabOffset = new Vector3()
   let dragging = false
-  /** The area under the pointer for the length of a drag. */
-  let dragged: GroupRuntime | null = null
+  /**
+   * What the pointer is moving: an area, or one plane inside it.
+   *
+   * `mesh` null means the area. Both are held because a plane's position is
+   * expressed relative to its area, so moving one needs the other.
+   */
+  let dragged: { rt: GroupRuntime; mesh: Mesh | null } | null = null
 
   const toPointer = (e: PointerEvent) => {
     const r = renderer.domElement.getBoundingClientRect()
@@ -362,8 +387,30 @@ export function createBoard(
     if (!targets.length) return
     toPointer(e)
     raycaster.setFromCamera(pointer, camera)
-    const hit = raycaster.intersectObjects(targets, false)[0]
-    if (!hit) return
+    const hits = raycaster.intersectObjects(targets, false)
+    if (!hits.length) return
+    /*
+      Among planes the ray meets at the same place, take the one drawn on top.
+
+      Coplanar planes are not a corner case here: dropping a layer to its
+      stack's base is a control, and setting the spread to zero flattens every
+      one of them. Their intersection distances then differ by rounding alone,
+      and `[0]` returned whichever the arithmetic happened to favour -- in
+      practice the base, since it is built first. Selecting a layer in the tree
+      and dragging it moved the raster underneath instead.
+
+      The tie is broken by renderOrder, which is the same order the eye sees:
+      the plane painted last is the plane on top, so it is the plane a press
+      lands on. The tolerance is a thousandth of the board's unit -- the
+      largest area's longest side is 1 -- which is far below any separation the
+      spread can produce and far above the rounding it has to absorb.
+    */
+    const nearest = hits[0].distance
+    const hit = hits.reduce((best, h) =>
+      h.distance <= nearest + 1e-3 && h.object.renderOrder > best.object.renderOrder
+        ? h
+        : best
+    )
     const mesh = hit.object as Mesh
     // The area that was pressed is the one that moves. With one area on the
     // board this is the only area; with two it is the difference between
@@ -372,16 +419,32 @@ export function createBoard(
     if (!rt) return
     const index = rt.meshes.indexOf(mesh)
     if (index >= 0) opts.onSelect(rt.id, rt.cards[index].id)
-    dragged = rt
     /*
-      The plane the drag runs on passes through the area's current height, so
-      the grab point does not jump to y=0 on the first move. That height is the
-      root's, not the area's: an area only ever moves in X and Z, which is also
-      why its local X and Z below are its world X and Z.
+      The plane that was grabbed moves, and Shift moves the whole area.
+
+      One object at a time is what the outliner beside this says the board is
+      made of, and it is what the question "does this line up with that" needs:
+      sliding one raster over another is the comparison. Moving every layer of
+      an area together is still wanted -- it is how two areas are arranged
+      beside each other -- so it keeps the modifier rather than the plain drag,
+      because arranging areas happens once and comparing happens all afternoon.
     */
-    dragPlane.constant = -world.position.y
+    dragged = { rt, mesh: e.shiftKey ? null : mesh }
+    /*
+      The plane the drag runs on passes through the height of the thing being
+      moved, so the grab point does not jump on the first move. For an area
+      that is the root's height, since an area only moves in X and Z; for a
+      plane it is the root's plus the plane's own, which is what the spread and
+      the base-level flag decide.
+    */
+    dragPlane.constant = -(
+      world.position.y +
+      (dragged.mesh ? rt.root.position.y + dragged.mesh.position.y : 0)
+    )
     if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
-    grabOffset.copy(rt.root.position).sub(hitPoint)
+    grabOffset
+      .copy(dragged.mesh ? dragged.mesh.position : rt.root.position)
+      .sub(hitPoint)
     dragging = true
     controls.enabled = false
     renderer.domElement.setPointerCapture(e.pointerId)
@@ -393,8 +456,20 @@ export function createBoard(
     raycaster.setFromCamera(pointer, camera)
     if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
     if (!dragged) return
-    dragged.root.position.x = hitPoint.x + grabOffset.x
-    dragged.root.position.z = hitPoint.z + grabOffset.z
+    /*
+      One expression for both, and the area's offset does NOT appear in it.
+
+      A plane's position is local to its area and the hit point is in world
+      space, so the two look like they need reconciling. They do not: the
+      offset recorded at the grab is `local - world`, and adding it back to a
+      later world point cancels the area's contribution -- the plane simply
+      follows the pointer's delta. Subtracting the area's offset as well moved
+      the plane backwards by exactly that offset, which for an area at x=1.4
+      sent a plane grabbed at 1.65 and dragged to 2.05 out to 0.65.
+    */
+    const target = dragged.mesh ?? dragged.rt.root
+    target.position.x = hitPoint.x + grabOffset.x
+    target.position.z = hitPoint.z + grabOffset.z
     render()
   }
 
@@ -404,7 +479,10 @@ export function createBoard(
     // rest is the arrangement, and the fifty positions it passed through are
     // not. See opts.onMove.
     if (dragged) {
-      opts.onMove(dragged.id, dragged.root.position.x, dragged.root.position.z)
+      const { rt, mesh } = dragged
+      const i = mesh ? rt.meshes.indexOf(mesh) : -1
+      const p = mesh ? mesh.position : rt.root.position
+      opts.onMove(rt.id, i >= 0 ? rt.cards[i].id : null, p.x, p.z)
     }
     dragged = null
     dragging = false
@@ -807,6 +885,15 @@ export function createBoard(
           outline.visible = planeKey(rt.id, rt.cards[i].id) === next
         })
       }
+      render()
+    },
+    setPlanePosition(groupId, layerId, x, z) {
+      const rt = runtimes.find((r) => r.id === groupId)
+      const i = rt?.indexById.get(layerId)
+      const mesh = rt && i !== undefined ? rt.meshes[i] : null
+      if (!mesh || (mesh.position.x === x && mesh.position.z === z)) return
+      mesh.position.x = x
+      mesh.position.z = z
       render()
     },
     setGroupPosition(groupId, x, z) {
