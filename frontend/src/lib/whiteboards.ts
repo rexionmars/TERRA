@@ -19,7 +19,7 @@ import {
   SaveWhiteboard,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
-import type { BoardSnapshot } from "@/components/isolate/boardMemory"
+import type { BoardSnapshot } from "@/components/whiteboard/boardMemory"
 
 export type Whiteboard = store.Whiteboard
 

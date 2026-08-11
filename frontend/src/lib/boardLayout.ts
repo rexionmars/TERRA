@@ -14,7 +14,7 @@ import { lonScaleAtLat } from "@/lib/geometry"
  * A plane to build, and nothing about its current state.
  *
  * Opacity and visibility used to live here and had to leave. This type is what
- * the scene is BUILT from, and IsolateBoard keeps it stable across renders so
+ * the scene is BUILT from, and BoardSurface keeps it stable across renders so
  * the scene is not rebuilt for every change -- which means a card outlives the
  * state it was created with. A card carrying `visible` was a card that could
  * resurrect an old answer the moment anything rebuilt the scene, and something

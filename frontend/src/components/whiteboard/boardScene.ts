@@ -1,5 +1,5 @@
 /**
- * The isolate board's WebGL scene.
+ * The whiteboard's WebGL scene.
  *
  * THE ONLY MODULE IN THIS APPLICATION THAT IMPORTS `three`. Keeping it to one
  * file means the GL surface is one file to audit, and it is what lets the
@@ -46,7 +46,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three"
-import type { CardGroup, CardPlane } from "@/lib/isolateCards"
+import type { CardGroup, CardPlane } from "@/lib/boardLayout"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
 

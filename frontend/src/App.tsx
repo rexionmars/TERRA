@@ -6,7 +6,7 @@ import { listWhiteboards, openWhiteboard } from "@/lib/whiteboards"
 import {
   restoreBoard,
   writeBoardMemory,
-} from "@/components/isolate/boardMemory"
+} from "@/components/whiteboard/boardMemory"
 import { useTheme } from "next-themes"
 import {
   ListEmbeddedAreas,

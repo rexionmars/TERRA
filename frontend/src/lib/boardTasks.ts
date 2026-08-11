@@ -2,7 +2,7 @@
  * What the board can run on its own area.
  *
  * In a module of its own so the map screen can name the shape without
- * importing the board's column. That column is reached from IsolateBoard,
+ * importing the board's column. That column is reached from BoardSurface,
  * which reaches `three`; a type-only import is erased and would be harmless
  * today, but the boundary that keeps half a megabyte out of the map screen's
  * chunk is not one to leave depending on which imports a bundler decides to

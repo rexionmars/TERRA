@@ -1,5 +1,5 @@
 /**
- * The isolate board: the analysis lifted off its coordinates.
+ * The whiteboard: areas lifted off their coordinates.
  *
  * On a cartographic map two AOI analyses cannot be placed side by side --
  * they are at different points on Earth. Freeing the rasters from their
@@ -7,15 +7,15 @@
  * surface exists rather than another map mode.
  *
  * Loaded lazily. It is the only route to `three`, and the map screen must not
- * pay for it until the board is opened; see IsolateBoardButton for the other
+ * pay for it until the board is opened; see BoardButton for the other
  * half of that boundary.
  */
 import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { Save, X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
-import type { LayerPatch } from "@/components/isolate/BoardSidebar"
-import type { OutlinerMode } from "@/components/isolate/BoardSidebar"
+import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
+import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
 import type { BoardTask } from "@/lib/boardTasks"
 import {
   BoardSidebar,
@@ -23,20 +23,20 @@ import {
   rowTarget,
   sceneKey,
   stackRow,
-} from "@/components/isolate/BoardSidebar"
+} from "@/components/whiteboard/BoardSidebar"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { runAssets } from "@/lib/runAssets"
-import type { CardGroup } from "@/lib/isolateCards"
-import { layoutGroups } from "@/lib/isolateCards"
+import type { CardGroup } from "@/lib/boardLayout"
+import { layoutGroups } from "@/lib/boardLayout"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
-import { RunPicker } from "@/components/isolate/RunPicker"
+import { RunPicker } from "@/components/whiteboard/RunPicker"
 import {
   CURRENT_AREA,
   keptObject,
   readBoardMemory,
   snapshotBoard,
   writeBoardMemory,
-} from "@/components/isolate/boardMemory"
+} from "@/components/whiteboard/boardMemory"
 import { useAuth } from "@/lib/auth"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
@@ -45,8 +45,8 @@ import { notifyError, notifySuccess } from "@/lib/notify"
 import { saveWhiteboard } from "@/lib/whiteboards"
 import { LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type { InferenceRun, PredictResult } from "@/lib/types"
-import type { BoardHandle, PlaneState } from "@/components/isolate/boardScene"
-import { createBoard, tokenColor } from "@/components/isolate/boardScene"
+import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
+import { createBoard, tokenColor } from "@/components/whiteboard/boardScene"
 
 /**
  * Separation between stacked layers, in world units where the AOI's longest
@@ -130,7 +130,7 @@ function useKept<T>(key: string, initial: T | (() => T)) {
   return [value, setValue] as const
 }
 
-export function IsolateBoard({
+export function BoardSurface({
   layers,
   assets,
   runId,

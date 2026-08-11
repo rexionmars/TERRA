@@ -1,15 +1,15 @@
-# Isolate board — geometry and rendering
+# Whiteboard — geometry and rendering
 
-The isolate board lifts an analysis off the map into a three-dimensional
+The whiteboard lifts an analysis off the map into a three-dimensional
 surface. This document derives the geometry it uses and states the reasoning
 behind each rendering decision, so that a change to one of them is made against
 the constraint it was chosen under rather than against appearance alone.
 
 Source of truth for what follows:
-[`lib/isolateCards.ts`](../frontend/src/lib/isolateCards.ts),
+[`lib/boardLayout.ts`](../frontend/src/lib/boardLayout.ts),
 [`lib/mapLayers.ts`](../frontend/src/lib/mapLayers.ts),
 [`lib/geometry.ts`](../frontend/src/lib/geometry.ts),
-[`components/isolate/boardScene.ts`](../frontend/src/components/isolate/boardScene.ts).
+[`components/whiteboard/boardScene.ts`](../frontend/src/components/whiteboard/boardScene.ts).
 
 ---
 

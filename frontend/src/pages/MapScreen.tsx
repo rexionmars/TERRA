@@ -24,25 +24,25 @@ import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
 import { rasterLayers } from "@/lib/mapLayers"
 import { runAssets } from "@/lib/runAssets"
-import { boardHoldsOtherAreas } from "@/components/isolate/boardMemory"
+import { boardHoldsOtherAreas } from "@/components/whiteboard/boardMemory"
 import type { BoardTask } from "@/lib/boardTasks"
 import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
-import { IsolateBoardButton } from "@/components/isolate/IsolateBoardButton"
+import { BoardButton } from "@/components/whiteboard/BoardButton"
 
 /*
-  Lazy, and reached only from here. IsolateBoard imports the scene, which
+  Lazy, and reached only from here. BoardSurface imports the scene, which
   imports three; a static import would put the whole library in the chunk that
   loads with the map screen.
 */
-const IsolateBoard = lazy(() =>
-  import("@/components/isolate/IsolateBoard").then((m) => ({
-    default: m.IsolateBoard,
+const BoardSurface = lazy(() =>
+  import("@/components/whiteboard/BoardSurface").then((m) => ({
+    default: m.BoardSurface,
   }))
 )
-const prefetchBoard = () => void import("@/components/isolate/IsolateBoard")
+const prefetchBoard = () => void import("@/components/whiteboard/BoardSurface")
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
@@ -210,11 +210,11 @@ export function MapScreen(props: MapScreenProps) {
    * and coming back to the map should give the map, not a board left open
    * twenty minutes ago.
    */
-  const [isolate, setIsolate] = useState(false)
+  const [board, setBoard] = useState(false)
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
-    if (nonce > 0) setIsolate(true)
+    if (nonce > 0) setBoard(true)
   }, [nonce])
   const setLeftPanel = onLeftPanelChange
 
@@ -288,10 +288,10 @@ export function MapScreen(props: MapScreenProps) {
   /**
    * Whether the board is actually up.
    *
-   * Not `isolate` on its own, and the difference was a dead end you could
+   * Not `board` on its own, and the difference was a dead end you could
    * reach in two clicks. The board used to mount on there being a VISIBLE
    * raster, and its own sidebar can hide every one of them -- so pressing the
-   * stack's eye unmounted the surface that held the control, while `isolate`
+   * stack's eye unmounted the surface that held the control, while `board`
    * stayed true and kept the search field and the overlay tools button hidden.
    * No board, no way back into it (its button reads the same condition and had
    * gone disabled), and no overlay tools to turn a layer back on.
@@ -305,7 +305,7 @@ export function MapScreen(props: MapScreenProps) {
    * what it replaced is still hidden.
    */
   const boardOpen =
-    isolate &&
+    board &&
     (boardLayers.length > 0 || boardHoldsOtherAreas() || props.hasArea)
 
   /**
@@ -620,11 +620,11 @@ export function MapScreen(props: MapScreenProps) {
               the button would be an entry with no matching exit.
             */}
             {!workspace && (
-              <IsolateBoardButton
+              <BoardButton
                 active={boardOpen}
                 disabled={!boardLayers.length && !props.hasArea}
                 onClick={() =>
-                setIsolate((o) => {
+                setBoard((o) => {
                   // Closing the overlay drawer on the way in: the sidebar
                   // carries what governs the board, and a drawer left open
                   // from the map would be a second surface for the same
@@ -705,8 +705,8 @@ export function MapScreen(props: MapScreenProps) {
       <AnimatePresence>
         {boardOpen && (
           <Suspense fallback={null}>
-            <IsolateBoard
-              key="isolate-board"
+            <BoardSurface
+              key="whiteboard"
               layers={boardLayers}
               assets={boardAssets}
               /*
@@ -747,7 +747,7 @@ export function MapScreen(props: MapScreenProps) {
               onSmoothChange={props.onSmoothOverlayChange}
               title={props.areaLabel || "Analysis"}
               showClose={!workspace}
-              onClose={() => setIsolate(false)}
+              onClose={() => setBoard(false)}
             />
           </Suspense>
         )}
@@ -767,12 +767,12 @@ export function MapScreen(props: MapScreenProps) {
             canRun={run.canRun}
             onRun={run.onRun}
             onWidthChange={setBarWidthPx}
-            isolateSlot={
-              <IsolateBoardButton
+            boardSlot={
+              <BoardButton
                 active={boardOpen}
                 disabled={!boardLayers.length && !props.hasArea}
                 onClick={() =>
-                setIsolate((o) => {
+                setBoard((o) => {
                   // Closing the overlay drawer on the way in: the sidebar
                   // carries what governs the board, and a drawer left open
                   // from the map would be a second surface for the same

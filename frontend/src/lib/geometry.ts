@@ -76,7 +76,7 @@ export function polygonParts(geometry: GeoJSONGeometry): LonLat[][][] {
  * east-west by about a tenth, and a Nordic one by half.
  *
  * Named here rather than written where it is needed, because it is needed in
- * two places now -- the footprint thumbnail and the isolate board -- and this
+ * two places now -- the footprint thumbnail and the whiteboard -- and this
  * repository has already been bitten by a value that existed twice.
  */
 export function lonScaleAtLat(lat: number): number {

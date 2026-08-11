@@ -23,8 +23,8 @@ const kept = new Map<string, unknown>()
 /**
  * The area the map's own run occupies.
  *
- * Here rather than in IsolateBoard because the map screen needs it and must
- * not import that module: IsolateBoard reaches `three`, and importing it
+ * Here rather than in BoardSurface because the map screen needs it and must
+ * not import that module: BoardSurface reaches `three`, and importing it
  * eagerly would put half a megabyte back into the map screen's chunk.
  */
 export const CURRENT_AREA = "current"

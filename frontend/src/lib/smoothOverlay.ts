@@ -79,9 +79,9 @@ function blurChannel(
  *
  * The transform is pure -- one image in, one image out -- and expensive: a
  * separable Gaussian over one channel per class, on the CPU, on the main
- * thread. Two surfaces now ask for the same result, the map and the isolate
- * board, and without this the second would recompute what the first already
- * has and block the frame doing it.
+ * thread. Two surfaces now ask for the same result, the map and the
+ * whiteboard, and without this the second would recompute what the first
+ * already has and block the frame doing it.
  *
  * Keyed on the data URI, which IS the image: two calls with the same string
  * are the same question. Entries are held for the session; the URIs are the

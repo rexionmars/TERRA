@@ -4,7 +4,7 @@
  * The map derived this inline: four visibility predicates and six hand-written
  * `Bounds` to Leaflet conversions, each carrying its own copy of the
  * zero-extent guard. That was tolerable while the map was the only thing
- * drawing them. The isolate board draws the same set with the same controls
+ * drawing them. The whiteboard draws the same set with the same controls
  * governing it, and a second derivation would disagree with the first within a
  * release -- silently, because both would look plausible.
  *

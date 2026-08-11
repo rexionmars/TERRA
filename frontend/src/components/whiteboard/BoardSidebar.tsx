@@ -51,7 +51,7 @@ import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
-import { NumberField } from "@/components/isolate/NumberField"
+import { NumberField } from "@/components/whiteboard/NumberField"
 import { cn } from "@/lib/utils"
 
 /**

@@ -1,8 +1,8 @@
 /**
- * The control that opens the isolate board.
+ * The control that opens the whiteboard.
  *
- * A SEPARATE FILE FROM THE BOARD ON PURPOSE. IsolateBoard imports boardScene,
- * which imports `three`; anything that imports IsolateBoard statically pulls
+ * A SEPARATE FILE FROM THE BOARD ON PURPOSE. BoardSurface imports boardScene,
+ * which imports `three`; anything that imports BoardSurface statically pulls
  * half a megabyte into the eager graph. Merging these two files would make
  * opening the map screen fetch a 3D library to draw a 34 px button, and the
  * cost would not show up anywhere except a slower cold start.
@@ -13,7 +13,7 @@
 import { Layers3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export function IsolateBoardButton({
+export function BoardButton({
   active,
   disabled,
   onClick,
@@ -46,8 +46,8 @@ export function IsolateBoardButton({
       aria-pressed={active}
       title={
         disabled
-          ? "Nothing to isolate: no raster on the map"
-          : "Isolate the analysis from the map"
+          ? "Nothing to work on: draw an area or run something first"
+          : "Open the whiteboard for this area"
       }
       className={cn(
         "flex items-center justify-center rounded-sm transition-colors",
