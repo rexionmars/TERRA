@@ -123,6 +123,95 @@ export function IsolateBoard({
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
 
+  /**
+   * What the board is stacking, as opposed to what the map is drawing.
+   *
+   * The two are not the same set and never were: NDVI mean and the true-colour
+   * scene are produced by every run and the map has no control for either, so
+   * they existed only as entries in a gallery. Putting one on the board is
+   * what this state records.
+   *
+   * Two sets rather than one list of members, so that products appearing and
+   * disappearing under it need no reconciling: a run that finishes adds its
+   * rasters to the base set and they are in the stack because nothing removed
+   * them, not because something remembered to add them.
+   */
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
+  const [added, setAdded] = useState<readonly string[]>([])
+  /**
+   * Opacity and visibility for the assets the board added.
+   *
+   * Board-local, and that is the honest place for it: these rasters are not on
+   * the map, so there is no map state for them to share. The base layers keep
+   * sharing theirs, which is what stops the two surfaces disagreeing about
+   * what is on screen.
+   */
+  const [extraState, setExtraState] = useState<
+    Readonly<Record<string, { opacity: number; visible: boolean }>>
+  >({})
+
+  const baseIds = new Set(layers.map((l) => l.id))
+  const extraLayers: RasterLayer[] = added
+    .map((id) => assets.find((a) => a.id === id))
+    .filter((a): a is RunAsset => !!a && !!a.extent && !baseIds.has(a.id))
+    .map((a, n) => ({
+      id: a.id,
+      title: a.title,
+      uri: a.previewUri,
+      extent: a.extent!,
+      opacity: extraState[a.id]?.opacity ?? 1,
+      // Above everything the map put there: an asset was added to be looked
+      // at, and burying it under the stack it was added to would be a strange
+      // reading of the request.
+      order: 1000 + n,
+      pixelated: a.pixelated,
+      // No majority filter: it is the classification's, and these are not it.
+      smooth: false,
+      visible: extraState[a.id]?.visible ?? true,
+    }))
+
+  const stackLayers = [...layers.filter((l) => !removed.has(l.id)), ...extraLayers]
+  const extraIds = new Set(extraLayers.map((l) => l.id))
+  /** Which assets are planes on the board right now, for the data list. */
+  const sceneIds = new Set(stackLayers.map((l) => l.id))
+
+  const changeLayer = (id: string, patch: LayerPatch) => {
+    // An added asset answers to this component; a base layer answers to the
+    // map, which is where its switch has always lived.
+    if (extraIds.has(id)) {
+      setExtraState((prev) => ({
+        ...prev,
+        [id]: {
+          opacity: patch.opacity ?? prev[id]?.opacity ?? 1,
+          visible: patch.visible ?? prev[id]?.visible ?? true,
+        },
+      }))
+      return
+    }
+    onLayerChange(id, patch)
+  }
+
+  const addToScene = (id: string) => {
+    // Putting back one the board had taken out, rather than adding a copy.
+    if (baseIds.has(id)) {
+      setRemoved((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      return
+    }
+    setAdded((prev) => (prev.includes(id) ? prev : [...prev, id]))
+  }
+
+  const removeFromScene = (id: string) => {
+    if (baseIds.has(id)) {
+      setRemoved((prev) => new Set(prev).add(id))
+      return
+    }
+    setAdded((prev) => prev.filter((x) => x !== id))
+  }
+
   /*
     Read through refs by the effect that builds the scene, so neither can put
     the scene in that effect's dependencies.
@@ -137,7 +226,7 @@ export function IsolateBoard({
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const appearanceRef = useRef<PlaneState[]>([])
-  appearanceRef.current = layers.map((l) => ({
+  appearanceRef.current = stackLayers.map((l) => ({
     id: l.id,
     opacity: l.opacity,
     visible: l.visible,
@@ -161,10 +250,10 @@ export function IsolateBoard({
   const [activeRow, setActiveRow] = useState<string | null>(null)
   const rowIsLive =
     activeRow === COLLECTION_ROW ||
-    (!!activeRow && layers.some((l) => l.id === rowLayerId(activeRow)))
+    (!!activeRow && stackLayers.some((l) => l.id === rowLayerId(activeRow)))
   const active = rowIsLive
     ? activeRow
-    : (layers[layers.length - 1]?.id ?? null)
+    : (stackLayers[stackLayers.length - 1]?.id ?? null)
   // A modifier's row points at the plane it acts on; the stack's points at no
   // single one.
   const selected = rowLayerId(active)
@@ -211,7 +300,7 @@ export function IsolateBoard({
     Promise.all(
       // Every layer, hidden ones included: the scene builds them all so that
       // hiding one is a flag rather than a different scene. See CardPlane.
-      layers.map(async (l) =>
+      stackLayers.map(async (l) =>
         l.smooth
           ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
           : l
@@ -224,7 +313,17 @@ export function IsolateBoard({
     return () => {
       cancelled = true
     }
-  }, [layers])
+    /*
+      The array, not a digest of it. A key cheap enough to build on every
+      render cannot include the uris -- they are data URIs of some megabytes --
+      and leaving them out has a hole with a name: switching to another
+      composition keeps the layer's id and can keep its extent while changing
+      only the raster, so a digest of ids and extents would miss it and the
+      board would keep drawing the previous one. The array is new on every
+      render, so this runs often; sameStructure below is what makes that cheap,
+      and majoritySmoothOverlay is memoised on its source.
+    */
+  }, [stackLayers])
 
   useEffect(() => {
     const host = hostRef.current
@@ -275,7 +374,7 @@ export function IsolateBoard({
     of the map screen; the layers themselves are read through a ref so that
     identity does not drag the effect along with it.
   */
-  const appearanceKey = layers
+  const appearanceKey = stackLayers
     .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.opacity}`)
     .join("|")
   useEffect(() => {
@@ -319,8 +418,11 @@ export function IsolateBoard({
       <div ref={hostRef} className="absolute inset-0" />
 
       <BoardSidebar
-        layers={layers}
+        layers={stackLayers}
         assets={assets}
+        sceneIds={sceneIds}
+        onAddAsset={addToScene}
+        onRemoveAsset={removeFromScene}
         mode={mode}
         onModeChange={setMode}
         activeAsset={activeAsset}
@@ -336,7 +438,7 @@ export function IsolateBoard({
         onActivate={setActiveRow}
         onToggleExpanded={toggleExpanded}
         onGapChange={setGap}
-        onLayerChange={onLayerChange}
+        onLayerChange={changeLayer}
         onSmoothChange={onSmoothChange}
       />
 

@@ -29,6 +29,8 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  Minus,
+  Plus,
   Droplet,
   Eye,
   EyeOff,
@@ -122,6 +124,7 @@ interface Row {
 export function BoardSidebar({
   layers,
   assets,
+  sceneIds,
   mode,
   areaLabel,
   activeRow,
@@ -133,6 +136,8 @@ export function BoardSidebar({
   onModeChange,
   onActivate,
   onActivateAsset,
+  onAddAsset,
+  onRemoveAsset,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -144,6 +149,16 @@ export function BoardSidebar({
   layers: RasterLayer[]
   /** Everything the run produced, drawn or not. */
   assets: RunAsset[]
+  /**
+   * Which assets are planes on the board right now.
+   *
+   * Not the same as an asset being DRAWN. The eye hides a plane that is still
+   * in the stack; this is whether it is in the stack at all, which is the
+   * distinction the data list exists to let someone change.
+   */
+  sceneIds: ReadonlySet<string>
+  onAddAsset: (id: string) => void
+  onRemoveAsset: (id: string) => void
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -562,16 +577,19 @@ export function BoardSidebar({
                   {a.title}
                 </span>
                 {/*
-                  Marks the one the board is drawing, which is the only thing
-                  about an asset that changes without the user touching this
-                  list.
+                  In or out of the stack, in the same right-hand column the
+                  scene tree puts its eye in -- and a different question from
+                  that eye, which hides a plane that is still there. An asset
+                  with no extent cannot be placed at all, so the control says
+                  so rather than putting the raster across the null island.
                 */}
-                {a.onBoard && (
-                  <Eye
-                    className="size-3 shrink-0 text-accent"
-                    aria-label="On the board"
-                  />
-                )}
+                <SceneToggle
+                  inScene={sceneIds.has(a.id)}
+                  placeable={!!a.extent}
+                  title={a.title}
+                  onAdd={() => onAddAsset(a.id)}
+                  onRemove={() => onRemoveAsset(a.id)}
+                />
               </div>
             )
           })}
@@ -668,6 +686,25 @@ export function BoardSidebar({
           </p>
 
           <div className="mt-2 flex flex-wrap gap-1">
+            {/*
+              The same act as the row's control, spelled out. A row is read at
+              a glance and a panel is read deliberately, and the one place
+              someone looks for what can be DONE with a thing is the panel.
+            */}
+            {asset.extent &&
+              (sceneIds.has(asset.id) ? (
+                <AssetAction
+                  icon={Minus}
+                  label="Remove"
+                  onClick={() => onRemoveAsset(asset.id)}
+                />
+              ) : (
+                <AssetAction
+                  icon={Plus}
+                  label="Add"
+                  onClick={() => onAddAsset(asset.id)}
+                />
+              ))}
             {asset.selectId && onSelectComposition && (
               <AssetAction
                 icon={Eye}
@@ -763,6 +800,60 @@ function AssetAction({
     >
       <Icon className="size-3" strokeWidth={1.75} />
       {label}
+    </button>
+  )
+}
+
+/**
+ * Whether an asset is one of the board's planes.
+ *
+ * A button rather than a marker, because the state and the way to change it
+ * are the same thing here and two controls for one bit is one too many.
+ */
+function SceneToggle({
+  inScene,
+  placeable,
+  title,
+  onAdd,
+  onRemove,
+}: {
+  inScene: boolean
+  /** False where the raster resolved no window and cannot be placed. */
+  placeable: boolean
+  title: string
+  onAdd: () => void
+  onRemove: () => void
+}) {
+  if (!placeable) {
+    return (
+      <span
+        title="No extent: this raster cannot be placed"
+        className="shrink-0 text-meta text-muted-foreground/40"
+        aria-label={`${title} cannot be placed`}
+      >
+        &mdash;
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        inScene ? onRemove() : onAdd()
+      }}
+      aria-pressed={inScene}
+      aria-label={`${inScene ? "Remove" : "Add"} ${title}`}
+      title={inScene ? "Remove from the board" : "Add to the board"}
+      className={cn(
+        "shrink-0 rounded-sm transition-colors",
+        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+        inScene
+          ? "text-accent hover:text-foreground"
+          : "text-muted-foreground/60 hover:text-foreground"
+      )}
+    >
+      {inScene ? <Minus className="size-3.5" /> : <Plus className="size-3.5" />}
     </button>
   )
 }

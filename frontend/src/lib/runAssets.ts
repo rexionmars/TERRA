@@ -27,11 +27,13 @@ import {
 } from "../../wailsjs/go/main/App"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import type {
+  Bounds,
   CompositionOverlay,
   ModelKind,
   PredictResult,
   WaterAnalysis,
 } from "@/lib/types"
+import { isZeroExtent } from "@/lib/mapLayers"
 
 /** How a GeoTIFF leaves the application. */
 export type TifExport =
@@ -46,6 +48,15 @@ export interface RunAsset {
   /** The one-line description under the title: bands, dates, model, counts. */
   params: string
   previewUri: string
+  /**
+   * Where it sits on the ground, or null where the sidecar resolved no window.
+   *
+   * Carried because an asset can be put ONTO the board, and a raster without
+   * an extent cannot be placed: it would be stretched across the null island
+   * off the coast of Ghana. Null is the honest answer, and the reason the
+   * control that adds it is refused rather than offered and then wrong.
+   */
+  extent: Bounds | null
   /** Class raster: its thumbnail must not be smoothed either. */
   pixelated: boolean
   /**
@@ -83,6 +94,11 @@ function fileStem(title: string): string {
 
 function dateRange(range?: string[] | null): string | null {
   return range?.length === 2 ? `${range[0]} → ${range[1]}` : null
+}
+
+/** An extent that can be drawn, or null. */
+function placeable(e: Bounds | null | undefined): Bounds | null {
+  return isZeroExtent(e) ? null : (e as Bounds)
 }
 
 export interface RunAssetInput {
@@ -136,6 +152,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         .filter(Boolean)
         .join(" · "),
       previewUri: r.overlay_uri,
+      extent: placeable(r.extent),
       pixelated: true,
       onBoard: false,
       selectId: null,
@@ -160,6 +177,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         .filter(Boolean)
         .join(" · "),
       previewUri: r.confidence_uri,
+      extent: placeable(r.extent),
       pixelated: false,
       onBoard: false,
       selectId: null,
@@ -177,6 +195,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         .filter(Boolean)
         .join(" · "),
       previewUri: r.ndvi_mean_uri,
+      extent: placeable(r.extent),
       pixelated: false,
       onBoard: false,
       selectId: null,
@@ -194,6 +213,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         .filter(Boolean)
         .join(" · "),
       previewUri: r.true_color_uri,
+      extent: placeable(r.extent),
       pixelated: false,
       onBoard: false,
       selectId: null,
@@ -217,6 +237,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         .filter(Boolean)
         .join(" · "),
       previewUri: w.occurrence_uri,
+      extent: placeable(w.extent),
       pixelated: true,
       onBoard: i.showWaterOverlay,
       selectId: null,
@@ -254,6 +275,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         .filter(Boolean)
         .join(" · "),
       previewUri: item.overlay_uri,
+      extent: placeable(item.extent),
       pixelated: false,
       onBoard: i.composition?.id === item.id && i.showCompositionOverlay,
       selectId: item.id || null,
