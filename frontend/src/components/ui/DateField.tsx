@@ -15,6 +15,7 @@
  * failure for three.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -105,11 +106,19 @@ export function DateField({
    * Fixed elements are not clipped by an ancestor's overflow, so the only cost
    * is one measurement -- taken when it opens, from a bar that does not move
    * while it is open.
+   *
+   * Fixed alone was not enough. The band is `absolute` AND carries z-[900],
+   * which makes it a stacking context: the calendar's z-index was being
+   * compared only against the band's own children, and the band as a whole
+   * sits below the result panel at z-[1000]. So the calendar is also rendered
+   * through a portal, which leaves that context and the clip in one step.
    */
   const [at, setAt] = useState<{ left: number; bottom: number } | null>(null)
   const day = toDay(value)
   const [anchor, setAnchor] = useState(() => day ?? 0)
   const hostRef = useRef<HTMLDivElement>(null)
+  /** The calendar itself, which the portal puts outside `hostRef`. */
+  const popRef = useRef<HTMLDivElement>(null)
 
   // The grid follows the value while the calendar is shut, so opening it lands
   // on the month being looked at rather than wherever it was left.
@@ -136,7 +145,12 @@ export function DateField({
   useEffect(() => {
     if (!open) return
     const onDown = (e: PointerEvent) => {
-      if (!hostRef.current?.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      // Both, because the calendar is no longer a descendant of the field: a
+      // press on a day would otherwise read as a press outside, and shut the
+      // calendar before the day under the pointer was taken.
+      if (hostRef.current?.contains(t) || popRef.current?.contains(t)) return
+      setOpen(false)
     }
     window.addEventListener("pointerdown", onDown)
     return () => window.removeEventListener("pointerdown", onDown)
@@ -227,7 +241,7 @@ export function DateField({
       </button>
       )}
 
-      {open && at && (
+      {open && at && createPortal(
         /*
           Upward, which is the whole reason this exists: measured from the
           field's top edge, so a field sitting on the foot of the window opens
@@ -239,6 +253,7 @@ export function DateField({
           carries.
         */
         <div
+          ref={popRef}
           role="dialog"
           aria-label="Choose a date"
           className="fixed z-[1200] rounded-sm border p-1.5 shadow-xl"
@@ -309,7 +324,8 @@ export function DateField({
               )
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
