@@ -172,7 +172,19 @@ export function BoardAreaModal({
               url={basemap.url}
               maxZoom={basemap.maxZoom}
             />
-            <DrawControl customPolygon={draft} onPolygonDrawn={setDraft} />
+            {/*
+              Painting its own stroke, because nothing else here does. On the
+              map the finished shape is deliberately hidden and AoiContour draws
+              the outline over the overlays; this map has no AoiContour, so
+              without this a closed polygon vanished the instant it was
+              finished -- the shape was in hand and invisible, which reads as
+              the drawing having failed.
+            */}
+            <DrawControl
+              customPolygon={draft}
+              onPolygonDrawn={setDraft}
+              visibleStroke
+            />
             <FlyToController flyTo={flyTo} />
           </MapContainer>
         </div>

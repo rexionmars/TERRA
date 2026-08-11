@@ -30,8 +30,6 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
-  Minus,
-  Plus,
   Droplet,
   Eye,
   EyeOff,
@@ -40,6 +38,9 @@ import {
   Image as ImageIcon,
   Layers,
   type LucideIcon,
+  Minus,
+  Pentagon,
+  Plus,
   Sun,
   Trash2,
   Wrench,
@@ -69,7 +70,26 @@ import { cn } from "@/lib/utils"
   it would have become a scroll with no end. The band along the foot is wider
   and was carrying a period timeline the board cannot read -- see BoardRunBar.
 */
-export type OutlinerMode = "scene" | "data"
+export type OutlinerMode = "scene" | "data" | "areas"
+
+/**
+ * One geometry the board is working on.
+ *
+ * The tree lists what is DRAWN and the data tab lists what a run PRODUCED;
+ * neither answers "which pieces of ground are on this board". An area with no
+ * rasters yet appears in neither, and it is the one you are about to run on.
+ */
+export interface AreaInfo {
+  id: string
+  title: string
+  /** Null where the run stored no shape and the rectangle stands in. */
+  hectares: number | null
+  vertices: number | null
+  /** How many of its rasters are on the board. */
+  layers: number
+  /** The map's own area, as opposed to a run fetched beside it. */
+  current: boolean
+}
 
 
 export interface LayerPatch {
@@ -190,6 +210,7 @@ export function BoardSidebar({
   areaId,
   addRun,
   mode,
+  areaInfo = [],
   activeRow,
   selection,
   activeAsset,
@@ -294,6 +315,8 @@ export function BoardSidebar({
   labels: boolean
   onLabelsChange: (v: boolean) => void
   mode: OutlinerMode
+  /** The geometries on the board, for the Areas tab. */
+  areaInfo?: AreaInfo[]
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
   onModeChange: (m: OutlinerMode) => void
@@ -688,6 +711,7 @@ export function BoardSidebar({
             [
               ["scene", "Scene", Layers],
               ["data", "Data", ImageIcon],
+              ["areas", "Areas", Pentagon],
             ] as const
           ).map(([id, label, Icon]) => (
             <button
@@ -716,7 +740,7 @@ export function BoardSidebar({
               : null
             : mode === "data"
               ? allAssetRows.length || null
-              : null}
+              : areaInfo.length || null}
         </span>
       </div>
 
@@ -1114,6 +1138,62 @@ export function BoardSidebar({
         it is pinned to the foot of the tree and its list is placed against
         the column, which is the thing it should be measured from anyway.
       */}
+      {mode === "areas" && (
+        /*
+          The ground the board is working on, which neither other tab lists: the
+          tree lists what is drawn and the data tab what a run produced, so an
+          area with no rasters yet -- the one you are about to run on -- appears
+          in neither.
+        */
+        <ul className="panel-scroll min-h-0 flex-1 overflow-y-auto">
+          {areaInfo.length === 0 && (
+            <li className="px-2 py-3 text-meta text-muted-foreground">
+              No geometry yet. Draw one from the Area group on the band below.
+            </li>
+          )}
+          {areaInfo.map((a) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => onActivate(stackRow(a.id))}
+                className={cn(
+                  "flex w-full flex-col gap-0.5 px-2 py-1.5 text-left transition-colors",
+                  activeRow === stackRow(a.id)
+                    ? "bg-surface-raised"
+                    : "hover:bg-surface-raised/40"
+                )}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Pentagon
+                    className={cn(
+                      "size-3 shrink-0",
+                      a.current ? "text-primary" : "text-muted-foreground"
+                    )}
+                    strokeWidth={1.75}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-meta text-foreground">
+                    {a.title}
+                  </span>
+                  <span className="telemetry shrink-0 text-[9px] text-muted-foreground">
+                    {a.layers} {a.layers === 1 ? "raster" : "rasters"}
+                  </span>
+                </span>
+                {/*
+                  Absent rather than zero where a run stored no shape: the board
+                  falls back to the raster's rectangle there, and printing 0 ha
+                  would report a measurement nobody made.
+                */}
+                <span className="telemetry pl-[1.125rem] text-[9px] text-muted-foreground">
+                  {a.hectares !== null && a.vertices !== null
+                    ? `${a.vertices} vertices · ${a.hectares.toFixed(1)} ha`
+                    : "shape not stored"}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {mode === "data" && <div className="shrink-0">{addRun}</div>}
 
       {/*

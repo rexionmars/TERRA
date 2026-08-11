@@ -612,9 +612,23 @@ function SwipeDivider({
 export function DrawControl({
   customPolygon,
   onPolygonDrawn,
+  visibleStroke = false,
 }: {
   customPolygon: GeoJSONGeometry | null
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
+  /**
+   * Whether this control draws the shape itself.
+   *
+   * False on the map, where the finished stroke is hidden on purpose: AoiContour
+   * paints the outline there, above the overlays, and two outlines over one AOI
+   * is one too many.
+   *
+   * True where nothing else paints it. The board's drawing map has no
+   * AoiContour, so the hidden stroke meant a polygon vanished the moment it was
+   * closed -- the shape was in hand and invisible, which reads as the drawing
+   * having failed.
+   */
+  visibleStroke?: boolean
 }) {
   const map = useMap()
   const fgRef = useRef<L.FeatureGroup | null>(null)
@@ -677,8 +691,8 @@ export function DrawControl({
         e.layer.setStyle({
           color: "#ffffff",
           weight: 1.5,
-          opacity: 0,
-          fillOpacity: 0,
+          opacity: visibleStroke ? 0.95 : 0,
+          fillOpacity: visibleStroke ? 0.12 : 0,
         })
       }
       drawnItems.addLayer(e.layer)
@@ -714,17 +728,19 @@ export function DrawControl({
         style: {
           color: "#ffffff",
           weight: 1.5,
-          opacity: 0,
-          fillOpacity: 0,
+          opacity: visibleStroke ? 0.95 : 0,
+          fillOpacity: visibleStroke ? 0.12 : 0,
         },
       })
       layer.eachLayer((l) => {
         if (l instanceof L.Path) {
+          // The style again, per path: L.geoJSON's `style` does not reach
+          // every sub-layer of a multipart shape.
           l.setStyle({
             color: "#ffffff",
             weight: 1.5,
-            opacity: 0,
-            fillOpacity: 0,
+            opacity: visibleStroke ? 0.95 : 0,
+            fillOpacity: visibleStroke ? 0.12 : 0,
           })
         }
         fg.addLayer(l)

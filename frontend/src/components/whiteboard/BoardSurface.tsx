@@ -18,6 +18,7 @@ import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
 import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
 import {
   BoardSidebar,
+  type AreaInfo,
   layerRow,
   rowTarget,
   sceneKey,
@@ -43,11 +44,19 @@ import {
 import { useAuth } from "@/lib/auth"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
-import { polygonOuterRing, resolveProjectGeometry } from "@/lib/geometry"
+import {
+  geometryAreaHectares,
+  polygonOuterRing,
+  resolveProjectGeometry,
+} from "@/lib/geometry"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { saveWhiteboard } from "@/lib/whiteboards"
 import { LoadAnalysis } from "../../../wailsjs/go/main/App"
-import type { InferenceRun, PredictResult } from "@/lib/types"
+import type {
+  GeoJSONGeometry,
+  InferenceRun,
+  PredictResult,
+} from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
 import { createBoard, tokenColor } from "@/components/whiteboard/boardScene"
 
@@ -864,6 +873,30 @@ export function BoardSurface({
     are -- so a second area explains itself without the map screen knowing it
     is on the board.
   */
+  /*
+    The geometries on the board, for the Areas tab.
+
+    Measured from the ring the board already holds per area rather than from a
+    second source: the same points that draw the footprint report the figures,
+    so the tab cannot describe a shape the surface is not drawing.
+  */
+  const areaInfo: AreaInfo[] = areas.map((a) => {
+    const ring = polygonsRef.current[a.id]
+    const geom = ring?.length
+      ? ({ type: "Polygon", coordinates: [ring] } as GeoJSONGeometry)
+      : null
+    return {
+      id: a.id,
+      title: a.title,
+      hectares: geom ? geometryAreaHectares(geom) : null,
+      // The closing point repeats the first, and reporting it would count a
+      // corner twice.
+      vertices: ring?.length ? ring.length - 1 : null,
+      layers: a.layers.length,
+      current: a.id === CURRENT_AREA,
+    }
+  })
+
   const legendByArea = new Map<string, LegendSources>([
     [CURRENT_AREA, legendSources ?? {}],
     ...extraRuns.map(
@@ -1277,6 +1310,7 @@ export function BoardSurface({
       })()}
 
       <BoardSidebar
+        areaInfo={areaInfo}
         areas={areas}
         areaId={CURRENT_AREA}
         assetRuns={assetRuns}
