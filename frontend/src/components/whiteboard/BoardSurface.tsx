@@ -343,11 +343,23 @@ export function BoardSurface({
         result,
         composition: null,
         compositionGallery: [],
-        water: null,
+        /*
+          The run's OWN water and solar, which travel in its payload when those
+          products were made over the same AOI (PredictResult.water,
+          .solar_terrain, .solar_siting). They were being dropped here while
+          the map screen's identical call kept them, so a second area on the
+          board listed a classification and nothing else -- the rasters existed
+          in hand and the tree did not mention them.
+        */
+        water: result.water,
+        solarTerrain: result.solar_terrain,
+        solarSiting: result.solar_siting,
         // A loaded run brings its own rasters and none of the map's state:
         // nothing here is drawn on the map, so nothing here has a switch there.
         showCompositionOverlay: false,
         showWaterOverlay: false,
+        showSolarTerrain: false,
+        showSolarSiting: false,
         composeOpacity: 1,
         waterOpacity: 1,
       }),
