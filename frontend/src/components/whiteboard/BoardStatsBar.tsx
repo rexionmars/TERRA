@@ -1,77 +1,52 @@
 /**
- * What the selected plane is, and what its colours mean, along the foot.
+ * What the selected planes are, and what their colours mean, along the foot.
  *
  * It began as a card floating over the board and that was the wrong shape
  * twice. A MapBiomas map has thirteen classes, which as a vertical list is a
  * column tall enough to cover the planes it is explaining; and a card over a
- * surface whose whole content is what is under it takes the one thing the
- * board is for. A band of the window's width turns the same list into columns,
- * leaves the planes uncovered, and has room for the area figure beside the
- * share -- which a 13rem card never would.
+ * surface whose whole content is what lies under it takes the one thing the
+ * board is for.
  *
- * Twice the run band's height and starting where it starts, so the two read as
- * one foot in two registers: what the run WILL do below, what the selected
- * raster IS above.
+ * It takes a LIST, not one layer, and that is the point rather than a
+ * generalisation. The board's selection is already ordered -- shift adds to it
+ * and the scene draws an arrowed path through the result -- so putting two
+ * rasters side by side is the gesture this surface is built around, and their
+ * figures belong beside each other where the comparison is being made. Each
+ * block is bounded so the next has somewhere to start; the row scrolls rather
+ * than squeezing them. A caveat running the band's whole width was that same
+ * failure with a single block.
+ *
+ * Twice the run band's height and starting where it starts, so the foot reads
+ * as one edge in two registers: what the run WILL do below, what the selected
+ * rasters ARE above.
  */
 import { ChartColumn, Plus, X } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import type { LayerLegend } from "@/lib/layerLegend"
 
-export function BoardStatsBar({
-  legend,
-  area,
-  period,
-  leftOffset,
-  onNewRun,
-  onCloseResult,
-}: {
+export interface StatsEntry {
+  key: string
   legend: LayerLegend
-  /** Which stack the selected plane belongs to; two areas draw the same ids. */
+  /** Which stack the plane belongs to; two areas draw the same layer ids. */
   area?: string
   /** The run's window, where the area has one. */
   period?: string
-  /** Where the board's column ends, matching the run band below. */
-  leftOffset: string
-  /**
-   * What the result panel used to carry, since this band replaced it.
-   *
-   * The panel showed the same composition this band shows, so over the board it
-   * was one table said twice -- and collapsing it only shrank the repetition,
-   * because its header repeated the subject line too. Removed, then: but the
-   * figures were never the only thing on it. These three were, and they come
-   * across rather than being stranded.
-   */
-  onNewRun?: () => void
-  onCloseResult?: () => void
-}) {
-  // Reached here rather than threaded through three components, which is how
-  // the panel this replaces reached it too.
-  const { goAnalysis } = useAuth()
+}
+
+/**
+ * One selected raster's block, at a fixed width.
+ *
+ * The width is what lets the band hold more than one: a block that grew to fit
+ * its content would leave the second nowhere to begin.
+ */
+function Entry({ entry }: { entry: StatsEntry }) {
+  const { legend, area, period } = entry
   return (
-    <div
-      className="app-no-drag absolute right-0 z-[20] flex items-stretch gap-3 overflow-hidden border-t px-3 py-2"
-      style={{
-        left: leftOffset,
-        /*
-          Sits on the run band and is as tall as the map screen says. Both
-          numbers are declared once, beside the foot reservation that has to
-          equal their sum -- a height written here would drift from it.
-        */
-        bottom: "var(--map-band, 4rem)",
-        height: "var(--map-stats, 8rem)",
-        background: "rgb(var(--p-ink))",
-        borderColor: "rgb(var(--p-line) / 0.28)",
-      }}
-    >
-      {/*
-        The identity, at a fixed width so the figures beside it start at the
-        same place whatever is selected. A column that reflowed with the
-        subject's length would move every number on the bar.
-      */}
-      <div className="flex w-[13rem] shrink-0 flex-col justify-center gap-0.5">
+    <div className="flex w-[21rem] shrink-0 flex-col gap-1 overflow-hidden">
+      <div className="flex flex-col gap-0.5">
         <p className="eyebrow !text-[9px] truncate">
-          {legend?.subject ?? "No layer selected"}
+          {legend?.subject ?? "Unnamed raster"}
         </p>
         {area && (
           <p className="telemetry truncate text-meta text-foreground">{area}</p>
@@ -81,33 +56,14 @@ export function BoardStatsBar({
             {period}
           </p>
         )}
-        {!legend && (
-          <p className="text-meta text-muted-foreground">
-            Pick a raster to read its legend.
-          </p>
-        )}
       </div>
 
-      <div
-        className="hairline w-px shrink-0 border-l"
-        style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
-      />
-
       {legend?.kind === "classes" && (
-        /*
-          Column-flow, so the classes fill the bar's height first and then flow
-          rightward -- a list of thirteen becomes four short columns rather
-          than one that does not fit. The bar scrolls sideways rather than
-          growing, which is the run band's own rule.
-        */
-        <ul
-          className="panel-scroll flex min-w-0 flex-1 flex-col flex-wrap content-start gap-x-6 gap-y-1 overflow-x-auto"
-          style={{ maxHeight: "100%" }}
-        >
+        <ul className="panel-scroll flex min-h-0 flex-1 flex-col flex-wrap content-start gap-x-5 gap-y-0.5 overflow-x-auto">
           {legend.entries.map((e) => (
             <li
               key={`${e.name}-${e.color}`}
-              className="flex w-[17rem] shrink-0 items-center gap-1.5"
+              className="flex w-[15rem] shrink-0 items-center gap-1.5"
             >
               <span
                 className="size-2.5 shrink-0 rounded-[2px]"
@@ -136,13 +92,13 @@ export function BoardStatsBar({
       )}
 
       {legend?.kind === "ramp" && (
-        <div className="flex min-w-0 max-w-[24rem] flex-1 flex-col justify-center gap-1">
+        <div className="flex flex-col gap-0.5">
           <div
             className="h-2.5 w-full rounded-[3px]"
             style={{ background: legend.gradient }}
             aria-hidden
           />
-          <div className="telemetry flex justify-between text-meta text-muted-foreground">
+          <div className="telemetry flex justify-between text-[9px] text-muted-foreground">
             <span className="truncate">{legend.low}</span>
             <span className="truncate">{legend.high}</span>
           </div>
@@ -150,19 +106,13 @@ export function BoardStatsBar({
       )}
 
       {legend?.kind === "stats" && (
-        /*
-          The figures the run measured, in the same column flow as the classes
-          so the bar reads the same way whichever kind is selected. The caveat
-          runs under them rather than beside: it changes how every figure above
-          it must be read, and a note in a column would look like one more.
-        */
-        <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col gap-1">
           {legend.ramp && (
             /*
               Before the figures, because it explains the plane and they only
-              summarise it: a reader looking at a colour is asking this first.
+              summarise it: a reader looking at a colour asks this first.
             */
-            <div className="flex w-[16rem] shrink-0 flex-col gap-0.5">
+            <div className="flex flex-col gap-0.5">
               <div
                 className="h-2.5 w-full rounded-[3px]"
                 style={{ background: legend.ramp.gradient }}
@@ -174,7 +124,7 @@ export function BoardStatsBar({
               </div>
             </div>
           )}
-          <ul className="panel-scroll flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1 overflow-x-auto">
+          <ul className="flex flex-wrap items-start gap-x-5 gap-y-1">
             {legend.rows.map((r) => (
               <li key={r.label} className="flex shrink-0 flex-col gap-0.5">
                 <span className="eyebrow !text-[9px]">{r.label}</span>
@@ -193,18 +143,83 @@ export function BoardStatsBar({
       )}
 
       {legend?.kind === "note" && (
-        <p className="flex min-w-0 flex-1 items-center text-meta text-muted-foreground">
+        <p className="text-meta leading-snug text-muted-foreground">
           {legend.note}
         </p>
+      )}
+    </div>
+  )
+}
+
+export function BoardStatsBar({
+  entries,
+  leftOffset,
+  onNewRun,
+  onCloseResult,
+}: {
+  /** The selected rasters, in the order they were picked. */
+  entries: StatsEntry[]
+  /** Where the board's column ends, matching the run band below. */
+  leftOffset: string
+  /**
+   * What the result panel used to carry, since this band replaced it.
+   *
+   * The panel showed the same composition this band shows, so over the board it
+   * was one table said twice -- and collapsing it only shrank the repetition,
+   * because its header repeated the subject line too. Removed, then: but the
+   * figures were never the only thing on it. These were, and they come across
+   * rather than being stranded.
+   */
+  onNewRun?: () => void
+  onCloseResult?: () => void
+}) {
+  // Reached here rather than threaded through three components, which is how
+  // the panel this replaces reached it too.
+  const { goAnalysis } = useAuth()
+
+  return (
+    <div
+      className="app-no-drag absolute right-0 z-[20] flex items-stretch overflow-hidden border-t px-3 py-2"
+      style={{
+        left: leftOffset,
+        /*
+          Sits on the run band and is as tall as the map screen says. Both
+          numbers are declared once, beside the foot reservation that has to
+          equal their sum -- a height written here would drift from it.
+        */
+        bottom: "var(--map-band, 4rem)",
+        height: "var(--map-stats, 8rem)",
+        background: "rgb(var(--p-ink))",
+        borderColor: "rgb(var(--p-line) / 0.28)",
+      }}
+    >
+      {entries.length === 0 ? (
+        <p className="flex items-center text-meta text-muted-foreground">
+          Pick a raster to read its legend. Shift-pick a second to compare.
+        </p>
+      ) : (
+        <div className="panel-scroll flex min-w-0 flex-1 items-stretch gap-3 overflow-x-auto">
+          {entries.map((e, i) => (
+            <div key={e.key} className="flex shrink-0 items-stretch gap-3">
+              {i > 0 && (
+                <div
+                  className="w-px shrink-0"
+                  style={{ background: "rgb(var(--p-line) / 0.28)" }}
+                />
+              )}
+              <Entry entry={e} />
+            </div>
+          ))}
+        </div>
       )}
 
       {(onNewRun || onCloseResult) && (
         /*
-          Pinned at the right end, outside whatever scrolls: they are the run's
-          actions rather than the selected layer's, and they must be reachable
-          however far the figures beside them run.
+          Pinned at the right end, outside the scroller: they are the run's
+          actions rather than any one layer's, and they must be reachable
+          however far the blocks beside them run.
         */
-        <div className="ml-auto flex shrink-0 items-center gap-1 self-center">
+        <div className="ml-3 flex shrink-0 items-center gap-1 self-center">
           <button
             type="button"
             onClick={goAnalysis}

@@ -1151,17 +1151,22 @@ export function BoardSurface({
         card over the planes. Starts where the column ends, the same 15rem the
         band below uses, so the foot is one edge in two registers.
       */}
+      {/*
+        Every selected raster, in the order they were picked -- the same order
+        the scene arrows through. Two rasters side by side is what the board is
+        for, so their figures sit side by side too.
+      */}
       <BoardStatsBar
         leftOffset="15rem"
-        legend={
-          target?.layerId
-            ? legendFor(target.layerId, legendByArea.get(target.areaId) ?? {})
-            : null
-        }
-        area={areas.find((a) => a.id === target?.areaId)?.title}
-        period={
-          assetRuns.find((r) => r.areaId === target?.areaId)?.period ?? undefined
-        }
+        entries={selection
+          .map(rowTarget)
+          .filter((t): t is { areaId: string; layerId: string } => !!t?.layerId)
+          .map((t) => ({
+            key: sceneKey(t.areaId, t.layerId),
+            legend: legendFor(t.layerId, legendByArea.get(t.areaId) ?? {}),
+            area: areas.find((a) => a.id === t.areaId)?.title,
+            period: assetRuns.find((r) => r.areaId === t.areaId)?.period,
+          }))}
         /*
           Only for the map's own run. A fetched area's run is not this screen's
           to discard or to start over from, and offering it would act on the
