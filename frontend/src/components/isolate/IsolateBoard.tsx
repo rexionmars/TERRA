@@ -29,6 +29,11 @@ import type { CardGroup } from "@/lib/isolateCards"
 import { layoutGroups } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import { RunPicker } from "@/components/isolate/RunPicker"
+import {
+  keptObject,
+  readBoardMemory,
+  writeBoardMemory,
+} from "@/components/isolate/boardMemory"
 import { useAuth } from "@/lib/auth"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
@@ -100,6 +105,28 @@ function sameStructure(a: CardGroup[], b: CardGroup[]): boolean {
  * key that was the layer alone would address both.
  */
 const CURRENT_AREA = "current"
+
+/**
+ * State that outlives a close.
+ *
+ * A drop-in for useState whose value is read from the board's memory on mount
+ * and written back on every change. A hook rather than lifting every piece
+ * into a parent, because the parent would not have been enough: the map screen
+ * remounts when another screen is visited, and the arrangement would be lost
+ * by the same gesture in a longer form.
+ */
+function useKept<T>(key: string, initial: T | (() => T)) {
+  const [value, setValue] = useState<T>(() =>
+    readBoardMemory(
+      key,
+      typeof initial === "function" ? (initial as () => T)() : initial
+    )
+  )
+  useEffect(() => {
+    writeBoardMemory(key, value)
+  }, [key, value])
+  return [value, setValue] as const
+}
 
 export function IsolateBoard({
   layers,
@@ -184,7 +211,10 @@ export function IsolateBoard({
    * area on the board "Classification" is unambiguous, and with two it names
    * two different rasters.
    */
-  const [names, setNames] = useState<Readonly<Record<string, string>>>({})
+  const [names, setNames] = useKept<Readonly<Record<string, string>>>(
+    "names",
+    {}
+  )
   const renameRow = (rowId: string, name: string) =>
     setNames((prev) => {
       const next = { ...prev }
@@ -205,9 +235,9 @@ export function IsolateBoard({
    * analysis on screen, which is the opposite of what a comparison needs. The
    * board holds these itself and the map never learns about them.
    */
-  const [extraRuns, setExtraRuns] = useState<
+  const [extraRuns, setExtraRuns] = useKept<
     readonly { run: InferenceRun; result: PredictResult }[]
-  >([])
+  >("extraRuns", [])
   const [loadingRun, setLoadingRun] = useState(false)
   const { runs, projects } = useAuth()
 
@@ -282,11 +312,14 @@ export function IsolateBoard({
    * additions -- nothing put a loaded run on the board except someone asking
    * for it -- so for those, membership is the added list and nothing else.
    */
-  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
+  const [removed, setRemoved] = useKept<ReadonlySet<string>>(
+    "removed",
+    () => new Set()
+  )
   /** Scene ids added, per area, in the order they were added. */
-  const [added, setAdded] = useState<
+  const [added, setAdded] = useKept<
     Readonly<Record<string, readonly string[]>>
-  >({})
+  >("added", {})
   /**
    * Opacity and visibility for rasters the board added.
    *
@@ -295,9 +328,9 @@ export function IsolateBoard({
    * layers keep sharing theirs, which is what stops the two surfaces
    * disagreeing about what is on screen.
    */
-  const [extraState, setExtraState] = useState<
+  const [extraState, setExtraState] = useKept<
     Readonly<Record<string, { opacity: number; visible: boolean }>>
-  >({})
+  >("extraState", {})
 
   /**
    * Layers dropped to the base of their stack.
@@ -306,7 +339,7 @@ export function IsolateBoard({
    * in this stack is a fact about looking at it here, and the map has no
    * stack to have an opinion about.
    */
-  const [flat, setFlat] = useState<ReadonlySet<string>>(() => new Set())
+  const [flat, setFlat] = useKept<ReadonlySet<string>>("flat", () => new Set())
 
   /**
    * A stack order the user has set, per area, bottom first.
@@ -322,7 +355,10 @@ export function IsolateBoard({
    * dropped: something new is worth seeing, and burying it under a list
    * written before it existed would hide it with no way to tell why.
    */
-  const [order, setOrder] = useState<Readonly<Record<string, string[]>>>({})
+  const [order, setOrder] = useKept<Readonly<Record<string, string[]>>>(
+    "order",
+    {}
+  )
   const reorderArea = (areaId: string, topFirst: string[]) =>
     // Stored bottom first, which is how a stack is built and how layoutGroups
     // reads it; the tree hands it over top first, which is how it reads.
@@ -335,7 +371,7 @@ export function IsolateBoard({
    * say they belong together, and a board that does not need them is only
    * made busier.
    */
-  const [links, setLinks] = useState(false)
+  const [links, setLinks] = useKept("links", false)
 
   /**
    * Whether each raster carries its name on the board.
@@ -346,7 +382,7 @@ export function IsolateBoard({
    * state: a drag reports a position per frame, and re-rendering this whole
    * surface sixty times a second to move some text is work for nothing.
    */
-  const [labels, setLabels] = useState(false)
+  const [labels, setLabels] = useKept("labels", false)
   const labelRefs = useRef(new Map<string, HTMLElement>())
   const placeLabels = (
     spots: {
@@ -568,8 +604,20 @@ export function IsolateBoard({
    * which know only the layout's first answer, so the moved ones are
    * re-applied afterwards.
    */
-  const placesRef = useRef<Record<string, { x: number; z: number }>>({})
-  const planePlacesRef = useRef<Record<string, { x: number; z: number }>>({})
+  /*
+    Objects from the board's memory rather than fresh ones, so where things
+    were dragged survives a close. Mutated in place -- the ref points AT the
+    kept object, so a write is remembered without a copy.
+  */
+  const placesRef = useRef(
+    keptObject<Record<string, { x: number; z: number }>>("places", () => ({}))
+  )
+  const planePlacesRef = useRef(
+    keptObject<Record<string, { x: number; z: number }>>(
+      "planePlaces",
+      () => ({})
+    )
+  )
   /** The spread, for the build, which must not depend on it to run again. */
   const gapRef = useRef(STACK_GAP)
   /**
@@ -607,7 +655,7 @@ export function IsolateBoard({
       flat: flat.has(sceneKey(a.id, l.id)),
     }))
   )
-  const [gap, setGap] = useState(STACK_GAP)
+  const [gap, setGap] = useKept("gap", STACK_GAP)
 
   /**
    * The active row of the outliner, and through it the plane the board
@@ -623,7 +671,7 @@ export function IsolateBoard({
    * one, the classification otherwise. The tree opens on its own first row
    * rather than on a particular product.
    */
-  const [activeRow, setActiveRow] = useState<string | null>(null)
+  const [activeRow, setActiveRow] = useKept<string | null>("activeRow", null)
   const target = rowTarget(activeRow)
   const targetArea = areas.find((a) => a.id === target?.areaId)
   const rowIsLive =
@@ -652,8 +700,8 @@ export function IsolateBoard({
     and none of its rasters, which is the wrong half to show first; and an area
     that has just been created by adding a raster must show the raster.
   */
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    () => new Set([stackRow(CURRENT_AREA)])
+  const [expanded, setExpanded] = useKept<ReadonlySet<string>>("expanded", () =>
+    new Set([stackRow(CURRENT_AREA)])
   )
   useEffect(() => {
     setExpanded((prev) => {
@@ -666,7 +714,7 @@ export function IsolateBoard({
   }, [areas.map((a) => a.id).join("|")])
 
 
-  const [mode, setMode] = useState<OutlinerMode>("scene")
+  const [mode, setMode] = useKept<OutlinerMode>("mode", "scene")
   const [activeAsset, setActiveAsset] = useState<string | null>(null)
   const toggleExpanded = (id: string) =>
     setExpanded((prev) => {
@@ -769,14 +817,10 @@ export function IsolateBoard({
         onSelect: (groupId, id) => setActiveRow(layerRow(groupId, id)),
         onLabels: (spots) => placeLabelsRef.current(spots),
         onMove: (groupId, layerId, x, z) => {
-          if (layerId === null) {
-            placesRef.current = { ...placesRef.current, [groupId]: { x, z } }
-            return
-          }
-          planePlacesRef.current = {
-            ...planePlacesRef.current,
-            [sceneKey(groupId, layerId)]: { x, z },
-          }
+          // Into the kept object rather than replacing the ref: replacing it
+          // would leave the memory pointing at the object from before the drag.
+          if (layerId === null) placesRef.current[groupId] = { x, z }
+          else planePlacesRef.current[sceneKey(groupId, layerId)] = { x, z }
         },
       })
     } catch {
