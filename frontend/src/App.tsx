@@ -2300,22 +2300,25 @@ function AppBody(props: {
           The column is in flow, not floating, so omitting it returns 13.5rem
           of width to the stage and the map fills it without being told.
         */}
-        {(layoutMode === "docked" || screen !== "map") && (
-        <AppNav
-          hasAnalysis={!!props.result || runs.length > 0}
-          onAnalysisClick={() => {
-            // Tested on the payload the page is actually showing, not on the
-            // classification: a water or solar run has no classification and
-            // would otherwise leave the list unreachable.
-            if (screen === "analysis" && resultWithWater) backToAnalysesList()
-            else goAnalysis()
-          }}
-          leftPanel={leftPanel}
-          onLeftPanelChange={setLeftPanel}
-          energyTab={energyTab}
-          onEnergyTabChange={setEnergyTab}
-        />
-        )}
+        <AnimatePresence initial={false}>
+          {(layoutMode === "docked" || screen !== "map") && (
+            <AppNav
+              key="app-nav"
+              hasAnalysis={!!props.result || runs.length > 0}
+              onAnalysisClick={() => {
+                // Tested on the payload the page is actually showing, not on the
+                // classification: a water or solar run has no classification and
+                // would otherwise leave the list unreachable.
+                if (screen === "analysis" && resultWithWater) backToAnalysesList()
+                else goAnalysis()
+              }}
+              leftPanel={leftPanel}
+              onLeftPanelChange={setLeftPanel}
+              energyTab={energyTab}
+              onEnergyTabChange={setEnergyTab}
+            />
+          )}
+        </AnimatePresence>
         <div className="relative min-h-0 min-w-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
             {screen === "map" && (
