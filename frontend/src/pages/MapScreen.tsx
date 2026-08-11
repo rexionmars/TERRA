@@ -12,6 +12,8 @@ import type {
   GeoJSONGeometry,
   ModelKind,
   PredictResult,
+  SolarSitingAnalysis,
+  SolarTerrainAnalysis,
   WaterAnalysis,
   WaterIndex,
 } from "@/lib/types"
@@ -27,6 +29,7 @@ import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
 import { cn } from "@/lib/utils"
 import { BoardRunBar } from "@/components/whiteboard/BoardRunBar"
 import { rasterLayers } from "@/lib/mapLayers"
+import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
 import { boardHoldsOtherAreas } from "@/components/whiteboard/boardMemory"
 import { polygonOuterRing } from "@/lib/geometry"
@@ -174,6 +177,36 @@ export interface MapScreenProps {
   dataCubeResult?: DataCubeResult | null
   onCloseDataCube: () => void
   water?: WaterAnalysis | null
+  /**
+   * The two solar products that produce a raster, and the state that draws them.
+   *
+   * This screen used to know nothing about solar: its rasters were drawn on the
+   * energy screen, which names and clears them beside the run that produced
+   * them (see the note above the board's layer table). The board is now a
+   * second surface that can do exactly that -- name a raster, set its opacity,
+   * remove it -- so the precondition is met and the rasters can come here.
+   *
+   * Optional throughout: solar is one product among several, and a screen with
+   * no solar in hand should not have to say so six times.
+   */
+  solarTerrain?: SolarTerrainAnalysis | null
+  solarSiting?: SolarSitingAnalysis | null
+  showSolarTerrain?: boolean
+  showSolarSiting?: boolean
+  solarTerrainOpacity?: number
+  solarSitingOpacity?: number
+  /**
+   * Where the board's eye and opacity for a solar row land.
+   *
+   * A callback rather than the store, because the solar store is a reducer that
+   * belongs to the energy screen. This screen states WHICH raster changed and
+   * how; translating that into a dispatch is the owner's business, the same
+   * shape the composition and water rows already use.
+   */
+  onSolarLayerChange?: (
+    id: "terrain" | "siting",
+    patch: { visible?: boolean; opacity?: number }
+  ) => void
   waterIndex: WaterIndex
   waterRunning: boolean
   waterProgress: number
@@ -262,6 +295,15 @@ export function MapScreen(props: MapScreenProps) {
     under the confidence -- therefore governs both, and neither can drift into
     disagreeing with the other about what is on screen.
   */
+  const solarOverlays = solarOverlayList({
+    terrain: props.solarTerrain,
+    siting: props.solarSiting,
+    showTerrain: props.showSolarTerrain ?? true,
+    showSiting: props.showSolarSiting ?? true,
+    terrainOpacity: props.solarTerrainOpacity ?? 1,
+    sitingOpacity: props.solarSitingOpacity ?? 1,
+  })
+
   const boardLayers = rasterLayers({
     result: props.result,
     showPredictionOverlay: props.showPredictionOverlay,
@@ -290,6 +332,7 @@ export function MapScreen(props: MapScreenProps) {
     water: props.water,
     showWaterOverlay: props.showWaterOverlay,
     waterOpacity: props.waterOpacity,
+    solarOverlays,
   })
 
   /**
@@ -345,6 +388,12 @@ export function MapScreen(props: MapScreenProps) {
     showWaterOverlay: props.showWaterOverlay,
     composeOpacity: props.composeOpacity,
     waterOpacity: props.waterOpacity,
+    solarTerrain: props.solarTerrain,
+    solarSiting: props.solarSiting,
+    showSolarTerrain: props.showSolarTerrain,
+    showSolarSiting: props.showSolarSiting,
+    solarTerrainOpacity: props.solarTerrainOpacity,
+    solarSitingOpacity: props.solarSitingOpacity,
   })
 
   const changeBoardLayer = (id: string, patch: { visible?: boolean; opacity?: number }) => {
@@ -367,8 +416,23 @@ export function MapScreen(props: MapScreenProps) {
       if (patch.visible !== undefined) props.onShowPredictionOverlayChange(patch.visible)
       if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity)
     }
-    // Solar rasters carry no switch: the energy screen clears them rather than
-    // hiding them, so a row for one is a readout.
+    /*
+      lib/mapLayers.ts names these `solar:terrain` and `solar:siting`, and they
+      are the only layer ids carrying a colon -- which is why the sidebar's row
+      parser splits on the LAST one.
+
+      This used to read that solar rasters carry no switch. They do: the solar
+      store holds showTerrain/terrainOpacity for each. What was missing was a
+      route from here to that store, so the eye and the opacity field were
+      drawn and inoperative -- the dead control this screen argues against a
+      few lines above.
+    */
+    if (id === "solar:terrain" || id === "solar:siting") {
+      props.onSolarLayerChange?.(
+        id === "solar:terrain" ? "terrain" : "siting",
+        patch
+      )
+    }
   }
 
   const selectedSceneDate =

@@ -876,6 +876,33 @@ function AppBody(props: {
     (patch: Partial<SolarLayers>) => solarDispatch({ type: "layers/set", patch }),
     [solarDispatch]
   )
+  /**
+   * A solar row on the whiteboard, translated into the store's own vocabulary.
+   *
+   * The board says which raster changed and how; only this file knows that
+   * `terrain` answers to showTerrain/terrainOpacity. Handing the map screen the
+   * reducer instead would have made every surface that draws a solar raster
+   * know the shape of the store that holds it.
+   */
+  const setSolarBoardLayer = useCallback(
+    (
+      id: "terrain" | "siting",
+      patch: { visible?: boolean; opacity?: number }
+    ) => {
+      const next: Partial<SolarLayers> = {}
+      if (patch.visible !== undefined) {
+        if (id === "terrain") next.showTerrain = patch.visible
+        else next.showSiting = patch.visible
+      }
+      if (patch.opacity !== undefined) {
+        if (id === "terrain") next.terrainOpacity = patch.opacity
+        else next.sitingOpacity = patch.opacity
+      }
+      if (Object.keys(next).length > 0) setSolarLayers(next)
+    },
+    [setSolarLayers]
+  )
+
   const setWindParams = useCallback(
     (patch: Partial<WindParams>) => windDispatch({ type: "params/set", patch }),
     [windDispatch]
@@ -2501,6 +2528,18 @@ function AppBody(props: {
                 <MapScreen
                   onCreditChange={setCredit}
                   titleBarSlot={boardSlotHost}
+                  /*
+                    The two solar rasters, so the board can lift them like any
+                    other. The energy screen keeps drawing them on its own map;
+                    this is the same store read by a second surface, not a copy.
+                  */
+                  solarTerrain={solar.results.terrain}
+                  solarSiting={solar.results.siting}
+                  showSolarTerrain={solar.layers.showTerrain}
+                  showSolarSiting={solar.layers.showSiting}
+                  solarTerrainOpacity={solar.layers.terrainOpacity}
+                  solarSitingOpacity={solar.layers.sitingOpacity}
+                  onSolarLayerChange={setSolarBoardLayer}
                   initialView={initialMapView}
                   leftPanel={leftPanel}
                   layoutMode={layoutMode}

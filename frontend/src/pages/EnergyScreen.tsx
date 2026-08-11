@@ -27,6 +27,7 @@
  */
 import { AnimatePresence } from "motion/react"
 import type { LayoutMode } from "@/lib/types"
+import { solarOverlayList } from "@/lib/solarLayers"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import { PanelShell, type PanelPlacement } from "@/components/ui/PanelShell"
@@ -118,15 +119,6 @@ const AOI_NOTE_WIND =
 
 /** Stable no-op: the swipe compare belongs to the classification map. */
 const NO_SWIPE_CHANGE = () => {}
-
-/**
- * The raster list MapView accepts, read from MapView itself so a change to the
- * overlay contract is a compile error here rather than a layer that silently
- * stops drawing.
- */
-type SolarOverlayList = NonNullable<
-  ComponentProps<typeof MapView>["solarOverlays"]
->
 
 export interface EnergyScreenProps {
   /** The photovoltaic store: parameters, results, layer state and run status. */
@@ -373,31 +365,23 @@ export function EnergyScreen(props: EnergyScreenProps) {
     ]
   )
 
-  const solarOverlays = useMemo(() => {
-    // Terrain first so siting draws over it: the suitability classes are what a
-    // siting decision reads, and the irradiation underneath is the continuous
-    // field they were cut from. Both are drawn when both were run.
-    const list: SolarOverlayList = []
-    const terrain = solar.results.terrain
-    if (terrain && solar.layers.showTerrain) {
-      list.push({
-        id: "terrain",
-        uri: terrain.overlay_uri,
-        extent: terrain.extent,
-        opacity: solar.layers.terrainOpacity,
-      })
-    }
-    const siting = solar.results.siting
-    if (siting && solar.layers.showSiting) {
-      list.push({
-        id: "siting",
-        uri: siting.overlay_uri,
-        extent: siting.extent,
-        opacity: solar.layers.sitingOpacity,
-      })
-    }
-    return list
-  }, [solar.results.terrain, solar.results.siting, solar.layers])
+  /*
+    Derived in lib/solarLayers.ts rather than here. The board reads the same
+    two rasters from the same store, and two derivations of one list disagree
+    within a release -- the reason lib/mapLayers.ts exists.
+  */
+  const solarOverlays = useMemo(
+    () =>
+      solarOverlayList({
+        terrain: solar.results.terrain,
+        siting: solar.results.siting,
+        showTerrain: solar.layers.showTerrain,
+        showSiting: solar.layers.showSiting,
+        terrainOpacity: solar.layers.terrainOpacity,
+        sitingOpacity: solar.layers.sitingOpacity,
+      }),
+    [solar.results.terrain, solar.results.siting, solar.layers]
+  )
 
   const mapRegion = (
     <MapView

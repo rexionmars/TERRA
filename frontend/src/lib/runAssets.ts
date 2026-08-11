@@ -31,9 +31,12 @@ import type {
   CompositionOverlay,
   ModelKind,
   PredictResult,
+  SolarSitingAnalysis,
+  SolarTerrainAnalysis,
   WaterAnalysis,
 } from "@/lib/types"
 import { isZeroExtent } from "@/lib/mapLayers"
+import { seasonLabel } from "@/lib/solarOptions"
 
 /**
  * One run's output, as a branch of the data tree.
@@ -148,6 +151,23 @@ export interface RunAssetInput {
   showWaterOverlay: boolean
   composeOpacity: number
   waterOpacity: number
+  /**
+   * The two solar products that produce a raster.
+   *
+   * Only two of the four do: solarProducts.ts declares `output` per product,
+   * and resource and energy are figures. The other two carry the same
+   * overlay_uri / raster_tif / extent triple every other raster here does, so
+   * they need no new machinery -- they were simply never read.
+   *
+   * Optional because most callers have no solar in hand, and a run that
+   * produced only a classification should not have to say so four times.
+   */
+  solarTerrain?: SolarTerrainAnalysis | null
+  solarSiting?: SolarSitingAnalysis | null
+  showSolarTerrain?: boolean
+  showSolarSiting?: boolean
+  solarTerrainOpacity?: number
+  solarSitingOpacity?: number
 }
 
 /**
@@ -287,6 +307,77 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         filename: "terra_water_occurrence.png",
       },
       exportTif: null,
+    })
+  }
+
+  /*
+    Solar irradiation over the terrain, and the siting classes cut from it.
+
+    Terrain first, so siting lists after it: the suitability classes are what a
+    siting decision reads and the continuous field is what they were cut from,
+    which is the order the energy screen draws them in.
+
+    `sceneId` carries the colon form because lib/mapLayers.ts names these layers
+    `solar:<id>`. Asking whether the raster is already a plane by the asset's
+    own id would answer no for one that is there, and adding it would build a
+    second plane over the first -- the defect this field exists to prevent.
+  */
+  const st = i.solarTerrain
+  if (st?.overlay_uri) {
+    out.push({
+      id: "solar-terrain",
+      sceneId: "solar:terrain",
+      title: "Solar irradiation",
+      params: [
+        seasonLabel(st.season),
+        st.unit,
+        st.dem_source,
+        st.hourly_years > 0 ? `${st.hourly_years} yr` : null,
+        `opacity ${Math.round((i.solarTerrainOpacity ?? 1) * 100)}%`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: st.overlay_uri,
+      extent: placeable(st.extent),
+      // A continuous field: interpolating between two irradiation values gives
+      // a third irradiation value, which is the one case where it is honest.
+      pixelated: false,
+      onBoard: i.showSolarTerrain ?? false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: st.overlay_uri, filename: "terra_solar_poa.png" },
+      exportTif: st.raster_tif
+        ? { via: "file", src: st.raster_tif, filename: "terra_solar_poa.tif" }
+        : null,
+    })
+  }
+
+  const ss = i.solarSiting
+  if (ss?.overlay_uri) {
+    out.push({
+      id: "solar-siting",
+      sceneId: "solar:siting",
+      title: "Solar siting suitability",
+      params: [
+        `${ss.classes.length} classes`,
+        `slope ${ss.thresholds.slope_acceptable_deg}-${ss.thresholds.slope_restrictive_deg} deg`,
+        ss.dem_source,
+        `opacity ${Math.round((i.solarSitingOpacity ?? 1) * 100)}%`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: ss.overlay_uri,
+      extent: placeable(ss.extent),
+      // Five codes, not a ramp. The same rule as the classification and the
+      // water mask: a blend of two class colours names no class.
+      pixelated: true,
+      onBoard: i.showSolarSiting ?? false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: ss.overlay_uri, filename: "terra_solar_siting.png" },
+      exportTif: ss.raster_tif
+        ? { via: "file", src: ss.raster_tif, filename: "terra_solar_siting.tif" }
+        : null,
     })
   }
 
