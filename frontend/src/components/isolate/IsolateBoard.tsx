@@ -296,6 +296,14 @@ export function IsolateBoard({
    * stack to have an opinion about.
    */
   const [flat, setFlat] = useState<ReadonlySet<string>>(() => new Set())
+
+  /**
+   * Whether corresponding rasters of different areas are joined by a line.
+   *
+   * Off by default. With one area there is nothing to connect, and a board
+   * that does not need the lines is only made busier by them.
+   */
+  const [links, setLinks] = useState(false)
   const toggleFlat = (areaId: string, layerId: string) =>
     setFlat((prev) => {
       const next = new Set(prev)
@@ -726,6 +734,10 @@ export function IsolateBoard({
   }, [selectedArea, selected, groups])
 
   useEffect(() => {
+    boardRef.current?.setLinks(links)
+  }, [links, groups])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
     }
@@ -791,6 +803,10 @@ export function IsolateBoard({
         onDropRun={dropRun}
         flat={flat}
         onToggleFlat={toggleFlat}
+        links={links}
+        onLinksChange={setLinks}
+        // Nothing to join while the board holds one area.
+        canLink={areas.length > 1}
         onSmoothChange={onSmoothChange}
       />
 

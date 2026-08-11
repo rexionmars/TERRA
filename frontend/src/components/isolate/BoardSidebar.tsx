@@ -197,6 +197,9 @@ export function BoardSidebar({
   onDropRun,
   flat,
   onToggleFlat,
+  links,
+  onLinksChange,
+  canLink,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -261,6 +264,11 @@ export function BoardSidebar({
    */
   flat: ReadonlySet<string>
   onToggleFlat: (areaId: string, layerId: string) => void
+  /** Lines joining corresponding rasters of different areas. */
+  links: boolean
+  onLinksChange: (v: boolean) => void
+  /** False while there is one area, which has nothing to be joined to. */
+  canLink: boolean
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -1130,6 +1138,22 @@ export function BoardSidebar({
           style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
         >
           <p className="eyebrow !text-[9px]">View</p>
+          {/*
+            A property of the view rather than of any area, so it sits with the
+            spread. Offered only with something to join: with one area on the
+            board there is no correspondence to draw.
+          */}
+          {canLink && (
+            <label className="mt-1.5 flex items-center gap-2 text-meta text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={links}
+                onChange={(e) => onLinksChange(e.target.checked)}
+                className="accent-primary"
+              />
+              Link matching rasters
+            </label>
+          )}
           <div className="mt-1.5">
             <NumberField
               label="Spread"

@@ -19,9 +19,11 @@
  */
 import {
   Box3,
+  BufferGeometry,
   Clock,
   Color,
   EdgesGeometry,
+  Float32BufferAttribute,
   Fog,
   GridHelper,
   Group,
@@ -151,6 +153,16 @@ export interface BoardHandle {
     x: number,
     z: number
   ) => void
+  /**
+   * Draw lines between corresponding rasters of different areas.
+   *
+   * Two areas dragged apart are two islands, and nothing on the board says
+   * they are being compared or which raster answers to which -- both areas
+   * have a classification, and once they are far enough apart the eye has no
+   * way to pair them. Off by default: with one area there is nothing to
+   * connect, and lines across a board that does not need them are clutter.
+   */
+  setLinks: (on: boolean) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -485,6 +497,7 @@ export function createBoard(
     const target = dragged.mesh ?? dragged.rt.root
     target.position.x = hitPoint.x + grabOffset.x
     target.position.z = hitPoint.z + grabOffset.z
+    updateLinks()
     render()
   }
 
@@ -736,6 +749,73 @@ export function createBoard(
   const keyOfMesh = new Map<Mesh, string>()
 
   /*
+    The lines between corresponding rasters of different areas.
+
+    One LineSegments over a buffer allocated once, with the draw range saying
+    how much of it is in use. Rebuilding the attribute on every drag would
+    upload a new buffer per frame and leave the old ones on the GPU until the
+    geometry was disposed -- three only drops a replaced attribute then.
+  */
+  const linkMaterial = new LineBasicMaterial({
+    color: new Color(opts.accent),
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+  })
+  const linkGeometry = new BufferGeometry()
+  // Two ends per segment, and never more segments than there are planes: a
+  // layer present in n areas contributes n-1 of them.
+  const linkBuffer = new Float32Array(pending * 2 * 3)
+  linkGeometry.setAttribute("position", new Float32BufferAttribute(linkBuffer, 3))
+  linkGeometry.setDrawRange(0, 0)
+  const links = new LineSegments(linkGeometry, linkMaterial)
+  // After every plane, so a line is never buried under the raster it leaves.
+  links.renderOrder = pending * 3
+  links.visible = false
+  world.add(links)
+  disposables.push(linkGeometry, linkMaterial)
+
+  /**
+   * Re-points the lines at where the planes are now.
+   *
+   * Called from everything that moves a plane or changes which are drawn. A
+   * line to a hidden raster would point at nothing, and one left behind by a
+   * drag would say the areas are related in a way they are no longer arranged.
+   */
+  const updateLinks = () => {
+    if (!links.visible) return
+    /*
+      Paired by layer id across areas: the classification of one area to the
+      classification of the next. That is the correspondence worth drawing --
+      a line from a classification to a confidence raster would connect two
+      things that are not the same measurement.
+    */
+    const byLayer = new Map<string, { rt: GroupRuntime; mesh: Mesh }[]>()
+    for (const rt of runtimes) {
+      rt.meshes.forEach((mesh, i) => {
+        if (!mesh || !mesh.visible) return
+        const id = rt.cards[i].id
+        const list = byLayer.get(id)
+        if (list) list.push({ rt, mesh })
+        else byLayer.set(id, [{ rt, mesh }])
+      })
+    }
+    let n = 0
+    for (const list of byLayer.values()) {
+      for (let i = 1; i < list.length; i++) {
+        for (const end of [list[i - 1], list[i]]) {
+          linkBuffer[n++] = end.rt.root.position.x + end.mesh.position.x
+          linkBuffer[n++] = end.rt.root.position.y + end.mesh.position.y
+          linkBuffer[n++] = end.rt.root.position.z + end.mesh.position.z
+        }
+      }
+    }
+    const attr = linkGeometry.getAttribute("position")
+    attr.needsUpdate = true
+    linkGeometry.setDrawRange(0, n / 3)
+  }
+
+  /*
     The separation in force, and the one place a plane's height is decided.
 
     Height comes from three things -- position in the stack, the spread, and
@@ -752,6 +832,7 @@ export function createBoard(
         if (mesh) mesh.position.y = heightOf(rt, i)
       })
     }
+    updateLinks()
   }
 
   /**
@@ -873,6 +954,7 @@ export function createBoard(
         world.position.y = -sphere.center.y
         addGround(sphere.radius)
         frame(sphere.radius)
+        updateLinks()
       }
       render()
     })
@@ -905,6 +987,15 @@ export function createBoard(
       }
       render()
     },
+    setLinks(on) {
+      if (links.visible === on) return
+      links.visible = on
+      // Pointed at where the planes are before being shown: the buffer holds
+      // wherever they were when the lines were last drawn, which after a drag
+      // with the lines off is nowhere useful.
+      updateLinks()
+      render()
+    },
     setPlanePosition(groupId, layerId, x, z) {
       const rt = runtimes.find((r) => r.id === groupId)
       const i = rt?.indexById.get(layerId)
@@ -912,6 +1003,7 @@ export function createBoard(
       if (!mesh || (mesh.position.x === x && mesh.position.z === z)) return
       mesh.position.x = x
       mesh.position.z = z
+      updateLinks()
       render()
     },
     setGroupPosition(groupId, x, z) {
@@ -919,6 +1011,7 @@ export function createBoard(
       if (!rt || (rt.root.position.x === x && rt.root.position.z === z)) return
       rt.root.position.x = x
       rt.root.position.z = z
+      updateLinks()
       render()
     },
     setAppearance(next) {
@@ -949,7 +1042,12 @@ export function createBoard(
           changed = true
         }
       }
-      if (changed) render()
+      if (changed) {
+        // Hiding a raster takes its line with it: a line to something that is
+        // not drawn points at nothing.
+        updateLinks()
+        render()
+      }
     },
     dispose() {
       disposed = true
