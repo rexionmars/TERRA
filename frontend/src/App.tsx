@@ -633,16 +633,28 @@ function AppBody(props: {
     },
     [goEnergy, goAnalysis, goMap]
   )
-  const didSeedLayoutRef = useRef(false)
+  /**
+   * The last value this component wrote, so its own save does not echo back.
+   *
+   * The mode is state rather than derived from prefs because savePrefs
+   * round-trips to Go and SQLite before the context updates, and a layout
+   * toggle that waits on a disk write does not feel like a toggle. But the
+   * settings page writes the same preference, so a stored value this component
+   * did not write is one to follow -- which is also how it is seeded on start.
+   */
+  const lastWrittenLayoutRef = useRef<LayoutMode | null>(null)
   useEffect(() => {
-    if (didSeedLayoutRef.current || !prefs) return
-    didSeedLayoutRef.current = true
-    setLayoutMode(layoutModeFromPrefs(prefs))
+    if (!prefs) return
+    const stored = layoutModeFromPrefs(prefs)
+    if (stored === lastWrittenLayoutRef.current) return
+    lastWrittenLayoutRef.current = stored
+    setLayoutMode(stored)
   }, [prefs])
 
   const changeLayoutMode = useCallback(
     (mode: LayoutMode) => {
       setLayoutMode(mode)
+      lastWrittenLayoutRef.current = mode
       if (!prefs) return
       // Silent: this fires on a toggle the user just watched happen, and a
       // "Preferences saved" toast on every flip is noise about a result that

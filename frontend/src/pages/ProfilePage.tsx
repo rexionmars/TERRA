@@ -29,8 +29,11 @@ import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { StorageModal } from "@/components/StorageModal"
 import { cn } from "@/lib/utils"
-import type { InferenceRun, Preferences } from "@/lib/types"
-import { mergePreferenceExtras } from "@/lib/preferenceExtras"
+import type { InferenceRun, LayoutMode, Preferences } from "@/lib/types"
+import {
+  layoutModeFromPrefs,
+  mergePreferenceExtras,
+} from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { formatBytes } from "@/lib/formatBytes"
 import { runRowLine } from "@/lib/runSummary"
@@ -173,14 +176,17 @@ export function ProfilePage({
     the stored value through keeps a theme change to being a theme change.
   */
   const persistPreferences = useCallback(
-    async (next: { theme: string }) => {
+    async (next: { theme: string; layoutMode?: LayoutMode }) => {
       if (!user) return
       const payload: Preferences = {
         user_id: user.id,
         default_model: prefs?.default_model || "spectral",
         overlay_opacity: prefs?.overlay_opacity ?? 0.75,
         theme: next.theme,
-        extras_json: mergePreferenceExtras(prefs?.extras_json, {}),
+        extras_json: mergePreferenceExtras(
+          prefs?.extras_json,
+          next.layoutMode ? { layout_mode: next.layoutMode } : {}
+        ),
       }
       await savePrefs(payload)
       if (
@@ -201,8 +207,10 @@ export function ProfilePage({
     ]
   )
 
+  const layoutMode = layoutModeFromPrefs(prefs)
+
   const schedulePrefsSave = useCallback(
-    (patch: Partial<{ theme: string }>) => {
+    (patch: Partial<{ theme: string; layoutMode: LayoutMode }>) => {
       if (!prefsReady.current) return
       prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
       if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
@@ -797,6 +805,34 @@ export function ProfilePage({
                   <option value="light">Light</option>
                   <option value="system">System</option>
                 </select>
+              </SettingRow>
+
+              <SettingRow
+                id="account.layout"
+                title="Map layout"
+                description="How the map and energy screens are arranged. The title bar switches between them too; this is where the choice is explained and where it is restored from on start."
+                focused={focusedSetting === "account.layout"}
+                onFocus={() => setFocusedSetting("account.layout")}
+              >
+                <div className="flex max-w-md flex-col gap-2">
+                  <select
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                    value={layoutMode}
+                    onChange={(e) =>
+                      schedulePrefsSave({
+                        layoutMode: e.target.value as LayoutMode,
+                      })
+                    }
+                  >
+                    <option value="docked">Sidebar and column</option>
+                    <option value="workspace">Dock</option>
+                  </select>
+                  <p className="text-meta leading-relaxed text-muted-foreground">
+                    {layoutMode === "workspace"
+                      ? "Controls sit in a bar at the foot of the map, with parameters in a drawer. The map takes the full width."
+                      : "A navigation column on the left and the product's controls in a panel beside it."}
+                  </p>
+                </div>
               </SettingRow>
 
               {/* Sign out belongs to the account, not to the bottom of a
