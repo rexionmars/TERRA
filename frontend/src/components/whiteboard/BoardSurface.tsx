@@ -10,13 +10,12 @@
  * pay for it until the board is opened; see BoardButton for the other
  * half of that boundary.
  */
-import { useEffect, useRef, useState } from "react"
+import { type ReactNode, useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { Save, X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
 import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
-import type { BoardTask } from "@/lib/boardTasks"
 import {
   BoardSidebar,
   layerRow,
@@ -136,7 +135,7 @@ export function BoardSurface({
   runId,
   runPeriod,
   aoiPolygon,
-  tasks,
+  runPanel,
   onLayerChange,
   onSelectComposition,
   onRemoveComposition,
@@ -177,8 +176,14 @@ export function BoardSurface({
    * Absent where the shape cannot be resolved, and the rectangle stands in.
    */
   aoiPolygon?: LonLat[] | null
-  /** What the map screen can run on this area, described. */
-  tasks: BoardTask[]
+  /**
+   * The Run tab's contents: which product, and its own parameters.
+   *
+   * A node from the map screen rather than a description, because it is the
+   * SAME panel that screen docks -- forty props reaching a component that
+   * already exists, threaded through this one, would be a copy of it.
+   */
+  runPanel: ReactNode
   onLayerChange: (id: string, patch: LayerPatch) => void
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
@@ -1122,7 +1127,7 @@ export function BoardSurface({
         onLinksChange={setLinks}
         labels={labels}
         onLabelsChange={setLabels}
-        tasks={tasks}
+        runPanel={runPanel}
         // Nothing to join until some area holds more than one raster.
         canLink={areas.some((a) => a.layers.length > 1)}
         onSmoothChange={onSmoothChange}
