@@ -161,6 +161,14 @@ export function MapScreen(props: MapScreenProps) {
   const [rightDrawer, setRightDrawer] = useState<"config" | "overlays" | null>(
     null
   )
+  /**
+   * The workspace island's measured width, so the period track can retract past
+   * it the way it already retracts past the docked column.
+   *
+   * Measured rather than declared: the island sizes to its contents, and the
+   * run button's label changes with the product and with whether it is running.
+   */
+  const [barWidthPx, setBarWidthPx] = useState(0)
   const workspace = props.layoutMode === "workspace"
   const setLeftPanel = onLeftPanelChange
 
@@ -348,18 +356,16 @@ export function MapScreen(props: MapScreenProps) {
     <div
       className="relative h-full min-h-0 w-full"
       /*
-        What the foot of the map has spoken for, which every surface anchored
-        to the bottom measures from. The docked layout reserves the period
-        timeline alone; the workspace layout adds the floating bar above it --
-        its 3rem plus the 1rem it sits off the timeline.
+        The height of the period track, which is the only thing that spans the
+        foot from edge to edge. Surfaces anchored to the bottom clear it by
+        measuring from here.
+
+        The workspace bar does NOT enter this: it is an island at the left, and
+        raising the reservation to clear it lifted the tile attribution at the
+        opposite edge by four rem it had no reason to move, tearing it off the
+        track it is meant to sit flush against.
       */
-      style={
-        {
-          "--map-foot": workspace
-            ? "calc(3.0625rem + 4rem)"
-            : "3.0625rem",
-        } as React.CSSProperties
-      }
+      style={{ "--map-foot": "3.0625rem" } as React.CSSProperties}
     >
       <MapView
         initialView={props.initialView}
@@ -408,10 +414,21 @@ export function MapScreen(props: MapScreenProps) {
         onListScenes={props.onListComposeScenes}
         onOpenListing={props.onViewDataCube}
         disabled={props.running || props.composeRunning}
-        // Clears the open tool column, matching the offset the status panels
-        // already use so the two agree on where the map's free width begins.
-        leftOffsetClass={
-          !workspace && leftPanel ? "left-[20.5rem] rounded-tl-md" : "left-0"
+        /*
+          Retracted past whatever occupies the foot's left end: the docked
+          column at its fixed 19rem plus its two 0.75rem gutters, or the
+          workspace island, which is flush into the corner and so needs only
+          the gap between the two segments added to its measured width.
+        */
+        flushLeft={workspace}
+        leftOffset={
+          workspace
+            ? barWidthPx
+              ? `calc(${barWidthPx}px + 0.75rem)`
+              : undefined
+            : leftPanel
+              ? "20.5rem"
+              : undefined
         }
       />
 
@@ -427,6 +444,7 @@ export function MapScreen(props: MapScreenProps) {
             runLabel={run.label}
             canRun={run.canRun}
             onRun={run.onRun}
+            onWidthChange={setBarWidthPx}
             configOpen={rightDrawer === "config"}
             onConfigToggle={() =>
               setRightDrawer((d) => (d === "config" ? null : "config"))
