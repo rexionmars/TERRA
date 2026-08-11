@@ -231,7 +231,22 @@ export function MapScreen(props: MapScreenProps) {
     showPredictionOverlay: props.showPredictionOverlay,
     overlayOpacity: props.overlayOpacity,
     showConfidence: props.showConfidence,
-    confidenceOnTop: props.confidenceOnTop,
+    /*
+      Always, on the board, whatever the map is set to.
+
+      On one plane that switch is a workaround: confidence is drawn over the
+      classification, so reading confidence alone means WITHHOLDING the
+      classification. The board separates the two along Y, where both can be
+      read at once -- the occlusion it works around does not happen here.
+
+      Honouring the map's setting left a dead control. With confidence on and
+      the switch off, rasterLayers marks the classification not-visible, so its
+      row showed a struck-through eye; clicking it called
+      onShowPredictionOverlayChange(true) on a flag that was already true, and
+      nothing moved. A control that cannot be operated is worse than an absent
+      one, because the user spends time deciding it is their mistake.
+    */
+    confidenceOnTop: true,
     smoothOverlay: props.smoothOverlay,
     composition: props.composition,
     showCompositionOverlay: props.showCompositionOverlay,
@@ -539,9 +554,17 @@ export function MapScreen(props: MapScreenProps) {
       {!isolate && <SearchBar onSelectLocation={props.onLocationSelect} />}
 
       {/*
-        Overlay tools have no button while the board is open: the sidebar
-        carries what governs the board, so a second surface for the same
-        controls would be a second place to look for one of them.
+        Overlay tools have no button while the board is open. What governs the
+        board is in its sidebar: the visibility and opacity of each raster as a
+        row per plane, and the majority filter, which is the one control in
+        that panel that changes what the board DRAWS.
+
+        What stays behind is map vocabulary with nothing to act on here -- the
+        swipe compares an overlay against the basemap, and the palette colours
+        an AOI contour the board does not draw. The generated-overlay gallery
+        is the exception, and it is deliberate: choosing what to bring onto the
+        board is the multi-AOI step, and it needs a surface of its own rather
+        than a panel borrowed from the map.
       */}
 
       <PeriodTimeline
@@ -579,6 +602,8 @@ export function MapScreen(props: MapScreenProps) {
               key="isolate-board"
               layers={boardLayers}
               onLayerChange={changeBoardLayer}
+              smooth={props.smoothOverlay}
+              onSmoothChange={props.onSmoothOverlayChange}
               title={props.areaLabel || "Analysis"}
               showClose={!workspace}
               onClose={() => setIsolate(false)}

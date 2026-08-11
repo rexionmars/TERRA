@@ -33,9 +33,45 @@ import { createBoard, tokenColor } from "@/components/isolate/boardScene"
 const STACK_GAP = 0.1
 const GAP_MAX = 0.35
 
+/**
+ * Whether two layouts describe the same set of planes.
+ *
+ * Everything the SCENE is built from, and nothing that can be changed on a
+ * plane once it exists -- opacity and visibility are deliberately absent.
+ *
+ * This decides whether the board is rebuilt. The layer array arrives fresh on
+ * every render of the map screen, so without this the resolve effect produced
+ * a new card array each time, the scene effect saw new identity, and the whole
+ * GL context was disposed and recreated: dragging one opacity slider tore down
+ * and rebuilt the board on every input event, snapping the camera back to its
+ * opening angle each time.
+ *
+ * `uri` holds a data URI of some megabytes, so the comparison looks costly and
+ * is not: the strings are the same object across renders, and identity is the
+ * first thing string equality tests. The full compare runs only when a raster
+ * has genuinely been replaced, which is when a rebuild is wanted anyway.
+ */
+function sameStructure(a: CardPlane[], b: CardPlane[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((c, i) => {
+    const d = b[i]
+    return (
+      c.id === d.id &&
+      c.uri === d.uri &&
+      c.width === d.width &&
+      c.height === d.height &&
+      c.x === d.x &&
+      c.z === d.z &&
+      c.pixelated === d.pixelated
+    )
+  })
+}
+
 export function IsolateBoard({
   layers,
   onLayerChange,
+  smooth,
+  onSmoothChange,
   title,
   showClose,
   onClose,
@@ -44,10 +80,14 @@ export function IsolateBoard({
    * Every layer the run could draw, drawn or not.
    *
    * Including the hidden ones is what lets the sidebar offer the switch that
-   * turns one back on; the scene takes only those marked visible.
+   * turns one back on. The scene builds them all and hides the ones marked so,
+   * rather than building only the visible set -- see CardPlane.visible.
    */
   layers: RasterLayer[]
   onLayerChange: (id: string, patch: LayerPatch) => void
+  /** The map's majority filter, carried across so the board can change it. */
+  smooth: boolean
+  onSmoothChange: (v: boolean) => void
   title: string
   /**
    * Whether this surface draws its own way out.
@@ -80,15 +120,17 @@ export function IsolateBoard({
   useEffect(() => {
     let cancelled = false
     Promise.all(
-      layers
-        .filter((l) => l.visible)
-        .map(async (l) =>
-          l.smooth
-            ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
-            : l
-        )
+      // Every layer, hidden ones included: the scene builds them all so that
+      // hiding one is a flag rather than a different scene. See CardPlane.
+      layers.map(async (l) =>
+        l.smooth
+          ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
+          : l
+      )
     ).then((resolved) => {
-      if (!cancelled) setCards(layoutCards(resolved, STACK_GAP))
+      if (cancelled) return
+      const next = layoutCards(resolved, STACK_GAP)
+      setCards((prev) => (prev && sameStructure(prev, next) ? prev : next))
     })
     return () => {
       cancelled = true
@@ -127,6 +169,28 @@ export function IsolateBoard({
     boardRef.current?.setGap(gap)
   }, [gap, cards])
 
+  /*
+    The same for what the eye toggles and the opacity sliders change.
+
+    Keyed on the values rather than on the array, which is new on every render
+    of the map screen; the layers themselves are read through a ref so that
+    identity does not drag the effect along with it.
+  */
+  const appearanceKey = layers
+    .map((l) => `${l.id}:${l.visible ? 1 : 0}:${l.opacity}`)
+    .join("|")
+  const layersRef = useRef(layers)
+  layersRef.current = layers
+  useEffect(() => {
+    boardRef.current?.setAppearance(
+      layersRef.current.map((l) => ({
+        id: l.id,
+        opacity: l.opacity,
+        visible: l.visible,
+      }))
+    )
+  }, [appearanceKey, cards])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
@@ -161,8 +225,10 @@ export function IsolateBoard({
         layers={layers}
         gap={gap}
         gapMax={GAP_MAX}
+        smooth={smooth}
         onGapChange={setGap}
         onLayerChange={onLayerChange}
+        onSmoothChange={onSmoothChange}
       />
 
       {/*

@@ -23,6 +23,16 @@ export interface CardPlane {
   z: number
   /** Height in the stack, from the layer's order. */
   y: number
+  /**
+   * Whether it is drawn right now.
+   *
+   * Hidden layers are still laid out and still built. Dropping them would make
+   * every eye toggle change the SET of planes, and a changed set is a rebuilt
+   * scene -- so hiding one layer would throw the camera back to its opening
+   * angle. Kept in place, hiding is a property of a plane that already exists,
+   * and the heights of the others do not shift under it either.
+   */
+  visible: boolean
 }
 
 function union(extents: Bounds[]): Bounds {
@@ -82,6 +92,7 @@ export function layoutCards(layers: RasterLayer[], gap: number): CardPlane[] {
       // By position in the sorted list rather than by the order number, so the
       // spacing is even however far apart the z-indices happen to be.
       y: i * gap,
+      visible: l.visible,
     }
   })
 }

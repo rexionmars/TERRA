@@ -77,6 +77,17 @@ export interface BoardHandle {
    * looking at while adjusting it would keep jumping away.
    */
   setGap: (gap: number) => void
+  /**
+   * Change which planes are drawn and how solid, without rebuilding.
+   *
+   * For the same reason as setGap, and it matters more here: the sidebar's
+   * sliders fire on every input event, and a rebuild per event would tear down
+   * and recreate the GL context while the user drags -- resetting the camera
+   * dozens of times and leaking a context each time the disposal missed one.
+   */
+  setAppearance: (
+    cards: { id: string; opacity: number; visible: boolean }[]
+  ) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -168,10 +179,19 @@ export function createBoard(
    *
    * three ships it, so it costs 12.8 kB of an addon rather than a component.
    */
+  const footPx =
+    parseFloat(getComputedStyle(host).getPropertyValue("--map-foot")) || 0
   const viewHelper = new ViewHelper(camera, renderer.domElement)
-  // left wins over right and bottom over top when the pair is set, per the
-  // helper's own rule, so the corner is chosen by which two are given.
-  viewHelper.location = { ...viewHelper.location, bottom: 12, left: 12 }
+  /*
+    Bottom-right, and lifted clear of the foot.
+
+    It was bottom-left, which is where the sidebar now is -- the helper drew
+    into the canvas underneath it and was invisible. The right corner is free
+    because the map's own controls went with the map, but the period track and
+    the island still cross the bottom of the canvas, so the margin clears the
+    reservation they are measured in.
+  */
+  viewHelper.location = { ...viewHelper.location, bottom: footPx + 12, right: 12 }
   // It orbits about the same point the controls do, or a snap would swing the
   // camera around the origin while the controls still believe in the target.
   viewHelper.center = controls.target
@@ -452,7 +472,18 @@ export function createBoard(
   const loader = new TextureLoader()
   let pending = opts.cards.length
 
-  for (const card of opts.cards) {
+  /*
+    Held in the cards' own order rather than read back from stack.children.
+
+    Textures load asynchronously, so the children arrive in whatever order the
+    decoder finishes -- which is not the stack order. Indexing that array by
+    position, as setGap did, assigned the wrong height to each plane the first
+    time the spread was moved, silently reordering the stack.
+  */
+  const meshes: (Mesh | null)[] = opts.cards.map(() => null)
+  const indexById = new Map(opts.cards.map((c, i) => [c.id, i]))
+
+  opts.cards.forEach((card, index) => {
     loader.load(card.uri, (t) => {
       if (disposed) {
         t.dispose()
@@ -491,7 +522,11 @@ export function createBoard(
       const mesh = new Mesh(geometry, material)
       mesh.rotation.x = -Math.PI / 2
       mesh.position.set(card.x, card.y, card.z)
-      mesh.renderOrder = opts.cards.indexOf(card)
+      mesh.renderOrder = index
+      // Built whether or not it is shown, so hiding one later is a flag on an
+      // existing plane rather than a different scene.
+      mesh.visible = card.visible
+      meshes[index] = mesh
       stack.add(mesh)
       disposables.push(geometry, material, t)
 
@@ -506,17 +541,38 @@ export function createBoard(
       }
       render()
     })
-  }
+  })
 
   return {
     render,
     setGap(gap: number) {
-      // Index order, not the layer's ordering number: even spacing however far
-      // apart those numbers happen to be.
-      stack.children.forEach((child, i) => {
-        child.position.y = i * gap
+      // Card order, not the layer's ordering number: even spacing however far
+      // apart those numbers happen to be. Hidden planes keep their slot, so
+      // showing one again puts it back where the stack left a space for it.
+      meshes.forEach((mesh, i) => {
+        if (mesh) mesh.position.y = i * gap
       })
       render()
+    },
+    setAppearance(next) {
+      let changed = false
+      for (const c of next) {
+        const i = indexById.get(c.id)
+        const mesh = i === undefined ? null : meshes[i]
+        // Absent while its texture is still decoding. Nothing to do: the mesh
+        // is built from the card, so it arrives carrying this state already.
+        if (!mesh) continue
+        const material = mesh.material as MeshBasicMaterial
+        if (mesh.visible !== c.visible) {
+          mesh.visible = c.visible
+          changed = true
+        }
+        if (material.opacity !== c.opacity) {
+          material.opacity = c.opacity
+          changed = true
+        }
+      }
+      if (changed) render()
     },
     dispose() {
       disposed = true
