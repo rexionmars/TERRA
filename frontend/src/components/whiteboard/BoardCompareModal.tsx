@@ -1,20 +1,23 @@
 /**
  * Two linked rasters, read against each other.
  *
- * The board's arrows already say "read this, then this". Pressing one asks the
- * next question -- how do they differ -- and this answers it in the two ways
- * the data allows: a swipe, which works for any two pictures, and an agreement
- * figure, which works only where the two are the same grid and the same kind of
- * thing.
+ * ONE PREDICATE DECIDES WHAT THIS CAN BE, and it is whether the two cover the
+ * same ground.
  *
- * THE SECOND ONE REFUSES MORE OFTEN THAN IT ANSWERS, and that is the honest
- * behaviour rather than a limitation to apologise for. Two rasters from two
- * AOIs are two pieces of ground: laying one over the other and counting matches
- * would produce a number with no referent. Two rasters of one AOI on different
- * grids -- a classification at 10 m in UTM and a solar raster at 1/3600 degree
- * in geographic -- are not pixel-aligned either. The predicate is stated on
- * screen when it fails, because "no answer, and here is why" is information and
- * a number computed anyway is not.
+ * Same ground is the comparison worth having: one AOI classified by two models,
+ * or over two periods, or against its reference. A swipe there is the question
+ * "which of these two calls this field right" asked of the pixels rather than
+ * of a summary statistic, and the agreement figure is the same question
+ * counted. That is what the board's arrows are for.
+ *
+ * Different ground makes a swipe meaningless. Two AOIs are two places; sliding
+ * one footprint over another under a clip-path puts unrelated pixels in the
+ * same rectangle and invites reading a difference that is only two different
+ * fields. So it is not offered. What IS comparable between two places is what
+ * each is made of, so that is shown instead: the two compositions side by side.
+ *
+ * The refusals are stated rather than silent, because "no answer, and here is
+ * why" is information and a number computed anyway is not.
  */
 import { useEffect, useRef, useState } from "react"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
@@ -64,6 +67,13 @@ export function BoardCompareModal({
   onClose: () => void
 }) {
   const [ratio, setRatio] = useState(0.5)
+  /*
+    The whole modal turns on this. The extent, not the pixel count: two
+    different areas can be rastered at the same size, and two runs of ONE area
+    -- the case this exists for -- carry the same extent whatever model made
+    them.
+  */
+  const sameGround = from.extentKey === to.extentKey
   const [agreement, setAgreement] = useState<Agreement>({ state: "working" })
 
   /*
@@ -85,10 +95,10 @@ export function BoardCompareModal({
       counts nothing -- the check is the extent, not the pixel count, because
       two different areas can happen to be rastered at the same size.
     */
-    if (from.extentKey !== to.extentKey) {
+    if (!sameGround) {
       setAgreement({
         state: "off",
-        why: "These cover different ground. An agreement between two areas would count pixels that are not the same place.",
+        why: "Two places, so neither a swipe nor an agreement: sliding one footprint over another puts unrelated pixels in one rectangle, and counting matches between them counts pixels that are not the same ground. What each is made of is set side by side instead.",
       })
       return
     }
@@ -158,7 +168,7 @@ export function BoardCompareModal({
     return () => {
       live = false
     }
-  }, [from.uri, to.uri, from.extentKey, to.extentKey])
+  }, [from.uri, to.uri, sameGround])
 
   const label = (s: CompareSide) =>
     s.areaTitle ? `${s.layerTitle} · ${s.areaTitle}` : s.layerTitle
@@ -176,6 +186,57 @@ export function BoardCompareModal({
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+        {!sameGround ? (
+          /*
+            No swipe across two places. What each is MADE of is comparable, so
+            the two compositions run side by side -- and where a side is not a
+            class map there is nothing to list, which the block says.
+          */
+          <div className="grid min-h-0 flex-1 grid-cols-2 gap-4 overflow-auto">
+            {[from, to].map((s, i) => (
+              <div key={i} className="flex min-w-0 flex-col gap-2">
+                <p className="eyebrow !text-[9px] truncate">{label(s)}</p>
+                {s.legend?.kind === "classes" ? (
+                  <ul className="flex flex-col gap-1">
+                    {s.legend.entries.map((e) => (
+                      <li
+                        key={`${e.name}-${e.color}`}
+                        className="flex items-center gap-2"
+                      >
+                        <span
+                          className="size-2.5 shrink-0 rounded-[2px]"
+                          style={{
+                            background: e.color,
+                            boxShadow:
+                              "inset 0 0 0 1px rgb(var(--p-line-strong) / 0.5)",
+                          }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-meta text-foreground">
+                          {e.name}
+                        </span>
+                        {e.areaHa !== undefined && (
+                          <span className="telemetry shrink-0 text-[9px] text-muted-foreground/70">
+                            {e.areaHa.toFixed(0)} ha
+                          </span>
+                        )}
+                        {e.pct !== undefined && (
+                          <span className="telemetry w-14 shrink-0 text-right text-meta text-foreground">
+                            {e.pct.toFixed(1)}%
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-meta text-muted-foreground">
+                    Not a class map, so there is no composition to set beside
+                    the other.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="min-h-0 flex-1 overflow-hidden rounded-md bg-surface">
           <PlotSwipeView
             left={{
@@ -196,6 +257,7 @@ export function BoardCompareModal({
             onRatioChange={setRatio}
           />
         </div>
+        )}
 
         <div className="flex items-start gap-4">
           <div className="flex shrink-0 flex-col gap-0.5">
