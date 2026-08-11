@@ -29,6 +29,7 @@ import {
   AlignVerticalJustifyEnd,
   ChevronDown,
   ChevronRight,
+  Play,
   Download,
   Minus,
   Plus,
@@ -45,6 +46,7 @@ import {
   Wrench,
   X,
 } from "lucide-react"
+import type { BoardTask } from "@/lib/boardTasks"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
@@ -61,7 +63,8 @@ import { cn } from "@/lib/utils"
  * has. "Scene" is what is on the board and can be arranged; "Data" is what the
  * run produced, drawn or not, and what can be exported or dropped.
  */
-export type OutlinerMode = "scene" | "data"
+export type OutlinerMode = "scene" | "data" | "tasks"
+
 
 export interface LayerPatch {
   visible?: boolean
@@ -203,6 +206,7 @@ export function BoardSidebar({
   canLink,
   labels,
   onLabelsChange,
+  tasks,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -283,6 +287,14 @@ export function BoardSidebar({
   /** Each raster's name, shown over it on the board. */
   labels: boolean
   onLabelsChange: (v: boolean) => void
+  /**
+   * What can be run on the board's own area.
+   *
+   * The whole point of the surface is that the work is about an AREA, not
+   * about a map -- so the work belongs where the area is. Empty where there is
+   * no area to run on.
+   */
+  tasks: BoardTask[]
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -665,6 +677,7 @@ export function BoardSidebar({
             [
               ["scene", "Scene", Layers],
               ["data", "Data", ImageIcon],
+              ["tasks", "Run", Play],
             ] as const
           ).map(([id, label, Icon]) => (
             <button
@@ -674,7 +687,7 @@ export function BoardSidebar({
               aria-selected={mode === id}
               onClick={() => onModeChange(id)}
               className={cn(
-                "flex items-center gap-1.5 rounded-sm px-2 py-1 text-meta transition-colors",
+                "flex items-center gap-1 rounded-sm px-1.5 py-1 text-meta transition-colors",
                 "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
                 mode === id
                   ? "bg-surface-raised text-foreground"
@@ -691,7 +704,9 @@ export function BoardSidebar({
             ? allRows.some((r) => r.depth === 1)
               ? `${allRows.filter((r) => r.depth === 1 && r.visible).length}/${allRows.filter((r) => r.depth === 1).length}`
               : null
-            : allAssetRows.length || null}
+            : mode === "data"
+              ? allAssetRows.length || null
+              : null}
         </span>
       </div>
 
@@ -1075,6 +1090,91 @@ export function BoardSidebar({
         the column, which is the thing it should be measured from anyway.
       */}
       {mode === "data" && <div className="shrink-0">{addRun}</div>}
+
+      {mode === "tasks" && (
+        /*
+          What can be run on this area, and what it will run with.
+
+          Here rather than on the map because the work is about an AREA -- a
+          board opened on one drawn a moment ago has nothing else to offer, and
+          sending someone back to the map to start the thing whose result they
+          came here to look at is sending them away from the subject.
+
+          The parameters themselves stay on the map: a period and a model are
+          set once for a session, and repeating those controls here would be a
+          second place they could be set to different things.
+        */
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {tasks.length === 0 ? (
+            <p className="px-1.5 py-1 text-meta leading-relaxed text-muted-foreground">
+              Draw an area on the map to have something to run on.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {tasks.map((t) => (
+                <div
+                  key={t.id}
+                  className="rounded-sm p-2"
+                  style={{ background: "rgb(var(--p-surface-raised) / 0.4)" }}
+                >
+                  <p className="text-emphasis text-foreground">{t.label}</p>
+                  <p className="telemetry mt-0.5 text-meta leading-snug text-muted-foreground">
+                    {t.running ? t.progressMsg || "working…" : t.detail}
+                  </p>
+
+                  {t.running ? (
+                    /*
+                      A bar rather than a spinner: these runs are minutes long,
+                      and a spinner that turns for four minutes says only that
+                      the application has not crashed.
+                    */
+                    <div
+                      className="mt-1.5 h-1 w-full overflow-hidden rounded-full"
+                      style={{ background: "rgb(var(--p-line) / 0.3)" }}
+                      role="progressbar"
+                      aria-valuenow={Math.round(t.progress * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={`${t.label} progress`}
+                    >
+                      <div
+                        className="h-full bg-accent transition-[width]"
+                        style={{ width: `${Math.round(t.progress * 100)}%` }}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={t.onRun}
+                      disabled={!t.canRun}
+                      title={t.canRun ? undefined : t.blockedBy}
+                      className={cn(
+                        "mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-sm py-1 text-meta transition-colors",
+                        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                        t.canRun
+                          ? "bg-surface-raised text-foreground hover:bg-secondary"
+                          : "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
+                      )}
+                    >
+                      <Play className="size-3 shrink-0" strokeWidth={2} />
+                      Run
+                    </button>
+                  )}
+                  {/*
+                    A refusal that says why. "Run" greyed with no reason is a
+                    control that has stopped being a control.
+                  */}
+                  {!t.canRun && !t.running && t.blockedBy && (
+                    <p className="mt-1 text-meta leading-snug text-muted-foreground/70">
+                      {t.blockedBy}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/*
         The properties of whatever is active. One panel however many layers

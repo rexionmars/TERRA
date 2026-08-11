@@ -816,6 +816,44 @@ export function createBoard(
   })
   /** Which area a plane belongs to, for the drag and for the hit test. */
   const groupOfMesh = new Map<Mesh, GroupRuntime>()
+
+  /*
+    The footprint of an area that has no rasters yet.
+
+    Drawn in the grid's own colour rather than the accent: it is ground, not a
+    selection. It exists because the board is where the work that produces
+    those rasters is started, and an area you cannot see is an area you cannot
+    aim at -- before this, a freshly drawn AOI opened onto an empty grid.
+
+    Only while the area is empty. Once a raster lands it says where the area is
+    far better than a line does, and a line still there would be a second
+    boundary to reconcile with the first.
+  */
+  const footprintMaterial = new LineBasicMaterial({
+    color: new Color(opts.line),
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+  })
+  disposables.push(footprintMaterial)
+  for (const rt of runtimes) {
+    const g = opts.groups.find((x) => x.id === rt.id)
+    if (!g?.outline?.length || g.cards.length) continue
+    const loop = new LineLoop(
+      new BufferGeometry().setAttribute(
+        "position",
+        new Float32BufferAttribute(
+          // Flat on the ground: the ring is board XZ, and this hangs off the
+          // area's root rather than off a plane, so no rotation is involved.
+          g.outline.flatMap((pt) => [pt.x, 0, pt.z]),
+          3
+        )
+      ),
+      footprintMaterial
+    )
+    rt.root.add(loop)
+    disposables.push(loop.geometry)
+  }
   /** Its key, so a hit can be compared against the selection without a search. */
   const keyOfMesh = new Map<Mesh, string>()
 
@@ -963,6 +1001,22 @@ export function createBoard(
   */
   let drawIndex = 0
   const totalPlanes = pending
+  /*
+    With no textures to wait for, nothing would ever call the framing below --
+    it hangs off the last one to land. An area drawn and not yet run has
+    exactly that shape, so the board frames on what it does have.
+  */
+  if (pending === 0 && runtimes.length) {
+    const box = new Box3().setFromObject(world)
+    const sphere = box.getBoundingSphere(new Sphere())
+    if (sphere.radius > 0) {
+      world.position.y = -sphere.center.y
+      addGround(sphere.radius)
+      frame(sphere.radius)
+      render()
+    }
+  }
+
   for (const rt of runtimes) {
   const group = opts.groups.find((g) => g.id === rt.id)!
   /*

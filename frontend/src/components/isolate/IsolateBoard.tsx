@@ -16,6 +16,7 @@ import { X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/isolate/BoardSidebar"
 import type { OutlinerMode } from "@/components/isolate/BoardSidebar"
+import type { BoardTask } from "@/lib/boardTasks"
 import {
   BoardSidebar,
   layerRow,
@@ -133,6 +134,7 @@ export function IsolateBoard({
   runId,
   runPeriod,
   aoiPolygon,
+  tasks,
   onLayerChange,
   onSelectComposition,
   onRemoveComposition,
@@ -173,6 +175,8 @@ export function IsolateBoard({
    * Absent where the shape cannot be resolved, and the rectangle stands in.
    */
   aoiPolygon?: LonLat[] | null
+  /** What the map screen can run on this area, described. */
+  tasks: BoardTask[]
   onLayerChange: (id: string, patch: LayerPatch) => void
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
@@ -497,7 +501,14 @@ export function IsolateBoard({
         title: names[stackRow(r.areaId)] ?? r.title,
         layers: applyOrder(r.areaId, extrasFor(r.areaId, 400)),
       })),
-  ].filter((a) => a.layers.length > 0)
+  ].filter(
+    (a) =>
+      a.layers.length > 0 ||
+      // The map's own area survives having nothing on it, so long as an area
+      // has been drawn: it is the thing the work is about to be run on, and
+      // the board is where that work is started.
+      (a.id === CURRENT_AREA && !!aoiPolygon?.length)
+  )
 
   /*
     Which rasters are planes on the board, keyed by area and scene id together.
@@ -1008,6 +1019,7 @@ export function IsolateBoard({
         onLinksChange={setLinks}
         labels={labels}
         onLabelsChange={setLabels}
+        tasks={tasks}
         // Nothing to join until some area holds more than one raster.
         canLink={areas.some((a) => a.layers.length > 1)}
         onSmoothChange={onSmoothChange}

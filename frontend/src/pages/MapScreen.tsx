@@ -25,6 +25,7 @@ import type { MapToolId } from "@/lib/mapTools"
 import { rasterLayers } from "@/lib/mapLayers"
 import { runAssets } from "@/lib/runAssets"
 import { boardHoldsOtherAreas } from "@/components/isolate/boardMemory"
+import type { BoardTask } from "@/lib/boardTasks"
 import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
@@ -291,7 +292,55 @@ export function MapScreen(props: MapScreenProps) {
    * what it replaced is still hidden.
    */
   const boardOpen =
-    isolate && (boardLayers.length > 0 || boardHoldsOtherAreas())
+    isolate &&
+    (boardLayers.length > 0 || boardHoldsOtherAreas() || props.hasArea)
+
+  /**
+   * What can be run on the area, for the board to offer.
+   *
+   * Built from the same state the docked panel's run button reads, so the two
+   * cannot come to disagree about whether something can go. The parameters
+   * stay on the map: a period and a model are set once for a session, and a
+   * second place to set them is a second answer.
+   */
+  const boardTasks: BoardTask[] = !props.hasArea
+    ? []
+    : [
+        {
+          id: "classify",
+          label: "Classification",
+          detail: `${props.modelKind} · ${props.start} → ${props.end}`,
+          running: props.running,
+          progress: props.progress,
+          progressMsg: props.progressMsg,
+          canRun: !!props.start && !!props.end,
+          blockedBy: "Set a period on the map first.",
+          onRun: props.onRun,
+        },
+        {
+          id: "compose",
+          label: "Composition",
+          detail: props.selectedSceneId
+            ? `scene ${props.selectedSceneId}`
+            : "one scene, chosen on the map",
+          running: props.composeRunning,
+          progress: props.composeProgress,
+          progressMsg: props.composeProgressMsg,
+          canRun: !!props.selectedSceneId,
+          blockedBy: "Choose a scene under Compositions on the map.",
+          onRun: props.onApplyComposition,
+        },
+        {
+          id: "water",
+          label: "Surface water",
+          detail: `${props.start} → ${props.end}`,
+          running: props.waterRunning,
+          progress: props.waterProgress,
+          progressMsg: props.waterProgressMsg,
+          canRun: true,
+          onRun: props.onRunWater,
+        },
+      ]
 
   /*
     The same table the overlay tools panel lists, so the board's data mode and
@@ -560,7 +609,7 @@ export function MapScreen(props: MapScreenProps) {
             {!workspace && (
               <IsolateBoardButton
                 active={boardOpen}
-                disabled={!boardLayers.length}
+                disabled={!boardLayers.length && !props.hasArea}
                 onClick={() =>
                 setIsolate((o) => {
                   // Closing the overlay drawer on the way in: the sidebar
@@ -672,6 +721,7 @@ export function MapScreen(props: MapScreenProps) {
                     ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
                 ) ?? undefined
               }
+              tasks={boardTasks}
               runPeriod={
                 props.result?.date_range?.length === 2
                   ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`
@@ -707,7 +757,7 @@ export function MapScreen(props: MapScreenProps) {
             isolateSlot={
               <IsolateBoardButton
                 active={boardOpen}
-                disabled={!boardLayers.length}
+                disabled={!boardLayers.length && !props.hasArea}
                 onClick={() =>
                 setIsolate((o) => {
                   // Closing the overlay drawer on the way in: the sidebar

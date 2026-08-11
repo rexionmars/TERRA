@@ -88,6 +88,16 @@ function union(extents: Bounds[]): Bounds {
  * not a span on the ground. Without this a Brazilian parcel is drawn stretched
  * east-west by about a tenth.
  */
+/** A ring's own bounding box, for an area that has no raster yet. */
+function ringBounds(ring: LonLat[]): Bounds {
+  return {
+    lon_min: Math.min(...ring.map((p) => p[0])),
+    lat_min: Math.min(...ring.map((p) => p[1])),
+    lon_max: Math.max(...ring.map((p) => p[0])),
+    lat_max: Math.max(...ring.map((p) => p[1])),
+  }
+}
+
 function groundSize(u: Bounds): { w: number; h: number; kx: number } {
   const kx = lonScaleAtLat((u.lat_min + u.lat_max) / 2)
   return { w: (u.lon_max - u.lon_min) * kx, h: u.lat_max - u.lat_min, kx }
@@ -119,10 +129,24 @@ const AREA_MARGIN = 0.3
  * @param gap Vertical separation between consecutive layers, in world units.
  */
 export function layoutGroups(groups: GroupInput[], gap: number): CardGroup[] {
-  const live = groups.filter((g) => g.layers.length > 0)
+  /*
+    An area with no rasters is still an area.
+
+    It used to be filtered out, which made a freshly drawn AOI invisible to the
+    board -- and the board is where the work that produces those rasters is
+    meant to be started. An area is dropped only when it has neither rasters
+    nor a shape, because then there is nothing to place and nothing to draw.
+  */
+  const live = groups.filter((g) => g.layers.length > 0 || g.polygon?.length)
   if (!live.length) return []
 
-  const unions = live.map((g) => union(g.layers.map((l) => l.extent)))
+  // From the rasters where there are any, and from the shape where there are
+  // not: the scale has to come from somewhere before the first run.
+  const unions = live.map((g) =>
+    g.layers.length
+      ? union(g.layers.map((l) => l.extent))
+      : ringBounds(g.polygon!)
+  )
   const sizes = unions.map(groundSize)
   // The largest area's longest side becomes one world unit, so the board's
   // scale does not depend on which areas happen to be on it.
