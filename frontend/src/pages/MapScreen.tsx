@@ -87,6 +87,7 @@ import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
+import { BoardAreaModal } from "@/components/whiteboard/BoardAreaModal"
 import { ConfidenceLegend } from "@/components/ConfidenceLegend"
 import { statusPanelInset } from "@/components/analysisPrimitives"
 import {
@@ -322,6 +323,13 @@ export function MapScreen(props: MapScreenProps) {
   const [solarProduct, setSolarProduct] = useState<"terrain" | "siting">(
     "terrain"
   )
+  /**
+   * Whether the board is showing a map to draw an area on.
+   *
+   * Only from the board: on the map the drawing tool is already there, and a
+   * modal over it would be a second map over the one that has one.
+   */
+  const [drawingArea, setDrawingArea] = useState(false)
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
@@ -892,6 +900,7 @@ export function MapScreen(props: MapScreenProps) {
           hasArea={props.hasArea}
           activeExample={props.activeExample}
           onImportPolygon={props.onImportPolygon}
+          onDrawArea={() => setDrawingArea(true)}
           onClearArea={props.onClearArea}
           start={props.start}
           end={props.end}
@@ -1157,6 +1166,20 @@ export function MapScreen(props: MapScreenProps) {
           />
         ) : null}
       </AnimatePresence>
+
+      {drawingArea && (
+        <BoardAreaModal
+          /*
+            Opens where the work is: the view the map was left at, so the shape
+            is drawn over the ground already being looked at rather than over
+            the world.
+          */
+          view={props.initialView ?? { lat: -26.23, lon: -52.67, zoom: 12 }}
+          polygon={props.customPolygon}
+          onPolygonDrawn={props.onPolygonDrawn}
+          onClose={() => setDrawingArea(false)}
+        />
+      )}
 
       <DataCubeModal
         open={!!props.dataCubeOpen}

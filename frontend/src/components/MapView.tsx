@@ -597,8 +597,15 @@ function SwipeDivider({
   )
 }
 
-// leaflet-draw integration: a single-polygon draw tool with edit/clear.
-function DrawControl({
+/**
+ * leaflet-draw integration: a single-polygon draw tool with edit/clear.
+ *
+ * Exported because the whiteboard draws an area without leaving the board, in a
+ * map of its own. A second copy of this would be a second place for the
+ * leaflet-draw patch, the single-polygon rule and the geometry it emits to
+ * drift from what the map screen means by an AOI.
+ */
+export function DrawControl({
   customPolygon,
   onPolygonDrawn,
 }: {

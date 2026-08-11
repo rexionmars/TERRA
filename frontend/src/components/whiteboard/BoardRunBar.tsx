@@ -32,6 +32,7 @@ import {
   Mountain,
   Network,
   Package,
+  PenTool,
   Pentagon,
   Play,
   Sun,
@@ -211,6 +212,8 @@ export interface BoardRunBarProps {
   hasArea: boolean
   activeExample: string
   onImportPolygon: () => void
+  /** Opens a map to draw one on; absent where the caller offers no such map. */
+  onDrawArea?: () => void
   onClearArea: () => void
 
   start: string
@@ -318,6 +321,23 @@ export function BoardRunBar(props: BoardRunBarProps) {
           >
             {props.hasArea ? props.activeExample || "drawn" : "none"}
           </span>
+          {/*
+            First of the three, because it is the one that MAKES an area: the
+            other two act on one that exists. Drawing was the only way to get an
+            AOI and the only place to do it was the map, so reaching it meant
+            closing the board the area was being drawn for.
+          */}
+          {props.onDrawArea && (
+            <button
+              type="button"
+              onClick={props.onDrawArea}
+              disabled={busy}
+              title="Draw an area on a map"
+              className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-surface-raised/60 hover:text-foreground disabled:opacity-40"
+            >
+              <PenTool className="size-3" />
+            </button>
+          )}
           <button
             type="button"
             onClick={props.onImportPolygon}
