@@ -227,13 +227,19 @@ export function DateField({
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
-          "telemetry rounded-sm px-1.5 py-0.5 text-meta transition-colors",
+          /*
+            The same box as NumberField, and for the same reason: at
+            bg-surface-raised/60 this composited to 1.17 against the band's ink
+            and 1.08 in light -- the faintest chrome in the band, reading as
+            plain mono text. Matched in height too, so a row of fields lines up.
+          */
+          "telemetry inline-flex h-[1.375rem] items-center rounded-sm px-1.5 text-meta transition-colors",
           "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
           disabled
-            ? "cursor-not-allowed text-muted-foreground/50"
+            ? "cursor-not-allowed bg-surface-raised/40 inset-ring-1 inset-ring-line text-muted-foreground/50"
             : open
-              ? "bg-surface-raised text-foreground"
-              : "bg-surface-raised/60 text-foreground hover:bg-surface-raised",
+              ? "bg-surface-raised text-foreground inset-ring-1 inset-ring-accent"
+              : "bg-surface-raised text-foreground inset-ring-1 inset-ring-line-strong hover:bg-surface-raised/80",
           className
         )}
       >

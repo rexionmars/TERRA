@@ -20,15 +20,25 @@
  * bug waiting for someone to add a model.
  */
 import {
+  ArrowRight,
+  CalendarRange,
+  Check,
   Droplet,
   Grid2x2,
+  History,
   Image as ImageIcon,
   Loader2,
   type LucideIcon,
+  Mountain,
+  Network,
+  Package,
+  Pentagon,
   Play,
   Sun,
+  SunSnow,
   Trash2,
   Upload,
+  Workflow,
 } from "lucide-react"
 import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"
@@ -55,11 +65,15 @@ const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
   solar: Sun,
 }
 
+
 /** A named group of controls. */
 function Group({
+  icon: Icon,
   label,
   children,
 }: {
+  /** The group's subject, the same intent as the board tree's layerIcon(). */
+  icon: LucideIcon
   label: string
   children: React.ReactNode
 }) {
@@ -73,8 +87,17 @@ function Group({
       becomes a column heading and the eye finds the group before it reads any
       of it. This is what the band's height is for.
     */
-    <div className="flex shrink-0 flex-col justify-center gap-1 px-2.5">
-      <span className="eyebrow !text-[9px] shrink-0">{label}</span>
+    <div className="flex shrink-0 flex-col justify-center gap-1 px-2">
+      {/*
+        The glyph rides the eyebrow row, which is the cheap one: a label is
+        26-55px wide against control rows of 96-388px, so a 12px icon there
+        costs nothing horizontally. .eyebrow sets the colour and lucide strokes
+        currentColor, so the glyph is muted with its label without saying so.
+      */}
+      <span className="eyebrow !text-[9px] flex shrink-0 items-center gap-1.5">
+        <Icon className="size-3 shrink-0" strokeWidth={2} />
+        {label}
+      </span>
       <div className="flex shrink-0 items-center gap-1.5">{children}</div>
     </div>
   )
@@ -118,13 +141,32 @@ function Choice({
       disabled={disabled}
       title={blockedBy ?? undefined}
       className={cn(
-        "shrink-0 rounded-sm px-1.5 py-0.5 text-meta transition-colors",
+        /*
+          The RING carries the chosen state, not the fill and not an underline.
+
+          The fill is a hue mark only -- accent-dim measures 1.35 on ink -- so
+          it cannot carry the state alone, and saying so is the point: the ring
+          clears 3.88 against its own plate and 5.23 against the ink outside.
+          An accent hairline under the cell was tried and dropped: that exact
+          rule is the board tree's DROP INDICATOR (BoardSidebar), where an
+          accent line on an edge means where a dragged row would land. One
+          idiom, one meaning.
+
+          The label stays text-foreground, 9.76 on accent-dim, against 6.93 for
+          an unchosen neighbour on ink. accent-quiet was measured and rejected:
+          5.72 on the plate is DIMMER than muted-on-ink, which would make the
+          chosen value the faintest thing in its own group.
+
+          One height with NumberField and DateField, so a control row scans as
+          one line rather than three.
+        */
+        "inline-flex h-[1.375rem] shrink-0 items-center rounded-sm px-1.5 text-meta transition-colors",
         "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
         disabled
           ? "cursor-not-allowed text-muted-foreground/40"
           : chosen
-            ? "bg-surface-raised text-foreground"
-            : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
+            ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
+            : "text-muted-foreground hover:bg-surface-raised hover:text-foreground",
       )}
     >
       {label}
@@ -222,42 +264,58 @@ export function BoardRunBar(props: BoardRunBarProps) {
         reachable from anywhere in the band.
       */}
       <div className="panel-scroll flex min-w-0 flex-1 items-center overflow-x-auto py-1">
-        <div className="flex shrink-0 items-center gap-0.5 pl-2.5">
+        <div
+          role="tablist"
+          className="flex shrink-0 items-center gap-0.5 pl-2.5"
+        >
           {/*
             Solar only where this band was given a way to run it. Offering a
             tool that cannot be started is the dead control this file's
             neighbour argues against, and it would be a whole tab of one.
           */}
-          {BOARD_TOOLS.filter((t) => t.id !== "solar" || !!props.solar).map((t) => {
-            const on = props.tool === t.id
-            const Icon = TOOL_ICON[t.id]
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                onClick={() => props.onToolChange(t.id)}
-                title={t.label}
-                className={cn(
-                  "flex shrink-0 items-center gap-1.5 rounded-sm px-1.5 py-1 text-meta transition-colors",
-                  "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-                  on
-                    ? "bg-surface-raised text-foreground"
-                    : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
-                )}
-              >
-                <Icon className="size-3.5 shrink-0" strokeWidth={1.75} />
-                {on && t.label}
-              </button>
-            )
-          })}
+          {BOARD_TOOLS.filter((t) => t.id !== "solar" || !!props.solar).map(
+            (t) => {
+              const on = props.tool === t.id
+              const Icon = TOOL_ICON[t.id]
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => props.onToolChange(t.id)}
+                  title={t.label}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-sm px-1.5 py-1 text-meta transition-colors",
+                    "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                    on
+                      ? "bg-surface-raised text-foreground"
+                      : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-3.5 shrink-0" strokeWidth={1.75} />
+                  {on && t.label}
+                </button>
+              )
+            },
+          )}
         </div>
 
         <Divider />
 
-        <Group label="Area">
-          <span className="telemetry shrink-0 text-meta text-foreground">
+        <Group icon={Pentagon} label="Area">
+          {/*
+            Loud when there is an area and quiet when there is not. It is a
+            readout rather than a field, so it takes no box -- but it is part of
+            what Run will do, so demoting it wholesale would have hidden the
+            answer. What is quiet is the ABSENCE.
+          */}
+          <span
+            className={cn(
+              "telemetry shrink-0 truncate text-meta",
+              props.hasArea ? "max-w-[10rem] text-foreground" : "text-muted-foreground"
+            )}
+          >
             {props.hasArea ? props.activeExample || "drawn" : "none"}
           </span>
           <button
@@ -289,10 +347,10 @@ export function BoardRunBar(props: BoardRunBarProps) {
         */}
         {props.tool !== "solar" && (
           <>
-        <Divider />
+            <Divider />
 
-        <Group label="Period">
-          {/*
+            <Group icon={CalendarRange} label="Period">
+              {/*
             Not `<input type="date">`. The platform draws its picker BELOW the
             field, and a field on the foot band has nothing below it -- the
             calendar rendered over the dock, cut off, with no way to reach the
@@ -300,69 +358,94 @@ export function BoardRunBar(props: BoardRunBarProps) {
             can ask the platform to change, so the calendar is drawn by
             DateField and opens upward.
           */}
-          <DateField
-            value={props.start}
-            disabled={busy}
-            onChange={props.onStartChange}
-          />
-          <span className="shrink-0 text-meta text-muted-foreground">→</span>
-          <DateField
-            value={props.end}
-            disabled={busy}
-            onChange={props.onEndChange}
-          />
-          <div className="w-24 shrink-0">
-            <NumberField
-              label="Cloud"
-              value={props.maxCloud}
-              min={0}
-              max={100}
-              step={5}
-              format={(v) => `${Math.round(v)}%`}
-              parse={(t) => {
-                const v = parseFloat(t.replace("%", "").trim())
-                return Number.isFinite(v) ? v : null
-              }}
-              disabled={busy}
-              onChange={(v) => props.onMaxCloudChange(Math.round(v))}
-            />
-          </div>
-          <label className="flex shrink-0 items-center gap-1.5 text-meta text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={props.monthlyBest}
-              disabled={busy}
-              onChange={(e) => props.onMonthlyBestChange(e.target.checked)}
-              className="accent-primary"
-            />
-            best/month
-          </label>
-        </Group>
+              <DateField
+                value={props.start}
+                disabled={busy}
+                onChange={props.onStartChange}
+              />
+              <ArrowRight
+                className="size-3 shrink-0 text-muted-foreground"
+                strokeWidth={1.75}
+              />
+              <DateField
+                value={props.end}
+                disabled={busy}
+                onChange={props.onEndChange}
+              />
+              <div className="w-24 shrink-0">
+                <NumberField
+                  label="Cloud"
+                  value={props.maxCloud}
+                  min={0}
+                  max={100}
+                  step={5}
+                  format={(v) => `${Math.round(v)}%`}
+                  parse={(t) => {
+                    const v = parseFloat(t.replace("%", "").trim())
+                    return Number.isFinite(v) ? v : null
+                  }}
+                  disabled={busy}
+                  onChange={(v) => props.onMaxCloudChange(Math.round(v))}
+                />
+              </div>
+              {/*
+                A boxed toggle rather than a native checkbox, which was the one
+                control here drawing platform chrome -- at a size and colour the
+                theme does not own. Now it joins the vocabulary: the same 22px
+                height and the same boundary as the fields beside it, lit with
+                the accent when it is on, like a chosen cell.
+              */}
+              <button
+                type="button"
+                onClick={() => props.onMonthlyBestChange(!props.monthlyBest)}
+                disabled={busy}
+                aria-pressed={props.monthlyBest}
+                title="Keep only the best scene of each month"
+                className={cn(
+                  "flex h-[1.375rem] shrink-0 items-center gap-1 rounded-sm px-2 text-meta transition-colors inset-ring-1",
+                  "focus-visible:outline-none focus-visible:inset-ring-ring",
+                  busy
+                    ? "cursor-not-allowed inset-ring-line text-muted-foreground/40"
+                    : props.monthlyBest
+                      ? "bg-accent-dim text-accent-quiet inset-ring-accent"
+                      : "text-muted-foreground inset-ring-line-strong hover:text-foreground"
+                )}
+              >
+                <Check
+                  className={cn(
+                    "size-3 shrink-0",
+                    props.monthlyBest ? "" : "opacity-0"
+                  )}
+                  strokeWidth={2.25}
+                />
+                best/month
+              </button>
+            </Group>
           </>
         )}
 
         {props.tool === "solar" && props.solar && (
           <>
             <Divider />
-            <Group label="Product">
-              <Choice
-                label="Irradiation"
-                chosen={props.solar.product === "terrain"}
-                disabled={busy}
-                onPick={() => props.solar?.onProductChange("terrain")}
-              />
-              <Choice
-                label="Siting"
-                chosen={props.solar.product === "siting"}
-                disabled={busy}
-                onPick={() => props.solar?.onProductChange("siting")}
-              />
+            <Group icon={Package} label="Product">
+                <Choice
+                  label="Irradiation"
+                  chosen={props.solar.product === "terrain"}
+                  disabled={busy}
+                  onPick={() => props.solar?.onProductChange("terrain")}
+                />
+                <Choice
+                  label="Siting"
+                  chosen={props.solar.product === "siting"}
+                  disabled={busy}
+                  onPick={() => props.solar?.onProductChange("siting")}
+                />
             </Group>
 
             {props.solar.product === "terrain" && (
               <>
                 <Divider />
-                <Group label="Record">
+                <Group icon={History} label="Record">
                   <div className="w-24 shrink-0">
                     <NumberField
                       label="Hourly"
@@ -388,16 +471,16 @@ export function BoardRunBar(props: BoardRunBarProps) {
                   states above: a platform picker opens below the field, and
                   this band has nothing below it. Six short labels fit.
                 */}
-                <Group label="Season">
-                  {SOLAR_SEASONS.map((o) => (
-                    <Choice
-                      key={o.id}
-                      label={o.label}
-                      chosen={props.solar?.season === o.id}
-                      disabled={busy}
-                      onPick={() => props.solar?.onSeasonChange(o.id)}
-                    />
-                  ))}
+                <Group icon={SunSnow} label="Season">
+                    {SOLAR_SEASONS.map((o) => (
+                      <Choice
+                        key={o.id}
+                        label={o.label}
+                        chosen={props.solar?.season === o.id}
+                        disabled={busy}
+                        onPick={() => props.solar?.onSeasonChange(o.id)}
+                      />
+                    ))}
                 </Group>
               </>
             )}
@@ -405,7 +488,7 @@ export function BoardRunBar(props: BoardRunBarProps) {
             {props.solar.product === "siting" && (
               <>
                 <Divider />
-                <Group label="Slope">
+                <Group icon={Mountain} label="Slope">
                   <div className="w-28 shrink-0">
                     <NumberField
                       label="Acceptable"
@@ -422,7 +505,7 @@ export function BoardRunBar(props: BoardRunBarProps) {
                       onChange={(v) =>
                         props.solar?.onSlopeChange(
                           Math.round(v),
-                          props.solar.slopeRestrictiveDeg
+                          props.solar.slopeRestrictiveDeg,
                         )
                       }
                     />
@@ -443,7 +526,7 @@ export function BoardRunBar(props: BoardRunBarProps) {
                       onChange={(v) =>
                         props.solar?.onSlopeChange(
                           props.solar.slopeAcceptableDeg,
-                          Math.round(v)
+                          Math.round(v),
                         )
                       }
                     />
@@ -457,33 +540,33 @@ export function BoardRunBar(props: BoardRunBarProps) {
         {props.tool === "classify" && (
           <>
             <Divider />
-            <Group label="Model">
-              {MODEL_OPTIONS.map((m) => (
-                <Choice
-                  key={m.id}
-                  label={m.label}
-                  chosen={props.modelKind === m.id}
-                  disabled={busy}
-                  onPick={() => props.onModelKindChange(m.id)}
-                />
-              ))}
-            </Group>
-
-            <Divider />
-            <Group label="Mode">
-              {MODE_OPTIONS.map((m) => {
-                const blocked = modeBlockedBy(m.id, props.modelKind)
-                return (
+            <Group icon={Network} label="Model">
+                {MODEL_OPTIONS.map((m) => (
                   <Choice
                     key={m.id}
                     label={m.label}
-                    chosen={props.mode === m.id}
-                    disabled={busy || !!blocked}
-                    blockedBy={blocked}
-                    onPick={() => props.onModeChange(m.id)}
+                    chosen={props.modelKind === m.id}
+                    disabled={busy}
+                    onPick={() => props.onModelKindChange(m.id)}
                   />
-                )
-              })}
+                ))}
+            </Group>
+
+            <Divider />
+            <Group icon={Workflow} label="Mode">
+                {MODE_OPTIONS.map((m) => {
+                  const blocked = modeBlockedBy(m.id, props.modelKind)
+                  return (
+                    <Choice
+                      key={m.id}
+                      label={m.label}
+                      chosen={props.mode === m.id}
+                      disabled={busy || !!blocked}
+                      blockedBy={blocked}
+                      onPick={() => props.onModeChange(m.id)}
+                    />
+                  )
+                })}
             </Group>
           </>
         )}
@@ -511,14 +594,18 @@ export function BoardRunBar(props: BoardRunBarProps) {
             every change costs more attention than it returns.
           */
           title={
-            !props.canRun ? props.blockedBy : busy ? props.progressMsg : undefined
+            !props.canRun
+              ? props.blockedBy
+              : busy
+                ? props.progressMsg
+                : undefined
           }
           className={cn(
             "flex shrink-0 items-center gap-1.5 rounded-sm px-3 py-1.5 text-meta transition-colors",
             "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
             !props.canRun || busy
               ? "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
-              : "bg-accent text-white hover:opacity-90"
+              : "bg-accent text-white hover:opacity-90",
           )}
         >
           {busy ? (

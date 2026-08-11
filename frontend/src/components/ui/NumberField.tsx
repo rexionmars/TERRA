@@ -161,9 +161,16 @@ export function NumberField({
       className={cn(
         "flex h-[1.375rem] select-none items-center justify-between gap-2 rounded-sm px-2 transition-colors",
         "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+        /*
+          A boundary, not only a fill. The fill alone measures 1.33 against the
+          whiteboard band's ink and 1.13 in light, so the field had no visible
+          edge in either theme -- it read as text, which is what it was reported
+          as. line-strong clears 4.11 and 3.82 there, and inset-ring is an inset
+          box-shadow, so it costs no layout width.
+        */
         disabled
-          ? "cursor-not-allowed bg-surface-raised/40 opacity-45"
-          : "cursor-ew-resize bg-surface-raised hover:bg-surface-raised/80"
+          ? "cursor-not-allowed bg-surface-raised/40 inset-ring-1 inset-ring-line opacity-45"
+          : "cursor-ew-resize bg-surface-raised inset-ring-1 inset-ring-line-strong hover:bg-surface-raised/80"
       )}
     >
       <span className="min-w-0 truncate text-meta text-muted-foreground">
