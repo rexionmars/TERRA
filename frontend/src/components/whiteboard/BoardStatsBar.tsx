@@ -33,6 +33,14 @@ export interface StatsEntry {
   area?: string
   /** The run's window, where the area has one. */
   period?: string
+  /**
+   * What produced this raster, from the run record.
+   *
+   * Two runs of one AOI are told apart by their estimator, not by their name --
+   * both are called "run-custom-aoi-..." and both cover the same window. The
+   * figures beside them are only comparable once it is said which made which.
+   */
+  model?: string
 }
 
 /** The width a block's prose and figures are held to. */
@@ -52,7 +60,7 @@ const BLOCK = "w-[21rem]"
  * row of the classes it was hiding.
  */
 function Entry({ entry }: { entry: StatsEntry }) {
-  const { legend, area, period } = entry
+  const { legend, area, period, model } = entry
   return (
     <div className="flex shrink-0 flex-col gap-1">
       <div className={cn(BLOCK, "flex max-w-full flex-col gap-0.5")}>
@@ -62,9 +70,9 @@ function Entry({ entry }: { entry: StatsEntry }) {
         {area && (
           <p className="telemetry truncate text-meta text-foreground">{area}</p>
         )}
-        {period && (
+        {(period || model) && (
           <p className="telemetry truncate text-[9px] text-muted-foreground">
-            {period}
+            {[model, period].filter(Boolean).join(" · ")}
           </p>
         )}
       </div>

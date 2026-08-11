@@ -136,7 +136,6 @@ function useKept<T>(key: string, initial: T | (() => T)) {
 export function BoardSurface({
   layers,
   legendSources,
-  modelKind,
   onNewRun,
   onCloseResult,
   assets,
@@ -169,8 +168,6 @@ export function BoardSurface({
    * it means. Fetched areas carry their own inside `extraRuns`.
    */
   legendSources?: LegendSources
-  /** What produced the map screen's own run; a fetched one carries its own. */
-  modelKind?: ModelKind
   /**
    * The result panel's actions, since the statistics band replaced the panel.
    *
@@ -353,6 +350,12 @@ export function BoardSurface({
    * the next thing it holds is another run's output -- which is what a second
    * area on the board is made from.
    */
+  /** What a run was made by, or nothing where no record says. */
+  const runModel = (id: string): string | undefined => {
+    const kind = runs.find((r) => r.id === id)?.model_kind
+    return kind ? modelLabel(kind as ModelKind) : undefined
+  }
+
   const assetRuns: AssetRun[] = [
     ...(assets.length
       ? [
@@ -361,7 +364,20 @@ export function BoardSurface({
             runId,
             title,
             period: runPeriod,
-            model: modelKind ? modelLabel(modelKind) : undefined,
+            /*
+              From the RUN RECORD, not from the model control.
+
+              The control says what the next run will use; this label has to say
+              what THIS raster was made by, and the two part company the moment
+              the estimator is changed after a run -- which is the whole gesture
+              being compared here. It is the same defect the legend had, where
+              the panel described a map the plane was not drawing.
+
+              PredictResult carries no model_kind, so the run record is the only
+              place it exists. An unsaved run has no record and gets no label,
+              which is the honest answer rather than the live control's.
+            */
+            model: runModel(runId),
             assets,
           },
         ]
@@ -372,7 +388,7 @@ export function BoardSurface({
       areaId: run.id,
       runId: run.id,
       title: displayRunLabel(run.label) || run.model_kind,
-      model: modelLabel(run.model_kind as ModelKind),
+      model: runModel(run.id),
       period:
         result.date_range?.length === 2
           ? `${result.date_range[0]} → ${result.date_range[1]}`
@@ -1205,6 +1221,7 @@ export function BoardSurface({
             legend: legendFor(t.layerId, legendByArea.get(t.areaId) ?? {}),
             area: areas.find((a) => a.id === t.areaId)?.title,
             period: assetRuns.find((r) => r.areaId === t.areaId)?.period,
+            model: assetRuns.find((r) => r.areaId === t.areaId)?.model,
           }))}
         /*
           Only for the map's own run. A fetched area's run is not this screen's
