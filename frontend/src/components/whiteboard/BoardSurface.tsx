@@ -23,6 +23,8 @@ import {
   sceneKey,
   stackRow,
 } from "@/components/whiteboard/BoardSidebar"
+import { BoardLegend } from "@/components/whiteboard/BoardLegend"
+import { legendFor, type LegendSources } from "@/lib/layerLegend"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { runAssets } from "@/lib/runAssets"
 import type { CardGroup } from "@/lib/boardLayout"
@@ -131,6 +133,7 @@ function useKept<T>(key: string, initial: T | (() => T)) {
 
 export function BoardSurface({
   layers,
+  legendSources,
   assets,
   runId,
   runPeriod,
@@ -152,6 +155,15 @@ export function BoardSurface({
    * setAppearance, which is the one path a plane's state takes.
    */
   layers: RasterLayer[]
+  /**
+   * What the CURRENT area's colours mean, for the legend.
+   *
+   * The board holds the run's rasters but not the run: class_stats, the water
+   * index and the solar scale all live on the payload the map screen has, and
+   * none of them travels on a RasterLayer -- a layer is what is drawn, not what
+   * it means. Fetched areas carry their own inside `extraRuns`.
+   */
+  legendSources?: LegendSources
   /**
    * Everything the run produced, drawn or not.
    *
@@ -560,7 +572,9 @@ export function BoardSurface({
   const areas = [
     {
       id: CURRENT_AREA,
-      title,
+      // Renamed like every other stack. It was the one area reading its raw
+      // title, so renaming it changed the tree and nothing else.
+      title: names[stackRow(CURRENT_AREA)] ?? title,
       layers: applyOrder(CURRENT_AREA, [
         ...layers.filter((l) => !removed.has(sceneKey(CURRENT_AREA, l.id))),
         ...extrasFor(CURRENT_AREA, 1000),
@@ -775,6 +789,28 @@ export function BoardSurface({
         : [...prev, rowId]
     })
   }
+  /*
+    The legend material per area. The current one is handed in; a fetched one
+    travels in its own payload, which is where its classes and scales already
+    are -- so a second area explains itself without the map screen knowing it
+    is on the board.
+  */
+  const legendByArea = new Map<string, LegendSources>([
+    [CURRENT_AREA, legendSources ?? {}],
+    ...extraRuns.map(
+      ({ run, result }) =>
+        [
+          run.id,
+          {
+            result,
+            water: result.water,
+            solarTerrain: result.solar_terrain,
+            solarSiting: result.solar_siting,
+          },
+        ] as [string, LegendSources]
+    ),
+  ])
+
   const target = rowTarget(activeRow)
   const targetArea = areas.find((a) => a.id === target?.areaId)
   const rowIsLive =
@@ -1075,8 +1111,22 @@ export function BoardSurface({
                       className="absolute inset-0 rounded-sm"
                       style={{ background: "rgb(var(--p-ink) / 0.72)" }}
                     />
-                    <span className="relative">
-                      {names[layerRow(a.id, l.id)] ?? l.title}
+                    {/*
+                      The layer over the AREA it belongs to, because the layer
+                      alone is not an identity. A board holding two AOIs draws
+                      two planes both saying "Prediction", and which ground each
+                      one covers -- the thing the board exists to compare -- was
+                      the one fact its labels did not carry.
+
+                      Second line rather than a dot-joined string: the area name
+                      is the slower read of the two and pushing it under keeps
+                      the layer name where the eye already lands.
+                    */}
+                    <span className="relative flex flex-col leading-tight">
+                      <span>{names[layerRow(a.id, l.id)] ?? l.title}</span>
+                      <span className="text-[9px] text-muted-foreground">
+                        {a.title}
+                      </span>
                     </span>
                   </span>
                 )
@@ -1084,6 +1134,24 @@ export function BoardSurface({
           )}
         </div>
       )}
+
+      {/*
+        The selected plane's legend, top-right -- the one corner the board
+        leaves free, with the column at the left, the band at the foot and the
+        surface's own header at the top-left.
+      */}
+      <BoardLegend
+        legend={
+          target?.layerId
+            ? legendFor(target.layerId, legendByArea.get(target.areaId) ?? {})
+            : null
+        }
+        area={
+          areas.length > 1
+            ? areas.find((a) => a.id === target?.areaId)?.title
+            : undefined
+        }
+      />
 
       <BoardSidebar
         areas={areas}

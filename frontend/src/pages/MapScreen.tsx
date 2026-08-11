@@ -945,6 +945,19 @@ export function MapScreen(props: MapScreenProps) {
               layers={boardLayers}
               assets={boardAssets}
               /*
+                What this run's colours mean. Not derivable from the layers:
+                a layer is what is drawn, and class_stats, the water index and
+                the solar scale are what it means -- they live on the payload
+                and stop here otherwise.
+              */
+              legendSources={{
+                result: props.result,
+                water: props.water,
+                solarTerrain: props.solarTerrain,
+                solarSiting: props.solarSiting,
+                composition: props.composition,
+              }}
+              /*
                 The run on screen may never have been saved, so it has no id of
                 its own to give. The board only needs one that is stable while
                 it is open, and distinct from the ids of runs loaded beside it.
