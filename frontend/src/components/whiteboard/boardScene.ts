@@ -255,6 +255,11 @@ export function createBoard(
      * immediately.
      */
     onSelect: (groupId: string, id: string, additive: boolean) => void
+    /** An arrowhead between two planes was pressed, in the path's direction. */
+    onLinkPick?: (
+      from: { groupId: string; id: string },
+      to: { groupId: string; id: string }
+    ) => void
     /**
      * Something was dragged, and where it came to rest.
      *
@@ -464,9 +469,26 @@ export function createBoard(
     for (const rt of runtimes) {
       for (const m of rt.meshes) if (m && m.visible) targets.push(m)
     }
-    if (!targets.length) return
     toPointer(e)
     raycaster.setFromCamera(pointer, camera)
+
+    /*
+      An arrowhead first, and it wins over the plane behind it. The head sits in
+      open board between two planes, so a press that lands on one was meant for
+      it; and the pair it joins is the question the reader is asking -- how do
+      these two compare -- which no plane alone can answer.
+    */
+    const heads = arrows.filter((a) => a.visible)
+    if (heads.length) {
+      const headHit = raycaster.intersectObjects(heads, false)[0]
+      const pair = headHit && arrowPair.get(headHit.object as Mesh)
+      if (pair) {
+        opts.onLinkPick?.(pair[0], pair[1])
+        return
+      }
+    }
+
+    if (!targets.length) return
     const hits = raycaster.intersectObjects(targets, false)
     if (!hits.length) return
     /*
@@ -1030,9 +1052,21 @@ export function createBoard(
   const arrowDir = new Vector3()
   /** Cones point along +Y by default; this is the axis to rotate from. */
   const CONE_AXIS = new Vector3(0, 1, 0)
+  /**
+   * Which two planes each arrowhead joins.
+   *
+   * The arrow is the only part of a link big enough to press: a line is a pixel
+   * wide and asking for one is asking for a miss. So the head carries the pair
+   * and the head is the target.
+   */
+  const arrowPair = new Map<
+    Mesh,
+    [{ groupId: string; id: string }, { groupId: string; id: string }]
+  >()
 
   const updatePath = () => {
     const points: Vector3[] = []
+    const pointOwners: { groupId: string; id: string }[] = []
     for (const key of selectedKeys) {
       for (const rt of runtimes) {
         const i = rt.meshes.findIndex(
@@ -1050,6 +1084,13 @@ export function createBoard(
               rt.root.position.z + mesh.position.z
             )
           )
+          /*
+            Kept beside the points because a segment is between two DRAWN
+            planes, which is not the same as two consecutive selections: a
+            hidden one in the middle is skipped above, so indexing back into
+            the selection would name a pair the arrow does not join.
+          */
+          pointOwners.push({ groupId: rt.id, id: rt.cards[i].id })
         }
       }
     }
@@ -1078,9 +1119,11 @@ export function createBoard(
       world.add(cone)
       disposables.push(cone.geometry)
     }
+    arrowPair.clear()
     arrows.forEach((cone, i) => {
       cone.visible = i < segments
       if (!cone.visible) return
+      arrowPair.set(cone, [pointOwners[i], pointOwners[i + 1]])
       arrowFrom.copy(points[i])
       arrowTo.copy(points[i + 1])
       cone.position.copy(arrowFrom).lerp(arrowTo, 0.5)

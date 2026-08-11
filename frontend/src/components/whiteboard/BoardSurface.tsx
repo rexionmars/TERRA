@@ -23,6 +23,7 @@ import {
   sceneKey,
   stackRow,
 } from "@/components/whiteboard/BoardSidebar"
+import { BoardCompareModal } from "@/components/whiteboard/BoardCompareModal"
 import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
 import { legendFor, type LegendSources } from "@/lib/layerLegend"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
@@ -807,6 +808,12 @@ export function BoardSurface({
   const chooseRowRef = useRef(chooseRow)
   chooseRowRef.current = chooseRow
 
+  /** The pair an arrowhead was pressed for, or null. */
+  const [comparing, setComparing] = useState<{
+    from: { groupId: string; id: string }
+    to: { groupId: string; id: string }
+  } | null>(null)
+
   /*
     The legend material per area. The current one is handed in; a fetched one
     travels in its own payload, which is where its classes and scales already
@@ -991,6 +998,9 @@ export function BoardSurface({
         */
         onSelect: (groupId, id, additive) =>
           chooseRowRef.current(layerRow(groupId, id), additive),
+        // The arrow between two planes is a question -- how do these compare --
+        // and pressing it is the only place on the board that asks it.
+        onLinkPick: (a, b) => setComparing({ from: a, to: b }),
         onLabels: (spots) => placeLabelsRef.current(spots),
         onMove: (groupId, layerId, x, z) => {
           // Into the kept object rather than replacing the ref: replacing it
@@ -1192,6 +1202,42 @@ export function BoardSurface({
           target?.areaId === CURRENT_AREA ? onCloseResult : undefined
         }
       />
+
+      {comparing && (() => {
+        /*
+          Built from what is DRAWN, so the swipe shows the pixels the arrow was
+          pointing at: with the majority filter on, a card's uri is the smoothed
+          one and the raw raster has different frontiers.
+        */
+        const side = (t: { groupId: string; id: string }) => {
+          const card = groups
+            ?.find((g) => g.id === t.groupId)
+            ?.cards.find((c) => c.id === t.id)
+          const area = areas.find((a) => a.id === t.groupId)
+          const layer = area?.layers.find((l) => l.id === t.id)
+          if (!card || !layer) return null
+          return {
+            areaTitle: areas.length > 1 ? area?.title : undefined,
+            layerTitle: names[layerRow(t.groupId, t.id)] ?? layer.title,
+            uri: card.uri,
+            pixelated: layer.pixelated,
+            legend: legendFor(t.id, legendByArea.get(t.groupId) ?? {}),
+            // Same ground is the precondition for counting agreement, and the
+            // extent is what says so -- two areas can be rastered alike.
+            extentKey: JSON.stringify(layer.extent),
+          }
+        }
+        const from = side(comparing.from)
+        const to = side(comparing.to)
+        if (!from || !to) return null
+        return (
+          <BoardCompareModal
+            from={from}
+            to={to}
+            onClose={() => setComparing(null)}
+          />
+        )
+      })()}
 
       <BoardSidebar
         areas={areas}
