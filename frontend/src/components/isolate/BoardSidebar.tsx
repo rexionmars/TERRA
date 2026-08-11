@@ -201,6 +201,8 @@ export function BoardSidebar({
   links,
   onLinksChange,
   canLink,
+  labels,
+  onLabelsChange,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -278,6 +280,9 @@ export function BoardSidebar({
   onLinksChange: (v: boolean) => void
   /** False until some area holds more than one raster. */
   canLink: boolean
+  /** Each raster's name, shown over it on the board. */
+  labels: boolean
+  onLabelsChange: (v: boolean) => void
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -1269,6 +1274,20 @@ export function BoardSidebar({
             spread. Offered only with something to join: a single raster has
             nothing to belong to.
           */}
+          {/*
+            Always offered, unlike the link: one raster on a board still
+            benefits from saying which raster it is, and with several it is
+            the only thing that does.
+          */}
+          <label className="mt-1.5 flex items-center gap-2 text-meta text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={labels}
+              onChange={(e) => onLabelsChange(e.target.checked)}
+              className="accent-primary"
+            />
+            Show names
+          </label>
           {canLink && (
             <label className="mt-1.5 flex items-center gap-2 text-meta text-muted-foreground">
               <input

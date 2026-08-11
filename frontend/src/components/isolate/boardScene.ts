@@ -165,6 +165,15 @@ export interface BoardHandle {
    * planes are still stacked needs no line to say so.
    */
   setLinks: (on: boolean) => void
+  /**
+   * Report where each raster's centre falls on screen, after every frame.
+   *
+   * The scene says WHERE a label goes and nothing about what it says. The text
+   * is a layer's name, which the outliner already owns and someone can change;
+   * drawing it here would mean a texture per label, regenerated on every
+   * rename, in a module that has no business knowing the application's type.
+   */
+  setLabels: (on: boolean) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -224,6 +233,22 @@ export function createBoard(
      * arrangement -- it is what a saved comparison is mostly made of, and a
      * position only three.js knew about could not be written down.
      */
+    /**
+     * Where each drawn raster's centre is, in pixels of the canvas.
+     *
+     * Called after a frame, and only while labels are on. Positions rather
+     * than elements: what stands at each point is the caller's business.
+     */
+    onLabels: (
+      spots: {
+        groupId: string
+        id: string
+        x: number
+        y: number
+        /** False where the plane is behind the camera or off the canvas. */
+        onScreen: boolean
+      }[]
+    ) => void
     onMove: (
       groupId: string,
       /** The plane that moved, or null where the whole area did. */
@@ -636,6 +661,49 @@ export function createBoard(
    * unchanged scene sixty times a second spends battery to no effect. Damping
    * drives its own frames through the control's change event.
    */
+  /*
+    Where the labels go, reported after the frame that placed them.
+
+    A projection is only valid for the matrices the frame was drawn with, so it
+    is computed here rather than on demand: asking later would answer for a
+    camera that has since moved, and the label would trail the raster by a
+    frame during every drag and every orbit.
+  */
+  let labelsOn = false
+  const labelPoint = new Vector3()
+  const reportLabels = () => {
+    if (!labelsOn) return
+    const { clientWidth: w, clientHeight: h } = renderer.domElement
+    const spots: {
+      groupId: string
+      id: string
+      x: number
+      y: number
+      onScreen: boolean
+    }[] = []
+    for (const rt of runtimes) {
+      rt.meshes.forEach((mesh, i) => {
+        if (!mesh || !mesh.visible) return
+        mesh.getWorldPosition(labelPoint).project(camera)
+        // z beyond 1 is behind the near plane: the point is at the camera's
+        // back, where the projection wraps and would place the label on the
+        // opposite side of the screen.
+        const onScreen =
+          labelPoint.z <= 1 &&
+          Math.abs(labelPoint.x) <= 1.2 &&
+          Math.abs(labelPoint.y) <= 1.2
+        spots.push({
+          groupId: rt.id,
+          id: rt.cards[i].id,
+          x: (labelPoint.x * 0.5 + 0.5) * w,
+          y: (-labelPoint.y * 0.5 + 0.5) * h,
+          onScreen,
+        })
+      })
+    }
+    opts.onLabels(spots)
+  }
+
   const render = () => {
     if (disposed || raf) return
     raf = requestAnimationFrame(() => {
@@ -648,6 +716,7 @@ export function createBoard(
       // corner of the same buffer, clearing only depth so it is never hidden
       // behind the raster.
       viewHelper.render(renderer)
+      reportLabels()
     })
   }
   controls.addEventListener("change", render)
@@ -1062,6 +1131,14 @@ export function createBoard(
           outline.visible = planeKey(rt.id, rt.cards[i].id) === next
         })
       }
+      render()
+    },
+    setLabels(on) {
+      if (labelsOn === on) return
+      labelsOn = on
+      // Emptied rather than left where they were: labels turned off must not
+      // leave their last positions standing on the board.
+      if (!on) opts.onLabels([])
       render()
     },
     setLinks(on) {

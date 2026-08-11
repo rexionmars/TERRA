@@ -336,6 +336,43 @@ export function IsolateBoard({
    * made busier.
    */
   const [links, setLinks] = useState(false)
+
+  /**
+   * Whether each raster carries its name on the board.
+   *
+   * The elements are React's -- they say a layer's name, which the outliner
+   * owns and someone can rename -- and their POSITIONS come from the scene
+   * after every frame. Written straight onto the nodes rather than held as
+   * state: a drag reports a position per frame, and re-rendering this whole
+   * surface sixty times a second to move some text is work for nothing.
+   */
+  const [labels, setLabels] = useState(false)
+  const labelRefs = useRef(new Map<string, HTMLElement>())
+  const placeLabels = (
+    spots: {
+      groupId: string
+      id: string
+      x: number
+      y: number
+      onScreen: boolean
+    }[]
+  ) => {
+    const seen = new Set<string>()
+    for (const spot of spots) {
+      const key = sceneKey(spot.groupId, spot.id)
+      seen.add(key)
+      const el = labelRefs.current.get(key)
+      if (!el) continue
+      el.style.transform = `translate(${spot.x}px, ${spot.y}px) translate(-50%, -50%)`
+      el.style.opacity = spot.onScreen ? "1" : "0"
+    }
+    // A label with no spot this frame belongs to a plane that is not drawn.
+    for (const [key, el] of labelRefs.current) {
+      if (!seen.has(key)) el.style.opacity = "0"
+    }
+  }
+  const placeLabelsRef = useRef(placeLabels)
+  placeLabelsRef.current = placeLabels
   const toggleFlat = (areaId: string, layerId: string) =>
     setFlat((prev) => {
       const next = new Set(prev)
@@ -730,6 +767,7 @@ export function IsolateBoard({
           here is new on every render and would rebuild the scene.
         */
         onSelect: (groupId, id) => setActiveRow(layerRow(groupId, id)),
+        onLabels: (spots) => placeLabelsRef.current(spots),
         onMove: (groupId, layerId, x, z) => {
           if (layerId === null) {
             placesRef.current = { ...placesRef.current, [groupId]: { x, z } }
@@ -812,6 +850,10 @@ export function IsolateBoard({
   }, [links, groups])
 
   useEffect(() => {
+    boardRef.current?.setLabels(labels)
+  }, [labels, groups])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
     }
@@ -840,6 +882,47 @@ export function IsolateBoard({
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
     >
       <div ref={hostRef} className="absolute inset-0" />
+
+      {/*
+        The names, over the canvas and out of the way of it.
+
+        HTML rather than sprites: the text is the application's own, it stays
+        crisp at any zoom, and renaming a layer costs nothing where a sprite
+        would cost a regenerated texture. Nothing here takes the pointer --
+        pressing a raster through its own name must still press the raster.
+      */}
+      {labels && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {areas.flatMap((a) =>
+            a.layers
+              .filter((l) => l.visible)
+              .map((l) => {
+                const key = sceneKey(a.id, l.id)
+                return (
+                  <span
+                    key={key}
+                    ref={(el) => {
+                      if (el) labelRefs.current.set(key, el)
+                      else labelRefs.current.delete(key)
+                    }}
+                    // Placed by the scene after each frame; until the first
+                    // one arrives it has nowhere to be.
+                    style={{ opacity: 0 }}
+                    className="absolute left-0 top-0 whitespace-nowrap rounded-sm px-1.5 py-0.5 text-meta text-foreground"
+                  >
+                    <span
+                      className="absolute inset-0 rounded-sm"
+                      style={{ background: "rgb(var(--p-ink) / 0.72)" }}
+                    />
+                    <span className="relative">
+                      {names[layerRow(a.id, l.id)] ?? l.title}
+                    </span>
+                  </span>
+                )
+              })
+          )}
+        </div>
+      )}
 
       <BoardSidebar
         areas={areas}
@@ -880,6 +963,8 @@ export function IsolateBoard({
         onReorder={reorderArea}
         links={links}
         onLinksChange={setLinks}
+        labels={labels}
+        onLabelsChange={setLabels}
         // Nothing to join until some area holds more than one raster.
         canLink={areas.some((a) => a.layers.length > 1)}
         onSmoothChange={onSmoothChange}
