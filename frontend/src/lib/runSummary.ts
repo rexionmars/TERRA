@@ -189,3 +189,16 @@ export function runKindLabel(kind?: string): string {
   if (kind === "wind") return "wind"
   return "class"
 }
+
+/**
+ * ISO dates cut to their month.
+ *
+ * A period spelled in full on both ends is 23 characters, which in a 15rem
+ * column truncated an area called "Custom AOI" to "Cust..." and in a menu row
+ * cut the second date mid-way to "202…". The day is not what separates two
+ * runs of one area -- the month is -- and the full text stays on the element's
+ * title for anyone who needs it.
+ */
+export function datesByMonth(text: string): string {
+  return text.replace(/(\d{4}-\d{2})-\d{2}/g, "$1")
+}

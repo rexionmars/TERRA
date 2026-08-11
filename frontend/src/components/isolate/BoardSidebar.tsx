@@ -46,6 +46,7 @@ import {
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
+import { datesByMonth } from "@/lib/runSummary"
 import { NumberField } from "@/components/isolate/NumberField"
 import { cn } from "@/lib/utils"
 
@@ -734,17 +735,11 @@ export function BoardSidebar({
                   <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
                     {row.run.title}
                   </span>
-                  {/*
-                    Months, not full dates. The name identifies the run and the
-                    period only separates two of them; spelled in full on both
-                    ends it took enough of a 15rem column to truncate "Custom
-                    AOI" to "Cust...".
-                  */}
                   <span
                     className="telemetry shrink-0 text-meta text-muted-foreground"
                     title={row.run.period}
                   >
-                    {row.run.period.replace(/(\d{4}-\d{2})-\d{2}/g, "$1")}
+                    {datesByMonth(row.run.period)}
                   </span>
                 </div>
               )

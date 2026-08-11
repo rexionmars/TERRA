@@ -18,11 +18,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Plus, Search } from "lucide-react"
 import { displayRunLabel } from "@/lib/aoiLabel"
-import { runRowLine } from "@/lib/runSummary"
+import { datesByMonth, runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-const PICKER_W = 288
+const PICKER_W = 264
+/** Enough for the field and a few rows; below this the list is not a list. */
+const MIN_H = 168
+const MAX_H = 320
 
 export function RunPicker({
   runs,
@@ -40,7 +43,11 @@ export function RunPicker({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [pos, setPos] = useState<{
+    top: number
+    left: number
+    height: number
+  } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
   const place = () => {
@@ -48,32 +55,26 @@ export function RunPicker({
     if (!el) return
     const r = el.getBoundingClientRect()
     /*
-      Opens upward from a control at the foot of the column, and to its right.
-      Anchored to the button's bottom rather than its top so the list grows
-      into the board, which has room, instead of off the top of the window.
+      Anchored to the control, not floated somewhere near it.
+
+      The first version measured from the button's BOTTOM upward and clamped
+      the result to the top of the window -- and since this control sits near
+      the top of a column, the clamp always won: the list opened detached from
+      the button, over the application's own title bar. It opens downward from
+      the button's top edge, takes what room is left below, and only flips
+      above when there is more room there than below.
     */
-    const height = Math.min(360, window.innerHeight - 32)
+    const margin = 12
+    const below = window.innerHeight - r.top - margin
+    const above = r.bottom - margin
+    const flip = below < MIN_H && above > below
+    const height = Math.min(MAX_H, Math.max(MIN_H, flip ? above : below))
     setPos({
-      top: Math.max(16, Math.min(r.bottom - height, window.innerHeight - height - 16)),
+      top: flip ? Math.max(margin, r.bottom - height) : r.top,
       left: Math.min(r.right + 6, window.innerWidth - PICKER_W - 8),
+      height,
     })
   }
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setPos(null)
-      setQuery("")
-      return
-    }
-    place()
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const reposition = () => place()
-    window.addEventListener("resize", reposition)
-    return () => window.removeEventListener("resize", reposition)
-  }, [open])
 
   /**
    * The runs on offer, by project, with the ones already on the board removed.
@@ -142,18 +143,17 @@ export function RunPicker({
               aria-label="Close run picker"
               onClick={() => setOpen(false)}
             />
+            {/*
+              `.panel` rather than a surface of its own, so it reads as one of
+              the application's menus. The project menu it sits beside is
+              built the same way, and two popovers a few pixels apart that do
+              not match read as two different applications.
+            */}
             <div
-              className="fixed z-[5001] flex flex-col overflow-hidden rounded-sm border shadow-lg"
-              style={{
-                top: pos.top,
-                left: pos.left,
-                width: PICKER_W,
-                maxHeight: Math.min(360, window.innerHeight - 32),
-                background: "rgb(var(--p-surface))",
-                borderColor: "rgb(var(--p-line) / 0.4)",
-              }}
+              className="panel fixed z-[5001] flex flex-col overflow-hidden rounded-sm shadow-lg"
+              style={{ top: pos.top, left: pos.left, width: PICKER_W, height: pos.height }}
             >
-              <label className="flex shrink-0 items-center gap-1.5 border-b px-2.5 py-2"
+              <label className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
                 style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}>
                 <Search className="size-3 shrink-0 text-muted-foreground" />
                 <input
@@ -183,7 +183,15 @@ export function RunPicker({
                 ) : (
                   groups.map((g) => (
                     <div key={g.id || "none"}>
-                      <p className="px-2.5 pb-0.5 pt-1.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+                      {/*
+                        Sticky, because the list scrolls past several projects
+                        and a row seen without its heading says what was
+                        analysed without saying where.
+                      */}
+                      <p
+                        className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
+                        style={{ background: "rgb(var(--p-surface))" }}
+                      >
                         {g.name}
                       </p>
                       {g.runs.map((r) => (
@@ -194,13 +202,20 @@ export function RunPicker({
                             setOpen(false)
                             onPick(r)
                           }}
-                          className="flex w-full flex-col items-start gap-0.5 px-2.5 py-1.5 text-left transition-colors hover:bg-surface-raised/60"
+                          title={runRowLine(r)}
+                          className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-surface-raised/60"
                         >
-                          <span className="w-full truncate text-emphasis text-foreground">
+                          <span className="w-full truncate text-meta text-foreground">
                             {displayRunLabel(r.label) || r.model_kind}
                           </span>
-                          <span className="telemetry w-full truncate text-meta text-muted-foreground">
-                            {runRowLine(r)}
+                          {/*
+                            What actually separates two runs of one project.
+                            The label above is near-identical across a
+                            project's runs -- it is `run-<area>-<timestamp>` --
+                            so this line is the one being read.
+                          */}
+                          <span className="telemetry w-full truncate text-[9px] text-muted-foreground">
+                            {datesByMonth(runRowLine(r))}
                           </span>
                         </button>
                       ))}
