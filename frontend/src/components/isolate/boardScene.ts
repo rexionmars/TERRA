@@ -19,11 +19,11 @@
  */
 import {
   Box3,
+  BufferAttribute,
   BufferGeometry,
   Clock,
   Color,
   EdgesGeometry,
-  Float32BufferAttribute,
   Fog,
   GridHelper,
   Group,
@@ -766,7 +766,17 @@ export function createBoard(
   // Two ends per segment, and never more segments than there are planes: a
   // layer present in n areas contributes n-1 of them.
   const linkBuffer = new Float32Array(pending * 2 * 3)
-  linkGeometry.setAttribute("position", new Float32BufferAttribute(linkBuffer, 3))
+  /*
+    BufferAttribute, not Float32BufferAttribute.
+
+    The convenience subclass runs `new Float32Array(array)` on what it is
+    given, so it holds a COPY -- every write into the array here went to a
+    buffer nothing read, the attribute stayed zeroed, and the lines were drawn
+    as degenerate segments at the origin. Invisible, with no error anywhere.
+    BufferAttribute keeps the reference.
+  */
+  const linkAttribute = new BufferAttribute(linkBuffer, 3)
+  linkGeometry.setAttribute("position", linkAttribute)
   linkGeometry.setDrawRange(0, 0)
   const links = new LineSegments(linkGeometry, linkMaterial)
   // After every plane, so a line is never buried under the raster it leaves.
@@ -808,8 +818,7 @@ export function createBoard(
         }
       }
     }
-    const attr = linkGeometry.getAttribute("position")
-    attr.needsUpdate = true
+    linkAttribute.needsUpdate = true
     linkGeometry.setDrawRange(0, n / 3)
   }
 
