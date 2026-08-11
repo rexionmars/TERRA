@@ -10,6 +10,7 @@ import {
 import { AvatarCircle } from "@/components/AvatarCircle"
 import type { ReactNode } from "react"
 import {
+  BrowserOpenURL,
   WindowMinimise,
   WindowToggleMaximise,
   Quit,
@@ -56,18 +57,25 @@ interface TitleBarProps {
   credit?: { kind: BasemapKind; date: string | null }
 }
 
-/** One credited party, as a link where its licence asks to be reachable. */
+/**
+ * One credited party, reachable where its licence asks it to be.
+ *
+ * A button calling BrowserOpenURL rather than an anchor with target="_blank".
+ * This is a WKWebView, and Wails declares WKUIDelegate without implementing
+ * createWebViewWith, so a blank-target link is silently ignored -- the click
+ * does nothing at all. On a link the ODbL requires to be reachable, silently
+ * nothing is the one outcome that cannot be shipped.
+ */
 function Credit({ part }: { part: CreditPart }) {
   if (!part.href) return <span>{part.label}</span>
   return (
-    <a
-      href={part.href}
-      target="_blank"
-      rel="noreferrer"
+    <button
+      type="button"
+      onClick={() => BrowserOpenURL(part.href!)}
       className="hover:text-foreground hover:underline"
     >
       {part.label}
-    </a>
+    </button>
   )
 }
 
