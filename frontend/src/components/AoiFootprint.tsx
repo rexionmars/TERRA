@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { cn } from "@/lib/utils"
-import { geometryBounds, polygonParts } from "@/lib/geometry"
+import { geometryBounds, lonScaleAtLat, polygonParts } from "@/lib/geometry"
 import type { GeoJSONGeometry } from "@/lib/types"
 
 /**
@@ -31,7 +31,7 @@ export function AoiFootprint({
     const bounds = geometryBounds(geometry)
     if (!bounds) return null
     const midLat = (bounds.latMin + bounds.latMax) / 2
-    const kx = Math.cos((midLat * Math.PI) / 180) || 1
+    const kx = lonScaleAtLat(midLat)
 
     // Work in metres-proportional units before normalising, so the aspect
     // ratio reflects ground distance rather than degrees.
