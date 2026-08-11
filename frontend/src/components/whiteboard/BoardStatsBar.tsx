@@ -13,6 +13,9 @@
  * one foot in two registers: what the run WILL do below, what the selected
  * raster IS above.
  */
+import { ChartColumn, Plus, X } from "lucide-react"
+import { useAuth } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 import type { LayerLegend } from "@/lib/layerLegend"
 
 export function BoardStatsBar({
@@ -20,6 +23,8 @@ export function BoardStatsBar({
   area,
   period,
   leftOffset,
+  onNewRun,
+  onCloseResult,
 }: {
   legend: LayerLegend
   /** Which stack the selected plane belongs to; two areas draw the same ids. */
@@ -28,7 +33,21 @@ export function BoardStatsBar({
   period?: string
   /** Where the board's column ends, matching the run band below. */
   leftOffset: string
+  /**
+   * What the result panel used to carry, since this band replaced it.
+   *
+   * The panel showed the same composition this band shows, so over the board it
+   * was one table said twice -- and collapsing it only shrank the repetition,
+   * because its header repeated the subject line too. Removed, then: but the
+   * figures were never the only thing on it. These three were, and they come
+   * across rather than being stranded.
+   */
+  onNewRun?: () => void
+  onCloseResult?: () => void
 }) {
+  // Reached here rather than threaded through three components, which is how
+  // the panel this replaces reached it too.
+  const { goAnalysis } = useAuth()
   return (
     <div
       className="app-no-drag absolute right-0 z-[20] flex items-stretch gap-3 overflow-hidden border-t px-3 py-2"
@@ -160,6 +179,49 @@ export function BoardStatsBar({
         <p className="flex min-w-0 flex-1 items-center text-meta text-muted-foreground">
           {legend.note}
         </p>
+      )}
+
+      {(onNewRun || onCloseResult) && (
+        /*
+          Pinned at the right end, outside whatever scrolls: they are the run's
+          actions rather than the selected layer's, and they must be reachable
+          however far the figures beside them run.
+        */
+        <div className="ml-auto flex shrink-0 items-center gap-1 self-center">
+          <button
+            type="button"
+            onClick={goAnalysis}
+            title="Open analysis"
+            className="flex items-center gap-1 rounded-sm px-2 py-1 text-meta text-primary transition-colors hover:bg-primary/10"
+          >
+            <ChartColumn className="size-3.5" />
+            Analysis
+          </button>
+          {onNewRun && (
+            <button
+              type="button"
+              onClick={onNewRun}
+              title="Start a new classification"
+              className={cn(
+                "flex items-center gap-1 rounded-sm px-2 py-1 text-meta transition-colors",
+                "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+              )}
+            >
+              <Plus className="size-3.5" />
+              New
+            </button>
+          )}
+          {onCloseResult && (
+            <button
+              type="button"
+              onClick={onCloseResult}
+              title="Discard this result"
+              className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

@@ -991,6 +991,8 @@ export function MapScreen(props: MapScreenProps) {
                 its own to give. The board only needs one that is stable while
                 it is open, and distinct from the ids of runs loaded beside it.
               */
+              onNewRun={props.onNewClassification}
+              onCloseResult={props.onCloseResult}
               runId={props.result?.run_id || "current"}
               /*
                 The period the run covered, which is what tells two runs of one
@@ -1138,7 +1140,16 @@ export function MapScreen(props: MapScreenProps) {
             composeOpacity={props.composeOpacity}
             onClear={props.onClearComposition}
           />
-        ) : showPredictionStatus ? (
+        ) : showPredictionStatus && !boardOpen ? (
+          /*
+            Withheld while the board is up. Its statistics band carries the same
+            composition, and the panel's header repeats even the subject line,
+            so collapsing it only shrank the repetition rather than ending it.
+            Analysis, New and Close moved to that band with the figures.
+
+            Gated here rather than in the predicate above: `boardOpen` is
+            derived from the board's layer list, which is built further down.
+          */
           <ResultsPanel
             leftOffsetClass={statusPanelInset(workspace)}
             key="prediction-status"
