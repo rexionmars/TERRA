@@ -279,6 +279,27 @@ export function IsolateBoard({
    * and the tree is what governs it. The data list is where the run's output
    * is read and exported, which is a thing you go looking for.
    */
+  /**
+   * Names given to rows, over the ones the products carry.
+   *
+   * Board-local and not persisted, like everything else about this surface.
+   * It matters for what comes next rather than for what is here: with one
+   * area on the board "Classification" is unambiguous, and with two it names
+   * two different rasters.
+   */
+  const [names, setNames] = useState<Readonly<Record<string, string>>>({})
+  const renameRow = (rowId: string, name: string) =>
+    setNames((prev) => {
+      const next = { ...prev }
+      const trimmed = name.trim()
+      // Cleared rather than stored empty: a row with no name at all is not a
+      // state worth being able to reach, and giving back the product's own
+      // name is what emptying the field is asking for.
+      if (trimmed) next[rowId] = trimmed
+      else delete next[rowId]
+      return next
+    })
+
   const [mode, setMode] = useState<OutlinerMode>("scene")
   const [activeAsset, setActiveAsset] = useState<string | null>(null)
   const toggleExpanded = (id: string) =>
@@ -428,6 +449,8 @@ export function IsolateBoard({
         sceneIds={sceneIds}
         onAddToScene={addToScene}
         onRemoveFromScene={removeFromScene}
+        names={names}
+        onRename={renameRow}
         mode={mode}
         onModeChange={setMode}
         activeAsset={activeAsset}

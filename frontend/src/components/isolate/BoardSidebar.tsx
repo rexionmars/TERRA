@@ -24,7 +24,7 @@
  * Read top to bottom as the stack is seen: the topmost layer is the topmost
  * row.
  */
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import {
   ChevronDown,
   ChevronRight,
@@ -120,6 +120,15 @@ interface Row {
   /** Greyed, for a row whose own layer is hidden. */
   dimmed: boolean
   /**
+   * Whether the row's name is the user's to set.
+   *
+   * The stack and its planes, not a modifier: a modifier's name IS what it
+   * does, and one called something else is a row that no longer says which
+   * transform it is. The others are names for things, and a thing on a board
+   * that will hold two areas at once needs a name that says which.
+   */
+  renamable: boolean
+  /**
    * The id to take out of the stack, for rows that are a plane.
    *
    * Beside the eye rather than only in the data list: hiding and removing are
@@ -146,6 +155,8 @@ export function BoardSidebar({
   onActivateAsset,
   onAddToScene,
   onRemoveFromScene,
+  names,
+  onRename,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -168,6 +179,16 @@ export function BoardSidebar({
   /** Both take an id in the SCENE's space -- see RunAsset.sceneId. */
   onAddToScene: (id: string) => void
   onRemoveFromScene: (id: string) => void
+  /**
+   * Names the board has been given, over the ones the products carry.
+   *
+   * Keyed by row id, and absent for a row that has not been renamed -- so a
+   * product whose own title changes is still followed until someone has said
+   * otherwise, and clearing a name gives that back rather than leaving a row
+   * with no name at all.
+   */
+  names: Readonly<Record<string, string>>
+  onRename: (rowId: string, name: string) => void
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -206,7 +227,7 @@ export function BoardSidebar({
   if (layers.length) {
     allRows.push({
       id: COLLECTION_ROW,
-      title: areaLabel || "Stack",
+      title: names[COLLECTION_ROW] ?? (areaLabel || "Stack"),
       icon: Layers,
       depth: 0,
       visible: allVisible,
@@ -219,6 +240,7 @@ export function BoardSidebar({
         layers.forEach((l) => onLayerChange(l.id, { visible: !allVisible })),
       expandable: true,
       dimmed: false,
+      renamable: true,
       // The stack itself is not taken out of the stack; closing the board is
       // what that would mean.
       removeId: null,
@@ -233,13 +255,14 @@ export function BoardSidebar({
     const hasModifier = l.id === "prediction"
     allRows.push({
       id: l.id,
-      title: l.title,
+      title: names[l.id] ?? l.title,
       icon: layerIcon(l.id),
       depth: 1,
       visible: l.visible,
       toggle: () => onLayerChange(l.id, { visible: !l.visible }),
       expandable: hasModifier,
       dimmed: !l.visible,
+      renamable: true,
       removeId: l.id,
       posinset: stack.indexOf(l) + 1,
       setsize: stack.length,
@@ -254,6 +277,7 @@ export function BoardSidebar({
         toggle: () => onSmoothChange(!smooth),
         expandable: false,
         dimmed: !l.visible,
+        renamable: false,
         // A transform is not a plane; it leaves with the raster it acts on.
         removeId: null,
         posinset: 1,
@@ -278,6 +302,16 @@ export function BoardSidebar({
   const asset = assets.find((a) => a.id === activeAsset) ?? assets[0] ?? null
 
   const rowRefs = useRef(new Map<string, HTMLElement>())
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState("")
+
+  const commitName = (rowId: string) => {
+    setEditing(null)
+    onRename(rowId, draft)
+    // Focus returns to the row, or the next arrow press would start from
+    // whatever the browser fell back to when the field went away.
+    rowRefs.current.get(rowId)?.focus()
+  }
 
   /**
    * The tree's keys, as they behave in one: up and down walk the rows that are
@@ -297,6 +331,13 @@ export function BoardSidebar({
       // Focus follows, or the next press would resume from the row the browser
       // still considers focused.
       rowRefs.current.get(to.id)?.focus()
+    }
+    // The other way every tree of this shape offers a rename.
+    if (e.key === "F2" && row.renamable) {
+      e.preventDefault()
+      setEditing(row.id)
+      setDraft(row.title)
+      return
     }
     if (e.key === "ArrowDown") return go(rows[i + 1])
     if (e.key === "ArrowUp") return go(rows[i - 1])
@@ -481,14 +522,44 @@ export function BoardSidebar({
                   strokeWidth={1.75}
                 />
 
-                <span
-                  className={cn(
-                    "min-w-0 flex-1 truncate text-emphasis",
-                    isActive ? "text-accent" : "text-muted-foreground"
-                  )}
-                >
-                  {row.title}
-                </span>
+                {editing === row.id ? (
+                  <input
+                    autoFocus
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => commitName(row.id)}
+                    onKeyDown={(e) => {
+                      /*
+                        Stopped here, all of it. The tree walks on the arrow
+                        keys and the board closes on Escape from a listener on
+                        the window -- typing a name would otherwise move the
+                        selection out from under the field, and abandoning the
+                        edit would leave the board.
+                      */
+                      e.stopPropagation()
+                      if (e.key === "Enter") commitName(row.id)
+                      else if (e.key === "Escape") setEditing(null)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="min-w-0 flex-1 rounded-sm border-0 bg-surface-raised px-1 text-emphasis text-foreground outline-none inset-ring-1 inset-ring-ring"
+                  />
+                ) : (
+                  <span
+                    onDoubleClick={() => {
+                      if (!row.renamable) return
+                      setEditing(row.id)
+                      setDraft(row.title)
+                    }}
+                    title={row.renamable ? "Double-click to rename" : undefined}
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-emphasis",
+                      isActive ? "text-accent" : "text-muted-foreground"
+                    )}
+                  >
+                    {row.title}
+                  </span>
+                )}
 
                 {/*
                   Right-aligned, so the toggles form a column that stays readable
