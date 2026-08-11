@@ -1965,7 +1965,16 @@ function AppBody(props: {
   }
 
   const openSavedAnalysis = useCallback(
-    async (run: InferenceRun) => {
+    /**
+     * @param opts.land Where to leave the user once the run is restored.
+     *
+     * The hub and the profile list send someone to the analysis page, which
+     * for the hub is where they already are. The project menu does not: it is
+     * opened from the map, and a run picked there is a request to look at that
+     * run on the map. Passed rather than corrected afterwards -- navigating to
+     * one screen and then to another shows the first one on the way past.
+     */
+    async (run: InferenceRun, opts?: { land?: "analysis" | "map" }) => {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
@@ -2047,7 +2056,8 @@ function AppBody(props: {
             key: Date.now(),
           })
         }
-        goAnalysis()
+        if (opts?.land === "map") goMap()
+        else goAnalysis()
         notifySuccess("Analysis restored.")
       } catch (e) {
         notifyError("Could not load analysis", e)
@@ -2059,6 +2069,7 @@ function AppBody(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       goAnalysis,
+      goMap,
       solarDispatch,
       windDispatch,
       props.areas,
@@ -2329,8 +2340,30 @@ function AppBody(props: {
             <ProjectSwitcher
               projects={projects}
               activeProjectId={activeProjectId}
+              runs={runs}
+              busy={loadingRun}
               onSelect={(id) => void activateProject(id)}
               onCreate={() => void handleCreateProjectFromAoi()}
+              onOpenRun={(run) => {
+                void (async () => {
+                  /*
+                    The header must not name one project while the map shows a
+                    run belonging to another, and picking a run inside a
+                    project's own list is as clear a statement of which project
+                    is meant as clicking its name.
+
+                    Not user-initiated: that draws the project's AOI and flies
+                    to it, which is exactly what the run about to load is going
+                    to replace. This sets the context and lets the run draw.
+                  */
+                  if (run.project_id && run.project_id !== activeProjectId) {
+                    await activateProject(run.project_id, {
+                      userInitiated: false,
+                    })
+                  }
+                  await openSavedAnalysis(run, { land: "map" })
+                })()
+              }}
               onOpenHub={() => goAnalysis()}
             />
           ) : undefined
