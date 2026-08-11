@@ -516,6 +516,18 @@ function AppBody(props: {
    */
   const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
+  /**
+   * The title bar's host element for the map screen's whiteboard toggle.
+   *
+   * A DOM node, not a board state. The button is drawn in the bar because the
+   * bar is above the board in both layouts, and the two surfaces that used to
+   * carry it each had a layout they could not serve. What stays in the map
+   * screen is whether the board is open -- deliberately, so leaving the screen
+   * and coming back gives the map. Same bridge as MapView's BottomRightSlot.
+   */
+  const [boardSlotHost, setBoardSlotHost] = useState<HTMLDivElement | null>(
+    null
+  )
   const refreshWhiteboards = useCallback(async () => {
     try {
       setWhiteboards(await listWhiteboards())
@@ -2385,6 +2397,13 @@ function AppBody(props: {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <TitleBar
         view={props.view}
+        /*
+          Handed back so the map screen can portal its whiteboard toggle up
+          here. What App holds is WHERE the button goes; whether the board is
+          open stays in the screen, which is the only place it can stay without
+          surviving a trip to another screen.
+        */
+        boardSlotRef={setBoardSlotHost}
         result={props.result}
         runLabel={currentRunLabel}
         layoutMode={layoutMode}
@@ -2481,6 +2500,7 @@ function AppBody(props: {
               >
                 <MapScreen
                   onCreditChange={setCredit}
+                  titleBarSlot={boardSlotHost}
                   initialView={initialMapView}
                   leftPanel={leftPanel}
                   layoutMode={layoutMode}

@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
-import { Save, X } from "lucide-react"
+import { Save } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
 import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
@@ -141,7 +141,6 @@ export function BoardSurface({
   smooth,
   onSmoothChange,
   title,
-  showClose,
   onClose,
 }: {
   /**
@@ -182,16 +181,7 @@ export function BoardSurface({
   smooth: boolean
   onSmoothChange: (v: boolean) => void
   title: string
-  /**
-   * Whether this surface draws its own way out.
-   *
-   * False where the toggle that opened the board stays visible over it -- the
-   * dock layout's island -- because one control that turns a thing on and off
-   * is one control. True where the toggle is in Leaflet's stack, which this
-   * surface covers: there the button cannot be pressed again and its absence
-   * would leave Escape as the only exit.
-   */
-  showClose: boolean
+  /** Escape, and the title bar's toggle. See the header below for why no X. */
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -1133,12 +1123,17 @@ export function BoardSurface({
       {/*
         Left, and clear of the top-right corner where the search bar sits.
 
-        The close button appears only where the toggle that opened the board is
-        hidden behind it. In the dock layout the toggle sits on the island,
-        which stays above this surface and turns it off again -- a second exit
-        there would be a second answer. In the sidebar layout the toggle is in
-        Leaflet's control stack, which this covers, so without an X the only
-        way out would be Escape, a key nobody is told about.
+        No close button, and the rule that used to put one here is the reason.
+        It read: the X appears only where the toggle that opened the board is
+        hidden behind it. That was the island in one layout and Leaflet's
+        control stack in the other, and only the stack goes under this surface.
+
+        The toggle now sits in the title bar, which is the first child of a
+        full-height flex column while this surface is inset within the screen
+        below it -- so it is hidden in neither layout, and the rule yields no X
+        in either. It stays pressable for as long as the board is up (MapScreen
+        gates its `disabled` on boardOpen precisely so the exit cannot go dead),
+        and its tooltip carries the Escape shortcut this button used to name.
       */}
       <div className="absolute left-[16rem] top-3 flex min-w-0 max-w-[30rem] items-start gap-2">
         <div className="min-w-0">
@@ -1187,16 +1182,6 @@ export function BoardSurface({
             }}
             className="app-no-drag h-7 w-48 shrink-0 rounded-sm border-0 bg-surface-raised px-2 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
           />
-        )}
-        {showClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            title="Close (Esc)"
-            className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <X className="size-4" />
-          </button>
         )}
       </div>
     </motion.div>

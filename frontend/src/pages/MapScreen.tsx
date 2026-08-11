@@ -1,5 +1,6 @@
 import { Droplet, Grid2x2, Image as ImageIcon, type LucideIcon } from "lucide-react"
 import { Suspense, lazy, useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { AnimatePresence } from "motion/react"
 import type {
   Area,
@@ -64,6 +65,16 @@ export interface MapScreenProps {
   onLeftPanelChange: (id: MapToolId | null) => void
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
+  /**
+   * The title bar's host for this screen's whiteboard toggle.
+   *
+   * An element rather than a callback, because the button has to be DRAWN up
+   * there while the state it reads stays down here. `board` is local to this
+   * screen on purpose (see below), so handing the shell a node to render would
+   * have meant handing it the state too, and returning to the map would stop
+   * giving the map. Null until the bar mounts, and on every screen without one.
+   */
+  titleBarSlot?: HTMLElement | null
   /** Go to another destination, for the dock layout's bar. */
   onNavigate: (groupId: string, itemId?: string) => void
   areas: Area[]
@@ -545,6 +556,41 @@ export function MapScreen(props: MapScreenProps) {
       */
       style={{ "--map-foot": "3.0625rem" } as React.CSSProperties}
     >
+      {/*
+        The whiteboard toggle, drawn into the title bar.
+
+        Portalled rather than passed up because of where the state is: `board`
+        below is this screen's, and the bar belongs to the shell. This keeps the
+        two facts apart -- the shell owns WHERE the button goes, this screen
+        owns WHAT it does. Rendered here beside the board's other chrome, since
+        that is what it is, whatever DOM it lands in.
+      */}
+      {props.titleBarSlot &&
+        createPortal(
+          <BoardButton
+            active={boardOpen}
+            /*
+              An entry can be refused; an exit cannot. `boardOpen` is also true
+              when the board holds ANOTHER area's rasters, which neither term
+              below covers -- so without the first clause the board could be up,
+              carrying a second area, with its only toggle greyed out.
+            */
+            disabled={!boardOpen && !boardLayers.length && !props.hasArea}
+            onClick={() =>
+              setBoard((o) => {
+                // Closing the overlay drawer on the way in: the sidebar carries
+                // what governs the board, and a drawer left open from the map
+                // would be a second surface for the same controls, floating
+                // over a surface that already has them.
+                if (!o) setRightDrawer(null)
+                return !o
+              })
+            }
+            onPrefetch={prefetchBoard}
+          />,
+          props.titleBarSlot
+        )}
+
       <MapView
         initialView={props.initialView}
         areas={props.areas}
@@ -583,29 +629,6 @@ export function MapScreen(props: MapScreenProps) {
         // draw stack at the bottom-right, under them.
         bottomRightSlot={
           <>
-            {/*
-              Only where there is no bar to carry it. In the dock layout the
-              toggle sits on the island, which stays visible over the board, so
-              it can also close it -- here the stack goes under the board and
-              the button would be an entry with no matching exit.
-            */}
-            {!workspace && (
-              <BoardButton
-                active={boardOpen}
-                disabled={!boardLayers.length && !props.hasArea}
-                onClick={() =>
-                setBoard((o) => {
-                  // Closing the overlay drawer on the way in: the sidebar
-                  // carries what governs the board, and a drawer left open
-                  // from the map would be a second surface for the same
-                  // controls, floating over a surface that already has them.
-                  if (!o) setRightDrawer(null)
-                  return !o
-                })
-              }
-                onPrefetch={prefetchBoard}
-              />
-            )}
             {/*
               Not while the board is open: it takes the top instead, and this
               one would be a second mount of the same control sitting unclickable
@@ -769,7 +792,6 @@ export function MapScreen(props: MapScreenProps) {
               smooth={props.smoothOverlay}
               onSmoothChange={props.onSmoothOverlayChange}
               title={props.areaLabel || "Analysis"}
-              showClose={!workspace}
               onClose={() => setBoard(false)}
             />
           </Suspense>
@@ -801,24 +823,6 @@ export function MapScreen(props: MapScreenProps) {
             */
             runElsewhere={boardOpen}
             onWidthChange={setBarWidthPx}
-            boardSlot={
-              <BoardButton
-                active={boardOpen}
-                disabled={!boardLayers.length && !props.hasArea}
-                onClick={() =>
-                setBoard((o) => {
-                  // Closing the overlay drawer on the way in: the sidebar
-                  // carries what governs the board, and a drawer left open
-                  // from the map would be a second surface for the same
-                  // controls, floating over a surface that already has them.
-                  if (!o) setRightDrawer(null)
-                  return !o
-                })
-              }
-                onPrefetch={prefetchBoard}
-                inBar
-              />
-            }
             configOpen={rightDrawer === "config"}
             onConfigToggle={() =>
               setRightDrawer((d) => (d === "config" ? null : "config"))

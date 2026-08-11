@@ -44,6 +44,20 @@ interface TitleBarProps {
    * It is a view mode rather than a destination, so it does not contradict this
    * bar's rule against per-page navigation icons.
    */
+  /**
+   * Where the map screen hangs its whiteboard toggle.
+   *
+   * A host element handed BACK, rather than a ReactNode taken in like
+   * `projectSwitcher`. What that button reads -- whether the board is up,
+   * whether there is anything to put on it -- is the map screen's state, and
+   * the map screen is not this component's parent. Filling a node slot would
+   * mean lifting a deliberately screen-local flag into the shell, and that flag
+   * is local on purpose: coming back to the map has to give the map, not a
+   * board left open. MapView's BottomRightSlot bridges the same way for the
+   * same reason -- a control with one owner that has to be drawn inside
+   * another's DOM.
+   */
+  boardSlotRef?: (el: HTMLDivElement | null) => void
   layoutMode?: LayoutMode
   onLayoutModeChange?: (mode: LayoutMode) => void
   /**
@@ -116,6 +130,7 @@ export function TitleBar({
   result,
   projectSwitcher,
   runLabel,
+  boardSlotRef,
   layoutMode = "docked",
   onLayoutModeChange,
   credit,
@@ -236,6 +251,24 @@ export function TitleBar({
               <LogIn className="size-4" />
             )}
           </button>
+        )}
+
+        {/*
+          The whiteboard toggle, between the account and the layout switch.
+
+          Up here rather than on the surfaces that used to carry it, because
+          those two mounts each had a layout they could not serve: the island's
+          copy exists only in the workspace layout, and Leaflet's copy goes
+          UNDER the board, an entry with no matching exit. This bar is above
+          the board in both layouts -- it is the first child of a full-height
+          flex column and the board is inset within the screen below it -- so
+          one mount now does what two could not.
+
+          Only where there is a map: an empty host still takes a gap-3 from
+          this row, which would open a hole on every other screen.
+        */}
+        {hasMap && (
+          <div ref={boardSlotRef} className="app-no-drag flex items-center" />
         )}
 
         {/* Wherever there is a map to lay out. */}
