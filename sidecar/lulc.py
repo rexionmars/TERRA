@@ -355,6 +355,155 @@ def distinct_reference_cells(
     return int(np.unique(cell_ids[mask]).size)
 
 
+def _wilson_interval(k: int, n: int, z: float = 1.96) -> list[float]:
+    """
+    Wilson score interval for a proportion.
+
+    Not the normal approximation: at the accuracies and sample sizes seen here
+    the Wald interval runs past 0 or 1 and is known to undercover, while Wilson
+    stays inside the unit interval and holds its nominal rate at small n
+    (Brown, Cai & DasGupta 2001).
+    """
+    if n <= 0:
+        return [0.0, 0.0]
+    p = k / n
+    denom = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denom
+    return [
+        float(round(100.0 * max(0.0, centre - half), 2)),
+        float(round(100.0 * min(1.0, centre + half), 2)),
+    ]
+
+
+def agreement_against_reference(
+    pred_map: np.ndarray,
+    ref_map: np.ndarray,
+    cell_ids: np.ndarray | None = None,
+) -> dict | None:
+    """
+    Per-cell agreement between the classification and the reference.
+
+    WHY THIS EXISTS BESIDE pred_vs_ref_composition. That function compares the
+    two marginal distributions -- how much of each class each map holds. Equal
+    marginals are not agreement: a classifier that swaps soybean for other
+    temporary crops in equal measure reproduces the reference composition
+    exactly while being wrong on every pixel it swapped. The decomposition
+    below separates the two, and the composition panel was showing the quantity
+    component alone.
+
+    AGGREGATED TO THE REFERENCE CELL, NOT THE PIXEL. MapBiomas is native at
+    30 m and is resampled onto the 10 m classification grid, so about nine
+    pixels carry one label observation. Counting pixels would state a sample
+    size nine times the number of independent labels and an interval about
+    three times too narrow. Each native cell contributes one observation: the
+    reference label it carries, against the majority class predicted across its
+    pixels.
+
+    Returns None when the cell mapping is unavailable, because without it there
+    is no honest denominator -- and an accuracy with the wrong n is worse than
+    no accuracy, since it is still believed.
+    """
+    if cell_ids is None:
+        return None
+
+    valid = (pred_map >= 0) & (ref_map > 0)
+    if not valid.any():
+        return None
+
+    cells = cell_ids[valid]
+    preds = pred_map[valid]
+    refs = ref_map[valid]
+
+    order = np.argsort(cells, kind="stable")
+    cells_s, preds_s, refs_s = cells[order], preds[order], refs[order]
+    # Contiguous runs of one cell id, so each native cell is visited once.
+    starts = np.flatnonzero(np.r_[True, cells_s[1:] != cells_s[:-1]])
+    bounds = np.r_[starts, cells_s.size]
+
+    classes = list(TARGET_COMPARE)
+    index = {c: i for i, c in enumerate(classes)}
+    k = len(classes)
+    matrix = np.zeros((k, k), dtype=np.int64)  # rows predicted, cols reference
+    outside = 0
+
+    for a, b in zip(bounds[:-1], bounds[1:]):
+        ref_vals = refs_s[a:b]
+        # One reference label per native cell; the mode guards a cell straddling
+        # a resampling boundary rather than assuming the run is homogeneous.
+        rv, rc = np.unique(ref_vals, return_counts=True)
+        ref_label = int(rv[int(np.argmax(rc))])
+        if ref_label not in index:
+            # The reference says something the classifier has no label for --
+            # water, urban, forestry. Counting it as an error would conflate
+            # "misclassified" with "not in the legend", so it is reported
+            # separately instead.
+            outside += 1
+            continue
+        pv, pc = np.unique(preds_s[a:b], return_counts=True)
+        pred_label = int(pv[int(np.argmax(pc))])
+        if pred_label not in index:
+            continue
+        matrix[index[pred_label], index[ref_label]] += 1
+
+    n = int(matrix.sum())
+    if n == 0:
+        return None
+
+    correct = int(np.trace(matrix))
+    pred_tot = matrix.sum(axis=1)  # predicted totals (rows)
+    ref_tot = matrix.sum(axis=0)   # reference totals (cols)
+
+    per_class = []
+    for c in classes:
+        i = index[c]
+        hit = int(matrix[i, i])
+        pa = float(round(100.0 * hit / ref_tot[i], 2)) if ref_tot[i] else None
+        ua = float(round(100.0 * hit / pred_tot[i], 2)) if pred_tot[i] else None
+        per_class.append({
+            "class_id": c,
+            "name": MAPBIOMAS_LEGEND.get(c, f"Class {c}"),
+            "color": MAPBIOMAS_COLORS.get(c, "#bbbbbb"),
+            # Producer's accuracy: of the reference cells of this class, the
+            # share the classifier found. Its complement is omission.
+            "producers_pct": pa,
+            "producers_ci": _wilson_interval(hit, int(ref_tot[i])) if ref_tot[i] else None,
+            # User's accuracy: of the cells called this class, the share that
+            # really are. Its complement is commission.
+            "users_pct": ua,
+            "users_ci": _wilson_interval(hit, int(pred_tot[i])) if pred_tot[i] else None,
+            "n_reference": int(ref_tot[i]),
+            "n_predicted": int(pred_tot[i]),
+        })
+
+    # Pontius & Millones (2011): total disagreement splits into a quantity term
+    # -- the two maps hold different amounts of a class -- and an allocation
+    # term -- they hold the same amount in different places. Kappa is omitted
+    # deliberately; that paper's argument against it is what this replaces.
+    p = matrix / n
+    p_pred = p.sum(axis=1)
+    p_ref = p.sum(axis=0)
+    diag = np.diag(p)
+    quantity = float(0.5 * np.abs(p_pred - p_ref).sum())
+    allocation = float(
+        0.5 * sum(2 * min(p_pred[i] - diag[i], p_ref[i] - diag[i]) for i in range(k))
+    )
+
+    return {
+        "n_reference_cells": n,
+        "overall_pct": float(round(100.0 * correct / n, 2)),
+        "overall_ci": _wilson_interval(correct, n),
+        "quantity_disagreement_pct": float(round(100.0 * quantity, 2)),
+        "allocation_disagreement_pct": float(round(100.0 * allocation, 2)),
+        "per_class": per_class,
+        # Reference cells whose class the model has no label for. Not errors,
+        # but the share of the area the assessment says nothing about.
+        "n_outside_legend": int(outside),
+        "matrix": matrix.tolist(),
+        "matrix_classes": classes,
+    }
+
+
 def pred_vs_ref_composition(
     pred_map: np.ndarray,
     ref_map: np.ndarray,

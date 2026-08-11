@@ -1476,13 +1476,30 @@ def main():
 
         beam_share = solar_mod.beam_fraction(df)
 
+        # Whether the terrain encloses the site enough for the diffuse loss to
+        # be a figure rather than noise. Read off the horizon already traced, so
+        # the test costs nothing; below the threshold the sky view factor is a
+        # rounding term and applying it would spend the arithmetic on noise.
+        enclosure = solar_mod.horizon_enclosure(horizon)
+        svf_loss = (
+            solar_mod.diffuse_loss_fraction(horizon)
+            if enclosure['encloses'] else None
+        )
+
         def _poa_for(name):
             """Plane-of-array total for a season, attenuated by terrain shading.
 
-            Shading removes beam energy only, so the per-pixel loss is scaled by
-            the beam share of the irradiation before it is applied. The loss
-            itself is returned unscaled, which is what the published layer and
-            the research figures report.
+            Two losses, on two bases. The horizon blocks beam energy below it,
+            which is scaled by the beam share before it is applied; and it hides
+            part of the sky dome, which removes diffuse energy in proportion to
+            the sky view factor. The beam term is the expensive one to compute
+            and the small one to collect -- on flat ground both vanish, but in
+            enclosed terrain the diffuse term is the larger by two orders of
+            magnitude, and the horizon that answers the first already answers
+            the second.
+
+            The published shading layer stays the unscaled beam fraction, which
+            is what the research figures report.
             """
             m = solar_mod.season_mask(df.index, name)
             sub, sp = df[m], solpos[m]
@@ -1493,7 +1510,10 @@ def main():
             raw = solar_mod.interpolate_poa(slope, aspect, tbl)
             hist, edges = solar_mod.beam_energy_histogram(sub, sp)
             loss = solar_mod.shading_loss_fraction(horizon, hist, edges)
-            return raw * (1.0 - loss * beam_share), loss
+            attenuated = raw * (1.0 - loss * beam_share)
+            if svf_loss is not None:
+                attenuated = attenuated * (1.0 - svf_loss * (1.0 - beam_share))
+            return attenuated, loss
 
         emit_progress(76, 'plane-of-array lookup')
         companion = None
@@ -1594,6 +1614,23 @@ def main():
                 ),
                 'horizon_max_dist_m': float(solar_mod.HORIZON_MAX_DIST_M),
                 'beam_fraction': round(float(beam_share), 4),
+                # The sky view factor and the threshold it was judged against.
+                # Reported whether or not it was applied: "not applied" and
+                # "applied at zero" are different statements about the terrain.
+                'sky_view': {
+                    'applied': bool(svf_loss is not None),
+                    'mean_horizon_deg': enclosure['mean_horizon_deg'],
+                    'max_horizon_deg': enclosure['max_horizon_deg'],
+                    'threshold_deg': enclosure['threshold_deg'],
+                    'diffuse_loss_mean_pct': (
+                        round(float(100.0 * np.nanmean(svf_loss[valid])), 3)
+                        if svf_loss is not None else None
+                    ),
+                    'diffuse_loss_max_pct': (
+                        round(float(100.0 * np.nanmax(svf_loss[valid])), 3)
+                        if svf_loss is not None else None
+                    ),
+                },
                 'dem_source': 'Copernicus DEM GLO-30',
                 # Whether the POWER series behind this layer was fetched or
                 # read from the on-disk cache, and when it was fetched.
@@ -1999,7 +2036,6 @@ def main():
                         float(density['value_mw_dc_per_ha']), 6),
                     'shading_applied': shading_applied,
                     'shading_derate': shading_derate,
-                    'resolution_note': solar_mod.GRID_NOTE,
                     'note': (
                         'Every energy figure in this response was computed at '
                         'the applied performance ratio and the reporting basis '
@@ -2105,12 +2141,6 @@ def main():
                 'roughness_band_m': list(roughness_band),
                 'calm_threshold_ms': calm_threshold,
                 'record_max_floor_ms': record_max_floor,
-                'conventions_note': (
-                    'Hub height, the assumed roughness band, the calm '
-                    'threshold and the record-maximum floor are project '
-                    'conventions the user can edit. They are not measurements '
-                    'and they have no published basis at this site.'
-                ),
                 'qualifier': wind_mod.RESULT_QUALIFIER,
                 'excluded_losses': list(wind_mod.EXCLUDED_LOSSES),
                 'comparison_note': (
@@ -2120,7 +2150,6 @@ def main():
                     'ratio benchmarked against the Global Solar Atlas; this '
                     'one carries no external validation and no plant losses.'
                 ),
-                'resolution_note': wind_mod.GRID_NOTE,
             },
         })
 
@@ -2641,6 +2670,18 @@ def main():
         write_overlay_png(ref_cls, reference_png)
         reference_path = str(reference_png)
     mean_conf = float(confidence_map[classification_map >= 0].mean()) if np.any(classification_map >= 0) else 0.0
+    # The floor this figure cannot go below.
+    #
+    # confidence is max(predict_proba), so with K classes it lives on [1/K, 1]
+    # and never approaches zero. Reported as a bare percentage it reads on a
+    # 0-100 scale it does not occupy: 38% over five classes is a fifth of the
+    # way from maximum uncertainty to certainty, not a third. The consumer
+    # needs K to say that, and only this side knows it.
+    conf_floor = (
+        1.0 / len(label_encoder.classes_)
+        if label_encoder is not None and len(getattr(label_encoder, 'classes_', [])) > 0
+        else 0.0
+    )
 
     lulc_payload = None
     if mapbiomas_path and Path(mapbiomas_path).exists():
@@ -2672,6 +2713,13 @@ def main():
                 n_cells = lulc_mod.distinct_reference_cells(cell_ids, valid)
                 if n_cells is not None:
                     lulc_payload['compare_reference_cells'] = n_cells
+                # Agreement, which the composition comparison beside it cannot
+                # show: equal marginals are not equal maps.
+                agreement = lulc_mod.agreement_against_reference(
+                    classification_map, ref_grid, cell_ids=cell_ids
+                )
+                if agreement is not None:
+                    lulc_payload['agreement'] = agreement
         except Exception as e:
             sys.stderr.write(json.dumps({
                 'progress': -1, 'msg': f'lulc analysis skipped: {e}'
@@ -2692,6 +2740,7 @@ def main():
         'true_color_png': true_color_path,
         'reference_png': reference_path,
         'mean_confidence': round(mean_conf, 4),
+        'confidence_floor': round(conf_floor, 4),
         'n_dates': len(products),
         'date_range': [
             products[0]['date'].strftime('%Y-%m-%d'),

@@ -106,7 +106,15 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
               fontSize: 11,
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" />
+          {/* Above the plot: a bottom legend shares the band the axis title
+              occupies, and "Month" was drawn through the series keys. */}
+          <Legend
+            verticalAlign="top"
+            align="right"
+            height={20}
+            wrapperStyle={{ fontSize: 11, paddingBottom: 2 }}
+            iconType="plainline"
+          />
           {/* The verified triple, and a dash each: GHI, DNI and DHI are not
               independent -- GHI is the sum of DHI and the projected DNI -- so
               they are read together and have to stay separable in greyscale. */}
@@ -165,12 +173,16 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
                 `${t.deviation_deg.toFixed(0)}° costs ${t.loss_pct.toFixed(2)}%`
             )
             .join(" · ")}
-          . The optimum is a peak, not a requirement.
         </p>
       )}
 
-      <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-        <p>{solar.grid_note}</p>
+      {/*
+        The grid cell, kept where the paragraph about it was removed: two AOIs
+        tens of kilometres apart resolve to one radiation cell and return the
+        same series, so identical numbers would otherwise have no explanation.
+      */}
+      <div className="mt-2 text-[10px] text-muted-foreground">
+        <p className="telemetry">1° radiation cell, not site-specific</p>
         <PowerProvenanceNote provenance={solar.power_provenance} />
       </div>
     </section>
@@ -251,18 +263,18 @@ export function SolarTerrainSection({
           )}
         </div>
       </div>
-      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-        The atmospheric resource has no spatial structure at this scale;
-        what varies over the area is the irradiation reaching an inclined
-        surface, because the surface is terrain. Horizon shading is a
-        share of the beam component
-        {/* Absent on runs saved before the field existed, where zero
-            would read as a measured beam share of nothing. */}
-        {terrain.beam_fraction > 0
-          ? `, which carries ${(terrain.beam_fraction * 100).toFixed(0)}% of the horizontal irradiation here`
-          : ""}
-        .
-      </p>
+      {/* The beam share as a figure. It was a paragraph explaining that the
+          atmospheric resource has no structure at this scale and that what
+          varies is the inclined surface -- method, and the same sentence for
+          every AOI. The number it ended on is what changes. */}
+      {terrain.beam_fraction > 0 && (
+        <p className="mt-3 text-[10px] text-muted-foreground">
+          <span className="telemetry">
+            Beam share {(terrain.beam_fraction * 100).toFixed(0)}%
+          </span>{" "}
+          of horizontal irradiation · horizon shading applies to this component
+        </p>
+      )}
       <PowerProvenanceNote
         provenance={terrain.power_provenance}
       />
@@ -279,10 +291,13 @@ export function SolarSitingSection({
   return (
     <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <p className="eyebrow mb-3">Photovoltaic siting</p>
+      {/* Full-width, like the water occurrence tile: a 4:3 box across a whole
+          panel runs off the bottom of the window on a wide screen. */}
       <PanelTile
         title="Suitability classes"
         uri={siting.overlay_uri}
         empty="No siting raster"
+        fullWidth
       />
       <div className="mb-3 mt-3 grid grid-cols-2 gap-3">
         <WaterFigure
@@ -312,10 +327,14 @@ export function SolarSitingSection({
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-        Slope limits {siting.thresholds.slope_acceptable_deg}{" "}
-        and {siting.thresholds.slope_restrictive_deg} degrees.{" "}
-        {siting.thresholds.note}
+      {/* The thresholds as figures, and the one thing the classes do not
+          account for -- without it "suitable" reads as permitted. */}
+      <p className="mt-3 text-[10px] text-muted-foreground">
+        <span className="telemetry">
+          Slope limits {siting.thresholds.slope_acceptable_deg}° /{" "}
+          {siting.thresholds.slope_restrictive_deg}°
+        </span>{" "}
+        · legal constraints not checked
       </p>
     </section>
   )

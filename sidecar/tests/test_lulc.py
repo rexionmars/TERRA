@@ -162,3 +162,148 @@ def test_pred_vs_ref_without_cell_ids_omits_the_field():
     rows = lulc.pred_vs_ref_composition(pred, ref)
     assert all("n_reference_cells" not in r for r in rows)
     assert all("pixels_ref" in r for r in rows)
+
+
+# --- Agreement against the reference ---------------------------------------
+#
+# These protect the distinction the whole panel exists to make: composition
+# equality is not agreement. Each case below is constructed so the expected
+# figures are known exactly, because an accuracy that is merely plausible is
+# worse than none -- it is still believed.
+
+
+def _cell_grid(h=30, w=30, block=3):
+    """A 10 m grid whose pixels carry the id of the 30 m cell above them."""
+    yy, xx = np.mgrid[0:h, 0:w]
+    return (yy // block) * (w // block) + (xx // block)
+
+
+def test_agreement_counts_reference_cells_not_pixels():
+    """
+    The denominator is the number of independent label observations.
+
+    MapBiomas is native at 30 m, so nine 10 m pixels carry one label. Counting
+    pixels would state nine times the sample size and an interval about three
+    times too narrow.
+    """
+    cells = _cell_grid()
+    ref = np.full((30, 30), 39)
+    pred = ref.copy()
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    assert out["n_reference_cells"] == 100  # not 900
+    assert out["overall_pct"] == 100.0
+
+
+def test_equal_composition_can_be_total_disagreement():
+    """
+    The case the composition panel cannot see.
+
+    Swapping two classes in equal measure reproduces the reference composition
+    exactly and is wrong on every cell. Composition reports both classes at
+    50/50 and looks perfect; agreement reports zero.
+    """
+    cells = _cell_grid()
+    half = cells < 50
+    pred = np.where(half, 39, 41)
+    ref = np.where(half, 41, 39)
+
+    comp = {r["class_id"]: r for r in lulc.pred_vs_ref_composition(pred, ref, cells)}
+    assert comp[39]["pct_ref"] == comp[39]["pct_pred"]  # composition agrees
+    assert comp[41]["pct_ref"] == comp[41]["pct_pred"]
+
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    assert out["overall_pct"] == 0.0
+    # All of the disagreement is allocation: the amounts match, the places do not.
+    assert out["allocation_disagreement_pct"] == 100.0
+    assert out["quantity_disagreement_pct"] == 0.0
+
+
+def test_disagreement_decomposition_sums_to_the_complement_of_accuracy():
+    """Pontius & Millones (2011): OA + quantity + allocation = 100%."""
+    cells = _cell_grid()
+    ref = np.where(cells < 50, 39, 41)
+    pred = ref.copy()
+    pred[(cells >= 30) & (cells < 50)] = 41  # 20 cells wrong, one direction
+
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    total = (
+        out["overall_pct"]
+        + out["quantity_disagreement_pct"]
+        + out["allocation_disagreement_pct"]
+    )
+    assert abs(total - 100.0) < 1e-6
+    assert out["overall_pct"] == 80.0
+    # One-directional error is a quantity difference, not a misplacement.
+    assert out["quantity_disagreement_pct"] == 20.0
+    assert out["allocation_disagreement_pct"] == 0.0
+
+
+def test_producers_and_users_accuracy_are_distinct():
+    """
+    A map that over-calls one class scores perfectly on one and poorly on the
+    other, which is why neither is reported alone.
+    """
+    cells = _cell_grid()
+    ref = np.where(cells < 50, 39, 41)
+    pred = ref.copy()
+    pred[(cells >= 30) & (cells < 50)] = 41
+
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    per = {c["class_id"]: c for c in out["per_class"]}
+    # 30 of the 50 soybean cells were found.
+    assert per[39]["producers_pct"] == 60.0
+    # Everything called soybean really is soybean.
+    assert per[39]["users_pct"] == 100.0
+    # Every 41 cell was found, but 70 cells were called 41 and only 50 are.
+    assert per[41]["producers_pct"] == 100.0
+    assert abs(per[41]["users_pct"] - 100.0 * 50 / 70) < 0.01
+
+
+def test_majority_decides_a_cell():
+    """A minority of dissenting pixels does not flip its reference cell."""
+    cells = _cell_grid()
+    ref = np.full((30, 30), 39)
+    pred = ref.copy()
+    _, xx = np.mgrid[0:30, 0:30]
+    pred[(cells == 0) & (xx % 3 == 0)] = 41  # 3 of 9 pixels dissent
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    assert out["overall_pct"] == 100.0
+
+
+def test_reference_classes_outside_the_legend_are_excluded_not_counted_wrong():
+    """
+    The classifier has no label for water or urban, so a cell carrying one is
+    not a misclassification. Counting it as an error would conflate "wrong"
+    with "not representable", and the count is reported instead.
+    """
+    cells = _cell_grid()
+    ref = np.where(cells < 10, 33, 39)  # 10 cells of water
+    pred = np.full((30, 30), 39)
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    assert out["n_outside_legend"] == 10
+    assert out["n_reference_cells"] == 90
+    assert out["overall_pct"] == 100.0  # perfect on what it can represent
+
+
+def test_agreement_is_absent_without_the_cell_mapping():
+    """
+    No cell mapping means no honest denominator, so nothing is reported. An
+    accuracy computed over the wrong n is worse than a missing one.
+    """
+    ref = np.full((30, 30), 39)
+    assert lulc.agreement_against_reference(ref.copy(), ref, None) is None
+
+
+def test_wilson_interval_stays_inside_the_unit_interval():
+    """
+    The reason it is Wilson and not Wald: at a proportion of 1 the normal
+    approximation gives a zero-width interval, and near 0 it runs negative.
+    """
+    lo, hi = lulc._wilson_interval(20, 20)
+    assert lo > 0 and hi <= 100.0 and lo < 100.0
+    lo, hi = lulc._wilson_interval(0, 20)
+    assert lo >= 0.0 and hi > 0.0
+    # Wider at n=20 than at n=2000 for the same proportion.
+    n_small = lulc._wilson_interval(16, 20)
+    n_large = lulc._wilson_interval(1600, 2000)
+    assert (n_small[1] - n_small[0]) > (n_large[1] - n_large[0])

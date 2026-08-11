@@ -74,14 +74,31 @@ export function PanelTile({
   uri,
   empty,
   onOpen,
+  fullWidth = false,
 }: {
   title: string
-  uri?: string
+  uri: string | undefined
   empty: string
   onOpen?: () => void
+  /**
+   * Set when the tile is not in a grid column.
+   *
+   * The preview is 4:3 of whatever width it is given, which is right in a
+   * five-column grid and wrong across a whole panel: on a wide window the
+   * water-occurrence tile came out around 1400 px tall, past the bottom of the
+   * screen and past the height of a screenshot. Bounding the height instead
+   * lets object-contain letterbox the raster, so the figure stays whole and
+   * stays on screen.
+   */
+  fullWidth?: boolean
 }) {
   const preview = (
-    <div className="rounded-sm border border-border bg-background relative aspect-[4/3] overflow-hidden">
+    <div
+      className={cn(
+        "rounded-sm border border-border bg-background relative overflow-hidden",
+        fullWidth ? "h-[min(24rem,45vh)]" : "aspect-[4/3]"
+      )}
+    >
       {uri ? (
         <img src={uri} alt={title} className="h-full w-full object-contain" />
       ) : (

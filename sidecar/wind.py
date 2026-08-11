@@ -115,37 +115,25 @@ RHO_REFERENCE = 1.225
 #   61400-1 normal wind profile exponent of 0.2, which is quoted nowhere in the
 #   assumptions for that reason."
 #
-# Consequence for this module: DENSITY_NORMALISATION_NOTE is what a caller
-# displays, and it says the exponent is applied to the speed without citing a
-# clause number.
+# Consequence for this module: the exponent is applied to the SPEED, as
+# (rho / 1.225)^(1/3), and follows from the cubic dependence of the wind power
+# flux on speed. Attributing that rule, rather than a power-side correction, to
+# a clause of IEC 61400-12-1 has not been checked against the standard text in
+# this project, so no clause is cited anywhere for it.
 DENSITY_EXPONENT = 1.0 / 3.0
 
-DENSITY_NORMALISATION_NOTE = (
-    "Site air density is computed hourly from surface pressure and "
-    "temperature for dry air and the wind speed is normalised by "
-    "(rho / 1.225)^(1/3) before the power curve is applied. The exponent "
-    "follows from the cubic dependence of the wind power flux on speed. The "
-    "attribution of this rule, rather than a power-side correction, to a "
-    "clause of IEC 61400-12-1 has not been checked against the standard text "
-    "in this project and is not cited here."
-)
-
-# Humidity is not carried in the density calculation. The magnitude of the
-# neglect was measured on one year of QV2M at one of the study cells: the
-# virtual-temperature form lowers mean density by 0.765 percent, which is
-# 0.256 percent on the normalised speed. Stated rather than omitted.
-HUMIDITY_NEGLECT_NOTE = (
-    "Air density uses the dry-air gas constant. Including specific humidity "
-    "through the virtual temperature lowered mean density by 0.765 percent "
-    "over one year at the study cell, which is 0.256 percent on the "
-    "density-normalised wind speed."
-)
-
+# Humidity is not carried in the density calculation: air density uses the
+# dry-air gas constant. The magnitude of the neglect was measured on one year
+# of QV2M at one of the study cells: the virtual-temperature form lowers mean
+# density by 0.765 percent, which is 0.256 percent on the normalised speed.
 # Project conventions, editable by the caller. None is a measured value.
 HUB_HEIGHT_M = 110.0            # the reference turbine hub
 RECORD_YEARS = 10               # mirrors the hourly window of solar_resource
 CALM_THRESHOLD_MS = 0.5         # taken from the project's existing diagnostic
-ROUGHNESS_BAND_M = (0.03, 0.10)  # open agricultural land, assumed not measured
+# Open agricultural land with scattered buildings and windbreaks; an assumed
+# land-cover property, not a measurement at any AOI. The shear plausibility
+# band moves with it.
+ROUGHNESS_BAND_M = (0.03, 0.10)
 RECORD_MAX_FLOOR_MS = 10.0      # no published basis; see RECORD_MAX_FLOOR_NOTE
 CALM_FRACTION_2M_FLAG_PCT = 50.0  # no published basis; see CALM_2M_NOTE
 
@@ -168,13 +156,6 @@ CALM_2M_NOTE = (
 # a rough one, so the table shows the exponent the result is sensitive to rather
 # than only the two values the band supplies. Each row states its roughness.
 SENSITIVITY_ROUGHNESS_M = (0.01, 0.40)
-
-ROUGHNESS_BAND_NOTE = (
-    "The roughness band is an assumed land-cover property for open "
-    "agricultural terrain with scattered buildings and windbreaks. It is a "
-    "project convention, not a measurement at this AOI, and the shear "
-    "plausibility band moves with it."
-)
 
 # Mean Gregorian year. sidecar/solar.py divides by 8760 in its capacity-factor
 # denominator, so a user comparing the two blocks sees a 0.07 percent
@@ -297,12 +278,11 @@ MEASURED_QUALIFIER = (
     "the data-quality diagnostics."
 )
 
-LOADS_NOTE = (
-    "Hourly reanalysis means do not resolve gusts or short-duration extremes. "
-    "Nothing here supports a turbine suitability or loads assessment, which "
-    "requires turbulence intensity and extreme wind statistics that hourly "
-    "means cannot supply."
-)
+# Hourly reanalysis means do not resolve gusts or short-duration extremes.
+# Nothing this module produces supports a turbine suitability or loads
+# assessment, which requires turbulence intensity and extreme wind statistics
+# that hourly means cannot supply. Kept as a boundary on what may be added
+# here, not as a string for the caller.
 
 DIRECTION_CONVENTION_NOTE = (
     "The direction is reported as the direction the wind comes from. The API "
@@ -519,7 +499,6 @@ def shear_plausibility(alpha: float,
         "assumed_roughness_band_m": [z0_lo, z0_hi],
         "expected_shear_exponent_band": [_round(alpha_lo, 4), _round(alpha_hi, 4)],
         "consistent_with_assumed_cover": consistent,
-        "roughness_band_note": ROUGHNESS_BAND_NOTE,
     }
 
 
@@ -695,7 +674,7 @@ def air_density(df: pd.DataFrame) -> pd.Series:
     rho = PS * 1000 / (R_dry * (T2M + 273.15)), with PS published in kPa and
     T2M in degrees Celsius. Pressure is a property of the same MERRA-2 cell as
     the wind, so the two are internally consistent. Humidity is neglected; see
-    HUMIDITY_NEGLECT_NOTE for the measured magnitude.
+    the constant block above for the measured magnitude.
     """
     return df["PS"] * 1000.0 / (R_DRY * (df["T2M"] + 273.15))
 
@@ -822,8 +801,10 @@ def shear_sensitivity(df: pd.DataFrame, alpha_bulk: float, hub_height_m: float,
         rows.append({
             "shear_exponent": _round(float(alpha), 4),
             "roughness_length_m": None if z0 is None else z0,
-            "basis": "derived from the record" if z0 is None
-                     else "neutral log profile at the stated roughness length",
+            # The roughness column beside it already states the length, and
+            # every derived row uses the same profile, so the repeated clause
+            # said nothing the table did not.
+            "basis": "measured" if z0 is None else "log profile",
             "hub_speed_ms": _round(float(v_hub.mean()), 4),
             "capacity_factor_pct": _round(capacity_factor(power), 3),
             "annual_energy_mwh": _round(annual_energy_mwh(power), 1),
@@ -954,9 +935,7 @@ def data_quality(df: pd.DataFrame, lon: float, alpha_bulk: float,
         "record_maximum_ms": maxima,
         "record_maximum_floor_ms": float(record_max_floor_ms),
         "record_maximum_plausible": max_plausible,
-        "record_maximum_floor_note": RECORD_MAX_FLOOR_NOTE,
         "calm_fraction_2m_flag_pct": CALM_FRACTION_2M_FLAG_PCT,
-        "calm_fraction_2m_note": CALM_2M_NOTE,
         "nan_count": fill,
         "shear": shear,
         "flags": flags,
@@ -1081,7 +1060,6 @@ def assess(df: pd.DataFrame, lon: float, lat: float,
         "grid_note": GRID_NOTE,
         "record_years": _round(n_years, 3),
         "qualifier": RESULT_QUALIFIER,
-        "loads_note": LOADS_NOTE,
 
         "measured": {
             "qualifier": MEASURED_QUALIFIER,
@@ -1096,7 +1074,6 @@ def assess(df: pd.DataFrame, lon: float, lat: float,
             "air_density_mean_kg_m3": _round(float(rho.mean()), 4),
             "air_density_min_kg_m3": _round(float(rho.min()), 4),
             "air_density_max_kg_m3": _round(float(rho.max()), 4),
-            "humidity_note": HUMIDITY_NEGLECT_NOTE,
             "monthly_mean_speed_50m": monthly_mean_speed(df, "WS50M"),
             "direction": prevailing_direction(df),
             "direction_energy_rose_50m": direction_energy_rose(df),
@@ -1114,15 +1091,7 @@ def assess(df: pd.DataFrame, lon: float, lat: float,
             "gross_annual_energy_mwh_per_turbine": _round(
                 annual_energy_mwh(power, hours_per_year), 1),
             "operating_regime": operating_regime_fractions(v_eq),
-            "density_normalisation_note": DENSITY_NORMALISATION_NOTE,
             "hours_per_year": float(hours_per_year),
-            "hours_per_year_note": (
-                "Annual energy uses 8766 hours, the mean Gregorian year. "
-                "sidecar/solar.py uses 8760 in its capacity-factor "
-                "denominator, so the two blocks differ by 0.07 percent on any "
-                "comparison. The solar constant is not changed because it "
-                "produced the capacity factors in runs already saved."
-            ),
             "excluded_losses": list(EXCLUDED_LOSSES),
         },
 
@@ -1154,12 +1123,6 @@ def turbine_specification() -> dict:
             "master/performance/performance_ccblade.dat"
         ),
         "curve_source_commit": "d0e12b296d025a1c8aa99d5ba7630654837cc59e",
-        "drivetrain_note": (
-            "The electrical column carries drivetrain and generator loss; the "
-            "electrical maximum of 3.370105 MW against the aerodynamic "
-            "3.597987 MW is a ratio of 0.9367. It carries none of the plant "
-            "losses listed under excluded_losses."
-        ),
     }
 
 

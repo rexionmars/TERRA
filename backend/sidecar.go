@@ -523,6 +523,7 @@ func convertLULC(raw *lulcSidecarPayload) *LULCAnalysis {
 		PredVsRef:             raw.PredVsRef,
 		ComparePixels:         raw.ComparePixels,
 		CompareReferenceCells: raw.CompareReferenceCells,
+		Agreement:             raw.Agreement,
 	}
 	if out.Composition == nil {
 		out.Composition = []LULCClassRow{}
@@ -1345,7 +1346,8 @@ func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainReques
 		// scale the raster was not drawn on, with no error anywhere.
 		Scale: t.Scale, ShadingMeanPct: t.ShadingMeanPct,
 		ShadingMaxPct: t.ShadingMaxPct, HorizonMaxDistM: t.HorizonMaxDistM,
-		BeamFraction: t.BeamFraction, PowerProvenance: t.PowerProvenance,
+		BeamFraction: t.BeamFraction, SkyView: t.SkyView,
+		PowerProvenance: t.PowerProvenance,
 	}
 	if uri, err := pngToDataURI(t.OverlayPNG); err == nil {
 		out.OverlayURI = uri

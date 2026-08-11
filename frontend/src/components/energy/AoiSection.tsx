@@ -10,25 +10,18 @@
  * the tabs: 1 degree for radiation, 0.5 by 0.625 degrees for the reanalysis the
  * wind screening reads.
  */
-import { useState } from "react"
 import {
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Layers,
   Pencil,
   Trash2,
   Upload,
 } from "lucide-react"
-import type { Area } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { PanelSection } from "@/components/ui/PanelSection"
 
 export function AoiSection({
   note,
-  areas,
   activeExample,
-  onSelectExample,
   hasArea,
   hasCustomPolygon,
   onImportPolygon,
@@ -36,9 +29,7 @@ export function AoiSection({
   busy,
 }: {
   note: string
-  areas: Area[]
   activeExample: string
-  onSelectExample: (id: string) => void
   hasArea: boolean
   hasCustomPolygon: boolean
   onImportPolygon: () => void
@@ -46,8 +37,6 @@ export function AoiSection({
   /** A run is in flight; editing the AOI under it would discard the result. */
   busy: boolean
 }) {
-  const [showExamples, setShowExamples] = useState(false)
-
   return (
     <PanelSection title="Area">
       <p className="text-xs leading-relaxed text-muted-foreground">{note}</p>
@@ -90,45 +79,9 @@ export function AoiSection({
             : activeExample
               ? `Example ${activeExample} loaded`
               : "Area defined"
-          : "No area defined. Draw one on the map, import a file, or load an example."}
+          : "No area defined. Draw one on the map or import a file."}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={() => setShowExamples((s) => !s)}
-          className="flex items-center gap-1.5 self-start text-[11px] text-muted-foreground hover:text-foreground"
-        >
-          <Layers className="size-3" />
-          Reference examples
-          {showExamples ? (
-            <ChevronLeft className="size-3 rotate-90" />
-          ) : (
-            <ChevronRight className="size-3 rotate-90" />
-          )}
-        </button>
-        {showExamples && (
-          <div className="grid grid-cols-3 gap-1.5">
-            {areas.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                disabled={busy}
-                onClick={() => onSelectExample(a.id)}
-                title={a.label}
-                className={cn(
-                  "rounded-sm border px-2 py-1 text-xs disabled:opacity-50",
-                  activeExample === a.id
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:bg-secondary"
-                )}
-              >
-                {a.id}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </PanelSection>
   )
 }

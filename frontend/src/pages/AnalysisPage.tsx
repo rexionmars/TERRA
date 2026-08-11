@@ -97,7 +97,7 @@ import {
   solarProductLabel,
 } from "@/lib/runSummary"
 import {
-  VI_GAP_DAYS,
+  gapLimitMs,
   dateToMs,
   insertTimeGaps,
   timeAxisProps,
@@ -427,12 +427,9 @@ export function AnalysisPage({
     }
   }, [hubView, selectedProjectId, loadProjectDetail, loadUnassigned])
 
-  const [openedRunId, setOpenedRunId] = useState<string | null>(null)
-
   const handleOpenRun = useCallback(
     async (run: InferenceRun) => {
       setOpenedOverlay(null)
-      setOpenedRunId(run.id)
       if (run.project_id) {
         setSelectedProjectId(run.project_id)
         setHubView("detail")
@@ -616,10 +613,6 @@ export function AnalysisPage({
           await loadUnassigned()
         }
         clearSelection()
-        if (result && openedRunId === run.id) {
-          setOpenedRunId(null)
-          onBackToList()
-        }
         notifySuccess("Analysis deleted")
       } catch (e) {
         notifyError("Could not delete analysis", e)
@@ -633,9 +626,6 @@ export function AnalysisPage({
       loadProjectDetail,
       loadUnassigned,
       clearSelection,
-      result,
-      openedRunId,
-      onBackToList,
     ]
   )
 
@@ -717,55 +707,63 @@ export function AnalysisPage({
     )
   }
 
-  const runsPanel = (
-    <SavedRunsPanel
-      title={panelTitle}
-      /*
-        The list is filtered by project and by nothing else, so it holds every
-        run kind -- classification, surface water, solar and wind alike. The
-        caption named only the first and even listed its three models, twenty
-        lines above the code that branches on r.kind to draw the other three.
-        Inside a project it says nothing at all now: the tab above already does.
-      */
-      caption={
-        hubView === "unassigned"
-          ? "Runs of any product not yet assigned to a project."
-          : undefined
-      }
-      runs={scopedRuns}
-      loading={!!loadingRun || comparing || hubLoading}
-      selectedIds={selectedIds}
-      onToggleSelect={toggleSelect}
-      onClearSelection={clearSelection}
-      onCompare={() => void startCompare()}
-      comparing={comparing}
-      onOpen={handleOpenRun}
-      onDelete={(run) => void handleDeleteRun(run)}
-      onRefresh={() => {
-        void refreshRuns()
-        if (hubView === "detail" && selectedProjectId) void loadProjectDetail(selectedProjectId)
-        if (hubView === "unassigned") void loadUnassigned()
-      }}
-      projects={projects}
-      onAssignProject={
-        hubView === "unassigned"
-          ? async (runId, projectId) => {
-              try {
-                await SetRunProject(runId, projectId)
-                await refreshRuns()
-                await loadUnassigned()
-                await refreshProjects()
-                notifySuccess("Assigned to project")
-              } catch (e) {
-                notifyError("Could not assign run", e)
-              }
-            }
-          : undefined
-      }
-    />
-  )
-
   if (!result) {
+    /*
+      Scoped to the hub, where the list IS the screen. It used to be built out
+      here and placed a third time at the foot of an open analysis, so reading
+      one result ended in the roster of every other one -- a list of forty-eight
+      runs answering a question the reader had already left behind. The header
+      of the detail view carries "Saved analyses" for going back, and comparing,
+      deleting and assigning all live on the hub the button returns to.
+    */
+    const runsPanel = (
+      <SavedRunsPanel
+        title={panelTitle}
+        /*
+          The list is filtered by project and by nothing else, so it holds every
+          run kind -- classification, surface water, solar and wind alike. The
+          caption named only the first and even listed its three models, twenty
+          lines above the code that branches on r.kind to draw the other three.
+          Inside a project it says nothing at all now: the tab above already does.
+        */
+        caption={
+          hubView === "unassigned"
+            ? "Runs of any product not yet assigned to a project."
+            : undefined
+        }
+        runs={scopedRuns}
+        loading={!!loadingRun || comparing || hubLoading}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
+        onClearSelection={clearSelection}
+        onCompare={() => void startCompare()}
+        comparing={comparing}
+        onOpen={handleOpenRun}
+        onDelete={(run) => void handleDeleteRun(run)}
+        onRefresh={() => {
+          void refreshRuns()
+          if (hubView === "detail" && selectedProjectId) void loadProjectDetail(selectedProjectId)
+          if (hubView === "unassigned") void loadUnassigned()
+        }}
+        projects={projects}
+        onAssignProject={
+          hubView === "unassigned"
+            ? async (runId, projectId) => {
+                try {
+                  await SetRunProject(runId, projectId)
+                  await refreshRuns()
+                  await loadUnassigned()
+                  await refreshProjects()
+                  notifySuccess("Assigned to project")
+                } catch (e) {
+                  notifyError("Could not assign run", e)
+                }
+              }
+            : undefined
+        }
+      />
+    )
+
     const hubSelection =
       hubView === "list"
         ? ("all" as const)
@@ -1063,10 +1061,15 @@ export function AnalysisPage({
    * irregular, so a month and a week were drawn the same width and every slope
    * on the chart was wrong by whatever the gaps happened to be.
    *
-   * A break is inserted where the interval exceeds `VI_GAP_DAYS`. Drawn
-   * through, a straight segment across a six-week cloud gap asserts
-   * observations that were never made, and it is indistinguishable from a
-   * segment across three good acquisitions.
+   * A break is inserted where the interval is long relative to this run's own
+   * cadence -- see gapLimitMs. Drawn through, a straight segment across a
+   * six-week cloud gap asserts observations that were never made, and it is
+   * indistinguishable from a segment across three good acquisitions.
+   *
+   * Relative to the cadence rather than a fixed number of days, because the
+   * fixed 16-day rule that was here broke almost every real series: monthly
+   * -best selection returns one scene per month, so the ordinary interval is
+   * 30 days and every segment qualified as a gap.
    *
    * NOT memoised, deliberately. This point in the component is past two early
    * returns -- the hub and the project views render and return above it -- so a
@@ -1083,6 +1086,9 @@ export function AnalysisPage({
   /** Tick precision follows the span; see lib/chartAxis.ts. */
   const viAxis = { tickFormatter: timeTickFormatter(viSpan) }
 
+  // The break threshold comes from this run's own cadence: monthly-best
+  // selection samples once a month by construction, and a fixed 16-day rule
+  // severed every segment of such a series.
   const viChart = insertTimeGaps(
     viSeries.map((p) => ({
       t: dateToMs(p.date),
@@ -1090,7 +1096,7 @@ export function AnalysisPage({
       evi: p.evi_mean,
       savi: p.savi_mean,
     })),
-    VI_GAP_DAYS
+    gapLimitMs(viTimes)
   )
 
   // Same treatment for surface water: it is the same cloud-screened Sentinel-2
@@ -1102,7 +1108,7 @@ export function AnalysisPage({
   const waterTimes = waterRows.map((r) => r.t).filter((t) => Number.isFinite(t))
   const waterSpan =
     waterTimes.length > 1 ? Math.max(...waterTimes) - Math.min(...waterTimes) : 0
-  const waterChart = insertTimeGaps(waterRows, VI_GAP_DAYS)
+  const waterChart = insertTimeGaps(waterRows, gapLimitMs(waterTimes))
 
   const exportTif = async () => {
     if (!result.raster_tif) return
@@ -1117,6 +1123,12 @@ export function AnalysisPage({
   // Every product that contributes a table or a manifest field. solar_terrain
   // was missing, so an AOI carrying only a terrain run had both export buttons
   // hidden and no way to reach its own manifest.
+  /** Classified pixels behind the distribution: the sum of the class counts. */
+  const classifiedPixels = (result.class_stats ?? []).reduce(
+    (n, s) => n + (s.pixels ?? 0),
+    0
+  )
+
   const canExportTables =
     !!result.solar ||
     !!result.solar_terrain ||
@@ -1271,8 +1283,26 @@ export function AnalysisPage({
                     ? ` · ${result.date_range[0]} → ${result.date_range[1]}`
                     : ""}{" "}
                   · {modelLabel}
+                  {/*
+                    Named for what it is, and shown with the floor it cannot go
+                    below. It is the mean of max(predict_proba) -- the share of
+                    the ensemble that voted for the winning class -- so over K
+                    classes it lives on [1/K, 1]. Printed as "mean conf 38%" it
+                    read on a 0-100 scale it does not occupy: over five classes
+                    that is a fifth of the way from maximum uncertainty to
+                    certainty, not a third. It is also not a calibrated
+                    probability of being correct, which is why it no longer
+                    says "confidence".
+                  */}
                   {result.mean_confidence > 0 && (
-                    <> · mean conf {(result.mean_confidence * 100).toFixed(0)}%</>
+                    <>
+                      {" "}
+                      · mean vote share{" "}
+                      {(result.mean_confidence * 100).toFixed(0)}%
+                      {result.confidence_floor
+                        ? ` (floor ${(result.confidence_floor * 100).toFixed(0)}%)`
+                        : ""}
+                    </>
                   )}
                 </>
               ) : (
@@ -1414,7 +1444,22 @@ export function AnalysisPage({
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-stretch">
               {hasClassification && (result.class_stats?.length ?? 0) > 0 && (
                 <section className="rounded-sm border border-border bg-secondary/50 p-4">
-                  <p className="eyebrow mb-3">Predicted class distribution</p>
+                  <p className="eyebrow mb-1">Predicted class distribution</p>
+                  {/*
+                    The denominator, and what the hectares are and are not.
+
+                    Areas here are pixel counts times the nominal pixel area.
+                    That is a biased estimator: omission and commission do not
+                    cancel, so the figure carries an error the map alone cannot
+                    bound (Olofsson et al. 2013). Stated, because a column of
+                    hectares to one decimal reads as measurement.
+                  */}
+                  <p className="mb-3 text-[10px] text-muted-foreground">
+                    {classifiedPixels > 0
+                      ? `n = ${classifiedPixels.toLocaleString()} classified pixels at 10 m · `
+                      : ""}
+                    area from pixel count, uncorrected for classification error
+                  </p>
                   <ul className="flex flex-col gap-1.5">
                     {(result.class_stats ?? []).map((s) => (
                       <li key={s.class_id} className="flex items-center gap-2 text-xs">
@@ -1509,8 +1554,20 @@ export function AnalysisPage({
                           fontSize: 11,
                         }}
                       />
+                      {/*
+                        Above the plot, not below it.
+
+                        Recharts lays a bottom legend in the same band the axis
+                        title occupies, and the two were drawn on top of each
+                        other: "Acquisition date" read through the NDVI/EVI/SAVI
+                        keys. The axis title has to stay under the axis it
+                        names, so the legend is what moves.
+                      */}
                       <Legend
-                        wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                        verticalAlign="top"
+                        align="right"
+                        height={20}
+                        wrapperStyle={{ fontSize: 11, paddingBottom: 2 }}
                         iconType="plainline"
                       />
                       {VI_LINES.map((s) => (
@@ -1651,10 +1708,14 @@ export function AnalysisPage({
               </div>
               {result.water.occurrence_uri && (
                 <div className="mb-3">
+                  {/* Spans the panel rather than sitting in a grid column, so
+                      its height is bounded instead of following a 4:3 ratio of
+                      the full width. */}
                   <PanelTile
                     title="Water occurrence"
                     uri={result.water.occurrence_uri}
                     empty="No occurrence raster"
+                    fullWidth
                   />
                   <ContinuousRamp
                     palette="blues"
@@ -1748,8 +1809,6 @@ export function AnalysisPage({
               </div>
             </section>
           )}
-
-          {runsPanel}
         </div>
       </PageBody>
 

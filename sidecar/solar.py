@@ -32,6 +32,8 @@ import time
 import urllib.error
 import urllib.request
 
+import functools
+
 import numpy as np
 import pandas as pd
 
@@ -80,6 +82,10 @@ INVERTER_OVERSIZE_RATIO = 1.15
 FAIMAN_U0 = 25.0
 FAIMAN_U1 = 6.84
 ALBEDO = 0.20
+# ASHRAE incidence-angle coefficient. Named because the beam correction and the
+# diffuse one have to be the same relation integrated differently; two literals
+# would let them drift apart.
+IAM_ASHRAE_B = 0.05
 TRANSPOSITION_MODEL = "perez"
 SOLAR_CONSTANT = 1361.0      # W/m2, Kopp and Lean (2011)
 
@@ -305,6 +311,54 @@ def sweep_tilt(
     return rows
 
 
+# Tilt resolution the diffuse modifier is evaluated on, in degrees.
+#
+# marion_diffuse integrates the incidence relation over the sky dome and the
+# ground plane numerically, allocating a grid per tilt it is given. That is
+# unremarkable for a fixed array, which has one tilt, and ruinous for a tracker,
+# which has one per hour: passing the raw 17520-value tracker series built a
+# grid for every hour of the record at once and drove resident memory into tens
+# of gigabytes. Rounding to a tenth of a degree bounds the distinct values at
+# 901 over the full 0-90 range, and the modifier varies by under 1e-4 across a
+# step that size, so nothing measurable is lost.
+DIFFUSE_IAM_TILT_DECIMALS = 1
+
+
+@functools.lru_cache(maxsize=1024)
+def _diffuse_iam_scalar(tilt: float) -> tuple:
+    """
+    Sky and ground incidence modifiers for one tilt, as a hashable pair list.
+
+    Cached because the value depends on the tilt alone: the sky dome and the
+    ground plane subtend the same solid angles every hour of the year, so the
+    integral is a property of the geometry rather than of the record.
+    """
+    import pvlib
+
+    d = pvlib.iam.marion_diffuse("ashrae", float(tilt), b=IAM_ASHRAE_B)
+    return tuple((k, float(v)) for k, v in d.items())
+
+
+def diffuse_iam(tilt):
+    """
+    Sky and ground incidence modifiers, for a fixed tilt or a tracker series.
+
+    Returns floats for a scalar tilt and aligned Series for a varying one, so
+    the caller multiplies without caring which it has.
+    """
+    if np.isscalar(tilt) or (getattr(tilt, "ndim", 0) == 0):
+        return dict(_diffuse_iam_scalar(round(float(tilt), DIFFUSE_IAM_TILT_DECIMALS)))
+
+    t = pd.Series(tilt)
+    keys = np.round(t.to_numpy(dtype=float), DIFFUSE_IAM_TILT_DECIMALS)
+    # One integration per distinct angle, not one per hour.
+    lookup = {k: dict(_diffuse_iam_scalar(float(k))) for k in np.unique(keys)}
+    return {
+        part: pd.Series([lookup[k][part] for k in keys], index=t.index)
+        for part in ("sky", "ground")
+    }
+
+
 def pv_yield_frame(
     poa, df: pd.DataFrame, solpos: pd.DataFrame, tilt: float, azimuth: float
 ) -> pd.DataFrame:
@@ -323,14 +377,44 @@ def pv_yield_frame(
     """
     import pvlib
 
-    # POA irradiance after the angle-of-incidence loss on the beam component.
+    # POA irradiance after the angle-of-incidence loss.
+    #
     # IAM is NaN where the sun is behind the plane, which must read as no beam
     # rather than as a missing hour, and the sum is floored at zero.
+    #
+    # The diffuse components carry their own incidence-angle correction. Sky and
+    # ground diffuse arrive from the whole hemisphere the plane sees, so their
+    # effective incidence angle is a property of the tilt, not of the hour:
+    # Marion (2013) integrates the ASHRAE relation over each solid angle once
+    # per tilt. Ground-reflected light is the strongly corrected term because it
+    # arrives near-grazing -- at 10 degrees of tilt it keeps 0.466 against 0.956
+    # for the sky.
+    #
+    # This is a physics change, not a refactor, and every yield built on it
+    # moves. At the reference site the IAM factor falls from 0.98694 to 0.97136
+    # and the specific yield from 1474.73 to 1450.78 kWh/kWp/yr, which is
+    # -1.62 percent.
+    #
+    # The size of the shift scales with how diffuse the site is, so it cannot be
+    # quoted as one number: under a clear sky, where the diffuse share is 0.14,
+    # the same correction costs 0.75 percent, and at the reference site's ~0.40
+    # it costs 1.62. The ground term drives it -- reflected light arrives
+    # near-grazing and keeps 0.788 at 26 degrees of tilt against 0.961 for the
+    # sky.
+    #
+    # It is made because the omission was a declared overstatement in the loss
+    # waterfall, and correcting it moves the chain toward the Global Solar Atlas
+    # reference it is benchmarked against, not away from it.
     aoi = pvlib.irradiance.aoi(
         tilt, azimuth, solpos["apparent_zenith"], solpos["azimuth"]
     )
     iam = pvlib.iam.ashrae(aoi)
-    g_eff = (poa["poa_direct"] * iam.fillna(0.0) + poa["poa_diffuse"]).clip(lower=0.0)
+    iam_diffuse = diffuse_iam(tilt)
+    g_eff = (
+        poa["poa_direct"] * iam.fillna(0.0)
+        + poa["poa_sky_diffuse"] * iam_diffuse["sky"]
+        + poa["poa_ground_diffuse"] * iam_diffuse["ground"]
+    ).clip(lower=0.0)
     temp_cell = pvlib.temperature.faiman(
         poa["poa_global"], df["temp_air"], df["wind"], u0=FAIMAN_U0, u1=FAIMAN_U1
     )
@@ -595,6 +679,65 @@ def beam_fraction(df) -> float:
     if ghi <= 0:
         return 0.0
     return float(np.clip((ghi - dhi) / ghi, 0.0, 1.0))
+
+
+# Below this mean horizon there is no enclosure to measure. Derived from the
+# relation between the two: an isotropic sky view of cos^2(h) puts a 2 degree
+# mean horizon at a 0.12 percent diffuse loss, which is under the rounding of
+# every figure this module publishes. The threshold is read off the horizon the
+# chain already traced, so it costs nothing to evaluate.
+SVF_MIN_MEAN_HORIZON_DEG = 2.0
+
+
+def sky_view_factor(horizon: np.ndarray) -> np.ndarray:
+    """
+    Share of the isotropic sky dome each pixel still sees.
+
+    For a horizon elevation h in an azimuth sector, the fraction of the diffuse
+    hemisphere that sector still admits is cos^2(h) (the sector integral of the
+    isotropic radiance weighted by the cosine response of a horizontal plane).
+    Averaging over sectors gives the pixel's sky view factor.
+
+    Shading removed beam energy only, which is the expensive half to compute and
+    the small half to collect: measured on a synthetic incised valley the beam
+    term moves the median yield by -0.003 percent while the diffuse term moves
+    it by -2.82 percent. On flat ground both vanish (-0.04 percent). The horizon
+    that carries the beam answer already carries this one.
+    """
+    if horizon.size == 0:
+        return np.ones(horizon.shape[:2], dtype=float)
+    h = np.clip(np.nan_to_num(horizon, nan=0.0), 0.0, 90.0)
+    return np.clip(np.cos(np.radians(h)) ** 2, 0.0, 1.0).mean(axis=2)
+
+
+def diffuse_loss_fraction(horizon: np.ndarray) -> np.ndarray:
+    """Share of the diffuse irradiance each pixel loses to its own horizon."""
+    return np.clip(1.0 - sky_view_factor(horizon), 0.0, 1.0)
+
+
+def horizon_enclosure(horizon: np.ndarray) -> dict:
+    """
+    Whether the terrain encloses the site enough for the diffuse loss to be a
+    figure rather than noise, and the evidence for the verdict.
+
+    Returned rather than applied, so the caller reports the threshold it was
+    judged against instead of a bare boolean.
+    """
+    if horizon.size == 0:
+        return {
+            "mean_horizon_deg": 0.0,
+            "max_horizon_deg": 0.0,
+            "threshold_deg": SVF_MIN_MEAN_HORIZON_DEG,
+            "encloses": False,
+        }
+    h = np.clip(np.nan_to_num(horizon, nan=0.0), 0.0, 90.0)
+    mean_h = float(np.mean(h))
+    return {
+        "mean_horizon_deg": round(mean_h, 4),
+        "max_horizon_deg": round(float(np.max(h)), 4),
+        "threshold_deg": SVF_MIN_MEAN_HORIZON_DEG,
+        "encloses": bool(mean_h >= SVF_MIN_MEAN_HORIZON_DEG),
+    }
 
 
 def fetch_dem(polygon, out_path, buffer_m: float = 0.0) -> str:

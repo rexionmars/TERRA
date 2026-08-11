@@ -85,7 +85,15 @@ func (a *App) SetRunProject(runID, projectID string) error {
 
 // SaveProjectOverlayRequest persists a composition (or similar) into a project.
 type SaveProjectOverlayRequest struct {
-	ProjectID  string `json:"project_id"`
+	ProjectID string `json:"project_id"`
+	/*
+		The run on screen when this composition was made, when there was one.
+
+		Optional by design: a composition needs no classification -- browsing
+		scenes on the map produces one -- and those belong to the project
+		rather than to a run.
+	*/
+	RunID      string `json:"run_id"`
 	Kind       string `json:"kind"`
 	Title      string `json:"title"`
 	MetaJSON   string `json:"meta_json"`
@@ -143,6 +151,7 @@ func (a *App) SaveProjectOverlay(req SaveProjectOverlayRequest) (*store.ProjectO
 	row, err := a.store.AddProjectOverlay(userID, store.ProjectOverlay{
 		ID:         overlayID,
 		ProjectID:  projectID,
+		RunID:      strings.TrimSpace(req.RunID),
 		Kind:       kind,
 		Title:      title,
 		MetaJSON:   meta,

@@ -85,7 +85,6 @@ export interface MapScreenProps {
   composeOpacity: number
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
-  onSelectExample: (id: string) => void
   onLocationSelect: (lat: number, lon: number) => void
   onClearArea: () => void
   onImportPolygon: () => void
@@ -185,7 +184,6 @@ export function MapScreen(props: MapScreenProps) {
         activeExample={props.activeExample}
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
-        onSelectExample={props.onSelectExample}
         flyTo={props.flyTo}
         result={props.result}
         overlayOpacity={props.overlayOpacity}
@@ -290,9 +288,7 @@ export function MapScreen(props: MapScreenProps) {
           <ControlPanel
             key="classify"
             panelOffsetClass={panelOffsetClass}
-            areas={props.areas}
             activeExample={props.activeExample}
-            onSelectExample={props.onSelectExample}
             customPolygon={props.customPolygon}
             hasArea={props.hasArea}
             onClearArea={props.onClearArea}

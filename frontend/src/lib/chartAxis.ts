@@ -61,13 +61,47 @@ export function timeLabelFormatter(t: number): string {
 }
 
 /**
- * Days after which a break is drawn instead of a segment.
+ * Days after which a break is drawn instead of a segment, when the series is
+ * too short to speak for itself.
  *
  * Sentinel-2's revisit is five days with both satellites, so three missed
  * passes is the point where a straight line stops being a plausible reading of
  * the interval and starts being an assertion about weeks nobody observed.
+ *
+ * A FALLBACK, NOT THE RULE. Applied to every series it broke almost all of
+ * them: monthly-best selection returns one scene per month by construction, so
+ * a real run has a median interval near 30 days and a fixed 16-day threshold
+ * severed every segment. Measured on a 13-acquisition run, 10 of 12 intervals
+ * exceeded it and the chart drew 2 line segments among 13 isolated dots. What
+ * counts as a gap depends on the cadence, so gapLimitMs derives it.
  */
 export const VI_GAP_DAYS = 16
+
+/**
+ * The interval beyond which a break is a break, derived from the sampling.
+ *
+ * A gap is a gap relative to how often this series is sampled: 30 days is
+ * routine under monthly-best selection and a long absence under a dense
+ * five-day cadence. The median interval is what the run itself says its
+ * cadence is, and the multiple below is the point past which an interval stops
+ * being ordinary spacing.
+ *
+ * The median rather than the mean, because the outlier this has to survive is
+ * exactly the gap it is trying to detect: one four-month hole pulls a mean far
+ * enough to stop the hole being detected.
+ */
+export function gapLimitMs(times: number[], fallbackDays = VI_GAP_DAYS): number {
+  const ts = times.filter((t) => Number.isFinite(t)).sort((a, b) => a - b)
+  const gaps: number[] = []
+  for (let i = 1; i < ts.length; i++) gaps.push(ts[i] - ts[i - 1])
+  // Under three intervals there is no cadence to speak of, only points.
+  if (gaps.length < 3) return fallbackDays * DAY_MS
+  gaps.sort((a, b) => a - b)
+  const median = gaps[Math.floor(gaps.length / 2)]
+  if (!Number.isFinite(median) || median <= 0) return fallbackDays * DAY_MS
+  // 2.5x: a missed acquisition still connects, two consecutive absences do not.
+  return Math.max(median * 2.5, fallbackDays * DAY_MS)
+}
 
 /**
  * Opens a hole in a series wherever consecutive samples are too far apart.
@@ -79,9 +113,11 @@ export const VI_GAP_DAYS = 16
  */
 export function insertTimeGaps<T extends { t: number }>(
   rows: T[],
-  gapDays: number
+  // Milliseconds, not days: the threshold is derived from the series' own
+  // cadence by gapLimitMs, and passing days invited the fixed value that broke
+  // every monthly series.
+  limit: number
 ): (T | { t: number })[] {
-  const limit = gapDays * DAY_MS
   const out: (T | { t: number })[] = []
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]

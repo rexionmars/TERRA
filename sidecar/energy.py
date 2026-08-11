@@ -62,7 +62,11 @@ SOURCE_FAIMAN = (
 )
 SOURCE_ASHRAE_IAM = (
     "Souka, A. F. and Safwat, H. H. (1966), as implemented by pvlib.iam.ashrae "
-    "with the default coefficient b=0.05"
+    "with the default coefficient b=0.05; the diffuse terms use the same "
+    "relation integrated over the sky and ground solid angles per "
+    "Marion, B. (2013), Numerical method for angle-of-incidence correction "
+    "factors for diffuse radiation incident on photovoltaic modules, "
+    "Solar Energy 92:84-89, doi:10.1016/j.solener.2013.02.029"
 )
 SOURCE_IEC_61724 = (
     "IEC 61724-1, which defines the performance ratio against the "
@@ -73,6 +77,12 @@ SOURCE_NIST_ACRE = (
     "exact"
 )
 CONVENTION = "project convention, user-editable"
+
+# Cited on the waterfall row that applies it. A module constant rather than a
+# payload field because the degradation row is the only thing that ever asked.
+DEGRADATION_SOURCE = (
+    f"{SOURCE_JORDAN_KURTZ}; the analysis period is a {CONVENTION}"
+)
 
 # Exact by definition, so it is written out rather than rounded.
 ACRE_HA = 0.40468564224
@@ -441,18 +451,8 @@ def resolve_performance_ratio(
         "applied": applied,
         "applied_source": source,
         "reference": reference,
-        "reference_source": (
-            "solar.REFERENCE_PERFORMANCE_RATIO, benchmarked against the Global "
-            f"Solar Atlas implied band {GSA_IMPLIED_PR_BAND[0]:.3f} to "
-            f"{GSA_IMPLIED_PR_BAND[1]:.3f} over the three study sites"
-        ),
         "modelled": modelled,
         "derived": derived,
-        "derived_source": (
-            "modelled ratio times the declared PVWatts v5 terms this chain "
-            "does not model; no external benchmark exists for it, which is why "
-            "it is reported alongside the applied ratio rather than replacing it"
-        ),
         "derived_if_optional_at_pvwatts_defaults": derived_if_suggested,
         "declared_loss_factor": declared_factor,
         "optional_loss_factor": optional_factor,
@@ -463,9 +463,6 @@ def resolve_performance_ratio(
         "degradation_factor": deg,
         "degradation_rate_per_year": float(degradation_rate_per_year),
         "analysis_period_years": int(analysis_period_years),
-        "degradation_source": (
-            f"{SOURCE_JORDAN_KURTZ}; the analysis period is a {CONVENTION}"
-        ),
         "gsa_implied_band": list(GSA_IMPLIED_PR_BAND),
     }
 
@@ -601,12 +598,14 @@ def loss_waterfall(
     )
 
     add(
-        4, "Angle of incidence on the beam component (ASHRAE)",
+        4, "Angle of incidence, beam and diffuse (ASHRAE)",
         f["f_iam"], e_geff, "kWh/m2/yr", f["f_iam"], "modelled", True,
         SOURCE_ASHRAE_IAM,
-        "Applied to the beam component only. The diffuse component receives "
-        "no incidence-angle correction in this chain, which is a "
-        "simplification inside the modelled ratio.",
+        "Applied to all three components. The beam correction follows the "
+        "hourly incidence angle; sky and ground diffuse carry the same "
+        "relation integrated over the solid angle each occupies, which depends "
+        "on tilt alone. Ground-reflected light arrives near-grazing and is the "
+        "strongly corrected term.",
     )
 
     add(
@@ -698,7 +697,7 @@ def loss_waterfall(
     deg = float(ratio["degradation_factor"])
     add(
         step, "Degradation, reporting basis", deg, energy * deg, "kWh/kWp/yr",
-        cumulative * deg, "basis", False, ratio["degradation_source"],
+        cumulative * deg, "basis", False, DEGRADATION_SOURCE,
         f"Reporting basis '{ratio['reporting_basis']}'. Not a loss row: the "
         "two bases are not comparable with each other or with an external "
         "reference computed on the other basis, so the basis is printed with "
@@ -888,37 +887,6 @@ def gcr_defaults(module_efficiency: float = GCR_MODULE_EFFICIENCY) -> dict:
         ),
         "user_editable": True,
     }
-
-
-# The second efficiency the note below reports the derivation at, so a reader
-# can see how far the pair moves. Utility-scale crystalline modules span
-# roughly this range; the value is a project convention, not a measurement.
-GCR_ALTERNATE_MODULE_EFFICIENCY = 0.17
-
-
-def _module_efficiency_note() -> str:
-    """
-    What module efficiency does and does not change in the per-hectare figure.
-
-    Generated from bolinger_implied_gcr rather than written out, so the numbers
-    in the sentence cannot drift from the derivation that produced the
-    defaults. The previous fixed text asserted that the derived per-hectare
-    change moves by about 0.7 percentage points with efficiency; it does not
-    move at all, because the same efficiency divides both ratios and cancels.
-    """
-    a = bolinger_implied_gcr(GCR_MODULE_EFFICIENCY)
-    b = bolinger_implied_gcr(GCR_ALTERNATE_MODULE_EFFICIENCY)
-    return (
-        "Module efficiency does not enter this ratio because both ground "
-        "coverage ratios are supplied directly. It does enter if a caller "
-        "derives them from published capacity densities, and it then sets "
-        f"both: at {a['module_efficiency']:g} the Bolinger-implied pair is "
-        f"{a['gcr_fixed']:.4f} and {a['gcr_tracker']:.4f}, at "
-        f"{b['module_efficiency']:g} it is "
-        f"{b['gcr_fixed']:.4f} and {b['gcr_tracker']:.4f}. Their ratio is "
-        f"{a['gcr_ratio']:.4f} at both, because the efficiency divides both "
-        "ratios, so the derived per-hectare change does not move with it."
-    )
 
 
 # Published per-hectare energy densities, which are direct measurements of the
@@ -1132,7 +1100,6 @@ def tracking_comparison(
             "The derived figure moves with the ground coverage pair, and the "
             "published pairs span the point at which the sign inverts."
         ),
-        "module_efficiency_note": _module_efficiency_note(),
     }
 
     if solve_parity:
@@ -1146,14 +1113,7 @@ def tracking_comparison(
             "axis_azimuth_deg": AXIS_AZIMUTH_DEG,
             "axis_azimuth_convention": "degrees east of north",
             "max_angle_deg": float(max_angle_deg),
-            "max_angle_source": CONVENTION,
             "backtrack": TRACKER_BACKTRACK,
-            "backtrack_note": (
-                "Always on and not exposed. Without backtracking pvlib ignores "
-                "the ground coverage ratio and does not remove the row-shaded "
-                "irradiance it then permits, so the reported gain would exceed "
-                "what the plant delivers."
-            ),
             "terrain": (
                 "Flat ground. Slope-aware backtracking on sloping terrain "
                 "would change the result and is not modelled here."
@@ -1234,7 +1194,6 @@ def tracking_comparison(
             "are not modelled. This compares energy only and cannot support a "
             "siting decision on its own."
         ),
-        "resolution_note": solar.GRID_NOTE,
     }
 
 
@@ -1585,17 +1544,7 @@ def resolve_capacity_density(
         "source": spec["source"],
         "acre_conversion": SOURCE_NIST_ACRE,
         "buildable_fraction": float(buildable_fraction) if derated else None,
-        "buildable_fraction_source": (
-            f"{SOURCE_BOLINGER}, section II worked example; {CONVENTION}"
-        ) if derated else None,
         "fleet_dc_ac_ratio": float(fleet_dc_ac_ratio),
-        "fleet_dc_ac_ratio_source": (
-            "implied by the Bolinger and Bolinger (2022) sample, "
-            f"{BOLINGER_SAMPLE_MW_DC:.0f} MW_DC over "
-            f"{BOLINGER_SAMPLE_MW_AC:.0f} MW_AC. It is a fleet ratio and is "
-            "not the model-internal inverter sizing constant in solar.py, "
-            "which is a different quantity."
-        ),
         "ac_to_dc_conversion_applied": converted,
         "note": (
             "The choice of basis moves the answer further than the exceedance "
@@ -1687,19 +1636,12 @@ def exceedance_table(
             "test": "Shapiro-Wilk",
             "statistic": round(float(sw.statistic), 5),
             "p_value": round(float(sw.pvalue), 4),
-            "interpretation": (
-                "normality is not rejected at the 5 percent level"
-                if float(sw.pvalue) >= 0.05
-                else "normality is rejected at the 5 percent level, so the "
-                     "normal-fit column is biased in the tails"
-            ),
         }
     else:
         normality = {
             "test": "Shapiro-Wilk",
             "statistic": None,
             "p_value": None,
-            "interpretation": "fewer than three complete years, not tested",
         }
 
     return {
@@ -1716,12 +1658,6 @@ def exceedance_table(
         "std_kwh_m2_year": round(std, 2),
         "cv_pct": round(100.0 * cv, 3),
         "levels": rows,
-        "p50_note": (
-            "The applied P50 factor is the median annual total over the mean "
-            "annual total and is not exactly 1.0, because the specific yield "
-            "is built on the mean year while the empirical estimator reads the "
-            "median. The difference is reported rather than forced to unity."
-        ),
         "normality": normality,
         "crosswalk": {
             "exceedance_p90_kwh_m2_year": round(

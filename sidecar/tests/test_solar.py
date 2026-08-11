@@ -328,3 +328,89 @@ def test_beam_fraction_is_the_direct_share_of_the_horizontal_total():
     df = pd.DataFrame({"ghi": [100.0, 100.0], "dhi": [30.0, 30.0]})
     assert abs(solar.beam_fraction(df) - 0.7) < 1e-9
     assert solar.beam_fraction(pd.DataFrame({"ghi": [0.0], "dhi": [0.0]})) == 0.0
+
+
+def _uniform_horizon(deg: float, n: int = 36, shape=(4, 4)) -> np.ndarray:
+    """A horizon of one elevation in every azimuth, where the SVF is closed."""
+    return np.full(shape + (n,), float(deg), dtype=np.float32)
+
+
+def test_sky_view_factor_is_the_closed_form_for_a_uniform_horizon():
+    """
+    A uniform horizon at elevation h admits cos^2(h) of the isotropic dome. The
+    closed form is the check on the sector integral: an implementation that
+    averaged the angle rather than its cosine squared would pass a zero test and
+    a ninety test and be wrong everywhere between.
+    """
+    for deg in (0.0, 10.0, 30.0, 45.0, 60.0, 90.0):
+        got = solar.sky_view_factor(_uniform_horizon(deg))[0, 0]
+        assert abs(got - np.cos(np.radians(deg)) ** 2) < 1e-6, deg
+    assert solar.sky_view_factor(_uniform_horizon(0.0))[0, 0] == 1.0
+    # Not an exact zero: cos(pi/2) is 6.1e-17 in floating point, so a sky walled
+    # to the zenith lands at 1.9e-15 rather than at 0.
+    assert solar.sky_view_factor(_uniform_horizon(90.0))[0, 0] < 1e-12
+
+
+def test_sky_view_factor_averages_over_sectors_not_within_them():
+    """Half the sky walled to 45 degrees is the mean of the two sector values."""
+    mixed = np.zeros((1, 1, 36), dtype=np.float32)
+    mixed[:, :, :18] = 45.0
+    want = 0.5 * np.cos(np.radians(45.0)) ** 2 + 0.5
+    assert abs(solar.sky_view_factor(mixed)[0, 0] - want) < 1e-6
+
+
+def test_diffuse_loss_is_the_complement_and_stays_bounded():
+    loss = solar.diffuse_loss_fraction(_uniform_horizon(30.0))
+    assert abs(loss[0, 0] - 0.25) < 1e-6
+    assert solar.diffuse_loss_fraction(_uniform_horizon(0.0)).max() == 0.0
+    assert solar.diffuse_loss_fraction(_uniform_horizon(90.0)).max() == 1.0
+
+
+def test_diffuse_loss_reproduces_the_measured_valley_and_plain():
+    """
+    The study that motivated this measured -2.82 percent in an incised valley
+    and -0.04 percent on a plain. Those are the magnitudes the implementation
+    has to land on, or it is measuring something else.
+    """
+    valley = solar.diffuse_loss_fraction(_uniform_horizon(9.7))[0, 0]
+    plain = solar.diffuse_loss_fraction(_uniform_horizon(1.0))[0, 0]
+    assert 0.025 < valley < 0.032, valley
+    assert plain < 0.001, plain
+
+
+def test_enclosure_gates_on_the_horizon_it_reports():
+    """
+    The verdict travels with the evidence: a caller that applies the loss has to
+    be able to print the horizon and the threshold it was judged against.
+    """
+    below = solar.horizon_enclosure(_uniform_horizon(1.9))
+    at = solar.horizon_enclosure(_uniform_horizon(2.0))
+    assert below["encloses"] is False
+    assert at["encloses"] is True
+    assert at["threshold_deg"] == solar.SVF_MIN_MEAN_HORIZON_DEG
+    assert abs(at["mean_horizon_deg"] - 2.0) < 1e-6
+    # The threshold is where the loss is still under the rounding of every
+    # figure this module publishes.
+    assert solar.diffuse_loss_fraction(
+        _uniform_horizon(solar.SVF_MIN_MEAN_HORIZON_DEG)
+    ).max() < 0.002
+
+
+def test_sky_view_factor_of_an_absent_horizon_is_open_sky():
+    """No horizon traced must read as nothing blocking, not as everything."""
+    assert solar.sky_view_factor(np.zeros((2, 2, 0), dtype=np.float32))[0, 0] == 1.0
+    assert solar.horizon_enclosure(np.zeros((2, 2, 0)))["encloses"] is False
+
+
+def test_diffuse_incidence_correction_is_applied_and_lowers_the_yield():
+    """
+    The angle-of-incidence correction reaches the diffuse components, not the
+    beam alone. Ground-reflected light arrives near-grazing, so it is the
+    strongly corrected term; the omission overstated the yield by ~0.75 percent.
+    """
+    import pvlib
+    sky = pvlib.iam.marion_diffuse("ashrae", 20.0, b=solar.IAM_ASHRAE_B)
+    assert sky["ground"] < sky["sky"] < 1.0
+    assert 0.9 < sky["sky"] < 1.0
+    # The beam relation and the diffuse one are the same coefficient.
+    assert solar.IAM_ASHRAE_B == 0.05

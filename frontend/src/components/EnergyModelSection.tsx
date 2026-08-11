@@ -23,6 +23,33 @@ import { cn } from "@/lib/utils"
  * from the beam and diffuse components is a property of the radiation product;
  * drawn inside the chain it reads as a plant loss the site would incur.
  */
+/**
+ * A dense label/value pair.
+ *
+ * This section carried its figures inside sentences -- "Specific yield 1234.56
+ * kWh/kWp/yr at a performance ratio of 0.80 (reference), reporting basis
+ * year_one" -- which put the method between the reader and every number. The
+ * numbers are the same; they are now read down a column rather than out of a
+ * paragraph.
+ */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="truncate text-[10px] text-muted-foreground">{label}</span>
+      <span className="telemetry shrink-0 text-[11px] text-foreground">{value}</span>
+    </div>
+  )
+}
+
+/** Two-column grid for a run of Stat rows. */
+function StatGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+      {children}
+    </div>
+  )
+}
+
 function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
   const w = energy.loss_waterfall
   const steps = w.steps
@@ -41,11 +68,12 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
         </p>
       </div>
 
-      <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
-        {w.base.note} The daily climatology over {w.base.climatology_window}{" "}
-        gives {w.base.ghi_climatology_kwh_m2_year.toFixed(2)} kWh/m2/yr and is
-        carried as context rather than as the base.
-      </p>
+      <StatGrid>
+        <Stat
+          label="Daily climatology"
+          value={`${w.base.climatology_window} · ${w.base.ghi_climatology_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+        />
+      </StatGrid>
 
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1.5">
@@ -122,18 +150,14 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
                     : s.cumulative_ratio.toFixed(6)}
                 </span>
               </div>
-              <p className="mt-1 pl-7 text-[10px] leading-relaxed text-muted-foreground">
-                {s.source}
-                {s.note ? ` — ${s.note}` : ""}
-              </p>
             </li>
           )
         })}
       </ul>
 
-      <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-        Carried outside the performance ratio:{" "}
-        {w.outside_performance_ratio.join("; ")}.
+      <p className="mt-2 text-[10px] text-muted-foreground">
+        Outside the performance ratio:{" "}
+        <span className="telemetry">{w.outside_performance_ratio.join(" · ")}</span>
       </p>
     </div>
   )
@@ -212,41 +236,34 @@ function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-        {hasBand ? (
-          <>
-            The Global Solar Atlas implies {lo.toFixed(3)} to {hi.toFixed(3)} at
-            this site. The applied ratio {pr.applied.toFixed(3)} (
-            {pr.applied_source}){" "}
-            {bracketed
-              ? "lies inside that band, so it is bracketed by an external measurement rather than asserted"
-              : `lies outside it by ${Math.min(Math.abs(pr.applied - lo), Math.abs(pr.applied - hi)).toFixed(4)}`}
-            . The derived ratio {pr.derived.toFixed(4)}{" "}
-            {pr.derived < lo
-              ? `sits ${(lo - pr.derived).toFixed(4)} below the lower edge`
-              : pr.derived > hi
-                ? `sits ${(pr.derived - hi).toFixed(4)} above the upper edge`
-                : "lies inside the band as well"}
-            ; it is this chain decomposed plus its declared assumptions, and it
-            does not replace the applied ratio.
-          </>
-        ) : (
-          <>
-            No external band was returned with this run, so the applied ratio{" "}
-            {pr.applied.toFixed(3)} ({pr.applied_source}) is stated without one.
-          </>
+      <StatGrid>
+        {hasBand && (
+          <Stat
+            label="Global Solar Atlas band"
+            value={`${lo.toFixed(3)} – ${hi.toFixed(3)}`}
+          />
         )}
-      </p>
-      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-        At the values the reference suggests for the two optional terms the
-        derived ratio becomes{" "}
-        {pr.derived_if_optional_at_pvwatts_defaults.toFixed(4)}. Reporting basis{" "}
-        {pr.reporting_basis}, degradation factor{" "}
-        {pr.degradation_factor.toFixed(6)}. The rate is carried as a fraction
-        per year and is shown here as a percentage:{" "}
-        {(pr.degradation_rate_per_year * 100).toFixed(2)}% per year over{" "}
-        {pr.analysis_period_years} years. {pr.degradation_source}
-      </p>
+        <Stat
+          label="Applied ratio"
+          value={`${pr.applied.toFixed(3)}${hasBand ? (bracketed ? " · inside band" : " · outside band") : ""}`}
+        />
+        <Stat label="Derived ratio" value={pr.derived.toFixed(4)} />
+      </StatGrid>
+      <StatGrid>
+        <Stat
+          label="Derived at reference optionals"
+          value={pr.derived_if_optional_at_pvwatts_defaults.toFixed(4)}
+        />
+        <Stat label="Reporting basis" value={pr.reporting_basis} />
+        <Stat
+          label="Degradation factor"
+          value={pr.degradation_factor.toFixed(6)}
+        />
+        <Stat
+          label="Degradation rate"
+          value={`${(pr.degradation_rate_per_year * 100).toFixed(2)}% /yr over ${pr.analysis_period_years} yr`}
+        />
+      </StatGrid>
     </div>
   )
 }
@@ -273,16 +290,15 @@ function EnergyCheckpoints({ energy }: { energy: EnergyModelAnalysis }) {
               {c.value.toFixed(6)}
             </span>
           </div>
-          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-            {c.residual == null
-              ? "Not an identity, so no residual is reported."
-              : c.residual === 0
-                ? "Residual 0 against the identity."
-                : `Residual ${c.residual.toExponential(2)} against the identity.`}
-            {c.external_band.length >= 2
-              ? ` External band ${Math.min(...c.external_band).toFixed(3)} to ${Math.max(...c.external_band).toFixed(3)}.`
-              : ""}{" "}
-            {c.note}
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            <span className="telemetry">
+              {c.residual == null
+                ? "no residual"
+                : `residual ${c.residual === 0 ? "0" : c.residual.toExponential(2)}`}
+              {c.external_band.length >= 2
+                ? ` · band ${Math.min(...c.external_band).toFixed(3)}–${Math.max(...c.external_band).toFixed(3)}`
+                : ""}
+            </span>
           </p>
         </li>
       ))}
@@ -314,9 +330,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
       <p className="eyebrow">Fixed tilt against one-axis tracking</p>
 
       <div>
-        <p className="mb-2 text-[11px] leading-relaxed text-foreground">
-          Per hectare, as published. {t.per_hectare.note}
-        </p>
+            <p className="eyebrow !text-[9px] mb-2">Per hectare, as published</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="rounded-sm border border-border bg-secondary px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
@@ -333,12 +347,6 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
               {bol.fixed_mwh_acre_year.toFixed(0)} and{" "}
               {bol.tracking_mwh_acre_year.toFixed(0)} MWh/acre/yr)
             </div>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-              {bol.source}
-            </p>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-              {bol.note}
-            </p>
           </div>
           <div className="rounded-sm border border-border bg-secondary px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
@@ -359,17 +367,9 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
                 )
                 .join(" · ")}
             </div>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-              {ong.source}
-            </p>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-              {ong.note}
-            </p>
+                <p className="text-[10px] text-muted-foreground">tracking land per unit energy</p>
           </div>
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          {pub.disagreement}
-        </p>
       </div>
 
       <div
@@ -390,18 +390,16 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
           {md.gcr_tracker.toFixed(3)} tracking, a ratio of{" "}
           {md.gcr_ratio.toFixed(4)}
         </div>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {md.basis}. {md.note}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          Sign parity at a tracker ground coverage of{" "}
-          {md.parity.gcr_tracker.toFixed(4)}, that is{" "}
-          {md.parity.gcr_ratio.toFixed(3)} of the fixed-tilt value, searched
-          over {md.parity.search_range.join(" to ")}. {md.parity.note}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {md.module_efficiency_note}
-        </p>
+        <StatGrid>
+          <Stat
+            label="Sign parity at tracker GCR"
+            value={`${md.parity.gcr_tracker.toFixed(4)} · ${md.parity.gcr_ratio.toFixed(3)}× fixed`}
+          />
+          <Stat
+            label="Search range"
+            value={md.parity.search_range.join(" – ")}
+          />
+        </StatGrid>
       </div>
 
       <div
@@ -435,9 +433,6 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
             }
           />
         </div>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {t.per_kwp.note}
-        </p>
       </div>
 
       <div
@@ -484,36 +479,36 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {t.seasonal.note}
-        </p>
       </div>
 
       <div
-        className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
+        className="border-t pt-3"
         style={{ borderColor: "var(--border)" }}
       >
-        <p>
-          Axis tilt {t.configuration.axis_tilt_deg.toFixed(0)}°, axis azimuth{" "}
-          {t.configuration.axis_azimuth_deg.toFixed(0)}° (
-          {t.configuration.axis_azimuth_convention}), rotation limit{" "}
-          {t.configuration.max_angle_deg.toFixed(0)}° (
-          {t.configuration.max_angle_source}), backtracking{" "}
-          {t.configuration.backtrack ? "on" : "off"}.{" "}
-          {t.configuration.backtrack_note} {t.configuration.terrain}
-        </p>
-        <p className="mt-1">
-          {t.performance_ratio.note} Measured across the wind assumption:{" "}
-          {t.performance_ratio.transfer_between_configurations
-            .map(
-              (r) =>
-                `${r.wind} ${r.performance_ratio_fixed.toFixed(6)} against ${r.performance_ratio_tracker.toFixed(6)}, ${r.difference_pct.toFixed(4)}%`
-            )
-            .join("; ")}
-          .
-        </p>
-        <p className="mt-1">{t.excluded}</p>
-        <p className="mt-1">{t.resolution_note}</p>
+        <StatGrid>
+          <Stat
+            label="Axis tilt / azimuth"
+            value={`${t.configuration.axis_tilt_deg.toFixed(0)}° / ${t.configuration.axis_azimuth_deg.toFixed(0)}° ${t.configuration.axis_azimuth_convention}`}
+          />
+          <Stat
+            label="Rotation limit"
+            value={`${t.configuration.max_angle_deg.toFixed(0)}°`}
+          />
+          <Stat
+            label="Backtracking"
+            value={t.configuration.backtrack ? "on" : "off"}
+          />
+        </StatGrid>
+        <StatGrid>
+          {t.performance_ratio.transfer_between_configurations.map((r) => (
+            <Stat
+              key={r.wind}
+              label={`Fixed vs tracker PR, ${r.wind} wind`}
+              value={`${r.performance_ratio_fixed.toFixed(6)} / ${r.performance_ratio_tracker.toFixed(6)}, ${r.difference_pct.toFixed(4)}%`}
+            />
+          ))}
+          <Stat label="Meteorology cell" value="0.5° × 0.625°" />
+        </StatGrid>
       </div>
     </div>
   )
@@ -553,9 +548,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
           {g.time_standard.hour_label}
         </p>
       </div>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        {g.time_standard.note} {g.note}
-      </p>
+          <p className="text-[10px] text-muted-foreground">before applied performance ratio</p>
 
       <div className="edge-fade-x -mx-1 overflow-x-auto px-1">
         <div className="min-w-[34rem]">
@@ -647,9 +640,6 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {g.monthly.note}
-        </p>
       </div>
 
       <div
@@ -679,9 +669,10 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
             </div>
           ))}
         </div>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {g.share_of_annual_generation_by_hour.units}, on the same time
-          standard as the surface above.
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          <span className="telemetry">
+            {g.share_of_annual_generation_by_hour.units}
+          </span>
         </p>
       </div>
     </div>
@@ -733,21 +724,26 @@ function PlantClassCard({
           sub="GWh/yr"
         />
       </div>
-      <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-        Specific yield {cls.specific_yield_kwh_kwp_year.toFixed(2)} kWh/kWp/yr
-        at a performance ratio of {cls.performance_ratio.toFixed(2)} (
-        {cls.performance_ratio_source}), reporting basis {cls.reporting_basis}.
-      </p>
-      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-        Largest contiguous patch {cls.contiguity.largest_ha.toFixed(3)} ha over{" "}
-        {cls.contiguity.n_patches} patches at {cls.contiguity.connectivity}-way
-        connectivity. {cls.contiguity.note}
-      </p>
-      {cls.note && (
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {cls.note}
-        </p>
-      )}
+      <StatGrid>
+        <Stat
+          label="Specific yield"
+          value={`${cls.specific_yield_kwh_kwp_year.toFixed(2)} kWh/kWp/yr`}
+        />
+        <Stat
+          label="Performance ratio"
+          value={`${cls.performance_ratio.toFixed(2)} · ${cls.reporting_basis}`}
+        />
+      </StatGrid>
+      <StatGrid>
+        <Stat
+          label="Largest contiguous patch"
+          value={`${cls.contiguity.largest_ha.toFixed(3)} ha`}
+        />
+        <Stat
+          label="Patches"
+          value={`${cls.contiguity.n_patches} at ${cls.contiguity.connectivity}-way`}
+        />
+      </StatGrid>
     </div>
   )
 }
@@ -771,9 +767,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
           basis {p.reporting_basis} · {ex.convention} convention
         </p>
       </div>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        {p.areas_note}
-      </p>
+          <p className="text-[10px] text-muted-foreground">areas are not additive</p>
 
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         {p.suitable.area_ha > 0 && (
@@ -797,11 +791,12 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
               {p.restrictive.area_ha.toFixed(3)} ha
             </span>
           </div>
-          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-            {p.restrictive.capacity_dc_mw == null
-              ? "No capacity is reported for this class."
-              : `Capacity ${p.restrictive.capacity_dc_mw.toFixed(2)} MW DC.`}{" "}
-            {p.restrictive.note}
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            <span className="telemetry">
+              {p.restrictive.capacity_dc_mw == null
+                ? "no capacity reported"
+                : `${p.restrictive.capacity_dc_mw.toFixed(2)} MW DC`}
+            </span>
           </p>
         </div>
       )}
@@ -838,24 +833,34 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          Method applied: {ex.method_applied}. Mean{" "}
-          {ex.mean_kwh_m2_year.toFixed(2)} kWh/m2/yr, standard deviation{" "}
-          {ex.std_kwh_m2_year.toFixed(2)}, coefficient of variation{" "}
-          {ex.cv_pct.toFixed(3)}%. {ex.convention_note}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {ex.p50_note} {ex.normality.test} on the annual totals gives a
-          statistic of {ex.normality.statistic.toFixed(5)} at p ={" "}
-          {ex.normality.p_value.toFixed(4)}: {ex.normality.interpretation}.
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          {ex.crosswalk.note} Exceedance P90{" "}
-          {ex.crosswalk.exceedance_p90_kwh_m2_year.toFixed(2)} equals the
-          statistical 10th percentile{" "}
-          {ex.crosswalk.statistical_p10_kwh_m2_year.toFixed(2)} kWh/m2/yr.
-          Energy is treated as {ex.linearity_assumption}.
-        </p>
+        <StatGrid>
+          <Stat label="Method" value={ex.method_applied} />
+          <Stat
+            label="Mean"
+            value={`${ex.mean_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+          />
+          <Stat
+            label="Standard deviation"
+            value={ex.std_kwh_m2_year.toFixed(2)}
+          />
+          <Stat label="Coefficient of variation" value={`${ex.cv_pct.toFixed(3)}%`} />
+        </StatGrid>
+        <StatGrid>
+          <Stat
+            label={`Normality · ${ex.normality.test}`}
+            value={`W ${ex.normality.statistic.toFixed(5)} · p ${ex.normality.p_value.toFixed(4)}`}
+          />
+        </StatGrid>
+        <StatGrid>
+          <Stat
+            label="Exceedance P90"
+            value={`${ex.crosswalk.exceedance_p90_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+          />
+          <Stat
+            label="Statistical P10"
+            value={`${ex.crosswalk.statistical_p10_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+          />
+        </StatGrid>
       </div>
 
       <div
@@ -868,7 +873,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div>
             <div className="eyebrow !text-[9px]">included</div>
-            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] leading-relaxed text-muted-foreground">
+            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] text-muted-foreground">
               {p.uncertainty.included.map((u) => (
                 <li key={u}>{u}</li>
               ))}
@@ -876,57 +881,72 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
           </div>
           <div>
             <div className="eyebrow !text-[9px]">excluded</div>
-            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] leading-relaxed text-muted-foreground">
+            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] text-muted-foreground">
               {p.uncertainty.excluded.map((u) => (
                 <li key={u}>{u}</li>
               ))}
             </ul>
           </div>
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          {p.uncertainty.statement} {p.uncertainty.dominant_term}
-        </p>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              resource variability only · dominant term{" "}
+              <span className="telemetry">{p.uncertainty.dominant_term}</span>
+            </p>
       </div>
 
       <div
-        className="border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
+        className="border-t pt-3"
         style={{ borderColor: "var(--border)" }}
       >
-        <p>
-          Capacity density {p.capacity_density.value_mw_dc_per_ha.toFixed(6)}{" "}
-          MW DC per hectare on the{" "}
-          {p.capacity_density.area_basis.replace(/_/g, " ")} basis, key{" "}
-          {p.capacity_density.basis}, mounting{" "}
-          {p.capacity_density.mounting.replace(/_/g, " ")}, buildable fraction{" "}
-          {p.capacity_density.buildable_fraction.toFixed(2)}.{" "}
-          {p.capacity_density.note}
-        </p>
-        <p className="mt-1">{p.capacity_density.source}</p>
-        <p className="mt-1">
-          Buildable fraction source: {p.capacity_density.buildable_fraction_source}
-        </p>
-        <p className="mt-1">
-          Fleet DC/AC ratio {p.capacity_density.fleet_dc_ac_ratio.toFixed(6)}.{" "}
-          {p.capacity_density.fleet_dc_ac_ratio_source}
-        </p>
-        <p className="mt-1">
-          Energy density cross-check:{" "}
-          {p.energy_density_cross_check.site_mwh_ha_year.toFixed(1)} against a
-          published {p.energy_density_cross_check.reference_mwh_ha_year.toFixed(1)}{" "}
-          MWh/ha/yr, a ratio of {p.energy_density_cross_check.ratio.toFixed(3)}{" "}
-          on the {p.energy_density_cross_check.area_basis.replace(/_/g, " ")}{" "}
-          basis. {p.energy_density_cross_check.note}
-        </p>
-        <p className="mt-1">
-          Horizon shading derate {p.shading.derate.toFixed(4)},{" "}
-          {p.shading.applied ? "applied" : "not applied"}. {p.shading.note}
-        </p>
-        <p className="mt-1">
-          Slope limits {p.thresholds.slope_acceptable_deg} and{" "}
-          {p.thresholds.slope_restrictive_deg} degrees.{" "}
-          {p.thresholds.note}
-        </p>
-        <p className="mt-1">{p.limitations}</p>
+        <StatGrid>
+          <Stat
+            label="Capacity density"
+            value={`${p.capacity_density.value_mw_dc_per_ha.toFixed(6)} MW DC/ha`}
+          />
+          <Stat
+            label="Area basis"
+            value={p.capacity_density.area_basis.replace(/_/g, " ")}
+          />
+          <Stat
+            label="Mounting"
+            value={p.capacity_density.mounting.replace(/_/g, " ")}
+          />
+          <Stat
+            label="Buildable fraction"
+            value={p.capacity_density.buildable_fraction.toFixed(2)}
+          />
+        </StatGrid>
+        <StatGrid>
+          <Stat
+            label="Fleet DC/AC ratio"
+            value={p.capacity_density.fleet_dc_ac_ratio.toFixed(6)}
+          />
+          <Stat
+            label="Energy density, site"
+            value={`${p.energy_density_cross_check.site_mwh_ha_year.toFixed(1)} MWh/ha/yr`}
+          />
+          <Stat
+            label="Energy density, published"
+            value={`${p.energy_density_cross_check.reference_mwh_ha_year.toFixed(1)} MWh/ha/yr`}
+          />
+          <Stat
+            label={`Ratio, ${p.energy_density_cross_check.area_basis.replace(/_/g, " ")} basis`}
+            value={p.energy_density_cross_check.ratio.toFixed(3)}
+          />
+          {/*
+            "not applied" is not a formatting choice: a derate of 1.0000 that
+            was never applied and one applied at 1.0000 are different claims
+            about whether the horizon was looked at.
+          */}
+          <Stat
+            label={`Horizon shading derate, ${p.shading.applied ? "applied" : "not applied"}`}
+            value={p.shading.derate.toFixed(4)}
+          />
+          <Stat
+            label="Slope limits, legal constraints not checked"
+            value={`${p.thresholds.slope_acceptable_deg}° / ${p.thresholds.slope_restrictive_deg}°`}
+          />
+        </StatGrid>
       </div>
     </div>
   )
@@ -978,9 +998,6 @@ export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) 
           sub={`azimuth ${g.surface_azimuth_deg.toFixed(0)}° · plane-of-array ${g.poa_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
         />
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-        {d.note}
-      </p>
 
       <div
         className="mt-4 border-t pt-4"
@@ -1022,44 +1039,52 @@ export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) 
       </div>
 
       <div
-        className="mt-4 border-t pt-4 text-[10px] leading-relaxed text-muted-foreground"
+        className="border-t pt-3"
         style={{ borderColor: "var(--border)" }}
       >
-        <p>
-          Horizontal plane over the hourly window{" "}
-          {g.ghi_hourly_kwh_m2_year.toFixed(2)} kWh/m2/yr; the same array laid
-          flat receives {g.poa_horizontal_kwh_m2_year.toFixed(2)} kWh/m2/yr.
-        </p>
-        <p className="mt-1">
-          Temperature coefficient {mt.gamma_pdc_per_c} per °C, module type{" "}
-          {mt.module_type}. The alternatives are{" "}
-          {Object.entries(mt.alternatives)
-            .map(([k, v]) => `${k} ${v}`)
-            .join(", ")}
-          . {mt.source}
-        </p>
-        <p className="mt-1">
-          Transposition{" "}
-          {energy.loss_waterfall.assumptions.transposition_model.value}:{" "}
-          {energy.loss_waterfall.assumptions.transposition_model.source}
-        </p>
-        <p className="mt-1">
-          Ground albedo {energy.loss_waterfall.assumptions.albedo.value}:{" "}
-          {energy.loss_waterfall.assumptions.albedo.source}
-        </p>
-        <p className="mt-1">
-          Wind field {energy.loss_waterfall.assumptions.wind_source.value}:{" "}
-          {energy.loss_waterfall.assumptions.wind_source.source}
-        </p>
-        <p className="mt-1">
-          Placing the declared losses physically rather than as one flat factor
-          moves the yield by{" "}
-          {energy.loss_waterfall.assumptions.flat_placement_bias_pct.value}%:{" "}
-          {energy.loss_waterfall.assumptions.flat_placement_bias_pct.source}
-        </p>
-        <p className="mt-1">{energy.assumptions.resolution_note}</p>
-        <p className="mt-1">{energy.assumptions.note}</p>
-        <p className="mt-1">{energy.grid_note}</p>
+        <StatGrid>
+          <Stat
+            label="Horizontal plane, hourly window"
+            value={`${g.ghi_hourly_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+          />
+          <Stat
+            label="Same array laid flat"
+            value={`${g.poa_horizontal_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+          />
+        </StatGrid>
+        <StatGrid>
+          <Stat
+            label="Temperature coefficient"
+            value={`${mt.gamma_pdc_per_c} /°C`}
+          />
+          <Stat label="Module type" value={mt.module_type ?? "custom"} />
+          {Object.entries(mt.alternatives).map(([k, v]) => (
+            <Stat key={k} label={`Alternative, ${k}`} value={`${v} /°C`} />
+          ))}
+          <Stat
+            label="Transposition"
+            value={energy.loss_waterfall.assumptions.transposition_model.value}
+          />
+          <Stat
+            label="Ground albedo"
+            value={String(energy.loss_waterfall.assumptions.albedo.value)}
+          />
+          {/*
+            The wind qualifier stays: WS2M alone reads as the wind the model
+            wants, and the Faiman coefficient expects a module-height wind. The
+            height mismatch is the figure's meaning, not commentary on it.
+          */}
+          <Stat
+            label="Wind field, 2 m not module height"
+            value={energy.loss_waterfall.assumptions.wind_source.value}
+          />
+          <Stat
+            label="Physical vs flat loss placement"
+            value={`${energy.loss_waterfall.assumptions.flat_placement_bias_pct.value}%`}
+          />
+          <Stat label="Radiation cell" value="1°, one cell over the AOI" />
+          <Stat label="Meteorology cell" value="0.5° × 0.625°" />
+        </StatGrid>
         <PowerProvenanceNote provenance={energy.power_provenance} />
       </div>
     </section>

@@ -61,8 +61,15 @@ import type {
 } from "@/lib/types"
 import { parsePreferenceExtras } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
-import { projectOverlayToComposition } from "@/lib/projectOverlays"
-import { geometryCentroid, usesExampleArea } from "@/lib/geometry"
+import {
+  projectOverlayToComposition,
+  scopeCompositionsToView,
+} from "@/lib/projectOverlays"
+import {
+  geometryBounds,
+  geometryCentroid,
+  usesExampleArea,
+} from "@/lib/geometry"
 import { ProjectSwitcher } from "@/components/ProjectSwitcher"
 import { resolveCompositionMeta } from "@/lib/compositeCatalog"
 import {
@@ -301,16 +308,6 @@ function App() {
 
   const hasArea = !!customPolygon || !!activeExample
 
-  const handleSelectExample = (id: string) => {
-    const area = areas.find((a) => a.id === id)
-    if (!area) return
-    setActiveExample(id)
-    setCustomPolygon(area.geometry)
-    setResult(null)
-    setShowPredictionOverlay(true)
-    setAnalysisLabel(undefined)
-  }
-
   const clearArea = () => {
     setCustomPolygon(null)
     setActiveExample("")
@@ -429,7 +426,6 @@ function App() {
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
-            onSelectExample={handleSelectExample}
             onClearArea={clearArea}
             onImportPolygon={handleImportPolygon}
           />
@@ -492,7 +488,6 @@ function AppBody(props: {
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
-  onSelectExample: (id: string) => void
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
@@ -601,6 +596,17 @@ function AppBody(props: {
    * opened; cleared wherever the result is.
    */
   const [currentRunLabel, setCurrentRunLabel] = useState<string | null>(null)
+  /*
+    The saved run on screen, by id.
+
+    The label was the only run identity the frontend held, and a label can be
+    renamed. Compositions attach to this, so it has to be the row's own id: a
+    composition filed under a renamed label would come loose from its run.
+
+    Null while a run is being made -- the id only exists once the backend has
+    saved it -- and null when the result on screen is a live one nobody kept.
+  */
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null)
 
   /**
    * Name a run about to be sent, and record the name.
@@ -625,6 +631,37 @@ function AppBody(props: {
   const [compositionGallery, setCompositionGallery] = useState<
     CompositionOverlay[]
   >([])
+  /*
+    The compositions that belong with what is on screen.
+
+    The gallery holds every composition in the project, and a project spans
+    fields: one here had thirteen across three locations up to 100 km apart,
+    all listed whichever run was open, so applying one put a raster off the
+    edge of the area in view. Scoped by the run that made it, or -- for the
+    ones that predate the association, and for any made with no run open -- by
+    whether it covers the area at all.
+  */
+  const visibleAoi = useMemo(() => {
+    const geom =
+      props.customPolygon ??
+      props.areas.find((a) => a.id === props.activeExample)?.geometry ??
+      null
+    const b = geometryBounds(geom)
+    return b
+      ? {
+          lon_min: b.lonMin,
+          lat_min: b.latMin,
+          lon_max: b.lonMax,
+          lat_max: b.latMax,
+        }
+      : null
+  }, [props.customPolygon, props.activeExample, props.areas])
+
+  const scopedCompositions = useMemo(
+    () => scopeCompositionsToView(compositionGallery, currentRunId, visibleAoi),
+    [compositionGallery, currentRunId, visibleAoi]
+  )
+
   const [showCompositionOverlay, setShowCompositionOverlay] = useState(true)
   const [composeRunning, setComposeRunning] = useState(false)
   const [composeProgress, setComposeProgress] = useState(0)
@@ -924,8 +961,29 @@ function AppBody(props: {
         // The gallery is always loaded so the compositions stay one click away
         // in Overlay Tools; only the display is conditional.
         setCompositionGallery(gallery)
-        setComposition(userInitiated ? gallery[0] ?? null : null)
-        setShowCompositionOverlay(userInitiated && !!gallery[0])
+        /*
+          Only a composition that covers the area being opened is put on the
+          map. This took gallery[0] -- the project's most recent -- and turned
+          the overlay on, so opening a project whose latest composition was
+          made over a different field drew a raster off the edge of the view
+          the same action had just flown to.
+        */
+        // From the project, not from the branch above: the AOI arrives either
+        // as an example area or as a saved polygon, and only one of those runs.
+        const openedGeom = p.area_id
+          ? (props.areas.find((a) => a.id === p.area_id)?.geometry ?? null)
+          : parseRunPolygon(p.polygon_geojson ?? "", props.areas).polygon
+        const openedAoi = geometryBounds(openedGeom)
+        const inView = openedAoi
+          ? scopeCompositionsToView(gallery, null, {
+              lon_min: openedAoi.lonMin,
+              lat_min: openedAoi.latMin,
+              lon_max: openedAoi.lonMax,
+              lat_max: openedAoi.latMax,
+            })
+          : gallery
+        setComposition(userInitiated ? inView[0] ?? null : null)
+        setShowCompositionOverlay(userInitiated && !!inView[0])
       } catch (e) {
         notifyError("Could not open project", e)
       }
@@ -1109,6 +1167,9 @@ function AppBody(props: {
           })
           const reqSave: SaveProjectOverlayRequest = {
             project_id: activeProjectId,
+            // The run on screen, so this composition surfaces with that run
+            // and not with every other run in the project.
+            run_id: currentRunId ?? "",
             kind: "composition",
             title: meta.title,
             meta_json: metaJson,
@@ -1699,6 +1760,9 @@ function AppBody(props: {
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult
       props.setResult(res)
+      // The row the backend just wrote. Compositions made from here attach to
+      // it; empty when nothing was saved, which leaves them project-level.
+      setCurrentRunId(res.run_id || null)
       props.setShowPredictionOverlay(true)
       if (!props.analysisLabel?.trim()) {
         props.setAnalysisLabel(req.label)
@@ -1822,6 +1886,7 @@ function AppBody(props: {
           res.n_dates > 0
         props.setResult(isClassification ? res : null)
         setCurrentRunLabel(run.label ?? null)
+        setCurrentRunId(run.id)
         props.setShowPredictionOverlay(true)
         if (isModelKind(run.model_kind)) props.setModelKind(run.model_kind)
         const extras = parsePreferenceExtras(prefs?.extras_json)
@@ -1920,6 +1985,7 @@ function AppBody(props: {
   const backToAnalysesList = useCallback(() => {
     props.setResult(null)
     setCurrentRunLabel(null)
+    setCurrentRunId(null)
     // The standalone products have to go too. The analysis payload is
     // non-null whenever any of them is present, so clearing only the
     // classification leaves the detail view up and the saved list unreachable.
@@ -1971,6 +2037,7 @@ function AppBody(props: {
   const startNewClassification = useCallback(() => {
     props.setResult(null)
     setCurrentRunLabel(null)
+    setCurrentRunId(null)
     props.setShowPredictionOverlay(true)
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
@@ -2253,7 +2320,6 @@ function AppBody(props: {
                   composeOpacity={composeOpacity}
                   onViewChange={handleViewChange}
                   onPolygonDrawn={handlePolygonDrawn}
-                  onSelectExample={props.onSelectExample}
                   onLocationSelect={(lat, lon) =>
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }
@@ -2288,9 +2354,9 @@ function AppBody(props: {
                     setCompositionGallery([])
                     setShowCompositionOverlay(true)
                   }}
-                  compositionGallery={compositionGallery}
+                  compositionGallery={scopedCompositions}
                   onSelectComposition={(id) => {
-                    const hit = compositionGallery.find((c) => c.id === id)
+                    const hit = scopedCompositions.find((c) => c.id === id)
                     if (hit) {
                       setComposition(hit)
                       setShowCompositionOverlay(true)
@@ -2373,7 +2439,6 @@ function AppBody(props: {
                   hasArea={props.hasArea}
                   areas={props.areas}
                   activeExample={props.activeExample}
-                  onSelectExample={props.onSelectExample}
                   customPolygon={props.customPolygon}
                   onPolygonDrawn={handlePolygonDrawn}
                   onImportPolygon={props.onImportPolygon}

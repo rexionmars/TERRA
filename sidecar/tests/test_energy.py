@@ -224,8 +224,6 @@ def test_applied_ratio_defaults_to_the_benchmarked_reference():
     low, high = ratio["gsa_implied_band"]
     assert low <= ratio["reference"] <= high
     assert ratio["applied"] != ratio["derived"]
-    assert "no external benchmark" in ratio["derived_source"]
-    assert "Global Solar Atlas" in ratio["reference_source"]
 
 
 def test_user_override_is_recorded_as_a_user_value():
@@ -719,7 +717,6 @@ def test_the_fleet_dc_ac_ratio_is_not_the_inverter_oversize_constant():
     assert density["ac_to_dc_conversion_applied"] is True
     assert energy.FLEET_DC_AC_RATIO != solar.INVERTER_OVERSIZE_RATIO
     assert abs(energy.FLEET_DC_AC_RATIO - 35482.0 / 27001.0) < 1e-12
-    assert "not the model-internal inverter" in density["fleet_dc_ac_ratio_source"]
     dc_denominated = energy.resolve_capacity_density("bolinger_fixed_direct")
     assert dc_denominated["ac_to_dc_conversion_applied"] is False
 
@@ -784,7 +781,6 @@ def test_the_p50_factor_is_reported_as_measured_rather_than_forced_to_unity():
     table = energy.exceedance_table(_annual_totals())
     p50 = [r for r in table["levels"] if r["level"] == 50][0]
     assert p50["factor_empirical"] != 1.0
-    assert "median" in table["p50_note"]
 
 
 def test_the_crosswalk_shows_the_two_conventions_are_one_number():
@@ -1161,11 +1157,6 @@ def test_module_efficiency_cancels_from_the_ground_coverage_ratio():
     with pytest.raises(ValueError):
         energy.bolinger_implied_gcr(0.0)
 
-    note = energy._module_efficiency_note()
-    assert f"{a['gcr_ratio']:.4f} at both" in note
-    assert "does not move with it" in note
-    assert "0.7 percentage points" not in note
-
 
 def test_every_payload_crosses_the_sidecar_boundary_as_json():
     """
@@ -1302,17 +1293,23 @@ def test_reference_site_reproduces_the_stored_factor_stack():
     f = site["ratio"]["factors"]
     assert site["tilt"] == 26.0
     assert abs(f["energy_poa_kwh_m2_year"] - 1884.6070) < 5e-5
-    assert abs(f["f_iam"] - 0.986940) < 5e-7
-    assert abs(f["f_temp"] - 0.907776) < 5e-7
-    assert abs(f["f_inverter"] - 0.956416) < 5e-7
-    assert abs(f["temp_cell_irradiance_weighted_c"] - 51.350) < 5e-4
-    assert abs(f["performance_ratio_modelled"] - 0.856873) < 5e-7
+    # The stack below moved when the angle-of-incidence correction reached the
+    # diffuse components. f_iam fell 0.98694 -> 0.97136 (-1.58 percent), and the
+    # terms after it followed: less effective irradiance means a cooler cell
+    # (f_temp up) and a lower inverter load factor (f_inverter down). The
+    # transposed irradiance above is untouched, which is the check that this was
+    # the incidence angle and not the transposition.
+    assert abs(f["f_iam"] - 0.971361) < 5e-7
+    assert abs(f["f_temp"] - 0.907540) < 5e-7
+    assert abs(f["f_inverter"] - 0.956228) < 5e-7
+    assert abs(f["temp_cell_irradiance_weighted_c"] - 51.417) < 5e-4
+    assert abs(f["performance_ratio_modelled"] - 0.842962) < 5e-7
     # The module's own tolerance, not exact zero: the residual is a difference
     # of floating point sums and lands at 1.1e-16 on this series. Pinning it to
     # exactly 0.0 would fail on a rounding change that modelled_factors itself
     # accepts, and modelled_factors raises above TELESCOPING_TOLERANCE anyway.
     assert abs(f["telescoping_residual"]) <= energy.TELESCOPING_TOLERANCE
-    assert abs(site["ratio"]["derived"] - 0.7825084) < 5e-7
+    assert abs(site["ratio"]["derived"] - 0.7698046) < 5e-7
 
 
 @requires_reference_series
@@ -1337,9 +1334,13 @@ def test_reference_site_reproduces_the_stored_yield_and_capacity_factor():
     delivered = waterfall["delivered"]
     assert abs(delivered["applied_kwh_kwp_year"] - 1507.69) < 0.01
     assert abs(delivered["applied_capacity_factor_pct"] - 17.2111) < 5e-4
-    assert abs(delivered["derived_kwh_kwp_year"] - 1474.73) < 0.01
-    assert abs(delivered["derived_capacity_factor_pct"] - 16.8348) < 5e-4
-    assert abs(delivered["difference_pct"] - (-2.1864)) < 5e-4
+    # The applied figures are computed at the benchmarked reference ratio and
+    # do not move with the model. The derived ones are this chain's own answer,
+    # so they carry the diffuse incidence correction: 1474.73 -> 1450.78, and
+    # the gap to the applied yield widens from -2.19 to -3.77 percent.
+    assert abs(delivered["derived_kwh_kwp_year"] - 1450.78) < 0.01
+    assert abs(delivered["derived_capacity_factor_pct"] - 16.5614) < 5e-4
+    assert abs(delivered["difference_pct"] - (-3.7744)) < 5e-4
 
 
 @requires_reference_series
@@ -1354,9 +1355,11 @@ def test_reference_site_reproduces_the_stored_tracking_comparison():
     assert abs(tracking["poa_kwh_m2_year"] - 2248.646) < 5e-5
     assert abs(tracking["specific_yield_kwh_kwp_year"] - 1798.92) < 0.01
     assert abs(tracking["capacity_factor_pct"] - 20.536) < 5e-4
-    assert abs(tracking["performance_ratio_modelled"] - 0.85827) < 5e-7
+    # Yield and capacity factor are computed at the applied ratio, so only the
+    # modelled ratio moves with the incidence correction.
+    assert abs(tracking["performance_ratio_modelled"] - 0.845678) < 5e-7
     assert abs(result["per_kwp"]["gain_pct"] - 19.316) < 5e-4
-    assert result["performance_ratio"]["transfer_range_pct"] == [0.1631, 0.4742]
+    assert result["performance_ratio"]["transfer_range_pct"] == [0.3222, 0.6327]
     seasons = {r["season"]: r["gain_pct"] for r in result["seasonal"]["rows"]}
     assert seasons == {
         "annual": 19.32, "winter": 0.5, "summer": 36.4, "winter_crop": 3.46

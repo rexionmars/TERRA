@@ -178,6 +178,58 @@ type LULCCompareRow struct {
 	NReferenceCells int `json:"n_reference_cells,omitempty"`
 }
 
+/*
+LULCAgreement is the accuracy assessment of the classification against the
+MapBiomas reference.
+
+Computed over the reference's native 30 m cells rather than the 10 m pixels
+they were resampled onto: about nine pixels carry one label observation, so a
+pixel-level assessment would claim nine times the sample size it has and an
+interval roughly three times too narrow.
+*/
+type LULCAgreement struct {
+	// Independent label observations the assessment rests on.
+	NReferenceCells int `json:"n_reference_cells"`
+	// Share of cells where the classification and the reference agree, with a
+	// Wilson score interval at 95%.
+	OverallPct float64   `json:"overall_pct"`
+	OverallCI  []float64 `json:"overall_ci"`
+	// Pontius & Millones (2011): total disagreement splits into holding
+	// different amounts of a class, and holding the same amounts in different
+	// places. The composition comparison shows the first and hides the second.
+	QuantityDisagreementPct   float64 `json:"quantity_disagreement_pct"`
+	AllocationDisagreementPct float64 `json:"allocation_disagreement_pct"`
+
+	PerClass []LULCClassAccuracy `json:"per_class"`
+	// Reference cells carrying a class the classifier has no label for. Not
+	// errors -- the share of the area the assessment is silent about.
+	NOutsideLegend int     `json:"n_outside_legend"`
+	Matrix         [][]int `json:"matrix"`
+	MatrixClasses  []int   `json:"matrix_classes"`
+}
+
+/*
+LULCClassAccuracy is one class's producer's and user's accuracy.
+
+Both, never one. Producer's alone hides commission and user's alone hides
+omission: a classifier that labels the whole scene soybean has perfect
+producer's accuracy for soybean and is useless.
+*/
+type LULCClassAccuracy struct {
+	ClassID int    `json:"class_id"`
+	Name    string `json:"name"`
+	Color   string `json:"color"`
+	// Of the reference cells of this class, the share the classifier found.
+	// Nil when the reference holds none, which is absent rather than zero.
+	ProducersPct *float64  `json:"producers_pct"`
+	ProducersCI  []float64 `json:"producers_ci,omitempty"`
+	// Of the cells called this class, the share that really are.
+	UsersPct   *float64  `json:"users_pct"`
+	UsersCI    []float64 `json:"users_ci,omitempty"`
+	NReference int       `json:"n_reference"`
+	NPredicted int       `json:"n_predicted"`
+}
+
 // LULCAnalysis is the descriptive land cover / land use payload.
 type LULCAnalysis struct {
 	Year        int              `json:"year"`
@@ -195,6 +247,11 @@ type LULCAnalysis struct {
 	// agreement statistic must be computed over. Zero when unavailable.
 	ComparePixels         int `json:"compare_pixels,omitempty"`
 	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
+	// Agreement against the reference, which the composition rows above cannot
+	// express: two maps with identical class proportions can disagree on every
+	// cell. Nil when the reference cell mapping was unavailable, since without
+	// it there is no honest denominator.
+	Agreement *LULCAgreement `json:"agreement,omitempty"`
 }
 
 // LULCRequest selects an embedded area (or explicit polygon + MapBiomas path).
@@ -260,14 +317,19 @@ type CompositeResult struct {
 
 // sidecarResult is the raw JSON returned by the sidecar on stdout.
 type sidecarResult struct {
-	Extent          Bounds                `json:"extent"`
-	OverlayPNG      string                `json:"overlay_png"`
-	RasterTIF       string                `json:"raster_tif"`
-	ConfidencePNG   string                `json:"confidence_png"`
-	NDVIMeanPNG     string                `json:"ndvi_mean_png"`
-	TrueColorPNG    string                `json:"true_color_png"`
-	ReferencePNG    string                `json:"reference_png"`
-	MeanConfidence  float64               `json:"mean_confidence"`
+	Extent         Bounds  `json:"extent"`
+	OverlayPNG     string  `json:"overlay_png"`
+	RasterTIF      string  `json:"raster_tif"`
+	ConfidencePNG  string  `json:"confidence_png"`
+	NDVIMeanPNG    string  `json:"ndvi_mean_png"`
+	TrueColorPNG   string  `json:"true_color_png"`
+	ReferencePNG   string  `json:"reference_png"`
+	MeanConfidence float64 `json:"mean_confidence"`
+	// The floor MeanConfidence cannot go below: confidence is
+	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
+	// approaches zero. Without it the figure reads on a 0-100 scale it does
+	// not occupy. Zero when the class count was unavailable.
+	ConfidenceFloor float64               `json:"confidence_floor,omitempty"`
 	NDates          int                   `json:"n_dates"`
 	DateRange       []string              `json:"date_range"`
 	ClassStats      []ClassStat           `json:"class_stats"`
@@ -294,19 +356,33 @@ type lulcSidecarPayload struct {
 	// agreement statistic must be computed over. Zero when unavailable.
 	ComparePixels         int `json:"compare_pixels,omitempty"`
 	CompareReferenceCells int `json:"compare_reference_cells,omitempty"`
+	// Agreement against the reference, which the composition rows above cannot
+	// express: two maps with identical class proportions can disagree on every
+	// cell. Nil when the reference cell mapping was unavailable, since without
+	// it there is no honest denominator.
+	Agreement *LULCAgreement `json:"agreement,omitempty"`
 }
 
 // PredictResult is returned to the frontend. The overlay is delivered as a
 // base64 data URI so Leaflet can render it without an asset-server path.
 type PredictResult struct {
-	Extent          Bounds                `json:"extent"`
-	OverlayURI      string                `json:"overlay_uri"`
-	ConfidenceURI   string                `json:"confidence_uri"`
-	NDVIMeanURI     string                `json:"ndvi_mean_uri"`
-	TrueColorURI    string                `json:"true_color_uri"`
-	ReferenceURI    string                `json:"reference_uri"`
-	RasterTIF       string                `json:"raster_tif"`
-	MeanConfidence  float64               `json:"mean_confidence"`
+	Extent        Bounds `json:"extent"`
+	OverlayURI    string `json:"overlay_uri"`
+	ConfidenceURI string `json:"confidence_uri"`
+	NDVIMeanURI   string `json:"ndvi_mean_uri"`
+	TrueColorURI  string `json:"true_color_uri"`
+	ReferenceURI  string `json:"reference_uri"`
+	RasterTIF     string `json:"raster_tif"`
+	// The saved run this result became, set after persisting so the stored
+	// copy does not carry its own row id. Empty when nothing was saved.
+	// Compositions made while this result is on screen attach to it.
+	RunID          string  `json:"run_id,omitempty"`
+	MeanConfidence float64 `json:"mean_confidence"`
+	// The floor MeanConfidence cannot go below: confidence is
+	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
+	// approaches zero. Without it the figure reads on a 0-100 scale it does
+	// not occupy. Zero when the class count was unavailable.
+	ConfidenceFloor float64               `json:"confidence_floor,omitempty"`
 	NDates          int                   `json:"n_dates"`
 	DateRange       []string              `json:"date_range"`
 	ClassStats      []ClassStat           `json:"class_stats"`
@@ -615,12 +691,30 @@ type SolarTerrainAnalysis struct {
 	// Share of the horizontal irradiation carried by the beam component, which
 	// is what the shading loss is scaled by before it reaches the totals.
 	BeamFraction float64 `json:"beam_fraction"`
+	// Sky view factor: the diffuse counterpart of the shading above. The same
+	// horizon answers both, so this costs nothing extra to report.
+	SkyView *SolarSkyView `json:"sky_view,omitempty"`
 	// Raster as a base64 PNG data URI, drawn on Scale.
 	OverlayURI string `json:"overlay_uri"`
 	RasterTIF  string `json:"raster_tif"`
 	Extent     Bounds `json:"extent"`
 	// Whether the series behind these figures was fetched or read from cache.
 	PowerProvenance *PowerProvenance `json:"power_provenance,omitempty"`
+}
+
+// SolarSkyView is how much of the sky dome the terrain leaves visible, and the
+// threshold that decided whether the diffuse loss was worth applying.
+//
+// Reported whether or not it was applied: "not applied" and "applied at zero"
+// are different statements about the terrain, and only the first means the
+// question was never asked.
+type SolarSkyView struct {
+	Applied            bool     `json:"applied"`
+	MeanHorizonDeg     float64  `json:"mean_horizon_deg"`
+	MaxHorizonDeg      float64  `json:"max_horizon_deg"`
+	ThresholdDeg       float64  `json:"threshold_deg"`
+	DiffuseLossMeanPct *float64 `json:"diffuse_loss_mean_pct"`
+	DiffuseLossMaxPct  *float64 `json:"diffuse_loss_max_pct"`
 }
 
 // NDates reports the years of hourly record behind the map, so a saved run can
@@ -644,6 +738,7 @@ type solarTerrainSidecarPayload struct {
 	ShadingMaxPct   *float64         `json:"shading_max_pct"`
 	HorizonMaxDistM float64          `json:"horizon_max_dist_m"`
 	BeamFraction    float64          `json:"beam_fraction"`
+	SkyView         *SolarSkyView    `json:"sky_view,omitempty"`
 	OverlayPNG      string           `json:"overlay_png"`
 	RasterTIF       string           `json:"raster_tif"`
 	Extent          Bounds           `json:"extent"`
@@ -834,10 +929,8 @@ type EnergyPerformanceRatio struct {
 	Applied                            float64                  `json:"applied"`
 	AppliedSource                      string                   `json:"applied_source"`
 	Reference                          float64                  `json:"reference"`
-	ReferenceSource                    string                   `json:"reference_source"`
 	Modelled                           float64                  `json:"modelled"`
 	Derived                            float64                  `json:"derived"`
-	DerivedSource                      string                   `json:"derived_source"`
 	DerivedIfOptionalAtPVWattsDefaults float64                  `json:"derived_if_optional_at_pvwatts_defaults"`
 	DeclaredLossFactor                 float64                  `json:"declared_loss_factor"`
 	OptionalLossFactor                 float64                  `json:"optional_loss_factor"`
@@ -848,7 +941,6 @@ type EnergyPerformanceRatio struct {
 	DegradationFactor                  float64                  `json:"degradation_factor"`
 	DegradationRatePerYear             float64                  `json:"degradation_rate_per_year"`
 	AnalysisPeriodYears                int                      `json:"analysis_period_years"`
-	DegradationSource                  string                   `json:"degradation_source"`
 	// Ratio implied by the Global Solar Atlas benchmark at this site, as a
 	// two-element band. The only external validation the applied ratio has.
 	GSAImpliedBand []float64 `json:"gsa_implied_band"`
@@ -969,9 +1061,7 @@ type EnergyTrackerConfiguration struct {
 	AxisAzimuthDeg        float64 `json:"axis_azimuth_deg"`
 	AxisAzimuthConvention string  `json:"axis_azimuth_convention"`
 	MaxAngleDeg           float64 `json:"max_angle_deg"`
-	MaxAngleSource        string  `json:"max_angle_source"`
 	Backtrack             bool    `json:"backtrack"`
-	BacktrackNote         string  `json:"backtrack_note"`
 	Terrain               string  `json:"terrain"`
 }
 
@@ -1074,7 +1164,6 @@ type EnergyModelDerivedLandUse struct {
 	GCRRatio              float64         `json:"gcr_ratio"`
 	Basis                 string          `json:"basis"`
 	Note                  string          `json:"note"`
-	ModuleEfficiencyNote  string          `json:"module_efficiency_note"`
 	Parity                EnergyParityGCR `json:"parity"`
 }
 
@@ -1115,7 +1204,6 @@ type EnergyTracking struct {
 	PerHectare       EnergyPerHectare           `json:"per_hectare"`
 	PerformanceRatio EnergyTrackingPR           `json:"performance_ratio"`
 	Excluded         string                     `json:"excluded"`
-	ResolutionNote   string                     `json:"resolution_note"`
 }
 
 // EnergyTimeStandard labels the diurnal profile. UTCOffsetHours is null when
@@ -1175,20 +1263,18 @@ type EnergyGenerationProfile struct {
 // area basis it is measured on. The basis moves the answer further than the
 // exceedance band does, so it is never reported without it.
 type EnergyCapacityDensity struct {
-	Basis                   string  `json:"basis"`
-	ValueMWPerHa            float64 `json:"value_mw_per_ha"`
-	Units                   string  `json:"units"`
-	ValueMWDCPerHa          float64 `json:"value_mw_dc_per_ha"`
-	AreaBasis               string  `json:"area_basis"`
-	Mounting                string  `json:"mounting"`
-	Source                  string  `json:"source"`
-	AcreConversion          string  `json:"acre_conversion"`
-	BuildableFraction       float64 `json:"buildable_fraction"`
-	BuildableFractionSource string  `json:"buildable_fraction_source"`
+	Basis             string  `json:"basis"`
+	ValueMWPerHa      float64 `json:"value_mw_per_ha"`
+	Units             string  `json:"units"`
+	ValueMWDCPerHa    float64 `json:"value_mw_dc_per_ha"`
+	AreaBasis         string  `json:"area_basis"`
+	Mounting          string  `json:"mounting"`
+	Source            string  `json:"source"`
+	AcreConversion    string  `json:"acre_conversion"`
+	BuildableFraction float64 `json:"buildable_fraction"`
 	// Separately sourced from the model-internal inverter oversizing factor:
 	// the two are unrelated quantities and must not be substituted.
 	FleetDCACRatio          float64 `json:"fleet_dc_ac_ratio"`
-	FleetDCACRatioSource    string  `json:"fleet_dc_ac_ratio_source"`
 	ACToDCConversionApplied bool    `json:"ac_to_dc_conversion_applied"`
 	Note                    string  `json:"note"`
 }
@@ -1256,10 +1342,9 @@ type EnergyExceedanceLevel struct {
 // EnergyNormality is the test behind using a normal fit at all, reported rather
 // than assumed.
 type EnergyNormality struct {
-	Test           string  `json:"test"`
-	Statistic      float64 `json:"statistic"`
-	PValue         float64 `json:"p_value"`
-	Interpretation string  `json:"interpretation"`
+	Test      string  `json:"test"`
+	Statistic float64 `json:"statistic"`
+	PValue    float64 `json:"p_value"`
 }
 
 // EnergyExceedanceCrosswalk states that the exceedance P90 and the statistical
@@ -1281,7 +1366,6 @@ type EnergyExceedance struct {
 	StdKWhM2Year        float64                   `json:"std_kwh_m2_year"`
 	CVPct               float64                   `json:"cv_pct"`
 	Levels              []EnergyExceedanceLevel   `json:"levels"`
-	P50Note             string                    `json:"p50_note"`
 	Normality           EnergyNormality           `json:"normality"`
 	Crosswalk           EnergyExceedanceCrosswalk `json:"crosswalk"`
 	LinearityAssumption string                    `json:"linearity_assumption"`
@@ -1346,7 +1430,6 @@ type EnergyAssumptions struct {
 	CapacityDensityMWDCPerHa float64 `json:"capacity_density_mw_dc_per_ha"`
 	ShadingApplied           bool    `json:"shading_applied"`
 	ShadingDerate            float64 `json:"shading_derate"`
-	ResolutionNote           string  `json:"resolution_note"`
 	Note                     string  `json:"note"`
 }
 
@@ -1454,7 +1537,6 @@ type WindMeasured struct {
 	AirDensityMeanKgM3     float64             `json:"air_density_mean_kg_m3"`
 	AirDensityMinKgM3      float64             `json:"air_density_min_kg_m3"`
 	AirDensityMaxKgM3      float64             `json:"air_density_max_kg_m3"`
-	HumidityNote           string              `json:"humidity_note"`
 	MonthlyMeanSpeed50m    []WindMonthlySpeed  `json:"monthly_mean_speed_50m"`
 	Direction              WindDirection       `json:"direction"`
 	DirectionEnergyRose50m []WindRoseSector    `json:"direction_energy_rose_50m"`
@@ -1494,9 +1576,7 @@ type WindHub struct {
 	GrossCapacityFactorNoDensityCorrectionPct float64             `json:"gross_capacity_factor_no_density_correction_pct"`
 	GrossAnnualEnergyMWhPerTurbine            float64             `json:"gross_annual_energy_mwh_per_turbine"`
 	OperatingRegime                           WindOperatingRegime `json:"operating_regime"`
-	DensityNormalisationNote                  string              `json:"density_normalisation_note"`
 	HoursPerYear                              float64             `json:"hours_per_year"`
-	HoursPerYearNote                          string              `json:"hours_per_year_note"`
 	ExcludedLosses                            []string            `json:"excluded_losses"`
 }
 
@@ -1525,7 +1605,6 @@ type WindShearDiagnostics struct {
 	AssumedRoughnessBandM      []float64 `json:"assumed_roughness_band_m"`
 	ExpectedShearExponentBand  []float64 `json:"expected_shear_exponent_band"`
 	ConsistentWithAssumedCover bool      `json:"consistent_with_assumed_cover"`
-	RoughnessBandNote          string    `json:"roughness_band_note"`
 	ShearExponentHourlyMean    float64   `json:"shear_exponent_hourly_mean"`
 	ShearExponentHourlyMedian  float64   `json:"shear_exponent_hourly_median"`
 	ShearExponentDay           float64   `json:"shear_exponent_day"`
@@ -1545,9 +1624,7 @@ type WindDataQuality struct {
 	RecordMaximumMS        map[string]float64   `json:"record_maximum_ms"`
 	RecordMaximumFloorMS   float64              `json:"record_maximum_floor_ms"`
 	RecordMaximumPlausible bool                 `json:"record_maximum_plausible"`
-	RecordMaximumFloorNote string               `json:"record_maximum_floor_note"`
 	CalmFraction2mFlagPct  float64              `json:"calm_fraction_2m_flag_pct"`
-	CalmFraction2mNote     string               `json:"calm_fraction_2m_note"`
 	NaNCount               map[string]int       `json:"nan_count"`
 	Shear                  WindShearDiagnostics `json:"shear"`
 	Flags                  []string             `json:"flags"`
@@ -1573,7 +1650,6 @@ type WindTurbine struct {
 	CitationURL       string  `json:"citation_url"`
 	CurveSourceURL    string  `json:"curve_source_url"`
 	CurveSourceCommit string  `json:"curve_source_commit"`
-	DrivetrainNote    string  `json:"drivetrain_note"`
 }
 
 // WindAssumptions repeats the conventions the figures rest on, including the
@@ -1589,11 +1665,9 @@ type WindAssumptions struct {
 	RoughnessBandM      []float64 `json:"roughness_band_m"`
 	CalmThresholdMS     float64   `json:"calm_threshold_ms"`
 	RecordMaxFloorMS    float64   `json:"record_max_floor_ms"`
-	ConventionsNote     string    `json:"conventions_note"`
 	Qualifier           string    `json:"qualifier"`
 	ExcludedLosses      []string  `json:"excluded_losses"`
 	ComparisonNote      string    `json:"comparison_note"`
-	ResolutionNote      string    `json:"resolution_note"`
 }
 
 // WindAnalysis is a wind resource screening at the AOI, from reanalysis hourly
@@ -1610,7 +1684,6 @@ type WindAnalysis struct {
 	RecordWindow   string    `json:"record_window"`
 	HubHeightM     float64   `json:"hub_height_m"`
 	Qualifier      string    `json:"qualifier"`
-	LoadsNote      string    `json:"loads_note"`
 
 	Measured         WindMeasured    `json:"measured"`
 	Hub              WindHub         `json:"hub"`

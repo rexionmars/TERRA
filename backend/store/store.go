@@ -107,8 +107,17 @@ type Project struct {
 
 // ProjectOverlay is a persisted composition (or similar) asset under a project.
 type ProjectOverlay struct {
-	ID         string `json:"id"`
-	ProjectID  string `json:"project_id"`
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	/*
+		The run this composition was made under, when there was one.
+
+		Empty for a composition made with no run open -- browsing scenes needs
+		no classification -- and for every row written before the column
+		existed. Empty means "belongs to the project", not "belongs to no
+		project", so readers scope those by the recorded extent instead.
+	*/
+	RunID      string `json:"run_id,omitempty"`
 	Kind       string `json:"kind"`
 	Title      string `json:"title"`
 	MetaJSON   string `json:"meta_json,omitempty"`
@@ -315,6 +324,27 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 `
 	if _, err := s.db.Exec(projectSchema); err != nil {
 		return fmt.Errorf("migrate projects: %w", err)
+	}
+	/*
+		Which run a composition was made under.
+
+		Compositions were scoped to the project alone, and a project accumulates
+		runs across separate fields: one here held 57 runs and 13 compositions
+		spread over three locations up to 100 km apart, all listed together
+		whichever run was open. Applying one put a raster off the edge of the
+		area being looked at.
+
+		Nullable, and it will stay nullable: a composition can be made with no
+		run open at all -- browsing scenes on the map needs no classification --
+		and those belong to the project rather than to any run. Rows written
+		before this column exists are in the same position, and readers fall
+		back to comparing the recorded extent against the current area.
+	*/
+	for _, stmt := range []string{
+		`ALTER TABLE project_overlays ADD COLUMN run_id TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_project_overlays_run ON project_overlays(run_id)`,
+	} {
+		_, _ = s.db.Exec(stmt)
 	}
 	if err := s.ensureLocalUser(); err != nil {
 		return err

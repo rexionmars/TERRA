@@ -253,7 +253,10 @@ func (a *App) Predict(req backend.PredictRequest) (*backend.PredictResult, error
 	if err != nil {
 		return nil, err
 	}
-	a.persistRunIfLoggedIn(req, res)
+	// Set after persisting, so the stored copy -- marshalled inside -- does not
+	// carry a run's own id inside its own row. The frontend needs it to attach
+	// compositions made while this run is on screen.
+	res.RunID = a.persistRunIfLoggedIn(req, res)
 	return res, nil
 }
 
@@ -1066,17 +1069,19 @@ func decodeDataURI(uri string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(uri[i+len(marker):])
 }
 
-func (a *App) persistRunIfLoggedIn(req backend.PredictRequest, res *backend.PredictResult) {
-	a.persistAnalysis(req, res)
+// persistRunIfLoggedIn saves the run and returns its id, so the caller can tell
+// the frontend which run it is now looking at. Empty when nothing was saved.
+func (a *App) persistRunIfLoggedIn(req backend.PredictRequest, res *backend.PredictResult) string {
+	return a.persistAnalysis(req, res)
 }
 
-func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictResult) {
+func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictResult) string {
 	a.mu.RLock()
 	user := a.currentUser
 	st := a.store
 	a.mu.RUnlock()
 	if st == nil || res == nil {
-		return
+		return ""
 	}
 	userID := store.LocalUserID
 	if user != nil {
@@ -1177,6 +1182,7 @@ func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictRe
 	if strings.TrimSpace(req.ProjectID) != "" {
 		st.TouchProject(req.ProjectID)
 	}
+	return runID
 }
 
 // ListRuns returns recent inference runs (signed-in user, or local guest).
