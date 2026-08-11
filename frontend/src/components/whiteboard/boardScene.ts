@@ -232,6 +232,16 @@ export function createBoard(
      */
     appearance: PlaneState[]
     /**
+     * Where planes were left, for the ones that have been moved.
+     *
+     * Passed for the same reason `appearance` is, and it took the same fault
+     * to notice: a plane's place is re-applied right after a rebuild, when its
+     * texture is still decoding and there is no mesh to move. The call found
+     * nothing and returned, so adding one raster to an arranged board sent
+     * every other raster back to where the layout first put it.
+     */
+    positions: { groupId: string; id: string; x: number; z: number }[]
+    /**
      * A plane was pressed.
      *
      * Fired on pointerdown, before any drag: pressing an object and then
@@ -541,6 +551,17 @@ export function createBoard(
     const target = dragged.mesh ?? dragged.rt.root
     target.position.x = hitPoint.x + grabOffset.x
     target.position.z = hitPoint.z + grabOffset.z
+    if (dragged.mesh) {
+      // Through the same record the build reads, so a rebuild during a drag
+      // does not undo the drag.
+      const i = dragged.rt.meshes.indexOf(dragged.mesh)
+      if (i >= 0) {
+        placed.set(planeKey(dragged.rt.id, dragged.rt.cards[i].id), {
+          x: target.position.x,
+          z: target.position.z,
+        })
+      }
+    }
     updateLinks()
     render()
   }
@@ -1100,6 +1121,15 @@ export function createBoard(
     opts.appearance.map((a) => [planeKey(a.groupId, a.id), a])
   )
   /*
+    Where each moved plane sits, in the same shape and for the same reason as
+    `state`: recorded whether or not the plane exists yet, and read when it is
+    created. A card's x and z are the LAYOUT's first answer, and a plane that
+    has been dragged has a later one.
+  */
+  const placed = new Map<string, { x: number; z: number }>(
+    opts.positions.map((p) => [planeKey(p.groupId, p.id), { x: p.x, z: p.z }])
+  )
+  /*
     One material for every outline: the colour is the same and a material per
     plane would be a shader program per plane for no difference on screen.
     The geometries differ -- each is the edge of its own rectangle -- so those
@@ -1219,7 +1249,12 @@ export function createBoard(
       })
       const mesh = new Mesh(geometry, material)
       mesh.rotation.x = -Math.PI / 2
-      mesh.position.set(card.x, heightOf(rt, index), card.z)
+      const at = placed.get(planeKey(rt.id, card.id))
+      mesh.position.set(
+        at?.x ?? card.x,
+        heightOf(rt, index),
+        at?.z ?? card.z
+      )
       mesh.renderOrder = order
       // Built whether or not it is shown, so hiding one later is a flag on an
       // existing plane rather than a different scene.
@@ -1331,6 +1366,9 @@ export function createBoard(
       render()
     },
     setPlanePosition(groupId, layerId, x, z) {
+      // Recorded whether or not the plane exists yet: a texture still decoding
+      // reads this when it lands, so the call is applied late rather than lost.
+      placed.set(planeKey(groupId, layerId), { x, z })
       const rt = runtimes.find((r) => r.id === groupId)
       const i = rt?.indexById.get(layerId)
       const mesh = rt && i !== undefined ? rt.meshes[i] : null

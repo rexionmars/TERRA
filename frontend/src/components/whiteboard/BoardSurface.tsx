@@ -903,6 +903,17 @@ export function BoardSurface({
         // with -- the cards are kept stable on purpose and are older than this.
         appearance: appearanceRef.current,
         /*
+          Where planes were left, given at the build rather than applied after
+          it. Applied after, the call landed while the textures were still
+          decoding and found nothing to move -- so adding one raster to an
+          arranged board sent every other raster back to the layout's first
+          answer.
+        */
+        positions: Object.entries(planePlacesRef.current).map(([key, at]) => {
+          const [groupId, id] = key.split("\u0000")
+          return { groupId, id, x: at.x, z: at.z }
+        }),
+        /*
           A ROW id, not a layer id.
 
           Rows carry the area they belong to -- two areas both have a layer
@@ -947,21 +958,6 @@ export function BoardSurface({
     boardRef.current?.setGap(gap)
   }, [gap, groups])
 
-  /*
-    Planes moved since the layout first placed them, re-applied after a build.
-
-    A rebuild puts every plane back where its card says, and a card is the
-    layout's first answer -- so without this, changing a raster would undo
-    every slide the user had made.
-  */
-  useEffect(() => {
-    const board = boardRef.current
-    if (!board || !groups) return
-    for (const [key, at] of Object.entries(planePlacesRef.current)) {
-      const [groupId, layerId] = key.split("\u0000")
-      board.setPlanePosition(groupId, layerId, at.x, at.z)
-    }
-  }, [groups])
 
   /*
     The same for what the eye toggles and the opacity sliders change.
