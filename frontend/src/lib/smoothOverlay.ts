@@ -9,7 +9,12 @@
  * Outer AOI transparency stays binary.
  */
 
-function loadImage(url: string): Promise<HTMLImageElement> {
+/**
+ * Shared with lib/classMask.ts, which decodes the same rasters for a different
+ * purpose. Exported rather than copied: a second decoder is a second place for
+ * the WKWebView's behaviour on data URIs to be discovered.
+ */
+export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
@@ -18,7 +23,8 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
-function packRGB(r: number, g: number, b: number): number {
+/** One integer per colour, so a palette can be a Map rather than a scan. */
+export function packRGB(r: number, g: number, b: number): number {
   return (r << 16) | (g << 8) | b
 }
 
