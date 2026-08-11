@@ -11,10 +11,11 @@
  * generalisation. The board's selection is already ordered -- shift adds to it
  * and the scene draws an arrowed path through the result -- so putting two
  * rasters side by side is the gesture this surface is built around, and their
- * figures belong beside each other where the comparison is being made. Each
- * block is bounded so the next has somewhere to start; the row scrolls rather
- * than squeezing them. A caveat running the band's whole width was that same
- * failure with a single block.
+ * figures belong beside each other where the comparison is being made. Prose
+ * and figures are bounded so the next block has somewhere to start -- a caveat
+ * running the band's whole width was that failure with a single block -- while
+ * a class list is bounded by the band's HEIGHT instead and flows into as many
+ * columns as it needs. The band's own row is the only thing that scrolls.
  *
  * Twice the run band's height and starting where it starts, so the foot reads
  * as one edge in two registers: what the run WILL do below, what the selected
@@ -34,17 +35,27 @@ export interface StatsEntry {
   period?: string
 }
 
+/** The width a block's prose and figures are held to. */
+const BLOCK = "w-[21rem]"
+
 /**
- * One selected raster's block, at a fixed width.
+ * One selected raster's block.
  *
- * The width is what lets the band hold more than one: a block that grew to fit
- * its content would leave the second nowhere to begin.
+ * Bounded, but not by one number for every kind. A caveat and a row of figures
+ * are held to BLOCK, because prose that runs the band's whole width was the
+ * complaint that started this. A CLASS LIST is not held to it: it flows into
+ * columns bounded by the band's HEIGHT, so its width is however many columns
+ * its classes need, and the band's own row is what scrolls.
+ *
+ * That is one scroller rather than two. Giving the list its own made it scroll
+ * inside a block inside a scrolling row, and the bar it drew to say so cost a
+ * row of the classes it was hiding.
  */
 function Entry({ entry }: { entry: StatsEntry }) {
   const { legend, area, period } = entry
   return (
-    <div className="flex w-[21rem] shrink-0 flex-col gap-1 overflow-hidden">
-      <div className="flex flex-col gap-0.5">
+    <div className="flex shrink-0 flex-col gap-1">
+      <div className={cn(BLOCK, "flex max-w-full flex-col gap-0.5")}>
         <p className="eyebrow !text-[9px] truncate">
           {legend?.subject ?? "Unnamed raster"}
         </p>
@@ -59,7 +70,7 @@ function Entry({ entry }: { entry: StatsEntry }) {
       </div>
 
       {legend?.kind === "classes" && (
-        <ul className="panel-scroll flex min-h-0 flex-1 flex-col flex-wrap content-start gap-x-5 gap-y-0.5 overflow-x-auto">
+        <ul className="flex min-h-0 flex-1 flex-col flex-wrap content-start gap-x-5 gap-y-0.5">
           {legend.entries.map((e) => (
             <li
               key={`${e.name}-${e.color}`}
@@ -92,7 +103,7 @@ function Entry({ entry }: { entry: StatsEntry }) {
       )}
 
       {legend?.kind === "ramp" && (
-        <div className="flex flex-col gap-0.5">
+        <div className={cn(BLOCK, "flex flex-col gap-0.5")}>
           <div
             className="h-2.5 w-full rounded-[3px]"
             style={{ background: legend.gradient }}
@@ -106,7 +117,7 @@ function Entry({ entry }: { entry: StatsEntry }) {
       )}
 
       {legend?.kind === "stats" && (
-        <div className="flex min-h-0 flex-1 flex-col gap-1">
+        <div className={cn(BLOCK, "flex min-h-0 flex-1 flex-col gap-1")}>
           {legend.ramp && (
             /*
               Before the figures, because it explains the plane and they only
@@ -143,7 +154,7 @@ function Entry({ entry }: { entry: StatsEntry }) {
       )}
 
       {legend?.kind === "note" && (
-        <p className="text-meta leading-snug text-muted-foreground">
+        <p className={cn(BLOCK, "text-meta leading-snug text-muted-foreground")}>
           {legend.note}
         </p>
       )}

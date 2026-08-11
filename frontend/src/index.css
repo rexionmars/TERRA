@@ -903,6 +903,12 @@
 
 .panel-scroll::-webkit-scrollbar {
   width: 8px;
+  /*
+    The horizontal axis too. Width alone left a sideways scroller on WebKit's
+    default bar, about fifteen pixels, which inside a fixed-height band is a
+    whole row of content spent on the bar that says there is more content.
+  */
+  height: 8px;
 }
 .panel-scroll::-webkit-scrollbar-thumb {
   background: rgb(var(--p-line) / 0.4);
