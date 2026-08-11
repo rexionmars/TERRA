@@ -46,6 +46,8 @@ import {
   Wrench,
   X,
 } from "lucide-react"
+import { AoiFootprint } from "@/components/AoiFootprint"
+import type { GeoJSONGeometry } from "@/lib/types"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
@@ -85,6 +87,15 @@ export interface AreaInfo {
   /** Null where the run stored no shape and the rectangle stands in. */
   hectares: number | null
   vertices: number | null
+  /**
+   * The shape itself, drawn instead of an icon.
+   *
+   * A geometry is recognised by its outline, and a row of identical pentagons
+   * over names like `run-custom-aoi-20260811-092507` says nothing about which
+   * ground is which. Normalised to its own bounds by AoiFootprint, so it
+   * carries shape and not size -- which is why the hectares run beside it.
+   */
+  geometry: GeoJSONGeometry | null
   /** How many of its rasters are on the board. */
   layers: number
   /** The map's own area, as opposed to a run fetched beside it. */
@@ -203,13 +214,23 @@ function AreasPane({
               : "hover:bg-surface-raised/40"
           )}
         >
-          <Pentagon
-            className={cn(
-              "size-3 shrink-0",
-              a.current ? "text-primary" : "text-muted-foreground"
-            )}
-            strokeWidth={1.75}
-          />
+          {a.geometry ? (
+            <AoiFootprint
+              geometry={a.geometry}
+              title={a.title}
+              className={cn(
+                "size-5 shrink-0",
+                a.current ? "text-primary" : "text-muted-foreground"
+              )}
+            />
+          ) : (
+            // Nothing to draw where the run stored no shape; the generic mark
+            // says that rather than drawing a shape it does not have.
+            <Pentagon
+              className="size-5 shrink-0 text-muted-foreground/50"
+              strokeWidth={1.5}
+            />
+          )}
           <button
             type="button"
             onClick={() => onActivate(stackRow(a.id))}

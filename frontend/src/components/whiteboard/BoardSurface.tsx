@@ -897,6 +897,7 @@ export function BoardSurface({
     return {
       id: a.id,
       title: a.title,
+      geometry: geom,
       hectares: geom ? geometryAreaHectares(geom) : null,
       // The closing point repeats the first, and reporting it would count a
       // corner twice.
