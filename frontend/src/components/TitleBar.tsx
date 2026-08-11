@@ -79,8 +79,11 @@ interface TitleBarProps {
  * createWebViewWith, so a blank-target link is silently ignored -- the click
  * does nothing at all. On a link the ODbL requires to be reachable, silently
  * nothing is the one outcome that cannot be shipped.
+ *
+ * Exported because the board's drawing map credits its basemap too, and an
+ * anchor written there would be that silent failure a second time.
  */
-function Credit({ part }: { part: CreditPart }) {
+export function Credit({ part }: { part: CreditPart }) {
   if (!part.href) return <span>{part.label}</span>
   return (
     <button

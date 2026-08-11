@@ -19,12 +19,21 @@
  *
  * No new dependency and no new chunk: leaflet and leaflet-draw are already in
  * the eager graph through MapView, which the map screen mounts underneath.
+ *
+ * The basemap credit is in the header beside the basemap buttons rather than in
+ * Leaflet's corner control, where it floated over the ground being drawn on.
  */
 import { useState } from "react"
 import { MapContainer, TileLayer } from "react-leaflet"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { DrawControl } from "@/components/MapView"
-import { BASEMAPS, basemapByKind, type BasemapKind } from "@/lib/basemaps"
+import { Credit } from "@/components/TitleBar"
+import {
+  BASEMAPS,
+  LEAFLET_CREDIT,
+  basemapByKind,
+  type BasemapKind,
+} from "@/lib/basemaps"
 import { cn } from "@/lib/utils"
 import type { GeoJSONGeometry } from "@/lib/types"
 
@@ -71,6 +80,26 @@ export function BoardAreaModal({
                 {b.name}
               </button>
             ))}
+            <span
+              className="hairline mx-1 h-4 w-px self-center border-l"
+              aria-hidden
+            />
+            {/*
+              The credit here rather than in Leaflet's own corner control, where
+              it floated over the ground being drawn on. Beside the basemap
+              buttons it sits with the choice it belongs to.
+
+              Through Credit, which is a button calling BrowserOpenURL: this is
+              a WKWebView, and a blank-target anchor is silently ignored -- on a
+              link a licence requires to be reachable, silently nothing is the
+              one outcome that cannot be shipped.
+            */}
+            <span className="flex items-center gap-1.5 text-meta text-muted-foreground">
+              <Credit part={LEAFLET_CREDIT} />
+              {basemap.credit.map((c) => (
+                <Credit key={c.label} part={c} />
+              ))}
+            </span>
           </div>
         }
       />
@@ -92,23 +121,13 @@ export function BoardAreaModal({
               allows one, and a modal allows one. Leaflet's own control carries
               the basemap's line.
             */
-            attributionControl
+            // Off: its corner control floated the credit over the ground being
+            // drawn on, and its links are the anchors this webview ignores.
+            attributionControl={false}
           >
             <TileLayer
               key={basemap.kind}
               url={basemap.url}
-              /*
-                Rebuilt from the credit parts rather than a string of its own:
-                the licences ask for the attribution to be reachable where the
-                medium allows, and the hrefs live in that table.
-              */
-              attribution={basemap.credit
-                .map((c) =>
-                  c.href
-                    ? `<a href="${c.href}" target="_blank" rel="noreferrer">${c.label}</a>`
-                    : c.label
-                )
-                .join(" · ")}
               maxZoom={basemap.maxZoom}
             />
             <DrawControl
