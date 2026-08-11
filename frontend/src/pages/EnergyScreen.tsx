@@ -25,7 +25,23 @@
  * screen takes it whole; the panel it replaces declared 81 props for state its
  * host did not use.
  */
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence } from "motion/react"
+import { Zap } from "lucide-react"
+import type { LayoutMode } from "@/lib/types"
+import { WorkspaceBar } from "@/components/WorkspaceBar"
+import { PanelShell, type PanelPlacement } from "@/components/ui/PanelShell"
+
+/**
+ * The two resources, named as the navigation column names them.
+ *
+ * Written here rather than imported because the column builds its own copy
+ * inline; if a third resource is ever added, this is the second place it has
+ * to appear, and that is a reason to lift both into lib/ at that point.
+ */
+const ENERGY_TABS = [
+  { id: "solar", label: "Solar" },
+  { id: "wind", label: "Wind" },
+] as const
 import {
   useCallback,
   useMemo,
@@ -132,6 +148,8 @@ export interface EnergyScreenProps {
   /** Starts a run for one product. The caller dispatches its result. */
   onRunSolar: (product: SolarProductId) => void
   onRunWind: () => void
+  /** Which layout draws this screen. See lib/types LayoutMode. */
+  layoutMode?: LayoutMode
   /**
    * Opens the analysis screen, where the long blocks live -- the loss
    * waterfall, the generation profile, the tracking comparison. They render
@@ -257,8 +275,47 @@ export function EnergyScreen(props: EnergyScreenProps) {
     [solar.results, staleMarks]
   )
 
+  const workspace = props.layoutMode === "workspace"
+  const [configOpen, setConfigOpen] = useState(false)
+  /** The island's measured width, so the record bar can retract past it. */
+  const [barWidthPx, setBarWidthPx] = useState(0)
   const solarBusy = solar.run.active !== null
   const windBusy = wind.run.active
+
+  /**
+   * The run action for whichever resource is in view.
+   *
+   * Gathered here for the dock layout's single button, the way the map screen
+   * gathers its three. The two tabs differ in more than the handler: solar runs
+   * whichever of its four products is selected, and names the run after that
+   * product, while wind has one.
+   *
+   * The label is the verb alone. The panels can afford "Screen the wind
+   * resource, returns figures" down a 19rem column; on a bar beside a track it
+   * would push the island past the width the track has left.
+   */
+  const run =
+    tab === "wind"
+      ? {
+          running: !!windBusy,
+          progress: wind.run.progress,
+          progressMsg: wind.run.message,
+          label: windBusy ? "Screening\u2026" : "Screen",
+          canRun: props.hasArea,
+          onRun: props.onRunWind,
+        }
+      : {
+          running: solar.run.active === selected,
+          progress: solar.run.progress,
+          progressMsg: solar.run.message,
+          label:
+            solar.run.active === selected
+              ? `${product.runningLabel}\u2026`
+              : "Run",
+          // One run at a time in the sidecar, so any solar run blocks the rest.
+          canRun: props.hasArea && !solarBusy,
+          onRun: () => props.onRunSolar(selected),
+        }
 
   // Read once per mount rather than per render: a value taken from the clock
   // inside the render body would make the axis a function of when React
@@ -498,22 +555,15 @@ export function EnergyScreen(props: EnergyScreenProps) {
    * same object two shapes and left the map letterboxed with dead space under
    * it -- the map is where the AOI is drawn, so it is not a thumbnail.
    */
-  const setupColumn = (
-    <motion.div
+  const setupColumn = (placement: PanelPlacement) => (
+    <PanelShell
       key={tab}
-      className="panel app-no-drag panel-scroll absolute bottom-3 left-3 top-3 z-[1000] flex w-[19rem] flex-col gap-4 overflow-y-auto rounded-md p-4"
-      initial={{ opacity: 0, x: -28 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -28 }}
-      transition={{ type: "spring", stiffness: 360, damping: 34 }}
+      placement={placement}
+      title={tab === "solar" ? "Solar resource" : "Wind screening"}
+      onCollapse={placement === "drawer" ? () => setConfigOpen(false) : undefined}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <h1 className="text-heading font-semibold">
-          {tab === "solar" ? "Solar resource" : "Wind screening"}
-        </h1>
-      </div>
       {tab === "solar" ? solarSetup : windSetup}
-    </motion.div>
+    </PanelShell>
   )
 
   return (
@@ -537,17 +587,61 @@ export function EnergyScreen(props: EnergyScreenProps) {
 
       <SearchBar onSelectLocation={props.onLocationSelect} />
 
+      {/*
+        The setup column, or the drawer the dock layout opens from its bar. The
+        same block either way: only the container it is given changes.
+      */}
       <AnimatePresence mode="wait" initial={false}>
-        {setupColumn}
+        {workspace ? null : setupColumn("docked")}
+      </AnimatePresence>
+      {/*
+        The presence stays mounted and its child is what comes and goes. Gating
+        the AnimatePresence itself removed the exit animation: closing the
+        drawer unmounted the thing that was supposed to be animating it out.
+      */}
+      <AnimatePresence mode="wait" initial={false}>
+        {workspace && configOpen ? setupColumn("drawer") : null}
       </AnimatePresence>
 
-      {/* The setup column is always open here, so the offset is constant --
-          the same 0.75rem the column is padded by, kept between the two. */}
+      <AnimatePresence>
+        {workspace && (
+          <WorkspaceBar
+            key="energy-bar"
+            icon={Zap}
+            groupLabel="Energy"
+            items={ENERGY_TABS}
+            activeId={tab}
+            onSelect={(id) => setTab(id as EnergyTab)}
+            running={run.running}
+            progress={run.progress}
+            progressMsg={run.progressMsg}
+            runLabel={run.label}
+            canRun={run.canRun}
+            onRun={run.onRun}
+            onWidthChange={setBarWidthPx}
+            configOpen={configOpen}
+            onConfigToggle={() => setConfigOpen((o) => !o)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/*
+        Retracted past whatever holds the foot's left end: the setup column at
+        its fixed 19rem plus its two gutters, or the dock layout's island at
+        whatever width it measured, plus the gap between the two segments.
+      */}
       <RecordWindowBar
         bands={recordBands}
         endYear={endYear}
         disabled={tab === "wind" ? windBusy : solarBusy}
-        leftOffsetClass="left-[20.5rem] rounded-tl-md"
+        flushLeft={workspace}
+        leftOffset={
+          workspace
+            ? barWidthPx
+              ? `calc(${barWidthPx}px + 0.75rem)`
+              : undefined
+            : "20.5rem"
+        }
         onHeightChange={setFootPx}
       />
 

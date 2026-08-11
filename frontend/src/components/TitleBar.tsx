@@ -145,8 +145,8 @@ export function TitleBar({
           </div>
         )}
 
-        {/* Only where there is a map to lay out. */}
-        {onMap && onLayoutModeChange && (
+        {/* Wherever there is a map to lay out. */}
+        {hasMap && onLayoutModeChange && (
           <button
             type="button"
             onClick={() =>

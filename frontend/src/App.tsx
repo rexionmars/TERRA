@@ -2292,16 +2292,17 @@ function AppBody(props: {
 
       <div className="flex min-h-0 flex-1">
         {/*
-          The workspace layout replaces this column with surfaces inside the
-          map, so it is withheld there and nowhere else: every other screen
-          still navigates by it, and hiding it on all of them would strand a
-          user on the energy screen with no way out.
+          The dock layout replaces this column with surfaces inside the map, so
+          it is withheld on the two screens that draw one. The project hub and
+          settings keep it: they have no map to put a bar over, and hiding it
+          there would leave them with no navigation at all.
 
           The column is in flow, not floating, so omitting it returns 13.5rem
           of width to the stage and the map fills it without being told.
         */}
         <AnimatePresence initial={false}>
-          {(layoutMode === "docked" || screen !== "map") && (
+          {(layoutMode === "docked" ||
+            (screen !== "map" && screen !== "energy")) && (
             <AppNav
               key="app-nav"
               hasAnalysis={!!props.result || runs.length > 0}
@@ -2486,6 +2487,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <EnergyScreen
+                  layoutMode={layoutMode}
                   solar={solar}
                   solarDispatch={solarDispatch}
                   wind={wind}
