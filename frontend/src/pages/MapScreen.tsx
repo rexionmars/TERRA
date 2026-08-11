@@ -1000,6 +1000,12 @@ export function MapScreen(props: MapScreenProps) {
                 the solar scale are what it means -- they live on the payload
                 and stop here otherwise.
               */
+              /*
+                Straight to the same handler the drawing map and the map itself
+                use. Reusing a shape and drawing one land in one place, so the
+                application cannot come to hold two ideas of what the area is.
+              */
+              onUseArea={props.onPolygonDrawn}
               runLog={runLog}
               runRunning={boardRun.running}
               legendSources={{

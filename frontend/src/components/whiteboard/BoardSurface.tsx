@@ -171,6 +171,7 @@ function useKept<T>(key: string, initial: T | (() => T)) {
 export function BoardSurface({
   layers,
   legendSources,
+  onUseArea,
   runLog,
   runRunning,
   assets,
@@ -203,6 +204,8 @@ export function BoardSurface({
    * it means. Fetched areas carry their own inside `extraRuns`.
    */
   legendSources?: LegendSources
+  /** Takes a geometry already on the board as the area to work on. */
+  onUseArea?: (geom: GeoJSONGeometry) => void
   /** What the run in progress has said, for the statistics band. */
   runLog?: RunLogEntry[]
   runRunning?: boolean
@@ -1319,6 +1322,19 @@ export function BoardSurface({
 
       <BoardSidebar
         areaInfo={areaInfo}
+        /*
+          The ring the board is already drawing, handed back as a geometry.
+          Taken from the same source the footprint and the figures come from, so
+          the shape that is worked on is the shape that was on screen.
+        */
+        onUseArea={(id) => {
+          const ring = polygonsRef.current[id]
+          if (!ring?.length || !onUseArea) return
+          onUseArea({
+            type: "Polygon",
+            coordinates: [ring],
+          } as GeoJSONGeometry)
+        }}
         areas={areas}
         areaId={CURRENT_AREA}
         assetRuns={assetRuns}

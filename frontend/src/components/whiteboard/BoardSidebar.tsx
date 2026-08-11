@@ -158,6 +158,98 @@ function layerIcon(id: string): LucideIcon {
   return Grid2x2
 }
 
+
+/**
+ * The ground the board is working on.
+ *
+ * Neither other tab answers this. The tree lists what is DRAWN and the data tab
+ * what a run PRODUCED, so an area with no rasters yet -- the one you are about
+ * to run on -- appears in neither, and neither offers a shape back.
+ *
+ * Offering it back is the point: every run stored the polygon it was asked for,
+ * so any of them can become the area again without drawing it a second time.
+ * A shape redrawn by hand is a DIFFERENT shape, and two runs over two different
+ * shapes cannot be compared -- the same reason the compare modal refuses two
+ * places.
+ */
+function AreasPane({
+  areas,
+  activeRow,
+  onActivate,
+  onUseArea,
+}: {
+  areas: AreaInfo[]
+  activeRow: string | null
+  onActivate: (rowId: string, additive?: boolean) => void
+  onUseArea?: (id: string) => void
+}) {
+  return (
+    <ul
+      className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1"
+      aria-label="Geometries on the board"
+    >
+      {areas.length === 0 && (
+        <li className="px-2 py-3 text-meta text-muted-foreground">
+          No geometry yet. Draw one from the Area group on the band below.
+        </li>
+      )}
+      {areas.map((a) => (
+        <li
+          key={a.id}
+          className={cn(
+            "flex items-center gap-1.5 px-2 py-1.5 transition-colors",
+            activeRow === stackRow(a.id)
+              ? "bg-surface-raised"
+              : "hover:bg-surface-raised/40"
+          )}
+        >
+          <Pentagon
+            className={cn(
+              "size-3 shrink-0",
+              a.current ? "text-primary" : "text-muted-foreground"
+            )}
+            strokeWidth={1.75}
+          />
+          <button
+            type="button"
+            onClick={() => onActivate(stackRow(a.id))}
+            className="flex min-w-0 flex-1 flex-col text-left"
+          >
+            <span className="truncate text-meta text-foreground">
+              {a.title}
+            </span>
+            {/*
+              Absent rather than zero where a run stored no shape: the board
+              falls back to the raster's rectangle there, and printing 0 ha
+              would report a measurement nobody made.
+            */}
+            <span className="telemetry truncate text-[9px] text-muted-foreground">
+              {a.hectares !== null && a.vertices !== null
+                ? `${a.vertices} vertices · ${a.hectares.toFixed(1)} ha`
+                : "shape not stored"}
+            </span>
+          </button>
+          {/*
+            Not offered for the area already in hand, and not for one whose
+            shape was never stored: both would be a control that cannot do what
+            it says.
+          */}
+          {onUseArea && !a.current && a.vertices !== null && (
+            <button
+              type="button"
+              onClick={() => onUseArea(a.id)}
+              title="Work on this geometry"
+              className="shrink-0 rounded-sm px-1.5 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+            >
+              Use
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 interface Row {
   id: string
   /** Which area the row belongs to, and which of its layers where there is one. */
@@ -211,6 +303,7 @@ export function BoardSidebar({
   addRun,
   mode,
   areaInfo = [],
+  onUseArea,
   activeRow,
   selection,
   activeAsset,
@@ -317,6 +410,16 @@ export function BoardSidebar({
   mode: OutlinerMode
   /** The geometries on the board, for the Areas tab. */
   areaInfo?: AreaInfo[]
+  /**
+   * Takes a geometry already on the board as the area to work on.
+   *
+   * The point of the tab. A run stored the shape it was asked for, so the
+   * ground of any run beside this one can be worked on again without drawing
+   * it a second time -- and a shape redrawn by hand is a different shape,
+   * which makes the two runs incomparable for the reason the compare modal
+   * refuses two places.
+   */
+  onUseArea?: (id: string) => void
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
   onModeChange: (m: OutlinerMode) => void
@@ -748,7 +851,19 @@ export function BoardSidebar({
         The tree takes the height that is left and the panels keep the foot, so
         the space that grows is the space rasters are added to.
       */}
-      {mode === "scene" ? (
+      {/*
+        Three panes, chosen exhaustively. This was `scene ? tree : data`, so a
+        third mode fell into the data tree -- the Areas tab listed every run's
+        rasters, which is what the tab beside it is for.
+      */}
+      {mode === "areas" ? (
+        <AreasPane
+          areas={areaInfo}
+          activeRow={activeRow}
+          onActivate={onActivate}
+          onUseArea={onUseArea}
+        />
+      ) : mode === "scene" ? (
         <div
           role="tree"
           aria-label="Layers on the board"
@@ -1138,62 +1253,6 @@ export function BoardSidebar({
         it is pinned to the foot of the tree and its list is placed against
         the column, which is the thing it should be measured from anyway.
       */}
-      {mode === "areas" && (
-        /*
-          The ground the board is working on, which neither other tab lists: the
-          tree lists what is drawn and the data tab what a run produced, so an
-          area with no rasters yet -- the one you are about to run on -- appears
-          in neither.
-        */
-        <ul className="panel-scroll min-h-0 flex-1 overflow-y-auto">
-          {areaInfo.length === 0 && (
-            <li className="px-2 py-3 text-meta text-muted-foreground">
-              No geometry yet. Draw one from the Area group on the band below.
-            </li>
-          )}
-          {areaInfo.map((a) => (
-            <li key={a.id}>
-              <button
-                type="button"
-                onClick={() => onActivate(stackRow(a.id))}
-                className={cn(
-                  "flex w-full flex-col gap-0.5 px-2 py-1.5 text-left transition-colors",
-                  activeRow === stackRow(a.id)
-                    ? "bg-surface-raised"
-                    : "hover:bg-surface-raised/40"
-                )}
-              >
-                <span className="flex items-center gap-1.5">
-                  <Pentagon
-                    className={cn(
-                      "size-3 shrink-0",
-                      a.current ? "text-primary" : "text-muted-foreground"
-                    )}
-                    strokeWidth={1.75}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-meta text-foreground">
-                    {a.title}
-                  </span>
-                  <span className="telemetry shrink-0 text-[9px] text-muted-foreground">
-                    {a.layers} {a.layers === 1 ? "raster" : "rasters"}
-                  </span>
-                </span>
-                {/*
-                  Absent rather than zero where a run stored no shape: the board
-                  falls back to the raster's rectangle there, and printing 0 ha
-                  would report a measurement nobody made.
-                */}
-                <span className="telemetry pl-[1.125rem] text-[9px] text-muted-foreground">
-                  {a.hectares !== null && a.vertices !== null
-                    ? `${a.vertices} vertices · ${a.hectares.toFixed(1)} ha`
-                    : "shape not stored"}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
       {mode === "data" && <div className="shrink-0">{addRun}</div>}
 
       {/*
