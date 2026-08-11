@@ -36,6 +36,15 @@ export interface RasterLayer {
   order: number
   /** Class rasters must not be interpolated; continuous ones may be. */
   pixelated: boolean
+  /**
+   * Whether the majority filter is applied before drawing.
+   *
+   * Here rather than at each surface because it decides WHERE A CLASS BOUNDARY
+   * IS. Two surfaces disagreeing about that is not a cosmetic difference -- it
+   * is two answers to one question, which is the failure this table exists to
+   * prevent.
+   */
+  smooth: boolean
 }
 
 /**
@@ -77,6 +86,8 @@ export interface VisibleLayerInput {
    * without the classification's colours underneath.
    */
   confidenceOnTop: boolean
+  /** Applies to the classification alone; nothing else carries a legend. */
+  smoothOverlay: boolean
   composition: CompositionOverlay | null
   showCompositionOverlay: boolean
   composeOpacity: number
@@ -113,6 +124,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       order: 350,
       // A composite is continuous colour, not classes.
       pixelated: false,
+      smooth: false,
     })
   }
 
@@ -126,6 +138,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       opacity: o.opacity,
       order: 358 + n,
       pixelated: false,
+      smooth: false,
     })
   }
 
@@ -142,6 +155,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       opacity: i.waterOpacity,
       order: 360,
       pixelated: false,
+      smooth: false,
     })
   }
 
@@ -164,6 +178,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       opacity: i.overlayOpacity,
       order: 400,
       pixelated: true,
+      smooth: i.smoothOverlay,
     })
   }
 
@@ -180,6 +195,7 @@ export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
       opacity: i.overlayOpacity,
       order: 450,
       pixelated: false,
+      smooth: false,
     })
   }
 

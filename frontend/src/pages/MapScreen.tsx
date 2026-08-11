@@ -232,6 +232,7 @@ export function MapScreen(props: MapScreenProps) {
     overlayOpacity: props.overlayOpacity,
     showConfidence: props.showConfidence,
     confidenceOnTop: props.confidenceOnTop,
+    smoothOverlay: props.smoothOverlay,
     composition: props.composition,
     showCompositionOverlay: props.showCompositionOverlay,
     composeOpacity: props.composeOpacity,

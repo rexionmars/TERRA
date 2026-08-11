@@ -10,11 +10,13 @@
  * pay for it until the board is opened; see IsolateBoardButton for the other
  * half of that boundary.
  */
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
+import type { CardPlane } from "@/lib/isolateCards"
 import { layoutCards } from "@/lib/isolateCards"
+import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import type { BoardHandle } from "@/components/isolate/boardScene"
 import { createBoard, tokenColor } from "@/components/isolate/boardScene"
 
@@ -51,15 +53,43 @@ export function IsolateBoard({
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
 
+  /**
+   * The layers with the majority filter already applied where the table asks
+   * for it, so the board draws the same class boundaries the map does.
+   *
+   * Resolved before the scene is built rather than swapped in afterwards: a
+   * board that opened on the raw raster and then re-cut every boundary a
+   * second later would show the user two different answers in sequence. The
+   * transform is memoised on the source URI, so when the map has already
+   * computed it -- which it has, whenever the control is on -- this resolves
+   * without recomputing.
+   */
+  const [cards, setCards] = useState<CardPlane[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    Promise.all(
+      layers.map(async (l) =>
+        l.smooth
+          ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
+          : l
+      )
+    ).then((resolved) => {
+      if (!cancelled) setCards(layoutCards(resolved, STACK_GAP))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [layers])
+
   useEffect(() => {
     const host = hostRef.current
-    if (!host) return
+    if (!host || !cards) return
     let board: BoardHandle | null = null
     try {
       // Read from the computed style rather than hardcoded, so the board
       // follows the theme the rest of the application is painted in.
       board = createBoard(host, {
-        cards: layoutCards(layers, STACK_GAP),
+        cards,
         background: tokenColor("--p-ink", "#171717"),
       })
     } catch {
@@ -70,7 +100,7 @@ export function IsolateBoard({
       return
     }
     return () => board?.dispose()
-  }, [layers, onClose])
+  }, [cards, onClose])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
