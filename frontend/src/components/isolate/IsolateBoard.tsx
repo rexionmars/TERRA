@@ -22,8 +22,8 @@ import {
   rowLayerId,
 } from "@/components/isolate/BoardSidebar"
 import type { RunAsset } from "@/lib/runAssets"
-import type { CardPlane } from "@/lib/isolateCards"
-import { layoutCards } from "@/lib/isolateCards"
+import type { CardGroup } from "@/lib/isolateCards"
+import { layoutGroups } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import type { BoardHandle, PlaneState } from "@/components/isolate/boardScene"
 import { createBoard, tokenColor } from "@/components/isolate/boardScene"
@@ -57,21 +57,38 @@ const GAP_MAX = 0.35
  * first thing string equality tests. The full compare runs only when a raster
  * has genuinely been replaced, which is when a rebuild is wanted anyway.
  */
-function sameStructure(a: CardPlane[], b: CardPlane[]): boolean {
+function sameStructure(a: CardGroup[], b: CardGroup[]): boolean {
   if (a.length !== b.length) return false
-  return a.every((c, i) => {
-    const d = b[i]
-    return (
-      c.id === d.id &&
-      c.uri === d.uri &&
-      c.width === d.width &&
-      c.height === d.height &&
-      c.x === d.x &&
-      c.z === d.z &&
-      c.pixelated === d.pixelated
-    )
+  return a.every((g, i) => {
+    const h = b[i]
+    if (g.id !== h.id || g.cards.length !== h.cards.length) return false
+    // An area's PLACE is deliberately absent. Where it sits is changed by
+    // dragging it and by restoring an arrangement, and neither is a reason to
+    // rebuild the scene -- setGroupPosition moves what is already there.
+    return g.cards.every((c, n) => {
+      const d = h.cards[n]
+      return (
+        c.id === d.id &&
+        c.uri === d.uri &&
+        c.width === d.width &&
+        c.height === d.height &&
+        c.x === d.x &&
+        c.z === d.z &&
+        c.pixelated === d.pixelated
+      )
+    })
   })
 }
+
+/**
+ * The area a board opened from a run always has.
+ *
+ * A constant while the board holds one area. It is threaded through as an id
+ * rather than assumed, because every key that reaches the scene is an area and
+ * a layer together -- two areas both have a layer called `prediction`, and a
+ * key that was the layer alone would address both.
+ */
+const CURRENT_AREA = "current"
 
 export function IsolateBoard({
   layers,
@@ -90,7 +107,8 @@ export function IsolateBoard({
    *
    * Including the hidden ones is what lets the sidebar offer the switch that
    * turns one back on. The scene builds them all and hides the ones marked so,
-   * rather than building only the visible set -- see CardPlane.visible.
+   * rather than building only the visible set -- visibility reaches it through
+   * setAppearance, which is the one path a plane's state takes.
    */
   layers: RasterLayer[]
   /**
@@ -230,8 +248,18 @@ export function IsolateBoard({
   */
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  /**
+   * Where each area was left.
+   *
+   * A ref rather than state, because nothing renders from it: the scene owns
+   * the position while the board is open, and this is the copy that outlives a
+   * rebuild -- without it, changing a raster would send an area the user had
+   * dragged back to where the layout first put it.
+   */
+  const placesRef = useRef<Record<string, { x: number; z: number }>>({})
   const appearanceRef = useRef<PlaneState[]>([])
   appearanceRef.current = stackLayers.map((l) => ({
+    groupId: CURRENT_AREA,
     id: l.id,
     opacity: l.opacity,
     visible: l.visible,
@@ -320,12 +348,13 @@ export function IsolateBoard({
    * computed it -- which it has, whenever the control is on -- this resolves
    * without recomputing.
    */
-  const [cards, setCards] = useState<CardPlane[] | null>(null)
+  const [groups, setGroups] = useState<CardGroup[] | null>(null)
   useEffect(() => {
     let cancelled = false
     Promise.all(
       // Every layer, hidden ones included: the scene builds them all so that
-      // hiding one is a flag rather than a different scene. See CardPlane.
+      // hiding one is a flag on an existing plane rather than a different
+      // scene, which would reset the camera on every eye toggle.
       stackLayers.map(async (l) =>
         l.smooth
           ? { ...l, uri: await majoritySmoothOverlay(l.uri).catch(() => l.uri) }
@@ -333,8 +362,18 @@ export function IsolateBoard({
       )
     ).then((resolved) => {
       if (cancelled) return
-      const next = layoutCards(resolved, STACK_GAP)
-      setCards((prev) => (prev && sameStructure(prev, next) ? prev : next))
+      const next = layoutGroups(
+        [
+          {
+            id: CURRENT_AREA,
+            title,
+            layers: resolved,
+            at: placesRef.current[CURRENT_AREA],
+          },
+        ],
+        STACK_GAP
+      )
+      setGroups((prev) => (prev && sameStructure(prev, next) ? prev : next))
     })
     return () => {
       cancelled = true
@@ -353,23 +392,25 @@ export function IsolateBoard({
 
   useEffect(() => {
     const host = hostRef.current
-    if (!host || !cards) return
+    if (!host || !groups) return
     let board: BoardHandle | null = null
     try {
       // Read from the computed style rather than hardcoded, so the board
       // follows the theme the rest of the application is painted in.
       board = createBoard(host, {
-        cards,
+        groups,
         background: tokenColor("--p-ink", "#171717"),
         line: tokenColor("--p-line", "#404040"),
         accent: tokenColor("--p-accent", "#f25623"),
         // Current at the moment of the build, whatever the cards were created
         // with -- the cards are kept stable on purpose and are older than this.
         appearance: appearanceRef.current,
-        // The state setter is stable, so this does not drag the scene into
-        // being rebuilt the way an inline closure would. A plane maps to its
-        // own row, which is the row whose id is the layer's.
-        onSelect: setActiveRow,
+        // Read through refs for the same reason `onClose` is: an inline
+        // closure here is new on every render and would rebuild the scene.
+        onSelect: (_groupId, id) => setActiveRow(id),
+        onMove: (groupId, x, z) => {
+          placesRef.current = { ...placesRef.current, [groupId]: { x, z } }
+        },
       })
     } catch {
       // A context can fail to be created even where the capability exists --
@@ -385,13 +426,13 @@ export function IsolateBoard({
     }
     // `cards` alone: everything else the build needs is read through a ref,
     // because the scene must outlive a render that changed none of its shape.
-  }, [cards])
+  }, [groups])
 
   // Moves the existing planes rather than rebuilding the scene, so the camera
   // stays where the user put it while they adjust the separation.
   useEffect(() => {
     boardRef.current?.setGap(gap)
-  }, [gap, cards])
+  }, [gap, groups])
 
   /*
     The same for what the eye toggles and the opacity sliders change.
@@ -405,13 +446,13 @@ export function IsolateBoard({
     .join("|")
   useEffect(() => {
     boardRef.current?.setAppearance(appearanceRef.current)
-  }, [appearanceKey, cards])
+  }, [appearanceKey, groups])
 
   // Re-applied when the scene is rebuilt as well as when the selection moves:
   // a fresh scene has no outline shown until it is told which one.
   useEffect(() => {
-    boardRef.current?.setSelected(selected)
-  }, [selected, cards])
+    boardRef.current?.setSelected(selected ? CURRENT_AREA : null, selected)
+  }, [selected, groups])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

@@ -42,7 +42,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three"
-import type { CardPlane } from "@/lib/isolateCards"
+import type { CardGroup, CardPlane } from "@/lib/isolateCards"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
 
@@ -70,6 +70,15 @@ export function tokenColor(name: string, fallback: string): string {
 
 /** What can change about a plane without the scene being rebuilt. */
 export interface PlaneState {
+  /**
+   * Which area's stack the plane belongs to.
+   *
+   * Part of the key rather than assumed, because the board holds more than one
+   * area and every one of them has a layer called `prediction`. A key that was
+   * the layer id alone addressed two planes at once, and whichever was built
+   * last would answer.
+   */
+  groupId: string
   id: string
   opacity: number
   visible: boolean
@@ -104,7 +113,15 @@ export interface BoardHandle {
    * where two rasters of the same AOI look much alike, that is the difference
    * between a list you read and a list you can use.
    */
-  setSelected: (id: string | null) => void
+  setSelected: (groupId: string | null, id: string | null) => void
+  /**
+   * Put an area where a saved arrangement says it was.
+   *
+   * The counterpart of onMove, and the reason a comparison can be reopened
+   * rather than only rebuilt: the scene places areas side by side when it
+   * knows nothing better, and this is how it is told better.
+   */
+  setGroupPosition: (groupId: string, x: number, z: number) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -118,7 +135,14 @@ export interface BoardHandle {
 export function createBoard(
   host: HTMLElement,
   opts: {
-    cards: CardPlane[]
+    /**
+     * The areas on the board, each with its own stack of planes.
+     *
+     * More than one is the reason this surface exists: on a map two analyses
+     * of areas hundreds of kilometres apart cannot be put side by side,
+     * because the map puts them where they are.
+     */
+    groups: CardGroup[]
     background: string
     /** --p-line, for the grid. */
     line: string
@@ -141,7 +165,15 @@ export function createBoard(
      * that waited for the release would make the first drag of a plane act on
      * whichever one happened to be selected before.
      */
-    onSelect: (id: string) => void
+    onSelect: (groupId: string, id: string) => void
+    /**
+     * An area was dragged, and where it came to rest.
+     *
+     * Reported rather than kept to the scene, because where the areas sit IS
+     * the arrangement -- it is what a saved comparison is mostly made of, and
+     * a position only three.js knew about could not be written down.
+     */
+    onMove: (groupId: string, x: number, z: number) => void
   }
 ): BoardHandle {
   const renderer = new WebGLRenderer({ antialias: true })
@@ -278,6 +310,8 @@ export function createBoard(
   const hitPoint = new Vector3()
   const grabOffset = new Vector3()
   let dragging = false
+  /** The area under the pointer for the length of a drag. */
+  let dragged: GroupRuntime | null = null
 
   const toPointer = (e: PointerEvent) => {
     const r = renderer.domElement.getBoundingClientRect()
@@ -298,19 +332,33 @@ export function createBoard(
       Non-recursive, so the selection outlines hanging off each plane are not
       hit-tested as geometry of their own.
     */
-    const targets = meshes.filter((m): m is Mesh => !!m && m.visible)
+    const targets: Mesh[] = []
+    for (const rt of runtimes) {
+      for (const m of rt.meshes) if (m && m.visible) targets.push(m)
+    }
     if (!targets.length) return
     toPointer(e)
     raycaster.setFromCamera(pointer, camera)
     const hit = raycaster.intersectObjects(targets, false)[0]
     if (!hit) return
-    const index = meshes.indexOf(hit.object as Mesh)
-    if (index >= 0) opts.onSelect(opts.cards[index].id)
-    // The plane the drag runs on passes through the stack's current height, so
-    // the grab point does not jump to y=0 on the first move.
-    dragPlane.constant = -stack.position.y
+    const mesh = hit.object as Mesh
+    // The area that was pressed is the one that moves. With one area on the
+    // board this is the only area; with two it is the difference between
+    // arranging them and dragging both at once.
+    const rt = groupOfMesh.get(mesh)
+    if (!rt) return
+    const index = rt.meshes.indexOf(mesh)
+    if (index >= 0) opts.onSelect(rt.id, rt.cards[index].id)
+    dragged = rt
+    /*
+      The plane the drag runs on passes through the area's current height, so
+      the grab point does not jump to y=0 on the first move. That height is the
+      root's, not the area's: an area only ever moves in X and Z, which is also
+      why its local X and Z below are its world X and Z.
+    */
+    dragPlane.constant = -world.position.y
     if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
-    grabOffset.copy(stack.position).sub(hitPoint)
+    grabOffset.copy(rt.root.position).sub(hitPoint)
     dragging = true
     controls.enabled = false
     renderer.domElement.setPointerCapture(e.pointerId)
@@ -321,13 +369,21 @@ export function createBoard(
     toPointer(e)
     raycaster.setFromCamera(pointer, camera)
     if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
-    stack.position.x = hitPoint.x + grabOffset.x
-    stack.position.z = hitPoint.z + grabOffset.z
+    if (!dragged) return
+    dragged.root.position.x = hitPoint.x + grabOffset.x
+    dragged.root.position.z = hitPoint.z + grabOffset.z
     render()
   }
 
   const endDrag = (e: PointerEvent) => {
     if (!dragging) return
+    // Reported on release rather than on every move: where an area came to
+    // rest is the arrangement, and the fifty positions it passed through are
+    // not. See opts.onMove.
+    if (dragged) {
+      opts.onMove(dragged.id, dragged.root.position.x, dragged.root.position.z)
+    }
+    dragged = null
     dragging = false
     controls.enabled = true
     renderer.domElement.releasePointerCapture(e.pointerId)
@@ -514,32 +570,59 @@ export function createBoard(
   renderer.domElement.addEventListener("webglcontextrestored", onRestored)
 
   /*
-    One group for every raster, so the stack moves as one object. That is also
-    what makes the next step -- a second analysis beside this one -- an added
-    group rather than a rewrite.
+    One three.js Group per area, all under one root.
+
+    The root exists to be moved vertically without disturbing the areas: the
+    stack is recentred on its own bounding sphere once the textures land, and
+    doing that to each area separately would move them relative to each other.
+    The root only ever translates in Y, which is why an area's local X and Z
+    are also its world X and Z -- the drag below relies on that.
+
+    A group per area, rather than a plane per area under one group, is what
+    makes dragging one area a translation of an object that already exists.
   */
-  const stack = new Group()
-  scene.add(stack)
+  const world = new Group()
+  scene.add(world)
   const loader = new TextureLoader()
-  let pending = opts.cards.length
+  let pending = opts.groups.reduce((n, g) => n + g.cards.length, 0)
 
-  /*
-    Held in the cards' own order rather than read back from stack.children.
+  interface GroupRuntime {
+    id: string
+    root: Group
+    cards: CardPlane[]
+    /*
+      Held in the cards' own order rather than read back from root.children.
 
-    Textures load asynchronously, so the children arrive in whatever order the
-    decoder finishes -- which is not the stack order. Indexing that array by
-    position, as setGap did, assigned the wrong height to each plane the first
-    time the spread was moved, silently reordering the stack.
-  */
-  const meshes: (Mesh | null)[] = opts.cards.map(() => null)
-  const indexById = new Map(opts.cards.map((c, i) => [c.id, i]))
+      Textures load asynchronously, so the children arrive in whatever order
+      the decoder finishes -- which is not the stack order. Indexing that array
+      by position, as setGap once did, assigned the wrong height to each plane
+      the first time the spread was moved, silently reordering the stack.
+    */
+    meshes: (Mesh | null)[]
+    indexById: Map<string, number>
+  }
+
+  const runtimes: GroupRuntime[] = opts.groups.map((g) => {
+    const root = new Group()
+    root.position.set(g.x, 0, g.z)
+    world.add(root)
+    return {
+      id: g.id,
+      root,
+      cards: g.cards,
+      meshes: g.cards.map(() => null),
+      indexById: new Map(g.cards.map((c, i) => [c.id, i])),
+    }
+  })
+  /** Which area a plane belongs to, for the drag and for the hit test. */
+  const groupOfMesh = new Map<Mesh, GroupRuntime>()
 
   /**
    * Which plane is outlined. Held here rather than passed in, because the
    * planes appear as their textures decode and a selection made before one
    * arrives has to survive until it does.
    */
-  let selectedId: string | null = null
+  let selectedKey: string | null = null
   /*
     The one place a plane's state lives. Seeded from the caller and updated by
     setAppearance; the mesh reads it when it is created and whenever it is
@@ -547,8 +630,10 @@ export function createBoard(
     replaces: the card said one thing, the handle said another, and whichever
     ran last won.
   */
+  /** Area and layer together: two areas both have a layer called prediction. */
+  const planeKey = (groupId: string, id: string) => `${groupId}\u0000${id}`
   const state = new Map<string, PlaneState>(
-    opts.appearance.map((a) => [a.id, a])
+    opts.appearance.map((a) => [planeKey(a.groupId, a.id), a])
   )
   /*
     One material for every outline: the colour is the same and a material per
@@ -564,7 +649,19 @@ export function createBoard(
   })
   disposables.push(outlineMaterial)
 
-  opts.cards.forEach((card, index) => {
+  /*
+    Every plane on the board, drawn in a single order.
+
+    renderOrder is global rather than per area, because the transparent pass
+    is a single sorted list: two areas each numbering their planes from zero
+    would interleave, and a layer of one area could be painted between two
+    layers of the other.
+  */
+  let drawIndex = 0
+  const totalPlanes = pending
+  for (const rt of runtimes) {
+  rt.cards.forEach((card, index) => {
+    const order = drawIndex++
     loader.load(card.uri, (t) => {
       if (disposed) {
         t.dispose()
@@ -594,7 +691,7 @@ export function createBoard(
         camera -- which flips as you orbit, and would make layers swap places
         while you look at them.
       */
-      const now = state.get(card.id)
+      const now = state.get(planeKey(rt.id, card.id))
       const material = new MeshBasicMaterial({
         map: t,
         transparent: true,
@@ -604,12 +701,13 @@ export function createBoard(
       const mesh = new Mesh(geometry, material)
       mesh.rotation.x = -Math.PI / 2
       mesh.position.set(card.x, card.y, card.z)
-      mesh.renderOrder = index
+      mesh.renderOrder = order
       // Built whether or not it is shown, so hiding one later is a flag on an
       // existing plane rather than a different scene.
       mesh.visible = now?.visible ?? true
-      meshes[index] = mesh
-      stack.add(mesh)
+      rt.meshes[index] = mesh
+      groupOfMesh.set(mesh, rt)
+      rt.root.add(mesh)
       disposables.push(geometry, material, t)
 
       /*
@@ -622,23 +720,26 @@ export function createBoard(
         new EdgesGeometry(geometry),
         outlineMaterial
       )
-      outline.renderOrder = opts.cards.length + index
-      outline.visible = card.id === selectedId
+      outline.renderOrder = totalPlanes + order
+      outline.visible = selectedKey === planeKey(rt.id, card.id)
       mesh.add(outline)
       disposables.push(outline.geometry)
 
       if (--pending === 0) {
         // Framed once every plane is placed, or the first to arrive would set
-        // the distance and the rest would fall outside it.
-        const box = new Box3().setFromObject(stack)
+        // the distance and the rest would fall outside it. Over the whole
+        // board rather than one area: opening on two and framing one would
+        // leave the other off screen with nothing saying it was there.
+        const box = new Box3().setFromObject(world)
         const sphere = box.getBoundingSphere(new Sphere())
-        stack.position.y = -sphere.center.y
+        world.position.y = -sphere.center.y
         addGround(sphere.radius)
         frame(sphere.radius)
       }
       render()
     })
   })
+  }
 
   return {
     render,
@@ -646,21 +747,34 @@ export function createBoard(
       // Card order, not the layer's ordering number: even spacing however far
       // apart those numbers happen to be. Hidden planes keep their slot, so
       // showing one again puts it back where the stack left a space for it.
-      meshes.forEach((mesh, i) => {
-        if (mesh) mesh.position.y = i * gap
-      })
+      // Per area, so two areas keep the same separation rather than one
+      // stacking above the other.
+      for (const rt of runtimes) {
+        rt.meshes.forEach((mesh, i) => {
+          if (mesh) mesh.position.y = i * gap
+        })
+      }
       render()
     },
-    setSelected(id) {
-      if (id === selectedId) return
-      selectedId = id
-      for (const mesh of meshes) {
-        // Its own outline is the only child a plane has.
-        const outline = mesh?.children[0]
-        if (!mesh || !outline) continue
-        const index = meshes.indexOf(mesh)
-        outline.visible = opts.cards[index].id === id
+    setSelected(groupId, id) {
+      const next = groupId && id ? planeKey(groupId, id) : null
+      if (next === selectedKey) return
+      selectedKey = next
+      for (const rt of runtimes) {
+        rt.meshes.forEach((mesh, i) => {
+          // Its own outline is the only child a plane has.
+          const outline = mesh?.children[0]
+          if (!mesh || !outline) return
+          outline.visible = planeKey(rt.id, rt.cards[i].id) === next
+        })
       }
+      render()
+    },
+    setGroupPosition(groupId, x, z) {
+      const rt = runtimes.find((r) => r.id === groupId)
+      if (!rt || (rt.root.position.x === x && rt.root.position.z === z)) return
+      rt.root.position.x = x
+      rt.root.position.z = z
       render()
     },
     setAppearance(next) {
@@ -668,9 +782,10 @@ export function createBoard(
       for (const c of next) {
         // Recorded whether or not the plane exists yet: a texture still
         // decoding will read this when it lands.
-        state.set(c.id, c)
-        const i = indexById.get(c.id)
-        const mesh = i === undefined ? null : meshes[i]
+        state.set(planeKey(c.groupId, c.id), c)
+        const rt = runtimes.find((r) => r.id === c.groupId)
+        const i = rt?.indexById.get(c.id)
+        const mesh = rt && i !== undefined ? rt.meshes[i] : null
         // Absent while its texture is still decoding. Nothing further to do:
         // the record above is what the mesh reads when it is created, so the
         // call is applied late rather than lost.
