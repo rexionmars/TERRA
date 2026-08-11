@@ -691,12 +691,30 @@ type SolarTerrainAnalysis struct {
 	// Share of the horizontal irradiation carried by the beam component, which
 	// is what the shading loss is scaled by before it reaches the totals.
 	BeamFraction float64 `json:"beam_fraction"`
+	// Sky view factor: the diffuse counterpart of the shading above. The same
+	// horizon answers both, so this costs nothing extra to report.
+	SkyView *SolarSkyView `json:"sky_view,omitempty"`
 	// Raster as a base64 PNG data URI, drawn on Scale.
 	OverlayURI string `json:"overlay_uri"`
 	RasterTIF  string `json:"raster_tif"`
 	Extent     Bounds `json:"extent"`
 	// Whether the series behind these figures was fetched or read from cache.
 	PowerProvenance *PowerProvenance `json:"power_provenance,omitempty"`
+}
+
+// SolarSkyView is how much of the sky dome the terrain leaves visible, and the
+// threshold that decided whether the diffuse loss was worth applying.
+//
+// Reported whether or not it was applied: "not applied" and "applied at zero"
+// are different statements about the terrain, and only the first means the
+// question was never asked.
+type SolarSkyView struct {
+	Applied            bool     `json:"applied"`
+	MeanHorizonDeg     float64  `json:"mean_horizon_deg"`
+	MaxHorizonDeg      float64  `json:"max_horizon_deg"`
+	ThresholdDeg       float64  `json:"threshold_deg"`
+	DiffuseLossMeanPct *float64 `json:"diffuse_loss_mean_pct"`
+	DiffuseLossMaxPct  *float64 `json:"diffuse_loss_max_pct"`
 }
 
 // NDates reports the years of hourly record behind the map, so a saved run can
@@ -720,6 +738,7 @@ type solarTerrainSidecarPayload struct {
 	ShadingMaxPct   *float64         `json:"shading_max_pct"`
 	HorizonMaxDistM float64          `json:"horizon_max_dist_m"`
 	BeamFraction    float64          `json:"beam_fraction"`
+	SkyView         *SolarSkyView    `json:"sky_view,omitempty"`
 	OverlayPNG      string           `json:"overlay_png"`
 	RasterTIF       string           `json:"raster_tif"`
 	Extent          Bounds           `json:"extent"`

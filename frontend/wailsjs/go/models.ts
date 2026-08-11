@@ -3006,6 +3006,28 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class SolarSkyView {
+	    applied: boolean;
+	    mean_horizon_deg: number;
+	    max_horizon_deg: number;
+	    threshold_deg: number;
+	    diffuse_loss_mean_pct?: number;
+	    diffuse_loss_max_pct?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SolarSkyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applied = source["applied"];
+	        this.mean_horizon_deg = source["mean_horizon_deg"];
+	        this.max_horizon_deg = source["max_horizon_deg"];
+	        this.threshold_deg = source["threshold_deg"];
+	        this.diffuse_loss_mean_pct = source["diffuse_loss_mean_pct"];
+	        this.diffuse_loss_max_pct = source["diffuse_loss_max_pct"];
+	    }
+	}
 	export class SolarRenderScale {
 	    palette: string;
 	    min: number;
@@ -3047,6 +3069,7 @@ export namespace backend {
 	    shading_max_pct?: number;
 	    horizon_max_dist_m: number;
 	    beam_fraction: number;
+	    sky_view?: SolarSkyView;
 	    overlay_uri: string;
 	    raster_tif: string;
 	    extent: Bounds;
@@ -3074,6 +3097,7 @@ export namespace backend {
 	        this.shading_max_pct = source["shading_max_pct"];
 	        this.horizon_max_dist_m = source["horizon_max_dist_m"];
 	        this.beam_fraction = source["beam_fraction"];
+	        this.sky_view = this.convertValues(source["sky_view"], SolarSkyView);
 	        this.overlay_uri = source["overlay_uri"];
 	        this.raster_tif = source["raster_tif"];
 	        this.extent = this.convertValues(source["extent"], Bounds);
@@ -3632,6 +3656,7 @@ export namespace backend {
 		    return a;
 		}
 	}
+	
 	
 	
 	export class SolarTerrainRequest {

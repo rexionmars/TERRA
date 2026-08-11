@@ -1476,13 +1476,30 @@ def main():
 
         beam_share = solar_mod.beam_fraction(df)
 
+        # Whether the terrain encloses the site enough for the diffuse loss to
+        # be a figure rather than noise. Read off the horizon already traced, so
+        # the test costs nothing; below the threshold the sky view factor is a
+        # rounding term and applying it would spend the arithmetic on noise.
+        enclosure = solar_mod.horizon_enclosure(horizon)
+        svf_loss = (
+            solar_mod.diffuse_loss_fraction(horizon)
+            if enclosure['encloses'] else None
+        )
+
         def _poa_for(name):
             """Plane-of-array total for a season, attenuated by terrain shading.
 
-            Shading removes beam energy only, so the per-pixel loss is scaled by
-            the beam share of the irradiation before it is applied. The loss
-            itself is returned unscaled, which is what the published layer and
-            the research figures report.
+            Two losses, on two bases. The horizon blocks beam energy below it,
+            which is scaled by the beam share before it is applied; and it hides
+            part of the sky dome, which removes diffuse energy in proportion to
+            the sky view factor. The beam term is the expensive one to compute
+            and the small one to collect -- on flat ground both vanish, but in
+            enclosed terrain the diffuse term is the larger by two orders of
+            magnitude, and the horizon that answers the first already answers
+            the second.
+
+            The published shading layer stays the unscaled beam fraction, which
+            is what the research figures report.
             """
             m = solar_mod.season_mask(df.index, name)
             sub, sp = df[m], solpos[m]
@@ -1493,7 +1510,10 @@ def main():
             raw = solar_mod.interpolate_poa(slope, aspect, tbl)
             hist, edges = solar_mod.beam_energy_histogram(sub, sp)
             loss = solar_mod.shading_loss_fraction(horizon, hist, edges)
-            return raw * (1.0 - loss * beam_share), loss
+            attenuated = raw * (1.0 - loss * beam_share)
+            if svf_loss is not None:
+                attenuated = attenuated * (1.0 - svf_loss * (1.0 - beam_share))
+            return attenuated, loss
 
         emit_progress(76, 'plane-of-array lookup')
         companion = None
@@ -1594,6 +1614,23 @@ def main():
                 ),
                 'horizon_max_dist_m': float(solar_mod.HORIZON_MAX_DIST_M),
                 'beam_fraction': round(float(beam_share), 4),
+                # The sky view factor and the threshold it was judged against.
+                # Reported whether or not it was applied: "not applied" and
+                # "applied at zero" are different statements about the terrain.
+                'sky_view': {
+                    'applied': bool(svf_loss is not None),
+                    'mean_horizon_deg': enclosure['mean_horizon_deg'],
+                    'max_horizon_deg': enclosure['max_horizon_deg'],
+                    'threshold_deg': enclosure['threshold_deg'],
+                    'diffuse_loss_mean_pct': (
+                        round(float(100.0 * np.nanmean(svf_loss[valid])), 3)
+                        if svf_loss is not None else None
+                    ),
+                    'diffuse_loss_max_pct': (
+                        round(float(100.0 * np.nanmax(svf_loss[valid])), 3)
+                        if svf_loss is not None else None
+                    ),
+                },
                 'dem_source': 'Copernicus DEM GLO-30',
                 # Whether the POWER series behind this layer was fetched or
                 # read from the on-disk cache, and when it was fetched.

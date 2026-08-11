@@ -62,7 +62,11 @@ SOURCE_FAIMAN = (
 )
 SOURCE_ASHRAE_IAM = (
     "Souka, A. F. and Safwat, H. H. (1966), as implemented by pvlib.iam.ashrae "
-    "with the default coefficient b=0.05"
+    "with the default coefficient b=0.05; the diffuse terms use the same "
+    "relation integrated over the sky and ground solid angles per "
+    "Marion, B. (2013), Numerical method for angle-of-incidence correction "
+    "factors for diffuse radiation incident on photovoltaic modules, "
+    "Solar Energy 92:84-89, doi:10.1016/j.solener.2013.02.029"
 )
 SOURCE_IEC_61724 = (
     "IEC 61724-1, which defines the performance ratio against the "
@@ -594,12 +598,14 @@ def loss_waterfall(
     )
 
     add(
-        4, "Angle of incidence on the beam component (ASHRAE)",
+        4, "Angle of incidence, beam and diffuse (ASHRAE)",
         f["f_iam"], e_geff, "kWh/m2/yr", f["f_iam"], "modelled", True,
         SOURCE_ASHRAE_IAM,
-        "Applied to the beam component only. The diffuse component receives "
-        "no incidence-angle correction in this chain, which is a "
-        "simplification inside the modelled ratio.",
+        "Applied to all three components. The beam correction follows the "
+        "hourly incidence angle; sky and ground diffuse carry the same "
+        "relation integrated over the solid angle each occupies, which depends "
+        "on tilt alone. Ground-reflected light arrives near-grazing and is the "
+        "strongly corrected term.",
     )
 
     add(
