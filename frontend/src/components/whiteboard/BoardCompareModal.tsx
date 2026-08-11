@@ -192,7 +192,7 @@ export function BoardCompareModal({
             the two compositions run side by side -- and where a side is not a
             class map there is nothing to list, which the block says.
           */
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-4 overflow-auto">
+          <div className="grid max-h-[min(58vh,34rem)] grid-cols-2 gap-4 overflow-auto">
             {[from, to].map((s, i) => (
               <div key={i} className="flex min-w-0 flex-col gap-2">
                 <p className="eyebrow !text-[9px] truncate">{label(s)}</p>
@@ -237,7 +237,14 @@ export function BoardCompareModal({
             ))}
           </div>
         ) : (
-        <div className="min-h-0 flex-1 overflow-hidden rounded-md bg-surface">
+          /*
+            An explicit height, not flex-1. ModalShell sizes to its content, so
+            a child asking for "one share of the remaining space" was asking for
+            a share of nothing and collapsed to zero -- the modal opened with
+            its agreement line and no swipe above it. The images are
+            object-contain, so this box decides how large they are drawn.
+          */
+          <div className="h-[min(58vh,34rem)] min-h-0 overflow-hidden rounded-md bg-surface">
           <PlotSwipeView
             left={{
               id: "from",
