@@ -492,10 +492,21 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     <AnimatePresence>
       {open && (
         <motion.div
-          className="panel app-no-drag absolute right-14 top-14 z-[1100] flex max-h-[min(36rem,calc(100%-5rem))] w-[19rem] flex-col overflow-hidden rounded-md"
-          initial={{ opacity: 0, x: 16, y: -8 }}
+          className={cn(
+            "panel app-no-drag absolute right-14 z-[1100] flex w-[19rem] flex-col overflow-hidden rounded-md",
+            // Bottom-aligned with the control column it belongs to, growing
+            // upward. It used to open at top-14, and once its button moved
+            // into Leaflet's bottom-right stack that put the panel at one end
+            // of the screen and the thing that opened it at the other.
+            //
+            // 0.625rem is Leaflet's own margin under the last control, so the
+            // two share a baseline. right-14 already clears the column.
+            "bottom-[calc(var(--map-foot,0px)+0.625rem)]",
+            "max-h-[min(36rem,calc(100%-var(--map-foot,0px)-5rem))]"
+          )}
+          initial={{ opacity: 0, x: 16, y: 8 }}
           animate={{ opacity: 1, x: 0, y: 0 }}
-          exit={{ opacity: 0, x: 16, y: -8 }}
+          exit={{ opacity: 0, x: 16, y: 8 }}
           transition={{ type: "spring", stiffness: 380, damping: 32 }}
         >
           <div className="flex items-center justify-between px-3 py-2">

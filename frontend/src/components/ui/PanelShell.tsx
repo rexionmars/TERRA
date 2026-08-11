@@ -40,18 +40,19 @@ export type PanelPlacement = "docked" | "drawer"
  * from the left edge it is attached to.
  *
  * Drawer is the right-edge overlay, following OverlayToolsPanel, which is the
- * established vocabulary for a right-anchored surface on this screen. It stops
- * short of the foot rather than running to `bottom-3`, because these bodies are
- * genuinely 840 to 1100px tall and would otherwise run under whatever the
- * workspace layout puts at the bottom. --map-foot is what that reservation is
- * measured in; see index.css.
+ * established vocabulary for a right-anchored surface on this screen. It sits
+ * on the foot and grows upward, sharing a baseline with the map's own control
+ * column: these bodies are genuinely 840 to 1100px tall, so anchoring them at
+ * the top left them running off the bottom of the screen. --map-foot is what
+ * the reservation is measured in; see index.css.
  */
 const CONTAINER: Record<PanelPlacement, string> = {
   docked:
     "panel app-no-drag panel-scroll absolute left-3 top-3 bottom-3 z-[1000] " +
     "flex w-[19rem] flex-col gap-4 overflow-y-auto rounded-md p-4",
   drawer:
-    "panel app-no-drag panel-scroll absolute right-14 top-14 z-[1100] " +
+    "panel app-no-drag panel-scroll absolute right-14 z-[1100] " +
+    "bottom-[calc(var(--map-foot,0px)+0.625rem)] " +
     "flex max-h-[calc(100%-var(--map-foot,0px)-5rem)] w-[19rem] flex-col gap-4 " +
     "overflow-y-auto rounded-md p-4",
 }
@@ -66,7 +67,7 @@ const CONTAINER: Record<PanelPlacement, string> = {
  */
 const ENTER: Record<PanelPlacement, { x: number; y?: number }> = {
   docked: { x: -28 },
-  drawer: { x: 16, y: -8 },
+  drawer: { x: 16, y: 8 },
 }
 
 /**
