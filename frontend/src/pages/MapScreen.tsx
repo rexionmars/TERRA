@@ -24,6 +24,7 @@ import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
 import type { LayoutMode } from "@/lib/types"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
+import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
@@ -147,7 +148,19 @@ export function MapScreen(props: MapScreenProps) {
   // every return -- including a return from a water run, which left a water
   // raster on the map with the classification panel open beside it.
   const { leftPanel, onLeftPanelChange } = props
-  const [overlayToolsOpen, setOverlayToolsOpen] = useState(false)
+  /**
+   * Which right-edge drawer is open, at most one.
+   *
+   * The two occupy the same slot -- same anchor, same width, same layer -- and
+   * a user reading run parameters is not simultaneously adjusting overlay
+   * opacity, so they exclude each other rather than being stacked or offset.
+   * A boolean per drawer would let both open onto the same rectangle.
+   *
+   * The docked layout never sets "config", so its behaviour is unchanged.
+   */
+  const [rightDrawer, setRightDrawer] = useState<"config" | "overlays" | null>(
+    null
+  )
   const workspace = props.layoutMode === "workspace"
   const setLeftPanel = onLeftPanelChange
 
@@ -215,6 +228,121 @@ export function MapScreen(props: MapScreenProps) {
             canRun: props.hasArea && !!props.start && !!props.end,
             onRun: props.onRun,
           }
+
+  /**
+   * The three products' controls, in whichever container the layout gives
+   * them. One switch, called from two places: the docked column below, and
+   * the workspace layout's right drawer. Writing it twice would let the two
+   * layouts drift in which props each panel receives.
+   */
+  const renderPanel = (placement: PanelPlacement) => {
+    /*
+      Dismissing means different things in the two containers. Closing the
+      docked column clears the open tool, because the column IS the tool
+      selection -- there is nothing left selected once it is gone. In the
+      workspace layout the bar keeps the selection, so closing the drawer must
+      close only the drawer; clearing the tool there would empty the segmented
+      control and leave the run button acting on nothing.
+    */
+    const dismiss =
+      placement === "drawer"
+        ? () => setRightDrawer(null)
+        : () => setLeftPanel(null)
+    return (
+      <AnimatePresence mode="wait" initial={false}>
+        {leftPanel === "classify" ? (
+          <ControlPanel
+            key="classify"
+            placement={placement}
+            activeExample={props.activeExample}
+            customPolygon={props.customPolygon}
+            hasArea={props.hasArea}
+            onClearArea={props.onClearArea}
+            onImportPolygon={props.onImportPolygon}
+            start={props.start}
+            end={props.end}
+            onStartChange={props.onStartChange}
+            onEndChange={props.onEndChange}
+            maxCloud={props.maxCloud}
+            onMaxCloudChange={props.onMaxCloudChange}
+            monthlyBest={props.monthlyBest}
+            onMonthlyBestChange={props.onMonthlyBestChange}
+            mode={props.mode}
+            onModeChange={props.onModeChange}
+            modelKind={props.modelKind}
+            onModelKindChange={props.onModelKindChange}
+            prithviMode={props.prithviMode}
+            onPrithviModeChange={props.onPrithviModeChange}
+            running={props.running}
+            progress={props.progress}
+            progressMsg={props.progressMsg}
+            onRun={props.onRun}
+            onAnalyzeLULC={props.onAnalyzeLULC}
+            lulcRunning={props.lulcRunning}
+            onCollapse={dismiss}
+          />
+        ) : leftPanel === "water" ? (
+          <WaterPanel
+            key="water"
+            placement={placement}
+            hasArea={props.hasArea}
+            start={props.start}
+            end={props.end}
+            onStartChange={props.onStartChange}
+            onEndChange={props.onEndChange}
+            maxCloud={props.maxCloud}
+            onMaxCloudChange={props.onMaxCloudChange}
+            monthlyBest={props.monthlyBest}
+            onMonthlyBestChange={props.onMonthlyBestChange}
+            index={props.waterIndex}
+            onIndexChange={props.onWaterIndexChange}
+            running={props.waterRunning}
+            progress={props.waterProgress}
+            progressMsg={props.waterProgressMsg}
+            hasResult={!!props.water}
+            onRun={props.onRunWater}
+            onClear={props.onClearWater}
+            onCollapse={dismiss}
+          />
+        ) : leftPanel === "compose" ? (
+          <CompositionPanel
+            key="compose"
+            placement={placement}
+            hasArea={props.hasArea}
+            start={props.start}
+            end={props.end}
+            onStartChange={props.onStartChange}
+            onEndChange={props.onEndChange}
+            maxCloud={props.maxCloud}
+            onMaxCloudChange={props.onMaxCloudChange}
+            monthlyBest={props.monthlyBest}
+            onMonthlyBestChange={props.onMonthlyBestChange}
+            scenes={props.composeScenes}
+            scenesLoading={props.composeScenesLoading}
+            scenesError={props.composeScenesError}
+            selectedSceneId={props.selectedSceneId}
+            onSelectScene={props.onSelectScene}
+            kind={props.composeKind}
+            onKindChange={props.onComposeKindChange}
+            bands={props.composeBands}
+            onBandsChange={props.onComposeBandsChange}
+            index={props.composeIndex}
+            onIndexChange={props.onComposeIndexChange}
+            stretchLow={props.composeStretchLow}
+            stretchHigh={props.composeStretchHigh}
+            onStretchChange={props.onComposeStretchChange}
+            running={props.composeRunning}
+            progress={props.composeProgress}
+            progressMsg={props.composeProgressMsg}
+            hasOverlay={!!props.composition}
+            onApply={props.onApplyComposition}
+            onClear={props.onClearComposition}
+            onCollapse={dismiss}
+          />
+        ) : null}
+      </AnimatePresence>
+    )
+  }
 
   return (
     <div
@@ -299,19 +427,23 @@ export function MapScreen(props: MapScreenProps) {
             runLabel={run.label}
             canRun={run.canRun}
             onRun={run.onRun}
-            configOpen={false}
-            onConfigToggle={() => {}}
+            configOpen={rightDrawer === "config"}
+            onConfigToggle={() =>
+              setRightDrawer((d) => (d === "config" ? null : "config"))
+            }
           />
         )}
       </AnimatePresence>
 
       <OverlayToolsButton
-        active={overlayToolsOpen}
-        onClick={() => setOverlayToolsOpen((o) => !o)}
+        active={rightDrawer === "overlays"}
+        onClick={() =>
+          setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
+        }
       />
       <OverlayToolsPanel
-        open={overlayToolsOpen}
-        onClose={() => setOverlayToolsOpen(false)}
+        open={rightDrawer === "overlays"}
+        onClose={() => setRightDrawer(null)}
         result={props.result}
         composition={props.composition}
         compositionGallery={props.compositionGallery ?? []}
@@ -358,98 +490,11 @@ export function MapScreen(props: MapScreenProps) {
 
       {/*
         The docked column. The workspace layout has no column to dock to -- its
-        parameters open in a drawer from the bar instead -- so the switch is
-        withheld there rather than the panels being taught about the layout.
+        parameters open in a drawer from the bar instead, which is the same
+        switch in the other container.
       */}
-      <AnimatePresence mode="wait" initial={false}>
-        {workspace ? null : leftPanel === "classify" ? (
-          <ControlPanel
-            key="classify"
-            activeExample={props.activeExample}
-            customPolygon={props.customPolygon}
-            hasArea={props.hasArea}
-            onClearArea={props.onClearArea}
-            onImportPolygon={props.onImportPolygon}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            mode={props.mode}
-            onModeChange={props.onModeChange}
-            modelKind={props.modelKind}
-            onModelKindChange={props.onModelKindChange}
-            prithviMode={props.prithviMode}
-            onPrithviModeChange={props.onPrithviModeChange}
-            running={props.running}
-            progress={props.progress}
-            progressMsg={props.progressMsg}
-            onRun={props.onRun}
-            onAnalyzeLULC={props.onAnalyzeLULC}
-            lulcRunning={props.lulcRunning}
-            onCollapse={() => setLeftPanel(null)}
-          />
-        ) : leftPanel === "water" ? (
-          <WaterPanel
-            key="water"
-            hasArea={props.hasArea}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            index={props.waterIndex}
-            onIndexChange={props.onWaterIndexChange}
-            running={props.waterRunning}
-            progress={props.waterProgress}
-            progressMsg={props.waterProgressMsg}
-            hasResult={!!props.water}
-            onRun={props.onRunWater}
-            onClear={props.onClearWater}
-            onCollapse={() => setLeftPanel(null)}
-          />
-        ) : leftPanel === "compose" ? (
-          <CompositionPanel
-            key="compose"
-            hasArea={props.hasArea}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            scenes={props.composeScenes}
-            scenesLoading={props.composeScenesLoading}
-            scenesError={props.composeScenesError}
-            selectedSceneId={props.selectedSceneId}
-            onSelectScene={props.onSelectScene}
-            kind={props.composeKind}
-            onKindChange={props.onComposeKindChange}
-            bands={props.composeBands}
-            onBandsChange={props.onComposeBandsChange}
-            index={props.composeIndex}
-            onIndexChange={props.onComposeIndexChange}
-            stretchLow={props.composeStretchLow}
-            stretchHigh={props.composeStretchHigh}
-            onStretchChange={props.onComposeStretchChange}
-            running={props.composeRunning}
-            progress={props.composeProgress}
-            progressMsg={props.composeProgressMsg}
-            hasOverlay={!!props.composition}
-            onApply={props.onApplyComposition}
-            onClear={props.onClearComposition}
-            onCollapse={() => setLeftPanel(null)}
-          />
-        ) : null}
-      </AnimatePresence>
+      {workspace ? null : renderPanel("docked")}
+      {workspace && rightDrawer === "config" ? renderPanel("drawer") : null}
 
       <AnimatePresence mode="wait" initial={false}>
         {showWaterStatus ? (
