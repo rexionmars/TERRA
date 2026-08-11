@@ -268,6 +268,23 @@ export function MapScreen(props: MapScreenProps) {
    * both. That is the existing model rather than something introduced here:
    * the map's own panel has one slider for the pair.
    */
+  /**
+   * Whether the board is actually up.
+   *
+   * Not `isolate` on its own, and the difference was a dead end you could
+   * reach in two clicks. The board used to mount on there being a VISIBLE
+   * raster, and its own sidebar can hide every one of them -- so pressing the
+   * stack's eye unmounted the surface that held the control, while `isolate`
+   * stayed true and kept the search field and the overlay tools button hidden.
+   * No board, no way back into it (its button reads the same condition and had
+   * gone disabled), and no overlay tools to turn a layer back on.
+   *
+   * The condition is whether there is a raster to lift AT ALL. Everything that
+   * hides while the board is up reads this same value, so there is no state
+   * where the board is gone and what it replaced is still hidden.
+   */
+  const boardOpen = isolate && boardLayers.length > 0
+
   const changeBoardLayer = (id: string, patch: { visible?: boolean; opacity?: number }) => {
     if (id === "composition") {
       if (patch.visible !== undefined) props.onShowCompositionOverlayChange(patch.visible)
@@ -514,8 +531,8 @@ export function MapScreen(props: MapScreenProps) {
             */}
             {!workspace && (
               <IsolateBoardButton
-                active={isolate}
-                disabled={!boardLayers.some((l) => l.visible)}
+                active={boardOpen}
+                disabled={!boardLayers.length}
                 onClick={() =>
                 setIsolate((o) => {
                   // Closing the overlay drawer on the way in: the sidebar
@@ -534,7 +551,7 @@ export function MapScreen(props: MapScreenProps) {
               one would be a second mount of the same control sitting unclickable
               under the board.
             */}
-            {!isolate && (
+            {!boardOpen && (
               <OverlayToolsButton
                 active={rightDrawer === "overlays"}
                 onClick={() =>
@@ -551,7 +568,7 @@ export function MapScreen(props: MapScreenProps) {
         the rasters are lifted off their coordinates, which is the point, so
         there is nowhere for a result to fly to.
       */}
-      {!isolate && <SearchBar onSelectLocation={props.onLocationSelect} />}
+      {!boardOpen && <SearchBar onSelectLocation={props.onLocationSelect} />}
 
       {/*
         Overlay tools have no button while the board is open. What governs the
@@ -596,7 +613,7 @@ export function MapScreen(props: MapScreenProps) {
       />
 
       <AnimatePresence>
-        {isolate && boardLayers.some((l) => l.visible) && (
+        {boardOpen && (
           <Suspense fallback={null}>
             <IsolateBoard
               key="isolate-board"
@@ -628,8 +645,8 @@ export function MapScreen(props: MapScreenProps) {
             onWidthChange={setBarWidthPx}
             isolateSlot={
               <IsolateBoardButton
-                active={isolate}
-                disabled={!boardLayers.some((l) => l.visible)}
+                active={boardOpen}
+                disabled={!boardLayers.length}
                 onClick={() =>
                 setIsolate((o) => {
                   // Closing the overlay drawer on the way in: the sidebar
