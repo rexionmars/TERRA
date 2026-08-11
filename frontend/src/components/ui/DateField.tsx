@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils"
 
 const DAY_MS = 86_400_000
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"]
+/** Fixed, because the calendar is measured into place rather than laid out. */
+const CALENDAR_W = 216
 
 /** ISO to a UTC day number, so arithmetic never crosses a timezone. */
 function toDay(iso: string): number | null {
@@ -90,6 +92,21 @@ export function DateField({
    * is a format that only looks like an answer.
    */
   const [typing, setTyping] = useState<string | null>(null)
+  /**
+   * Where the calendar sits, in viewport coordinates.
+   *
+   * `position: fixed` rather than absolute, and this is why: the field lives
+   * inside a horizontally scrolling band, and `overflow-x: auto` does not
+   * leave the other axis alone -- per CSS Overflow, an axis cannot stay
+   * `visible` while the other is not, so overflow-y becomes `auto` and clips.
+   * An absolutely positioned calendar opening upward was cut off entirely,
+   * leaving the band's own black where it should have been.
+   *
+   * Fixed elements are not clipped by an ancestor's overflow, so the only cost
+   * is one measurement -- taken when it opens, from a bar that does not move
+   * while it is open.
+   */
+  const [at, setAt] = useState<{ left: number; bottom: number } | null>(null)
   const day = toDay(value)
   const [anchor, setAnchor] = useState(() => day ?? 0)
   const hostRef = useRef<HTMLDivElement>(null)
@@ -99,6 +116,22 @@ export function DateField({
   useLayoutEffect(() => {
     if (!open && day !== null) setAnchor(day)
   }, [open, day])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setAt(null)
+      return
+    }
+    const el = hostRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    // Clamped so a field near the right edge does not push the calendar off
+    // it; the band scrolls sideways, so that edge is reachable.
+    setAt({
+      left: Math.min(r.left, window.innerWidth - CALENDAR_W - 8),
+      bottom: window.innerHeight - r.top + 4,
+    })
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -194,18 +227,26 @@ export function DateField({
       </button>
       )}
 
-      {open && (
+      {open && at && (
         /*
-          Upward, which is the whole reason this exists. `bottom-full` anchors
-          the calendar to the top of the field, so a field sitting on the foot
-          of the window opens into the window rather than past it.
+          Upward, which is the whole reason this exists: measured from the
+          field's top edge, so a field sitting on the foot of the window opens
+          into the window rather than past it.
+
+          Its own raised surface rather than the board's ink. Everything behind
+          it here -- the band, the board -- is painted in --p-ink, and ink on
+          ink measures 1.000 against its own background whatever border it
+          carries.
         */
         <div
           role="dialog"
           aria-label="Choose a date"
-          className="absolute bottom-full left-0 z-[1200] mb-1 w-[13.5rem] rounded-sm border p-1.5 shadow-xl"
+          className="fixed z-[1200] rounded-sm border p-1.5 shadow-xl"
           style={{
-            background: "rgb(var(--p-ink))",
+            left: at.left,
+            bottom: at.bottom,
+            width: CALENDAR_W,
+            background: "rgb(var(--p-surface-raised))",
             borderColor: "rgb(var(--p-line-strong) / 0.6)",
           }}
         >
@@ -256,11 +297,11 @@ export function DateField({
                     chosen
                       ? "bg-accent text-white"
                       : inMonth
-                        ? "text-foreground hover:bg-surface-raised"
+                        ? "text-foreground hover:bg-secondary"
                         : // Kept rather than blanked: a week that runs into the
                           // next month is still a week, and a gap where its
                           // days should be is harder to count across.
-                          "text-muted-foreground/40 hover:bg-surface-raised/50"
+                          "text-muted-foreground/40 hover:bg-secondary/60"
                   )}
                 >
                   {new Date(d * DAY_MS).getUTCDate()}
