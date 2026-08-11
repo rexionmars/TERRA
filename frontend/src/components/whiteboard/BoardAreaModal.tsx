@@ -26,7 +26,8 @@
 import { useState } from "react"
 import { MapContainer, TileLayer } from "react-leaflet"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
-import { DrawControl } from "@/components/MapView"
+import { DrawControl, FlyToController } from "@/components/MapView"
+import { SearchBar } from "@/components/SearchBar"
 import { Credit } from "@/components/TitleBar"
 import {
   BASEMAPS,
@@ -51,6 +52,16 @@ export function BoardAreaModal({
 }) {
   const [kind, setKind] = useState<BasemapKind>("esri")
   const basemap = basemapByKind(kind)
+  /*
+    A nonce with the coordinates, because searching the same place twice has to
+    fly there twice: a plain pair would be equal on the second search and the
+    effect that moves the map would not run.
+  */
+  const [flyTo, setFlyTo] = useState<{
+    lat: number
+    lon: number
+    key: number
+  } | null>(null)
 
   return (
     <ModalShell
@@ -111,7 +122,18 @@ export function BoardAreaModal({
           gets none and renders nothing -- the same zero-height collapse the
           compare modal opened with.
         */}
-        <div className="h-[min(60vh,36rem)] overflow-hidden rounded-md">
+        <div className="relative h-[min(60vh,36rem)] overflow-hidden rounded-md">
+          {/*
+            The map screen's own search, positioned by itself at the top centre
+            -- which is where it sits there, so the two surfaces put it in the
+            same place. Drawing a boundary means finding the ground first, and
+            panning to it from a continent away is not finding it.
+          */}
+          <SearchBar
+            onSelectLocation={(lat, lon) =>
+              setFlyTo({ lat, lon, key: Date.now() })
+            }
+          />
           <MapContainer
             center={[view.lat, view.lon]}
             zoom={view.zoom}
@@ -134,6 +156,7 @@ export function BoardAreaModal({
               customPolygon={polygon}
               onPolygonDrawn={onPolygonDrawn}
             />
+            <FlyToController flyTo={flyTo} />
           </MapContainer>
         </div>
       </div>

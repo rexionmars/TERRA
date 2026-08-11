@@ -312,7 +312,11 @@ function BottomRightSlot({ children }: { children: React.ReactNode }) {
   return host ? createPortal(children, host) : null
 }
 
-function FlyToController({
+/**
+ * Exported: the board's drawing map searches for a place too, and a second copy
+ * of this would be a second answer to how far the map zooms when it arrives.
+ */
+export function FlyToController({
   flyTo,
 }: {
   flyTo: { lat: number; lon: number; key: number } | null
