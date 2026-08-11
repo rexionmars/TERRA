@@ -1,11 +1,11 @@
-import { Minus, Square, X } from "lucide-react"
+import { Minus, PanelBottom, PanelLeft, Square, X } from "lucide-react"
 import type { ReactNode } from "react"
 import {
   WindowMinimise,
   WindowToggleMaximise,
   Quit,
 } from "../../wailsjs/runtime/runtime"
-import type { PredictResult } from "@/lib/types"
+import type { LayoutMode, PredictResult } from "@/lib/types"
 import { useAuth, type AppScreen } from "@/lib/auth"
 
 interface TitleBarProps {
@@ -18,6 +18,18 @@ interface TitleBarProps {
    * placeholder standing in for a run that does not exist.
    */
   runLabel?: string | null
+  /**
+   * The map layout, and the way to change it.
+   *
+   * This bar is the only chrome mounted in both layouts, which is why the
+   * control lives here: in the workspace layout the navigation column is gone,
+   * so a toggle placed there would be unreachable from the mode it exits.
+   *
+   * It is a view mode rather than a destination, so it does not contradict this
+   * bar's rule against per-page navigation icons.
+   */
+  layoutMode?: LayoutMode
+  onLayoutModeChange?: (mode: LayoutMode) => void
 }
 
 /**
@@ -57,6 +69,8 @@ export function TitleBar({
   result,
   projectSwitcher,
   runLabel,
+  layoutMode = "docked",
+  onLayoutModeChange,
 }: TitleBarProps) {
   const { screen } = useAuth()
   const onMap = screen === "map"
@@ -129,6 +143,32 @@ export function TitleBar({
               </>
             )}
           </div>
+        )}
+
+        {/* Only where there is a map to lay out. */}
+        {onMap && onLayoutModeChange && (
+          <button
+            type="button"
+            onClick={() =>
+              onLayoutModeChange(layoutMode === "docked" ? "workspace" : "docked")
+            }
+            className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            title={
+              layoutMode === "docked"
+                ? "Switch to workspace layout"
+                : "Switch to docked layout"
+            }
+            aria-pressed={layoutMode === "workspace"}
+          >
+            {/* The icon names the layout it switches TO, not the one in use:
+                the button is read as an action, and showing the current state
+                made every user press it to find out what it did. */}
+            {layoutMode === "docked" ? (
+              <PanelBottom className="size-4" />
+            ) : (
+              <PanelLeft className="size-4" />
+            )}
+          </button>
         )}
 
         <div className="app-no-drag flex items-center gap-1">

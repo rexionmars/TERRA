@@ -26,6 +26,7 @@ import {
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
   Area,
+  LayoutMode,
   PredictResult,
   PredictRequest,
   ProgressEvent,
@@ -59,7 +60,11 @@ import type {
   WindAnalysis,
   WindRequest,
 } from "@/lib/types"
-import { parsePreferenceExtras } from "@/lib/preferenceExtras"
+import {
+  layoutModeFromPrefs,
+  mergePreferenceExtras,
+  parsePreferenceExtras,
+} from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import {
   projectOverlayToComposition,
@@ -580,6 +585,49 @@ function AppBody(props: {
    * panel on every return.
    */
   const [leftPanel, setLeftPanel] = useState<MapToolId | null>("classify")
+  /**
+   * Which map layout is drawn.
+   *
+   * Read in exactly two places -- here, to decide whether the navigation column
+   * is rendered, and inside MapScreen -- which are a parent and its direct
+   * child. That is one level of travel, so it stays a useState rather than
+   * joining the auth context, which already carries user, prefs, runs,
+   * projects, screen and settings page.
+   *
+   * Seeded from prefs below rather than in the initialiser: prefs arrive after
+   * the first render, so an initialiser would read null and pin every session
+   * to docked.
+   */
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
+  const didSeedLayoutRef = useRef(false)
+  useEffect(() => {
+    if (didSeedLayoutRef.current || !prefs) return
+    didSeedLayoutRef.current = true
+    setLayoutMode(layoutModeFromPrefs(prefs))
+  }, [prefs])
+
+  const changeLayoutMode = useCallback(
+    (mode: LayoutMode) => {
+      setLayoutMode(mode)
+      if (!prefs) return
+      // Silent: this fires on a toggle the user just watched happen, and a
+      // "Preferences saved" toast on every flip is noise about a result that
+      // is already on screen.
+      void savePrefs(
+        {
+          ...prefs,
+          extras_json: mergePreferenceExtras(prefs.extras_json, {
+            layout_mode: mode,
+          }),
+        },
+        { silent: true }
+      ).catch(() => {
+        // A layout that fails to persist still applies for this session. The
+        // next start falls back to docked, which is the safe direction.
+      })
+    },
+    [prefs, savePrefs]
+  )
   /**
    * Open tab of the energy screen, held here for the same reason as the dock
    * tab above: that screen unmounts on every navigation away, so a local value
@@ -2217,6 +2265,8 @@ function AppBody(props: {
         view={props.view}
         result={props.result}
         runLabel={currentRunLabel}
+        layoutMode={layoutMode}
+        onLayoutModeChange={changeLayoutMode}
         /*
           Wherever a run is filed under the active project. The energy handlers
           send project_id exactly as the classification ones do, so a solar or
@@ -2241,6 +2291,16 @@ function AppBody(props: {
       />
 
       <div className="flex min-h-0 flex-1">
+        {/*
+          The workspace layout replaces this column with surfaces inside the
+          map, so it is withheld there and nowhere else: every other screen
+          still navigates by it, and hiding it on all of them would strand a
+          user on the energy screen with no way out.
+
+          The column is in flow, not floating, so omitting it returns 13.5rem
+          of width to the stage and the map fills it without being told.
+        */}
+        {(layoutMode === "docked" || screen !== "map") && (
         <AppNav
           hasAnalysis={!!props.result || runs.length > 0}
           onAnalysisClick={() => {
@@ -2255,6 +2315,7 @@ function AppBody(props: {
           energyTab={energyTab}
           onEnergyTabChange={setEnergyTab}
         />
+        )}
         <div className="relative min-h-0 min-w-0 flex-1">
           <AnimatePresence mode="wait" initial={false}>
             {screen === "map" && (

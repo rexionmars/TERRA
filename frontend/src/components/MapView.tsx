@@ -278,6 +278,34 @@ function FlyToController({
   return null
 }
 
+/**
+ * Tells Leaflet when its container changed size.
+ *
+ * Leaflet caches the container's dimensions and only re-reads them on a window
+ * resize. Every other way the container can change -- the navigation column
+ * being withheld by the workspace layout, a panel opening, the window entering
+ * full screen with the frame unchanged -- leaves it drawing at the old size:
+ * tiles stop at the former edge, and the projection maths that converts a click
+ * to a coordinate is computed against a viewport that is no longer there, so
+ * drawing an AOI lands it off the cursor.
+ *
+ * Observing the element rather than reacting to the layout mode keeps this true
+ * for the next thing that resizes it, without that thing having to know Leaflet
+ * exists.
+ */
+function ContainerResizeSync() {
+  const map = useMap()
+  useEffect(() => {
+    const el = map.getContainer()
+    // Leaflet's own animation would interpolate from the stale size, which
+    // reads as the map sliding rather than as the frame changing.
+    const observer = new ResizeObserver(() => map.invalidateSize({ animate: false }))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [map])
+  return null
+}
+
 function FitBounds({
   customPolygon,
   result,
@@ -1292,6 +1320,7 @@ export function MapView({
       )}
 
       <DrawControl customPolygon={customPolygon} onPolygonDrawn={onPolygonDrawn} />
+      <ContainerResizeSync />
       <FlyToController flyTo={flyTo} />
       <FitBounds customPolygon={customPolygon} result={result} />
       <FitComposition composition={composition} hasPrediction={!!result} />
