@@ -16,8 +16,9 @@
  * viewport-relative position to keep in step, and three ways for the list to
  * be somewhere other than where it was wanted. It is a sibling of the button
  * now, placed by CSS against the column itself: `left-full` puts it beside the
- * column, and because its containing block is the column rather than the
- * scrolling tree inside it, the scroller does not clip it.
+ * column and `bottom-2` sits it above the foot. The control lives below the
+ * scrolling tree rather than inside it, so nothing clips it and it does not
+ * scroll away from the list it adds to.
  */
 import { useMemo, useState } from "react"
 import { Plus, Search, X } from "lucide-react"
@@ -103,21 +104,25 @@ export function RunPicker({
 
       {open && (
         /*
-          Its own raised surface, not `.panel`.
+          The board's own ink, like the column it opens from -- and separated
+          the same way that column is, rather than by being a lighter plate.
 
-          `.panel` is `rgb(var(--p-ink) / 0.55)` over a backdrop blur. Over the
-          map that reads, because the map is imagery and the blur has something
-          to work on. This board is painted in flat `--p-ink`, so ink at 55 %
-          composited on ink is ink -- a contrast ratio of 1.000 against its own
-          background, with a 28 %-alpha border as the only evidence it is
-          there. Measured, after making exactly that mistake in the name of
-          matching the project menu. --p-surface-raised gives 1.333.
+          It opens entirely to the right of the column, so what is behind it is
+          the BOARD, which draws a grid. A region without one, with a border and
+          a shadow, is a panel; that is how the sidebar itself reads against the
+          same background.
+
+          Not `.panel`: that is `rgb(var(--p-ink) / 0.55)` over a backdrop blur,
+          which over the map reads and over flat ink is ink on ink -- a contrast
+          ratio of 1.000 against its own background, with a 28 %-alpha border as
+          the only evidence it is there. The border here is --p-line-strong at
+          60 %, which measures 2.27 against the ink on both sides of it.
         */
         <div
           className="absolute bottom-2 left-full z-[20] ml-1.5 flex max-h-[22rem] w-[17rem] flex-col overflow-hidden rounded-sm border shadow-xl"
           style={{
-            background: "rgb(var(--p-surface-raised))",
-            borderColor: "rgb(var(--p-line-strong) / 0.5)",
+            background: "rgb(var(--p-ink))",
+            borderColor: "rgb(var(--p-line-strong) / 0.6)",
           }}
         >
           <label
@@ -167,7 +172,7 @@ export function RunPicker({
                   */}
                   <p
                     className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
-                    style={{ background: "rgb(var(--p-surface-raised))" }}
+                    style={{ background: "rgb(var(--p-ink))" }}
                   >
                     {g.name}
                   </p>
@@ -180,7 +185,7 @@ export function RunPicker({
                         onPick(r)
                       }}
                       title={runRowLine(r)}
-                      className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-secondary/70"
+                      className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-surface-raised/60"
                     >
                       <span className="w-full truncate text-meta text-foreground">
                         {displayRunLabel(r.label) || r.model_kind}
