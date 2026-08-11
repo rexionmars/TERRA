@@ -23,7 +23,6 @@
  * so changing it in the drawer would turn a re-host into a redesign.
  */
 import { forwardRef } from "react"
-import { cn } from "@/lib/utils"
 import { motion } from "motion/react"
 import { ChevronLeft, X } from "lucide-react"
 
@@ -34,7 +33,7 @@ import { ChevronLeft, X } from "lucide-react"
  * placement is a fact about this box, and the modes are free to change which
  * placement they ask for.
  */
-export type PanelPlacement = "docked" | "drawer" | "inline"
+export type PanelPlacement = "docked" | "drawer"
 
 /**
  * Docked is the left column: full height between 0.75rem gutters, sliding in
@@ -56,18 +55,6 @@ const CONTAINER: Record<PanelPlacement, string> = {
     "bottom-[calc(var(--map-foot,0px)+0.625rem)] " +
     "flex max-h-[calc(100%-var(--map-foot,0px)-5rem)] w-[19rem] flex-col gap-4 " +
     "overflow-y-auto rounded-md p-4",
-  /*
-    Inline carries no chrome of its own: no plate, no border, no width, no
-    position. It is placed INSIDE a column that already provides all four --
-    the whiteboard's -- and a panel that brought its own would be a card inside
-    a card, at a width the column does not have.
-
-    That is the whole reason this placement exists. The parameters were left on
-    the map to avoid a second place to set them, which was right about the
-    danger and wrong about the fix: the answer is not to keep them away, it is
-    to put the SAME panel in both containers, with one state behind it.
-  */
-  inline: "flex w-full flex-col gap-3",
 }
 
 /**
@@ -81,10 +68,6 @@ const CONTAINER: Record<PanelPlacement, string> = {
 const ENTER: Record<PanelPlacement, { x: number; y?: number }> = {
   docked: { x: -28 },
   drawer: { x: 16, y: 8 },
-  // Nothing: it is already inside the surface it belongs to, so there is no
-  // edge for it to arrive from and a slide would only shift the column's
-  // contents sideways under the reader.
-  inline: { x: 0 },
 }
 
 /**
@@ -97,14 +80,12 @@ const ENTER: Record<PanelPlacement, { x: number; y?: number }> = {
 const REST: Record<PanelPlacement, { x: number; y?: number }> = {
   docked: { x: 0 },
   drawer: { x: 0, y: 0 },
-  inline: { x: 0 },
 }
 
 /** The spring each placement's neighbours already use. */
 const SPRING: Record<PanelPlacement, { stiffness: number; damping: number }> = {
   docked: { stiffness: 360, damping: 34 },
   drawer: { stiffness: 380, damping: 32 },
-  inline: { stiffness: 380, damping: 32 },
 }
 
 export const PanelShell = forwardRef<
@@ -137,16 +118,7 @@ export const PanelShell = forwardRef<
         unless its container says otherwise, and inline the container is 4rem
         narrower and sits beside rows of ten-pixel text.
       */}
-      {/*
-        Inline has no title of its own: the tab above it already names what is
-        being run, and a heading under a heading is a heading repeated.
-      */}
-      <div
-        className={cn(
-          "flex items-center justify-between",
-          placement === "inline" && "sr-only"
-        )}
-      >
+      <div className="flex items-center justify-between">
         <h1 className="text-sm font-semibold">{title}</h1>
         {/*
           Only where there is something to dismiss to. The energy screen's

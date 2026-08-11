@@ -23,18 +23,8 @@ import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
-/*
-  A glyph per tool, so the two that are not chosen can be shown without their
-  names. The same glyphs the whiteboard's tree uses for the rasters each tool
-  produces, because a tool and its output are the same subject.
-*/
-const TOOL_ICON: Record<MapToolId, LucideIcon> = {
-  classify: Grid2x2,
-  compose: ImageIcon,
-  water: Droplet,
-}
 import { cn } from "@/lib/utils"
-import { PanelDensityProvider } from "@/components/ui/PanelDensity"
+import { BoardRunBar } from "@/components/whiteboard/BoardRunBar"
 import { rasterLayers } from "@/lib/mapLayers"
 import { runAssets } from "@/lib/runAssets"
 import { boardHoldsOtherAreas } from "@/components/whiteboard/boardMemory"
@@ -425,27 +415,11 @@ export function MapScreen(props: MapScreenProps) {
       close only the drawer; clearing the tool there would empty the segmented
       control and leave the run button acting on nothing.
     */
-    /*
-      Dismissing means different things in each container, and inline has no
-      meaning for it at all: the whiteboard's column is the container, and a
-      panel that folded away inside it would leave an empty tab.
-    */
     const dismiss =
-      placement === "inline"
-        ? undefined
-        : placement === "drawer"
-          ? () => setRightDrawer(null)
-          : () => setLeftPanel(null)
+      placement === "drawer"
+        ? () => setRightDrawer(null)
+        : () => setLeftPanel(null)
     return (
-      /*
-        The density the container implies, provided from outside the panels so
-        that anything inside them can read it -- a context is read where the
-        hook is called, and a provider inside PanelShell would render after the
-        bodies handed to it.
-      */
-      <PanelDensityProvider
-        value={placement === "inline" ? "compact" : "comfortable"}
-      >
       <AnimatePresence mode="wait" initial={false}>
         {!show ? null : leftPanel === "classify" ? (
           <ControlPanel
@@ -538,7 +512,6 @@ export function MapScreen(props: MapScreenProps) {
           />
         ) : null}
       </AnimatePresence>
-      </PanelDensityProvider>
     )
   }
 
@@ -556,71 +529,6 @@ export function MapScreen(props: MapScreenProps) {
    * is the answer to "which product", and a board with its own would be two
    * answers.
    */
-  const runPanel = (
-    // The strip stays; the parameters scroll under it. A column that scrolled
-    // whole took the choice of what to run off the top as soon as anything was
-    // read.
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {/*
-        Horizontal, and named only where it is chosen.
-
-        Three labels of eleven to fourteen characters do not fit across 15rem:
-        laid out in full, "Surface water" wrapped and sat off its own baseline.
-        Shortening them would fork lib/mapTools.ts, which is the one table
-        these names come from -- a label that exists twice is a label that can
-        disagree with itself.
-
-        So the chosen one carries its name and the others carry their glyph.
-        One full label and two icons is a row that fits, and the name of what
-        is being run is the one that has to be readable.
-      */}
-      <div
-        role="tablist"
-        aria-label="What to run"
-        className="flex shrink-0 gap-0.5"
-      >
-        {MAP_TOOLS.map((t) => {
-          const on = leftPanel === t.id
-          const Icon = TOOL_ICON[t.id]
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              onClick={() => setLeftPanel(t.id)}
-              title={t.label}
-              className={cn(
-                "flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-meta transition-colors",
-                "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-                on
-                  ? "min-w-0 flex-1 bg-surface-raised text-foreground"
-                  : "shrink-0 text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
-              )}
-            >
-              <Icon className="size-3.5 shrink-0" strokeWidth={1.75} />
-              {on && <span className="min-w-0 truncate">{t.label}</span>}
-            </button>
-          )
-        })}
-      </div>
-
-      {/*
-        Always shown once a tool is chosen. The map's own gating asks whether a
-        column is open, which is a question about the map's layout and not
-        about this one.
-      */}
-      <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
-        {renderPanel("inline", !!leftPanel)}
-      </div>
-      {!leftPanel && (
-        <p className="px-1 text-meta leading-relaxed text-muted-foreground">
-          Choose what to run on this area.
-        </p>
-      )}
-    </div>
-  )
-
 
   return (
     <div
@@ -736,6 +644,59 @@ export function MapScreen(props: MapScreenProps) {
         than a panel borrowed from the map.
       */}
 
+      {/*
+        The foot carries the period on the map and the run on the board.
+
+        The timeline is a control ABOUT THE MAP -- a window dragged over the
+        scenes that fall in it, read against the view. With the map covered
+        there is nothing to read it against, and the band is the widest space
+        this application has: exactly what nine small choices need and what a
+        15rem column cannot give them.
+      */}
+      {boardOpen ? (
+        <BoardRunBar
+          tool={leftPanel}
+          onToolChange={setLeftPanel}
+          hasArea={props.hasArea}
+          activeExample={props.activeExample}
+          onImportPolygon={props.onImportPolygon}
+          onClearArea={props.onClearArea}
+          start={props.start}
+          end={props.end}
+          onStartChange={props.onStartChange}
+          onEndChange={props.onEndChange}
+          maxCloud={props.maxCloud}
+          onMaxCloudChange={props.onMaxCloudChange}
+          monthlyBest={props.monthlyBest}
+          onMonthlyBestChange={props.onMonthlyBestChange}
+          modelKind={props.modelKind}
+          onModelKindChange={props.onModelKindChange}
+          mode={props.mode}
+          onModeChange={props.onModeChange}
+          /*
+            The chosen tool's own run, resolved once above for both the island
+            and this band. Two resolutions of "can this go" would be two
+            answers.
+          */
+          runLabel={run.label}
+          running={run.running}
+          progress={run.progress}
+          progressMsg={run.progressMsg}
+          canRun={run.canRun}
+          blockedBy={
+            !props.hasArea
+              ? "Draw an area on the map first."
+              : leftPanel === "compose" && !props.selectedSceneId
+                ? "Choose a scene under Compositions on the map."
+                : undefined
+          }
+          onRun={run.onRun}
+          onAnalyzeLULC={props.onAnalyzeLULC}
+          lulcRunning={props.lulcRunning}
+          // Past the board's column, which stands at the band's left end.
+          leftOffset="15rem"
+        />
+      ) : (
       <PeriodTimeline
         start={props.start}
         end={props.end}
@@ -763,6 +724,7 @@ export function MapScreen(props: MapScreenProps) {
               : undefined
         }
       />
+      )}
 
       <AnimatePresence>
         {boardOpen && (
@@ -796,7 +758,6 @@ export function MapScreen(props: MapScreenProps) {
                     ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
                 ) ?? undefined
               }
-              runPanel={runPanel}
               runPeriod={
                 props.result?.date_range?.length === 2
                   ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`

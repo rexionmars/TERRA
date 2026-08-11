@@ -29,7 +29,6 @@ import {
   AlignVerticalJustifyEnd,
   ChevronDown,
   ChevronRight,
-  Play,
   Download,
   Minus,
   Plus,
@@ -62,7 +61,15 @@ import { cn } from "@/lib/utils"
  * has. "Scene" is what is on the board and can be arranged; "Data" is what the
  * run produced, drawn or not, and what can be exported or dropped.
  */
-export type OutlinerMode = "scene" | "data" | "tasks"
+/*
+  Two modes, not three.
+
+  A `tasks` mode held the run controls until the foot took them: one product's
+  parameters already filled this column, and with solar and wind still to come
+  it would have become a scroll with no end. The band along the foot is wider
+  and was carrying a period timeline the board cannot read -- see BoardRunBar.
+*/
+export type OutlinerMode = "scene" | "data"
 
 
 export interface LayerPatch {
@@ -206,7 +213,6 @@ export function BoardSidebar({
   canLink,
   labels,
   onLabelsChange,
-  runPanel,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -287,15 +293,6 @@ export function BoardSidebar({
   /** Each raster's name, shown over it on the board. */
   labels: boolean
   onLabelsChange: (v: boolean) => void
-  /**
-   * The Run tab's contents.
-   *
-   * Handed in whole. The work is about an AREA rather than about a map, so it
-   * belongs where the area is -- but the panels that do it already exist on
-   * the map screen, and rebuilding them here would be a second set of controls
-   * over one set of state.
-   */
-  runPanel: ReactNode
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -688,7 +685,6 @@ export function BoardSidebar({
             [
               ["scene", "Scene", Layers],
               ["data", "Data", ImageIcon],
-              ["tasks", "Run", Play],
             ] as const
           ).map(([id, label, Icon]) => (
             <button
@@ -1116,19 +1112,6 @@ export function BoardSidebar({
         the column, which is the thing it should be measured from anyway.
       */}
       {mode === "data" && <div className="shrink-0">{addRun}</div>}
-
-      {mode === "tasks" && (
-        /*
-          The run panel governs its own scrolling.
-
-          A single scroller here took the tool strip with it: the choice of
-          what to run left the top of the column as soon as the parameters
-          were read, and coming back to it meant scrolling up past everything
-          you had just set. The panel keeps the strip fixed and scrolls only
-          the parameters -- see MapScreen's runPanel.
-        */
-        <div className="flex min-h-0 flex-1 flex-col p-2">{runPanel}</div>
-      )}
 
       {/*
         The properties of whatever is active. One panel however many layers

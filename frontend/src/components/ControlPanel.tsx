@@ -14,8 +14,11 @@ import { cn } from "@/lib/utils"
 import { todayISO } from "@/lib/dates"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
-import { useCompactPanel } from "@/components/ui/PanelDensity"
-import { NumberField } from "@/components/ui/NumberField"
+import {
+  MODEL_OPTIONS,
+  MODE_OPTIONS,
+  modeBlockedBy,
+} from "@/lib/classifyOptions"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { PanelShell } from "@/components/ui/PanelShell"
 
@@ -85,15 +88,6 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
   const canLULC = hasArea
   const busy = running || lulcRunning
 
-  /*
-    From the container, not from a prop of this panel: a section heading four
-    levels down needs the same answer, and threading it by hand would mean
-    every piece forwarding a value it does not itself use. The provider sits
-    where the panel is placed -- see MapScreen's renderPanel -- because a
-    context is read where the hook is CALLED, and this body renders before the
-    shell it is handed to.
-  */
-  const compact = useCompactPanel()
   return (
       <PanelShell
         ref={ref}
@@ -104,46 +98,31 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
 
       {/* STEP 1 — area */}
       <Section step="01" title="Area">
-        {/*
-          Onboarding, and only where there is room for it. In the whiteboard's
-          column the area has already been drawn -- it is what the board was
-          opened on -- so three lines telling someone to draw one are three
-          lines between them and the run.
-        */}
-        {!compact && (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Draw a polygon on the map, search a location, or load a file. Works
-            anywhere in the world.
-          </p>
-        )}
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Draw a polygon on the map, search a location, or load a file. Works
+          anywhere in the world.
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={onImportPolygon}
             disabled={busy}
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded-sm border border-border hover:bg-secondary disabled:opacity-50",
-              compact ? "px-2 py-1 text-meta" : "px-2 py-1.5 text-xs"
-            )}
+            className="flex items-center justify-center gap-1.5 rounded-sm border border-border px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-50"
           >
-            <Upload className={compact ? "size-3" : "size-3.5"} />
+            <Upload className="size-3.5" />
             Import
           </button>
           <button
             onClick={onClearArea}
             disabled={busy || !hasArea}
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded-sm border border-border hover:bg-secondary disabled:opacity-40",
-              compact ? "px-2 py-1 text-meta" : "px-2 py-1.5 text-xs"
-            )}
+            className="flex items-center justify-center gap-1.5 rounded-sm border border-border px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-40"
           >
-            <Trash2 className={compact ? "size-3" : "size-3.5"} />
+            <Trash2 className="size-3.5" />
             Clear
           </button>
         </div>
         <div
           className={cn(
-            "flex items-center gap-2 rounded-sm border",
-            compact ? "px-2 py-1 text-meta" : "px-2.5 py-1.5 text-xs",
+            "flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-xs",
             hasArea
               ? "border-primary/40 text-foreground"
               : "border-dashed border-border text-muted-foreground"
@@ -194,48 +173,18 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
             <span className="eyebrow">max cloud</span>
-            {!compact && (
-              <span className="telemetry text-xs text-foreground">
-                {maxCloud}%
-              </span>
-            )}
+            <span className="telemetry text-xs text-foreground">{maxCloud}%</span>
           </div>
-          {/*
-            A field where the column is narrow, a track where there is room.
-
-            A slider spends the whole width on a value it cannot show, so the
-            percentage needs a second element beside it; in 15rem that is most
-            of the row for one number. The field holds the label and the value
-            on one line and is dragged, typed or stepped -- and the precision
-            no longer depends on how many pixels of track there are.
-          */}
-          {compact ? (
-            <NumberField
-              label="Max cloud"
-              value={maxCloud}
-              min={0}
-              max={100}
-              step={5}
-              format={(v) => `${Math.round(v)}%`}
-              parse={(t) => {
-                const v = parseFloat(t.replace("%", "").trim())
-                return Number.isFinite(v) ? v : null
-              }}
-              disabled={busy}
-              onChange={(v) => onMaxCloudChange(Math.round(v))}
-            />
-          ) : (
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={maxCloud}
-              disabled={busy}
-              onChange={(e) => onMaxCloudChange(parseInt(e.target.value))}
-              className="accent-[var(--primary)]"
-            />
-          )}
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={maxCloud}
+            disabled={busy}
+            onChange={(e) => onMaxCloudChange(parseInt(e.target.value))}
+            className="accent-[var(--primary)]"
+          />
         </div>
         <button
           onClick={() => onMonthlyBestChange(!monthlyBest)}
@@ -255,36 +204,22 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
       {/* STEP 3 — model */}
       <Section step="03" title="Model">
         <div className="grid grid-cols-1 gap-2">
-          {(
-            [
-              ["spectral", "Random Forest", "spectro-temporal features"],
-              ["temporal_transformer", "Temporal Transformer", "lightweight series model"],
-              ["prithvi", "Prithvi-EO 2.0", "embeddings (NASA/IBM)"],
-            ] as const
-          ).map(([m, label, sub]) => (
+          {MODEL_OPTIONS.map(({ id: m, label, detail: sub }) => (
             <button
               key={m}
               disabled={busy}
               onClick={() => onModelKindChange(m)}
               className={cn(
-                "rounded-sm border text-left disabled:opacity-50",
-                compact ? "p-1.5 text-meta leading-tight" : "p-2 text-xs",
+                "rounded-sm border p-2 text-left text-xs disabled:opacity-50",
                 modelKind === m
                   ? "border-primary bg-primary/10"
                   : "border-border hover:bg-secondary"
               )}
             >
               <span className="block font-medium">{label}</span>
-              {/*
-                The subtitle says what a model is FOR, which matters when
-                choosing one and not when reading back the choice. In a column
-                it doubles each card's height for a line nobody re-reads.
-              */}
-              {!compact && (
-                <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                  {sub}
-                </span>
-              )}
+              <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                {sub}
+              </span>
             </button>
           ))}
         </div>
@@ -302,8 +237,7 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
                   disabled={busy}
                   onClick={() => onPrithviModeChange(m)}
                   className={cn(
-                    "rounded-sm border text-left disabled:opacity-50",
-                    compact ? "p-1 text-meta" : "p-1.5 text-[11px]",
+                    "rounded-sm border p-1.5 text-left text-[11px] disabled:opacity-50",
                     prithviMode === m
                       ? "border-primary bg-primary/10"
                       : "border-border hover:bg-secondary"
@@ -327,35 +261,23 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
       {/* STEP 4 — mode */}
       <Section step="04" title="Mode">
         <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              ["single", "Map", "full temporal stack"],
-              ["temporal", "Temporal", "cumulative retention"],
-            ] as const
-          ).map(([m, label, sub]) => (
+          {MODE_OPTIONS.map(({ id: m, label, detail: sub }) => (
             <button
               key={m}
-              disabled={busy || (m === "temporal" && modelKind !== "spectral")}
+              disabled={busy || !!modeBlockedBy(m, modelKind)}
+              title={modeBlockedBy(m, modelKind) ?? undefined}
               onClick={() => onModeChange(m)}
               className={cn(
-                "rounded-sm border text-left disabled:opacity-50",
-                compact ? "p-1.5 text-meta leading-tight" : "p-2 text-xs",
+                "rounded-sm border p-2 text-left text-xs disabled:opacity-50",
                 mode === m
                   ? "border-primary bg-primary/10"
                   : "border-border hover:bg-secondary"
               )}
             >
               <span className="block font-medium">{label}</span>
-              {/*
-                The subtitle says what a model is FOR, which matters when
-                choosing one and not when reading back the choice. In a column
-                it doubles each card's height for a line nobody re-reads.
-              */}
-              {!compact && (
-                <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                  {sub}
-                </span>
-              )}
+              <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                {sub}
+              </span>
             </button>
           ))}
         </div>

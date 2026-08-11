@@ -10,7 +10,7 @@
  * pay for it until the board is opened; see BoardButton for the other
  * half of that boundary.
  */
-import { type ReactNode, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { Save, X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
@@ -135,7 +135,6 @@ export function BoardSurface({
   runId,
   runPeriod,
   aoiPolygon,
-  runPanel,
   onLayerChange,
   onSelectComposition,
   onRemoveComposition,
@@ -176,14 +175,6 @@ export function BoardSurface({
    * Absent where the shape cannot be resolved, and the rectangle stands in.
    */
   aoiPolygon?: LonLat[] | null
-  /**
-   * The Run tab's contents: which product, and its own parameters.
-   *
-   * A node from the map screen rather than a description, because it is the
-   * SAME panel that screen docks -- forty props reaching a component that
-   * already exists, threaded through this one, would be a copy of it.
-   */
-  runPanel: ReactNode
   onLayerChange: (id: string, patch: LayerPatch) => void
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
@@ -1138,7 +1129,6 @@ export function BoardSurface({
         onLinksChange={setLinks}
         labels={labels}
         onLabelsChange={setLabels}
-        runPanel={runPanel}
         // Nothing to join until some area holds more than one raster.
         canLink={areas.some((a) => a.layers.length > 1)}
         onSmoothChange={onSmoothChange}
