@@ -166,6 +166,15 @@ export interface BoardHandle {
    */
   setSelection: (keys: { groupId: string; id: string }[]) => void
   /**
+   * Which area's own outline reads as chosen.
+   *
+   * Separate from setSelection, which is about PLANES. An area with no rasters
+   * has no plane to select, and its outline is the only thing on the board that
+   * is it -- so being able to pick it is the difference between an area you can
+   * see and one you can act on.
+   */
+  setActiveArea: (id: string | null) => void
+  /**
    * Put an area where a saved arrangement says it was.
    *
    * The counterpart of onMove, and the reason a comparison can be reopened
@@ -273,6 +282,8 @@ export function createBoard(
      * immediately.
      */
     onSelect: (groupId: string, id: string, additive: boolean) => void
+    /** An area's own outline was pressed, where it draws one. */
+    onAreaPick?: (groupId: string) => void
     /** An arrowhead between two planes was pressed, in the path's direction. */
     onLinkPick?: (
       from: { groupId: string; id: string },
@@ -520,9 +531,51 @@ export function createBoard(
       }
     }
 
-    if (!targets.length) return
+    /*
+      A footprint is pressable, and it is tested AFTER the planes: an area only
+      draws one while it has no rasters, so the two never compete for the same
+      pixel -- but a loop of another area can pass behind a plane, and the plane
+      is what the eye sees there.
+
+      A line has no width to hit, so the raycaster is given one. A hundredth of
+      a world unit, where the largest area's longest side is one: enough to
+      catch a deliberate press on the line and far too little to catch a press
+      meant for the ground beside it. Restored afterwards, because the value is
+      global to the raycaster and every other test here is against a mesh.
+    */
+    const loops = [...footprints.values()].filter((l) => l.visible)
+
+    if (!targets.length) {
+      if (loops.length) {
+        const before = raycaster.params.Line?.threshold
+        if (raycaster.params.Line) raycaster.params.Line.threshold = 0.01
+        const loopHit = raycaster.intersectObjects(loops, false)[0]
+        if (raycaster.params.Line && before !== undefined) {
+          raycaster.params.Line.threshold = before
+        }
+        const picked = loopHit
+          ? [...footprints.entries()].find(([, l]) => l === loopHit.object)?.[0]
+          : undefined
+        if (picked) opts.onAreaPick?.(picked)
+      }
+      return
+    }
     const hits = raycaster.intersectObjects(targets, false)
-    if (!hits.length) return
+    if (!hits.length) {
+      if (loops.length) {
+        const before = raycaster.params.Line?.threshold
+        if (raycaster.params.Line) raycaster.params.Line.threshold = 0.01
+        const loopHit = raycaster.intersectObjects(loops, false)[0]
+        if (raycaster.params.Line && before !== undefined) {
+          raycaster.params.Line.threshold = before
+        }
+        const picked = loopHit
+          ? [...footprints.entries()].find(([, l]) => l === loopHit.object)?.[0]
+          : undefined
+        if (picked) opts.onAreaPick?.(picked)
+      }
+      return
+    }
     /*
       Among planes the ray meets at the same place, take the one drawn on top.
 
@@ -975,7 +1028,23 @@ export function createBoard(
     opacity: 0.55,
     depthWrite: false,
   })
-  disposables.push(footprintMaterial)
+  /*
+    The same line, in the accent, for the area that is selected.
+
+    TWO materials rather than one per area: the colour is one of two things, so
+    the loops share whichever they are wearing and switching is an assignment
+    rather than an allocation. A material per area would be a material per area
+    for a property with two values.
+  */
+  const footprintSelected = new LineBasicMaterial({
+    color: new Color(opts.accent),
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+  })
+  disposables.push(footprintMaterial, footprintSelected)
+  /** Each area's footprint, so the selection can find it without a search. */
+  const footprints = new Map<string, LineLoop>()
   for (const rt of runtimes) {
     const g = opts.groups.find((x) => x.id === rt.id)
     if (!g?.outline?.length || g.cards.length) continue
@@ -992,6 +1061,7 @@ export function createBoard(
       footprintMaterial
     )
     rt.root.add(loop)
+    footprints.set(rt.id, loop)
     disposables.push(loop.geometry)
   }
   /** Its key, so a hit can be compared against the selection without a search. */
@@ -1451,6 +1521,12 @@ export function createBoard(
       // stacking above the other.
       currentGap = gap
       applyHeights()
+      render()
+    },
+    setActiveArea(id) {
+      for (const [areaId, loop] of footprints) {
+        loop.material = areaId === id ? footprintSelected : footprintMaterial
+      }
       render()
     },
     setSelection(keys) {

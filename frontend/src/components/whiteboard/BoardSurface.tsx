@@ -1088,6 +1088,9 @@ export function BoardSurface({
         // The arrow between two planes is a question -- how do these compare --
         // and pressing it is the only place on the board that asks it.
         onLinkPick: (a, b) => setComparing({ from: a, to: b }),
+        // An area's outline is the only thing on the board that IS that area
+        // while it has no rasters, so pressing it chooses the area's own row.
+        onAreaPick: (groupId) => chooseRowRef.current(stackRow(groupId)),
         onLabels: (spots) => placeLabelsRef.current(spots),
         onMove: (groupId, layerId, x, z) => {
           // Into the kept object rather than replacing the ref: replacing it
@@ -1114,6 +1117,14 @@ export function BoardSurface({
 
   // Moves the existing planes rather than rebuilding the scene, so the camera
   // stays where the user put it while they adjust the separation.
+  /*
+    Which area reads as chosen on the board. The tree's row and the outline are
+    two views of one fact, so picking either lights the other.
+  */
+  useEffect(() => {
+    boardRef.current?.setActiveArea(rowTarget(activeRow)?.areaId ?? null)
+  }, [activeRow, groups])
+
   gapRef.current = gap
   useEffect(() => {
     boardRef.current?.setGap(gap)
