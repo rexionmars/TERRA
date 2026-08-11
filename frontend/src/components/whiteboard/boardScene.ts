@@ -108,6 +108,24 @@ export interface PlaneState {
   flat: boolean
 }
 
+/**
+ * A CSS length that may be in rem, as a number of pixels.
+ *
+ * Only the two units this variable is ever written in. Anything else returns 0,
+ * which is the same fallback the caller had and is honest about not knowing.
+ */
+function remToPx(value: string): number {
+  const raw = value.trim()
+  const n = parseFloat(raw)
+  if (!Number.isFinite(n)) return 0
+  if (raw.endsWith("rem")) {
+    const root =
+      parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+    return n * root
+  }
+  return raw.endsWith("px") ? n : 0
+}
+
 export interface BoardHandle {
   /** Redraw once. The board renders on demand, not in a permanent loop. */
   render: () => void
@@ -364,8 +382,22 @@ export function createBoard(
    *
    * three ships it, so it costs 12.8 kB of an addon rather than a component.
    */
-  const footPx =
-    parseFloat(getComputedStyle(host).getPropertyValue("--map-foot")) || 0
+  /*
+    --map-foot in PIXELS, which parseFloat alone does not give.
+
+    A custom property that is not registered with @property computes to its
+    token stream, so getPropertyValue returns the literal "12rem" -- and
+    parseFloat of that is 12, not 192. The helper was being lifted twelve pixels
+    off the bottom of a canvas whose last twelve rem are covered by two bands,
+    so it sat underneath them and was simply not there.
+
+    It was always wrong. It read 3.0625 for the map's own 3.0625rem, which is
+    small enough that nothing looked broken; growing the reservation for the
+    statistics band is what made a long-standing unit error visible.
+  */
+  const footPx = remToPx(
+    getComputedStyle(host).getPropertyValue("--map-foot")
+  )
   const viewHelper = new ViewHelper(camera, renderer.domElement)
   /*
     Bottom-right, and lifted clear of the foot.
