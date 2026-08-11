@@ -23,6 +23,7 @@ import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
 import { cn } from "@/lib/utils"
+import { PanelDensityProvider } from "@/components/ui/PanelDensity"
 import { rasterLayers } from "@/lib/mapLayers"
 import { runAssets } from "@/lib/runAssets"
 import { boardHoldsOtherAreas } from "@/components/whiteboard/boardMemory"
@@ -425,6 +426,15 @@ export function MapScreen(props: MapScreenProps) {
           ? () => setRightDrawer(null)
           : () => setLeftPanel(null)
     return (
+      /*
+        The density the container implies, provided from outside the panels so
+        that anything inside them can read it -- a context is read where the
+        hook is called, and a provider inside PanelShell would render after the
+        bodies handed to it.
+      */
+      <PanelDensityProvider
+        value={placement === "inline" ? "compact" : "comfortable"}
+      >
       <AnimatePresence mode="wait" initial={false}>
         {!show ? null : leftPanel === "classify" ? (
           <ControlPanel
@@ -517,6 +527,7 @@ export function MapScreen(props: MapScreenProps) {
           />
         ) : null}
       </AnimatePresence>
+      </PanelDensityProvider>
     )
   }
 
@@ -536,12 +547,19 @@ export function MapScreen(props: MapScreenProps) {
    */
   const runPanel = (
     <div className="flex flex-col gap-3">
-      <div
-        role="tablist"
-        aria-label="What to run"
-        className="flex gap-0.5 rounded-sm p-0.5"
-        style={{ background: "rgb(var(--p-surface-raised) / 0.4)" }}
-      >
+      {/*
+        A list, not a segmented control.
+
+        Three labels of eleven to fourteen characters do not fit across 15rem:
+        "Surface water" wrapped to a second line and sat off its own baseline.
+        Shortening them would fork lib/mapTools.ts, which is the one table
+        these names come from -- a label that exists twice is a label that can
+        disagree with itself.
+
+        So they stack, in the shape the column already uses for everything
+        else: a row per thing, the chosen one on a raised plate.
+      */}
+      <div role="tablist" aria-label="What to run" className="flex flex-col">
         {MAP_TOOLS.map((t) => (
           <button
             key={t.id}
@@ -550,17 +568,24 @@ export function MapScreen(props: MapScreenProps) {
             aria-selected={leftPanel === t.id}
             onClick={() => setLeftPanel(t.id)}
             className={cn(
-              "flex-1 rounded-sm px-1.5 py-1 text-meta transition-colors",
+              "flex items-center gap-1.5 rounded-sm px-2 py-1 text-left text-meta transition-colors",
               "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
               leftPanel === t.id
                 ? "bg-surface-raised text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
             )}
           >
+            <span
+              className={cn(
+                "size-1 shrink-0 rounded-full",
+                leftPanel === t.id ? "bg-accent" : "bg-transparent"
+              )}
+            />
             {t.label}
           </button>
         ))}
       </div>
+
       {/*
         Always shown once a tool is chosen. The map's own gating asks whether a
         column is open, which is a question about the map's layout and not

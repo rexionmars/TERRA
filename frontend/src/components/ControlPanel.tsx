@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { todayISO } from "@/lib/dates"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
+import { useCompactPanel } from "@/components/ui/PanelDensity"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { PanelShell } from "@/components/ui/PanelShell"
 
@@ -83,6 +84,15 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
   const canLULC = hasArea
   const busy = running || lulcRunning
 
+  /*
+    From the container, not from a prop of this panel: a section heading four
+    levels down needs the same answer, and threading it by hand would mean
+    every piece forwarding a value it does not itself use. The provider sits
+    where the panel is placed -- see MapScreen's renderPanel -- because a
+    context is read where the hook is CALLED, and this body renders before the
+    shell it is handed to.
+  */
+  const compact = useCompactPanel()
   return (
       <PanelShell
         ref={ref}
@@ -93,31 +103,46 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
 
       {/* STEP 1 — area */}
       <Section step="01" title="Area">
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Draw a polygon on the map, search a location, or load a file.
-          Works anywhere in the world.
-        </p>
+        {/*
+          Onboarding, and only where there is room for it. In the whiteboard's
+          column the area has already been drawn -- it is what the board was
+          opened on -- so three lines telling someone to draw one are three
+          lines between them and the run.
+        */}
+        {!compact && (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Draw a polygon on the map, search a location, or load a file. Works
+            anywhere in the world.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={onImportPolygon}
             disabled={busy}
-            className="flex items-center justify-center gap-1.5 rounded-sm border border-border px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-50"
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-sm border border-border hover:bg-secondary disabled:opacity-50",
+              compact ? "px-2 py-1 text-meta" : "px-2 py-1.5 text-xs"
+            )}
           >
-            <Upload className="size-3.5" />
+            <Upload className={compact ? "size-3" : "size-3.5"} />
             Import
           </button>
           <button
             onClick={onClearArea}
             disabled={busy || !hasArea}
-            className="flex items-center justify-center gap-1.5 rounded-sm border border-border px-2 py-1.5 text-xs hover:bg-secondary disabled:opacity-40"
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-sm border border-border hover:bg-secondary disabled:opacity-40",
+              compact ? "px-2 py-1 text-meta" : "px-2 py-1.5 text-xs"
+            )}
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 className={compact ? "size-3" : "size-3.5"} />
             Clear
           </button>
         </div>
         <div
           className={cn(
-            "flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-xs",
+            "flex items-center gap-2 rounded-sm border",
+            compact ? "px-2 py-1 text-meta" : "px-2.5 py-1.5 text-xs",
             hasArea
               ? "border-primary/40 text-foreground"
               : "border-dashed border-border text-muted-foreground"

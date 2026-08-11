@@ -67,7 +67,7 @@ const CONTAINER: Record<PanelPlacement, string> = {
     danger and wrong about the fix: the answer is not to keep them away, it is
     to put the SAME panel in both containers, with one state behind it.
   */
-  inline: "flex w-full flex-col gap-4",
+  inline: "flex w-full flex-col gap-3",
 }
 
 /**
@@ -131,6 +131,12 @@ export const PanelShell = forwardRef<
       exit={{ opacity: 0, ...enter }}
       transition={{ type: "spring", ...SPRING[placement] }}
     >
+      {/*
+        The density a placement implies, offered to everything inside it. A
+        panel written for a floating column keeps that scale wherever it is put
+        unless its container says otherwise, and inline the container is 4rem
+        narrower and sits beside rows of ten-pixel text.
+      */}
       {/*
         Inline has no title of its own: the tab above it already names what is
         being run, and a heading under a heading is a heading repeated.

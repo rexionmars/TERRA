@@ -11,6 +11,8 @@
  * action. A panel whose sections are independently runnable products passes no
  * step, because numbering them would assert an order that does not exist.
  */
+import { useCompactPanel } from "@/components/ui/PanelDensity"
+import { cn } from "@/lib/utils"
 export function PanelSection({
   step,
   title,
@@ -20,13 +22,30 @@ export function PanelSection({
   title: string
   children: React.ReactNode
 }) {
+  /*
+    Tighter where the container asked for it. The heading keeps its step
+    number: it says this is stage two of four, which is as true in a column as
+    in a panel -- what changes is how much air it is given, not what it says.
+  */
+  const compact = useCompactPanel()
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
+    <div className={cn("flex flex-col", compact ? "gap-1.5" : "gap-2")}>
+      <div className="flex items-center gap-1.5">
         {step && (
-          <span className="telemetry text-[10px] text-primary">{step}</span>
+          <span
+            className={cn(
+              "telemetry text-primary",
+              compact ? "text-[9px]" : "text-[10px]"
+            )}
+          >
+            {step}
+          </span>
         )}
-        <span className="eyebrow !text-foreground">{title}</span>
+        <span
+          className={cn("eyebrow !text-foreground", compact && "!text-[9px]")}
+        >
+          {title}
+        </span>
       </div>
       {children}
     </div>
