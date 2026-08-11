@@ -35,6 +35,8 @@ import {
   basemapByKind,
   type BasemapKind,
 } from "@/lib/basemaps"
+import { Check } from "lucide-react"
+import { geometryAreaHectares, polygonOuterRing } from "@/lib/geometry"
 import { cn } from "@/lib/utils"
 import type { GeoJSONGeometry } from "@/lib/types"
 
@@ -62,6 +64,24 @@ export function BoardAreaModal({
     lon: number
     key: number
   } | null>(null)
+  /**
+   * The shape being drawn, held here rather than committed as it is made.
+   *
+   * Every stroke used to go straight to the application: finishing a polygon
+   * replaced the area with no way back, and the modal had no state of its own
+   * to cancel. A draft makes drawing reversible -- redraw it, or leave and keep
+   * what was there -- and gives the footer something to report before it is
+   * taken.
+   *
+   * Fed back to DrawControl as its `customPolygon`, which is what puts the
+   * shape on the map: it renders whatever it is given, guarded by a compare so
+   * it does not fight a stroke in progress.
+   */
+  const [draft, setDraft] = useState<GeoJSONGeometry | null>(polygon)
+  // What the footer reports, from the same helpers the rest of the application
+  // measures an AOI with rather than a second arithmetic for one readout.
+  const ring = draft ? polygonOuterRing(draft) : null
+  const hectares = draft ? geometryAreaHectares(draft) : 0
 
   return (
     <ModalShell
@@ -152,12 +172,56 @@ export function BoardAreaModal({
               url={basemap.url}
               maxZoom={basemap.maxZoom}
             />
-            <DrawControl
-              customPolygon={polygon}
-              onPolygonDrawn={onPolygonDrawn}
-            />
+            <DrawControl customPolygon={draft} onPolygonDrawn={setDraft} />
             <FlyToController flyTo={flyTo} />
           </MapContainer>
+        </div>
+
+        {/*
+          The commit, said once and named for what it does. Drawing is a gesture
+          that can be got wrong on the last vertex, so it is separated from
+          taking the result -- and until it is pressed the area the board is
+          working on is untouched.
+        */}
+        <div className="mt-3 flex items-center gap-3">
+          <p className="min-w-0 flex-1 text-meta text-muted-foreground">
+            {ring
+              ? `${ring.length - 1} vertices · ${hectares.toFixed(1)} ha`
+              : "Draw a polygon with the tool at the bottom right, or leave to keep the current area."}
+          </p>
+          {draft && (
+            <button
+              type="button"
+              onClick={() => setDraft(null)}
+              className="rounded-sm px-2 py-1 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+            >
+              Discard shape
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-sm px-2 py-1 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!draft}
+            onClick={() => {
+              onPolygonDrawn(draft)
+              onClose()
+            }}
+            className={cn(
+              "flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-meta transition-colors",
+              draft
+                ? "bg-accent text-white hover:opacity-90"
+                : "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
+            )}
+          >
+            <Check className="size-3.5" />
+            Use this area
+          </button>
         </div>
       </div>
     </ModalShell>
