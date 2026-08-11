@@ -26,6 +26,11 @@ import { INDICES } from "@/lib/compositeCatalog"
 import { MAPBIOMAS_CLASS_LEGEND } from "@/lib/classPalette"
 import { predictionSource } from "@/lib/mapLayers"
 import { paletteGradient } from "@/lib/palettes"
+import {
+  confidenceRGB,
+  formulaGradient,
+  ndviMeanRGB,
+} from "@/lib/rampFormulas"
 import type {
   CompositionOverlay,
   PredictResult,
@@ -63,6 +68,14 @@ export type LayerLegend =
       kind: "stats"
       subject: string
       rows: { label: string; value: string }[]
+      /**
+       * The colour mapping, where it is computable rather than tabulated.
+       *
+       * Figures and a ramp are not alternatives: the ramp says what a pixel's
+       * colour means and the figures say what the raster measured. A plane
+       * without the first is the picture this whole file exists to stop.
+       */
+      ramp?: { gradient: string; low: string; high: string }
       /** A caveat that changes how the figures must be read, where one applies. */
       note?: string
     }
@@ -212,11 +225,13 @@ export function legendFor(
 
   if (layerId === "confidence") {
     /*
-      No bar: the ramp lives in the sidecar and is published nowhere, and the
-      CSS gradient the map's legend uses is a transcription that already drifts
-      by 1/255 at two stops.
+      The ramp is COMPUTED from the sidecar's own expression rather than
+      transcribed from it -- see lib/rampFormulas.ts. Refusing to draw one at
+      all was half right: copying stops by eye is what made a legend disagree
+      with its raster by 40 of 255, but applying the same three lines is not
+      copying, and a plane whose colours go unexplained was the complaint.
 
-      The figures instead, and the caveat with them. mean_confidence is the mean
+      The figures with it, and the caveat with them. mean_confidence is the mean
       of max(predict_proba) over classified pixels -- an ensemble VOTE SHARE,
       not a calibrated probability of being right, and Random Forest vote
       fractions are biased toward the middle of their range. It is meaningless
@@ -241,11 +256,31 @@ export function legendFor(
     if (r.class_stats?.length) {
       rows.push({ label: "Classes", value: String(r.class_stats.length) })
     }
+    /*
+      The floor is named in the caveat ONLY where it is on screen. It was told
+      to be read against a figure the run did not report, which is an
+      instruction the reader cannot follow -- and it is not derivable from the
+      class count, because class_stats lists the classes PRESENT in the output
+      and a model can carry classes this AOI has none of.
+
+      The fade is stated because it is a second encoding of the same quantity:
+      alpha is conf * 200, so a pale patch is low confidence twice over, and a
+      reader taking it for the ground showing through has misread the plane.
+    */
+    const floorShown = r.confidence_floor !== undefined
     return {
       kind: "stats",
       subject: "Confidence",
       rows,
-      note: "Ensemble vote share over classified pixels, not a calibrated probability. Read against the floor.",
+      ramp: {
+        gradient: formulaGradient(confidenceRGB),
+        low: "0%",
+        high: "100%",
+      },
+      note:
+        "Ensemble vote share over classified pixels, not a calibrated probability." +
+        (floorShown ? " Read against the floor." : "") +
+        " Lower values are drawn cooler and more transparent.",
     }
   }
 
@@ -301,6 +336,7 @@ export function legendFor(
       kind: "stats",
       subject: "NDVI mean",
       rows,
+      ramp: { gradient: formulaGradient(ndviMeanRGB), low: "0", high: "1" },
       note: "Per-pixel mean over the dates that survived cloud masking.",
     }
   }

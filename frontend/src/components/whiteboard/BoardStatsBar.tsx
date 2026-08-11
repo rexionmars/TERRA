@@ -157,6 +157,23 @@ export function BoardStatsBar({
           it must be read, and a note in a column would look like one more.
         */
         <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-hidden">
+          {legend.ramp && (
+            /*
+              Before the figures, because it explains the plane and they only
+              summarise it: a reader looking at a colour is asking this first.
+            */
+            <div className="flex w-[16rem] shrink-0 flex-col gap-0.5">
+              <div
+                className="h-2.5 w-full rounded-[3px]"
+                style={{ background: legend.ramp.gradient }}
+                aria-hidden
+              />
+              <div className="telemetry flex justify-between text-[9px] text-muted-foreground">
+                <span>{legend.ramp.low}</span>
+                <span>{legend.ramp.high}</span>
+              </div>
+            </div>
+          )}
           <ul className="panel-scroll flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1 overflow-x-auto">
             {legend.rows.map((r) => (
               <li key={r.label} className="flex shrink-0 flex-col gap-0.5">
