@@ -89,6 +89,7 @@ import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { AppNav } from "@/components/AppNav"
 import { MapScreen } from "@/pages/MapScreen"
 import type { MapToolId } from "@/lib/mapTools"
+import type { BasemapKind } from "@/lib/basemaps"
 import { EnergyScreen, type EnergyTab } from "@/pages/EnergyScreen"
 import { useSolarState, useWindState } from "@/lib/energyState"
 import type {
@@ -598,6 +599,16 @@ function AppBody(props: {
    * the first render, so an initialiser would read null and pin every session
    * to docked.
    */
+  /**
+   * Which basemap the map is showing, for the credit line in the title bar.
+   *
+   * Held here rather than in either screen because both draw a map and the bar
+   * is above both: a credit owned by one screen would be blank on the other.
+   */
+  const [credit, setCredit] = useState<{
+    kind: BasemapKind
+    date: string | null
+  }>({ kind: "esri", date: null })
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
 
   /**
@@ -2290,6 +2301,7 @@ function AppBody(props: {
         runLabel={currentRunLabel}
         layoutMode={layoutMode}
         onLayoutModeChange={changeLayoutMode}
+        credit={credit}
         /*
           Wherever a run is filed under the active project. The energy handlers
           send project_id exactly as the classification ones do, so a solar or
@@ -2355,6 +2367,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MapScreen
+                  onCreditChange={setCredit}
                   initialView={initialMapView}
                   leftPanel={leftPanel}
                   layoutMode={layoutMode}
@@ -2511,6 +2524,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <EnergyScreen
+                  onCreditChange={setCredit}
                   layoutMode={layoutMode}
                   onNavigate={navigateTo}
                   solar={solar}

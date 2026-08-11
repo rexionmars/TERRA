@@ -6,6 +6,12 @@ import {
   Quit,
 } from "../../wailsjs/runtime/runtime"
 import type { LayoutMode, PredictResult } from "@/lib/types"
+import {
+  LEAFLET_CREDIT,
+  basemapByKind,
+  type BasemapKind,
+  type CreditPart,
+} from "@/lib/basemaps"
 import { useAuth, type AppScreen } from "@/lib/auth"
 
 interface TitleBarProps {
@@ -30,6 +36,30 @@ interface TitleBarProps {
    */
   layoutMode?: LayoutMode
   onLayoutModeChange?: (mode: LayoutMode) => void
+  /**
+   * Which basemap is showing, and the date of the imagery under the centre.
+   *
+   * Drawn here rather than over the map's bottom-right corner, where Leaflet
+   * puts it by default. It is a licensing obligation and not chrome, so it
+   * moved rather than went: the links each licence asks for are rendered as
+   * real anchors from the table in lib/basemaps.
+   */
+  credit?: { kind: BasemapKind; date: string | null }
+}
+
+/** One credited party, as a link where its licence asks to be reachable. */
+function Credit({ part }: { part: CreditPart }) {
+  if (!part.href) return <span>{part.label}</span>
+  return (
+    <a
+      href={part.href}
+      target="_blank"
+      rel="noreferrer"
+      className="hover:text-foreground hover:underline"
+    >
+      {part.label}
+    </a>
+  )
 }
 
 /**
@@ -71,6 +101,7 @@ export function TitleBar({
   runLabel,
   layoutMode = "docked",
   onLayoutModeChange,
+  credit,
 }: TitleBarProps) {
   const { screen } = useAuth()
   const onMap = screen === "map"
@@ -128,6 +159,23 @@ export function TitleBar({
             <span>
               Z <span className="text-foreground">{view.zoom.toFixed(0)}</span>
             </span>
+            {credit && (
+              <>
+                <span className="hairline h-4 w-px self-center border-l" />
+                {/* Not telemetry, so it is not in the mono face the readings
+                    use -- it is a sentence about who the imagery belongs to. */}
+                <span className="hidden max-w-[26rem] truncate font-sans normal-case xl:inline">
+                  <Credit part={LEAFLET_CREDIT} />
+                  {credit.date ? ` \u00b7 imagery ${credit.date}` : ""}
+                  {basemapByKind(credit.kind).credit.map((c, i) => (
+                    <span key={c.label}>
+                      {i === 0 ? " | " : " \u2014 "}
+                      <Credit part={c} />
+                    </span>
+                  ))}
+                </span>
+              </>
+            )}
             {/* The pill counts the scenes behind a classification, which the
                 energy products never read, so it stays on the map screen. */}
             {onMap && result && (

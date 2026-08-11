@@ -892,27 +892,14 @@
 }
 
 /*
-  Docked, not floating: it sits flush on the bar's top edge and shares its
-  border, so the two read as one piece of chrome. The control is right-anchored,
-  so the left corner is the only exposed one and the only one rounded.
+  The tile credit is not here any more. It moved to the title bar, where it sits
+  beside the coordinate readout: it is a licensing obligation rather than map
+  chrome, and over imagery it had to be given its own plate to stay legible at
+  all. Leaflet's control is switched off at the MapContainer, so the rules that
+  dressed it are gone with it -- including the accent override, which existed
+  because the accent measured 3.80 against bright imagery, under the 4.5 that
+  WCAG 1.4.3 asks for. On the title bar's own plate that problem does not arise.
 */
-.leaflet-control-attribution {
-  margin: 0 !important;
-  padding: 0.25rem 0.5rem !important;
-  background: rgb(var(--p-ink) / 0.82) !important;
-  color: rgb(var(--p-muted)) !important;
-  border: 1px solid rgb(var(--p-line) / 0.28) !important;
-  border-right: none !important;
-  border-bottom: none !important;
-  border-top-left-radius: var(--radius-md) !important;
-  backdrop-filter: blur(18px) saturate(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.05);
-}
-/* The accent measures 3.80 on this plate over bright imagery, under the 4.5 of
-   WCAG 1.4.3. The quiet variant is the one that reads: 5.60. */
-.leaflet-control-attribution a {
-  color: rgb(var(--p-accent-quiet)) !important;
-}
 
 .panel-scroll::-webkit-scrollbar {
   width: 8px;

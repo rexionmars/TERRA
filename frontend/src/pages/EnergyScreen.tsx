@@ -27,6 +27,7 @@
  */
 import { AnimatePresence } from "motion/react"
 import type { LayoutMode } from "@/lib/types"
+import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import { PanelShell, type PanelPlacement } from "@/components/ui/PanelShell"
 import { statusPanelInset } from "@/components/analysisPrimitives"
@@ -178,6 +179,8 @@ export interface EnergyScreenProps {
   // where the user is looking.
   initialView?: { lat: number; lon: number; zoom: number } | null
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
+  /** Which basemap is showing, for the credit in the title bar. */
+  onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
   flyTo: { lat: number; lon: number; key: number } | null
 
   /**
@@ -425,6 +428,7 @@ export function EnergyScreen(props: EnergyScreenProps) {
         onAoiContourSchemeChange={props.onAoiContourSchemeChange}
         onClearArea={props.onClearArea}
         onViewChange={props.onViewChange}
+        onCreditChange={props.onCreditChange}
     />
   )
 

@@ -23,6 +23,7 @@ import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
 import type { LayoutMode } from "@/lib/types"
+import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
@@ -92,6 +93,8 @@ export interface MapScreenProps {
   composeStretchHigh: number
   composeOpacity: number
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
+  /** Which basemap is showing, for the credit in the title bar. */
+  onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   onLocationSelect: (lat: number, lon: number) => void
   onClearArea: () => void
@@ -403,6 +406,7 @@ export function MapScreen(props: MapScreenProps) {
         onAoiContourSchemeChange={props.onAoiContourSchemeChange}
         onClearArea={props.onClearArea}
         onViewChange={props.onViewChange}
+        onCreditChange={props.onCreditChange}
       />
 
       <SearchBar onSelectLocation={props.onLocationSelect} />

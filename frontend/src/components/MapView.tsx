@@ -16,6 +16,7 @@ import L from "leaflet"
 import "./leafletDrawPatch"
 import type { LatLngBoundsExpression } from "leaflet"
 import type { Area, PredictResult, GeoJSONGeometry, CompositionOverlay } from "@/lib/types"
+import { BASEMAPS, basemapByName, type BasemapKind } from "@/lib/basemaps"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import {
   polygonOuterRing,
@@ -85,6 +86,8 @@ interface MapViewProps {
   onAoiContourSchemeChange: (id: AoiContourSchemeId) => void
   onClearArea: () => void
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
+  /** Which basemap is showing, so its credit can be drawn outside the map. */
+  onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
 }
 
 // Report map center/zoom to the telemetry readout.
@@ -110,13 +113,6 @@ function ViewReporter({
   return null
 }
 
-type BasemapKind = "esri" | "eox" | "osm"
-
-function basemapKindFromLayerName(name: string): BasemapKind {
-  if (/sentinel|eox/i.test(name)) return "eox"
-  if (/osm|openstreet/i.test(name) || /^map\b/i.test(name)) return "osm"
-  return "esri"
-}
 
 function formatYmd(ymd: string): string {
   if (/^\d{8}$/.test(ymd)) {
@@ -192,17 +188,30 @@ async function fetchEsriImageryDate(
 }
 
 /**
- * Shows the active basemap imagery date next to the Leaflet attribution prefix.
- * Esri: acquisition date at map center (updates on pan/zoom). EOX: mosaic year.
+ * Reports which basemap is showing and, for the ones that have one, the date of
+ * the imagery under the map centre.
+ *
+ * It used to write this into Leaflet's own attribution control. The credit now
+ * renders in the title bar beside the coordinates, so this reports upward and
+ * the obligation is met by whoever draws it -- which is why the reporting is
+ * unconditional and not gated on anything.
+ *
+ * Esri: acquisition date at map centre, refreshed on pan and zoom. EOX: the
+ * mosaic year. OSM: none, it is not imagery.
  */
-function BasemapDateAttribution() {
+function BasemapDateAttribution({
+  onCreditChange,
+}: {
+  onCreditChange?: (credit: { kind: BasemapKind; date: string | null }) => void
+}) {
   const map = useMap()
   const [basemap, setBasemap] = useState<BasemapKind>("esri")
   const [dateLabel, setDateLabel] = useState<string | null>(null)
 
   useEffect(() => {
     const onBase = (e: L.LayersControlEvent) => {
-      setBasemap(basemapKindFromLayerName(e.name))
+      // Exact, because the table that names the layer is the table read here.
+      setBasemap(basemapByName(e.name).kind)
     }
     map.on("baselayerchange", onBase)
     return () => {
@@ -253,15 +262,8 @@ function BasemapDateAttribution() {
   }, [map, basemap])
 
   useEffect(() => {
-    // Leaflet's default prefix carries a flag emoji. The attribution itself is
-    // a licensing requirement and stays; the emoji is not part of it, and no
-    // string this application renders carries one.
-    const leaflet =
-      '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'
-    map.attributionControl.setPrefix(
-      dateLabel ? `${leaflet} · imagery ${dateLabel}` : leaflet
-    )
-  }, [map, dateLabel])
+    onCreditChange?.({ kind: basemap, date: dateLabel })
+  }, [basemap, dateLabel, onCreditChange])
 
   return null
 }
@@ -1034,6 +1036,7 @@ export function MapView({
   onAoiContourSchemeChange,
   onClearArea,
   onViewChange,
+  onCreditChange,
 }: MapViewProps) {
   // Continental default, used only when there is no remembered view.
   const center = useMemo<[number, number]>(
@@ -1278,31 +1281,26 @@ export function MapView({
       zoom={initialZoom}
       className="h-full w-full"
       zoomControl={false}
+      attributionControl={false}
     >
       <ZoomControl position="bottomright" />
       <LayersControl position="topright">
-        <LayersControl.BaseLayer checked name="Satellite (Esri)">
-          <TileLayer
-            attribution="Tiles &copy; Esri"
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            maxZoom={19}
-          />
-        </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer name="Sentinel-2 2025 (EOX)">
-          <TileLayer
-            attribution='&copy; <a href="https://cloudless.eox.at">EOX</a> &mdash; <a href="https://sentinel.esa.int/web/sentinel/user-guides/sentinel-2-msi">Contains modified Copernicus Sentinel data 2025</a>'
-            url="https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/g/{z}/{y}/{x}.jpg"
-            maxNativeZoom={14}
-            maxZoom={19}
-          />
-        </LayersControl.BaseLayer>
-        <LayersControl.BaseLayer name="Map (OSM)">
-          <TileLayer
-            attribution="&copy; OpenStreetMap"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maxZoom={19}
-          />
-        </LayersControl.BaseLayer>
+        {/*
+          Built from the table rather than written out, so the URL a layer
+          fetches from and the source the credit names cannot drift apart.
+          The attribution prop is gone with Leaflet's control: the credit is
+          rendered in the title bar now, and a second copy here would be a
+          second thing to keep true.
+        */}
+        {BASEMAPS.map((b, i) => (
+          <LayersControl.BaseLayer key={b.kind} checked={i === 0} name={b.name}>
+            <TileLayer
+              url={b.url}
+              maxZoom={b.maxZoom}
+              maxNativeZoom={b.maxNativeZoom}
+            />
+          </LayersControl.BaseLayer>
+        ))}
       </LayersControl>
 
       {compositionLayer}
@@ -1331,7 +1329,7 @@ export function MapView({
         onOpen={setAoiMenu}
       />
       <ViewReporter onViewChange={onViewChange} />
-      <BasemapDateAttribution />
+      <BasemapDateAttribution onCreditChange={onCreditChange} />
       <MapDragLock locked={swipeDragging} />
     </MapContainer>
     {swipeActive && (
