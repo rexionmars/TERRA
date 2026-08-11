@@ -1,4 +1,13 @@
-import { Minus, PanelBottom, PanelLeft, Square, X } from "lucide-react"
+import {
+  LogIn,
+  Minus,
+  PanelBottom,
+  PanelLeft,
+  Square,
+  UserRound,
+  X,
+} from "lucide-react"
+import { AvatarCircle } from "@/components/AvatarCircle"
 import type { ReactNode } from "react"
 import {
   WindowMinimise,
@@ -103,7 +112,7 @@ export function TitleBar({
   onLayoutModeChange,
   credit,
 }: TitleBarProps) {
-  const { screen } = useAuth()
+  const { screen, user, loading, goProfile, goAuth } = useAuth()
   const onMap = screen === "map"
   const hasMap = onMap || screen === "energy"
   const run = runLabel?.trim()
@@ -191,6 +200,34 @@ export function TitleBar({
               </>
             )}
           </div>
+        )}
+
+        {/*
+          The way into settings while the navigation column is withheld.
+          Exactly when the column is gone: on the two screens that draw a map,
+          in the layout that replaces the column with surfaces inside it. The
+          column carries this item everywhere else, and two of them at once
+          would be two answers to one question.
+
+          Icon only. The column can afford the word beside it down 13.5rem;
+          here it would sit between the coordinate readout and the window
+          buttons, which is the narrowest part of the bar.
+        */}
+        {hasMap && layoutMode === "workspace" && !loading && (
+          <button
+            type="button"
+            onClick={() => (user ? goProfile() : goAuth())}
+            className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            title={user ? "Settings" : "Sign in"}
+          >
+            {user?.avatar_uri ? (
+              <AvatarCircle uri={user.avatar_uri} size="sm" />
+            ) : user ? (
+              <UserRound className="size-4" />
+            ) : (
+              <LogIn className="size-4" />
+            )}
+          </button>
         )}
 
         {/* Wherever there is a map to lay out. */}
