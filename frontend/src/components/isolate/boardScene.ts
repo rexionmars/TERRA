@@ -18,19 +18,24 @@
  * scene grows from here rather than being rewritten.
  */
 import {
+  Box3,
+  Clock,
   Color,
+  Group,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
   PerspectiveCamera,
   PlaneGeometry,
   Scene,
+  Sphere,
   SRGBColorSpace,
   TextureLoader,
   WebGLRenderer,
-  type Texture,
 } from "three"
+import type { CardPlane } from "@/lib/isolateCards"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
 
 /**
  * A design token's channels as a colour three will actually parse.
@@ -69,9 +74,16 @@ export interface BoardHandle {
  */
 export function createBoard(
   host: HTMLElement,
-  opts: { textureUri: string; background: string }
+  opts: { cards: CardPlane[]; background: string }
 ): BoardHandle {
   const renderer = new WebGLRenderer({ antialias: true })
+  /*
+    Two passes go into one buffer -- the scene, then the orientation helper in a
+    corner -- so the automatic clear is off and the clear is explicit below.
+    Leaving it on would wipe the scene before the helper drew; leaving it off
+    without clearing at all would let every frame accumulate on the last.
+  */
+  renderer.autoClear = false
   // An uncapped ratio on a 3x display renders a full-window canvas at nine
   // times the pixels for a difference nobody can see on a flat raster.
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -111,6 +123,61 @@ export function createBoard(
    * little empty margin at the angles where the rectangle is narrowest, which
    * is the right trade for a turntable.
    */
+  /**
+   * The orientation gizmo, bottom-left, and the only thing on this surface
+   * that says which way is up.
+   *
+   * A board with no horizon, no basemap and no north arrow gives the eye
+   * nothing to recover its bearings from once it has orbited: the raster
+   * itself is symmetric enough that a quarter turn is indistinguishable from
+   * where you started. This is the axis reference, and clicking a handle
+   * snaps to that view -- so returning to plan, which is the map's own
+   * viewpoint, is one click rather than a careful drag.
+   *
+   * three ships it, so it costs 12.8 kB of an addon rather than a component.
+   */
+  const viewHelper = new ViewHelper(camera, renderer.domElement)
+  // left wins over right and bottom over top when the pair is set, per the
+  // helper's own rule, so the corner is chosen by which two are given.
+  viewHelper.location = { ...viewHelper.location, bottom: 12, left: 12 }
+  // It orbits about the same point the controls do, or a snap would swing the
+  // camera around the origin while the controls still believe in the target.
+  viewHelper.center = controls.target
+
+  /**
+   * Frames while the gizmo animates a snap.
+   *
+   * The board renders on demand, and a snap is the one thing here that moves
+   * without the user's hand on it -- so it needs frames for as long as it
+   * lasts, and none after.
+   */
+  const clock = new Clock()
+  let snapping = false
+  const stepSnap = () => {
+    if (disposed) return
+    if (!viewHelper.animating) {
+      snapping = false
+      controls.update()
+      return
+    }
+    viewHelper.update(clock.getDelta())
+    renderer.clear()
+    renderer.render(scene, camera)
+    viewHelper.render(renderer)
+    requestAnimationFrame(stepSnap)
+  }
+
+  const onPointerUp = (e: PointerEvent) => {
+    if (viewHelper.handleClick(e)) {
+      if (!snapping) {
+        snapping = true
+        clock.getDelta()
+        requestAnimationFrame(stepSnap)
+      }
+    }
+  }
+  renderer.domElement.addEventListener("pointerup", onPointerUp)
+
   /** The sphere the raster sits in, once it is known. */
   let fitRadius = 0
 
@@ -159,7 +226,12 @@ export function createBoard(
     raf = requestAnimationFrame(() => {
       raf = 0
       controls.update()
+      renderer.clear()
       renderer.render(scene, camera)
+      // After the scene and without clearing it: the helper draws into a
+      // corner of the same buffer, clearing only depth so it is never hidden
+      // behind the raster.
+      viewHelper.render(renderer)
     })
   }
   controls.addEventListener("change", render)
@@ -212,44 +284,70 @@ export function createBoard(
   renderer.domElement.addEventListener("webglcontextlost", onLost)
   renderer.domElement.addEventListener("webglcontextrestored", onRestored)
 
-  let texture: Texture | null = null
-  new TextureLoader().load(opts.textureUri, (t) => {
-    if (disposed) {
-      t.dispose()
-      return
-    }
-    texture = t
-    t.colorSpace = SRGBColorSpace
-    /*
-      Nearest, not linear. The same rule as .overlay-crisp in index.css:
-      bilinear interpolation across a class raster invents colours between two
-      classes that correspond to no class at all, and the legend stops matching
-      the pixels. It also makes the non-power-of-two question moot.
-    */
-    t.magFilter = NearestFilter
-    t.minFilter = NearestFilter
-    t.generateMipmaps = false
+  /*
+    One group for every raster, so the stack moves as one object. That is also
+    what makes the next step -- a second analysis beside this one -- an added
+    group rather than a rewrite.
+  */
+  const stack = new Group()
+  scene.add(stack)
+  const loader = new TextureLoader()
+  let pending = opts.cards.length
 
-    const aspect = t.image.width / t.image.height || 1
-    const planeW = aspect >= 1 ? 1 : aspect
-    const planeH = aspect >= 1 ? 1 / aspect : 1
-    // PlaneGeometry is centred on its origin, so the raster's centre is the
-    // world origin, which is the orbit target set above.
-    const geometry = new PlaneGeometry(planeW, planeH)
-    /*
-      Unlit. These rasters are data, not surfaces: any lighting model would
-      multiply the class colours by a light term and the legend would stop
-      matching what is drawn.
-    */
-    const material = new MeshBasicMaterial({ map: t, transparent: true })
-    const mesh = new Mesh(geometry, material)
-    // Flat in the XZ plane, like a sheet on a light table.
-    mesh.rotation.x = -Math.PI / 2
-    scene.add(mesh)
-    disposables.push(geometry, material, t)
-    frame(Math.hypot(planeW, planeH) / 2)
-    render()
-  })
+  for (const card of opts.cards) {
+    loader.load(card.uri, (t) => {
+      if (disposed) {
+        t.dispose()
+        return
+      }
+      t.colorSpace = SRGBColorSpace
+      /*
+        Nearest for a class raster: bilinear interpolation invents colours
+        between two classes that correspond to no class at all, and the legend
+        stops matching the pixels. The same rule as .overlay-crisp in
+        index.css. Continuous rasters may be filtered, and are.
+      */
+      if (card.pixelated) {
+        t.magFilter = NearestFilter
+        t.minFilter = NearestFilter
+        t.generateMipmaps = false
+      }
+
+      const geometry = new PlaneGeometry(card.width, card.height)
+      /*
+        Unlit. These rasters are data, not surfaces: any lighting model would
+        multiply the class colours by a light term and the legend would stop
+        matching what is drawn.
+
+        depthWrite off with an explicit renderOrder, so the transparent stack
+        sorts by the order the layers were given rather than by distance to the
+        camera -- which flips as you orbit, and would make layers swap places
+        while you look at them.
+      */
+      const material = new MeshBasicMaterial({
+        map: t,
+        transparent: true,
+        opacity: card.opacity,
+        depthWrite: false,
+      })
+      const mesh = new Mesh(geometry, material)
+      mesh.rotation.x = -Math.PI / 2
+      mesh.position.set(card.x, card.y, card.z)
+      mesh.renderOrder = opts.cards.indexOf(card)
+      stack.add(mesh)
+      disposables.push(geometry, material, t)
+
+      if (--pending === 0) {
+        // Framed once every plane is placed, or the first to arrive would set
+        // the distance and the rest would fall outside it.
+        const box = new Box3().setFromObject(stack)
+        const sphere = box.getBoundingSphere(new Sphere())
+        stack.position.y = -sphere.center.y
+        frame(sphere.radius)
+      }
+      render()
+    })
+  }
 
   return {
     render,
@@ -259,10 +357,11 @@ export function createBoard(
       observer.disconnect()
       controls.removeEventListener("change", render)
       controls.dispose()
+      renderer.domElement.removeEventListener("pointerup", onPointerUp)
+      viewHelper.dispose()
       renderer.domElement.removeEventListener("webglcontextlost", onLost)
       renderer.domElement.removeEventListener("webglcontextrestored", onRestored)
       for (const d of disposables) d.dispose()
-      texture?.dispose()
       renderer.dispose()
       /*
         forceContextLoss on top of dispose, because WebKit caps active contexts

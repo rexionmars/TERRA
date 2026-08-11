@@ -13,16 +13,29 @@
 import { useEffect, useRef } from "react"
 import { motion } from "motion/react"
 import { X } from "lucide-react"
+import type { RasterLayer } from "@/lib/mapLayers"
+import { layoutCards } from "@/lib/isolateCards"
 import type { BoardHandle } from "@/components/isolate/boardScene"
 import { createBoard, tokenColor } from "@/components/isolate/boardScene"
 
+/**
+ * Separation between stacked layers, in world units where the AOI's longest
+ * side is 1.
+ *
+ * A tenth of the AOI: far enough that orbiting pulls the layers visibly apart,
+ * close enough that they still read as one place seen in section rather than
+ * as unrelated sheets.
+ */
+const STACK_GAP = 0.1
+
 export function IsolateBoard({
-  textureUri,
+  layers,
   title,
   showClose,
   onClose,
 }: {
-  textureUri: string
+  /** What the map is drawing, from the shared table. */
+  layers: RasterLayer[]
   title: string
   /**
    * Whether this surface draws its own way out.
@@ -46,7 +59,7 @@ export function IsolateBoard({
       // Read from the computed style rather than hardcoded, so the board
       // follows the theme the rest of the application is painted in.
       board = createBoard(host, {
-        textureUri,
+        cards: layoutCards(layers, STACK_GAP),
         background: tokenColor("--p-ink", "#171717"),
       })
     } catch {
@@ -57,7 +70,7 @@ export function IsolateBoard({
       return
     }
     return () => board?.dispose()
-  }, [textureUri, onClose])
+  }, [layers, onClose])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

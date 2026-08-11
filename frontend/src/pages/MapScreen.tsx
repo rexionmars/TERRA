@@ -22,6 +22,7 @@ import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
+import { visibleRasterLayers } from "@/lib/mapLayers"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
@@ -218,6 +219,26 @@ export function MapScreen(props: MapScreenProps) {
     (leftPanel === "compose" || (!props.result && !!props.composition))
   const showPredictionStatus =
     !showWaterStatus && !showCompositionStatus && !!props.result
+
+  /*
+    What the board draws, from the same table the map reads. Every control in
+    overlay tools -- what is shown, how solid, whether the prediction sits
+    under the confidence -- therefore governs both, and neither can drift into
+    disagreeing with the other about what is on screen.
+  */
+  const boardLayers = visibleRasterLayers({
+    result: props.result,
+    showPredictionOverlay: props.showPredictionOverlay,
+    overlayOpacity: props.overlayOpacity,
+    showConfidence: props.showConfidence,
+    confidenceOnTop: props.confidenceOnTop,
+    composition: props.composition,
+    showCompositionOverlay: props.showCompositionOverlay,
+    composeOpacity: props.composeOpacity,
+    water: props.water,
+    showWaterOverlay: props.showWaterOverlay,
+    waterOpacity: props.waterOpacity,
+  })
 
   const selectedSceneDate =
     props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
@@ -442,22 +463,51 @@ export function MapScreen(props: MapScreenProps) {
             {!workspace && (
               <IsolateBoardButton
                 active={isolate}
-                disabled={!props.result?.overlay_uri}
+                disabled={boardLayers.length === 0}
                 onClick={() => setIsolate((o) => !o)}
                 onPrefetch={prefetchBoard}
               />
             )}
-            <OverlayToolsButton
-              active={rightDrawer === "overlays"}
-              onClick={() =>
-                setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
-              }
-            />
+            {/*
+              Not while the board is open: it takes the top instead, and this
+              one would be a second mount of the same control sitting unclickable
+              under the board.
+            */}
+            {!isolate && (
+              <OverlayToolsButton
+                active={rightDrawer === "overlays"}
+                onClick={() =>
+                  setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
+                }
+              />
+            )}
           </>
         }
       />
 
-      <SearchBar onSelectLocation={props.onLocationSelect} />
+      {/*
+        The search field finds a place on Earth. The board has no Earth on it:
+        the rasters are lifted off their coordinates, which is the point, so
+        there is nowhere for a result to fly to.
+      */}
+      {!isolate && <SearchBar onSelectLocation={props.onLocationSelect} />}
+
+      {/*
+        Overlay tools stay -- opacity, confidence and smoothing all still apply
+        to what the board is drawing -- but their button is inside the map, and
+        the board covers it. It takes the top the search field vacated, on the
+        right so its panel can open under it rather than across the surface.
+      */}
+      {isolate && (
+        <div className="app-no-drag absolute right-3 top-3 z-[600]">
+          <OverlayToolsButton
+            active={rightDrawer === "overlays"}
+            onClick={() =>
+              setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
+            }
+          />
+        </div>
+      )}
 
       <PeriodTimeline
         start={props.start}
@@ -488,11 +538,11 @@ export function MapScreen(props: MapScreenProps) {
       />
 
       <AnimatePresence>
-        {isolate && props.result?.overlay_uri && (
+        {isolate && boardLayers.length > 0 && (
           <Suspense fallback={null}>
             <IsolateBoard
               key="isolate-board"
-              textureUri={props.result.overlay_uri}
+              layers={boardLayers}
               title={props.areaLabel || "Analysis"}
               showClose={!workspace}
               onClose={() => setIsolate(false)}
@@ -518,7 +568,7 @@ export function MapScreen(props: MapScreenProps) {
             isolateSlot={
               <IsolateBoardButton
                 active={isolate}
-                disabled={!props.result?.overlay_uri}
+                disabled={boardLayers.length === 0}
                 onClick={() => setIsolate((o) => !o)}
                 onPrefetch={prefetchBoard}
                 inBar
@@ -534,6 +584,7 @@ export function MapScreen(props: MapScreenProps) {
 
       <OverlayToolsPanel
         open={rightDrawer === "overlays"}
+        anchor={isolate ? "top" : "foot"}
         onClose={() => setRightDrawer(null)}
         result={props.result}
         composition={props.composition}
