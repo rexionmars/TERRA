@@ -31,6 +31,8 @@ import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import { RunPicker } from "@/components/isolate/RunPicker"
 import { useAuth } from "@/lib/auth"
 import { displayRunLabel } from "@/lib/aoiLabel"
+import type { LonLat } from "@/lib/geometry"
+import { polygonOuterRing, resolveProjectGeometry } from "@/lib/geometry"
 import { notifyError } from "@/lib/notify"
 import { LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type { InferenceRun, PredictResult } from "@/lib/types"
@@ -104,6 +106,7 @@ export function IsolateBoard({
   assets,
   runId,
   runPeriod,
+  aoiPolygon,
   onLayerChange,
   onSelectComposition,
   onRemoveComposition,
@@ -136,6 +139,14 @@ export function IsolateBoard({
    */
   runId: string
   runPeriod: string
+  /**
+   * The area's own shape, for the selection outline.
+   *
+   * A raster is a rectangle because a raster is a grid; the area analysed is
+   * not, and a box around it claims ground the analysis never looked at.
+   * Absent where the shape cannot be resolved, and the rectangle stands in.
+   */
+  aoiPolygon?: LonLat[] | null
   onLayerChange: (id: string, patch: LayerPatch) => void
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
@@ -488,6 +499,31 @@ export function IsolateBoard({
   const planePlacesRef = useRef<Record<string, { x: number; z: number }>>({})
   /** The spread, for the build, which must not depend on it to run again. */
   const gapRef = useRef(STACK_GAP)
+  /**
+   * Each area's own shape, by area id.
+   *
+   * The current run's comes from the map screen, which knows what was drawn;
+   * a loaded run's is stored with it. Read through a ref for the same reason
+   * everything else here is -- the build must not run again because a prop's
+   * identity changed.
+   */
+  const polygonsRef = useRef<Record<string, LonLat[]>>({})
+  polygonsRef.current = {
+    ...(aoiPolygon?.length ? { [CURRENT_AREA]: aoiPolygon } : {}),
+    ...Object.fromEntries(
+      extraRuns.flatMap(({ run }) => {
+        // The run stores the polygon it was asked for; there is no area
+        // catalogue to fall back to here, and a run without a stored shape
+        // simply keeps the rectangle.
+        const geom = resolveProjectGeometry(
+          { polygon_geojson: run.polygon_geojson },
+          []
+        )
+        const ring = geom ? polygonOuterRing(geom) : null
+        return ring ? [[run.id, ring] as const] : []
+      })
+    ),
+  }
   const appearanceRef = useRef<PlaneState[]>([])
   appearanceRef.current = areas.flatMap((a) =>
     a.layers.map((l) => ({
@@ -604,6 +640,7 @@ export function IsolateBoard({
           id: a.id,
           title: a.title,
           layers: a.layers,
+          polygon: polygonsRef.current[a.id],
           at: placesRef.current[a.id],
         })),
         STACK_GAP

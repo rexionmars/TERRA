@@ -7,6 +7,7 @@
  */
 import type { Bounds } from "@/lib/types"
 import type { RasterLayer } from "@/lib/mapLayers"
+import type { LonLat } from "@/lib/geometry"
 import { lonScaleAtLat } from "@/lib/geometry"
 
 /**
@@ -46,12 +47,22 @@ export interface CardGroup {
   /** The group's own footprint, in the same units as the cards. */
   width: number
   height: number
+  /**
+   * The area's own shape, in board units relative to the group's centre.
+   *
+   * The rasters are rectangles because a raster is a grid; the AREA is not,
+   * and drawing a box around it says the analysis covered ground it never
+   * did. Absent where the shape is not known, and the rectangle stands in.
+   */
+  outline?: { x: number; z: number }[]
 }
 
 export interface GroupInput {
   id: string
   title: string
   layers: RasterLayer[]
+  /** The AOI's outer ring, in longitude and latitude. */
+  polygon?: LonLat[]
   /**
    * Where the group was left, for an arrangement being restored.
    *
@@ -166,6 +177,14 @@ export function layoutGroups(groups: GroupInput[], gap: number): CardGroup[] {
       z,
       width: widths[i],
       height: heights[i],
+      // Through the same scale and centre the cards go through, so the shape
+      // lands on the rasters rather than beside them.
+      outline: g.polygon?.length
+        ? g.polygon.map(([lon, lat]) => ({
+            x: ((lon - uCx) * kx) / scale,
+            z: -((lat - uCy) / scale),
+          }))
+        : undefined,
       cards: g.layers.map((l, n) => {
         const e = l.extent
         return {

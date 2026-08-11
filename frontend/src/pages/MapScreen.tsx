@@ -24,6 +24,7 @@ import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
 import { rasterLayers } from "@/lib/mapLayers"
 import { runAssets } from "@/lib/runAssets"
+import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
@@ -652,6 +653,19 @@ export function MapScreen(props: MapScreenProps) {
                 one, since it names the scenes actually used rather than the
                 window that was asked for.
               */
+              /*
+                What was actually drawn, or the example area it stands for.
+                The board outlines the AREA rather than the raster's box, and
+                a box around an area claims ground the analysis never saw.
+              */
+              aoiPolygon={
+                polygonOuterRing(
+                  props.customPolygon ??
+                    props.areas.find((a) => a.id === props.activeExample)
+                      ?.geometry ??
+                    ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
+                ) ?? undefined
+              }
               runPeriod={
                 props.result?.date_range?.length === 2
                   ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`

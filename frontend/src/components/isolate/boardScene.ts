@@ -24,10 +24,12 @@ import {
   Clock,
   Color,
   EdgesGeometry,
+  Float32BufferAttribute,
   Fog,
   GridHelper,
   Group,
   LineBasicMaterial,
+  LineLoop,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
@@ -779,8 +781,16 @@ export function createBoard(
   linkGeometry.setAttribute("position", linkAttribute)
   linkGeometry.setDrawRange(0, 0)
   const links = new LineSegments(linkGeometry, linkMaterial)
-  // After every plane, so a line is never buried under the raster it leaves.
-  links.renderOrder = pending * 3
+  /*
+    BEFORE every plane, so the rasters are painted over it.
+
+    The line says which rasters belong together, which is a fact about the
+    board rather than about any raster -- drawn on top it crossed the middle of
+    a classification and became something to read through. Under them it shows
+    where it leaves and where it arrives, and hides where it has nothing to
+    add. Nothing writes depth here, so the order is renderOrder alone.
+  */
+  links.renderOrder = -1
   links.visible = false
   world.add(links)
   disposables.push(linkGeometry, linkMaterial)
@@ -885,6 +895,32 @@ export function createBoard(
   let drawIndex = 0
   const totalPlanes = pending
   for (const rt of runtimes) {
+  const group = opts.groups.find((g) => g.id === rt.id)!
+  /*
+    The ring's own extent, against which a plane is judged to be the area.
+
+    Compared with the RING rather than with the group's footprint, which is
+    the union of every layer: a composition covering a wider window makes that
+    union wider than the area, and matching against it handed the ring to the
+    composition and left the classification -- the layer whose extent IS the
+    area -- with a rectangle. Exactly backwards.
+  */
+  const ringBox = group.outline?.length
+    ? {
+        x0: Math.min(...group.outline.map((p) => p.x)),
+        x1: Math.max(...group.outline.map((p) => p.x)),
+        z0: Math.min(...group.outline.map((p) => p.z)),
+        z1: Math.max(...group.outline.map((p) => p.z)),
+      }
+    : null
+  const ringFor = (card: CardPlane) =>
+    ringBox &&
+    Math.abs(card.width - (ringBox.x1 - ringBox.x0)) < 1e-6 &&
+    Math.abs(card.height - (ringBox.z1 - ringBox.z0)) < 1e-6 &&
+    Math.abs(card.x - (ringBox.x0 + ringBox.x1) / 2) < 1e-6 &&
+    Math.abs(card.z - (ringBox.z0 + ringBox.z1) / 2) < 1e-6
+      ? group.outline!
+      : null
   rt.cards.forEach((card, index) => {
     const order = drawIndex++
     loader.load(card.uri, (t) => {
@@ -941,11 +977,32 @@ export function createBoard(
         its rotation and every later move of the spread control without being
         told about any of them. Drawn after all the planes, so an outline is
         never buried under the raster of the layer above it.
+
+        The AREA's own shape where it is known and the plane covers the whole
+        of it. A raster is a rectangle because a raster is a grid; the area
+        analysed is not, and a box around it claims ground the analysis never
+        looked at. A layer covering a DIFFERENT window -- a composition can --
+        keeps its rectangle, because the area's ring would then describe
+        coverage the raster does not have.
+
+        The ring arrives in board XZ and the outline is a child of a mesh
+        rotated -90 degrees about X, which sends a child's local (x, y) to
+        world (x, -y). So the local Y of a ring point is the negative of its Z,
+        and both are taken relative to the plane's own offset.
       */
-      const outline = new LineSegments(
-        new EdgesGeometry(geometry),
-        outlineMaterial
-      )
+      const ring = ringFor(card)
+      const outline = ring
+        ? new LineLoop(
+            new BufferGeometry().setAttribute(
+              "position",
+              new Float32BufferAttribute(
+                ring.flatMap((pt) => [pt.x - card.x, -(pt.z - card.z), 0]),
+                3
+              )
+            ),
+            outlineMaterial
+          )
+        : new LineSegments(new EdgesGeometry(geometry), outlineMaterial)
       outline.renderOrder = totalPlanes + order
       outline.visible = selectedKey === planeKey(rt.id, card.id)
       mesh.add(outline)
