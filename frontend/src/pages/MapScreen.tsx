@@ -678,16 +678,37 @@ export function MapScreen(props: MapScreenProps) {
     <div
       className="relative h-full min-h-0 w-full"
       /*
-        The height of the period track, which is the only thing that spans the
-        foot from edge to edge. Surfaces anchored to the bottom clear it by
-        measuring from here.
+        The height of whatever holds the foot, which surfaces anchored to the
+        bottom clear by measuring from here.
+
+        Two values because two surfaces hold it. On the map it is the period
+        track, a row of dates and a slider. On the board it is the run band,
+        which carries a product's whole parameter set and stacks each group's
+        label above its controls -- on one line the label sat in front of its
+        own values and read as part of them.
+
+        Raised HERE rather than given to the band alone, because everything
+        that already clears the foot then clears the taller one for free: the
+        result panel, the drawers, and the scene's own axis helper, which reads
+        this variable to lift itself off the band. A private height for the band
+        would have left all three overlapping it.
 
         The workspace bar does NOT enter this: it is an island at the left, and
         raising the reservation to clear it lifted the tile attribution at the
         opposite edge by four rem it had no reason to move, tearing it off the
         track it is meant to sit flush against.
       */
-      style={{ "--map-foot": "3.0625rem" } as React.CSSProperties}
+      style={
+        {
+          /*
+            4rem is measured, not chosen: a 9px eyebrow on a ~14px line, the
+            4px gap under it, and the tallest control at 1.375rem come to 40px,
+            plus the scroller's py-1. The remaining 24px is the air the one-line
+            band did not have. The map's 3.0625rem is the period track's own.
+          */
+          "--map-foot": boardOpen ? "4rem" : "3.0625rem",
+        } as React.CSSProperties
+      }
     >
       {/*
         The whiteboard toggle, drawn into the title bar.

@@ -64,9 +64,18 @@ function Group({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-1.5 px-2.5">
+    /*
+      The label ABOVE its controls, not in front of them.
+
+      On one line "SEASON Annual Winter Summer Winter crop" reads as a phrase
+      rather than as a heading and six options: the label competes with the
+      values for the same horizontal run, and at 9px it loses. Stacked, it
+      becomes a column heading and the eye finds the group before it reads any
+      of it. This is what the band's height is for.
+    */
+    <div className="flex shrink-0 flex-col justify-center gap-1 px-2.5">
       <span className="eyebrow !text-[9px] shrink-0">{label}</span>
-      {children}
+      <div className="flex shrink-0 items-center gap-1.5">{children}</div>
     </div>
   )
 }
@@ -74,7 +83,8 @@ function Group({
 function Divider() {
   return (
     <div
-      className="h-5 w-px shrink-0"
+      // Tall enough to separate a stacked group rather than only its controls.
+      className="h-9 w-px shrink-0"
       style={{ background: "rgb(var(--p-line) / 0.28)" }}
     />
   )
