@@ -80,20 +80,68 @@ export function createBoard(
   const scene = new Scene()
   scene.background = new Color(opts.background)
 
-  const camera = new PerspectiveCamera(45, 1, 0.1, 1000)
-  // Not top-down at entry. A plan view is indistinguishable from the map the
-  // board replaced, so opening there would leave the user unsure anything
-  // happened; the tilt is what says the surface has a third axis.
-  camera.position.set(-0.9, 1.3, 1.2)
+  const FOV = 45
+  const camera = new PerspectiveCamera(FOV, 1, 0.01, 1000)
 
   const controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
+  /*
+    Panning moves the orbit target, so after one it is no longer the raster's
+    centre that the camera turns about. That is the standard bargain in every
+    orbit control and it is worth keeping: the raster opens centred, the target
+    starts at its centre, and moving off it is then the user's choice rather
+    than something that happened to them.
+  */
   controls.screenSpacePanning = false
   // Never under the board: from below you see the backs of the planes and the
   // stack order reverses on screen, which reads as a rendering fault rather
   // than as a point of view. Straight down is allowed -- that is the map view.
   controls.maxPolarAngle = Math.PI / 2 - 0.05
+  controls.target.set(0, 0, 0)
+
+  /**
+   * Places the camera so the whole raster is in frame, at the opening angle.
+   *
+   * Fits the BOUNDING SPHERE rather than the rectangle. A rectangle's
+   * projected size changes as it turns, so fitting it would either crop at
+   * some angles or need recomputing on every frame of an orbit -- and framing
+   * that shifts while you rotate reads as the object moving. The sphere is the
+   * same from every direction, so once it fits it fits everywhere. It costs a
+   * little empty margin at the angles where the rectangle is narrowest, which
+   * is the right trade for a turntable.
+   */
+  /** The sphere the raster sits in, once it is known. */
+  let fitRadius = 0
+
+  /** Distance at which that sphere just fits the current viewport. */
+  const fitDistance = () => {
+    const vFov = (FOV * Math.PI) / 180
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
+    // The tighter of the two axes decides, or the object overflows the other.
+    return (fitRadius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.12
+  }
+
+  const frame = (radius: number) => {
+    fitRadius = radius
+    const distance = fitDistance()
+    // Not top-down at entry: a plan view is indistinguishable from the map the
+    // board replaced, so opening there would leave the user unsure anything
+    // happened. The tilt is what says the surface has a third axis.
+    const azimuth = -Math.PI / 5
+    const elevation = Math.PI / 3.4
+    camera.position.set(
+      Math.sin(azimuth) * Math.cos(elevation) * distance,
+      Math.sin(elevation) * distance,
+      Math.cos(azimuth) * Math.cos(elevation) * distance
+    )
+    camera.lookAt(0, 0, 0)
+    // Bounded by the object rather than by constants: close enough to read a
+    // pixel, far enough to keep it in frame.
+    controls.minDistance = radius * 0.35
+    controls.maxDistance = distance * 4
+    controls.update()
+  }
 
   const disposables: { dispose: () => void }[] = []
   let raf = 0
@@ -119,9 +167,33 @@ export function createBoard(
   const resize = () => {
     const { clientWidth: w, clientHeight: h } = host
     if (!w || !h) return
-    renderer.setSize(w, h, false)
+    /*
+      updateStyle left at its default. Passing false writes the drawing buffer
+      in device pixels and leaves the canvas with NO css size, so on a 2x
+      display the element lays out at twice the intended width and height,
+      anchored top-left -- what shows is the bottom-right quarter of a canvas
+      spilling past the window. The raster looked pushed into the corner and
+      hugely magnified because it was.
+    */
+    renderer.setSize(w, h)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+    /*
+      Push the camera out if the new shape would crop, and only then. Re-framing
+      outright would throw away the angle and the zoom the user chose, so a
+      window resize would silently undo their work; leaving it alone entirely
+      would let a narrower window cut the raster off. The target never moves, so
+      it stays centred either way -- this is only about staying whole.
+
+      The distance is the position's length because the target is the origin.
+    */
+    if (fitRadius) {
+      const min = fitDistance()
+      if (camera.position.length() < min) {
+        camera.position.setLength(min)
+        controls.update()
+      }
+    }
     render()
   }
   const observer = new ResizeObserver(resize)
@@ -159,7 +231,11 @@ export function createBoard(
     t.generateMipmaps = false
 
     const aspect = t.image.width / t.image.height || 1
-    const geometry = new PlaneGeometry(aspect >= 1 ? 1 : aspect, aspect >= 1 ? 1 / aspect : 1)
+    const planeW = aspect >= 1 ? 1 : aspect
+    const planeH = aspect >= 1 ? 1 / aspect : 1
+    // PlaneGeometry is centred on its origin, so the raster's centre is the
+    // world origin, which is the orbit target set above.
+    const geometry = new PlaneGeometry(planeW, planeH)
     /*
       Unlit. These rasters are data, not surfaces: any lighting model would
       multiply the class colours by a light term and the legend would stop
@@ -171,6 +247,7 @@ export function createBoard(
     mesh.rotation.x = -Math.PI / 2
     scene.add(mesh)
     disposables.push(geometry, material, t)
+    frame(Math.hypot(planeW, planeH) / 2)
     render()
   })
 
