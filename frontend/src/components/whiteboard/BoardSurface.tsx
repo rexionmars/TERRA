@@ -291,14 +291,25 @@ export function BoardSurface({
     if (!trimmed) return
     setSaving(true)
     try {
-      const runIds = areas
-        .map((a) => (a.id === CURRENT_AREA ? runId : a.id))
-        // A board is saved as a set of RUNS, and an area whose run was never
-        // saved has no id to record. Left out rather than saved as a hole.
-        .filter((id) => id && id !== "current")
+      /*
+        Each area by the RUN it will reopen as, with the rasters on it.
+
+        The map's own area reopens as its run like any other: a board is a set
+        of runs arranged, and which of them the map happened to be showing when
+        it was saved is not part of that. An area whose run was never saved has
+        no id to record and is left out rather than saved as a hole.
+      */
+      const members = areas
+        .map((a) => ({
+          runId: a.id === CURRENT_AREA ? runId : a.id,
+          layerIds: a.layers.map((l) => l.id),
+        }))
+        .filter((m) => m.runId && m.runId !== "current")
       const board = await saveWhiteboard(
         trimmed,
-        snapshotBoard(runIds),
+        // The run the map's area belongs to, so its keys are rewritten to the
+        // id that area will carry when the board is opened again.
+        snapshotBoard(members, runId),
         savedId ?? undefined
       )
       setSavedId(board.id)

@@ -102,30 +102,104 @@ export interface BoardSnapshot {
   labels: boolean
 }
 
-export function snapshotBoard(runIds: string[]): BoardSnapshot {
+/**
+ * @param areas Each area on the board, by the RUN it will be reopened as, with
+ *   the scene ids actually on it.
+ *
+ * Not the `added` map. That records what someone ADDED, and the map's own area
+ * adds nothing -- its layers arrive from the map -- so a board saved from it
+ * recorded the run and not one raster of it. Reopened, the area came back
+ * empty, the board had nothing to show, and its mount condition read false: the
+ * menu closed and nothing happened.
+ *
+ * Membership is what a saved board is made of, so membership is what is saved.
+ * It is also what makes reopening symmetric: every area comes back as a loaded
+ * run, whichever one happened to be the map's when it was written.
+ */
+/*
+  The map's own area is called `current` while the board is open and comes back
+  as its run's id. Everything else the board remembers is keyed by an area --
+  names by row, order and places by area, the rest by area and layer together --
+  so a snapshot taken as written would carry keys naming an area that will not
+  exist on the other side. The name given to a stack, the order set on it and
+  the place it was dragged to would all be orphaned, silently.
+
+  So the keys are rewritten on the way out. Three shapes, because the board has
+  three: an area id on its own, an area and a layer joined by a null, and a row
+  id whose second segment is the area.
+*/
+function renameArea(from: string, to: string) {
+  const byArea = (k: string) => (k === from ? to : k)
+  const byScene = (k: string) =>
+    k.startsWith(`${from}\u0000`) ? `${to}${k.slice(from.length)}` : k
+  const byRow = (k: string) => {
+    const parts = k.split("::")
+    if (parts.length >= 2 && parts[1] === from) {
+      parts[1] = to
+      return parts.join("::")
+    }
+    return k
+  }
+  const map = <T,>(o: Record<string, T>, f: (k: string) => string) =>
+    Object.fromEntries(Object.entries(o).map(([k, v]) => [f(k), v]))
+  const list = (a: readonly string[], f: (k: string) => string) => a.map(f)
+  return { byArea, byScene, byRow, map, list }
+}
+
+/**
+ * @param areas Each area on the board, by the RUN it will be reopened as, with
+ *   the scene ids actually on it.
+ * @param currentRunId The run the map's own area belongs to, so its keys can
+ *   be rewritten to the id it will carry when the board is opened again.
+ *
+ * Membership is taken from the areas rather than from the `added` map. That
+ * map records what someone ADDED, and the map's own area adds nothing -- its
+ * layers arrive from the map -- so a board saved from it recorded the run and
+ * not one raster of it. Reopened, the area came back empty, the board had
+ * nothing to show, and its mount condition read false: the menu closed and
+ * nothing happened.
+ */
+export function snapshotBoard(
+  areas: { runId: string; layerIds: string[] }[],
+  currentRunId?: string
+): BoardSnapshot {
+  const r = renameArea(CURRENT_AREA, currentRunId ?? CURRENT_AREA)
   return {
-    runIds,
-    added: Object.fromEntries(
-      Object.entries(
-        readBoardMemory<Record<string, readonly string[]>>("added", {})
-      ).map(([k, v]) => [k, [...v]])
+    runIds: areas.map((a) => a.runId),
+    added: Object.fromEntries(areas.map((a) => [a.runId, [...a.layerIds]])),
+    removed: r.list(
+      [...readBoardMemory<ReadonlySet<string>>("removed", new Set())],
+      r.byScene
     ),
-    removed: [...readBoardMemory<ReadonlySet<string>>("removed", new Set())],
-    flat: [...readBoardMemory<ReadonlySet<string>>("flat", new Set())],
-    order: { ...readBoardMemory<Record<string, string[]>>("order", {}) },
-    names: { ...readBoardMemory<Record<string, string>>("names", {}) },
-    extraState: {
-      ...readBoardMemory<
+    flat: r.list(
+      [...readBoardMemory<ReadonlySet<string>>("flat", new Set())],
+      r.byScene
+    ),
+    order: r.map(
+      readBoardMemory<Record<string, string[]>>("order", {}),
+      r.byArea
+    ),
+    names: r.map(
+      readBoardMemory<Record<string, string>>("names", {}),
+      r.byRow
+    ),
+    extraState: r.map(
+      readBoardMemory<
         Record<string, { opacity: number; visible: boolean }>
       >("extraState", {}),
-    },
-    places: { ...keptObject<Record<string, { x: number; z: number }>>("places", () => ({})) },
-    planePlaces: {
-      ...keptObject<Record<string, { x: number; z: number }>>(
+      r.byScene
+    ),
+    places: r.map(
+      keptObject<Record<string, { x: number; z: number }>>("places", () => ({})),
+      r.byArea
+    ),
+    planePlaces: r.map(
+      keptObject<Record<string, { x: number; z: number }>>(
         "planePlaces",
         () => ({})
       ),
-    },
+      r.byScene
+    ),
     gap: readBoardMemory("gap", 0.1),
     links: readBoardMemory("links", false),
     labels: readBoardMemory("labels", false),
