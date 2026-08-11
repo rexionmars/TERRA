@@ -913,14 +913,27 @@ export function createBoard(
         z1: Math.max(...group.outline.map((p) => p.z)),
       }
     : null
-  const ringFor = (card: CardPlane) =>
-    ringBox &&
-    Math.abs(card.width - (ringBox.x1 - ringBox.x0)) < 1e-6 &&
-    Math.abs(card.height - (ringBox.z1 - ringBox.z0)) < 1e-6 &&
-    Math.abs(card.x - (ringBox.x0 + ringBox.x1) / 2) < 1e-6 &&
-    Math.abs(card.z - (ringBox.z0 + ringBox.z1) / 2) < 1e-6
+  /*
+    A plane is the area when its rectangle is the ring's, near enough.
+
+    NOT exactly. A raster's extent is the area's bounding box snapped OUT to
+    whole pixels of the source imagery, so it is always a little larger than
+    the polygon and never equal to it -- an exact test, which is what this was,
+    matched nothing and every plane kept its box. The tolerance is a twentieth
+    of the plane's longer side, which absorbs a snap of some tens of pixels and
+    still refuses a composition covering a different field.
+  */
+  const ringFor = (card: CardPlane) => {
+    if (!ringBox) return null
+    const tol = Math.max(card.width, card.height) * 0.05
+    const near = (a: number, b: number) => Math.abs(a - b) <= tol
+    return near(card.width, ringBox.x1 - ringBox.x0) &&
+      near(card.height, ringBox.z1 - ringBox.z0) &&
+      near(card.x, (ringBox.x0 + ringBox.x1) / 2) &&
+      near(card.z, (ringBox.z0 + ringBox.z1) / 2)
       ? group.outline!
       : null
+  }
   rt.cards.forEach((card, index) => {
     const order = drawIndex++
     loader.load(card.uri, (t) => {
