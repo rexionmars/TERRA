@@ -28,6 +28,7 @@ import { useRef } from "react"
 import {
   ChevronDown,
   ChevronRight,
+  Download,
   Droplet,
   Eye,
   EyeOff,
@@ -37,11 +38,25 @@ import {
   Layers,
   type LucideIcon,
   Sun,
+  Trash2,
   Wrench,
 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
+import type { RunAsset } from "@/lib/runAssets"
+import { exportPng, exportTif } from "@/lib/runAssets"
 import { NumberField } from "@/components/isolate/NumberField"
 import { cn } from "@/lib/utils"
+
+/**
+ * What the column is listing.
+ *
+ * The outliner in the editor this follows has the same switch, and for the
+ * same reason: a scene and the data behind it are two different questions, and
+ * a column that answered both at once would answer neither at the width it
+ * has. "Scene" is what is on the board and can be arranged; "Data" is what the
+ * run produced, drawn or not, and what can be exported or dropped.
+ */
+export type OutlinerMode = "scene" | "data"
 
 export interface LayerPatch {
   visible?: boolean
@@ -106,20 +121,37 @@ interface Row {
 
 export function BoardSidebar({
   layers,
+  assets,
+  mode,
   areaLabel,
   activeRow,
+  activeAsset,
   expanded,
   gap,
   gapMax,
   smooth,
+  onModeChange,
   onActivate,
+  onActivateAsset,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
   onSmoothChange,
+  onSelectComposition,
+  onRemoveComposition,
 }: {
   /** Every layer the run could draw, bottom of the stack first. */
   layers: RasterLayer[]
+  /** Everything the run produced, drawn or not. */
+  assets: RunAsset[]
+  mode: OutlinerMode
+  /** The asset the panel is describing, in data mode. */
+  activeAsset: string | null
+  onModeChange: (m: OutlinerMode) => void
+  onActivateAsset: (id: string) => void
+  /** Switches the board to a composition from the gallery. */
+  onSelectComposition?: (id: string) => void
+  onRemoveComposition?: (id: string) => void
   /** Names the collection row, as the scene's own name does in an outliner. */
   areaLabel: string
   /** The row the panel below is editing, and the plane the board outlines. */
@@ -213,6 +245,8 @@ export function BoardSidebar({
   const activeLayer =
     layers.find((l) => l.id === rowLayerId(activeRow)) ?? null
 
+  const asset = assets.find((a) => a.id === activeAsset) ?? assets[0] ?? null
+
   const rowRefs = useRef(new Map<string, HTMLElement>())
 
   /**
@@ -284,158 +318,278 @@ export function BoardSidebar({
       }}
     >
       <div
-        className="flex items-center justify-between border-b px-3 py-2"
+        className="flex items-center justify-between gap-2 border-b px-2 py-1.5"
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
       >
-        <p className="eyebrow !text-[9px]">Outliner</p>
-        {layers.length > 0 && (
-          <span className="telemetry text-meta text-muted-foreground">
-            {layers.filter((l) => l.visible).length}/{layers.length}
-          </span>
-        )}
+        {/*
+          Two buttons rather than a dropdown. There are exactly two modes and
+          both fit; a menu would hide one of them behind a click and make the
+          column's own state something you have to open something to read.
+        */}
+        <div
+          role="tablist"
+          aria-label="What the outliner lists"
+          className="flex gap-0.5"
+        >
+          {(
+            [
+              ["scene", "Scene", Layers],
+              ["data", "Data", ImageIcon],
+            ] as const
+          ).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={mode === id}
+              onClick={() => onModeChange(id)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-sm px-2 py-1 text-meta transition-colors",
+                "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                mode === id
+                  ? "bg-surface-raised text-foreground"
+                  : "text-muted-foreground hover:bg-surface-raised/40"
+              )}
+            >
+              <Icon className="size-3" strokeWidth={1.75} />
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="telemetry shrink-0 text-meta text-muted-foreground">
+          {mode === "scene"
+            ? layers.length > 0
+              ? `${layers.filter((l) => l.visible).length}/${layers.length}`
+              : null
+            : assets.length || null}
+        </span>
       </div>
 
       {/*
         The tree takes the height that is left and the panels keep the foot, so
         the space that grows is the space rasters are added to.
       */}
-      <div
-        role="tree"
-        aria-label="Layers on the board"
-        onKeyDown={onKeyDown}
-        className="min-h-0 flex-1 overflow-y-auto py-1"
-      >
-        {rows.map((row) => {
-          const isActive = row.id === activeRow
-          const isOpen = expanded.has(row.id)
-          return (
-            <div
-              key={row.id}
-              ref={(el) => {
-                if (el) rowRefs.current.set(row.id, el)
-                else rowRefs.current.delete(row.id)
-              }}
-              role="treeitem"
-              aria-level={row.depth + 1}
-              aria-posinset={row.posinset}
-              aria-setsize={row.setsize}
-              aria-selected={isActive}
-              aria-expanded={row.expandable ? isOpen : undefined}
-              tabIndex={isActive ? 0 : -1}
-              onClick={() => onActivate(row.id)}
-              onKeyDown={(e) => {
-                /*
-                  Only when the row itself has focus. A press on the eye bubbles
-                  to here, and calling preventDefault on it would cancel the
-                  button's own activation -- so Space on the eye would select
-                  the row instead of toggling the layer.
-                */
-                if (e.target !== e.currentTarget) return
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault()
-                  onActivate(row.id)
-                }
-              }}
-              className={cn(
-                "flex cursor-default select-none items-center gap-1.5 py-[3px] pr-2 transition-colors",
-                "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-                isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40",
-                row.dimmed && !isActive && "opacity-50"
-              )}
-              // Indent by depth, from a fixed gutter. Inline because the depth
-              // is data: a Tailwind class per level would be a class per level.
-              style={{ paddingLeft: `${0.375 + row.depth * 0.75}rem` }}
-            >
-              {/*
-                The disclosure keeps its width on every row, expandable or not,
-                so the icons and names below a parent line up with each other
-                instead of stepping in and out with the shape of the tree.
-              */}
-              {row.expandable ? (
+      {mode === "scene" ? (
+        <div
+          role="tree"
+          aria-label="Layers on the board"
+          onKeyDown={onKeyDown}
+          className="min-h-0 flex-1 overflow-y-auto py-1"
+        >
+          {rows.map((row) => {
+            const isActive = row.id === activeRow
+            const isOpen = expanded.has(row.id)
+            return (
+              <div
+                key={row.id}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(row.id, el)
+                  else rowRefs.current.delete(row.id)
+                }}
+                role="treeitem"
+                aria-level={row.depth + 1}
+                aria-posinset={row.posinset}
+                aria-setsize={row.setsize}
+                aria-selected={isActive}
+                aria-expanded={row.expandable ? isOpen : undefined}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => onActivate(row.id)}
+                onKeyDown={(e) => {
+                  /*
+                    Only when the row itself has focus. A press on the eye bubbles
+                    to here, and calling preventDefault on it would cancel the
+                    button's own activation -- so Space on the eye would select
+                    the row instead of toggling the layer.
+                  */
+                  if (e.target !== e.currentTarget) return
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onActivate(row.id)
+                  }
+                }}
+                className={cn(
+                  "flex cursor-default select-none items-center gap-1.5 py-[3px] pr-2 transition-colors",
+                  "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                  isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40",
+                  row.dimmed && !isActive && "opacity-50"
+                )}
+                // Indent by depth, from a fixed gutter. Inline because the depth
+                // is data: a Tailwind class per level would be a class per level.
+                style={{ paddingLeft: `${0.375 + row.depth * 0.75}rem` }}
+              >
+                {/*
+                  The disclosure keeps its width on every row, expandable or not,
+                  so the icons and names below a parent line up with each other
+                  instead of stepping in and out with the shape of the tree.
+                */}
+                {row.expandable ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleExpanded(row.id)
+                    }}
+                    tabIndex={-1}
+                    aria-hidden
+                    className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {isOpen ? (
+                      <ChevronDown className="size-3" />
+                    ) : (
+                      <ChevronRight className="size-3" />
+                    )}
+                  </button>
+                ) : (
+                  <span className="size-3 shrink-0" />
+                )}
+
+                <row.icon
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    isActive ? "text-accent" : "text-muted-foreground"
+                  )}
+                  strokeWidth={1.75}
+                />
+
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-emphasis",
+                    isActive ? "text-accent" : "text-muted-foreground"
+                  )}
+                >
+                  {row.title}
+                </span>
+
+                {/*
+                  Right-aligned, so the toggles form a column that stays readable
+                  however long the names get and however deep the tree goes.
+                  Toggling does not activate the row: hiding something is a
+                  glance at the stack, not a decision to start editing it.
+                */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    onToggleExpanded(row.id)
+                    row.toggle()
                   }}
-                  tabIndex={-1}
-                  aria-hidden
-                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                  // Roving with the row, so the toggles are two tab stops for
+                  // the whole tree rather than one per raster -- and so the eye
+                  // does not become mouse-only, which it was when every one of
+                  // them carried tabIndex -1.
+                  tabIndex={isActive ? 0 : -1}
+                  aria-pressed={row.visible}
+                  aria-label={`${row.visible ? "Hide" : "Show"} ${row.title}`}
+                  title={row.visible ? "Hide" : "Show"}
+                  className={cn(
+                    "shrink-0 transition-colors hover:text-foreground",
+                    row.visible ? "text-muted-foreground" : "text-muted-foreground/50"
+                  )}
                 >
-                  {isOpen ? (
-                    <ChevronDown className="size-3" />
+                  {row.visible ? (
+                    <Eye className="size-3.5" />
                   ) : (
-                    <ChevronRight className="size-3" />
+                    <EyeOff className="size-3.5" />
                   )}
                 </button>
-              ) : (
-                <span className="size-3 shrink-0" />
-              )}
+              </div>
+            )
+          })}
 
-              <row.icon
-                className={cn(
-                  "size-3.5 shrink-0",
-                  isActive ? "text-accent" : "text-muted-foreground"
-                )}
-                strokeWidth={1.75}
-              />
-
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-emphasis",
-                  isActive ? "text-accent" : "text-muted-foreground"
-                )}
-              >
-                {row.title}
-              </span>
-
-              {/*
-                Right-aligned, so the toggles form a column that stays readable
-                however long the names get and however deep the tree goes.
-                Toggling does not activate the row: hiding something is a
-                glance at the stack, not a decision to start editing it.
-              */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  row.toggle()
-                }}
-                // Roving with the row, so the toggles are two tab stops for
-                // the whole tree rather than one per raster -- and so the eye
-                // does not become mouse-only, which it was when every one of
-                // them carried tabIndex -1.
+          {!rows.length && (
+            <p className="px-3 py-1 text-meta leading-relaxed text-muted-foreground">
+              Nothing to draw. Run a product and its raster appears here.
+            </p>
+          )}
+        </div>
+      ) : (
+        /*
+          What the run produced, drawn or not. The same set the overlay tools
+          panel lists as cards; here as rows, because a 15rem column cannot
+          hold a 64 px thumbnail, a description and two export buttons per
+          asset and still be read at a glance. The description and the actions
+          are in the panel below, for whichever row is active -- the same split
+          the scene mode uses, for the same reason.
+        */
+        <div
+          role="listbox"
+          aria-label="Rasters this run produced"
+          className="min-h-0 flex-1 overflow-y-auto py-1"
+        >
+          {assets.map((a) => {
+            const isActive = a.id === asset?.id
+            return (
+              <div
+                key={a.id}
+                role="option"
+                aria-selected={isActive}
                 tabIndex={isActive ? 0 : -1}
-                aria-pressed={row.visible}
-                aria-label={`${row.visible ? "Hide" : "Show"} ${row.title}`}
-                title={row.visible ? "Hide" : "Show"}
+                onClick={() => onActivateAsset(a.id)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onActivateAsset(a.id)
+                  }
+                }}
                 className={cn(
-                  "shrink-0 transition-colors hover:text-foreground",
-                  row.visible ? "text-muted-foreground" : "text-muted-foreground/50"
+                  "flex cursor-default select-none items-center gap-2 py-[3px] pl-1.5 pr-2 transition-colors",
+                  "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                  isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40"
                 )}
               >
-                {row.visible ? (
-                  <Eye className="size-3.5" />
-                ) : (
-                  <EyeOff className="size-3.5" />
+                {/*
+                  A thumbnail rather than a type glyph: assets differ by what
+                  they show, not by what kind they are, and four of them are
+                  the same kind. Class rasters keep their hard edges here too
+                  -- a smoothed thumbnail of a classification shows colours
+                  between classes that no class has.
+                */}
+                <img
+                  src={a.previewUri}
+                  alt=""
+                  className={cn(
+                    "size-5 shrink-0 rounded-[2px] object-cover",
+                    a.pixelated && "overlay-thumb-crisp"
+                  )}
+                  style={{ border: "1px solid rgb(var(--p-line) / 0.3)" }}
+                />
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-emphasis",
+                    isActive ? "text-accent" : "text-muted-foreground"
+                  )}
+                >
+                  {a.title}
+                </span>
+                {/*
+                  Marks the one the board is drawing, which is the only thing
+                  about an asset that changes without the user touching this
+                  list.
+                */}
+                {a.onBoard && (
+                  <Eye
+                    className="size-3 shrink-0 text-accent"
+                    aria-label="On the board"
+                  />
                 )}
-              </button>
-            </div>
-          )
-        })}
+              </div>
+            )
+          })}
 
-        {!rows.length && (
-          <p className="px-3 py-1 text-meta leading-relaxed text-muted-foreground">
-            Nothing to draw. Run a product and its raster appears here.
-          </p>
-        )}
-      </div>
+          {!assets.length && (
+            <p className="px-3 py-1 text-meta leading-relaxed text-muted-foreground">
+              Nothing produced yet. Classify, map surface water, or apply a
+              composition.
+            </p>
+          )}
+        </div>
+      )}
 
       {/*
         The properties of whatever is active. One panel however many layers
         there are, and the place a new per-layer property goes.
       */}
-      {active && (
+      {mode === "scene" && active && (
         <div
           className="shrink-0 border-t px-3 py-2.5"
           style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
@@ -496,11 +650,61 @@ export function BoardSidebar({
       )}
 
       {/*
+        What the selected asset is, and what can be done with it.
+
+        The actions that were on every card in the overlay tools panel --
+        export, show, drop -- appear once, for the active row. A column this
+        narrow cannot carry four buttons per asset, and it does not have to:
+        they act on one thing at a time anyway.
+      */}
+      {mode === "data" && asset && (
+        <div
+          className="shrink-0 border-t px-3 py-2.5"
+          style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
+        >
+          <p className="eyebrow !text-[9px] truncate">{asset.title}</p>
+          <p className="telemetry mt-1 text-meta leading-snug text-muted-foreground">
+            {asset.params}
+          </p>
+
+          <div className="mt-2 flex flex-wrap gap-1">
+            {asset.selectId && onSelectComposition && (
+              <AssetAction
+                icon={Eye}
+                label={asset.onBoard ? "On board" : "Show"}
+                disabled={asset.onBoard}
+                onClick={() => onSelectComposition(asset.selectId!)}
+              />
+            )}
+            <AssetAction
+              icon={Download}
+              label="PNG"
+              onClick={() => void exportPng(asset)}
+            />
+            {asset.exportTif && (
+              <AssetAction
+                icon={Download}
+                label="GeoTIFF"
+                onClick={() => void exportTif(asset)}
+              />
+            )}
+            {asset.removeId && onRemoveComposition && (
+              <AssetAction
+                icon={Trash2}
+                label="Drop"
+                onClick={() => onRemoveComposition(asset.removeId!)}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/*
         Separation belongs to the view rather than to any one thing in the
         tree, so it stays out of the panel that edits one and stays visible
         whatever is active.
       */}
-      {layers.length > 1 && (
+      {mode === "scene" && layers.length > 1 && (
         <div
           className="shrink-0 border-t px-3 py-2.5"
           style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
@@ -529,5 +733,36 @@ export function BoardSidebar({
         </div>
       )}
     </div>
+  )
+}
+
+/** One action on the active asset. Small, and the same size as its siblings. */
+function AssetAction({
+  icon: Icon,
+  label,
+  disabled,
+  onClick,
+}: {
+  icon: LucideIcon
+  label: string
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "inline-flex h-[1.375rem] items-center gap-1 rounded-sm bg-surface-raised px-1.5 text-meta transition-colors",
+        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+        disabled
+          ? "cursor-not-allowed text-muted-foreground opacity-45"
+          : "text-muted-foreground hover:bg-surface-raised/80 hover:text-foreground"
+      )}
+    >
+      <Icon className="size-3" strokeWidth={1.75} />
+      {label}
+    </button>
   )
 }

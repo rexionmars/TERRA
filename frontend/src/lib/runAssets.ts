@@ -1,0 +1,309 @@
+/**
+ * What a run produced, as data rather than as cards.
+ *
+ * The overlay tools panel derived this inline: six blocks pushing JSX, each
+ * assembling its own descriptive line and its own export call, inside a
+ * useMemo three hundred lines long. That was tolerable while one surface
+ * listed them. The board's outliner lists the same set with the same actions,
+ * and a second derivation would disagree with the first within a release --
+ * silently, because both would look plausible. It is the same reason
+ * lib/mapLayers.ts exists.
+ *
+ * An asset is described here without saying how it is presented. The panel
+ * turns one into a card with a 64 px thumbnail and a row of buttons; the
+ * board's column turns one into a row of text with its actions in the
+ * properties panel below. Neither belongs in a table about which rasters a run
+ * produced.
+ *
+ * Distinct from lib/mapLayers.ts, and the distinction is not a technicality: a
+ * LAYER is something drawn over the AOI right now, with a stacking order and
+ * an opacity. An ASSET is something the run produced, whether or not anything
+ * is drawing it. NDVI mean and the true-colour scene are assets and never
+ * layers; the classification is both.
+ */
+import {
+  ExportClassification,
+  ExportOverlayFile,
+} from "../../wailsjs/go/main/App"
+import { notifyExportFail, notifyExportOk } from "@/lib/notify"
+import type {
+  CompositionOverlay,
+  ModelKind,
+  PredictResult,
+  WaterAnalysis,
+} from "@/lib/types"
+
+/** How a GeoTIFF leaves the application. */
+export type TifExport =
+  /** The classification's own raster, which the backend writes itself. */
+  | { via: "classification"; src: string }
+  /** Any other file already on disk, copied to where the user chooses. */
+  | { via: "file"; src: string; filename: string }
+
+export interface RunAsset {
+  id: string
+  title: string
+  /** The one-line description under the title: bands, dates, model, counts. */
+  params: string
+  previewUri: string
+  /** Class raster: its thumbnail must not be smoothed either. */
+  pixelated: boolean
+  /**
+   * Whether something is drawing it at this moment.
+   *
+   * Only meaningful where the asset has a switch. A prediction is always drawn
+   * when it exists, so it reports false rather than claiming a state it does
+   * not own.
+   */
+  onBoard: boolean
+  /** The composition to switch to, for assets that are one. */
+  selectId: string | null
+  /** The composition to drop from the gallery, for assets that are one. */
+  removeId: string | null
+  exportPng: { src: string; filename: string }
+  exportTif: TifExport | null
+}
+
+function modelLabel(kind?: ModelKind): string {
+  switch (kind) {
+    case "prithvi":
+      return "Prithvi-EO"
+    case "temporal_transformer":
+      return "Temporal Transformer"
+    case "spectral":
+      return "Random Forest"
+    default:
+      return kind || "model"
+  }
+}
+
+function fileStem(title: string): string {
+  return title.replace(/\s+/g, "_").toLowerCase()
+}
+
+function dateRange(range?: string[] | null): string | null {
+  return range?.length === 2 ? `${range[0]} → ${range[1]}` : null
+}
+
+export interface RunAssetInput {
+  result: PredictResult | null
+  composition: CompositionOverlay | null
+  compositionGallery: CompositionOverlay[]
+  water: WaterAnalysis | null | undefined
+  areaLabel?: string
+  modelKind?: ModelKind
+  /** The date of the scene the current composition was built from. */
+  composeSceneDate?: string | null
+  showCompositionOverlay: boolean
+  showWaterOverlay: boolean
+  composeOpacity: number
+  waterOpacity: number
+}
+
+/**
+ * The gallery, falling back to the one composition in hand.
+ *
+ * A run that produced a composition without the gallery having caught up still
+ * has something to list, and which of the two supplied it has never been the
+ * caller's business.
+ */
+export function compositionList(i: {
+  composition: CompositionOverlay | null
+  compositionGallery: CompositionOverlay[]
+}): CompositionOverlay[] {
+  if (i.compositionGallery.length > 0) return i.compositionGallery
+  return i.composition?.overlay_uri ? [i.composition] : []
+}
+
+/** Everything this run produced, in the order it is worth reading. */
+export function runAssets(i: RunAssetInput): RunAsset[] {
+  const out: RunAsset[] = []
+  const r = i.result
+
+  if (r?.overlay_uri) {
+    out.push({
+      id: "prediction",
+      title: "Prediction",
+      params: [
+        i.areaLabel?.trim() || null,
+        modelLabel(i.modelKind),
+        r.n_dates > 0 ? `${r.n_dates} scenes` : null,
+        dateRange(r.date_range),
+        r.mean_confidence > 0
+          ? `conf ${(r.mean_confidence * 100).toFixed(0)}%`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: r.overlay_uri,
+      pixelated: true,
+      onBoard: false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: r.overlay_uri, filename: "terra_prediction.png" },
+      exportTif: r.raster_tif
+        ? { via: "classification", src: r.raster_tif }
+        : null,
+    })
+  }
+
+  if (r?.confidence_uri) {
+    out.push({
+      id: "confidence",
+      title: "Confidence",
+      params: [
+        "from classification",
+        r.mean_confidence > 0
+          ? `mean ${(r.mean_confidence * 100).toFixed(0)}%`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: r.confidence_uri,
+      pixelated: false,
+      onBoard: false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: r.confidence_uri, filename: "terra_confidence.png" },
+      exportTif: null,
+    })
+  }
+
+  if (r?.ndvi_mean_uri) {
+    out.push({
+      id: "ndvi",
+      title: "NDVI mean",
+      params: ["temporal mean NDVI", dateRange(r.date_range)]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: r.ndvi_mean_uri,
+      pixelated: false,
+      onBoard: false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: r.ndvi_mean_uri, filename: "terra_ndvi_mean.png" },
+      exportTif: null,
+    })
+  }
+
+  if (r?.true_color_uri) {
+    out.push({
+      id: "true-color",
+      title: "Satellite true color",
+      params: ["peak-NDVI scene · B04-B03-B02", dateRange(r.date_range)]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: r.true_color_uri,
+      pixelated: false,
+      onBoard: false,
+      selectId: null,
+      removeId: null,
+      exportPng: { src: r.true_color_uri, filename: "terra_true_color.png" },
+      exportTif: null,
+    })
+  }
+
+  const w = i.water
+  if (w?.occurrence_uri) {
+    out.push({
+      id: "water-occurrence",
+      title: "Surface water occurrence",
+      params: [
+        w.index,
+        w.n_dates > 0 ? `${w.n_dates} dates` : null,
+        dateRange(w.date_range),
+        `opacity ${Math.round(i.waterOpacity * 100)}%`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: w.occurrence_uri,
+      pixelated: true,
+      onBoard: i.showWaterOverlay,
+      selectId: null,
+      removeId: null,
+      exportPng: {
+        src: w.occurrence_uri,
+        filename: "terra_water_occurrence.png",
+      },
+      exportTif: null,
+    })
+  }
+
+  for (const item of compositionList(i)) {
+    if (!item.overlay_uri) continue
+    const title = item.title || item.label || "Composition"
+    const bandOrIndex =
+      item.kind === "index" && item.index
+        ? item.index.toUpperCase()
+        : item.bands?.join("-")
+    out.push({
+      id: item.id || item.overlay_uri,
+      title,
+      params: [
+        bandOrIndex,
+        item.sceneDate ||
+          (item.id === i.composition?.id ? i.composeSceneDate : null) ||
+          null,
+        item.kind === "rgb"
+          ? "RGB composite"
+          : item.kind === "index"
+            ? "Spectral index"
+            : null,
+        `opacity ${Math.round((item.opacity ?? i.composeOpacity) * 100)}%`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: item.overlay_uri,
+      pixelated: false,
+      onBoard: i.composition?.id === item.id && i.showCompositionOverlay,
+      selectId: item.id || null,
+      removeId: item.id || null,
+      exportPng: {
+        src: item.overlay_uri,
+        filename: `terra_${fileStem(title)}.png`,
+      },
+      exportTif: item.raster_tif
+        ? {
+            via: "file",
+            src: item.raster_tif,
+            filename: `terra_${fileStem(title)}.tif`,
+          }
+        : null,
+    })
+  }
+
+  return out
+}
+
+/**
+ * Writes an asset out, and reports what happened.
+ *
+ * Here rather than at each surface for the same reason as the table above: two
+ * places calling the bindings would be two chances to differ over the file
+ * name, over which binding a GeoTIFF goes through, or over whether a failure
+ * is reported at all.
+ */
+export async function exportPng(a: RunAsset): Promise<void> {
+  try {
+    const dest = await ExportOverlayFile(a.exportPng.src, a.exportPng.filename)
+    if (dest) notifyExportOk(dest)
+  } catch (e) {
+    notifyExportFail(e)
+  }
+}
+
+export async function exportTif(a: RunAsset): Promise<void> {
+  if (!a.exportTif) return
+  try {
+    const t = a.exportTif
+    // The classification's raster goes through its own binding: the backend
+    // writes that file rather than copying one that already exists.
+    const dest =
+      t.via === "classification"
+        ? await ExportClassification(t.src)
+        : await ExportOverlayFile(t.src, t.filename)
+    if (dest) notifyExportOk(dest)
+  } catch (e) {
+    notifyExportFail(e)
+  }
+}

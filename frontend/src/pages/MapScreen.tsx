@@ -23,6 +23,7 @@ import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import type { MapToolId } from "@/lib/mapTools"
 import { rasterLayers } from "@/lib/mapLayers"
+import { runAssets } from "@/lib/runAssets"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
@@ -284,6 +285,26 @@ export function MapScreen(props: MapScreenProps) {
    * where the board is gone and what it replaced is still hidden.
    */
   const boardOpen = isolate && boardLayers.length > 0
+
+  /*
+    The same table the overlay tools panel lists, so the board's data mode and
+    that panel cannot come to disagree about what the run produced.
+  */
+  const boardAssets = runAssets({
+    result: props.result,
+    composition: props.composition,
+    compositionGallery: props.compositionGallery ?? [],
+    water: props.water,
+    areaLabel: props.areaLabel,
+    modelKind: props.modelKind,
+    composeSceneDate:
+      props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
+      null,
+    showCompositionOverlay: props.showCompositionOverlay,
+    showWaterOverlay: props.showWaterOverlay,
+    composeOpacity: props.composeOpacity,
+    waterOpacity: props.waterOpacity,
+  })
 
   const changeBoardLayer = (id: string, patch: { visible?: boolean; opacity?: number }) => {
     if (id === "composition") {
@@ -618,7 +639,10 @@ export function MapScreen(props: MapScreenProps) {
             <IsolateBoard
               key="isolate-board"
               layers={boardLayers}
+              assets={boardAssets}
               onLayerChange={changeBoardLayer}
+              onSelectComposition={props.onSelectComposition}
+              onRemoveComposition={props.onRemoveComposition}
               smooth={props.smoothOverlay}
               onSmoothChange={props.onSmoothOverlayChange}
               title={props.areaLabel || "Analysis"}

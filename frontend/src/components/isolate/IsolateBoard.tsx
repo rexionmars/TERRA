@@ -15,11 +15,13 @@ import { motion } from "motion/react"
 import { X } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/isolate/BoardSidebar"
+import type { OutlinerMode } from "@/components/isolate/BoardSidebar"
 import {
   BoardSidebar,
   COLLECTION_ROW,
   rowLayerId,
 } from "@/components/isolate/BoardSidebar"
+import type { RunAsset } from "@/lib/runAssets"
 import type { CardPlane } from "@/lib/isolateCards"
 import { layoutCards } from "@/lib/isolateCards"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -73,7 +75,10 @@ function sameStructure(a: CardPlane[], b: CardPlane[]): boolean {
 
 export function IsolateBoard({
   layers,
+  assets,
   onLayerChange,
+  onSelectComposition,
+  onRemoveComposition,
   smooth,
   onSmoothChange,
   title,
@@ -88,7 +93,17 @@ export function IsolateBoard({
    * rather than building only the visible set -- see CardPlane.visible.
    */
   layers: RasterLayer[]
+  /**
+   * Everything the run produced, drawn or not.
+   *
+   * Separate from `layers` because they answer different questions: a layer is
+   * something the board is stacking, an asset is something the run made. NDVI
+   * mean and the true-colour scene are assets and never layers.
+   */
+  assets: RunAsset[]
   onLayerChange: (id: string, patch: LayerPatch) => void
+  onSelectComposition?: (id: string) => void
+  onRemoveComposition?: (id: string) => void
   /** The map's majority filter, carried across so the board can change it. */
   smooth: boolean
   onSmoothChange: (v: boolean) => void
@@ -142,6 +157,16 @@ export function IsolateBoard({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set([COLLECTION_ROW])
   )
+
+  /**
+   * What the column is listing, and which asset it is describing.
+   *
+   * Opens on the scene, because the board is the reason this surface exists
+   * and the tree is what governs it. The data list is where the run's output
+   * is read and exported, which is a thing you go looking for.
+   */
+  const [mode, setMode] = useState<OutlinerMode>("scene")
+  const [activeAsset, setActiveAsset] = useState<string | null>(null)
   const toggleExpanded = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -278,6 +303,13 @@ export function IsolateBoard({
 
       <BoardSidebar
         layers={layers}
+        assets={assets}
+        mode={mode}
+        onModeChange={setMode}
+        activeAsset={activeAsset}
+        onActivateAsset={setActiveAsset}
+        onSelectComposition={onSelectComposition}
+        onRemoveComposition={onRemoveComposition}
         areaLabel={title}
         activeRow={active}
         expanded={expanded}
