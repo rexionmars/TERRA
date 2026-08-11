@@ -84,7 +84,7 @@ export interface LayerPatch {
   keep the three kinds of row apart from each other and from the data tree's.
 */
 export const stackRow = (areaId: string) => `stack::${areaId}`
-const layerRow = (areaId: string, layerId: string) =>
+export const layerRow = (areaId: string, layerId: string) =>
   `layer::${areaId}::${layerId}`
 const modifierRow = (areaId: string, layerId: string) =>
   `mod::${areaId}::${layerId}`

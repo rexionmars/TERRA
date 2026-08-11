@@ -18,6 +18,7 @@ import type { LayerPatch } from "@/components/isolate/BoardSidebar"
 import type { OutlinerMode } from "@/components/isolate/BoardSidebar"
 import {
   BoardSidebar,
+  layerRow,
   rowTarget,
   sceneKey,
   stackRow,
@@ -633,9 +634,20 @@ export function IsolateBoard({
         // Current at the moment of the build, whatever the cards were created
         // with -- the cards are kept stable on purpose and are older than this.
         appearance: appearanceRef.current,
-        // Read through refs for the same reason `onClose` is: an inline
-        // closure here is new on every render and would rebuild the scene.
-        onSelect: (_groupId, id) => setActiveRow(id),
+        /*
+          A ROW id, not a layer id.
+
+          Rows carry the area they belong to -- two areas both have a layer
+          called `prediction` -- and this handed the tree a bare layer id,
+          which rowTarget cannot parse. The tree then read the active row as
+          dead and fell back to its default: the topmost layer of the first
+          area. So pressing any plane selected the confidence raster, whatever
+          had been pressed, and the outline followed it.
+
+          Read through refs for the same reason `onClose` is: an inline closure
+          here is new on every render and would rebuild the scene.
+        */
+        onSelect: (groupId, id) => setActiveRow(layerRow(groupId, id)),
         onMove: (groupId, layerId, x, z) => {
           if (layerId === null) {
             placesRef.current = { ...placesRef.current, [groupId]: { x, z } }
