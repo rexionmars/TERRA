@@ -119,6 +119,14 @@ interface Row {
   expandable: boolean
   /** Greyed, for a row whose own layer is hidden. */
   dimmed: boolean
+  /**
+   * The id to take out of the stack, for rows that are a plane.
+   *
+   * Beside the eye rather than only in the data list: hiding and removing are
+   * the two things you do to something in a scene, and sending one of them to
+   * another tab means changing tabs to undo what you just looked at.
+   */
+  removeId: string | null
 }
 
 export function BoardSidebar({
@@ -136,8 +144,8 @@ export function BoardSidebar({
   onModeChange,
   onActivate,
   onActivateAsset,
-  onAddAsset,
-  onRemoveAsset,
+  onAddToScene,
+  onRemoveFromScene,
   onToggleExpanded,
   onGapChange,
   onLayerChange,
@@ -157,8 +165,9 @@ export function BoardSidebar({
    * distinction the data list exists to let someone change.
    */
   sceneIds: ReadonlySet<string>
-  onAddAsset: (id: string) => void
-  onRemoveAsset: (id: string) => void
+  /** Both take an id in the SCENE's space -- see RunAsset.sceneId. */
+  onAddToScene: (id: string) => void
+  onRemoveFromScene: (id: string) => void
   mode: OutlinerMode
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
@@ -210,6 +219,9 @@ export function BoardSidebar({
         layers.forEach((l) => onLayerChange(l.id, { visible: !allVisible })),
       expandable: true,
       dimmed: false,
+      // The stack itself is not taken out of the stack; closing the board is
+      // what that would mean.
+      removeId: null,
       posinset: 1,
       setsize: 1,
     })
@@ -228,6 +240,7 @@ export function BoardSidebar({
       toggle: () => onLayerChange(l.id, { visible: !l.visible }),
       expandable: hasModifier,
       dimmed: !l.visible,
+      removeId: l.id,
       posinset: stack.indexOf(l) + 1,
       setsize: stack.length,
     })
@@ -241,6 +254,8 @@ export function BoardSidebar({
         toggle: () => onSmoothChange(!smooth),
         expandable: false,
         dimmed: !l.visible,
+        // A transform is not a plane; it leaves with the raster it acts on.
+        removeId: null,
         posinset: 1,
         setsize: 1,
       })
@@ -481,6 +496,25 @@ export function BoardSidebar({
                   Toggling does not activate the row: hiding something is a
                   glance at the stack, not a decision to start editing it.
                 */}
+                {/*
+                  Left of the eye, so the eyes stay in one column down the
+                  whole tree whether or not a row can be removed.
+                */}
+                {row.removeId && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRemoveFromScene(row.removeId!)
+                    }}
+                    tabIndex={-1}
+                    aria-label={`Remove ${row.title} from the board`}
+                    title="Remove from the board"
+                    className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
+                  >
+                    <Minus className="size-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -584,11 +618,11 @@ export function BoardSidebar({
                   so rather than putting the raster across the null island.
                 */}
                 <SceneToggle
-                  inScene={sceneIds.has(a.id)}
+                  inScene={sceneIds.has(a.sceneId)}
                   placeable={!!a.extent}
                   title={a.title}
-                  onAdd={() => onAddAsset(a.id)}
-                  onRemove={() => onRemoveAsset(a.id)}
+                  onAdd={() => onAddToScene(a.sceneId)}
+                  onRemove={() => onRemoveFromScene(a.sceneId)}
                 />
               </div>
             )
@@ -692,17 +726,17 @@ export function BoardSidebar({
               someone looks for what can be DONE with a thing is the panel.
             */}
             {asset.extent &&
-              (sceneIds.has(asset.id) ? (
+              (sceneIds.has(asset.sceneId) ? (
                 <AssetAction
                   icon={Minus}
                   label="Remove"
-                  onClick={() => onRemoveAsset(asset.id)}
+                  onClick={() => onRemoveFromScene(asset.sceneId)}
                 />
               ) : (
                 <AssetAction
                   icon={Plus}
                   label="Add"
-                  onClick={() => onAddAsset(asset.id)}
+                  onClick={() => onAddToScene(asset.sceneId)}
                 />
               ))}
             {asset.selectId && onSelectComposition && (

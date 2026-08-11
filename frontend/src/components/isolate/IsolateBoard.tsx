@@ -152,10 +152,15 @@ export function IsolateBoard({
 
   const baseIds = new Set(layers.map((l) => l.id))
   const extraLayers: RasterLayer[] = added
-    .map((id) => assets.find((a) => a.id === id))
-    .filter((a): a is RunAsset => !!a && !!a.extent && !baseIds.has(a.id))
+    // Matched on the id the asset carries IN THE SCENE, not its own. The two
+    // differ for the water raster and for the active composition, and those
+    // are base layers -- so today they never reach this list. Matching on the
+    // scene id anyway means a later asset whose two ids differ cannot slip
+    // through as a plane that nothing can find again.
+    .map((id) => assets.find((a) => a.sceneId === id))
+    .filter((a): a is RunAsset => !!a && !!a.extent && !baseIds.has(a.sceneId))
     .map((a, n) => ({
-      id: a.id,
+      id: a.sceneId,
       title: a.title,
       uri: a.previewUri,
       extent: a.extent!,
@@ -421,8 +426,8 @@ export function IsolateBoard({
         layers={stackLayers}
         assets={assets}
         sceneIds={sceneIds}
-        onAddAsset={addToScene}
-        onRemoveAsset={removeFromScene}
+        onAddToScene={addToScene}
+        onRemoveFromScene={removeFromScene}
         mode={mode}
         onModeChange={setMode}
         activeAsset={activeAsset}

@@ -44,6 +44,21 @@ export type TifExport =
 
 export interface RunAsset {
   id: string
+  /**
+   * The id this asset carries when it is a plane on the board.
+   *
+   * Not always its own, and the difference is not cosmetic: the water raster
+   * is the asset `water-occurrence` and the layer `water`, and the active
+   * composition is one gallery entry among many but the single layer
+   * `composition`. Asking whether an asset is in the stack by its own id
+   * answered no for both, which offered to add a raster that was already
+   * there -- and adding it would have built a second plane over the first.
+   *
+   * A gallery composition that is NOT the active one has no layer of its own,
+   * so it keeps its own id and goes on the board as an addition. That is the
+   * case that makes two compositions on one board possible.
+   */
+  sceneId: string
   title: string
   /** The one-line description under the title: bands, dates, model, counts. */
   params: string
@@ -139,6 +154,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
   if (r?.overlay_uri) {
     out.push({
       id: "prediction",
+      sceneId: "prediction",
       title: "Prediction",
       params: [
         i.areaLabel?.trim() || null,
@@ -167,6 +183,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
   if (r?.confidence_uri) {
     out.push({
       id: "confidence",
+      sceneId: "confidence",
       title: "Confidence",
       params: [
         "from classification",
@@ -190,6 +207,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
   if (r?.ndvi_mean_uri) {
     out.push({
       id: "ndvi",
+      sceneId: "ndvi",
       title: "NDVI mean",
       params: ["temporal mean NDVI", dateRange(r.date_range)]
         .filter(Boolean)
@@ -208,6 +226,7 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
   if (r?.true_color_uri) {
     out.push({
       id: "true-color",
+      sceneId: "true-color",
       title: "Satellite true color",
       params: ["peak-NDVI scene · B04-B03-B02", dateRange(r.date_range)]
         .filter(Boolean)
@@ -227,6 +246,8 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
   if (w?.occurrence_uri) {
     out.push({
       id: "water-occurrence",
+      // lib/mapLayers.ts calls the same raster `water`.
+      sceneId: "water",
       title: "Surface water occurrence",
       params: [
         w.index,
@@ -259,6 +280,11 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         : item.bands?.join("-")
     out.push({
       id: item.id || item.overlay_uri,
+      // The active one IS the composition layer; the rest are their own.
+      sceneId:
+        item.id && item.id === i.composition?.id
+          ? "composition"
+          : item.id || item.overlay_uri,
       title,
       params: [
         bandOrIndex,
