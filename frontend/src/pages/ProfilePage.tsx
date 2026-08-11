@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
+  ArrowLeft,
   Camera,
   ChartColumn,
   Download,
@@ -34,6 +35,7 @@ import {
   layoutModeFromPrefs,
   mergePreferenceExtras,
 } from "@/lib/preferenceExtras"
+import { NAV_GROUPS } from "@/lib/navigation"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { formatBytes } from "@/lib/formatBytes"
 import { runRowLine } from "@/lib/runSummary"
@@ -98,6 +100,8 @@ export function ProfilePage({
     goAnalysis,
     settingsPage,
     consumeSettingsPage,
+    settingsReturnTo,
+    leaveSettings,
   } = useAuth()
   const { setTheme: setNextTheme } = useTheme()
   const [name, setName] = useState("")
@@ -208,6 +212,14 @@ export function ProfilePage({
   )
 
   const layoutMode = layoutModeFromPrefs(prefs)
+
+  /*
+    Named from the navigation table so the button and the column agree on what
+    the destination is called. A screen with no entry there -- there is none
+    today -- would fall back to the neutral word rather than to a blank.
+  */
+  const returnLabel =
+    NAV_GROUPS.find((g) => g.id === settingsReturnTo)?.label ?? "the map"
 
   const schedulePrefsSave = useCallback(
     (patch: Partial<{ theme: string; layoutMode: LayoutMode }>) => {
@@ -424,6 +436,34 @@ export function ProfilePage({
         {/* Whose settings, which the removed header used to say twice. The
             display name rather than the literal "User": it is the one thing
             here the title bar does not already carry. */}
+        {/*
+          The way out, named after where it goes.
+          
+          Settings is the only screen with no work of its own to return to, and
+          leaving it meant picking a destination from the navigation column --
+          which required remembering what you had been doing, and landed you
+          beside it rather than back in it: from the solar tab, the nearest
+          column entry is Classification, which is a different product on a
+          different screen.
+          
+          The label comes from the navigation table, so it is the same word the
+          column uses for the place it returns to.
+        */}
+        <button
+          type="button"
+          onClick={leaveSettings}
+          className={cn(
+            "flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-emphasis",
+            "text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground",
+            focusRing
+          )}
+        >
+          <ArrowLeft className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">
+            Back to {returnLabel}
+          </span>
+        </button>
+
         <div className="border-b border-border px-3 py-3">
           <p className="telemetry text-meta text-accent-quiet">SETTINGS</p>
           <p className="mt-1 truncate text-emphasis font-medium text-foreground">

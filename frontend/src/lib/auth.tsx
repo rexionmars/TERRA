@@ -51,6 +51,10 @@ interface AuthContextValue {
   settingsPage: SettingsPage | null
   /** Clears the above, so it steers one arrival rather than every one. */
   consumeSettingsPage: () => void
+  /** The screen settings was opened from, for naming the way out. */
+  settingsReturnTo: AppScreen
+  /** Return to that screen. */
+  leaveSettings: () => void
   navigate: (screen: AppScreen) => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
@@ -207,13 +211,36 @@ export function AuthProvider({
 
   const consumeSettingsPage = useCallback(() => setSettingsPage(null), [])
 
+  /**
+   * Where settings was opened from, so leaving it returns there.
+   *
+   * Only the screen is kept: the sub-tabs -- which map tool, which energy
+   * resource -- are held in App precisely so they survive a screen change, so
+   * returning to the screen restores the tab that was open on it.
+   *
+   * Settings is the one screen with no work of its own to go back to. Every
+   * other destination is a place the user chose; this one is a detour, and
+   * the only way out was to pick a destination from the column, which meant
+   * remembering what you had been doing and landing somewhere adjacent to it
+   * rather than back in it.
+   */
+  const [settingsReturnTo, setSettingsReturnTo] = useState<AppScreen>("map")
+
   const goProfile = useCallback(
     (page?: SettingsPage) => {
       setSettingsPage(page ?? null)
+      // Not from settings to settings: a second visit must not overwrite the
+      // work screen the first one recorded.
+      if (screen !== "profile" && screen !== "auth") setSettingsReturnTo(screen)
       setScreen(user ? "profile" : "auth")
     },
-    [user]
+    [user, screen]
   )
+
+  /** Leave settings for the screen it was opened from. */
+  const leaveSettings = useCallback(() => {
+    setScreen(settingsReturnTo)
+  }, [settingsReturnTo])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -230,6 +257,8 @@ export function AuthProvider({
       goEnergy: () => setScreen("energy"),
       settingsPage,
       consumeSettingsPage,
+      settingsReturnTo,
+      leaveSettings,
       navigate: setScreen,
       login,
       register,
@@ -250,6 +279,8 @@ export function AuthProvider({
       screen,
       settingsPage,
       consumeSettingsPage,
+      settingsReturnTo,
+      leaveSettings,
       goProfile,
       login,
       register,
