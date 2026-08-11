@@ -58,8 +58,20 @@ export interface RecordWindowBarProps {
   bands: RecordBand[]
   endYear: number
   disabled?: boolean
-  /** Left edge, so the bar starts after whatever column is open beside it. */
-  leftOffsetClass?: string
+  /**
+   * How far the bar's left edge is pushed in, as a CSS length.
+   *
+   * A length rather than a class, matching PeriodTimeline: the docked column is
+   * 19rem by construction, but the dock layout's island sizes to its own
+   * contents and reports what it measured.
+   */
+  leftOffset?: string
+  /**
+   * Whether what the bar retracts for sits on the frame rather than floating
+   * above it. The rounded corner exists to meet a floating panel; against a
+   * flush segment the two are one band and a curve reads as a misalignment.
+   */
+  flushLeft?: boolean
   /**
    * The bar's rendered height, reported rather than assumed.
    *
@@ -121,7 +133,8 @@ export function RecordWindowBar({
   bands,
   endYear,
   disabled,
-  leftOffsetClass = "left-0",
+  leftOffset,
+  flushLeft = false,
   onHeightChange,
 }: RecordWindowBarProps) {
   const ruleRef = useRef<HTMLDivElement | null>(null)
@@ -191,8 +204,9 @@ export function RecordWindowBar({
         // opens and closes, and an edge that jumped would read as a different
         // control appearing.
         "transition-[left] duration-200 ease-out",
-        leftOffsetClass
+        leftOffset && !flushLeft ? "rounded-tl-md" : null
       )}
+      style={{ left: leftOffset ?? 0 }}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 16 }}

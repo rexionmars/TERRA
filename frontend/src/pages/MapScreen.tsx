@@ -21,7 +21,8 @@ import { ControlPanel } from "@/components/ControlPanel"
 import { CompositionPanel } from "@/components/CompositionPanel"
 import { WaterPanel } from "@/components/WaterPanel"
 import { WaterStatusPanel } from "@/components/WaterStatusPanel"
-import type { MapToolId } from "@/lib/mapTools"
+import { Map as MapIcon } from "lucide-react"
+import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
 import type { LayoutMode } from "@/lib/types"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
@@ -243,7 +244,7 @@ export function MapScreen(props: MapScreenProps) {
    * the workspace layout's right drawer. Writing it twice would let the two
    * layouts drift in which props each panel receives.
    */
-  const renderPanel = (placement: PanelPlacement) => {
+  const renderPanel = (placement: PanelPlacement, show: boolean) => {
     /*
       Dismissing means different things in the two containers. Closing the
       docked column clears the open tool, because the column IS the tool
@@ -258,7 +259,7 @@ export function MapScreen(props: MapScreenProps) {
         : () => setLeftPanel(null)
     return (
       <AnimatePresence mode="wait" initial={false}>
-        {leftPanel === "classify" ? (
+        {!show ? null : leftPanel === "classify" ? (
           <ControlPanel
             key="classify"
             placement={placement}
@@ -436,8 +437,11 @@ export function MapScreen(props: MapScreenProps) {
         {workspace && (
           <WorkspaceBar
             key="workspace-bar"
-            tool={leftPanel}
-            onToolChange={setLeftPanel}
+            icon={MapIcon}
+            groupLabel="Map"
+            items={MAP_TOOLS}
+            activeId={leftPanel}
+            onSelect={(id) => setLeftPanel(id as MapToolId)}
             running={run.running}
             progress={run.progress}
             progressMsg={run.progressMsg}
@@ -511,8 +515,13 @@ export function MapScreen(props: MapScreenProps) {
         parameters open in a drawer from the bar instead, which is the same
         switch in the other container.
       */}
-      {workspace ? null : renderPanel("docked")}
-      {workspace && rightDrawer === "config" ? renderPanel("drawer") : null}
+      {renderPanel("docked", !workspace)}
+      {/*
+        The presence stays mounted and its child is what comes and goes. Gating
+        the AnimatePresence itself removed the exit animation: closing the
+        drawer unmounted the thing that was supposed to be animating it out.
+      */}
+      {renderPanel("drawer", workspace && rightDrawer === "config")}
 
       <AnimatePresence mode="wait" initial={false}>
         {showWaterStatus ? (

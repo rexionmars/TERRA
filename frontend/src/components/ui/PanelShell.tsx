@@ -113,23 +113,31 @@ export const PanelShell = forwardRef<
     >
       <div className="flex items-center justify-between">
         <h1 className="text-sm font-semibold">{title}</h1>
-        <button
-          type="button"
-          onClick={() => onCollapse?.()}
-          className="text-muted-foreground hover:text-foreground"
-          title="Hide panel"
-        >
-          {/*
-            A chevron pointing left means "fold back against the left edge",
-            which is what the docked column does and what a right-edge drawer
-            cannot do. The drawer closes instead, so it says so.
-          */}
-          {placement === "docked" ? (
-            <ChevronLeft className="size-4" />
-          ) : (
-            <X className="size-4" />
-          )}
-        </button>
+        {/*
+          Only where there is something to dismiss to. The energy screen's
+          column has never been collapsible -- it is the screen's only control
+          surface -- and a button that renders without a handler is one that
+          does nothing when pressed.
+        */}
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="text-muted-foreground hover:text-foreground"
+            title="Hide panel"
+          >
+            {/*
+              A chevron pointing left means "fold back against the left edge",
+              which is what the docked column does and what a right-edge drawer
+              cannot do. The drawer closes instead, so it says so.
+            */}
+            {placement === "docked" ? (
+              <ChevronLeft className="size-4" />
+            ) : (
+              <X className="size-4" />
+            )}
+          </button>
+        )}
       </div>
       {children}
     </motion.div>

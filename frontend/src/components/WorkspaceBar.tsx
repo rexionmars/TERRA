@@ -1,5 +1,5 @@
 /**
- * The workspace layout's control surface: which product, and run it.
+ * The dock layout's control surface: which product, and run it.
  *
  * It is an island, not a bar. PeriodTimeline already runs edge to edge along
  * the very bottom, welded to the frame by a `.panel` with its side and bottom
@@ -13,26 +13,29 @@
  * carry between them: which of the three map products is in view, and the
  * action that runs it.
  *
- * The products are aggregated behind one item rather than listed as three
- * peers, matching how the navigation column groups them. Three labels in a row
- * made the island as wide as half the window for a choice that changes rarely,
- * and the grouping leaves room for the destinations this bar does not yet
- * carry -- energy and the project hub -- to arrive as siblings of Map rather
- * than as a second kind of thing.
+ * The products are aggregated behind one item rather than listed as peers,
+ * matching how the navigation column groups them. Labels in a row made the
+ * island as wide as half the window for a choice that changes rarely.
+ *
+ * The group is a prop, not a constant: the map screen passes its three tools
+ * and the energy screen its two resources, and both read as the same object
+ * because they are one.
  *
  * The way out of the workspace layout is the toggle in the title bar, which is
  * mounted in both layouts.
  */
 import { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { ChevronUp, Loader2, Map as MapIcon, Play, Settings2 } from "lucide-react"
-import { MAP_TOOLS, type MapToolId } from "@/lib/mapTools"
+import { ChevronUp, Loader2, Play, Settings2, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 
 export function WorkspaceBar({
-  tool,
-  onToolChange,
+  icon: Icon,
+  groupLabel,
+  items,
+  activeId,
+  onSelect,
   running,
   progress,
   progressMsg,
@@ -43,8 +46,13 @@ export function WorkspaceBar({
   onConfigToggle,
   onWidthChange,
 }: {
-  tool: MapToolId | null
-  onToolChange: (id: MapToolId) => void
+  /** The group's own mark, matching the one the navigation column gives it. */
+  icon: LucideIcon
+  /** What the group is called when nothing under it is selected. */
+  groupLabel: string
+  items: readonly { id: string; label: string }[]
+  activeId: string | null
+  onSelect: (id: string) => void
   running: boolean
   progress: number
   progressMsg: string
@@ -99,7 +107,7 @@ export function WorkspaceBar({
   // that is right: a bare Math.max(4, ...) draws a started run before it has
   // started, and a bare Math.max(0, ...) lets a stale value run past the end.
   const pct = Math.max(0, Math.min(100, progress))
-  const active = MAP_TOOLS.find((t) => t.id === tool)
+  const active = items.find((t) => t.id === activeId)
 
   return (
     <motion.div
@@ -132,19 +140,19 @@ export function WorkspaceBar({
             exit={{ opacity: 0, y: 8 }}
             transition={{ type: "spring", stiffness: 400, damping: 32 }}
           >
-            {MAP_TOOLS.map((t) => (
+            {items.map((t) => (
               <li key={t.id}>
                 <button
                   type="button"
                   onClick={() => {
-                    onToolChange(t.id)
+                    onSelect(t.id)
                     setOpen(false)
                   }}
-                  aria-current={t.id === tool ? "true" : undefined}
+                  aria-current={t.id === activeId ? "true" : undefined}
                   className={cn(
                     "flex h-8 w-full items-center px-3 text-left text-emphasis transition-colors",
                     "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-                    t.id === tool
+                    t.id === activeId
                       ? "bg-surface-raised text-foreground"
                       : "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
                   )}
@@ -193,9 +201,9 @@ export function WorkspaceBar({
               : "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
           )}
         >
-          <MapIcon className="size-4 shrink-0 text-primary" />
+          <Icon className="size-4 shrink-0 text-primary" />
           <span className="text-emphasis text-foreground">
-            {active?.label ?? "Map"}
+            {active?.label ?? groupLabel}
           </span>
           <ChevronUp
             className={cn(
