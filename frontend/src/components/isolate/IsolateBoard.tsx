@@ -29,6 +29,8 @@ import { createBoard, tokenColor } from "@/components/isolate/boardScene"
  * as unrelated sheets.
  */
 const STACK_GAP = 0.1
+const GAP_MIN = 0
+const GAP_MAX = 0.35
 
 export function IsolateBoard({
   layers,
@@ -52,6 +54,8 @@ export function IsolateBoard({
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const boardRef = useRef<BoardHandle | null>(null)
+  const [gap, setGap] = useState(STACK_GAP)
 
   /**
    * The layers with the majority filter already applied where the table asks
@@ -100,8 +104,18 @@ export function IsolateBoard({
       onClose()
       return
     }
-    return () => board?.dispose()
+    boardRef.current = board
+    return () => {
+      boardRef.current = null
+      board?.dispose()
+    }
   }, [cards, onClose])
+
+  // Moves the existing planes rather than rebuilding the scene, so the camera
+  // stays where the user put it while they adjust the separation.
+  useEffect(() => {
+    boardRef.current?.setGap(gap)
+  }, [gap, cards])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -150,6 +164,26 @@ export function IsolateBoard({
             {title}
           </p>
         </div>
+        {/*
+          Only where there is a stack to separate. With one layer the control
+          would move nothing, and a control that does nothing is one the reader
+          has to test to find out.
+        */}
+        {cards && cards.length > 1 && (
+          <label className="flex shrink-0 items-center gap-2 pt-0.5">
+            <span className="eyebrow !text-[9px] shrink-0">Spread</span>
+            <input
+              type="range"
+              min={GAP_MIN}
+              max={GAP_MAX}
+              step={0.005}
+              value={gap}
+              onChange={(e) => setGap(Number(e.target.value))}
+              className="w-24 accent-primary"
+              title="Separation between layers"
+            />
+          </label>
+        )}
         {showClose && (
           <button
             type="button"

@@ -29,11 +29,15 @@ import {
   MeshBasicMaterial,
   NearestFilter,
   PerspectiveCamera,
+  Plane,
   PlaneGeometry,
+  Raycaster,
   Scene,
   Sphere,
   SRGBColorSpace,
   TextureLoader,
+  Vector2,
+  Vector3,
   WebGLRenderer,
 } from "three"
 import type { CardPlane } from "@/lib/isolateCards"
@@ -65,6 +69,14 @@ export function tokenColor(name: string, fallback: string): string {
 export interface BoardHandle {
   /** Redraw once. The board renders on demand, not in a permanent loop. */
   render: () => void
+  /**
+   * Move the layers apart or together, without rebuilding anything.
+   *
+   * A prop change that re-created the scene would drop the camera back to its
+   * opening angle on every notch of the control, so the one thing the user was
+   * looking at while adjusting it would keep jumping away.
+   */
+  setGap: (gap: number) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -187,7 +199,83 @@ export function createBoard(
     requestAnimationFrame(stepSnap)
   }
 
+  /*
+    Dragging the stack, arbitrated against the orbit control by hit test rather
+    than by a mode.
+
+    Both want the left button. A modifier or a toolbar toggle would make the
+    user declare an intention the pointer already carries: on the stack means
+    move it, off the stack means turn the camera. So a press raycasts, and only
+    a hit suspends the orbit -- a miss never reaches this code path at all.
+
+    Motion is confined to the board plane. Y is the axis the layers are
+    separated along, and dragging in it would destroy the relation the stack
+    exists to show.
+
+    Built for one stack, and unchanged for several: it translates a Group, so a
+    second analysis is a second group and this code does not learn about it.
+  */
+  const raycaster = new Raycaster()
+  const pointer = new Vector2()
+  const dragPlane = new Plane(new Vector3(0, 1, 0), 0)
+  const hitPoint = new Vector3()
+  const grabOffset = new Vector3()
+  let dragging = false
+
+  const toPointer = (e: PointerEvent) => {
+    const r = renderer.domElement.getBoundingClientRect()
+    pointer.set(
+      ((e.clientX - r.left) / r.width) * 2 - 1,
+      -((e.clientY - r.top) / r.height) * 2 + 1
+    )
+  }
+
+  const onPointerDown = (e: PointerEvent) => {
+    if (e.button !== 0 || !stack.children.length) return
+    toPointer(e)
+    raycaster.setFromCamera(pointer, camera)
+    if (!raycaster.intersectObjects(stack.children, false).length) return
+    // The plane the drag runs on passes through the stack's current height, so
+    // the grab point does not jump to y=0 on the first move.
+    dragPlane.constant = -stack.position.y
+    if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
+    grabOffset.copy(stack.position).sub(hitPoint)
+    dragging = true
+    controls.enabled = false
+    renderer.domElement.setPointerCapture(e.pointerId)
+  }
+
+  const onPointerMove = (e: PointerEvent) => {
+    if (!dragging) return
+    toPointer(e)
+    raycaster.setFromCamera(pointer, camera)
+    if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
+    stack.position.x = hitPoint.x + grabOffset.x
+    stack.position.z = hitPoint.z + grabOffset.z
+    render()
+  }
+
+  const endDrag = (e: PointerEvent) => {
+    if (!dragging) return
+    dragging = false
+    controls.enabled = true
+    renderer.domElement.releasePointerCapture(e.pointerId)
+  }
+
+  renderer.domElement.addEventListener("pointerdown", onPointerDown)
+  renderer.domElement.addEventListener("pointermove", onPointerMove)
+  renderer.domElement.addEventListener("pointercancel", endDrag)
+
   const onPointerUp = (e: PointerEvent) => {
+    /*
+      A release that ends a drag is not a click on the gizmo, even when it
+      lands on one. Dragging the stack into the corner where the helper sits
+      would otherwise both drop the card and snap the camera to an axis --
+      two outcomes from one gesture, and the second unasked for.
+    */
+    const wasDragging = dragging
+    endDrag(e)
+    if (wasDragging) return
     if (viewHelper.handleClick(e)) {
       if (!snapping) {
         snapping = true
@@ -422,12 +510,23 @@ export function createBoard(
 
   return {
     render,
+    setGap(gap: number) {
+      // Index order, not the layer's ordering number: even spacing however far
+      // apart those numbers happen to be.
+      stack.children.forEach((child, i) => {
+        child.position.y = i * gap
+      })
+      render()
+    },
     dispose() {
       disposed = true
       if (raf) cancelAnimationFrame(raf)
       observer.disconnect()
       controls.removeEventListener("change", render)
       controls.dispose()
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown)
+      renderer.domElement.removeEventListener("pointermove", onPointerMove)
+      renderer.domElement.removeEventListener("pointercancel", endDrag)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)
       viewHelper.dispose()
       renderer.domElement.removeEventListener("webglcontextlost", onLost)
