@@ -346,8 +346,8 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 	} {
 		_, _ = s.db.Exec(stmt)
 	}
-	if _, err := s.db.Exec(comparisonSchema); err != nil {
-		return fmt.Errorf("migrate comparisons: %w", err)
+	if _, err := s.db.Exec(whiteboardSchema); err != nil {
+		return fmt.Errorf("migrate whiteboards: %w", err)
 	}
 	if err := s.ensureLocalUser(); err != nil {
 		return err

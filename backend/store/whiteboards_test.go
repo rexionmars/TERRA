@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// A run to point a comparison at. Comparisons never touch a run's files, so
+// A run to point a whiteboard at. Whiteboards never touch a run's files, so
 // the columns that matter here are the id and the owner.
 func seedRun(t *testing.T, s *Store, id, userID string) {
 	t.Helper()
@@ -21,16 +21,16 @@ func seedRun(t *testing.T, s *Store, id, userID string) {
 	}
 }
 
-func TestSaveComparisonRoundTrip(t *testing.T) {
+func TestSaveWhiteboardRoundTrip(t *testing.T) {
 	s := openTestStore(t)
 	seedRun(t, s, "run-a", LocalUserID)
 	seedRun(t, s, "run-b", LocalUserID)
 
-	saved, err := s.SaveComparison(Comparison{
+	saved, err := s.SaveWhiteboard(Whiteboard{
 		UserID:   LocalUserID,
 		Name:     "  Pato Branco vs Teresina  ",
 		ViewJSON: `{"spread":0.12}`,
-		Members: []ComparisonMember{
+		Members: []WhiteboardMember{
 			{RunID: "run-a", Name: "Pato Branco 2024", StateJSON: `{"x":0}`},
 			{RunID: "run-b", StateJSON: `{"x":1.4}`},
 		},
@@ -45,7 +45,7 @@ func TestSaveComparisonRoundTrip(t *testing.T) {
 		t.Errorf("member count = %d, want 2", saved.MemberCount)
 	}
 
-	got, err := s.GetComparison(LocalUserID, saved.ID)
+	got, err := s.GetWhiteboard(LocalUserID, saved.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -78,21 +78,21 @@ func TestSaveComparisonRoundTrip(t *testing.T) {
 
 // Saving again replaces the members rather than adding to them: a board is
 // saved as it stands, and a member taken off it is gone.
-func TestSaveComparisonReplacesMembers(t *testing.T) {
+func TestSaveWhiteboardReplacesMembers(t *testing.T) {
 	s := openTestStore(t)
 	seedRun(t, s, "run-a", LocalUserID)
 	seedRun(t, s, "run-b", LocalUserID)
 
-	first, err := s.SaveComparison(Comparison{
+	first, err := s.SaveWhiteboard(Whiteboard{
 		UserID: LocalUserID, Name: "Board",
-		Members: []ComparisonMember{{RunID: "run-a"}, {RunID: "run-b"}},
+		Members: []WhiteboardMember{{RunID: "run-a"}, {RunID: "run-b"}},
 	})
 	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	again, err := s.SaveComparison(Comparison{
+	again, err := s.SaveWhiteboard(Whiteboard{
 		ID: first.ID, UserID: LocalUserID, Name: "Board",
-		Members: []ComparisonMember{{RunID: "run-b"}},
+		Members: []WhiteboardMember{{RunID: "run-b"}},
 	})
 	if err != nil {
 		t.Fatalf("resave: %v", err)
@@ -100,7 +100,7 @@ func TestSaveComparisonReplacesMembers(t *testing.T) {
 	if again.CreatedAt != first.CreatedAt {
 		t.Errorf("created_at moved on update: %q -> %q", first.CreatedAt, again.CreatedAt)
 	}
-	got, err := s.GetComparison(LocalUserID, first.ID)
+	got, err := s.GetWhiteboard(LocalUserID, first.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestSaveComparisonReplacesMembers(t *testing.T) {
 	}
 	var n int
 	if err := s.db.QueryRow(
-		`SELECT COUNT(1) FROM comparison_members WHERE comparison_id = ?`, first.ID,
+		`SELECT COUNT(1) FROM whiteboard_members WHERE whiteboard_id = ?`, first.ID,
 	).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
@@ -120,16 +120,16 @@ func TestSaveComparisonReplacesMembers(t *testing.T) {
 
 // The board must be able to say a side is gone. Foreign keys are not enforced
 // on this connection, so a deleted run leaves its member behind; reading it
-// out as missing is what stops a two-sided comparison quietly becoming a
+// out as missing is what stops a two-sided whiteboard quietly becoming a
 // one-sided one.
-func TestGetComparisonReportsMissingRun(t *testing.T) {
+func TestGetWhiteboardReportsMissingRun(t *testing.T) {
 	s := openTestStore(t)
 	seedRun(t, s, "run-a", LocalUserID)
 	seedRun(t, s, "run-b", LocalUserID)
 
-	saved, err := s.SaveComparison(Comparison{
+	saved, err := s.SaveWhiteboard(Whiteboard{
 		UserID: LocalUserID, Name: "Board",
-		Members: []ComparisonMember{{RunID: "run-a"}, {RunID: "run-b"}},
+		Members: []WhiteboardMember{{RunID: "run-a"}, {RunID: "run-b"}},
 	})
 	if err != nil {
 		t.Fatalf("save: %v", err)
@@ -137,7 +137,7 @@ func TestGetComparisonReportsMissingRun(t *testing.T) {
 	if _, err := s.db.Exec(`DELETE FROM inference_runs WHERE id = 'run-b'`); err != nil {
 		t.Fatal(err)
 	}
-	got, err := s.GetComparison(LocalUserID, saved.ID)
+	got, err := s.GetWhiteboard(LocalUserID, saved.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestGetComparisonReportsMissingRun(t *testing.T) {
 }
 
 // Nothing enforces the run reference, so the write has to.
-func TestSaveComparisonRejectsForeignRun(t *testing.T) {
+func TestSaveWhiteboardRejectsForeignRun(t *testing.T) {
 	s := openTestStore(t)
 	if _, err := s.db.Exec(
 		`INSERT INTO users (id, email, display_name, password_hash, created_at, updated_at)
@@ -163,27 +163,27 @@ func TestSaveComparisonRejectsForeignRun(t *testing.T) {
 	}
 	seedRun(t, s, "run-other", "other")
 
-	_, err := s.SaveComparison(Comparison{
+	_, err := s.SaveWhiteboard(Whiteboard{
 		UserID: LocalUserID, Name: "Board",
-		Members: []ComparisonMember{{RunID: "run-other"}},
+		Members: []WhiteboardMember{{RunID: "run-other"}},
 	})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("saving another user's run: err = %v, want ErrNotFound", err)
 	}
 	// And nothing was left behind by the attempt.
-	list, err := s.ListComparisons(LocalUserID)
+	list, err := s.ListWhiteboards(LocalUserID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(list) != 0 {
-		t.Errorf("a rejected save left %d comparisons", len(list))
+		t.Errorf("a rejected save left %d whiteboards", len(list))
 	}
 }
 
-func TestSaveComparisonRejectsUnnamed(t *testing.T) {
+func TestSaveWhiteboardRejectsUnnamed(t *testing.T) {
 	s := openTestStore(t)
 	for _, name := range []string{"", "   "} {
-		if _, err := s.SaveComparison(Comparison{
+		if _, err := s.SaveWhiteboard(Whiteboard{
 			UserID: LocalUserID, Name: name,
 		}); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("name %q: err = %v, want ErrInvalidInput", name, err)
@@ -191,32 +191,32 @@ func TestSaveComparisonRejectsUnnamed(t *testing.T) {
 	}
 }
 
-func TestComparisonScopedToUser(t *testing.T) {
+func TestWhiteboardScopedToUser(t *testing.T) {
 	s := openTestStore(t)
 	seedRun(t, s, "run-a", LocalUserID)
-	saved, err := s.SaveComparison(Comparison{
+	saved, err := s.SaveWhiteboard(Whiteboard{
 		UserID: LocalUserID, Name: "Board",
-		Members: []ComparisonMember{{RunID: "run-a"}},
+		Members: []WhiteboardMember{{RunID: "run-a"}},
 	})
 	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	if _, err := s.GetComparison("other", saved.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := s.GetWhiteboard("other", saved.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("get as another user: err = %v, want ErrNotFound", err)
 	}
-	if err := s.RenameComparison("other", saved.ID, "Theirs"); !errors.Is(err, ErrNotFound) {
+	if err := s.RenameWhiteboard("other", saved.ID, "Theirs"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("rename as another user: err = %v, want ErrNotFound", err)
 	}
-	if err := s.DeleteComparison("other", saved.ID); !errors.Is(err, ErrNotFound) {
+	if err := s.DeleteWhiteboard("other", saved.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("delete as another user: err = %v, want ErrNotFound", err)
 	}
-	if _, err := s.SaveComparison(Comparison{
+	if _, err := s.SaveWhiteboard(Whiteboard{
 		ID: saved.ID, UserID: "other", Name: "Theirs",
 	}); !errors.Is(err, ErrNotFound) {
 		t.Errorf("update as another user: err = %v, want ErrNotFound", err)
 	}
 	// The rejected update must not have taken the name with it.
-	got, err := s.GetComparison(LocalUserID, saved.ID)
+	got, err := s.GetWhiteboard(LocalUserID, saved.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,69 +227,69 @@ func TestComparisonScopedToUser(t *testing.T) {
 
 // Deleting takes the members with it, which the schema says and the connection
 // does not do.
-func TestDeleteComparisonRemovesMembers(t *testing.T) {
+func TestDeleteWhiteboardRemovesMembers(t *testing.T) {
 	s := openTestStore(t)
 	seedRun(t, s, "run-a", LocalUserID)
-	saved, err := s.SaveComparison(Comparison{
+	saved, err := s.SaveWhiteboard(Whiteboard{
 		UserID: LocalUserID, Name: "Board",
-		Members: []ComparisonMember{{RunID: "run-a"}},
+		Members: []WhiteboardMember{{RunID: "run-a"}},
 	})
 	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	if err := s.DeleteComparison(LocalUserID, saved.ID); err != nil {
+	if err := s.DeleteWhiteboard(LocalUserID, saved.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	var n int
 	if err := s.db.QueryRow(
-		`SELECT COUNT(1) FROM comparison_members WHERE comparison_id = ?`, saved.ID,
+		`SELECT COUNT(1) FROM whiteboard_members WHERE whiteboard_id = ?`, saved.ID,
 	).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 0 {
-		t.Errorf("%d member rows outlived the comparison", n)
+		t.Errorf("%d member rows outlived the whiteboard", n)
 	}
-	if _, err := s.GetComparison(LocalUserID, saved.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := s.GetWhiteboard(LocalUserID, saved.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("get after delete: err = %v, want ErrNotFound", err)
 	}
 }
 
-func TestListComparisonsCountsAndOrders(t *testing.T) {
+func TestListWhiteboardsCountsAndOrders(t *testing.T) {
 	s := openTestStore(t)
 	seedRun(t, s, "run-a", LocalUserID)
 	seedRun(t, s, "run-b", LocalUserID)
 
-	if list, err := s.ListComparisons(LocalUserID); err != nil || list == nil {
+	if list, err := s.ListWhiteboards(LocalUserID); err != nil || list == nil {
 		t.Fatalf("empty list: %v %v (want a non-nil empty slice)", list, err)
 	}
 
-	older, err := s.SaveComparison(Comparison{
+	older, err := s.SaveWhiteboard(Whiteboard{
 		UserID: LocalUserID, Name: "Older",
-		Members: []ComparisonMember{{RunID: "run-a"}},
+		Members: []WhiteboardMember{{RunID: "run-a"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	newer, err := s.SaveComparison(Comparison{
+	newer, err := s.SaveWhiteboard(Whiteboard{
 		UserID: LocalUserID, Name: "Newer",
-		Members: []ComparisonMember{{RunID: "run-a"}, {RunID: "run-b"}},
+		Members: []WhiteboardMember{{RunID: "run-a"}, {RunID: "run-b"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Two saves in the same second would tie on updated_at, so the ordering is
 	// asserted through an explicit touch rather than through timing.
-	if err := s.RenameComparison(LocalUserID, older.ID, "Older, touched"); err != nil {
+	if err := s.RenameWhiteboard(LocalUserID, older.ID, "Older, touched"); err != nil {
 		t.Fatal(err)
 	}
-	list, err := s.ListComparisons(LocalUserID)
+	list, err := s.ListWhiteboards(LocalUserID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(list) != 2 {
 		t.Fatalf("list = %d, want 2", len(list))
 	}
-	byID := map[string]Comparison{}
+	byID := map[string]Whiteboard{}
 	for _, c := range list {
 		byID[c.ID] = c
 	}

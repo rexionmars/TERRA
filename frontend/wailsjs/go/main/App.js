@@ -58,16 +58,16 @@ export function DeleteAnalysis(arg1) {
   return window['go']['main']['App']['DeleteAnalysis'](arg1);
 }
 
-export function DeleteComparison(arg1) {
-  return window['go']['main']['App']['DeleteComparison'](arg1);
-}
-
 export function DeleteProject(arg1) {
   return window['go']['main']['App']['DeleteProject'](arg1);
 }
 
 export function DeleteProjectOverlay(arg1) {
   return window['go']['main']['App']['DeleteProjectOverlay'](arg1);
+}
+
+export function DeleteWhiteboard(arg1) {
+  return window['go']['main']['App']['DeleteWhiteboard'](arg1);
 }
 
 export function ExportBackup() {
@@ -98,16 +98,16 @@ export function GetBootLogs() {
   return window['go']['main']['App']['GetBootLogs']();
 }
 
-export function GetComparison(arg1) {
-  return window['go']['main']['App']['GetComparison'](arg1);
-}
-
 export function GetPreferences() {
   return window['go']['main']['App']['GetPreferences']();
 }
 
 export function GetProject(arg1) {
   return window['go']['main']['App']['GetProject'](arg1);
+}
+
+export function GetWhiteboard(arg1) {
+  return window['go']['main']['App']['GetWhiteboard'](arg1);
 }
 
 export function InspectEnvironment() {
@@ -120,10 +120,6 @@ export function InspectPython(arg1) {
 
 export function InspectStorage() {
   return window['go']['main']['App']['InspectStorage']();
-}
-
-export function ListComparisons() {
-  return window['go']['main']['App']['ListComparisons']();
 }
 
 export function ListDataCube(arg1) {
@@ -148,6 +144,10 @@ export function ListProjects() {
 
 export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
+}
+
+export function ListWhiteboards() {
+  return window['go']['main']['App']['ListWhiteboards']();
 }
 
 export function LoadAnalysis(arg1) {
@@ -178,8 +178,8 @@ export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }
 
-export function RenameComparison(arg1, arg2) {
-  return window['go']['main']['App']['RenameComparison'](arg1, arg2);
+export function RenameWhiteboard(arg1, arg2) {
+  return window['go']['main']['App']['RenameWhiteboard'](arg1, arg2);
 }
 
 export function RenderComposite(arg1) {
@@ -198,16 +198,16 @@ export function RunActivity(arg1) {
   return window['go']['main']['App']['RunActivity'](arg1);
 }
 
-export function SaveComparison(arg1) {
-  return window['go']['main']['App']['SaveComparison'](arg1);
-}
-
 export function SavePreferences(arg1) {
   return window['go']['main']['App']['SavePreferences'](arg1);
 }
 
 export function SaveProjectOverlay(arg1) {
   return window['go']['main']['App']['SaveProjectOverlay'](arg1);
+}
+
+export function SaveWhiteboard(arg1) {
+  return window['go']['main']['App']['SaveWhiteboard'](arg1);
 }
 
 export function SetAvatar(arg1) {

@@ -3990,75 +3990,6 @@ export namespace store {
 		    return a;
 		}
 	}
-	export class ComparisonMember {
-	    id: string;
-	    comparison_id: string;
-	    run_id: string;
-	    position: number;
-	    name?: string;
-	    state_json?: string;
-	    missing?: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new ComparisonMember(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.comparison_id = source["comparison_id"];
-	        this.run_id = source["run_id"];
-	        this.position = source["position"];
-	        this.name = source["name"];
-	        this.state_json = source["state_json"];
-	        this.missing = source["missing"];
-	    }
-	}
-	export class Comparison {
-	    id: string;
-	    user_id: string;
-	    name: string;
-	    created_at: string;
-	    updated_at: string;
-	    view_json?: string;
-	    members?: ComparisonMember[];
-	    member_count: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new Comparison(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.user_id = source["user_id"];
-	        this.name = source["name"];
-	        this.created_at = source["created_at"];
-	        this.updated_at = source["updated_at"];
-	        this.view_json = source["view_json"];
-	        this.members = this.convertValues(source["members"], ComparisonMember);
-	        this.member_count = source["member_count"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
 	export class InferenceRun {
 	    id: string;
 	    user_id: string;
@@ -4417,6 +4348,74 @@ export namespace store {
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	    }
+	}
+	export class WhiteboardMember {
+	    id: string;
+	    whiteboard_id: string;
+	    run_id: string;
+	    position: number;
+	    name?: string;
+	    state_json?: string;
+	    missing?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new WhiteboardMember(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.whiteboard_id = source["whiteboard_id"];
+	        this.run_id = source["run_id"];
+	        this.position = source["position"];
+	        this.name = source["name"];
+	        this.state_json = source["state_json"];
+	        this.missing = source["missing"];
+	    }
+	}
+	export class Whiteboard {
+	    id: string;
+	    user_id: string;
+	    name: string;
+	    created_at: string;
+	    updated_at: string;
+	    view_json?: string;
+	    members?: WhiteboardMember[];
+	    member_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Whiteboard(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.name = source["name"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.view_json = source["view_json"];
+	        this.members = this.convertValues(source["members"], WhiteboardMember);
+	        this.member_count = source["member_count"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

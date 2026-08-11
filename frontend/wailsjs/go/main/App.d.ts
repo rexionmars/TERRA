@@ -32,11 +32,11 @@ export function CurrentUser():Promise<store.User>;
 
 export function DeleteAnalysis(arg1:string):Promise<void>;
 
-export function DeleteComparison(arg1:string):Promise<void>;
-
 export function DeleteProject(arg1:string):Promise<void>;
 
 export function DeleteProjectOverlay(arg1:string):Promise<void>;
+
+export function DeleteWhiteboard(arg1:string):Promise<void>;
 
 export function ExportBackup():Promise<string>;
 
@@ -52,19 +52,17 @@ export function GetAppVersion():Promise<string>;
 
 export function GetBootLogs():Promise<Array<string>>;
 
-export function GetComparison(arg1:string):Promise<store.Comparison>;
-
 export function GetPreferences():Promise<store.Preferences>;
 
 export function GetProject(arg1:string):Promise<store.Project>;
+
+export function GetWhiteboard(arg1:string):Promise<store.Whiteboard>;
 
 export function InspectEnvironment():Promise<main.EnvironmentState>;
 
 export function InspectPython(arg1:string):Promise<backend.EnvReport>;
 
 export function InspectStorage():Promise<store.StorageReport>;
-
-export function ListComparisons():Promise<Array<store.Comparison>>;
 
 export function ListDataCube(arg1:backend.DataCubeRequest):Promise<backend.DataCubeResult>;
 
@@ -77,6 +75,8 @@ export function ListProjectRuns(arg1:string,arg2:number):Promise<Array<store.Inf
 export function ListProjects():Promise<Array<store.Project>>;
 
 export function ListRuns(arg1:number):Promise<Array<store.InferenceRun>>;
+
+export function ListWhiteboards():Promise<Array<store.Whiteboard>>;
 
 export function LoadAnalysis(arg1:string):Promise<backend.PredictResult>;
 
@@ -92,7 +92,7 @@ export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
-export function RenameComparison(arg1:string,arg2:string):Promise<void>;
+export function RenameWhiteboard(arg1:string,arg2:string):Promise<void>;
 
 export function RenderComposite(arg1:backend.CompositeRequest):Promise<backend.CompositeResult>;
 
@@ -102,11 +102,11 @@ export function RevealMainWindow():Promise<void>;
 
 export function RunActivity(arg1:number):Promise<Array<store.ActivityDay>>;
 
-export function SaveComparison(arg1:store.Comparison):Promise<store.Comparison>;
-
 export function SavePreferences(arg1:store.Preferences):Promise<void>;
 
 export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<store.ProjectOverlay>;
+
+export function SaveWhiteboard(arg1:store.Whiteboard):Promise<store.Whiteboard>;
 
 export function SetAvatar(arg1:string):Promise<store.User>;
 
