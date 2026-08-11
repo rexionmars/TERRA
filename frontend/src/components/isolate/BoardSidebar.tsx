@@ -509,6 +509,18 @@ export function BoardSidebar({
 
   const beginRowDrag = (e: React.PointerEvent, row: Row) => {
     if (e.button !== 0 || row.depth !== 1 || !row.layerId) return
+    /*
+      Not when the press landed on a control inside the row.
+
+      setPointerCapture on the row retargets every later pointer event to the
+      row, including the pointerup -- so the button under the finger never
+      completes its click. Capturing indiscriminately stopped the eye, the
+      minus and the rename field from working at all, which is a high price
+      for a gesture the row can still offer from its own surface.
+    */
+    if ((e.target as HTMLElement).closest("button, input, [role='button']")) {
+      return
+    }
     dragRef.current = {
       areaId: row.areaId,
       layerId: row.layerId,
