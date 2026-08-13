@@ -116,6 +116,8 @@ import {
   Box,
   BoxSelect,
   Eraser,
+  EyeOff,
+  Filter,
   Layers2,
   Link2,
   Paintbrush,
@@ -126,6 +128,10 @@ import {
 import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
+import {
+  STATUS_BAR_PX,
+  StudioStatusBar,
+} from "@/components/whiteboard/StudioStatusBar"
 import { DomainShiftSection } from "@/components/DomainShiftSection"
 
 /**
@@ -251,6 +257,7 @@ export function BoardSurface({
   runBar,
   runLog,
   runRunning,
+  runProgress = 0,
   assets,
   runId,
   runPeriod,
@@ -309,6 +316,8 @@ export function BoardSurface({
   runBar?: React.ReactNode
   runLog?: RunLogEntry[]
   runRunning?: boolean
+  /** 0 to 100, for the status bar's middle zone. */
+  runProgress?: number
   assets: RunAsset[]
   runId: string
   runPeriod: string
@@ -392,7 +401,7 @@ export function BoardSurface({
         // the thing that chooses an arrangement cannot be part of it.
         y: WORKSPACE_BAR_PX,
         w: el.clientWidth,
-        h: Math.max(0, el.clientHeight - WORKSPACE_BAR_PX),
+        h: Math.max(0, el.clientHeight - WORKSPACE_BAR_PX - STATUS_BAR_PX),
       })
     read()
     const obs = new ResizeObserver(read)
@@ -1161,6 +1170,14 @@ export function BoardSurface({
   const [viewMenu, setViewMenu] = useState(false)
   const [overlayMenu, setOverlayMenu] = useState(false)
   const [appMenu, setAppMenu] = useState(false)
+  const [filterMenu, setFilterMenu] = useState(false)
+  /*
+    The outliner's filter, owned here because the header that carries it is
+    built here. Blender filters its Outliner this way -- by state rather than
+    by name first -- and this tree had no filter of any kind: what a reader
+    hid stayed in the list taking a row.
+  */
+  const [hideInvisible, setHideInvisible] = useKept("hideInvisible", false)
   const [brushRadius, setBrushRadius] = useState<BrushRadiusPx>(2)
   const [probeUv, setProbeUv] = useState<{
     groupId: string
@@ -1614,7 +1631,53 @@ export function BoardSurface({
     for keeping renderers out of itself -- only this component holds the state
     these controls read and write.
   */
+  const planeCount = areas.reduce((n, a) => n + a.layers.length, 0)
+  const visibleCount = areas.reduce(
+    (n, a) => n + a.layers.filter((l) => l.visible).length,
+    0
+  )
+
   const headerSlots: Partial<Record<EditorId, AreaHeaderSlots>> = {
+    properties: {
+      options: selection.length ? (
+        <span className="telemetry px-1 text-[9px] text-muted-foreground">
+          {selection.length} picked
+        </span>
+      ) : null,
+    },
+    outliner: {
+      options: (
+        <StudioPopover
+          open={filterMenu}
+          onOpenChange={setFilterMenu}
+          surface={surfaceRef.current}
+          align="end"
+          widthRem={14}
+          trigger={(p) => (
+            <StudioHeaderPopoverButton
+              {...p}
+              icon={Filter}
+              // The count is the label, which is what the tree used to carry
+              // as a bare badge with no way to act on it.
+              label={`${visibleCount}/${planeCount}`}
+              showLabel
+              open={filterMenu}
+              active={hideInvisible}
+              title="Filter what the tree lists"
+            />
+          )}
+        >
+          <StudioMenuItem
+            icon={EyeOff}
+            label="Hide the hidden"
+            note={`${planeCount - visibleCount}`}
+            checked={hideInvisible}
+            title="Leave out the planes whose eye is off"
+            onSelect={() => setHideInvisible((v) => !v)}
+          />
+        </StudioPopover>
+      ),
+    },
     viewport: {
       menus: (
         <>
@@ -1812,6 +1875,7 @@ export function BoardSurface({
             // Nothing to join until some area holds more than one raster.
             canLink={areas.some((a) => a.layers.length > 1)}
             onSmoothChange={onSmoothChange}
+            hideInvisible={hideInvisible}
           />
     ),
     properties: (
@@ -2247,6 +2311,22 @@ export function BoardSurface({
           )}
         </div>
       </div>
+
+      {/*
+        The status bar, and the run's progress with it.
+
+        It used to replace the properties column's whole body for as long as a
+        run lasted, so a reader watching a classification could not read the
+        legend of anything. Twenty-two pixels at the foot buys that back.
+      */}
+      <StudioStatusBar
+        running={!!runRunning}
+        progress={runProgress}
+        runLog={runLog ?? []}
+        selected={selection.length}
+        total={areas.reduce((n, a) => n + a.layers.length, 0)}
+        areas={areas.length}
+      />
 
       {/*
         THE ARRANGEMENT, drawn.

@@ -396,6 +396,7 @@ export function BoardSidebar({
   onSmoothChange,
   onSelectComposition,
   onRemoveComposition,
+  hideInvisible = false,
 }: {
   /**
    * The areas on the board, each with its own stack, bottom first.
@@ -531,6 +532,15 @@ export function BoardSidebar({
   onGapChange: (v: number) => void
   onLayerChange: (areaId: string, id: string, patch: LayerPatch) => void
   onSmoothChange: (v: boolean) => void
+  /**
+   * Withhold the planes whose eye is off.
+   *
+   * Blender's Outliner filters this way rather than by search first: a tree of
+   * twenty-five rows is read by structure, and what a reader hides is usually
+   * what they want out of the way. The switch is in the area's header, where
+   * a filter belongs; the tree only obeys it.
+   */
+  hideInvisible?: boolean
 }) {
   /*
     Every row the scene tree has, open or not, for every area on the board.
@@ -543,7 +553,12 @@ export function BoardSidebar({
   const allRows: Row[] = []
   for (const area of areas) {
     // Topmost first, so each area reads in the order the eye meets its planes.
-    const stack = [...area.layers].reverse()
+    const stack = [...area.layers]
+      .reverse()
+      .filter((l) => !hideInvisible || l.visible)
+    // An area whose planes are all hidden goes with them: a stack row with no
+    // children under a filter reads as an empty area rather than a filtered one.
+    if (hideInvisible && !stack.length) continue
     const allVisible =
       area.layers.length > 0 && area.layers.every((l) => l.visible)
     allRows.push({

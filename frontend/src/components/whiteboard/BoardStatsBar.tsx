@@ -441,17 +441,14 @@ export function BoardStatsBar({
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >
-      <div
-        className="flex shrink-0 items-center gap-2 border-b px-2 py-1.5"
-        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-      >
-        <span className="eyebrow !text-foreground">Selection</span>
-        {entries.length > 0 && !running && (
-          <span className="telemetry text-[9px] text-muted-foreground">
-            {entries.length}
-          </span>
-        )}
-      </div>
+      {/*
+        No header row of its own.
+
+        This drew "Selection" and a count in a 26px strip inside an area whose
+        own header is 26px and says Properties -- two header rows for one
+        surface, in the studio's scarcest dimension. The count moved to the
+        area header, where a header's right zone is for what is shown.
+      */}
       <div className="flex min-h-0 flex-1 flex-col">{body}</div>
     </aside>
   )
