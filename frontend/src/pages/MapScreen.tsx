@@ -39,6 +39,7 @@ import {
   BOARD_LEFT_REM,
   BOARD_RIGHT_REM,
   boardPartition,
+  clampColumn,
   clampDetail,
   partitionVars,
 } from "@/lib/boardPartition"
@@ -361,7 +362,18 @@ export function MapScreen(props: MapScreenProps) {
     two are different questions: how tall, and whether shown.
   */
   const [statsCollapsed, setStatsCollapsed] = useState(false)
+  /*
+    The columns' widths, which the reader owns rather than the source.
+
+    Held here with the band's height because --map-foot and the two recesses
+    are derived from the same partition, and a divided owner is how the seams
+    drifted apart in the first place.
+  */
+  const [leftRem, setLeftRem] = useState(BOARD_LEFT_REM)
+  const [rightRem, setRightRem] = useState(BOARD_RIGHT_REM)
   const partition = boardPartition({
+    leftRem,
+    rightRem,
     detailRem: statsRem,
     detailCollapsed: statsCollapsed,
   })
@@ -1032,8 +1044,8 @@ export function MapScreen(props: MapScreenProps) {
             immediately if they drift" -- which is exactly what happened when
             the right column widened and this stayed at 15rem.
           */
-          leftOffset={`${BOARD_LEFT_REM}rem`}
-          rightOffset={`${BOARD_RIGHT_REM}rem`}
+          leftOffset="var(--board-left)"
+          rightOffset="var(--board-right)"
         />
       ) : (
       <PeriodTimeline
@@ -1082,6 +1094,16 @@ export function MapScreen(props: MapScreenProps) {
               onDetailResize={(rem) => setStatsRem(clampDetail(rem))}
               detailCollapsed={statsCollapsed}
               onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
+              /*
+                The seams. Clamped here rather than in the handle: the recesses
+                and the foot reservation are computed from these numbers, so a
+                bound that lived with the control could reserve space the
+                window cannot give.
+              */
+              leftRem={partition.leftRem}
+              rightRem={partition.rightRem}
+              onLeftRemChange={(rem) => setLeftRem(clampColumn(rem))}
+              onRightRemChange={(rem) => setRightRem(clampColumn(rem))}
               layers={boardLayers}
               assets={boardAssets}
               /*
@@ -1192,7 +1214,7 @@ export function MapScreen(props: MapScreenProps) {
         because the column repeats them.
       */}
       <OverlayToolsPanel
-        insetRight={boardOpen ? `calc(${BOARD_RIGHT_REM}rem + 3.5rem)` : undefined}
+        insetRight={boardOpen ? "calc(var(--board-right) + 3.5rem)" : undefined}
         open={rightDrawer === "overlays"}
         onClose={() => setRightDrawer(null)}
         result={props.result}

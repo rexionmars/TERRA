@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { BoardSeam } from "@/components/whiteboard/BoardSeam"
 import type { RunLogEntry } from "@/lib/runLog"
 import { Paintbrush } from "lucide-react"
 import type { LayerLegend } from "@/lib/layerLegend"
@@ -390,6 +391,9 @@ export function BoardStatsBar({
   brushOn = false,
   onBrushOnChange,
   brushable = false,
+  seamRem = BOARD_RIGHT_REM,
+  onSeamDrag,
+  onSeamEnd,
 }: {
   /** The selected rasters, in the order they were picked. */
   entries: StatsEntry[]
@@ -407,6 +411,11 @@ export function BoardStatsBar({
   onBrushOnChange?: (on: boolean) => void
   /** Whether a prediction plane is selected for it to act on. */
   brushable?: boolean
+  /** The column's own width in rem, which its seam drags from. */
+  seamRem?: number
+  onSeamDrag?: (rem: number) => void
+  /** Fired once at the end, so the scene re-reads the partition. */
+  onSeamEnd?: () => void
 }) {
   const empty = (
     <p className="px-1 text-meta leading-snug text-muted-foreground">
@@ -446,11 +455,24 @@ export function BoardStatsBar({
         */
         className="app-no-drag absolute bottom-0 right-0 top-0 z-[10] flex flex-col border-l"
       style={{
-        width: `${BOARD_RIGHT_REM}rem`,
+        width: "var(--board-right)",
         background: "rgb(var(--p-ink))",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >
+      {/*
+        The seam, inside the column so it travels with it and half outside its
+        border so the board side of the edge is grabbable too.
+      */}
+      {onSeamDrag && (
+        <BoardSeam
+          side="right"
+          rem={seamRem}
+          onDrag={onSeamDrag}
+          onDragEnd={onSeamEnd}
+          label="Resize the selection column"
+        />
+      )}
       <div
         className="flex shrink-0 items-center gap-2 border-b px-2 py-1.5"
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}

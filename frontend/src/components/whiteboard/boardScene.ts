@@ -125,6 +125,14 @@ export interface BoardHandle {
   /** Redraw once. The board renders on demand, not in a permanent loop. */
   render: () => void
   /**
+   * Re-read the studio's partition after a seam has moved.
+   *
+   * The scene cannot subscribe to React state, and it reads the partition from
+   * the custom properties the layout publishes. Those are read once at setup,
+   * so a drag has to say that they changed.
+   */
+  setPartition: () => void
+  /**
    * Move the layers apart or together, without rebuilding anything.
    *
    * A prop change that re-created the scene would drop the camera back to its
@@ -436,12 +444,6 @@ export function createBoard(
     resizable requires an update path on the handle -- the properties are the
     channel, but nothing re-reads them yet.
   */
-  const style = getComputedStyle(host)
-  const footPx = remToPx(style.getPropertyValue("--map-foot"))
-  // Only the right column is read here: the gizmo sits in the bottom-right
-  // corner, so the left column's width does not bear on its placement.
-  const rightColPx =
-    remToPx(style.getPropertyValue("--board-right")) || remToPx(BOARD_RIGHT_REM)
   const viewHelper = new ViewHelper(camera, renderer.domElement)
   /*
     Bottom-right of the VISIBLE board, not of the canvas.
@@ -455,17 +457,26 @@ export function createBoard(
   /*
     The RIGHT column on the right, which is not what this cleared before.
 
-    It used `sideColPx`, the LEFT column's width, on the right inset -- the two
-    were equal when it was written and stopped being equal when the right
-    column took the 15px it was asked for, leaving the gizmo 0.9375rem inside
-    the column it was measured to clear. Deriving both from the partition is
-    what makes that class of mistake unavailable rather than merely fixed.
+    It used the LEFT column's width on the right inset -- the two were equal
+    when it was written and stopped being equal when the right column took the
+    15px it was asked for, leaving the gizmo 0.9375rem inside the column it was
+    measured to clear.
+
+    A function, because the seams move. It re-reads the published properties
+    rather than closing over the values captured at setup, which is what lets a
+    drag reach a module that must not import React chrome.
   */
-  viewHelper.location = {
-    ...viewHelper.location,
-    bottom: footPx + 12,
-    right: rightColPx + 12,
+  function placeViewHelper() {
+    const now = getComputedStyle(host)
+    viewHelper.location = {
+      ...viewHelper.location,
+      bottom: remToPx(now.getPropertyValue("--map-foot")) + 12,
+      right:
+        (remToPx(now.getPropertyValue("--board-right")) ||
+          remToPx(BOARD_RIGHT_REM)) + 12,
+    }
   }
+  placeViewHelper()
   // It orbits about the same point the controls do, or a snap would swing the
   // camera around the origin while the controls still believe in the target.
   viewHelper.center = controls.target
@@ -1700,6 +1711,18 @@ export function createBoard(
 
   return {
     render,
+    /**
+     * The partition moved: re-read it and redraw.
+     *
+     * Called when a seam is dragged. createBoard runs from an effect keyed on
+     * the groups, so everything it read at setup is a snapshot -- without this
+     * the axis gizmo would keep the inset the columns had when the board was
+     * built and slide under whichever one grew.
+     */
+    setPartition() {
+      placeViewHelper()
+      render()
+    },
     setGap(gap: number) {
       // Card order, not the layer's ordering number: even spacing however far
       // apart those numbers happen to be. Hidden planes keep their slot, so

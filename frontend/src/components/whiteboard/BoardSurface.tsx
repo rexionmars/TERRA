@@ -196,6 +196,10 @@ export function BoardSurface({
   onDetailResize,
   detailCollapsed,
   onDetailToggleCollapsed,
+  leftRem = BOARD_LEFT_REM,
+  rightRem = BOARD_RIGHT_REM,
+  onLeftRemChange,
+  onRightRemChange,
   runLog,
   runRunning,
   assets,
@@ -245,6 +249,16 @@ export function BoardSurface({
   /** The band folded to its grip; the studio keeps the height it gives back. */
   detailCollapsed?: boolean
   onDetailToggleCollapsed?: () => void
+  /**
+   * The columns' widths, and where a drag on their seams reports.
+   *
+   * Owned by the screen rather than by each column: the foot bands recess by
+   * the same numbers, and a divided owner is how they drifted apart before.
+   */
+  leftRem?: number
+  rightRem?: number
+  onLeftRemChange?: (rem: number) => void
+  onRightRemChange?: (rem: number) => void
   runLog?: RunLogEntry[]
   runRunning?: boolean
   assets: RunAsset[]
@@ -1518,6 +1532,9 @@ export function BoardSurface({
         single plane is selected.
       */}
       <BoardStatsBar
+        seamRem={rightRem}
+        onSeamDrag={onRightRemChange}
+        onSeamEnd={() => boardRef.current?.setPartition()}
         runLog={runLog}
         running={runRunning}
         brushOn={brushOn}
@@ -1571,8 +1588,8 @@ export function BoardSurface({
       {compareSides && (
       <BoardSolarDetail
         placement="band"
-        leftOffset={`${BOARD_LEFT_REM}rem`}
-        rightOffset={`${BOARD_RIGHT_REM}rem`}
+        leftOffset="var(--board-left)"
+        rightOffset="var(--board-right)"
         focus={detailFocus?.focus ?? null}
         terrain={detailTerrain}
         siting={detailSiting}
@@ -1646,6 +1663,9 @@ export function BoardSurface({
       })()}
 
       <BoardSidebar
+        seamRem={leftRem}
+        onSeamDrag={onLeftRemChange}
+        onSeamEnd={() => boardRef.current?.setPartition()}
         areaInfo={areaInfo}
         /*
           The ring the board is already drawing, handed back as a geometry.
@@ -1734,7 +1754,7 @@ export function BoardSurface({
           arithmetic already performed, and therefore a seventh copy of the
           column's width in a form no search for "15rem" would find.
         */
-        style={{ left: `${BOARD_LEFT_REM + 1}rem` }}
+        style={{ left: "calc(var(--board-left) + 1rem)" }}
         className="absolute top-3 flex min-w-0 max-w-[30rem] items-start gap-2"
       >
         <div className="min-w-0">

@@ -37,6 +37,34 @@
 export const BOARD_LEFT_REM = 15
 
 /**
+ * The floor a column may be dragged to.
+ *
+ * Where it stops being able to show a row: a class name beside its swatch, or
+ * a tree row beside its glyph. Below this the column is present and useless,
+ * which is worse than absent.
+ */
+export const BOARD_COL_MIN_REM = 11
+
+/**
+ * The share of the window one column may take.
+ *
+ * A FRACTION, NOT A CONSTANT. A fixed ceiling has to be chosen for one window
+ * size and is wrong for the others: 30rem leaves a usable board at 1920px and
+ * leaves forty pixels of it at the application's 1000px minimum, which is a
+ * partition that has swallowed the surface it divides. At 30 per cent each,
+ * the two columns never take more than three fifths of the window whatever
+ * its size.
+ */
+export const BOARD_COL_MAX_SHARE = 0.3
+
+/** The ceiling in rem for a given viewport, never below the floor. */
+export function columnMaxRem(viewportPx?: number, rootPx = 16): number {
+  const w =
+    viewportPx ?? (typeof window === "undefined" ? 1000 : window.innerWidth)
+  return Math.max(BOARD_COL_MIN_REM, (w * BOARD_COL_MAX_SHARE) / rootPx)
+}
+
+/**
  * Right column: the selection readout.
  *
  * 15.9375rem rather than 15: the column carries class names beside their
@@ -106,16 +134,31 @@ export interface BoardPartition {
  * cannot give.
  */
 export function boardPartition(state?: {
+  leftRem?: number
+  rightRem?: number
   detailRem?: number
   detailCollapsed?: boolean
 }): BoardPartition {
   const dragged = clampDetail(state?.detailRem ?? BOARD_DETAIL_REM)
   return {
-    leftRem: BOARD_LEFT_REM,
-    rightRem: BOARD_RIGHT_REM,
+    leftRem: clampColumn(state?.leftRem ?? BOARD_LEFT_REM),
+    rightRem: clampColumn(state?.rightRem ?? BOARD_RIGHT_REM),
     runBandRem: BOARD_RUN_BAND_REM,
     detailRem: state?.detailCollapsed ? BOARD_DETAIL_COLLAPSED_REM : dragged,
   }
+}
+
+/**
+ * A dragged column width, kept inside its bounds.
+ *
+ * The ceiling is a share of the viewport, so the bound moves with the window
+ * rather than being right for one size. Pass the width explicitly where it is
+ * known; the default reads it, which makes this the one impure function here.
+ */
+export function clampColumn(rem: number, viewportPx?: number): number {
+  const max = columnMaxRem(viewportPx)
+  if (!Number.isFinite(rem)) return Math.min(max, BOARD_LEFT_REM)
+  return Math.min(max, Math.max(BOARD_COL_MIN_REM, rem))
 }
 
 /** The dragged height, kept inside its bounds. */

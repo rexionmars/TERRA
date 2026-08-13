@@ -54,6 +54,7 @@ import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
 import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
+import { BoardSeam } from "@/components/whiteboard/BoardSeam"
 import { BOARD_LEFT_REM } from "@/lib/boardPartition"
 
 /**
@@ -396,6 +397,9 @@ export function BoardSidebar({
   onSmoothChange,
   onSelectComposition,
   onRemoveComposition,
+  seamRem = BOARD_LEFT_REM,
+  onSeamDrag,
+  onSeamEnd,
 }: {
   /**
    * The areas on the board, each with its own stack, bottom first.
@@ -531,6 +535,11 @@ export function BoardSidebar({
   onGapChange: (v: number) => void
   onLayerChange: (areaId: string, id: string, patch: LayerPatch) => void
   onSmoothChange: (v: boolean) => void
+  /** The column's own width in rem, which its seam drags from. */
+  seamRem?: number
+  onSeamDrag?: (rem: number) => void
+  /** Fired once at the end, so the scene re-reads the partition. */
+  onSeamEnd?: () => void
 }) {
   /*
     Every row the scene tree has, open or not, for every area on the board.
@@ -849,7 +858,7 @@ export function BoardSidebar({
           recessed by a constant declared elsewhere, which is the pairing that
           let the two drift apart.
         */
-        width: `${BOARD_LEFT_REM}rem`,
+        width: "var(--board-left)",
         /*
           The board's own ink, not --p-surface: that token is a warm, lighter
           plate meant to sit above the background, and against a board painted
@@ -867,6 +876,19 @@ export function BoardSidebar({
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >
+      {/*
+        The seam, inside the column so it travels with it and half outside its
+        border so the board side of the edge is grabbable too.
+      */}
+      {onSeamDrag && (
+        <BoardSeam
+          side="left"
+          rem={seamRem}
+          onDrag={onSeamDrag}
+          onDragEnd={onSeamEnd}
+          label="Resize the outliner column"
+        />
+      )}
       <div
         className="flex items-center justify-between gap-2 border-b px-2 py-1.5"
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
