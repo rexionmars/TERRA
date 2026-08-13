@@ -607,7 +607,7 @@ export function BoardRunBar(props: BoardRunBarProps) {
             "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
             !props.canRun || busy
               ? "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
-              : "bg-accent text-white hover:opacity-90",
+              : "bg-accent text-accent-foreground hover:opacity-90",
           )}
         >
           {busy ? (

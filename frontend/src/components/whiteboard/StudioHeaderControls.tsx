@@ -93,7 +93,7 @@ export function StudioHeaderToggle({
         showLabel ? "gap-1 px-1.5" : "w-5 justify-center",
         disabled && "cursor-not-allowed opacity-40",
         on
-          ? "bg-accent text-white"
+          ? "bg-accent text-accent-foreground"
           : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
       )}
     >
@@ -138,7 +138,7 @@ export const StudioHeaderPopoverButton = ({
       HEADER_CONTROL,
       "gap-0.5 px-1",
       active
-        ? "bg-accent text-white"
+        ? "bg-accent text-accent-foreground"
         : open
           ? "bg-surface-raised text-foreground"
           : "text-muted-foreground hover:bg-surface-raised hover:text-foreground",
@@ -229,7 +229,7 @@ export function StudioHeaderRadio<T extends string>({
           className={cn(
             "flex h-full shrink-0 items-center gap-1 px-1.5 transition-colors",
             o.id === value
-              ? "bg-accent text-white"
+              ? "bg-accent text-accent-foreground"
               : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
           )}
         >

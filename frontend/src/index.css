@@ -45,11 +45,21 @@
   */
   --p-muted: 172 159 144;
   /*
-    The accent is a fill, a focus ring and an active state -- NOT a text colour.
-    It measures 3.93 on the raised surface, which fails 1.4.3. Text that needs
-    to read as the accent uses --p-accent-quiet, which clears 4.5 everywhere.
+    The accent is a fill, a focus ring and an active state.
+
+    Softened from 242 86 35, which read as a warning rather than as a control.
+    The lighter value measures BETTER against every surface -- 6.96 on ink,
+    6.24 on surface, 5.22 on the raised one, against 5.23/4.70/3.93 before --
+    so it now clears 4.5 as text too. --p-accent-quiet stays: it is what the
+    light theme's text uses, and one name for "the accent, readable" is worth
+    keeping on both.
+
+    What the change COSTS is the label on top of it. White on the old orange
+    measured 3.43, already under 4.5; on this one it is 2.58, under even 3.
+    --accent-foreground is the ink, at 6.96, and eight call sites that had
+    hardcoded `text-white` now use it.
   */
-  --p-accent: 242 86 35;
+  --p-accent: 237 135 68;
   --p-accent-quiet: 255 138 92;
   --p-accent-dim: 74 38 22;
   --p-place: 120 138 148;
@@ -160,12 +170,11 @@
   --border: rgb(var(--p-line) / 0.28);
   --hairline: rgb(var(--p-line) / 0.22);
   --input: rgb(var(--p-line) / 0.4);
-  /* Full accent, not a wash of it. At 0.55 the composited ring measured 2.04
-     against a filled button and 2.44 against the surface behind it -- under the
-     3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
+  /* Full accent, not a wash of it. At 0.55 the composited ring measured under
+     the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
      contrast check verifies, because the check reads the token and the token
-     was not what got painted. At full strength the two agree: 5.23 on ink,
-     4.70 on the panel, 3.93 on a raised surface. */
+     was not what got painted. At full strength the two agree: 6.96 on ink,
+     6.24 on the panel, 5.22 on a raised surface. */
   --ring: rgb(var(--p-accent));
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -548,8 +557,8 @@
 }
 
 /*
-  The active row. Accent at 45 percent composites to rgb(130 56 31), on which
-  the label measures 6.08 -- but --p-muted measures 3.20 there, which is why the
+  The active row. Accent at 45 percent composites to rgb(119 73 43), on which
+  the label measures 5.56 -- but --p-muted measures 2.93 there, which is why the
   count beside the label follows the label up on this row rather than staying
   the one unreadable thing on it.
 */

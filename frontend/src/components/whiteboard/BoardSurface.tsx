@@ -2021,7 +2021,7 @@ export function BoardSurface({
         groups,
         background: tokenColor("--p-ink", "#171717"),
         line: tokenColor("--p-line", "#404040"),
-        accent: tokenColor("--p-accent", "#f25623"),
+        accent: tokenColor("--p-accent", "#ed8744"),
         // The separation in force at the moment of the build, so a plane lands
         // at its true height rather than at the base for a frame.
         gap: gapRef.current,

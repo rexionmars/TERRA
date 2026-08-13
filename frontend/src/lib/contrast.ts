@@ -45,7 +45,7 @@ export const TOKENS = {
     lineStrong: [138, 117, 100],
     text: [226, 220, 212],
     muted: [172, 159, 144],
-    accent: [242, 86, 35],
+    accent: [237, 135, 68],
     accentQuiet: [255, 138, 92],
     accentDim: [74, 38, 22],
     destructive: [160, 44, 44],

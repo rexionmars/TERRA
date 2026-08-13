@@ -854,7 +854,7 @@ export function MapScreen(props: MapScreenProps) {
                 className={cn(
                   "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
                   on
-                    ? "bg-accent text-white"
+                    ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
                 )}
               >

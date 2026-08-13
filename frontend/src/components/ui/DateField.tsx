@@ -316,7 +316,7 @@ export function DateField({
                   className={cn(
                     "rounded-[2px] py-0.5 text-center text-[10px] transition-colors",
                     chosen
-                      ? "bg-accent text-white"
+                      ? "bg-accent text-accent-foreground"
                       : inMonth
                         ? "text-foreground hover:bg-secondary"
                         : // Kept rather than blanked: a week that runs into the

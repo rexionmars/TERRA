@@ -227,7 +227,7 @@ export function BoardAreaModal({
             className={cn(
               "flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-meta transition-colors",
               draft
-                ? "bg-accent text-white hover:opacity-90"
+                ? "bg-accent text-accent-foreground hover:opacity-90"
                 : "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
             )}
           >

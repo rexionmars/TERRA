@@ -191,7 +191,7 @@ export function DomainCohort({
               className={cn(
                 "telemetry px-1.5 py-0.5 text-[9px] transition-colors",
                 id === axis
-                  ? "bg-accent text-white"
+                  ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
               )}
             >
