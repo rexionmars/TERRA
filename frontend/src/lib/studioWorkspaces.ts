@@ -67,28 +67,36 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
     label: "Layout",
     hint: "The general arrangement: the board, what is in it, and what is selected",
     /*
-      Deliberately the arrangement the studio already had, so that the move to
-      areas can be checked by looking: the outliner full height on the left,
-      the readout full height on the right, the board above the run controls
-      between them. What is new is that every one of them can now be something
-      else.
+      Blender's own Layout, which is not two full-height columns.
+
+      There the viewport is dominant and the right column is DIVIDED: the
+      outliner on top, the properties under it, sharing one strip. The left
+      edge carries no panel at all. Reproducing the studio's previous
+      arrangement here was a mistake -- it made the whole area system arrive
+      invisible, since a reader opening the studio landed on the same three
+      bars in the same places and could reasonably conclude nothing had
+      changed.
+
+      Fractions checked at the 1000x700 minimum: the right column is 220px
+      against an 11rem floor, its two halves 167px and 354px against an 8rem
+      and a 6rem floor, and the run strip 85px against a 3rem one.
     */
     build: () =>
-      row(
-        "w-layout-left",
-        0.18,
-        leaf("a-outliner", "outliner"),
+      col(
+        "w-layout-foot",
+        0.86,
         row(
           "w-layout-right",
           0.78,
+          leaf("a-viewport", "viewport"),
           col(
-            "w-layout-foot",
-            0.87,
-            leaf("a-viewport", "viewport"),
-            leaf("a-run", "runParams")
-          ),
-          leaf("a-properties", "properties")
-        )
+            "w-layout-stack",
+            0.32,
+            leaf("a-outliner", "outliner"),
+            leaf("a-properties", "properties")
+          )
+        ),
+        leaf("a-run", "runParams")
       ),
   },
   {

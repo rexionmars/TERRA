@@ -1857,21 +1857,14 @@ export function BoardSurface({
             activeRow={active}
             selection={selection}
             expanded={expanded}
-            gap={gap}
-            gapMax={GAP_MAX}
             smooth={smooth}
             onActivate={chooseRow}
             onToggleExpanded={toggleExpanded}
-            onGapChange={setGap}
             onLayerChange={changeLayer}
             onDropRun={dropRun}
             flat={flat}
             onToggleFlat={toggleFlat}
             onReorder={reorderArea}
-            links={links}
-            onLinksChange={setLinks}
-            labels={labels}
-            onLabelsChange={setLabels}
             // Nothing to join until some area holds more than one raster.
             canLink={areas.some((a) => a.layers.length > 1)}
             onSmoothChange={onSmoothChange}

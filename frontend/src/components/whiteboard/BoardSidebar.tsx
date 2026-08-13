@@ -371,8 +371,6 @@ export function BoardSidebar({
   selection,
   activeAsset,
   expanded,
-  gap,
-  gapMax,
   smooth,
   onModeChange,
   onActivate,
@@ -385,13 +383,8 @@ export function BoardSidebar({
   flat,
   onToggleFlat,
   onReorder,
-  links,
-  onLinksChange,
   canLink,
-  labels,
-  onLabelsChange,
   onToggleExpanded,
-  onGapChange,
   onLayerChange,
   onSmoothChange,
   onSelectComposition,
@@ -464,13 +457,9 @@ export function BoardSidebar({
    */
   onReorder: (areaId: string, layerIdsTopFirst: string[]) => void
   /** Lines joining each area's rasters to one another. */
-  links: boolean
-  onLinksChange: (v: boolean) => void
   /** False until some area holds more than one raster. */
   canLink: boolean
   /** Each raster's name, shown over it on the board. */
-  labels: boolean
-  onLabelsChange: (v: boolean) => void
   mode: OutlinerMode
   /** The geometries on the board, for the Areas tab. */
   areaInfo?: AreaInfo[]
@@ -522,14 +511,11 @@ export function BoardSidebar({
    */
   selection: string[]
   expanded: ReadonlySet<string>
-  gap: number
-  gapMax: number
   /** The map's majority filter, which decides where a class boundary falls. */
   smooth: boolean
   /** Additive where the modifier was held: shift builds an order. */
   onActivate: (rowId: string, additive?: boolean) => void
   onToggleExpanded: (rowId: string) => void
-  onGapChange: (v: number) => void
   onLayerChange: (areaId: string, id: string, patch: LayerPatch) => void
   onSmoothChange: (v: boolean) => void
   /**
@@ -1524,69 +1510,6 @@ export function BoardSidebar({
         </div>
       )}
 
-      {/*
-        Separation belongs to the view rather than to any one thing in the
-        tree, so it stays out of the panel that edits one and stays visible
-        whatever is active.
-      */}
-      {mode === "scene" && allRows.filter((r) => r.depth === 1).length > 1 && (
-        <div
-          className="shrink-0 border-t px-3 py-2.5"
-          style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-        >
-          <p className="eyebrow !text-[9px]">View</p>
-          {/*
-            A property of the view rather than of any area, so it sits with the
-            spread. Offered only with something to join: a single raster has
-            nothing to belong to.
-          */}
-          {/*
-            Always offered, unlike the link: one raster on a board still
-            benefits from saying which raster it is, and with several it is
-            the only thing that does.
-          */}
-          <label className="mt-1.5 flex items-center gap-2 text-meta text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={labels}
-              onChange={(e) => onLabelsChange(e.target.checked)}
-              className="accent-primary"
-            />
-            Show names
-          </label>
-          {canLink && (
-            <label className="mt-1.5 flex items-center gap-2 text-meta text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={links}
-                onChange={(e) => onLinksChange(e.target.checked)}
-                className="accent-primary"
-              />
-              Link each area's rasters
-            </label>
-          )}
-          <div className="mt-1.5">
-            <NumberField
-              label="Spread"
-              value={gap}
-              min={0}
-              max={gapMax}
-              step={0.01}
-              /*
-                In world units, where the AOI's longest side is 1 -- so the
-                figure reads as a fraction of the area being looked at, and is
-                the same number whatever the AOI covers on the ground.
-              */
-              format={(v) => v.toFixed(3)}
-              parse={(t) => {
-                const v = parseFloat(t)
-                return Number.isFinite(v) ? v : null
-              }}
-              onChange={onGapChange}
-            />
-          </div>
-        </div>
-      )}
     </div>
   )
 }
