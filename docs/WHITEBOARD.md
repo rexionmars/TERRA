@@ -306,7 +306,37 @@ that lives for hours and is backgrounded will eventually encounter.
 
 ---
 
-## 7. Limits of the present implementation
+## 7. Board chrome
+
+Three surfaces sit around the planes rather than on them:
+
+- **Left outliner** ([`BoardSidebar.tsx`](../frontend/src/components/whiteboard/BoardSidebar.tsx),
+  15rem) — scene tree, data assets, areas; visibility and opacity per plane.
+- **Foot statistics** ([`BoardStatsBar.tsx`](../frontend/src/components/whiteboard/BoardStatsBar.tsx)) —
+  legends and class shares for the selected planes, above the run band. The band
+  spans between the two columns.
+- **Right detail** ([`BoardSolarDetail.tsx`](../frontend/src/components/whiteboard/BoardSolarDetail.tsx),
+  15rem) — fixed column mirroring the left outliner. Content follows the last
+  selected plane that has a deep readout:
+  - `solar:terrain` / `solar:siting` — AOI irradiation or siting figures (sky
+    view, MapBiomas cover lists).
+  - `prediction` — mean vote share, class distribution, MapBiomas agreement and
+    confusion matrix when present. A **Brush** toggle enables a circular rover
+    on the plane (white ring + crosshair); pointer UV is decoded to a class via
+    [`classMask.ts`](../frontend/src/lib/classMask.ts) /
+    [`boardProbe.ts`](../frontend/src/lib/boardProbe.ts) (optional neighbourhood
+    majority). Continuous confidence values are not sampled from the display
+    PNG; mean/floor stay in the static block.
+  - Two `prediction` planes in the selection (Shift) — agreement %, class
+    transition matrix (A→B), per-class share delta, and a compact **Domain
+    shift** readout (KL / CVA / MMD / F1) when both runs carry a classify-time
+    fingerprint. Brush is withheld while comparing.
+  Preview tiles from the Analysis page are omitted because the plane is already
+  on the board.
+
+---
+
+## 8. Limits of the present implementation
 
 - **One analysis.** The board holds the rasters currently on the map. Placing a
   second area beside the first — the case that motivates the surface — requires

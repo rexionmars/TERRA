@@ -39,6 +39,7 @@ README research notice — not only GitHub Issues.
 | Theme | Direction |
 |-------|-----------|
 | **Change detection** | Pairwise / multi-date spectral and NDVI change maps on the AOI (gain/loss of vegetation), with thresholds and export |
+| **Domain-shift diagnostics** | **Shipped (v1):** KL / CVA / MMD / F1 between two runs from cached fingerprints (Analysis Compare + whiteboard). Adversarial adaptation remains research. |
 | **Crop / canopy diagnostics** | Per-date answers on stress, phenological stage, water-stress proxies, and growth vs expected calendar — surfaced in Analysis |
 | **Surface water / flood** | NDWI / MNDWI / AWEI-style masks and time series of water fraction over the AOI |
 | **Richer LULC storytelling** | Deeper MapBiomas composition views (groups, diversity) already partially in-app; more export and compare hooks |
