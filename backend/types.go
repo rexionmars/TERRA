@@ -338,6 +338,7 @@ type sidecarResult struct {
 	Phenology       PhenologyMetrics      `json:"phenology"`
 	PhenologyStates []PhenologyStatePoint `json:"phenology_states"`
 	LULC            *lulcSidecarPayload   `json:"lulc"`
+	DomainFingerprint *DomainFingerprint  `json:"domain_fingerprint,omitempty"`
 }
 
 // lulcSidecarPayload is the raw LULC block from Python (map as file path).
@@ -406,6 +407,87 @@ type PredictResult struct {
 	// from a different product on a different grid and carries no external
 	// validation, so it must not inherit the solar labelling.
 	Wind *WindAnalysis `json:"wind,omitempty"`
+	// Compact spectral / NDVI fingerprint cached at classify time for
+	// domain-shift diagnostics against another run. Absent on older runs and
+	// on water/solar-only results.
+	DomainFingerprint *DomainFingerprint `json:"domain_fingerprint,omitempty"`
+}
+
+// DomainHistogram is a fixed-edge probability histogram (NDVI by default).
+type DomainHistogram struct {
+	Edges  []float64 `json:"edges"`
+	Counts []float64 `json:"counts"`
+	Probs  []float64 `json:"probs"`
+}
+
+// DomainRedNIR holds mean red / NIR reflectances for CVA direction.
+type DomainRedNIR struct {
+	RedMean float64 `json:"red_mean"`
+	NirMean float64 `json:"nir_mean"`
+}
+
+// DomainFingerprint is a compact per-run summary of the feature domain.
+type DomainFingerprint struct {
+	Space     string          `json:"space"`
+	NFeatures int             `json:"n_features"`
+	NPixels   int             `json:"n_pixels"`
+	NSample   int             `json:"n_sample"`
+	Mean      []float64       `json:"mean"`
+	Var       []float64       `json:"var"`
+	NDVIHist  *DomainHistogram `json:"ndvi_hist,omitempty"`
+	RedNIR    *DomainRedNIR   `json:"red_nir,omitempty"`
+	// Subsample of feature rows for MMD / PCA (capped at classify time).
+	Sample [][]float64 `json:"sample,omitempty"`
+}
+
+// DomainShiftRequest compares two cached fingerprints (optional agreements).
+type DomainShiftRequest struct {
+	FingerprintA map[string]any `json:"fingerprint_a"`
+	FingerprintB map[string]any `json:"fingerprint_b"`
+	AgreementA   map[string]any `json:"agreement_a,omitempty"`
+	AgreementB   map[string]any `json:"agreement_b,omitempty"`
+	IncludeTSNE  bool           `json:"include_tsne,omitempty"`
+}
+
+// DomainShiftPoint is one projected sample in a 2D scatter.
+type DomainShiftPoint struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Domain string  `json:"domain"`
+}
+
+// DomainShiftProjection is a PCA or t-SNE scatter of pooled samples.
+type DomainShiftProjection struct {
+	Method string             `json:"method"`
+	Points []DomainShiftPoint `json:"points"`
+}
+
+// DomainShiftAgreementBlock summarises MapBiomas concordance + F1 for one side.
+type DomainShiftAgreementBlock struct {
+	Label                       string    `json:"label"`
+	OverallPct                  *float64  `json:"overall_pct,omitempty"`
+	NOutsideLegend              int       `json:"n_outside_legend"`
+	OutsideLegendPct            *float64  `json:"outside_legend_pct,omitempty"`
+	QuantityDisagreementPct     *float64  `json:"quantity_disagreement_pct,omitempty"`
+	AllocationDisagreementPct   *float64  `json:"allocation_disagreement_pct,omitempty"`
+	MacroF1                     *float64  `json:"macro_f1,omitempty"`
+}
+
+// DomainShiftReport is the diagnosis payload returned by AnalyzeDomainShift.
+type DomainShiftReport struct {
+	SpaceA              string                     `json:"space_a,omitempty"`
+	SpaceB              string                     `json:"space_b,omitempty"`
+	KLNDVI              *float64                   `json:"kl_ndvi,omitempty"`
+	KLNDVIAToB          *float64                   `json:"kl_ndvi_a_to_b,omitempty"`
+	KLNDVIBToA          *float64                   `json:"kl_ndvi_b_to_a,omitempty"`
+	CVAMagnitude        *float64                   `json:"cva_magnitude,omitempty"`
+	CVAAngleRedNIRDeg   *float64                   `json:"cva_angle_red_nir_deg,omitempty"`
+	MMDLinear           *float64                   `json:"mmd_linear,omitempty"`
+	NDVIHistA           *DomainHistogram           `json:"ndvi_hist_a,omitempty"`
+	NDVIHistB           *DomainHistogram           `json:"ndvi_hist_b,omitempty"`
+	AgreementA          *DomainShiftAgreementBlock `json:"agreement_a,omitempty"`
+	AgreementB          *DomainShiftAgreementBlock `json:"agreement_b,omitempty"`
+	Projection          *DomainShiftProjection     `json:"projection,omitempty"`
 }
 
 // ProgressEvent is emitted to the frontend as "predict:progress".

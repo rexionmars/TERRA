@@ -1181,6 +1181,29 @@ def main():
         sys.stdout.flush()
         return
 
+    # Domain-shift diagnosis from two cached fingerprints (no STAC re-fetch).
+    if action == 'domain_shift':
+        emit_progress(20, 'comparing domain fingerprints')
+        try:
+            import domain_shift as ds_mod
+            fp_a = req.get('fingerprint_a')
+            fp_b = req.get('fingerprint_b')
+            if not isinstance(fp_a, dict) or not isinstance(fp_b, dict):
+                fail('domain_shift requires fingerprint_a and fingerprint_b')
+            report = ds_mod.compare_fingerprints(
+                fp_a,
+                fp_b,
+                agreement_a=req.get('agreement_a'),
+                agreement_b=req.get('agreement_b'),
+                include_tsne=bool(req.get('include_tsne', False)),
+            )
+        except Exception as e:
+            fail(f'domain_shift failed: {e}')
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({'domain_shift': report}))
+        sys.stdout.flush()
+        return
+
     # Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
     if action == 'list_datacube':
         start = req.get('start')
@@ -2557,6 +2580,9 @@ def main():
 
     temporal = []
     confidence_map = None
+    # Spectral RF feature rows become the domain fingerprint; Prithvi / TT fall
+    # back to an NDVI-only fingerprint after the VI series is computed.
+    feature_matrix_for_fingerprint = None
 
     if model_kind == 'prithvi':
         classification_map, confidence_map = classify_prithvi(
@@ -2614,6 +2640,7 @@ def main():
         fm, vmask = build_feature_matrix(products, polygon, ref_profile, n_dates_model)
         if fm is None:
             fail('no valid Sentinel-2 data for the selected area')
+        feature_matrix_for_fingerprint = fm
         classification_map, confidence_map = classify_from_features(
             fm, vmask, rf_model, scaler, label_encoder
         )
@@ -2622,6 +2649,7 @@ def main():
         fm, vmask = build_feature_matrix(products, polygon, ref_profile, n_dates_model)
         if fm is None:
             fail('no valid Sentinel-2 data for the selected area')
+        feature_matrix_for_fingerprint = fm
         emit_progress(80, 'classifying')
         classification_map, confidence_map = classify_from_features(
             fm, vmask, rf_model, scaler, label_encoder
@@ -2638,6 +2666,33 @@ def main():
         'peak': None, 'base': None, 'amplitude': None,
     }
     phenology_states = pheno.state_timeline(ndvi_means, vi_dates) if vi_dates else []
+
+    domain_fingerprint = None
+    try:
+        import domain_shift as ds_mod
+        ndvi_vals = None
+        if ndvi_mean_map is not None and ndvi_valid is not None:
+            ndvi_vals = ndvi_mean_map[ndvi_valid]
+        domain_fingerprint = ds_mod.build_fingerprint(
+            feature_matrix_for_fingerprint,
+            ndvi_values=ndvi_vals,
+            # The training statistics the forest was fitted on. Without them the
+            # fingerprint is in raw units, where a Euclidean distance is 99.7%
+            # acquisition-index features and 0% reflectance.
+            scaler_mean=getattr(scaler, 'mean_', None) if scaler is not None else None,
+            scaler_scale=getattr(scaler, 'scale_', None) if scaler is not None else None,
+            feature_names=list(feature_names) if feature_names is not None else None,
+            feature_importances=(
+                getattr(rf_model, 'feature_importances_', None)
+                if rf_model is not None
+                else None
+            ),
+        )
+    except Exception as e:
+        sys.stderr.write(json.dumps({
+            'progress': -1, 'msg': f'domain fingerprint skipped: {e}'
+        }) + '\n')
+        sys.stderr.flush()
 
     emit_progress(92, 'writing overlay and GeoTIFF')
     overlay_png = work_dir / 'overlay.png'
@@ -2752,6 +2807,7 @@ def main():
         'phenology': phenology,
         'phenology_states': phenology_states,
         'lulc': lulc_payload,
+        'domain_fingerprint': domain_fingerprint,
     }
 
     emit_progress(100, 'done')

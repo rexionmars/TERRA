@@ -477,14 +477,23 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		ReferenceURI:    referenceURI,
 		RasterTIF:       sres.RasterTIF,
 		MeanConfidence:  sres.MeanConfidence,
+		// Carried, and it was not. The sidecar computes 1/K and emits it, both
+		// structs declare the field, and this literal simply never copied it --
+		// so it marshalled away under omitempty and every consumer saw
+		// undefined. The mean is unreadable without it: confidence is
+		// max(predict_proba) and lives on [1/K, 1], so a mean of 0.37 against a
+		// floor of 0.20 is a different statement from the same 0.37 on a scale
+		// that starts at zero.
+		ConfidenceFloor: sres.ConfidenceFloor,
 		NDates:          sres.NDates,
 		DateRange:       sres.DateRange,
 		ClassStats:      sres.ClassStats,
 		Temporal:        sres.Temporal,
 		VISeries:        sres.VISeries,
 		Phenology:       sres.Phenology,
-		PhenologyStates: sres.PhenologyStates,
-		LULC:            convertLULC(sres.LULC),
+		PhenologyStates:   sres.PhenologyStates,
+		LULC:              convertLULC(sres.LULC),
+		DomainFingerprint: sres.DomainFingerprint,
 	}
 	if result.RasterTIF != "" {
 		if p, perr := promoteExportFile(result.RasterTIF, "classification.tif"); perr == nil {
@@ -1284,6 +1293,59 @@ func (r *Runner) AnalyzeSolar(ctx context.Context, req SolarRequest) (*SolarAnal
 		return nil, fmt.Errorf("sidecar returned empty solar payload")
 	}
 	return wrapped.Solar, nil
+}
+
+// AnalyzeDomainShift compares two cached domain fingerprints (KL / CVA / MMD / F1).
+//
+// No STAC re-fetch: both sides must already carry a fingerprint from classify.
+func (r *Runner) AnalyzeDomainShift(ctx context.Context, req DomainShiftRequest) (*DomainShiftReport, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.FingerprintA == nil || req.FingerprintB == nil {
+		return nil, fmt.Errorf("fingerprint_a and fingerprint_b are required")
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-domain-shift-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":         "domain_shift",
+		"model_dir":      r.modelDir,
+		"work_dir":       workDir,
+		"fingerprint_a":  req.FingerprintA,
+		"fingerprint_b":  req.FingerprintB,
+		"include_tsne":   req.IncludeTSNE,
+	}
+	if req.AgreementA != nil {
+		payload["agreement_a"] = req.AgreementA
+	}
+	if req.AgreementB != nil {
+		payload["agreement_b"] = req.AgreementB
+	}
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		DomainShift *DomainShiftReport `json:"domain_shift"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse domain_shift result: %w", err)
+	}
+	if wrapped.DomainShift == nil {
+		return nil, fmt.Errorf("sidecar returned empty domain_shift payload")
+	}
+	return wrapped.DomainShift, nil
 }
 
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.

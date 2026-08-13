@@ -397,6 +397,15 @@ func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, er
 	return res, nil
 }
 
+// AnalyzeDomainShift compares two cached domain fingerprints for shift diagnosis.
+func (a *App) AnalyzeDomainShift(req backend.DomainShiftRequest) (*backend.DomainShiftReport, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.AnalyzeDomainShift(a.ctx, req)
+}
+
 // persistSolarRun saves a solar resource run so it survives the session and is
 // listed, opened and exported like the other analyses. Best effort: failing to
 // record a run must not discard the result the user is looking at.
