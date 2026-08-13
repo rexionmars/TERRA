@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -55,6 +56,11 @@ var researchTableColumns = map[string][]string{
 		"class_id", "name", "color", "pct_ref", "pct_pred",
 		"pixels_ref", "n_reference_cells",
 	},
+	// Compact domain fingerprint cached at classify (no raw sample matrix).
+	"domain_fingerprint.csv": {
+		"space", "n_features", "n_pixels", "n_sample",
+		"mean_l2", "ndvi_hist_entropy",
+	},
 	// observed_pixels is the denominator of water_fraction_pct: the AOI pixels
 	// actually seen on that date. A fraction cannot be recomputed against the
 	// AOI area without it.
@@ -84,6 +90,9 @@ var researchTableColumns = map[string][]string{
 		"slope_mean_deg", "slope_max_deg", "pixels", "dem_source", "hourly_years",
 		"shading_mean_pct_of_beam", "shading_max_pct_of_beam", "beam_fraction",
 		"horizon_max_dist_m",
+		"sky_view_applied", "sky_view_mean_horizon_deg", "sky_view_max_horizon_deg",
+		"sky_view_threshold_deg", "sky_view_diffuse_loss_mean_pct",
+		"sky_view_diffuse_loss_max_pct",
 	},
 
 	// factor and cumulative_ratio are empty on context rows, which are not
@@ -504,6 +513,35 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 		}
 	}
 
+	if fp := result.DomainFingerprint; fp != nil {
+		rows := researchHeader("domain_fingerprint.csv")
+		meanL2 := 0.0
+		for _, v := range fp.Mean {
+			meanL2 += v * v
+		}
+		meanL2 = math.Sqrt(meanL2)
+		entropy := 0.0
+		if fp.NDVIHist != nil {
+			for _, p := range fp.NDVIHist.Probs {
+				if p > 0 {
+					entropy -= p * math.Log(p)
+				}
+			}
+		}
+		rows = append(rows, []string{
+			fp.Space,
+			strconv.Itoa(fp.NFeatures),
+			strconv.Itoa(fp.NPixels),
+			strconv.Itoa(fp.NSample),
+			formatFloat(meanL2),
+			formatFloat(entropy),
+		})
+		if err := writeZipCSV(zw, "domain_fingerprint.csv", rows); err != nil {
+			_ = zw.Close()
+			return nil, err
+		}
+	}
+
 	if w := result.Water; w != nil && len(w.Series) > 0 {
 		rows := researchHeader("water_series.csv")
 		for _, d := range w.Series {
@@ -566,6 +604,19 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 	// success over a ZIP holding manifest.json alone.
 	if tr := result.SolarTerrain; tr != nil && tr.Pixels > 0 {
 		rows := researchHeader("solar_terrain.csv")
+		skyApplied, skyMean, skyMax, skyThr, skyDiffMean, skyDiffMax := "", "", "", "", "", ""
+		if sv := tr.SkyView; sv != nil {
+			if sv.Applied {
+				skyApplied = "yes"
+			} else {
+				skyApplied = "no"
+			}
+			skyMean = formatFloat(sv.MeanHorizonDeg)
+			skyMax = formatFloat(sv.MaxHorizonDeg)
+			skyThr = formatFloat(sv.ThresholdDeg)
+			skyDiffMean = formatFloatPtr(sv.DiffuseLossMeanPct)
+			skyDiffMax = formatFloatPtr(sv.DiffuseLossMaxPct)
+		}
 		rows = append(rows, []string{
 			tr.Season,
 			tr.Unit,
@@ -582,6 +633,12 @@ func BuildResearchPackZIP(meta ResearchExportMeta, result *PredictResult, dataDi
 			formatFloatPtr(tr.ShadingMaxPct),
 			formatFloat(tr.BeamFraction),
 			formatFloat(tr.HorizonMaxDistM),
+			skyApplied,
+			skyMean,
+			skyMax,
+			skyThr,
+			skyDiffMean,
+			skyDiffMax,
 		})
 		if err := writeZipCSV(zw, "solar_terrain.csv", rows); err != nil {
 			_ = zw.Close()

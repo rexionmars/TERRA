@@ -22,6 +22,10 @@ import {
   WaterFigure,
 } from "@/components/analysisPrimitives"
 import {
+  CoverChipList,
+  SkyViewFigures,
+} from "@/components/solar/SolarDetailFigures"
+import {
   LineChart,
   Line,
   XAxis,
@@ -275,6 +279,11 @@ export function SolarTerrainSection({
           of horizontal irradiation · horizon shading applies to this component
         </p>
       )}
+      {terrain.sky_view && (
+        <div className="mt-3">
+          <SkyViewFigures sky={terrain.sky_view} />
+        </div>
+      )}
       <PowerProvenanceNote
         provenance={terrain.power_provenance}
       />
@@ -336,6 +345,16 @@ export function SolarSitingSection({
         </span>{" "}
         · legal constraints not checked
       </p>
+      <div className="mt-3 flex flex-col gap-3">
+        <CoverChipList
+          label="Excluded cover"
+          codes={siting.thresholds.excluded_cover}
+        />
+        <CoverChipList
+          label="Cropland cover"
+          codes={siting.thresholds.cropland_cover}
+        />
+      </div>
     </section>
   )
 }

@@ -4,6 +4,10 @@ import {backend} from '../models';
 import {store} from '../models';
 import {main} from '../models';
 
+export function AnalyzeDomainShift(arg1:backend.DomainShiftRequest):Promise<backend.DomainShiftReport>;
+
+export function AnalyzeDomainShiftCohort(arg1:backend.DomainShiftCohortRequest):Promise<backend.DomainShiftCohort>;
+
 export function AnalyzeEnergyModel(arg1:backend.EnergyModelRequest):Promise<backend.EnergyModelAnalysis>;
 
 export function AnalyzeLULC(arg1:backend.LULCRequest):Promise<backend.LULCAnalysis>;
@@ -36,6 +40,8 @@ export function DeleteProject(arg1:string):Promise<void>;
 
 export function DeleteProjectOverlay(arg1:string):Promise<void>;
 
+export function DeleteWhiteboard(arg1:string):Promise<void>;
+
 export function ExportBackup():Promise<string>;
 
 export function ExportClassification(arg1:string):Promise<string>;
@@ -53,6 +59,8 @@ export function GetBootLogs():Promise<Array<string>>;
 export function GetPreferences():Promise<store.Preferences>;
 
 export function GetProject(arg1:string):Promise<store.Project>;
+
+export function GetWhiteboard(arg1:string):Promise<store.Whiteboard>;
 
 export function InspectEnvironment():Promise<main.EnvironmentState>;
 
@@ -72,6 +80,8 @@ export function ListProjects():Promise<Array<store.Project>>;
 
 export function ListRuns(arg1:number):Promise<Array<store.InferenceRun>>;
 
+export function ListWhiteboards():Promise<Array<store.Whiteboard>>;
+
 export function LoadAnalysis(arg1:string):Promise<backend.PredictResult>;
 
 export function Login(arg1:string,arg2:string):Promise<store.User>;
@@ -86,6 +96,8 @@ export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
+export function RenameWhiteboard(arg1:string,arg2:string):Promise<void>;
+
 export function RenderComposite(arg1:backend.CompositeRequest):Promise<backend.CompositeResult>;
 
 export function RestoreBackup(arg1:string):Promise<store.RestoreResult>;
@@ -97,6 +109,8 @@ export function RunActivity(arg1:number):Promise<Array<store.ActivityDay>>;
 export function SavePreferences(arg1:store.Preferences):Promise<void>;
 
 export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<store.ProjectOverlay>;
+
+export function SaveWhiteboard(arg1:store.Whiteboard):Promise<store.Whiteboard>;
 
 export function SetAvatar(arg1:string):Promise<store.User>;
 

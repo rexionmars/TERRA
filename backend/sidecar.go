@@ -17,6 +17,23 @@ import (
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+/*
+emitProgress is wails' EventsEmit behind one name.
+
+The indirection exists so a Runner can be exercised outside a Wails context.
+EventsEmit requires the specific context the lifecycle hooks hand out and calls
+its fatal logger otherwise, which terminates the process -- so a test that runs
+the real sidecar could not assert anything, and the sidecar boundary was
+therefore covered only by tests that fed hand-written JSON to the parsers on
+either side of it. Standardisation broke twice in exactly the gap those tests
+leave.
+
+Production behaviour is unchanged: this is EventsEmit under a variable.
+*/
+var emitProgress = func(ctx context.Context, event string, data ...any) {
+	wruntime.EventsEmit(ctx, event, data...)
+}
+
 // Runner locates the repo, the Python interpreter, the model and the sidecar
 // script, and runs inference requests.
 type Runner struct {
@@ -389,7 +406,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
 				// Non-JSON stderr (e.g. library warnings): forward as a message.
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -400,7 +417,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -469,22 +486,31 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 	}
 
 	result := &PredictResult{
-		Extent:          sres.Extent,
-		OverlayURI:      overlayURI,
-		ConfidenceURI:   confidenceURI,
-		NDVIMeanURI:     ndviMeanURI,
-		TrueColorURI:    trueColorURI,
-		ReferenceURI:    referenceURI,
-		RasterTIF:       sres.RasterTIF,
-		MeanConfidence:  sres.MeanConfidence,
-		NDates:          sres.NDates,
-		DateRange:       sres.DateRange,
-		ClassStats:      sres.ClassStats,
-		Temporal:        sres.Temporal,
-		VISeries:        sres.VISeries,
-		Phenology:       sres.Phenology,
-		PhenologyStates: sres.PhenologyStates,
-		LULC:            convertLULC(sres.LULC),
+		Extent:         sres.Extent,
+		OverlayURI:     overlayURI,
+		ConfidenceURI:  confidenceURI,
+		NDVIMeanURI:    ndviMeanURI,
+		TrueColorURI:   trueColorURI,
+		ReferenceURI:   referenceURI,
+		RasterTIF:      sres.RasterTIF,
+		MeanConfidence: sres.MeanConfidence,
+		// Carried, and it was not. The sidecar computes 1/K and emits it, both
+		// structs declare the field, and this literal simply never copied it --
+		// so it marshalled away under omitempty and every consumer saw
+		// undefined. The mean is unreadable without it: confidence is
+		// max(predict_proba) and lives on [1/K, 1], so a mean of 0.37 against a
+		// floor of 0.20 is a different statement from the same 0.37 on a scale
+		// that starts at zero.
+		ConfidenceFloor:   sres.ConfidenceFloor,
+		NDates:            sres.NDates,
+		DateRange:         sres.DateRange,
+		ClassStats:        sres.ClassStats,
+		Temporal:          sres.Temporal,
+		VISeries:          sres.VISeries,
+		Phenology:         sres.Phenology,
+		PhenologyStates:   sres.PhenologyStates,
+		LULC:              convertLULC(sres.LULC),
+		DomainFingerprint: sres.DomainFingerprint,
 	}
 	if result.RasterTIF != "" {
 		if p, perr := promoteExportFile(result.RasterTIF, "classification.tif"); perr == nil {
@@ -619,7 +645,7 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -630,7 +656,7 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -765,7 +791,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -776,7 +802,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -925,7 +951,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -936,7 +962,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -1179,7 +1205,7 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -1190,7 +1216,7 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -1284,6 +1310,114 @@ func (r *Runner) AnalyzeSolar(ctx context.Context, req SolarRequest) (*SolarAnal
 		return nil, fmt.Errorf("sidecar returned empty solar payload")
 	}
 	return wrapped.Solar, nil
+}
+
+// AnalyzeDomainShift compares two cached domain fingerprints (KL / CVA / MMD / F1).
+//
+// No STAC re-fetch: both sides must already carry a fingerprint from classify.
+func (r *Runner) AnalyzeDomainShift(ctx context.Context, req DomainShiftRequest) (*DomainShiftReport, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.FingerprintA == nil || req.FingerprintB == nil {
+		return nil, fmt.Errorf("fingerprint_a and fingerprint_b are required")
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-domain-shift-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":        "domain_shift",
+		"model_dir":     r.modelDir,
+		"work_dir":      workDir,
+		"fingerprint_a": req.FingerprintA,
+		"fingerprint_b": req.FingerprintB,
+		"include_tsne":  req.IncludeTSNE,
+	}
+	if req.AgreementA != nil {
+		payload["agreement_a"] = req.AgreementA
+	}
+	if req.AgreementB != nil {
+		payload["agreement_b"] = req.AgreementB
+	}
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		DomainShift *DomainShiftReport `json:"domain_shift"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse domain_shift result: %w", err)
+	}
+	if wrapped.DomainShift == nil {
+		return nil, fmt.Errorf("sidecar returned empty domain_shift payload")
+	}
+	return wrapped.DomainShift, nil
+}
+
+// AnalyzeDomainShiftCohort measures one source fingerprint against N targets.
+//
+// One process for N-1 comparisons; see DomainShiftCohortRequest for why that
+// matters. Same constraint as the pair: every side must already carry a
+// fingerprint from classify, and nothing is re-fetched.
+func (r *Runner) AnalyzeDomainShiftCohort(ctx context.Context, req DomainShiftCohortRequest) (*DomainShiftCohort, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.Source.Fingerprint == nil {
+		return nil, fmt.Errorf("source fingerprint is required")
+	}
+	if len(req.Targets) == 0 {
+		return nil, fmt.Errorf("at least one target is required")
+	}
+	for i, t := range req.Targets {
+		if t.Fingerprint == nil {
+			return nil, fmt.Errorf("target %d (%s) carries no fingerprint", i, t.Label)
+		}
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-domain-cohort-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	reqBytes, err := json.Marshal(map[string]any{
+		"action":    "domain_shift_cohort",
+		"model_dir": r.modelDir,
+		"work_dir":  workDir,
+		"source":    req.Source,
+		"targets":   req.Targets,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Cohort *DomainShiftCohort `json:"domain_shift_cohort"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse domain_shift_cohort result: %w", err)
+	}
+	if wrapped.Cohort == nil {
+		return nil, fmt.Errorf("sidecar returned empty domain_shift_cohort payload")
+	}
+	return wrapped.Cohort, nil
 }
 
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.

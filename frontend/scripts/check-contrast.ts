@@ -33,6 +33,7 @@ const CSS_NAME: Record<string, string> = {
   muted: "--p-muted",
   accent: "--p-accent",
   accentQuiet: "--p-accent-quiet",
+  accentDim: "--p-accent-dim",
 }
 
 /**

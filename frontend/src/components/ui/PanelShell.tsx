@@ -112,6 +112,12 @@ export const PanelShell = forwardRef<
       exit={{ opacity: 0, ...enter }}
       transition={{ type: "spring", ...SPRING[placement] }}
     >
+      {/*
+        The density a placement implies, offered to everything inside it. A
+        panel written for a floating column keeps that scale wherever it is put
+        unless its container says otherwise, and inline the container is 4rem
+        narrower and sits beside rows of ten-pixel text.
+      */}
       <div className="flex items-center justify-between">
         <h1 className="text-sm font-semibold">{title}</h1>
         {/*

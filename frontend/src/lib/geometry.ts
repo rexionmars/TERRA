@@ -67,6 +67,22 @@ export function polygonParts(geometry: GeoJSONGeometry): LonLat[][][] {
 }
 
 /** Longitude/latitude bounds over every part. */
+/**
+ * How much a degree of longitude shrinks at a given latitude.
+ *
+ * A span in degrees is not a span on the ground: meridians converge, so a
+ * degree of longitude covers cos(latitude) of what a degree of latitude does.
+ * Normalising an extent without this draws a Brazilian parcel stretched
+ * east-west by about a tenth, and a Nordic one by half.
+ *
+ * Named here rather than written where it is needed, because it is needed in
+ * two places now -- the footprint thumbnail and the whiteboard -- and this
+ * repository has already been bitten by a value that existed twice.
+ */
+export function lonScaleAtLat(lat: number): number {
+  return Math.cos((lat * Math.PI) / 180) || 1
+}
+
 export function geometryBounds(
   geometry: GeoJSONGeometry | null | undefined
 ): { lonMin: number; latMin: number; lonMax: number; latMax: number } | null {

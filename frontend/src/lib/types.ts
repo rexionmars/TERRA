@@ -172,8 +172,47 @@ export interface LULCAgreement {
   per_class: LULCClassAccuracy[]
   /** Reference cells whose class the classifier has no label for. */
   n_outside_legend: number
+  /**
+   * Rows are the classification, columns the reference.
+   *
+   * `agreement_against_reference` fills `matrix[pred][ref]` and derives
+   * producer's accuracy from the column totals. Read the other way round it
+   * still looks like a confusion matrix and reports commission as omission,
+   * which is why the orientation is stated here and not left to the reader.
+   */
   matrix: number[][]
   matrix_classes: number[]
+  /** Absent where no block held enough reference cells to carry a figure. */
+  blocks?: LULCAgreementBlocks | null
+}
+
+/**
+ * Agreement over a fixed grid of spatial blocks.
+ *
+ * `overall_pct` cannot tell a classifier that is uniformly mediocre from one
+ * that is accurate everywhere but a corner, and the two call for different
+ * work. Descriptive rather than inferential: the blocks are a grid over the
+ * raster's extent, not a sampling design.
+ */
+export interface LULCAgreementBlocks {
+  rows: number
+  cols: number
+  /** Reference cells a block needs before its percentage is reported. */
+  min_cells: number
+  cells: LULCAgreementBlock[]
+  n_measured: number
+  median_pct: number
+  iqr_pct: number
+  min_pct: number
+  max_pct: number
+}
+
+export interface LULCAgreementBlock {
+  row: number
+  col: number
+  n_reference_cells: number
+  /** Null below `min_cells`: arithmetic rather than a measurement. */
+  overall_pct: number | null
 }
 
 export interface LULCAnalysis {
@@ -249,6 +288,195 @@ export interface PredictResult {
    * answer different questions and their capacity factors are not comparable.
    */
   wind?: WindAnalysis | null
+  /**
+   * Compact spectral / NDVI fingerprint cached at classify time for
+   * domain-shift diagnostics. Absent on older runs and non-classify products.
+   */
+  domain_fingerprint?: DomainFingerprint | null
+}
+
+/** Fixed-edge histogram (NDVI by default). */
+export interface DomainHistogram {
+  edges: number[]
+  counts: number[]
+  probs: number[]
+}
+
+export interface DomainRedNIR {
+  red_mean: number
+  nir_mean: number
+}
+
+/** Per-run domain summary used by AnalyzeDomainShift. */
+export interface DomainFingerprint {
+  space: string
+  n_features: number
+  n_pixels: number
+  n_sample: number
+  mean: number[]
+  var: number[]
+  /**
+   * In training standard deviations, from the model's own scaler.
+   *
+   * These decide whether a comparison can be standardised at all. Their
+   * absence is what makes the sidecar refuse, and an unstandardised distance
+   * is dominated by acquisition-index features rather than by reflectance.
+   */
+  z_mean?: number[] | null
+  z_var?: number[] | null
+  feature_names?: string[] | null
+  feature_importances?: number[] | null
+  ndvi_hist?: DomainHistogram | null
+  red_nir?: DomainRedNIR | null
+  sample?: number[][] | null
+}
+
+/**
+ * The kernel two-sample statistic, with what it needs to be read.
+ *
+ * Not a scalar: MMD is not comparable across bandwidths, so the gamma the
+ * median heuristic chose travels with it, as do the sample sizes.
+ */
+export interface DomainShiftMMD {
+  mmd2?: number | null
+  gamma?: number | null
+  n_a: number
+  n_b: number
+}
+
+/** One row of the per-feature displacement table. */
+export interface DomainFeatureShift {
+  feature: string
+  z_a: number
+  z_b: number
+  /** Displacement in training standard deviations. */
+  gap_sd: number
+  /** Impurity importance from the fitted forest; null for other spaces. */
+  importance?: number | null
+  /** gap_sd weighted by importance: movement the model actually reads. */
+  weighted: number
+}
+
+export interface DomainShiftPoint {
+  x: number
+  y: number
+  domain: string
+}
+
+export interface DomainShiftProjection {
+  method: string
+  points: DomainShiftPoint[]
+  /**
+   * "standardised" or "raw".
+   *
+   * The axes carry no units either way, but the two are different pictures: on
+   * raw features the geometry is set by the acquisition indices, which span
+   * 0..21 against reflectances near 0.1.
+   */
+  space?: string
+}
+
+/** One class's precision, recall and F1, from the agreement matrix. */
+export interface DomainShiftClassF1 {
+  index: number
+  /** Null only when the matrix arrived without its axis order. */
+  class_id?: number | null
+  precision?: number | null
+  recall?: number | null
+  f1?: number | null
+}
+
+export interface DomainShiftAgreementBlock {
+  label: string
+  overall_pct?: number | null
+  n_outside_legend: number
+  outside_legend_pct?: number | null
+  quantity_disagreement_pct?: number | null
+  allocation_disagreement_pct?: number | null
+  macro_f1?: number | null
+  /**
+   * Per-class precision, recall and F1.
+   *
+   * A macro average says the model got worse; only these say which class. The
+   * sidecar has emitted them all along and the Go struct declared no field, so
+   * they were dropped at the unmarshal boundary.
+   */
+  per_class_f1?: DomainShiftClassF1[] | null
+}
+
+/**
+ * One target measured against the source.
+ *
+ * Mirrors `DomainShiftReport` minus the histograms, the projection and the
+ * feature-shift table: those are per-pair readings and a cohort consumes none
+ * of them. A reader who wants them opens the pair.
+ */
+export interface DomainShiftCohortRow {
+  id: string
+  label: string
+  space_a?: string
+  space_b?: string
+  kl_ndvi?: number | null
+  kl_ndvi_a_to_b?: number | null
+  kl_ndvi_b_to_a?: number | null
+  same_space: boolean
+  standardised: boolean
+  cva_magnitude?: number | null
+  cva_magnitude_sd?: number | null
+  cva_angle_red_nir_deg?: number | null
+  mmd_rbf?: DomainShiftMMD | null
+  /**
+   * Whether this row may sit on the same axis as the others.
+   *
+   * The two qualifiers resolved to the question the view asks. A row that
+   * cannot is not a low score — it is a distance in other units, and plotting
+   * it beside the rest is the unqualified comparison the qualifiers exist to
+   * prevent.
+   */
+  comparable: boolean
+  agreement_a?: DomainShiftAgreementBlock | null
+  agreement_b?: DomainShiftAgreementBlock | null
+}
+
+export interface DomainShiftCohortSource {
+  id: string
+  label: string
+  space?: string
+  agreement?: DomainShiftAgreementBlock | null
+}
+
+/** One source against N targets: the star the transferability question has. */
+export interface DomainShiftCohort {
+  source: DomainShiftCohortSource
+  targets: DomainShiftCohortRow[]
+}
+
+/** Diagnosis payload from two fingerprints (KL / CVA / MMD / F1). */
+export interface DomainShiftReport {
+  space_a?: string
+  space_b?: string
+  kl_ndvi?: number | null
+  kl_ndvi_a_to_b?: number | null
+  kl_ndvi_b_to_a?: number | null
+  /**
+   * Whether the two fingerprints describe the same feature space, and whether
+   * both carried the moments needed to standardise. Every distance in this
+   * report is unqualified without them.
+   */
+  same_space?: boolean
+  standardised?: boolean
+  cva_magnitude?: number | null
+  /** The figure to read: the raw magnitude is dominated by index features. */
+  cva_magnitude_sd?: number | null
+  cva_angle_red_nir_deg?: number | null
+  mmd_rbf?: DomainShiftMMD | null
+  /** Where the shift is, by feature, in training standard deviations. */
+  feature_shift?: DomainFeatureShift[] | null
+  ndvi_hist_a?: DomainHistogram | null
+  ndvi_hist_b?: DomainHistogram | null
+  agreement_a?: DomainShiftAgreementBlock | null
+  agreement_b?: DomainShiftAgreementBlock | null
+  projection?: DomainShiftProjection | null
 }
 
 export interface ProgressEvent {
@@ -599,6 +827,20 @@ export interface SolarRenderScale {
   decimals: number
 }
 
+/**
+ * How much of the sky dome the terrain leaves visible, and whether the diffuse
+ * loss was applied. Reported even when not applied: "not applied" and
+ * "applied at zero" are different statements about the terrain.
+ */
+export interface SolarSkyView {
+  applied: boolean
+  mean_horizon_deg: number
+  max_horizon_deg: number
+  threshold_deg: number
+  diffuse_loss_mean_pct: number | null
+  diffuse_loss_max_pct: number | null
+}
+
 export interface SolarTerrainAnalysis {
   poa_min: number
   poa_max: number
@@ -621,6 +863,7 @@ export interface SolarTerrainAnalysis {
   shading_max_pct: number | null
   horizon_max_dist_m: number
   beam_fraction: number
+  sky_view?: SolarSkyView | null
   overlay_uri: string
   raster_tif: string
   extent: Bounds

@@ -15,9 +15,9 @@
  *
  * It names the two halves rather than listing the products, because the list is
  * the part that keeps changing -- it has grown four times already, and a
- * subtitle that enumerates is a subtitle that goes stale. The title bar names
- * the specific data per screen (SCREEN_EYEBROW); this is the one line shown
- * before any screen exists.
+ * subtitle that enumerates is a subtitle that goes stale. The title bar carries
+ * a signature rather than a description of the screen; this is the one line
+ * shown before any screen exists.
  *
  * Defined here because it appears in two places that cannot import from each
  * other: the React splash, and the static markup in index.html that paints

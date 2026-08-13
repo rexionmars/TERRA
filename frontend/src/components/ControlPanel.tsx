@@ -14,6 +14,11 @@ import { cn } from "@/lib/utils"
 import { todayISO } from "@/lib/dates"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
+import {
+  MODEL_OPTIONS,
+  MODE_OPTIONS,
+  modeBlockedBy,
+} from "@/lib/classifyOptions"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { PanelShell } from "@/components/ui/PanelShell"
 
@@ -94,8 +99,8 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
       {/* STEP 1 — area */}
       <Section step="01" title="Area">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Draw a polygon on the map, search a location, or load a file.
-          Works anywhere in the world.
+          Draw a polygon on the map, search a location, or load a file. Works
+          anywhere in the world.
         </p>
         <div className="grid grid-cols-2 gap-2">
           <button
@@ -199,13 +204,7 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
       {/* STEP 3 — model */}
       <Section step="03" title="Model">
         <div className="grid grid-cols-1 gap-2">
-          {(
-            [
-              ["spectral", "Random Forest", "spectro-temporal features"],
-              ["temporal_transformer", "Temporal Transformer", "lightweight series model"],
-              ["prithvi", "Prithvi-EO 2.0", "embeddings (NASA/IBM)"],
-            ] as const
-          ).map(([m, label, sub]) => (
+          {MODEL_OPTIONS.map(({ id: m, label, detail: sub }) => (
             <button
               key={m}
               disabled={busy}
@@ -262,15 +261,11 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
       {/* STEP 4 — mode */}
       <Section step="04" title="Mode">
         <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              ["single", "Map", "full temporal stack"],
-              ["temporal", "Temporal", "cumulative retention"],
-            ] as const
-          ).map(([m, label, sub]) => (
+          {MODE_OPTIONS.map(({ id: m, label, detail: sub }) => (
             <button
               key={m}
-              disabled={busy || (m === "temporal" && modelKind !== "spectral")}
+              disabled={busy || !!modeBlockedBy(m, modelKind)}
+              title={modeBlockedBy(m, modelKind) ?? undefined}
               onClick={() => onModeChange(m)}
               className={cn(
                 "rounded-sm border p-2 text-left text-xs disabled:opacity-50",

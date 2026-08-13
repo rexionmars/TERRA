@@ -72,6 +72,15 @@ export function WorkspaceBar({
   runLabel: string
   canRun: boolean
   onRun: () => void
+  /**
+   * The whiteboard is up, and running belongs to it.
+   *
+   * The bar exists because in this layout the parameters live in a drawer; the
+   * board carries the same panels under its Run tab, so a second button that
+   * starts the same run is a second button for one action. Dropped rather than
+   * disabled: a control that cannot be used and cannot be explained is worse
+   * than one that is not there.
+   */
   configOpen: boolean
   onConfigToggle: () => void
   /** The island's measured width, for whatever has to make room for it. */

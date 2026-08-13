@@ -12,11 +12,7 @@ import {
   ImageIcon,
   Eye,
 } from "lucide-react"
-import { notifyExportFail, notifyExportOk } from "@/lib/notify"
-import {
-  ExportClassification,
-  ExportOverlayFile,
-} from "../../wailsjs/go/main/App"
+import { exportPng, exportTif, runAssets } from "@/lib/runAssets"
 import type {
   CompositionOverlay,
   ModelKind,
@@ -30,6 +26,14 @@ import {
 import { cn } from "@/lib/utils"
 
 export interface OverlayToolsPanelProps {
+  /**
+   * Where the drawer's right edge sits, when the default would be covered.
+   *
+   * The whiteboard's right column occupies the corner this opens into. A
+   * readout that duplicates the column is withheld there; this is a tool, so
+   * it moves instead of disappearing.
+   */
+  insetRight?: string
   open: boolean
   onClose: () => void
   result: PredictResult | null
@@ -96,15 +100,6 @@ function Section({
       {open && <div className="flex flex-col gap-2 pl-0.5">{children}</div>}
     </div>
   )
-}
-
-async function exportAsset(src: string, filename: string) {
-  try {
-    const dest = await ExportOverlayFile(src, filename)
-    if (dest) notifyExportOk(dest)
-  } catch (e) {
-    notifyExportFail(e)
-  }
 }
 
 function OverlayAssetCard({
@@ -221,21 +216,9 @@ function OverlayAssetCard({
   )
 }
 
-function modelLabel(kind?: ModelKind): string {
-  switch (kind) {
-    case "prithvi":
-      return "Prithvi-EO"
-    case "temporal_transformer":
-      return "Temporal Transformer"
-    case "spectral":
-      return "Random Forest"
-    default:
-      return kind || "model"
-  }
-}
-
 export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
   const {
+    insetRight,
     open,
     onClose,
     result,
@@ -271,239 +254,85 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     onAoiContourSchemeChange,
   } = props
 
-  const gallery =
-    compositionGallery.length > 0
-      ? compositionGallery
-      : composition?.overlay_uri
-        ? [composition]
-        : []
+  /*
+    Built from lib/runAssets.ts rather than assembled here. The board's
+    outliner lists the same set with the same actions, and two derivations of
+    "what this run produced" would disagree within a release -- silently,
+    because both would look plausible.
+  */
+  const assets = useMemo(
+    () =>
+      runAssets({
+        result,
+        composition,
+        compositionGallery,
+        water,
+        areaLabel,
+        modelKind,
+        composeSceneDate,
+        showCompositionOverlay,
+        showWaterOverlay,
+        composeOpacity,
+        waterOpacity,
+      }),
+    [
+      result,
+      composition,
+      compositionGallery,
+      water,
+      areaLabel,
+      modelKind,
+      composeSceneDate,
+      showCompositionOverlay,
+      showWaterOverlay,
+      composeOpacity,
+      waterOpacity,
+    ]
+  )
 
-  const cards = useMemo(() => {
-    const list: ReactNode[] = []
-
-    if (result?.overlay_uri) {
-      const range =
-        result.date_range?.length === 2
-          ? `${result.date_range[0]} → ${result.date_range[1]}`
-          : null
-      const parts = [
-        areaLabel?.trim() || null,
-        modelLabel(modelKind),
-        result.n_dates > 0 ? `${result.n_dates} scenes` : null,
-        range,
-        result.mean_confidence > 0
-          ? `conf ${(result.mean_confidence * 100).toFixed(0)}%`
-          : null,
-      ].filter(Boolean)
-      list.push(
-        <OverlayAssetCard
-          key="prediction"
-          title="Prediction"
-          params={parts.join(" · ")}
-          previewUri={result.overlay_uri}
-          pixelated
-          onExportPng={() =>
-            void exportAsset(result.overlay_uri, "terra_prediction.png")
-          }
-          onExportTif={
-            result.raster_tif
-              ? async () => {
-                  try {
-                    const dest = await ExportClassification(result.raster_tif)
-                    if (dest) notifyExportOk(dest)
-                  } catch (e) {
-                    notifyExportFail(e)
-                  }
-                }
-              : undefined
-          }
-          canExportTif={!!result.raster_tif}
-        />
-      )
-    }
-
-    if (result?.confidence_uri) {
-      list.push(
-        <OverlayAssetCard
-          key="confidence"
-          title="Confidence"
-          params={[
-            "from classification",
-            result.mean_confidence > 0
-              ? `mean ${(result.mean_confidence * 100).toFixed(0)}%`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          previewUri={result.confidence_uri}
-          onExportPng={() =>
-            void exportAsset(result.confidence_uri, "terra_confidence.png")
-          }
-        />
-      )
-    }
-
-    if (result?.ndvi_mean_uri) {
-      const range =
-        result.date_range?.length === 2
-          ? `${result.date_range[0]} → ${result.date_range[1]}`
-          : null
-      list.push(
-        <OverlayAssetCard
-          key="ndvi"
-          title="NDVI mean"
-          params={["temporal mean NDVI", range].filter(Boolean).join(" · ")}
-          previewUri={result.ndvi_mean_uri}
-          onExportPng={() =>
-            void exportAsset(result.ndvi_mean_uri!, "terra_ndvi_mean.png")
-          }
-        />
-      )
-    }
-
-    if (result?.true_color_uri) {
-      const range =
-        result.date_range?.length === 2
-          ? `${result.date_range[0]} → ${result.date_range[1]}`
-          : null
-      list.push(
-        <OverlayAssetCard
-          key="true-color"
-          title="Satellite true color"
-          params={["peak-NDVI scene · B04-B03-B02", range]
-            .filter(Boolean)
-            .join(" · ")}
-          previewUri={result.true_color_uri}
-          onExportPng={() =>
-            void exportAsset(result.true_color_uri!, "terra_true_color.png")
-          }
-        />
-      )
-    }
-
-    // Surface water renders a raster onto the map and has its own visibility
-    // switch below, but produced no card here, so the gallery reported "no
-    // overlays yet" while its own raster was on screen and its own toggle was
-    // listed under it. The two solar rasters had the same defect; they are now
-    // drawn and listed on the energy screen, which owns their layer controls.
-    if (water?.occurrence_uri) {
-      const range =
-        water.date_range?.length === 2
-          ? `${water.date_range[0]} → ${water.date_range[1]}`
-          : null
-      list.push(
-        <OverlayAssetCard
-          key="water-occurrence"
-          title="Surface water occurrence"
-          params={[
-            water.index,
-            water.n_dates > 0 ? `${water.n_dates} dates` : null,
-            range,
-            `opacity ${Math.round((waterOpacity ?? 0.8) * 100)}%`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          previewUri={water.occurrence_uri}
-          pixelated
-          active={showWaterOverlay}
-          onExportPng={() =>
-            void exportAsset(water.occurrence_uri, "terra_water_occurrence.png")
-          }
-        />
-      )
-    }
-
-    for (const item of gallery) {
-      if (!item.overlay_uri) continue
-      const bandOrIndex =
-        item.kind === "index" && item.index
-          ? item.index.toUpperCase()
-          : item.bands?.join("-")
-      const paramLine = [
-        bandOrIndex,
-        item.sceneDate ||
-          (item.id === composition?.id ? composeSceneDate : null) ||
-          null,
-        item.kind === "rgb"
-          ? "RGB composite"
-          : item.kind === "index"
-            ? "Spectral index"
-            : null,
-        `opacity ${Math.round((item.opacity ?? composeOpacity) * 100)}%`,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-
-      list.push(
-        <OverlayAssetCard
-          key={item.id || item.overlay_uri}
-          title={item.title || item.label || "Composition"}
-          params={paramLine}
-          previewUri={item.overlay_uri}
-          active={composition?.id === item.id && showCompositionOverlay}
-          onActivate={
-            onSelectComposition && item.id
-              ? () => onSelectComposition(item.id)
-              : undefined
-          }
-          onRemove={
-            onRemoveComposition && item.id
-              ? () => onRemoveComposition(item.id)
-              : undefined
-          }
-          onExportPng={() =>
-            void exportAsset(
-              item.overlay_uri,
-              `terra_${(item.title || "composition").replace(/\s+/g, "_").toLowerCase()}.png`
-            )
-          }
-          onExportTif={
-            item.raster_tif
-              ? () =>
-                  void exportAsset(
-                    item.raster_tif!,
-                    `terra_${(item.title || "composition").replace(/\s+/g, "_").toLowerCase()}.tif`
-                  )
-              : undefined
-          }
-          canExportTif={!!item.raster_tif}
-        />
-      )
-    }
-
-    return list
-  }, [
-    result,
-    gallery,
-    composition,
-    areaLabel,
-    modelKind,
-    composeSceneDate,
-    composeOpacity,
-    showCompositionOverlay,
-    onSelectComposition,
-    onRemoveComposition,
-    water,
-    waterOpacity,
-    showWaterOverlay,
-  ])
+  const cards = assets.map((a) => (
+    <OverlayAssetCard
+      key={a.id}
+      title={a.title}
+      params={a.params}
+      previewUri={a.previewUri}
+      pixelated={a.pixelated}
+      active={a.onBoard}
+      onActivate={
+        a.selectId && onSelectComposition
+          ? () => onSelectComposition(a.selectId!)
+          : undefined
+      }
+      onRemove={
+        a.removeId && onRemoveComposition
+          ? () => onRemoveComposition(a.removeId!)
+          : undefined
+      }
+      onExportPng={() => void exportPng(a)}
+      onExportTif={a.exportTif ? () => void exportTif(a) : undefined}
+      canExportTif={!!a.exportTif}
+    />
+  ))
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
           className={cn(
-            "panel app-no-drag absolute right-14 z-[1100] flex w-[19rem] flex-col overflow-hidden rounded-md",
-            // Bottom-aligned with the control column it belongs to, growing
-            // upward. It used to open at top-14, and once its button moved
-            // into Leaflet's bottom-right stack that put the panel at one end
-            // of the screen and the thing that opened it at the other.
-            //
-            // 0.625rem is Leaflet's own margin under the last control, so the
-            // two share a baseline. right-14 already clears the column.
+            "panel app-no-drag absolute z-[1100] flex w-[19rem] flex-col overflow-hidden rounded-md",
+            // right-14 unless a caller moves it: the whiteboard's right column
+            // stands where this would otherwise open, and a tool drawer is
+            // pushed clear rather than withheld.
+            insetRight ? undefined : "right-14",
+            // Bottom-aligned with the control stack its button sits in, and
+            // 0.625rem is that stack's own margin under the last control, so
+            // the two share a baseline. A panel that opens at the far end from
+            // the thing that opened it is the defect this avoids.
             "bottom-[calc(var(--map-foot,0px)+0.625rem)]",
             "max-h-[min(36rem,calc(100%-var(--map-foot,0px)-5rem))]"
           )}
+          style={insetRight ? { right: insetRight } : undefined}
+          // Rises from the edge it is attached to.
           initial={{ opacity: 0, x: 16, y: 8 }}
           animate={{ opacity: 1, x: 0, y: 0 }}
           exit={{ opacity: 0, x: 16, y: 8 }}

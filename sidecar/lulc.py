@@ -376,10 +376,23 @@ def _wilson_interval(k: int, n: int, z: float = 1.96) -> list[float]:
     ]
 
 
+#: Blocks per side for the spatial breakdown. Six gives 36 blocks, which is
+#: enough for a small AOI to put a usable number of reference cells in most of
+#: them while still resolving a corner from a centre.
+BLOCKS_PER_SIDE = 6
+
+#: Reference cells a block needs before its agreement is reported as a figure.
+#: Below this the percentage is arithmetic rather than a measurement -- three
+#: cells can only ever read 0, 33, 67 or 100 -- and reporting it beside blocks
+#: of several hundred would invite comparing the two.
+MIN_BLOCK_CELLS = 20
+
+
 def agreement_against_reference(
     pred_map: np.ndarray,
     ref_map: np.ndarray,
     cell_ids: np.ndarray | None = None,
+    n_blocks: int = BLOCKS_PER_SIDE,
 ) -> dict | None:
     """
     Per-cell agreement between the classification and the reference.
@@ -414,9 +427,13 @@ def agreement_against_reference(
     cells = cell_ids[valid]
     preds = pred_map[valid]
     refs = ref_map[valid]
+    # Where each valid pixel sits, in the same C order `cell_ids[valid]` takes,
+    # so the block a cell falls in can be read off after the sort below.
+    ys, xs = np.nonzero(valid)
 
     order = np.argsort(cells, kind="stable")
     cells_s, preds_s, refs_s = cells[order], preds[order], refs[order]
+    ys_s, xs_s = ys[order], xs[order]
     # Contiguous runs of one cell id, so each native cell is visited once.
     starts = np.flatnonzero(np.r_[True, cells_s[1:] != cells_s[:-1]])
     bounds = np.r_[starts, cells_s.size]
@@ -426,6 +443,11 @@ def agreement_against_reference(
     k = len(classes)
     matrix = np.zeros((k, k), dtype=np.int64)  # rows predicted, cols reference
     outside = 0
+
+    # Correct and total per spatial block, filled alongside the matrix.
+    h, w = pred_map.shape
+    block_n = np.zeros((n_blocks, n_blocks), dtype=np.int64)
+    block_hit = np.zeros((n_blocks, n_blocks), dtype=np.int64)
 
     for a, b in zip(bounds[:-1], bounds[1:]):
         ref_vals = refs_s[a:b]
@@ -445,6 +467,16 @@ def agreement_against_reference(
         if pred_label not in index:
             continue
         matrix[index[pred_label], index[ref_label]] += 1
+
+        # The cell's first pixel places it. Every pixel of a native cell is
+        # inside the same 30 m square, so the choice only matters for a cell
+        # straddling a block edge -- and any rule has to break such a tie
+        # somewhere.
+        br = min(n_blocks - 1, int(ys_s[a]) * n_blocks // h)
+        bc = min(n_blocks - 1, int(xs_s[a]) * n_blocks // w)
+        block_n[br, bc] += 1
+        if pred_label == ref_label:
+            block_hit[br, bc] += 1
 
     n = int(matrix.sum())
     if n == 0:
@@ -501,6 +533,69 @@ def agreement_against_reference(
         "n_outside_legend": int(outside),
         "matrix": matrix.tolist(),
         "matrix_classes": classes,
+        "blocks": _block_agreement(block_hit, block_n, n_blocks),
+    }
+
+
+def _block_agreement(
+    hit: np.ndarray, total: np.ndarray, n_blocks: int
+) -> dict | None:
+    """
+    Agreement within each spatial block, as a distribution rather than a mean.
+
+    WHY A BREAKDOWN AND NOT ANOTHER SCALAR. `overall_pct` cannot distinguish a
+    classifier that is uniformly mediocre from one that is accurate everywhere
+    except a corner, and the two call for different work: the first is a model
+    problem, the second is usually one landscape -- a floodplain, a reservoir
+    margin, a block of a crop the legend has no label for.
+
+    It is also what makes two AOIs comparable on more than one number. A single
+    figure per area hides whether the areas differ in level or in evenness, and
+    the spread here is the second of those.
+
+    NOT A SIGNIFICANCE TEST. Blocks are a fixed grid over the raster's own
+    extent, not a designed sample: they vary in how many reference cells they
+    hold, they are not independent of the landscape's own structure, and the
+    spread below is descriptive. Olofsson et al. (2014) is the reference for an
+    accuracy assessment with a sampling design behind it, and this is not one.
+    """
+    n = int(total.sum())
+    if n == 0:
+        return None
+    cells = []
+    for r in range(n_blocks):
+        for c in range(n_blocks):
+            t = int(total[r, c])
+            if t == 0:
+                continue
+            cells.append({
+                "row": r,
+                "col": c,
+                "n_reference_cells": t,
+                # Reported only where the denominator can carry it; the count
+                # travels either way so a reader can see why it is absent.
+                "overall_pct": (
+                    float(round(100.0 * int(hit[r, c]) / t, 2))
+                    if t >= MIN_BLOCK_CELLS
+                    else None
+                ),
+            })
+    measured = [c["overall_pct"] for c in cells if c["overall_pct"] is not None]
+    if not measured:
+        return None
+    arr = np.asarray(measured, dtype=np.float64)
+    return {
+        "rows": n_blocks,
+        "cols": n_blocks,
+        "min_cells": MIN_BLOCK_CELLS,
+        "cells": cells,
+        "n_measured": len(measured),
+        "median_pct": float(round(float(np.median(arr)), 2)),
+        "iqr_pct": float(
+            round(float(np.percentile(arr, 75) - np.percentile(arr, 25)), 2)
+        ),
+        "min_pct": float(round(float(arr.min()), 2)),
+        "max_pct": float(round(float(arr.max()), 2)),
     }
 
 

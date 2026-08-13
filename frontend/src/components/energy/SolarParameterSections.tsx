@@ -16,6 +16,7 @@
  */
 import type { SolarParams } from "@/lib/energyState"
 import type { SolarSeason } from "@/lib/types"
+import { SOLAR_SEASONS } from "@/lib/solarOptions"
 import {
   ENERGY_CAPACITY_DENSITY_BASES,
   ENERGY_DECLARED_LOSSES,
@@ -29,15 +30,6 @@ import {
   TextField,
 } from "./controls"
 import type { SolarParamGroup, SolarProductEntry } from "./solarProducts"
-
-const SEASONS: { id: SolarSeason; label: string }[] = [
-  { id: "annual", label: "Annual" },
-  { id: "winter", label: "Winter" },
-  { id: "summer", label: "Summer" },
-  { id: "winter_crop", label: "Winter crop" },
-  { id: "anisotropy", label: "Winter / summer" },
-  { id: "shading", label: "Horizon shading" },
-]
 
 export interface SolarParameterSectionsProps {
   product: SolarProductEntry
@@ -160,7 +152,7 @@ function ParamGroup({
             onChange={(e) => set({ season: e.target.value as SolarSeason })}
             className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
           >
-            {SEASONS.map((s) => (
+            {SOLAR_SEASONS.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.label}
               </option>

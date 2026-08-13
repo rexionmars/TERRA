@@ -45,8 +45,9 @@ export const TOKENS = {
     lineStrong: [138, 117, 100],
     text: [226, 220, 212],
     muted: [172, 159, 144],
-    accent: [242, 86, 35],
+    accent: [237, 135, 68],
     accentQuiet: [255, 138, 92],
+    accentDim: [74, 38, 22],
     destructive: [160, 44, 44],
     success: [111, 156, 90],
     destructiveForeground: [226, 220, 212],
@@ -62,6 +63,7 @@ export const TOKENS = {
     muted: [104, 90, 76],
     accent: [186, 58, 18],
     accentQuiet: [158, 48, 14],
+    accentDim: [240, 214, 198],
     destructive: [179, 58, 26],
     success: [63, 107, 44],
     destructiveForeground: [252, 249, 243],
@@ -106,19 +108,26 @@ export const RULES: readonly ContrastRule[] = [
   },
   {
     fg: "accentQuiet",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["ink", "surface", "surfaceRaised", "accentDim"],
     min: 4.5,
-    why: "the accent where it is read rather than filled",
+    why: "the accent where it is read rather than filled; accentDim is the plate the whiteboard band lights a chosen value on, and the label sits on it",
   },
   {
     fg: "accent",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["ink", "surface", "surfaceRaised", "accentDim"],
     min: 3.0,
-    why: "fill, focus ring and active state; never small text",
+    why: "fill, focus ring and active state; never small text. On accentDim it is the underline that carries the chosen state where hue does not reach",
   },
   {
+    /*
+     * `ink` joins the surfaces here because the whiteboard's run band paints
+     * itself in ink and draws every editable control as a boxed field on it.
+     * A boundary that was only ever checked against the two panel surfaces was
+     * the fill's own 1.33 against ink -- which is the reason the band read as
+     * plain text.
+     */
     fg: "lineStrong",
-    on: ["surface", "surfaceRaised"],
+    on: ["ink", "surface", "surfaceRaised", "accentDim"],
     min: 3.0,
     why: "component boundary, WCAG 1.4.11; the surfaces are 1.11 and 1.20 apart, so the border is what separates them",
   },

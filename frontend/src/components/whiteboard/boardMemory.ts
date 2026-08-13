@@ -1,0 +1,268 @@
+/**
+ * What the board remembers between one opening and the next.
+ *
+ * The board is a component, and closing it unmounts the component. Every piece
+ * of the arrangement lived in that component's state, so glancing at the map
+ * and coming back threw away two areas, whatever had been dragged where, the
+ * names, the order and the spread -- work that takes minutes to rebuild and no
+ * time at all to lose.
+ *
+ * A module-level store rather than lifted state, and the reason is that
+ * lifting would not have been enough: the map screen remounts when the user
+ * visits another screen, so state held there would be lost by the same
+ * gesture in a slightly longer form. This outlives every component.
+ *
+ * NOT persistence. It survives a close and it does not survive a restart --
+ * that is what the comparisons table is for, and saving is a thing someone
+ * asks for by name. This is the difference between putting something down and
+ * throwing it away.
+ */
+
+const kept = new Map<string, unknown>()
+
+/**
+ * The area the map's own run occupies.
+ *
+ * Here rather than in BoardSurface because the map screen needs it and must
+ * not import that module: BoardSurface reaches `three`, and importing it
+ * eagerly would put half a megabyte back into the map screen's chunk.
+ */
+export const CURRENT_AREA = "current"
+
+/**
+ * The id of whatever the map is showing: its run, else its AOI, else nothing.
+ *
+ * IDENTITY IS THE SUBJECT, NOT THE SLOT. This was the bare `CURRENT_AREA` for
+ * every live area, so one literal named whatever ground the map happened to be
+ * on. Everything the board remembers per area -- the name a reader typed, the
+ * layer order, what they removed, opacities, where they dragged it, which
+ * planes are pinned in the compare editor -- is keyed by that id, and none of
+ * it was ever rekeyed or pruned. Draw a second AOI and the new subject slid
+ * into the previous one's name and arrangement, which is how a run appeared
+ * under a name its ground never had.
+ *
+ * Run first, deliberately. Keying by AOI would put two runs over the SAME
+ * shape back into one slot, which is the same defect reached by re-running
+ * instead of re-drawing.
+ *
+ * The sentinel keeps its two real jobs: an area with no run and no catalogued
+ * AOI -- an example area, an adopted geometry, a studio opened on nothing --
+ * and the rewrite `snapshotBoard` performs when a board is saved, which
+ * becomes a no-op once the live area already carries its run id.
+ */
+export function liveAreaId(
+  runId?: string | null,
+  aoiId?: string | null
+): string {
+  if (runId && runId !== CURRENT_AREA) return runId
+  if (aoiId) return aoiId
+  return CURRENT_AREA
+}
+
+/** Forget everything. For a board that should open empty. */
+export function clearBoardMemory(): void {
+  kept.clear()
+}
+
+export function readBoardMemory<T>(key: string, fallback: T): T {
+  return kept.has(key) ? (kept.get(key) as T) : fallback
+}
+
+export function writeBoardMemory(key: string, value: unknown): void {
+  kept.set(key, value)
+}
+
+/**
+ * A mutable object the board keeps across a close.
+ *
+ * For the things held in refs rather than in state -- where areas and planes
+ * were dragged to. Returns the SAME object every time, so the ref that points
+ * at it keeps working and writes into it are remembered without a copy.
+ */
+export function keptObject<T extends object>(key: string, initial: () => T): T {
+  if (!kept.has(key)) kept.set(key, initial())
+  return kept.get(key) as T
+}
+
+/**
+ * Whether the board is holding an area other than the map's own run.
+ *
+ * The map screen decides whether to mount the board, and it can only see its
+ * OWN layers -- so discarding the current result emptied that list and closed
+ * a board that still had a second area on it, with a raster the user had gone
+ * and fetched. Read at render rather than subscribed to: the moment that
+ * matters is a render of the map screen, since it is the map screen's own
+ * state that changes when a result is discarded.
+ */
+export function boardHoldsOtherAreas(): boolean {
+  const added = kept.get("added") as
+    | Record<string, readonly string[]>
+    | undefined
+  if (!added) return false
+  return Object.entries(added).some(
+    ([areaId, ids]) => areaId !== CURRENT_AREA && ids.length > 0
+  )
+}
+
+/**
+ * The whole arrangement, as plain data.
+ *
+ * Sets become arrays and back, because a Set does not survive JSON and the
+ * store keeps these as text. Everything else is already plain.
+ *
+ * Deliberately NOT a dump of the map: naming the fields is what makes an old
+ * saved board readable by a newer application. A dump would carry whatever
+ * keys existed on the day it was written, and reading one back would mean
+ * guessing which of them still mean anything.
+ */
+export interface BoardSnapshot {
+  /** Runs on the board, by id, in the order their areas were created. */
+  runIds: string[]
+  /** Scene ids added per area. */
+  added: Record<string, string[]>
+  removed: string[]
+  flat: string[]
+  order: Record<string, string[]>
+  names: Record<string, string>
+  extraState: Record<string, { opacity: number; visible: boolean }>
+  places: Record<string, { x: number; z: number }>
+  planePlaces: Record<string, { x: number; z: number }>
+  gap: number
+  links: boolean
+  labels: boolean
+}
+
+/**
+ * @param areas Each area on the board, by the RUN it will be reopened as, with
+ *   the scene ids actually on it.
+ *
+ * Not the `added` map. That records what someone ADDED, and the map's own area
+ * adds nothing -- its layers arrive from the map -- so a board saved from it
+ * recorded the run and not one raster of it. Reopened, the area came back
+ * empty, the board had nothing to show, and its mount condition read false: the
+ * menu closed and nothing happened.
+ *
+ * Membership is what a saved board is made of, so membership is what is saved.
+ * It is also what makes reopening symmetric: every area comes back as a loaded
+ * run, whichever one happened to be the map's when it was written.
+ */
+/*
+  The map's own area is called `current` while the board is open and comes back
+  as its run's id. Everything else the board remembers is keyed by an area --
+  names by row, order and places by area, the rest by area and layer together --
+  so a snapshot taken as written would carry keys naming an area that will not
+  exist on the other side. The name given to a stack, the order set on it and
+  the place it was dragged to would all be orphaned, silently.
+
+  So the keys are rewritten on the way out. Three shapes, because the board has
+  three: an area id on its own, an area and a layer joined by a null, and a row
+  id whose second segment is the area.
+*/
+function renameArea(from: string, to: string) {
+  const byArea = (k: string) => (k === from ? to : k)
+  const byScene = (k: string) =>
+    k.startsWith(`${from}\u0000`) ? `${to}${k.slice(from.length)}` : k
+  const byRow = (k: string) => {
+    const parts = k.split("::")
+    if (parts.length >= 2 && parts[1] === from) {
+      parts[1] = to
+      return parts.join("::")
+    }
+    return k
+  }
+  const map = <T,>(o: Record<string, T>, f: (k: string) => string) =>
+    Object.fromEntries(Object.entries(o).map(([k, v]) => [f(k), v]))
+  const list = (a: readonly string[], f: (k: string) => string) => a.map(f)
+  return { byArea, byScene, byRow, map, list }
+}
+
+/**
+ * @param areas Each area on the board, by the RUN it will be reopened as, with
+ *   the scene ids actually on it.
+ * @param currentRunId The run the map's own area belongs to, so its keys can
+ *   be rewritten to the id it will carry when the board is opened again.
+ *
+ * Membership is taken from the areas rather than from the `added` map. That
+ * map records what someone ADDED, and the map's own area adds nothing -- its
+ * layers arrive from the map -- so a board saved from it recorded the run and
+ * not one raster of it. Reopened, the area came back empty, the board had
+ * nothing to show, and its mount condition read false: the menu closed and
+ * nothing happened.
+ */
+export function snapshotBoard(
+  areas: { runId: string; layerIds: string[] }[],
+  currentRunId?: string
+): BoardSnapshot {
+  const r = renameArea(CURRENT_AREA, currentRunId ?? CURRENT_AREA)
+  return {
+    runIds: areas.map((a) => a.runId),
+    added: Object.fromEntries(areas.map((a) => [a.runId, [...a.layerIds]])),
+    removed: r.list(
+      [...readBoardMemory<ReadonlySet<string>>("removed", new Set())],
+      r.byScene
+    ),
+    flat: r.list(
+      [...readBoardMemory<ReadonlySet<string>>("flat", new Set())],
+      r.byScene
+    ),
+    order: r.map(
+      readBoardMemory<Record<string, string[]>>("order", {}),
+      r.byArea
+    ),
+    names: r.map(
+      readBoardMemory<Record<string, string>>("names", {}),
+      r.byRow
+    ),
+    extraState: r.map(
+      readBoardMemory<
+        Record<string, { opacity: number; visible: boolean }>
+      >("extraState", {}),
+      r.byScene
+    ),
+    places: r.map(
+      keptObject<Record<string, { x: number; z: number }>>("places", () => ({})),
+      r.byArea
+    ),
+    planePlaces: r.map(
+      keptObject<Record<string, { x: number; z: number }>>(
+        "planePlaces",
+        () => ({})
+      ),
+      r.byScene
+    ),
+    gap: readBoardMemory("gap", 0.1),
+    links: readBoardMemory("links", false),
+    labels: readBoardMemory("labels", false),
+  }
+}
+
+/**
+ * Replace everything with what a saved board holds.
+ *
+ * Cleared first, so opening a board gives that board rather than that board
+ * mixed with whatever was on screen. The kept objects are refilled in place,
+ * because refs elsewhere point at them.
+ */
+export function restoreBoard(snap: BoardSnapshot): void {
+  clearBoardMemory()
+  writeBoardMemory("added", snap.added)
+  writeBoardMemory("removed", new Set(snap.removed))
+  writeBoardMemory("flat", new Set(snap.flat))
+  writeBoardMemory("order", snap.order)
+  writeBoardMemory("names", snap.names)
+  writeBoardMemory("extraState", snap.extraState)
+  writeBoardMemory("gap", snap.gap)
+  writeBoardMemory("links", snap.links)
+  writeBoardMemory("labels", snap.labels)
+  Object.assign(
+    keptObject<Record<string, { x: number; z: number }>>("places", () => ({})),
+    snap.places
+  )
+  Object.assign(
+    keptObject<Record<string, { x: number; z: number }>>(
+      "planePlaces",
+      () => ({})
+    ),
+    snap.planePlaces
+  )
+}

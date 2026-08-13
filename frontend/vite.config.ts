@@ -89,4 +89,20 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Rollup would split three out anyway, because the only route to it is
+        // a dynamic import. Naming the chunk is the point: an unnamed hash
+        // makes the cost of the 3D board illegible in every future build
+        // table, and this is the one number worth watching.
+        //
+        // chunkSizeWarningLimit is deliberately left at its default. The main
+        // chunk is already well over it, and that warning is the only thing
+        // saying so.
+        manualChunks: (id) =>
+          id.includes('node_modules/three/') ? 'three' : undefined,
+      },
+    },
+  },
 })

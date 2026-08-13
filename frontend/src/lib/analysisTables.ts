@@ -14,6 +14,7 @@
  */
 import type {
   ClassStat,
+  DomainFingerprint,
   EnergyModelAnalysis,
   SolarAnalysis,
   SolarSitingAnalysis,
@@ -333,6 +334,33 @@ export function lulcPredVsRefTable(
   )
 }
 
+/** Summary of the classify-time domain fingerprint (no raw sample matrix). */
+export function domainFingerprintTable(
+  fp?: DomainFingerprint | null
+): DataTable | null {
+  if (!fp?.mean?.length) return null
+  let meanL2 = 0
+  for (const v of fp.mean) meanL2 += v * v
+  meanL2 = Math.sqrt(meanL2)
+  let entropy = 0
+  for (const p of fp.ndvi_hist?.probs ?? []) {
+    if (p > 0) entropy -= p * Math.log(p)
+  }
+  return table(
+    "domain_fingerprint",
+    "domain_fingerprint.csv",
+    [
+      { key: "space" },
+      num("n_features"),
+      num("n_pixels"),
+      num("n_sample"),
+      num("mean_l2"),
+      num("ndvi_hist_entropy"),
+    ],
+    [[fp.space, fp.n_features, fp.n_pixels, fp.n_sample, meanL2, entropy]]
+  )
+}
+
 export function waterSeriesTable(
   water?: WaterAnalysis | null
 ): DataTable | null {
@@ -439,6 +467,12 @@ export function solarTerrainTable(
       num("shading_max_pct_of_beam"),
       num("beam_fraction"),
       num("horizon_max_dist_m"),
+      { key: "sky_view_applied" },
+      num("sky_view_mean_horizon_deg"),
+      num("sky_view_max_horizon_deg"),
+      num("sky_view_threshold_deg"),
+      num("sky_view_diffuse_loss_mean_pct"),
+      num("sky_view_diffuse_loss_max_pct"),
     ],
     terrain && terrain.pixels > 0
       ? [
@@ -458,6 +492,16 @@ export function solarTerrainTable(
             terrain.shading_max_pct,
             terrain.beam_fraction,
             terrain.horizon_max_dist_m,
+            terrain.sky_view
+              ? terrain.sky_view.applied
+                ? "yes"
+                : "no"
+              : "",
+            terrain.sky_view?.mean_horizon_deg ?? "",
+            terrain.sky_view?.max_horizon_deg ?? "",
+            terrain.sky_view?.threshold_deg ?? "",
+            terrain.sky_view?.diffuse_loss_mean_pct ?? "",
+            terrain.sky_view?.diffuse_loss_max_pct ?? "",
           ],
         ]
       : []
@@ -880,6 +924,7 @@ export function allAnalysisTables(result: PredictResult): DataTable[] {
     lulcCompositionTable(result.lulc),
     lulcGroupsTable(result.lulc),
     lulcPredVsRefTable(result.lulc),
+    domainFingerprintTable(result.domain_fingerprint),
     waterSeriesTable(result.water),
     solarMonthlyTable(result.solar),
     solarTiltToleranceTable(result.solar),

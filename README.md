@@ -76,7 +76,10 @@ outside the UI.
 - **Fixed output legend.** Crop models emit the trained class set
   `{3, 21, 25, 39, 41}`. They cannot predict pasture, savanna, or other MapBiomas
   codes outside that head. AOIs in other biomes may look “confident” and still be
-  **semantically wrong** (domain shift).
+  **semantically wrong** (domain shift). **Analysis → Compare** quantifies that
+  gap (KL on NDVI, CVA, RBF MMD, F1 / outside-legend rates) when both runs
+  carry a classify-time domain fingerprint — diagnosis only; adaptation training
+  stays in the research repo.
 - **MapBiomas ≠ field truth.** Agreement metrics are concordance with an annual
   map, often time-offset from the Sentinel-2 series — not pixel-level crop labels.
 - **Class 41 is a residual bucket** (“other temporary crops”). High OA against

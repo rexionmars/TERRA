@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
+import type { Whiteboard } from "@/lib/whiteboards"
+import { listWhiteboards, openWhiteboard } from "@/lib/whiteboards"
+import {
+  restoreBoard,
+  writeBoardMemory,
+} from "@/components/whiteboard/boardMemory"
 import { useTheme } from "next-themes"
 import {
   ListEmbeddedAreas,
@@ -82,6 +89,11 @@ import {
   type AoiContourSchemeId,
 } from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
+import {
+  createSavedAoi,
+  type SavedAoi,
+} from "@/lib/savedAois"
+
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
@@ -188,6 +200,8 @@ function App() {
   const period = useMemo(defaultPeriod, [])
   const [areas, setAreas] = useState<Area[]>([])
   const [customPolygon, setCustomPolygon] = useState<GeoJSONGeometry | null>(null)
+  const [savedAois, setSavedAois] = useState<SavedAoi[]>([])
+  const [activeAoiId, setActiveAoiId] = useState<string | undefined>()
   const [activeExample, setActiveExample] = useState<string>("")
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; key: number } | null>(null)
   const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({
@@ -215,12 +229,62 @@ function App() {
   const [progress, setProgress] = useState<number>(0)
   const [progressMsg, setProgressMsg] = useState<string>("")
   const [result, setResult] = useState<PredictResult | null>(null)
+  /**
+   * Results the map has finished with, kept so the board can still show them.
+   *
+   * There is ONE live result, and starting a run empties it before the request
+   * is even built. Everything the map was showing therefore ceased to exist at
+   * the moment the next run began -- not when it finished, and not because of
+   * anything the board did. A studio whose whole purpose is placing analyses
+   * side by side could hold exactly one at a time, and the previous one went
+   * without a word.
+   *
+   * Archived here rather than in the board because it has to outlive the map
+   * screen unmounting, which is what took the rasters away on a trip to the
+   * analyses list and back.
+   *
+   * Bounded at three by recency: each result carries several megabytes of data
+   * URIs. A run that was saved is evicted before one that was not, since a
+   * saved run can be brought back through the run picker and an unsaved one is
+   * gone for good.
+   */
+  const [retainedRuns, setRetainedRuns] = useState<
+    readonly { id: string; result: PredictResult }[]
+  >([])
+  const retainRun = useCallback((outgoing: PredictResult | null) => {
+    // A result with no classification is a water or solar payload the board
+    // reads from its own fields; nothing of it belongs to a scene.
+    if (!outgoing || !(outgoing.class_stats?.length || outgoing.overlay_uri)) {
+      return
+    }
+    setRetainedRuns((prev) => {
+      const id = outgoing.run_id || `unsaved:${prev.length + 1}`
+      if (prev.some((r) => r.id === id)) return prev
+      const next = [{ id, result: outgoing }, ...prev]
+      if (next.length <= 3) return next
+      // Drop the oldest RECOVERABLE one; an unsaved run has nowhere to return
+      // from, so it outlives a saved neighbour.
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (!next[i].id.startsWith("unsaved:")) return next.filter((_, j) => j !== i)
+      }
+      return next.slice(0, 3)
+    })
+  }, [])
   const [analysisLabel, setAnalysisLabel] = useState<string | undefined>()
   const [lulcRunning, setLulcRunning] = useState(false)
   const [booting, setBooting] = useState(true)
   const [splashExiting, setSplashExiting] = useState(false)
   const { setTheme } = useTheme()
 
+  /**
+   * Stored preferences into the controls they own. LOAD ONLY.
+   *
+   * Called once when preferences arrive, and never as the echo of a save.
+   * Every field here is a control the reader can also move by hand, so
+   * re-running it after a save overwrites whatever they moved since -- which
+   * is what silently put the model picker back on the stored default after any
+   * of the five actions that write preferences on their own.
+   */
   const applyPrefs = useCallback(
     (p: Preferences) => {
       if (
@@ -236,6 +300,9 @@ function App() {
       if (p.theme === "dark" || p.theme === "light" || p.theme === "system") {
         setTheme(p.theme)
       }
+      const extras = parsePreferenceExtras(p.extras_json)
+      setSavedAois(extras.saved_aois ?? [])
+      setActiveAoiId(extras.active_aoi_id)
     },
     [setTheme]
   )
@@ -318,6 +385,7 @@ function App() {
     setCustomPolygon(null)
     setActiveExample("")
     setAnalysisLabel(undefined)
+    setActiveAoiId(undefined)
   }
 
   const handleImportPolygon = async () => {
@@ -360,10 +428,13 @@ function App() {
           notifyError("No polygon found in the file.")
           return
         }
+        const entry = createSavedAoi(geom, savedAois, file.name.replace(/\.[^.]+$/, ""))
+        setSavedAois((prev) => [...prev, entry])
+        setActiveAoiId(entry.id)
         setActiveExample("")
         setCustomPolygon(geom)
-        setAnalysisLabel(undefined)
-        notifySuccess("Polygon imported.")
+        setAnalysisLabel(entry.name)
+        notifySuccess(`Polygon saved as “${entry.name}”.`)
       }
       input.click()
     } catch (e) {
@@ -383,6 +454,8 @@ function App() {
             areas={areas}
             activeExample={activeExample}
             customPolygon={customPolygon}
+            savedAois={savedAois}
+            activeAoiId={activeAoiId}
             flyTo={flyTo}
             view={view}
             start={start}
@@ -408,6 +481,8 @@ function App() {
             hasArea={hasArea}
             setView={setView}
             setCustomPolygon={setCustomPolygon}
+            setSavedAois={setSavedAois}
+            setActiveAoiId={setActiveAoiId}
             setActiveExample={setActiveExample}
             setFlyTo={setFlyTo}
             setStart={setStart}
@@ -429,6 +504,8 @@ function App() {
             setProgress={setProgress}
             setProgressMsg={setProgressMsg}
             setResult={setResult}
+            retainRun={retainRun}
+            retainedRuns={retainedRuns}
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
@@ -445,6 +522,8 @@ function AppBody(props: {
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
+  savedAois: SavedAoi[]
+  activeAoiId?: string
   flyTo: { lat: number; lon: number; key: number } | null
   view: { lat: number; lon: number; zoom: number }
   start: string
@@ -470,6 +549,8 @@ function AppBody(props: {
   hasArea: boolean
   setView: (v: { lat: number; lon: number; zoom: number }) => void
   setCustomPolygon: (g: GeoJSONGeometry | null) => void
+  setSavedAois: Dispatch<SetStateAction<SavedAoi[]>>
+  setActiveAoiId: (id: string | undefined) => void
   setActiveExample: (id: string) => void
   setFlyTo: (v: { lat: number; lon: number; key: number } | null) => void
   setStart: (v: string) => void
@@ -491,6 +572,9 @@ function AppBody(props: {
   setProgress: (v: number) => void
   setProgressMsg: (v: string) => void
   setResult: (r: PredictResult | null) => void
+  /** Archive the outgoing result before the live slot is emptied. */
+  retainRun: (outgoing: PredictResult | null) => void
+  retainedRuns: readonly { id: string; result: PredictResult }[]
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
@@ -500,6 +584,85 @@ function AppBody(props: {
   const { user, refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
     useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
+
+  /**
+   * Saved whiteboards, and the request to open one.
+   *
+   * The nonce is how the map screen is told to open its board: the board's
+   * open state is that screen's, and a boolean would only fire the first time
+   * -- opening the same whiteboard twice in a row has to work.
+   */
+  const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
+  const [openBoardNonce, setOpenBoardNonce] = useState(0)
+  /**
+   * The title bar's host element for the map screen's whiteboard toggle.
+   *
+   * A DOM node, not a board state. The button is drawn in the bar because the
+   * bar is above the board in both layouts, and the two surfaces that used to
+   * carry it each had a layout they could not serve. What stays in the map
+   * screen is whether the board is open -- deliberately, so leaving the screen
+   * and coming back gives the map. Same bridge as MapView's BottomRightSlot.
+   */
+  /*
+    Whether the studio covers the map, mirrored here for the title bar alone.
+
+    The state itself stays in the map screen -- it must not survive a trip to
+    another screen -- and this is a report of it, reset when the screen changes
+    so a stale `true` cannot outlive the screen that set it.
+  */
+  const [boardOpen, setBoardOpen] = useState(false)
+  const [boardSlotHost, setBoardSlotHost] = useState<HTMLDivElement | null>(
+    null
+  )
+  const refreshWhiteboards = useCallback(async () => {
+    try {
+      setWhiteboards(await listWhiteboards())
+    } catch {
+      // A board list that cannot be read is an empty menu section, not an
+      // error in front of whatever the user was actually doing.
+    }
+  }, [])
+  useEffect(() => {
+    void refreshWhiteboards()
+  }, [refreshWhiteboards])
+
+  const handleOpenWhiteboard = useCallback(
+    async (board: Whiteboard) => {
+      try {
+        const opened = await openWhiteboard(board.id)
+        if (!opened.snapshot) {
+          notifyError(
+            "Could not read this whiteboard",
+            new Error("its arrangement is unreadable")
+          )
+          return
+        }
+        restoreBoard(opened.snapshot)
+        /*
+          The rasters are fetched by the board itself, where LoadAnalysis
+          already lives. Members whose run has been deleted are left out with
+          a word rather than silently: a board that opened with one side
+          missing and said nothing would look like it had been built that way.
+        */
+        const wanted = opened.snapshot.runIds.filter(
+          (id) => !opened.missingRunIds.includes(id)
+        )
+        writeBoardMemory("pendingRunIds", wanted)
+        writeBoardMemory("savedId", board.id)
+        writeBoardMemory("savedName", board.name)
+        if (opened.missingRunIds.length) {
+          notifyInfo(
+            `${opened.missingRunIds.length} run(s) on this whiteboard no longer exist.`
+          )
+        }
+        goMap()
+        setOpenBoardNonce((n) => n + 1)
+      } catch (e) {
+        notifyError("Could not open this whiteboard", e)
+      }
+    },
+    [goMap]
+  )
 
   /**
    * Open settings at System when nothing can be computed.
@@ -799,6 +962,33 @@ function AppBody(props: {
     (patch: Partial<SolarLayers>) => solarDispatch({ type: "layers/set", patch }),
     [solarDispatch]
   )
+  /**
+   * A solar row on the whiteboard, translated into the store's own vocabulary.
+   *
+   * The board says which raster changed and how; only this file knows that
+   * `terrain` answers to showTerrain/terrainOpacity. Handing the map screen the
+   * reducer instead would have made every surface that draws a solar raster
+   * know the shape of the store that holds it.
+   */
+  const setSolarBoardLayer = useCallback(
+    (
+      id: "terrain" | "siting",
+      patch: { visible?: boolean; opacity?: number }
+    ) => {
+      const next: Partial<SolarLayers> = {}
+      if (patch.visible !== undefined) {
+        if (id === "terrain") next.showTerrain = patch.visible
+        else next.showSiting = patch.visible
+      }
+      if (patch.opacity !== undefined) {
+        if (id === "terrain") next.terrainOpacity = patch.opacity
+        else next.sitingOpacity = patch.opacity
+      }
+      if (Object.keys(next).length > 0) setSolarLayers(next)
+    },
+    [setSolarLayers]
+  )
+
   const setWindParams = useCallback(
     (patch: Partial<WindParams>) => windDispatch({ type: "params/set", patch }),
     [windDispatch]
@@ -1828,6 +2018,9 @@ function AppBody(props: {
     props.setRunning(true)
     props.setProgress(0)
     props.setProgressMsg("iniciando")
+    // Before the slot is emptied, and before the request is built: a run that
+    // fails now costs the reader nothing, where it used to cost them the map.
+    props.retainRun(props.result)
     props.setResult(null)
     const useExample = usesExampleArea(props.activeExample, props.areas)
     const aoiLabel =
@@ -1965,7 +2158,16 @@ function AppBody(props: {
   }
 
   const openSavedAnalysis = useCallback(
-    async (run: InferenceRun) => {
+    /**
+     * @param opts.land Where to leave the user once the run is restored.
+     *
+     * The hub and the profile list send someone to the analysis page, which
+     * for the hub is where they already are. The project menu does not: it is
+     * opened from the map, and a run picked there is a request to look at that
+     * run on the map. Passed rather than corrected afterwards -- navigating to
+     * one screen and then to another shows the first one on the way past.
+     */
+    async (run: InferenceRun, opts?: { land?: "analysis" | "map" }) => {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
@@ -2047,7 +2249,8 @@ function AppBody(props: {
             key: Date.now(),
           })
         }
-        goAnalysis()
+        if (opts?.land === "map") goMap()
+        else goAnalysis()
         notifySuccess("Analysis restored.")
       } catch (e) {
         notifyError("Could not load analysis", e)
@@ -2059,6 +2262,7 @@ function AppBody(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       goAnalysis,
+      goMap,
       solarDispatch,
       windDispatch,
       props.areas,
@@ -2077,6 +2281,7 @@ function AppBody(props: {
   )
 
   const backToAnalysesList = useCallback(() => {
+    props.retainRun(props.result)
     props.setResult(null)
     setCurrentRunLabel(null)
     setCurrentRunId(null)
@@ -2129,6 +2334,7 @@ function AppBody(props: {
    * defines its own AOI on its own screen and clears nothing here.
    */
   const startNewClassification = useCallback(() => {
+    props.retainRun(props.result)
     props.setResult(null)
     setCurrentRunLabel(null)
     setCurrentRunId(null)
@@ -2242,21 +2448,132 @@ function AppBody(props: {
     null
 
   /**
-   * A polygon drawn on either map. The composition is dropped with it: it was
-   * rendered for the previous AOI and does not describe this one. Water and the
-   * energy products are dropped by their own AOI-change effects.
+   * A polygon drawn on either map. Appended to the saved-AOI catalog so a
+   * second draw does not throw the first away; the new entry becomes active.
+   * Passing null clears the active shape only (catalog stays).
    */
   const handlePolygonDrawn = useCallback(
     (geom: GeoJSONGeometry | null) => {
+      if (!geom) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+        return
+      }
+      const entry = createSavedAoi(geom, props.savedAois)
+      props.setSavedAois((prev) => [...prev, entry])
+      props.setActiveAoiId(entry.id)
       props.setCustomPolygon(geom)
-      if (!geom) return
       props.setActiveExample("")
-      props.setAnalysisLabel(undefined)
+      props.setAnalysisLabel(entry.name)
       setComposition(null)
       setShowCompositionOverlay(true)
     },
-    [props.setCustomPolygon, props.setActiveExample, props.setAnalysisLabel]
+    [
+      props.savedAois,
+      props.setSavedAois,
+      props.setActiveAoiId,
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setAnalysisLabel,
+    ]
   )
+
+  const activateSavedAoi = useCallback(
+    (id: string) => {
+      const entry = props.savedAois.find((a) => a.id === id)
+      if (!entry) return
+      props.setActiveAoiId(entry.id)
+      props.setCustomPolygon(entry.geometry)
+      props.setActiveExample("")
+      props.setAnalysisLabel(entry.name)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [
+      props.savedAois,
+      props.setActiveAoiId,
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  /** Put a run's stored polygon on the map without adding a catalog entry. */
+  const adoptAreaGeometry = useCallback(
+    (geom: GeoJSONGeometry | null) => {
+      if (!geom) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+        return
+      }
+      props.setCustomPolygon(geom)
+      props.setActiveExample("")
+      props.setActiveAoiId(undefined)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setActiveAoiId,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  const renameSavedAoi = useCallback(
+    (id: string, name: string) => {
+      const next = name.trim()
+      if (!next) return
+      props.setSavedAois((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, name: next } : a))
+      )
+      if (props.activeAoiId === id) props.setAnalysisLabel(next)
+    },
+    [props.setSavedAois, props.activeAoiId, props.setAnalysisLabel]
+  )
+
+  const deleteSavedAoi = useCallback(
+    (id: string) => {
+      props.setSavedAois((prev) => prev.filter((a) => a.id !== id))
+      if (props.activeAoiId === id) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+      }
+    },
+    [
+      props.setSavedAois,
+      props.activeAoiId,
+      props.setCustomPolygon,
+      props.setActiveAoiId,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  /** Persist the catalog whenever it changes (silent — no toast). */
+  useEffect(() => {
+    if (!prefs) return
+    const extras = parsePreferenceExtras(prefs.extras_json)
+    const sameAois =
+      JSON.stringify(extras.saved_aois ?? []) === JSON.stringify(props.savedAois)
+    const sameActive = (extras.active_aoi_id ?? undefined) === props.activeAoiId
+    if (sameAois && sameActive) return
+    void savePrefs(
+      {
+        ...prefs,
+        extras_json: mergePreferenceExtras(prefs.extras_json, {
+          saved_aois: props.savedAois,
+          active_aoi_id: props.activeAoiId,
+          aoi_label:
+            props.savedAois.find((a) => a.id === props.activeAoiId)?.name ??
+            extras.aoi_label,
+        }),
+      },
+      { silent: true }
+    ).catch(() => {})
+  }, [props.savedAois, props.activeAoiId, prefs, savePrefs])
 
   /**
    * The analysis payload as the Analysis screen and the exporter see it.
@@ -2309,6 +2626,14 @@ function AppBody(props: {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <TitleBar
         view={props.view}
+        /*
+          Handed back so the map screen can portal its whiteboard toggle up
+          here. What App holds is WHERE the button goes; whether the board is
+          open stays in the screen, which is the only place it can stay without
+          surviving a trip to another screen.
+        */
+        boardSlotRef={setBoardSlotHost}
+        boardOpen={boardOpen}
         result={props.result}
         runLabel={currentRunLabel}
         layoutMode={layoutMode}
@@ -2329,8 +2654,33 @@ function AppBody(props: {
             <ProjectSwitcher
               projects={projects}
               activeProjectId={activeProjectId}
+              runs={runs}
+              whiteboards={whiteboards}
+              onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
+              onMenuOpen={() => void refreshWhiteboards()}
+              busy={loadingRun}
               onSelect={(id) => void activateProject(id)}
               onCreate={() => void handleCreateProjectFromAoi()}
+              onOpenRun={(run) => {
+                void (async () => {
+                  /*
+                    The header must not name one project while the map shows a
+                    run belonging to another, and picking a run inside a
+                    project's own list is as clear a statement of which project
+                    is meant as clicking its name.
+
+                    Not user-initiated: that draws the project's AOI and flies
+                    to it, which is exactly what the run about to load is going
+                    to replace. This sets the context and lets the run draw.
+                  */
+                  if (run.project_id && run.project_id !== activeProjectId) {
+                    await activateProject(run.project_id, {
+                      userInitiated: false,
+                    })
+                  }
+                  await openSavedAnalysis(run, { land: "map" })
+                })()
+              }}
               onOpenHub={() => goAnalysis()}
             />
           ) : undefined
@@ -2379,10 +2729,42 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MapScreen
+                  retainedRuns={props.retainedRuns}
                   onCreditChange={setCredit}
+                  titleBarSlot={boardSlotHost}
+                  onBoardOpenChange={setBoardOpen}
+                  /*
+                    The two solar rasters, so the board can lift them like any
+                    other. The energy screen keeps drawing them on its own map;
+                    this is the same store read by a second surface, not a copy.
+                  */
+                  solarTerrain={solar.results.terrain}
+                  solarSiting={solar.results.siting}
+                  showSolarTerrain={solar.layers.showTerrain}
+                  showSolarSiting={solar.layers.showSiting}
+                  solarTerrainOpacity={solar.layers.terrainOpacity}
+                  solarSitingOpacity={solar.layers.sitingOpacity}
+                  onSolarLayerChange={setSolarBoardLayer}
+                  /*
+                    And the inputs, so the board can start a solar run rather
+                    than only draw one somebody else started. The same store the
+                    energy screen edits -- a second copy would let the two
+                    disagree about what the next run will compute.
+                  */
+                  solarParams={solar.params}
+                  onSolarParamsChange={setSolarParams}
+                  onRunSolar={(product) => {
+                    if (product === "terrain") void handleRunSolarTerrain()
+                    else void handleRunSolarSiting()
+                  }}
+                  // Any solar product blocks the rest: one sidecar run at a time.
+                  solarBusy={solar.run.active !== null}
+                  solarProgress={solar.run.progress}
+                  solarProgressMsg={solar.run.message}
                   initialView={initialMapView}
                   leftPanel={leftPanel}
                   layoutMode={layoutMode}
+                  onLayoutModeChange={changeLayoutMode}
                   onNavigate={navigateTo}
                   onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
@@ -2435,6 +2817,12 @@ function AppBody(props: {
                   composeOpacity={composeOpacity}
                   onViewChange={handleViewChange}
                   onPolygonDrawn={handlePolygonDrawn}
+                  onAdoptAreaGeometry={adoptAreaGeometry}
+                  savedAois={props.savedAois}
+                  activeAoiId={props.activeAoiId}
+                  onActivateSavedAoi={activateSavedAoi}
+                  onRenameSavedAoi={renameSavedAoi}
+                  onDeleteSavedAoi={deleteSavedAoi}
                   onLocationSelect={(lat, lon) =>
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }
@@ -2491,6 +2879,7 @@ function AppBody(props: {
                   onRun={handleRun}
                   onAnalyzeLULC={handleAnalyzeLULC}
                   lulcRunning={props.lulcRunning}
+                  openBoardNonce={openBoardNonce}
                   onCloseResult={() => {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)

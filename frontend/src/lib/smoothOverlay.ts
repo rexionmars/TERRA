@@ -9,7 +9,12 @@
  * Outer AOI transparency stays binary.
  */
 
-function loadImage(url: string): Promise<HTMLImageElement> {
+/**
+ * Shared with lib/classMask.ts, which decodes the same rasters for a different
+ * purpose. Exported rather than copied: a second decoder is a second place for
+ * the WKWebView's behaviour on data URIs to be discovered.
+ */
+export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
@@ -18,7 +23,8 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
-function packRGB(r: number, g: number, b: number): number {
+/** One integer per colour, so a palette can be a Map rather than a scan. */
+export function packRGB(r: number, g: number, b: number): number {
   return (r << 16) | (g << 8) | b
 }
 
@@ -74,9 +80,35 @@ function blurChannel(
   return out
 }
 
+/**
+ * Results already computed, keyed by the source data URI.
+ *
+ * The transform is pure -- one image in, one image out -- and expensive: a
+ * separable Gaussian over one channel per class, on the CPU, on the main
+ * thread. Two surfaces now ask for the same result, the map and the
+ * whiteboard, and without this the second would recompute what the first
+ * already has and block the frame doing it.
+ *
+ * Keyed on the data URI, which IS the image: two calls with the same string
+ * are the same question. Entries are held for the session; the URIs are the
+ * run's own rasters and there are at most a handful.
+ */
+const smoothed = new Map<string, Promise<string>>()
+
 /** Kept name for MapView import; contour-style hard class smooth. */
 export async function majoritySmoothOverlay(url: string): Promise<string> {
-  return contourSmoothOverlay(url, 1.8)
+  const hit = smoothed.get(url)
+  if (hit) return hit
+  // The promise is cached, not the result, so concurrent callers share one
+  // computation rather than starting a second while the first is in flight.
+  const run = contourSmoothOverlay(url, 1.8).catch((err) => {
+    // A failure must not be remembered: the next attempt should be allowed to
+    // try again rather than replaying the error for the session.
+    smoothed.delete(url)
+    throw err
+  })
+  smoothed.set(url, run)
+  return run
 }
 
 /**

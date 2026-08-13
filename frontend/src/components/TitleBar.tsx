@@ -22,7 +22,8 @@ import {
   type BasemapKind,
   type CreditPart,
 } from "@/lib/basemaps"
-import { useAuth, type AppScreen } from "@/lib/auth"
+import { useAuth } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 
 interface TitleBarProps {
   view: { lat: number; lon: number; zoom: number }
@@ -44,8 +45,32 @@ interface TitleBarProps {
    * It is a view mode rather than a destination, so it does not contradict this
    * bar's rule against per-page navigation icons.
    */
+  /**
+   * Where the map screen hangs its whiteboard toggle.
+   *
+   * A host element handed BACK, rather than a ReactNode taken in like
+   * `projectSwitcher`. What that button reads -- whether the board is up,
+   * whether there is anything to put on it -- is the map screen's state, and
+   * the map screen is not this component's parent. Filling a node slot would
+   * mean lifting a deliberately screen-local flag into the shell, and that flag
+   * is local on purpose: coming back to the map has to give the map, not a
+   * board left open. MapView's BottomRightSlot bridges the same way for the
+   * same reason -- a control with one owner that has to be drawn inside
+   * another's DOM.
+   */
+  boardSlotRef?: (el: HTMLDivElement | null) => void
   layoutMode?: LayoutMode
   onLayoutModeChange?: (mode: LayoutMode) => void
+  /**
+   * Whether the studio covers the map.
+   *
+   * The telemetry in this bar describes the map: latitude, longitude, zoom and
+   * whose imagery is being looked at. With the studio open the map is covered
+   * -- that is the premise of the mode -- so those readings describe a surface
+   * nobody can see, and the credit names imagery that is not on screen. They
+   * are withheld rather than left to read as stale.
+   */
+  boardOpen?: boolean
   /**
    * Which basemap is showing, and the date of the imagery under the centre.
    *
@@ -65,8 +90,11 @@ interface TitleBarProps {
  * createWebViewWith, so a blank-target link is silently ignored -- the click
  * does nothing at all. On a link the ODbL requires to be reachable, silently
  * nothing is the one outcome that cannot be shipped.
+ *
+ * Exported because the board's drawing map credits its basemap too, and an
+ * anchor written there would be that silent failure a second time.
  */
-function Credit({ part }: { part: CreditPart }) {
+export function Credit({ part }: { part: CreditPart }) {
   if (!part.href) return <span>{part.label}</span>
   return (
     <button
@@ -80,29 +108,23 @@ function Credit({ part }: { part: CreditPart }) {
 }
 
 /**
- * What each screen works from, named once per screen.
+ * The line beside the wordmark.
  *
- * The eyebrow used to be the pinned literal "land cover · sentinel-2", which a
- * user in the energy screen read for a whole session while neither the solar
- * nor the wind products touch Sentinel-2. The energy label names NASA POWER
- * because both tabs read their series from it (SolarAnalysis,
- * SolarTerrainAnalysis, EnergyModelAnalysis and WindAnalysis all carry
- * power_provenance), and it names no single resource because the tab in use is
- * state inside that screen which the title bar does not see.
+ * It used to name what each screen worked from -- "land cover · sentinel-2" on
+ * the map, "solar and wind · nasa power" on energy -- and that table existed
+ * to fix a real defect: the map's literal was pinned for every screen, so a
+ * reader in energy read Sentinel-2 for a whole session while neither the solar
+ * nor the wind products touch it.
  *
- * Typed against AppScreen so a screen added later cannot ship without a label.
+ * A SIGNATURE IS NOT THAT CLAIM. This says who the application is for, not
+ * which data the surface in front of the reader is made of, so it is true on
+ * every screen for the same reason the old literal was false on most of them.
+ * What a screen works from is said by the screen.
+ *
+ * The studio names the mode instead, because there the line does carry state:
+ * it is how a reader knows which of the two surfaces they are looking at.
  */
-const SCREEN_EYEBROW: Record<AppScreen, string> = {
-  map: "land cover · sentinel-2",
-  energy: "solar and wind · nasa power",
-  // The destination is the project hub -- the list of projects, their saved
-  // runs and their overlays. A single analysis is one thing opened from inside
-  // it, so naming the whole screen after that one thing sent users looking for
-  // a chart and gave them a folder list.
-  analysis: "project hub",
-  auth: "sign in",
-  profile: "settings",
-}
+const BRAND_TAGLINE = "for explorers"
 
 function fmtCoord(v: number, pos: string, neg: string): string {
   const dir = v >= 0 ? pos : neg
@@ -116,18 +138,36 @@ export function TitleBar({
   result,
   projectSwitcher,
   runLabel,
+  boardSlotRef,
   layoutMode = "docked",
   onLayoutModeChange,
   credit,
+  boardOpen = false,
 }: TitleBarProps) {
   const { screen, user, loading, goProfile, goAuth } = useAuth()
   const onMap = screen === "map"
   const hasMap = onMap || screen === "energy"
+  // The map's own readings, which need the map to be on screen to mean
+  // anything. The board slot and the layout toggle stay on `hasMap`: they are
+  // how the studio is left, so hiding them inside it would strand the user.
+  const showMapTelemetry = hasMap && !boardOpen
   const run = runLabel?.trim()
 
   return (
-    <header className="titlebar-terra app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pl-20 pr-2 backdrop-blur-md">
+    <header className={cn(
+        "titlebar-terra app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pr-2 backdrop-blur-md",
+        // The window's traffic lights own the first 4.5rem in both states.
+        "pl-[4.5rem]"
+      )}>
       <div className="flex items-center gap-3">
+        {/*
+          Hard against the corner, clear of the traffic lights and nothing else.
+
+          It used to be a box the width of the studio's left column, centred on
+          its own contents, so the wordmark read as that column's heading. The
+          studio's Layout has no left column any more -- the viewport starts at
+          the edge -- so the box was centring over a width that is not there.
+        */}
         <div className="flex items-center gap-2">
           <img
             src="/terra-logo.png"
@@ -137,10 +177,33 @@ export function TitleBar({
           <span className="font-display text-sm font-semibold tracking-[0.14em]">
             TERRA
           </span>
+          {/* One name either way: the mode in the studio, the signature out. */}
+          <span
+            className={cn(
+              "eyebrow hidden sm:inline",
+              boardOpen && "!text-foreground"
+            )}
+          >
+            {boardOpen ? "studio" : BRAND_TAGLINE}
+          </span>
         </div>
-        <span className="hairline h-4 w-px self-center border-l" />
-        <span className="eyebrow hidden sm:inline">{SCREEN_EYEBROW[screen]}</span>
-        {projectSwitcher}
+        {/*
+          Inside the brand block, not after a divider. A rule between the
+          wordmark and a signature would cut a name in half; it was there to
+          separate the name from a claim about the screen, and there is no
+          claim any more.
+        */}
+        <span
+          className={cn("flex items-center", boardOpen && "ml-[1.8125rem]")}
+        >
+        {/*
+          Withheld in the studio, which carries its own data-block naming the
+          board that is loaded. Two selectors on one row, each saying what is
+          open and meaning something different by it, is the ambiguity this
+          bar can least afford.
+        */}
+        {!boardOpen && projectSwitcher}
+        </span>
         {run && (
           <>
             <span className="hairline hidden h-4 w-px self-center border-l sm:inline-block" />
@@ -165,7 +228,7 @@ export function TitleBar({
           half the places it describes. The two screens share one view, so the
           readout is the same value in both.
         */}
-        {hasMap && (
+        {showMapTelemetry && (
           <div className="telemetry hidden items-center gap-4 text-[11px] text-muted-foreground lg:flex">
             <span>
               LAT <span className="text-foreground">{fmtCoord(view.lat, "N", "S")}</span>
@@ -236,6 +299,24 @@ export function TitleBar({
               <LogIn className="size-4" />
             )}
           </button>
+        )}
+
+        {/*
+          The whiteboard toggle, between the account and the layout switch.
+
+          Up here rather than on the surfaces that used to carry it, because
+          those two mounts each had a layout they could not serve: the island's
+          copy exists only in the workspace layout, and Leaflet's copy goes
+          UNDER the board, an entry with no matching exit. This bar is above
+          the board in both layouts -- it is the first child of a full-height
+          flex column and the board is inset within the screen below it -- so
+          one mount now does what two could not.
+
+          Only where there is a map: an empty host still takes a gap-3 from
+          this row, which would open a hole on every other screen.
+        */}
+        {hasMap && (
+          <div ref={boardSlotRef} className="app-no-drag flex items-center" />
         )}
 
         {/* Wherever there is a map to lay out. */}

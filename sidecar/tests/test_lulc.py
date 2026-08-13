@@ -307,3 +307,88 @@ def test_wilson_interval_stays_inside_the_unit_interval():
     n_small = lulc._wilson_interval(16, 20)
     n_large = lulc._wilson_interval(1600, 2000)
     assert (n_small[1] - n_small[0]) > (n_large[1] - n_large[0])
+
+
+def _blocky_case(bad_from: int = 120, size: int = 180):
+    """
+    A raster that agrees everywhere except one quadrant, with 3x3 native cells.
+
+    The point of the fixture is that the overall figure and the block figures
+    disagree about the map: the overall is dragged up by the three good
+    quadrants, and only the breakdown says the failure is in one place.
+    """
+    rng = np.random.default_rng(0)
+    classes = list(lulc.TARGET_COMPARE)
+    ref = rng.choice(classes, size=(size, size))
+    pred = ref.copy()
+    pred[bad_from:, bad_from:] = classes[0]
+    cells = (np.arange(size)[:, None] // 3) * (size // 3) + (
+        np.arange(size)[None, :] // 3
+    )
+    return pred, ref, cells
+
+
+def test_block_agreement_finds_a_corner_the_overall_figure_hides():
+    """
+    The reason the breakdown exists. One bad quadrant leaves the overall high,
+    and a reader with only that number has nothing pointing at the quadrant.
+    """
+    pred, ref, cells = _blocky_case()
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    blocks = out["blocks"]
+    assert out["overall_pct"] > 85.0
+    assert blocks["min_pct"] < 40.0
+    # The corrupted quadrant is the lower-right of a 6x6 grid at 120/180.
+    worst = min(
+        (c for c in blocks["cells"] if c["overall_pct"] is not None),
+        key=lambda c: c["overall_pct"],
+    )
+    assert worst["row"] >= 4 and worst["col"] >= 4
+
+
+def test_blocks_partition_the_reference_cells_exactly():
+    """
+    Every counted cell lands in exactly one block. A block grid that dropped or
+    double-counted cells would report a spread over a different sample than the
+    overall figure, and the two would silently disagree.
+    """
+    pred, ref, cells = _blocky_case()
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    total = sum(c["n_reference_cells"] for c in out["blocks"]["cells"])
+    assert total == out["n_reference_cells"]
+
+
+def test_block_agreement_withholds_a_percentage_below_the_floor():
+    """
+    A block of three cells can only read 0, 33, 67 or 100. Reporting that
+    beside blocks of several hundred would invite comparing the two, so the
+    count travels and the percentage does not.
+    """
+    # 60x60 with 3x3 cells is 400 cells over 36 blocks: ~11 each, under the
+    # floor of 20, so nothing is measured and the breakdown is withheld whole.
+    pred, ref, cells = _blocky_case(bad_from=40, size=60)
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    assert out["blocks"] is None
+    # The overall figure is unaffected: the floor governs the breakdown only.
+    assert out["overall_pct"] > 0.0
+
+
+def test_agreement_matrix_is_predicted_by_reference():
+    """
+    Rows are the classification and columns the reference, which is what the
+    producer's accuracy is derived from. Stated in a test because the frontend
+    labelled it the other way round for a while, and a transposed matrix still
+    looks like a confusion matrix while reporting commission as omission.
+    """
+    classes = list(lulc.TARGET_COMPARE)
+    size = 30
+    ref = np.full((size, size), classes[0])
+    pred = np.full((size, size), classes[1])  # every cell called class[1]
+    cells = (np.arange(size)[:, None] // 3) * (size // 3) + (
+        np.arange(size)[None, :] // 3
+    )
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    m = np.asarray(out["matrix"])
+    i_ref, i_pred = classes.index(classes[0]), classes.index(classes[1])
+    assert m[i_pred, i_ref] == out["n_reference_cells"]
+    assert m[i_ref, i_pred] == 0

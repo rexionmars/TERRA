@@ -258,7 +258,12 @@ function PlotViewport({
   )
 }
 
-function PlotSwipeView({
+/**
+ * Exported rather than copied: the whiteboard compares two rasters through the
+ * same control, and a second clip-path swipe is a second place for the two to
+ * disagree about which side is which.
+ */
+export function PlotSwipeView({
   left,
   right,
   ratio,

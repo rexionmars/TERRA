@@ -29,6 +29,7 @@ import { useAuth } from "@/lib/auth"
 import { PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnGhostDense, btnIcon, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import type { MapToolId } from "@/lib/mapTools"
+import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import type {
   Area,
@@ -344,6 +345,10 @@ export function AnalysisPage({
   const tabRefs = useRef<Partial<Record<ProjectTab, HTMLButtonElement | null>>>(
     {}
   )
+  const [pendingDeleteRun, setPendingDeleteRun] = useState<InferenceRun | null>(
+    null
+  )
+  const [deletingRun, setDeletingRun] = useState(false)
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<
     string | null
   >(null)
@@ -599,10 +604,18 @@ export function AnalysisPage({
     }
   }
 
+  /*
+    Asked through the application's own dialog, not the webview's.
+
+    This guarded on `window.confirm`, which the host has to implement for a
+    WKWebView to show at all -- where it does not, the call returns false and
+    the deletion never runs, so the button reads as doing nothing. The project
+    deletion a few lines up already had a modal; runs were the one act still
+    asking the platform.
+  */
   const handleDeleteRun = useCallback(
     async (run: InferenceRun) => {
-      const label = displayRunLabel(run.label)
-      if (!window.confirm(`Delete “${label}”? This cannot be undone.`)) return
+      setDeletingRun(true)
       try {
         await DeleteAnalysis(run.id)
         await refreshRuns()
@@ -614,8 +627,11 @@ export function AnalysisPage({
         }
         clearSelection()
         notifySuccess("Analysis deleted")
+        setPendingDeleteRun(null)
       } catch (e) {
         notifyError("Could not delete analysis", e)
+      } finally {
+        setDeletingRun(false)
       }
     },
     [
@@ -739,7 +755,7 @@ export function AnalysisPage({
         onCompare={() => void startCompare()}
         comparing={comparing}
         onOpen={handleOpenRun}
-        onDelete={(run) => void handleDeleteRun(run)}
+        onDelete={(run) => setPendingDeleteRun(run)}
         onRefresh={() => {
           void refreshRuns()
           if (hubView === "detail" && selectedProjectId) void loadProjectDetail(selectedProjectId)
@@ -1031,6 +1047,19 @@ export function AnalysisPage({
                 goMap()
               })()
             }}
+          />
+        ) : null}
+        {pendingDeleteRun ? (
+          <ConfirmDelete
+            eyebrow="DELETE RUN"
+            title={<>Delete “{displayRunLabel(pendingDeleteRun.label)}”?</>}
+            subtitle="This cannot be undone. The run leaves this list, its project and the exports."
+            confirmLabel="Delete run"
+            busy={deletingRun}
+            onCancel={() => {
+              if (!deletingRun) setPendingDeleteRun(null)
+            }}
+            onConfirm={() => void handleDeleteRun(pendingDeleteRun)}
           />
         ) : null}
         {pendingDeleteProject ? (

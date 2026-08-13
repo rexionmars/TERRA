@@ -1,21 +1,78 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { FolderKanban, ChevronDown, Check } from "lucide-react"
+import {
+  FolderKanban,
+  ChevronDown,
+  Check,
+  ChevronRight,
+  Layers3,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Project } from "@/lib/types"
+import { displayRunLabel } from "@/lib/aoiLabel"
+import { runRowLine } from "@/lib/runSummary"
+import type { InferenceRun, Project } from "@/lib/types"
+import type { Whiteboard } from "@/lib/whiteboards"
+
+/** Width of the run list, and what deciding to flip it is measured against. */
+const SUBMENU_W = 248
+/**
+ * How long the run list survives the pointer leaving it.
+ *
+ * Travelling from a project row to its list crosses a gap, and on the way the
+ * pointer passes over rows that are not the one it came from. Closing on the
+ * first leave would shut the list under the pointer on the way to it.
+ */
+const CLOSE_DELAY_MS = 180
 
 export function ProjectSwitcher({
   projects,
   activeProjectId,
+  runs,
+  whiteboards,
+  onOpenWhiteboard,
+  onMenuOpen,
   onSelect,
   onCreate,
+  onOpenRun,
+  busy,
   onOpenHub,
   className,
 }: {
   projects: Project[]
   activeProjectId: string | null
+  /**
+   * Every run the user has. Filtered here rather than fetched per project:
+   * they are already loaded, and a menu that opened a request on hover would
+   * fire one for every project the pointer crossed on its way down the list.
+   */
+  runs: InferenceRun[]
   onSelect: (id: string | null) => void
   onCreate: () => void
+  onOpenRun: (run: InferenceRun) => void
+  /**
+   * Saved boards, listed beside the projects.
+   *
+   * Here rather than only in the hub because a board is a place someone
+   * RETURNS to -- it is where several runs were arranged -- and the hub is a
+   * detour when the menu that switches context is already open. The hub is
+   * still where one is deleted.
+   *
+   * Not under a project: a board's members can come from several, which is
+   * what it exists for, so filing it under one would make its own purpose the
+   * exception.
+   */
+  whiteboards: Whiteboard[]
+  onOpenWhiteboard: (board: Whiteboard) => void
+  /**
+   * The menu is opening.
+   *
+   * Whiteboards are saved from the board, which this menu knows nothing about,
+   * so the list is refreshed when it is about to be read rather than kept in
+   * step by something watching for saves.
+   */
+  onMenuOpen?: () => void
+  /** A run is being loaded; a second click would race the first. */
+  busy?: boolean
   onOpenHub?: () => void
   className?: string
 }) {
@@ -24,6 +81,52 @@ export function ProjectSwitcher({
     null
   )
   const btnRef = useRef<HTMLButtonElement>(null)
+
+  /**
+   * The project whose runs are showing, and where to put them.
+   *
+   * Held with its position rather than derived from the row, because the list
+   * is drawn in a portal beside the menu and the row it belongs to is not its
+   * parent.
+   */
+  const [sub, setSub] = useState<{
+    id: string
+    top: number
+    left: number
+  } | null>(null)
+  const closeTimer = useRef(0)
+
+  /** Newest first, and only this project's. */
+  const subRuns = useMemo(
+    () =>
+      sub
+        ? runs
+            .filter((r) => r.project_id === sub.id)
+            .slice()
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        : [],
+    [runs, sub]
+  )
+
+  const openSub = (id: string, el: HTMLElement) => {
+    window.clearTimeout(closeTimer.current)
+    const r = el.getBoundingClientRect()
+    // Flipped to the other side where it would run off the window rather than
+    // opening a list the last third of which cannot be read.
+    const right = r.right + 4
+    setSub({
+      id,
+      top: r.top,
+      left:
+        right + SUBMENU_W > window.innerWidth ? r.left - SUBMENU_W - 4 : right,
+    })
+  }
+  const holdSub = () => window.clearTimeout(closeTimer.current)
+  const scheduleCloseSub = () => {
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => setSub(null), CLOSE_DELAY_MS)
+  }
+  useEffect(() => () => window.clearTimeout(closeTimer.current), [])
   const active = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,
     [projects, activeProjectId]
@@ -39,6 +142,7 @@ export function ProjectSwitcher({
   useLayoutEffect(() => {
     if (!open) {
       setMenuPos(null)
+      setSub(null)
       return
     }
     updatePos()
@@ -88,24 +192,84 @@ export function ProjectSwitcher({
                 No projects yet.
               </p>
             ) : (
-              projects.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] hover:bg-secondary/50"
-                  onClick={() => {
-                    onSelect(p.id)
-                    setOpen(false)
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                  {activeProjectId === p.id && (
-                    <Check className="size-3 shrink-0 text-primary" />
-                  )}
-                </button>
-              ))
+              projects.map((p) => {
+                const n = runs.filter((r) => r.project_id === p.id).length
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    /*
+                      Hover and focus both open the list, so it is reachable
+                      without a pointer. Clicking the row still does what it
+                      always did -- make this the active project -- and the
+                      list beside it is a second thing you can do from here,
+                      not a replacement for the first.
+                    */
+                    onMouseEnter={(e) => openSub(p.id, e.currentTarget)}
+                    onFocus={(e) => openSub(p.id, e.currentTarget)}
+                    onMouseLeave={scheduleCloseSub}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] hover:bg-secondary/50",
+                      sub?.id === p.id && "bg-secondary/50"
+                    )}
+                    onClick={() => {
+                      onSelect(p.id)
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    {activeProjectId === p.id && (
+                      <Check className="size-3 shrink-0 text-primary" />
+                    )}
+                    {/*
+                      The count is the reason to go right, and its absence is
+                      the reason not to: a project with no runs says so before
+                      the pointer travels to find out.
+                    */}
+                    {n > 0 && (
+                      <>
+                        <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                          {n}
+                        </span>
+                        <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                      </>
+                    )}
+                  </button>
+                )
+              })
             )}
           </div>
+          {whiteboards.length > 0 && (
+            <>
+              <hr className="hairline" />
+              <p className="px-2.5 pb-0.5 pt-2 text-[9px] uppercase tracking-wide text-muted-foreground">
+                Whiteboards
+              </p>
+              <div className="max-h-40 overflow-y-auto">
+                {whiteboards.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] hover:bg-secondary/50"
+                    onClick={() => {
+                      setOpen(false)
+                      onOpenWhiteboard(b)
+                    }}
+                  >
+                    <Layers3 className="size-3 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                    {/*
+                      How many runs are arranged on it, which is the only thing
+                      about a board that says how much is there.
+                    */}
+                    <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
+                      {b.member_count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <hr className="hairline" />
           <button
             type="button"
@@ -130,6 +294,51 @@ export function ProjectSwitcher({
             </button>
           )}
         </div>
+
+        {sub && (
+          <div
+            onMouseEnter={holdSub}
+            onMouseLeave={scheduleCloseSub}
+            className="panel fixed z-[5002] overflow-hidden rounded-sm border border-border/70 shadow-lg"
+            style={{ top: sub.top, left: sub.left, width: SUBMENU_W }}
+          >
+            <p className="px-2.5 pb-1 pt-2 text-[9px] uppercase tracking-wide text-muted-foreground">
+              Runs
+            </p>
+            <div className="max-h-64 overflow-y-auto pb-1">
+              {subRuns.length === 0 ? (
+                <p className="px-2.5 py-2 text-[10px] text-muted-foreground">
+                  No runs in this project yet.
+                </p>
+              ) : (
+                subRuns.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setOpen(false)
+                      setSub(null)
+                      onOpenRun(r)
+                    }}
+                    className="flex w-full flex-col items-start gap-0.5 px-2.5 py-1.5 text-left hover:bg-secondary/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="w-full truncate text-[11px] text-foreground">
+                      {displayRunLabel(r.label) || r.model_kind}
+                    </span>
+                    {/*
+                      The same line the hub prints under a run, so the two
+                      places that list runs describe them the same way.
+                    */}
+                    <span className="telemetry w-full truncate text-[10px] text-muted-foreground">
+                      {runRowLine(r)}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </>,
       document.body
     )
@@ -139,7 +348,12 @@ export function ProjectSwitcher({
       <button
         ref={btnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() =>
+          setOpen((o) => {
+            if (!o) onMenuOpen?.()
+            return !o
+          })
+        }
         className="panel flex max-w-[14rem] items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[11px] text-foreground hover:bg-secondary/40"
         title="Active project"
       >
