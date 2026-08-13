@@ -372,3 +372,23 @@ def test_block_agreement_withholds_a_percentage_below_the_floor():
     # The overall figure is unaffected: the floor governs the breakdown only.
     assert out["overall_pct"] > 0.0
 
+
+def test_agreement_matrix_is_predicted_by_reference():
+    """
+    Rows are the classification and columns the reference, which is what the
+    producer's accuracy is derived from. Stated in a test because the frontend
+    labelled it the other way round for a while, and a transposed matrix still
+    looks like a confusion matrix while reporting commission as omission.
+    """
+    classes = list(lulc.TARGET_COMPARE)
+    size = 30
+    ref = np.full((size, size), classes[0])
+    pred = np.full((size, size), classes[1])  # every cell called class[1]
+    cells = (np.arange(size)[:, None] // 3) * (size // 3) + (
+        np.arange(size)[None, :] // 3
+    )
+    out = lulc.agreement_against_reference(pred, ref, cells)
+    m = np.asarray(out["matrix"])
+    i_ref, i_pred = classes.index(classes[0]), classes.index(classes[1])
+    assert m[i_pred, i_ref] == out["n_reference_cells"]
+    assert m[i_ref, i_pred] == 0

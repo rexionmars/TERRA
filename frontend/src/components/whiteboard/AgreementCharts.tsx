@@ -416,8 +416,21 @@ export function ConfusionMatrix({
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {title && <p className="eyebrow !text-[9px] truncate">{title}</p>}
+      {/*
+        ROWS ARE THE RUN, COLUMNS ARE THE REFERENCE, and this line said the
+        reverse. `agreement_against_reference` in sidecar/lulc.py fills
+        `matrix[index[pred_label], index[ref_label]]` and derives producer's
+        accuracy from `matrix.sum(axis=0)` -- the COLUMN totals -- so the
+        reference is the column axis.
+
+        Both axes are drawn from `matrix_classes`, so the grid itself was
+        right; only its caption was inverted. That is the worse of the two
+        failures, because the cells are symmetric-looking and nothing on screen
+        contradicted the caption: a reader following it read every off-diagonal
+        cell as the opposite error, omission for commission.
+      */}
       <p className="text-[10px] leading-snug text-muted-foreground">
-        Rows = MapBiomas reference · columns = this run. Off-diagonal cells are
+        Rows = this run · columns = MapBiomas reference. Off-diagonal cells are
         the pairs actually confused.
       </p>
       <div className="min-w-0 overflow-x-auto">
