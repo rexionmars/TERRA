@@ -1320,6 +1320,7 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 			}
 			out.Solar = &solar
 		}
+		out.RunID = run.ID
 		return out, nil
 	}
 
@@ -1387,6 +1388,23 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	if res.NDates == 0 {
 		res.NDates = run.NDates
 	}
+	/*
+		The run this result IS, stamped on the way out.
+
+		RunID is written by Predict after persisting, so the copy that goes to
+		disk does not carry it -- the id did not exist when the result was
+		serialised. Reloading therefore handed back a result that could not say
+		which run it was, and every surface downstream had to guess. The map
+		screen guessed the literal "current", which the board then listed as a
+		run named after the AOI label or, failing that, "Analysis": a row that
+		looked like a saved analysis, could not be told apart from one, and
+		refused every action keyed on its id -- deleting it asked the store for
+		a run called "current" and was told, correctly, that there is none.
+
+		Set here rather than at each caller because the id is only knowable
+		here, and a caller that forgets is a caller that reintroduces the ghost.
+	*/
+	res.RunID = run.ID
 	return &res, nil
 }
 

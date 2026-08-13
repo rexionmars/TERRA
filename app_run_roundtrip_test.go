@@ -484,3 +484,61 @@ func assertWindFixtureBinds(t *testing.T, w *backend.WindAnalysis) {
 		t.Fatal("shear_sensitivity[0].roughness_length_m must be null on the row derived from the record")
 	}
 }
+
+// A reloaded run knows which run it is.
+//
+// RunID is stamped by Predict AFTER persisting, so the copy serialised to disk
+// cannot carry it -- the id did not exist yet. LoadAnalysis returned that copy
+// untouched, so a reopened analysis came back unable to say what it was, and
+// every surface keyed on the id had to invent one. The map screen invented the
+// literal "current"; the board then listed a run under the AOI label or, with
+// none, "Analysis" -- a row indistinguishable from a saved run, which refused
+// every action taken on it because the store has no run by that name.
+//
+// Asserted for a classification and for the products that return through the
+// other branch, since each has its own return and only one of them was ever
+// going to be remembered.
+func TestLoadAnalysisStampsTheRunItReturns(t *testing.T) {
+	a := newTestApp(t)
+
+	// Built here rather than loaded: the point is a result with NO run id, and
+	// a fixture that happened to gain one would silently stop testing it.
+	res := backend.PredictResult{NDates: 3}
+	body, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.store.SaveRun(store.InferenceRun{
+		UserID:      store.LocalUserID,
+		ModelKind:   "spectral",
+		PeriodStart: "2025-01-01",
+		PeriodEnd:   "2025-12-31",
+		Status:      "done",
+		Kind:        store.RunKindClassification,
+		ResultJSON:  string(body),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runID := latestRunID(t, a)
+
+	// The stored copy is the shape the defect came from: no id inside it.
+	stored, err := a.store.GetRun(store.LocalUserID, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw backend.PredictResult
+	if err := json.Unmarshal([]byte(stored.ResultJSON), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if raw.RunID != "" {
+		t.Fatalf("the fixture already carries a run id (%q); this test no longer covers the case it was written for", raw.RunID)
+	}
+
+	out, err := a.LoadAnalysis(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.RunID != runID {
+		t.Fatalf("LoadAnalysis returned run_id %q, want %q", out.RunID, runID)
+	}
+}
