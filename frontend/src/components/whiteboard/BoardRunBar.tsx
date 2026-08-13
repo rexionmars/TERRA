@@ -257,7 +257,14 @@ export function BoardRunBar(props: BoardRunBarProps) {
         the column's right edge rather than spanning the window, so the two are
         neighbours rather than one lying over the other.
       */
-      className="app-no-drag absolute bottom-0 z-[900] flex h-[var(--map-band,3.0625rem)] items-center border-t"
+      /*
+        The fallback is the run band's own height, not the map's foot. It read
+        3.0625rem while the detail band standing on this one fell back to 4rem,
+        so a missing variable would have drawn this band shorter than the space
+        the band above it left for it, with a gap between them. Both now name
+        the same number.
+      */
+      className="app-no-drag absolute bottom-0 z-[900] flex h-[var(--map-band,4rem)] items-center border-t"
       style={{
         left: props.leftOffset ?? 0,
         right: props.rightOffset ?? 0,

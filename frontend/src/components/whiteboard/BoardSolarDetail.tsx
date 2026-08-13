@@ -33,12 +33,6 @@ import type {
 import { modelLabel } from "@/lib/runAssets"
 
 /** Same width as BoardSidebar — one number said on both edges. */
-/*
-  Re-exported, not declared. The width belongs to lib/boardPartition with the
-  rest of the studio's geometry; this line keeps the existing importers working
-  while the partition is the single source it comes from.
-*/
-export { BOARD_RIGHT_REM } from "@/lib/boardPartition"
 
 export type BoardDetailFocus = "terrain" | "siting" | "prediction"
 /** @deprecated Prefer BoardDetailFocus; kept for call sites that only mean solar. */

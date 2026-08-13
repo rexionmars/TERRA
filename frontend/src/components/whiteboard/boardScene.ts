@@ -427,10 +427,14 @@ export function createBoard(
     The partition, read from the properties it publishes.
 
     lib/boardPartition is numbers and pure functions -- no React and no three --
-    so this file can consult it without the chrome it must not pull. Read from
-    the custom properties rather than imported as constants, because the
-    columns are to become draggable and a value captured at setup would then
-    be stale on the next drag.
+    so this file can consult it without the chrome it must not pull.
+
+    READ ONCE, HERE, at board creation. createBoard runs from an effect keyed
+    on [groups], so these values are captured when the board is built and do
+    not follow a later change. That is correct while the partition is
+    constant and will not be once a seam can be dragged: making the columns
+    resizable requires an update path on the handle -- the properties are the
+    channel, but nothing re-reads them yet.
   */
   const style = getComputedStyle(host)
   const footPx = remToPx(style.getPropertyValue("--map-foot"))

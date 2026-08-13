@@ -54,7 +54,7 @@ import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
 import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
-import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
+import { BOARD_LEFT_REM } from "@/lib/boardPartition"
 
 /**
  * What the column is listing.

@@ -1727,7 +1727,16 @@ export function BoardSurface({
         gates its `disabled` on boardOpen precisely so the exit cannot go dead),
         and its tooltip carries the Escape shortcut this button used to name.
       */}
-      <div className="absolute left-[16rem] top-3 flex min-w-0 max-w-[30rem] items-start gap-2">
+      <div
+        /*
+          One gutter clear of the left column, derived rather than added by
+          hand: this was `left-[16rem]`, which is 15 plus 1 with the
+          arithmetic already performed, and therefore a seventh copy of the
+          column's width in a form no search for "15rem" would find.
+        */
+        style={{ left: `${BOARD_LEFT_REM + 1}rem` }}
+        className="absolute top-3 flex min-w-0 max-w-[30rem] items-start gap-2"
+      >
         <div className="min-w-0">
           <p className="eyebrow !text-foreground">
             {savedName ?? "Whiteboard"}
