@@ -190,14 +190,38 @@ export function AuthProvider({
     notifySuccess("Photo removed.")
   }, [])
 
+  /*
+    SAVING DOES NOT RE-APPLY, and this used to call `onPrefsApplied`.
+
+    That callback is the LOAD path: it takes stored preferences and pushes them
+    into the controls -- the default model, the overlay opacity, the theme, the
+    saved-AOI catalog. Running it as the echo of every save meant that
+    persisting ANYTHING re-applied EVERYTHING, and most of what is persisted has
+    nothing to do with those controls.
+
+    What it cost: `default_model` is "spectral" for most installs, so picking
+    the temporal transformer and then touching anything that writes preferences
+    put the picker back on spectral, silently, and the next run was a random
+    forest with no sign on screen that a choice had been discarded. Five
+    unrelated actions write preferences on their own -- the studio's layout on a
+    debounced seam drag, the map view on pan and zoom, the layout mode toggle,
+    the saved-AOI catalog on activation, and the what's-new version -- so the
+    reset arrived at times bearing no relation to the control it reset.
+
+    It was intermittent rather than constant because `SavePreferences` is a
+    round trip: the reset landed only if the selection happened inside that
+    window.
+
+    No caller needs the echo. Every one of them already holds the state it just
+    wrote, and Settings applies the theme itself rather than waiting to be told.
+  */
   const savePrefs = useCallback(
     async (p: Preferences, opts?: { silent?: boolean }) => {
       await SavePreferences(p as never)
       setPrefs(p)
-      onPrefsApplied?.(p)
       if (!opts?.silent) notifySuccess("Preferences saved.")
     },
-    [onPrefsApplied]
+    []
   )
 
   /**

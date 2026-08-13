@@ -235,6 +235,15 @@ function App() {
   const [splashExiting, setSplashExiting] = useState(false)
   const { setTheme } = useTheme()
 
+  /**
+   * Stored preferences into the controls they own. LOAD ONLY.
+   *
+   * Called once when preferences arrive, and never as the echo of a save.
+   * Every field here is a control the reader can also move by hand, so
+   * re-running it after a save overwrites whatever they moved since -- which
+   * is what silently put the model picker back on the stored default after any
+   * of the five actions that write preferences on their own.
+   */
   const applyPrefs = useCallback(
     (p: Preferences) => {
       if (
