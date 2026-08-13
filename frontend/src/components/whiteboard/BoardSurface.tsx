@@ -116,6 +116,7 @@ import {
 import { NumberField } from "@/components/ui/NumberField"
 import {
   Box,
+  Blend,
   BoxSelect,
   Eraser,
   EyeOff,
@@ -134,6 +135,10 @@ import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
+import {
+  PlaneContextMenu,
+  type PlaneContextTarget,
+} from "@/components/whiteboard/PlaneContextMenu"
 import {
   mergePreferenceExtras,
   parsePreferenceExtras,
@@ -1256,6 +1261,21 @@ export function BoardSurface({
 
   const [brushOn, setBrushOn] = useState(false)
   /*
+    Which plane was right-pressed, and where. Held rather than derived because
+    the menu outlives the press: the ray already found the plane, and asking
+    the scene again on every render would raycast for a menu that is standing
+    still.
+  */
+  const [planeMenu, setPlaneMenu] = useState<PlaneContextTarget | null>(null)
+  /*
+    Read through refs, because createBoard runs once and its callback would
+    otherwise close over the areas as they were when the board was built.
+  */
+  const areasRef = useRef(areas)
+  areasRef.current = areas
+  const flatRef = useRef(flat)
+  flatRef.current = flat
+  /*
     What the board is still waiting for. Reported by the scene as each texture
     lands, including the ones that fail -- a board with one unreadable raster
     must not wait for it forever.
@@ -1264,6 +1284,7 @@ export function BoardSurface({
   // Which header popover is open. One at a time, as a menu bar behaves.
   const [viewMenu, setViewMenu] = useState(false)
   const [overlayMenu, setOverlayMenu] = useState(false)
+  const [opacityMenu, setOpacityMenu] = useState(false)
   const [appMenu, setAppMenu] = useState(false)
   const [filterMenu, setFilterMenu] = useState(false)
   /*
@@ -1518,6 +1539,22 @@ export function BoardSurface({
       // Read from the computed style rather than hardcoded, so the board
       // follows the theme the rest of the application is painted in.
       board = createBoard(host, {
+        onPlaneContext: (groupId, id, at) => {
+          const a = areasRef.current.find((x) => x.id === groupId)
+          const l = a?.layers.find((x) => x.id === id)
+          if (!a || !l) return
+          setPlaneMenu({
+            areaId: groupId,
+            layerId: id,
+            title: l.title,
+            at,
+            visible: l.visible,
+            // The base is the level; it has nothing below to descend to.
+            isBase: a.layers.findIndex((x) => x.id === id) === 0,
+            flat: flatRef.current.has(sceneKey(groupId, id)),
+            removable: true,
+          })
+        },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
         groups,
         background: tokenColor("--p-ink", "#171717"),
@@ -1726,6 +1763,20 @@ export function BoardSurface({
     for keeping renderers out of itself -- only this component holds the state
     these controls read and write.
   */
+  /* The picked planes, with what a view control needs to act on them. */
+  const pickedPlanes = selection
+    .map(rowTarget)
+    .filter((t): t is { areaId: string; layerId: string } => !!t?.layerId)
+    .map((t) => {
+      const l = areas
+        .find((a) => a.id === t.areaId)
+        ?.layers.find((x) => x.id === t.layerId)
+      return l
+        ? { areaId: t.areaId, layerId: t.layerId, opacity: l.opacity, pixelated: l.pixelated }
+        : null
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x)
+
   const planeCount = areas.reduce((n, a) => n + a.layers.length, 0)
   const visibleCount = areas.reduce(
     (n, a) => n + a.layers.filter((l) => l.visible).length,
@@ -1908,6 +1959,77 @@ export function BoardSurface({
             </div>
           </StudioPopover>
 
+          {/*
+            The selected planes' opacity, beside the brush because it is the
+            same kind of control: a view property of what is picked, acted on
+            from the surface it is seen in.
+
+            It was three rows in the outliner's footer under a heading -- a
+            number, a word and a title -- which is a great deal of the studio's
+            scarcest column for one value. A popover spends a glyph on it.
+
+            Applied to every picked plane rather than to an "active" one:
+            selection here is a set, and fading one of three while the other
+            two stay is a question nobody asked.
+          */}
+          <StudioPopover
+            open={opacityMenu}
+            onOpenChange={setOpacityMenu}
+            surface={surfaceRef.current}
+            align="end"
+            widthRem={13}
+            trigger={(p) => (
+              <StudioHeaderPopoverButton
+                {...p}
+                icon={Blend}
+                label="Opacity"
+                open={opacityMenu}
+                title={
+                  pickedPlanes.length
+                    ? "Opacity of the picked planes"
+                    : "Pick a plane to fade it"
+                }
+                disabled={!pickedPlanes.length}
+              />
+            )}
+          >
+            {pickedPlanes.length ? (
+              <div className="px-2 py-1">
+                <NumberField
+                  label="Opacity"
+                  value={pickedPlanes[0].opacity}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  // Stored as a fraction, read as a percentage: the studio
+                  // speaks the unit the rest of the application prints.
+                  format={(v) => `${Math.round(v * 100)}%`}
+                  parse={(t) => {
+                    const v = parseFloat(t.replace("%", "").trim())
+                    return Number.isFinite(v) ? v / 100 : null
+                  }}
+                  onChange={(v) =>
+                    pickedPlanes.forEach((pl) =>
+                      changeLayer(pl.areaId, pl.layerId, { opacity: v })
+                    )
+                  }
+                />
+                {/*
+                  Not a control. A class raster is drawn without interpolation
+                  because a bilinear sample between two classes is a colour
+                  that belongs to neither and the legend stops matching the
+                  pixels -- the same rule as .overlay-crisp. Said because it is
+                  the reason one raster looks blocky beside another.
+                */}
+                <p className="mt-1.5 flex items-baseline justify-between text-meta text-muted-foreground">
+                  Sampling
+                  <span className="telemetry">
+                    {pickedPlanes[0].pixelated ? "Nearest" : "Linear"}
+                  </span>
+                </p>
+              </div>
+            ) : null}
+          </StudioPopover>
           <StudioHeaderRule />
           <StudioHeaderToggle
             icon={Paintbrush}
@@ -2004,7 +2126,6 @@ export function BoardSurface({
             onLayerChange={changeLayer}
             onDropRun={dropRun}
             flat={flat}
-            onToggleFlat={toggleFlat}
             onReorder={reorderArea}
             // Nothing to join until some area holds more than one raster.
             canLink={areas.some((a) => a.layers.length > 1)}
@@ -2491,6 +2612,33 @@ export function BoardSurface({
         selected={selection.length}
         total={areas.reduce((n, a) => n + a.layers.length, 0)}
         areas={areas.length}
+      />
+
+      {/*
+        The plane's own menu, on the plane.
+
+        Reachable because the navigation moved to the middle button: the right
+        one used to pan and had nothing left over. What it carries acts on this
+        plane and nothing else -- its opacity is not here, since a number field
+        in a menu that closes on the first press is a control that cannot be
+        adjusted, and it is a value to be read against the legend beside it.
+      */}
+      <PlaneContextMenu
+        target={planeMenu}
+        surface={surfaceRef.current}
+        onClose={() => setPlaneMenu(null)}
+        onToggleFlat={() =>
+          planeMenu && toggleFlat(planeMenu.areaId, planeMenu.layerId)
+        }
+        onToggleVisible={() =>
+          planeMenu &&
+          changeLayer(planeMenu.areaId, planeMenu.layerId, {
+            visible: !planeMenu.visible,
+          })
+        }
+        onRemove={() =>
+          planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)
+        }
       />
 
       {/*

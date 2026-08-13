@@ -26,7 +26,6 @@
  */
 import { type ReactNode, useRef, useState } from "react"
 import {
-  AlignVerticalJustifyEnd,
   ChevronDown,
   ChevronRight,
   Download,
@@ -52,7 +51,6 @@ import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
-import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
 import { BOARD_LEFT_REM } from "@/lib/boardPartition"
 
@@ -381,7 +379,6 @@ export function BoardSidebar({
   onRename,
   onDropRun,
   flat,
-  onToggleFlat,
   onReorder,
   canLink,
   onToggleExpanded,
@@ -447,7 +444,6 @@ export function BoardSidebar({
    * nothing for it to descend to.
    */
   flat: ReadonlySet<string>
-  onToggleFlat: (areaId: string, layerId: string) => void
   /**
    * A new stack order for one area, given TOP FIRST -- as the tree reads.
    *
@@ -631,24 +627,6 @@ export function BoardSidebar({
 
   const active = allRows.find((r) => r.id === activeRow) ?? null
   const activeTarget = rowTarget(activeRow)
-  /*
-    Whether the active layer is the bottom of its own stack. Null where no
-    layer is active, which is a different thing from "it is not the base".
-  */
-  const activeArea = areas.find((a) => a.id === activeTarget?.areaId) ?? null
-  const activeIsBase = activeTarget?.layerId
-    ? activeArea?.layers[0]?.id === activeTarget.layerId
-    : null
-  const isFlat = !!(
-    activeTarget?.layerId &&
-    flat.has(sceneKey(activeTarget.areaId, activeTarget.layerId))
-  )
-  const activeLayer =
-    (activeTarget?.layerId
-      ? areas
-          .find((a) => a.id === activeTarget.areaId)
-          ?.layers.find((l) => l.id === activeTarget.layerId)
-      : null) ?? null
 
   /*
     The data tree, flattened: a run, then its assets. Same shape as the scene
@@ -1328,111 +1306,6 @@ export function BoardSidebar({
       */}
       {mode === "data" && <div className="shrink-0">{addRun}</div>}
 
-      {/*
-        The properties of whatever is active. One panel however many layers
-        there are, and the place a new per-layer property goes.
-      */}
-      {mode === "scene" && active && (
-        <div
-          className="shrink-0 border-t px-3 py-2.5"
-          style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-        >
-          <p className="eyebrow !text-[9px] flex items-center gap-1.5">
-            <active.icon className="size-3 shrink-0" strokeWidth={2} />
-            <span className="truncate">{active.title}</span>
-          </p>
-
-          {activeLayer && activeTarget?.layerId === activeLayer.id ? (
-            <>
-              <div className="mt-2">
-                <NumberField
-                  label="Opacity"
-                  value={activeLayer.opacity}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  // Stored as a fraction, read as a percentage: the panel
-                  // speaks the unit the rest of the application prints.
-                  format={(v) => `${Math.round(v * 100)}%`}
-                  parse={(t) => {
-                    const v = parseFloat(t.replace("%", "").trim())
-                    return Number.isFinite(v) ? v / 100 : null
-                  }}
-                  onChange={(v) =>
-                    onLayerChange(activeTarget!.areaId, activeLayer.id, {
-                      opacity: v,
-                    })
-                  }
-                />
-              </div>
-              {/*
-                Only where there is a level below to descend to.
-
-                The stack separates layers along Y so orbiting pulls them
-                apart, which is what makes the draw order visible. That
-                separation is in the way when the question is not "what is the
-                order" but "does this line up with that": from overhead a layer
-                one step up reads as floating over the base rather than lying
-                on it. The base layer itself is the level, so it is offered
-                nothing.
-              */}
-              {activeIsBase === false && activeTarget && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onToggleFlat(activeTarget.areaId, activeLayer.id)
-                  }
-                  aria-pressed={isFlat}
-                  className={cn(
-                    "mt-2 flex w-full items-center gap-1.5 rounded-sm px-1.5 py-1 text-meta transition-colors",
-                    "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-                    isFlat
-                      ? "bg-surface-raised text-foreground"
-                      : "bg-surface-raised/40 text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
-                  )}
-                  title={
-                    isFlat
-                      ? "Return it to its own height in the stack"
-                      : "Lay it at the base layer's level"
-                  }
-                >
-                  <AlignVerticalJustifyEnd
-                    className="size-3 shrink-0"
-                    strokeWidth={1.75}
-                  />
-                  {isFlat ? "At base level" : "Drop to base level"}
-                </button>
-              )}
-
-              {/*
-                Not a control. Class rasters are drawn without interpolation
-                because a bilinear sample between two classes is a colour that
-                belongs to neither, and the legend stops matching the pixels --
-                the same rule as .overlay-crisp. Stated because it is the
-                reason one raster looks blocky beside another.
-              */}
-              <p className="mt-2 flex items-baseline justify-between text-meta text-muted-foreground">
-                Sampling
-                <span className="telemetry">
-                  {activeLayer.pixelated ? "Nearest" : "Linear"}
-                </span>
-              </p>
-            </>
-          ) : activeTarget && !activeTarget.layerId ? (
-            <p className="mt-1.5 text-meta leading-relaxed text-muted-foreground">
-              {areas.find((a) => a.id === activeTarget.areaId)?.layers.length ??
-                0}{" "}
-              rasters from one run, stacked in draw order.
-            </p>
-          ) : (
-            <p className="mt-1.5 text-meta leading-relaxed text-muted-foreground">
-              Replaces each class with the most frequent one in its
-              neighbourhood, moving where a class boundary falls. Applied on the
-              map and here alike.
-            </p>
-          )}
-        </div>
-      )}
 
       {/*
         What the selected asset is, and what can be done with it.

@@ -308,6 +308,19 @@ export function createBoard(
      * immediately.
      */
     onSelect: (groupId: string, id: string, additive: boolean) => void
+    /**
+     * A right press on a plane, with where it landed on screen.
+     *
+     * Blender's navigation freed this button -- orbit, pan and zoom all moved
+     * to the middle one -- and a context menu on the object is what it freed
+     * it FOR: an action on a plane belongs on the plane, not in a footer three
+     * surfaces away that a reader has to find first.
+     */
+    onPlaneContext?: (
+      groupId: string,
+      id: string,
+      at: { x: number; y: number }
+    ) => void
     /** An area's own outline was pressed, where it draws one. */
     onAreaPick?: (groupId: string) => void
     /** An arrowhead between two planes was pressed, in the path's direction. */
@@ -882,6 +895,35 @@ export function createBoard(
     renderer.domElement.setPointerCapture(e.pointerId)
   }
 
+  /*
+    The right button, which the navigation no longer wants.
+
+    OrbitControls preventDefaults contextmenu whenever it is enabled, so the
+    browser's own menu never appears and this is free to answer instead. It
+    picks with the same ray the left button does; anything that is not a plane
+    falls through and opens nothing, rather than opening a menu about nothing.
+  */
+  const onContextMenu = (e: MouseEvent) => {
+    if (!opts.onPlaneContext) return
+    const targets: Mesh[] = []
+    for (const rt of runtimes) {
+      for (const m of rt.meshes) if (m && m.visible) targets.push(m)
+    }
+    toPointer(e as unknown as PointerEvent)
+    raycaster.setFromCamera(pointer, camera)
+    const hit = raycaster.intersectObjects(targets, false)[0]
+    if (!hit) return
+    const mesh = hit.object as Mesh
+    const rt = groupOfMesh.get(mesh)
+    if (!rt) return
+    const index = rt.meshes.indexOf(mesh)
+    const card = index >= 0 ? rt.cards[index] : null
+    if (!card) return
+    e.preventDefault()
+    e.stopPropagation()
+    opts.onPlaneContext(rt.id, card.id, { x: e.clientX, y: e.clientY })
+  }
+
   const onPointerMove = (e: PointerEvent) => {
     if (!dragging) {
       sampleProbe(e)
@@ -950,6 +992,12 @@ export function createBoard(
   }
 
   renderer.domElement.addEventListener("pointerdown", onPointerDown)
+  /*
+    Capture, so it runs before OrbitControls' own handler suppresses the event
+    -- that one only preventDefaults, but it is bound on the same element and
+    the order is not ours to assume.
+  */
+  renderer.domElement.addEventListener("contextmenu", onContextMenu, true)
   renderer.domElement.addEventListener("pointermove", onPointerMove)
   renderer.domElement.addEventListener("pointercancel", endDrag)
   const onPointerLeave = () => {
@@ -1931,6 +1979,7 @@ export function createBoard(
       window.removeEventListener("keydown", onNavModifier)
       window.removeEventListener("keyup", onNavModifier)
       window.removeEventListener("blur", onNavBlur)
+      renderer.domElement.removeEventListener("contextmenu", onContextMenu, true)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointermove", onPointerMove)
       renderer.domElement.removeEventListener("pointercancel", endDrag)
