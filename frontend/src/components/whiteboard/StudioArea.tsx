@@ -52,6 +52,23 @@ import { cn } from "@/lib/utils"
 /** The header's height, which the canvas has to clear to sit under its area. */
 export const AREA_HEADER_PX = 26
 
+/**
+ * A mode an editor can be put into, offered beside the editor itself.
+ *
+ * Retyping an area and then finding the pane you wanted inside it is two
+ * gestures for one intention. Blender's own type menu is flat, but its editors
+ * mostly have one subject; the outliner here has three and the run editor
+ * four, and the reader knows which one they want at the moment they choose
+ * the editor -- not after it appears.
+ */
+export interface StudioEditorMode {
+  id: string
+  label: string
+  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  active: boolean
+  select: () => void
+}
+
 export interface AreaHeaderSlots {
   /** What the editor does: pulldowns, immediately right of the type button. */
   menus?: React.ReactNode
@@ -79,6 +96,7 @@ export function StudioArea({
   canClose,
   transparent = false,
   slots,
+  modes,
   children,
 }: {
   editor: EditorId
@@ -96,6 +114,8 @@ export function StudioArea({
   /** The viewport draws its own canvas behind the body, which must show. */
   transparent?: boolean
   slots?: AreaHeaderSlots
+  /** Sub-modes per editor, offered under it in the type menu. */
+  modes?: Partial<Record<EditorId, StudioEditorMode[]>>
   children: React.ReactNode
 }) {
   const meta = studioEditor(editor)
@@ -178,24 +198,53 @@ export function StudioArea({
             />
           )}
         >
-          {STUDIO_EDITORS.map((e) => (
-            <StudioMenuItem
-              key={e.id}
-              icon={e.icon}
-              label={e.label}
-              checked={e.id === editor}
-              disabled={!!e.unique && e.id !== editor && takenUnique.has(e.id)}
-              title={
-                e.unique && e.id !== editor && takenUnique.has(e.id)
-                  ? `${e.label} owns the scene and can only be in one area`
-                  : e.hint
-              }
-              onSelect={() => {
-                onRetype(e.id)
-                setTypeMenu(false)
-              }}
-            />
-          ))}
+          {STUDIO_EDITORS.map((e) => {
+            const blocked = !!e.unique && e.id !== editor && takenUnique.has(e.id)
+            const subs = modes?.[e.id] ?? []
+            return (
+              <div key={e.id}>
+                <StudioMenuItem
+                  icon={e.icon}
+                  label={e.label}
+                  checked={e.id === editor}
+                  disabled={blocked}
+                  title={
+                    blocked
+                      ? `${e.label} owns the scene and can only be in one area`
+                      : e.hint
+                  }
+                  onSelect={() => {
+                    onRetype(e.id)
+                    setTypeMenu(false)
+                  }}
+                />
+                {/*
+                  Indented rather than behind a flyout. Three items do not earn
+                  the hover-intent, the second positioning pass and the
+                  keyboard path a submenu needs, and a flyout in a 14rem
+                  popover opens where there is no room for it.
+
+                  Choosing one retypes AND sets the mode, which is the whole
+                  point: it is one intention.
+                */}
+                {subs.map((m) => (
+                  <StudioMenuItem
+                    key={`${e.id}:${m.id}`}
+                    icon={m.icon}
+                    label={m.label}
+                    indented
+                    checked={e.id === editor && m.active}
+                    disabled={blocked}
+                    onSelect={() => {
+                      m.select()
+                      if (e.id !== editor) onRetype(e.id)
+                      setTypeMenu(false)
+                    }}
+                  />
+                ))}
+              </div>
+            )
+          })}
         </StudioPopover>
 
         {slots?.menus}

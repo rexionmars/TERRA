@@ -150,6 +150,7 @@ export function StudioMenuItem({
   note,
   checked,
   disabled,
+  indented,
   onSelect,
   title,
 }: {
@@ -159,6 +160,8 @@ export function StudioMenuItem({
   note?: string
   checked?: boolean
   disabled?: boolean
+  /** A sub-entry of the row above it. */
+  indented?: boolean
   onSelect: () => void
   title?: string
 }) {
@@ -170,7 +173,10 @@ export function StudioMenuItem({
       title={title}
       onClick={onSelect}
       className={cn(
-        "flex w-full items-center gap-2 px-2 py-[3px] text-left text-meta transition-colors",
+        "flex w-full items-center gap-2 py-[3px] text-left text-meta transition-colors",
+        // One glyph's width, so a sub-entry lines up under its parent's label
+        // rather than under its icon.
+        indented ? "pl-7 pr-2" : "px-2",
         disabled
           ? "cursor-not-allowed text-muted-foreground/40"
           : "text-foreground hover:bg-accent-dim"

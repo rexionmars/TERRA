@@ -99,6 +99,7 @@ import {
   AREA_HEADER_PX,
   StudioArea,
   type AreaHeaderSlots,
+  type StudioEditorMode,
 } from "@/components/whiteboard/StudioArea"
 import {
   StudioMenuItem,
@@ -118,8 +119,10 @@ import {
   Eraser,
   EyeOff,
   Filter,
+  Image as ImageIcon,
   Layers,
   Layers2,
+  Pentagon,
   Link2,
   Paintbrush,
   RotateCcw,
@@ -1706,6 +1709,25 @@ export function BoardSurface({
     0
   )
 
+  /*
+    The sub-modes the type menu offers under each editor.
+
+    Only where an editor genuinely has more than one subject. Choosing one
+    retypes the area AND sets the mode, which is the point: reaching the Areas
+    pane used to be two gestures -- become an outliner, then find the tab --
+    and a reader knows which pane they want when they pick the editor.
+
+    The same state the pane's own tabs read and write, not a copy: both call
+    setMode, so they cannot disagree about which is open.
+  */
+  const editorModes: Partial<Record<EditorId, StudioEditorMode[]>> = {
+    outliner: [
+      { id: "scene", label: "Scene", icon: Layers, active: mode === "scene", select: () => setMode("scene") },
+      { id: "data", label: "Data", icon: ImageIcon, active: mode === "data", select: () => setMode("data") },
+      { id: "areas", label: "Areas", icon: Pentagon, active: mode === "areas", select: () => setMode("areas") },
+    ],
+  }
+
   const headerSlots: Partial<Record<EditorId, AreaHeaderSlots>> = {
     runParams: runBarHeader ?? {},
     properties: {
@@ -2446,6 +2468,7 @@ export function BoardSurface({
             transparent={editor === "viewport"}
             maximized={!!restoreTree[workspaceId]}
             slots={headerSlots[editor]}
+            modes={editorModes}
             onRetype={(next) => setTree(retypeArea(tree, id, next))}
             onSplit={(dir) => setTree(splitArea(tree, id, dir, "properties"))}
             onClose={() => setTree(joinArea(tree, id))}
