@@ -22,7 +22,7 @@ import {
   type BasemapKind,
   type CreditPart,
 } from "@/lib/basemaps"
-import { useAuth, type AppScreen } from "@/lib/auth"
+import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 interface TitleBarProps {
@@ -108,29 +108,23 @@ export function Credit({ part }: { part: CreditPart }) {
 }
 
 /**
- * What each screen works from, named once per screen.
+ * The line beside the wordmark.
  *
- * The eyebrow used to be the pinned literal "land cover · sentinel-2", which a
- * user in the energy screen read for a whole session while neither the solar
- * nor the wind products touch Sentinel-2. The energy label names NASA POWER
- * because both tabs read their series from it (SolarAnalysis,
- * SolarTerrainAnalysis, EnergyModelAnalysis and WindAnalysis all carry
- * power_provenance), and it names no single resource because the tab in use is
- * state inside that screen which the title bar does not see.
+ * It used to name what each screen worked from -- "land cover · sentinel-2" on
+ * the map, "solar and wind · nasa power" on energy -- and that table existed
+ * to fix a real defect: the map's literal was pinned for every screen, so a
+ * reader in energy read Sentinel-2 for a whole session while neither the solar
+ * nor the wind products touch it.
  *
- * Typed against AppScreen so a screen added later cannot ship without a label.
+ * A SIGNATURE IS NOT THAT CLAIM. This says who the application is for, not
+ * which data the surface in front of the reader is made of, so it is true on
+ * every screen for the same reason the old literal was false on most of them.
+ * What a screen works from is said by the screen.
+ *
+ * The studio names the mode instead, because there the line does carry state:
+ * it is how a reader knows which of the two surfaces they are looking at.
  */
-const SCREEN_EYEBROW: Record<AppScreen, string> = {
-  map: "land cover · sentinel-2",
-  energy: "solar and wind · nasa power",
-  // The destination is the project hub -- the list of projects, their saved
-  // runs and their overlays. A single analysis is one thing opened from inside
-  // it, so naming the whole screen after that one thing sent users looking for
-  // a chart and gave them a folder list.
-  analysis: "project hub",
-  auth: "sign in",
-  profile: "settings",
-}
+const BRAND_TAGLINE = "for explorers"
 
 function fmtCoord(v: number, pos: string, neg: string): string {
   const dir = v >= 0 ? pos : neg
@@ -183,40 +177,21 @@ export function TitleBar({
           <span className="font-display text-sm font-semibold tracking-[0.14em]">
             TERRA
           </span>
-          {/* The mode, set close so "TERRA Studio" reads as one name. */}
-          {boardOpen && (
-            <span className="eyebrow hidden !text-foreground sm:inline">
-              studio
-            </span>
-          )}
-        </div>
-        {!boardOpen && (
-          <span className="hairline h-4 w-px self-center border-l" />
-        )}
-        {/*
-          In the studio the eyebrow names the mode, not the product. "land
-          cover · sentinel-2" is what the MAP screen works from, and the studio
-          holds solar and wind beside land cover -- naming one of the three
-          after the surface that carries all of them was the same mistake the
-          energy screen already fixed here.
-
-          Set closer to the wordmark than the screen labels are: it reads as
-          part of the name rather than as a description of it.
-        */}
-        {!boardOpen && (
-          <span className="eyebrow hidden sm:inline">
-            {SCREEN_EYEBROW[screen]}
+          {/* One name either way: the mode in the studio, the signature out. */}
+          <span
+            className={cn(
+              "eyebrow hidden sm:inline",
+              boardOpen && "!text-foreground"
+            )}
+          >
+            {boardOpen ? "studio" : BRAND_TAGLINE}
           </span>
-        )}
+        </div>
         {/*
-          Held where it was.
-
-          The row is flex, so tightening the brand block ahead of it drags
-          everything after it left by the same amount -- and the project is a
-          landmark the user reaches for by position, not a consequence of how
-          the title is spaced. The offset gives back exactly what the studio's
-          tighter title took: the divider and its gap (0.75rem + 1px) plus the
-          label's own pull (0.5rem).
+          Inside the brand block, not after a divider. A rule between the
+          wordmark and a signature would cut a name in half; it was there to
+          separate the name from a claim about the screen, and there is no
+          claim any more.
         */}
         <span
           className={cn("flex items-center", boardOpen && "ml-[1.8125rem]")}
