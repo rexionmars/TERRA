@@ -439,29 +439,48 @@ export function createBoard(
     Left and right are handed to nothing here, so the board's own handlers own
     them without an arbitration.
   */
-  const NAV_ORBIT = { LEFT: null, MIDDLE: MOUSE.ROTATE, RIGHT: null }
-  const NAV_PAN = { LEFT: null, MIDDLE: MOUSE.PAN, RIGHT: null }
+  /*
+    ORBITCONTROLS ALREADY READS THE MODIFIERS, and swapping the mapping under
+    it fights that rather than helping.
+
+    Its own table, from the source:
+
+      MOUSE.ROTATE + any modifier  ->  PAN
+      MOUSE.PAN    + any modifier  ->  ROTATE
+      MOUSE.DOLLY                  ->  dolly, modifiers not consulted
+
+    So Shift needs NO swap: the middle button stays MOUSE.ROTATE and the
+    control turns it into a pan by itself. The first version set MOUSE.PAN on
+    Shift, which the second line then turned back into a rotate -- Shift-drag
+    orbited, and pan could not be reached at all.
+
+    Ctrl is the one that does need a swap, because the first line sends it to
+    pan as well and Blender sends it to zoom. DOLLY ignores modifiers, so
+    setting it is enough.
+  */
+  const NAV_DEFAULT = { LEFT: null, MIDDLE: MOUSE.ROTATE, RIGHT: null }
   const NAV_ZOOM = { LEFT: null, MIDDLE: MOUSE.DOLLY, RIGHT: null }
-  controls.mouseButtons = { ...NAV_ORBIT }
+  controls.mouseButtons = { ...NAV_DEFAULT }
 
   /*
-    The modifier decides what the middle button does, and it is read while the
-    key is held rather than at the moment of press: OrbitControls latches its
-    action on pointerdown, so a reader who presses Shift after taking hold of
-    the button would otherwise orbit until they let go and try again.
+    Read while the key is held rather than at the moment of press:
+    OrbitControls latches its action on pointerdown, so a reader who takes
+    hold of the button first and reaches for Ctrl afterwards would otherwise
+    orbit until they let go and try again.
   */
   const onNavModifier = (e: KeyboardEvent) => {
-    const next = e.ctrlKey || e.metaKey ? NAV_ZOOM : e.shiftKey ? NAV_PAN : NAV_ORBIT
-    controls.mouseButtons = { ...next }
+    controls.mouseButtons = {
+      ...(e.ctrlKey || e.metaKey ? NAV_ZOOM : NAV_DEFAULT),
+    }
   }
   window.addEventListener("keydown", onNavModifier)
   window.addEventListener("keyup", onNavModifier)
   /*
-    A window that loses focus with a modifier held would keep the pan mapping
-    for the next press, since the keyup never arrives here.
+    A window that loses focus with Ctrl held would keep the zoom mapping for
+    the next press, since the keyup never arrives here.
   */
   const onNavBlur = () => {
-    controls.mouseButtons = { ...NAV_ORBIT }
+    controls.mouseButtons = { ...NAV_DEFAULT }
   }
   window.addEventListener("blur", onNavBlur)
 
