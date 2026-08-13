@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "motion/react"
-import { Save } from "lucide-react"
+import { Copy, Save } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
 import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
@@ -32,6 +32,15 @@ import {
   type BoardDetailFocus,
   type PredictionCompareSide,
 } from "@/components/whiteboard/BoardSolarDetail"
+import {
+  CompareSlots,
+  SourceSlot,
+  resolveComparePair,
+} from "@/components/whiteboard/CompareSlots"
+import {
+  DomainShiftEditor,
+  type DomainShiftMode,
+} from "@/components/whiteboard/DomainShiftEditor"
 import {
   compareClassMaps,
   sampleClassAtUv,
@@ -64,6 +73,13 @@ import {
   resolveProjectGeometry,
 } from "@/lib/geometry"
 import { notifyError, notifySuccess } from "@/lib/notify"
+import { tableToCSV, type DataTable } from "@/lib/analysisTables"
+import {
+  compareAccuracyDeltaTable,
+  compareBlockAgreementTable,
+  compareOverallDeltaTable,
+  compareShareDeltaTable,
+} from "@/lib/compareTables"
 import { saveWhiteboard } from "@/lib/whiteboards"
 import { LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
@@ -121,10 +137,12 @@ import {
   Eraser,
   EyeOff,
   Filter,
+  GitCompareArrows,
   Image as ImageIcon,
   Layers,
   Layers2,
   Pentagon,
+  Waves,
   Link2,
   Paintbrush,
   RotateCcw,
@@ -422,15 +440,56 @@ export function BoardSurface({
     properties column and later an outliner again finds its own pane, not the
     one some other area was last left on.
   */
-  const [areaModes, setAreaModes] = useKept<Readonly<Record<string, OutlinerMode>>>(
+  /*
+    Values are plain strings, which is what `parseStudioLayout` already stores
+    and accepts -- it takes any string and leaves the editor that reads one to
+    fall back on a value it does not recognise. The record was typed to the
+    outliner's own union while the key was already namespaced by editor, so a
+    second editor with panes could not use it without widening this first.
+  */
+  const [areaModes, setAreaModes] = useKept<Readonly<Record<string, string>>>(
     "areaModes",
-    (storedLayout.modes as Record<string, OutlinerMode>) ?? {}
+    storedLayout.modes ?? {}
   )
   const modeKey = (areaId: AreaId) => `${areaId}:outliner`
   const modeOf = (areaId: AreaId): OutlinerMode =>
-    areaModes[modeKey(areaId)] ?? "scene"
+    (areaModes[modeKey(areaId)] as OutlinerMode) ?? "scene"
   const setModeOf = (areaId: AreaId, m: OutlinerMode) =>
     setAreaModes((prev) => ({ ...prev, [modeKey(areaId)]: m }))
+
+  /*
+    The domain-shift editor's two readings, per area, in the same record.
+
+    A pair and a cohort answer different questions over the same data: the pair
+    carries the histogram, the projection and the feature-shift table, none of
+    which are defined for N subjects; the cohort carries the figure the
+    transferability study resolves to, which the pair cannot express at all.
+    Neither replaces the other, so this is a pane selector and not a migration.
+  */
+  const shiftModeKey = (areaId: AreaId) => `${areaId}:domainShift`
+  const shiftModeOf = (areaId: AreaId): DomainShiftMode =>
+    areaModes[shiftModeKey(areaId)] === "cohort" ? "cohort" : "pair"
+  const setShiftModeOf = (areaId: AreaId, m: DomainShiftMode) =>
+    setAreaModes((prev) => ({ ...prev, [shiftModeKey(areaId)]: m }))
+
+  /*
+    Which board area is the source of the star, per pane.
+
+    Session-level for the same reason `comparePins` is: it names a board area
+    that exists only while those runs are on the board, so restoring it into a
+    fresh session would point at nothing.
+  */
+  const [cohortSources, setCohortSources] = useKept<Record<string, string>>(
+    "cohortSources",
+    {}
+  )
+  const setCohortSource = (paneId: AreaId, boardAreaId?: string) =>
+    setCohortSources((prev) => {
+      const next = { ...prev }
+      if (boardAreaId) next[paneId] = boardAreaId
+      else delete next[paneId]
+      return next
+    })
 
   /*
     Written on a delay, because a division is dragged continuously and each
@@ -1308,6 +1367,12 @@ export function BoardSurface({
   const [appMenu, setAppMenu] = useState(false)
   const [filterMenu, setFilterMenu] = useState(false)
   /*
+    Which compare slot has its menu open, as `${paneId}:${slot}` rather than a
+    boolean. Two compare editors carry four slots between them, and a boolean
+    per slot would open all of them at once.
+  */
+  const [compareSlotMenu, setCompareSlotMenu] = useState<string | null>(null)
+  /*
     The outliner's filter, owned here because the header that carries it is
     built here. Blender filters its Outliner this way -- by state rather than
     by name first -- and this tree had no filter of any kind: what a reader
@@ -1415,79 +1480,234 @@ export function BoardSurface({
     return g?.cards.find((c) => c.id === "prediction")?.uri ?? null
   }, [groups, detailFocus?.areaId, detailFocus?.focus])
 
-  const compareSides = useMemo(():
-    | [PredictionCompareSide, PredictionCompareSide]
-    | null => {
-    if (predictionPicks.length < 2 || !groups) return null
-    const lastTwo = predictionPicks.slice(-2)
-    const sides: PredictionCompareSide[] = []
-    for (const pick of lastTwo) {
-      const sources = legendByArea.get(pick.areaId)
-      const result = sources?.result
-      const g = groups.find((x) => x.id === pick.areaId)
-      const uri = g?.cards.find((c) => c.id === "prediction")?.uri
+  /**
+   * Every prediction plane that could stand on one side of a comparison.
+   *
+   * Built once over the board rather than over the selection, because a slot
+   * that can only be filled from what is selected is not pinned to anything --
+   * it is the selection under another name.
+   */
+  const sideOf = useCallback(
+    (boardAreaId: string): PredictionCompareSide | null => {
+      const result = legendByArea.get(boardAreaId)?.result
+      const uri = groups
+        ?.find((x) => x.id === boardAreaId)
+        ?.cards.find((c) => c.id === "prediction")?.uri
       if (!result || !uri) return null
-      const run = assetRuns.find((r) => r.areaId === pick.areaId)
+      const run = assetRuns.find((r) => r.areaId === boardAreaId)
       // From the area's own layer, not the scene card: the card carries what
       // is DRAWN and the layer carries how it is to be sampled.
       const layer = areas
-        .find((a) => a.id === pick.areaId)
+        .find((a) => a.id === boardAreaId)
         ?.layers.find((l) => l.id === "prediction")
-      sides.push({
-        areaId: pick.areaId,
-        label: areas.find((a) => a.id === pick.areaId)?.title ?? pick.areaId,
+      return {
+        areaId: boardAreaId,
+        label: areas.find((a) => a.id === boardAreaId)?.title ?? boardAreaId,
         model: run?.model,
         period: run?.period,
         result,
         uri,
         pixelated: layer?.pixelated,
-      })
-    }
-    if (sides.length !== 2) return null
-    return [sides[0], sides[1]]
-  }, [predictionPicks, groups, legendByArea, assetRuns, areas])
+      }
+    },
+    [legendByArea, groups, assetRuns, areas]
+  )
 
-  const [predCompare, setPredCompare] = useState<ClassMapCompare | null>(null)
-  const [predCompareError, setPredCompareError] = useState<string | null>(null)
+  const availableSides = useMemo(
+    () =>
+      areas
+        .map((a) => sideOf(a.id))
+        .filter((s): s is PredictionCompareSide => !!s),
+    [areas, sideOf]
+  )
+
+  /*
+    WHICH TWO, SAID RATHER THAN TAKEN.
+
+    This was `predictionPicks.slice(-2)`: with three prediction planes selected
+    the editor compared two of them and never said which, and the reader had no
+    way to choose the third. The arity rule was well defined at two and silent
+    above it, which is the defect the design record names.
+
+    A slot may be PINNED to a plane, and a pinned slot holds while the selection
+    moves elsewhere -- the mechanism Blender uses to let one surface stop
+    following the active object. Unpinned, it falls back to the selection as
+    before, so the gesture that used to work still does; what changes is that
+    the choice is now visible in the header and can be overridden.
+
+    Per studio area, beside `areaModes`, for the reason that module already
+    gives: one owner per area rather than one for the studio, so two compare
+    editors can hold two different pairs.
+
+    In `boardMemory` and NOT in `StudioLayout`, which is where `areaModes`
+    goes. The distinction is not oversight: a mode is part of an arrangement
+    and an arrangement is worth restoring, while a pin names a board area that
+    exists only while those runs are on the board. Restored into a fresh
+    session it would point at nothing, and boardMemory's own position -- it
+    survives a close and not a restart -- is the level this belongs at.
+  */
+  const [comparePins, setComparePins] = useKept<
+    Record<string, { a?: string; b?: string }>
+  >("comparePins", {})
+
+  const sidesFor = useCallback(
+    (paneId: AreaId): [PredictionCompareSide, PredictionCompareSide] | null => {
+      // The rule, and its case table, live beside the control that exposes it.
+      const pair = resolveComparePair(predictionPicks, comparePins[paneId])
+      if (!pair) return null
+      const a = sideOf(pair[0])
+      const b = sideOf(pair[1])
+      if (!a || !b) return null
+      return [a, b]
+    },
+    // predictionPicks is rebuilt each render from `selection`; depending on
+    // `selection` rather than on it keeps this callback from changing identity
+    // on every render for no reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [comparePins, selection, sideOf]
+  )
+
+  /** The pair's figures as tables, in the order the editor draws them. */
+  const compareTablesFor = (paneId: AreaId): DataTable[] => {
+    const sides = sidesFor(paneId)
+    if (!sides) return []
+    const [a, b] = sides
+    const agreementA = a.result.lulc?.agreement
+    const agreementB = b.result.lulc?.agreement
+    return [
+      agreementA && agreementB
+        ? compareOverallDeltaTable(agreementA, agreementB)
+        : null,
+      agreementA && agreementB
+        ? compareAccuracyDeltaTable(agreementA, agreementB)
+        : null,
+      compareShareDeltaTable(a.result.class_stats ?? [], b.result.class_stats ?? []),
+      agreementA && agreementB
+        ? compareBlockAgreementTable(agreementA, agreementB, a.label, b.label)
+        : null,
+    ].filter((t): t is DataTable => !!t)
+  }
+
+  const copyCompareTables = async (paneId: AreaId) => {
+    const tables = compareTablesFor(paneId)
+    if (!tables.length) return
+    // Each block named by the file it would have been, so a pasted buffer
+    // carrying three tables still says which is which.
+    const text = tables
+      .map((t) => `# ${t.csvName}\n${tableToCSV(t)}`)
+      .join("\n\n")
+    try {
+      await navigator.clipboard.writeText(text)
+      notifySuccess(
+        `${tables.length} tables copied`,
+        tables.map((t) => t.csvName).join(", ")
+      )
+    } catch (err) {
+      notifyError("Could not copy the deltas", err)
+    }
+  }
+
+  const setPin = (paneId: AreaId, slot: "a" | "b", boardAreaId?: string) =>
+    setComparePins((prev) => {
+      const next = { ...prev }
+      const here = { ...(next[paneId] ?? {}) }
+      if (boardAreaId) here[slot] = boardAreaId
+      else delete here[slot]
+      if (here.a || here.b) next[paneId] = here
+      else delete next[paneId]
+      return next
+    })
+
+  /*
+    The pixel comparison, keyed by the pair rather than held as one.
+
+    It used to be a single result, which was sound while one editor could hold
+    one pair. Two compare editors pinned to two different pairs would have
+    fought over it, each overwriting the other's answer -- so the cache is keyed
+    and the work is shared: two editors reading the same pair decode the rasters
+    once.
+  */
+  const [predCompares, setPredCompares] = useState<
+    Record<string, { compare: ClassMapCompare | null; error: string | null }>
+  >({})
+  const comparePairsStarted = useRef(new Set<string>())
+
+  const comparePaneIds = useMemo(
+    () => leaves.filter((l) => l.editor === "compare").map((l) => l.id),
+    [leaves]
+  )
+  const neededPairs = useMemo(() => {
+    const out = new Map<string, [PredictionCompareSide, PredictionCompareSide]>()
+    for (const paneId of comparePaneIds) {
+      const sides = sidesFor(paneId)
+      if (sides) out.set(`${sides[0].areaId}|${sides[1].areaId}`, sides)
+    }
+    return out
+  }, [comparePaneIds, sidesFor])
+
   useEffect(() => {
-    if (!compareSides) {
-      setPredCompare(null)
-      setPredCompareError(null)
-      return
-    }
-    const [a, b] = compareSides
-    const legendA = (a.result.class_stats ?? []).map((c) => ({
-      id: c.class_id,
-      name: c.name,
-      color: c.color,
-    }))
-    const legendB = (b.result.class_stats ?? []).map((c) => ({
-      id: c.class_id,
-      name: c.name,
-      color: c.color,
-    }))
-    if (!legendA.length || !legendB.length) {
-      setPredCompare(null)
-      setPredCompareError("Both predictions need class legends to compare.")
-      return
-    }
     let cancelled = false
-    setPredCompareError(null)
-    void compareClassMaps(a.uri, legendA, b.uri, legendB)
-      .then((c) => {
-        if (!cancelled) setPredCompare(c)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        setPredCompare(null)
-        setPredCompareError(
-          err instanceof Error ? err.message : "Could not compare these rasters."
-        )
-      })
+
+    // What no editor asks for any more is dropped, so a pair that comes back
+    // is recomputed against the rasters as they are rather than as they were.
+    for (const key of [...comparePairsStarted.current])
+      if (!neededPairs.has(key)) comparePairsStarted.current.delete(key)
+    setPredCompares((prev) => {
+      const keys = Object.keys(prev)
+      if (keys.every((k) => neededPairs.has(k))) return prev
+      const next: typeof prev = {}
+      for (const k of keys) if (neededPairs.has(k)) next[k] = prev[k]
+      return next
+    })
+
+    const legendOf = (side: PredictionCompareSide) =>
+      (side.result.class_stats ?? []).map((c) => ({
+        id: c.class_id,
+        name: c.name,
+        color: c.color,
+      }))
+
+    for (const [key, [a, b]] of neededPairs) {
+      if (comparePairsStarted.current.has(key)) continue
+      comparePairsStarted.current.add(key)
+      const legendA = legendOf(a)
+      const legendB = legendOf(b)
+      if (!legendA.length || !legendB.length) {
+        setPredCompares((prev) => ({
+          ...prev,
+          [key]: {
+            compare: null,
+            error: "Both predictions need class legends to compare.",
+          },
+        }))
+        continue
+      }
+      void compareClassMaps(a.uri, legendA, b.uri, legendB)
+        .then((c) => {
+          if (cancelled) return
+          setPredCompares((prev) => ({
+            ...prev,
+            [key]: { compare: c, error: null },
+          }))
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return
+          setPredCompares((prev) => ({
+            ...prev,
+            [key]: {
+              compare: null,
+              error:
+                err instanceof Error
+                  ? err.message
+                  : "Could not compare these rasters.",
+            },
+          }))
+        })
+    }
     return () => {
       cancelled = true
     }
-  }, [compareSides])
+  }, [neededPairs])
 
   useEffect(() => {
     if (!brushOn || !probeUv || !predictionUri || !predictionLegend.length) {
@@ -1866,17 +2086,108 @@ export function BoardSurface({
       // other where it was.
       select: () => setModeOf(areaId, id),
     })
+    const shiftHere = shiftModeOf(areaId)
+    const shiftPane = (
+      id: DomainShiftMode,
+      label: string,
+      icon: LucideIcon
+    ) => ({
+      id,
+      label,
+      icon,
+      active: shiftHere === id,
+      select: () => setShiftModeOf(areaId, id),
+    })
     return {
       outliner: [
         pane("scene", "Scene", Layers),
         pane("data", "Data", ImageIcon),
         pane("areas", "Areas", Pentagon),
       ],
+      /*
+        Two readings of the same runs, not two versions of one. The pair holds
+        the histogram, the projection and the feature-shift table, which say
+        WHERE two domains differ and are undefined for N subjects; the cohort
+        holds divergence against agreement over every target, which is the
+        figure the study resolves to and which no number of pair invocations
+        assembles.
+      */
+      domainShift: [
+        shiftPane("pair", "Pair", GitCompareArrows),
+        shiftPane("cohort", "Cohort", Waves),
+      ],
     }
   }
 
-  const headerSlots: Partial<Record<EditorId, AreaHeaderSlots>> = {
+  /*
+    A function of the area for the same reason `renderEditor` and
+    `editorModesFor` are: the compare editor's slots name ITS pair, and a record
+    shared across areas would have made two compare editors show one pair's
+    labels over both bodies.
+  */
+  const headerSlotsFor = (
+    areaId: AreaId
+  ): Partial<Record<EditorId, AreaHeaderSlots>> => ({
     runParams: runBarHeader ?? {},
+    /*
+      The source, only where there is a star to have a centre of. In the pair
+      reading the two subjects come from the selection or the compare pins, and
+      a control for something that reading does not use is a control that
+      teaches the reader the wrong model of the editor.
+    */
+    domainShift:
+      shiftModeOf(areaId) === "cohort"
+        ? {
+            centre: (
+              <SourceSlot
+                paneId={areaId}
+                source={
+                  availableSides.find(
+                    (s) => s.areaId === cohortSources[areaId]
+                  ) ?? null
+                }
+                available={availableSides}
+                surface={surfaceRef.current}
+                openFor={compareSlotMenu}
+                onOpenChange={setCompareSlotMenu}
+                onPick={setCohortSource}
+              />
+            ),
+          }
+        : {},
+    compare: {
+      centre: (
+        <CompareSlots
+          paneId={areaId}
+          sides={sidesFor(areaId)}
+          pins={comparePins[areaId]}
+          available={availableSides}
+          surface={surfaceRef.current}
+          openFor={compareSlotMenu}
+          onOpenChange={setCompareSlotMenu}
+          onPin={setPin}
+        />
+      ),
+      /*
+        The deltas, out of the editor and into the clipboard.
+
+        A figure a reader can only read on screen is a figure they have to
+        retype to cite, and retyping is where a transcription error enters a
+        result. The research pack cannot carry these -- it is built from one
+        run and a delta is about two -- so the clipboard is the route, which is
+        the one `DataTableView` already offers everywhere else.
+      */
+      options: (
+        <StudioHeaderToggle
+          icon={Copy}
+          label="Copy deltas"
+          on={false}
+          disabled={!compareTablesFor(areaId).length}
+          title="Copy the accuracy and share deltas as CSV"
+          onToggle={() => void copyCompareTables(areaId)}
+        />
+      ),
+    },
     properties: {
       options: selection.length ? (
         <span className="telemetry px-1 text-[9px] text-muted-foreground">
@@ -2103,7 +2414,7 @@ export function BoardSurface({
         </>
       ),
     },
-  }
+  })
 
   /*
     THE EDITORS, one expression each.
@@ -2128,7 +2439,12 @@ export function BoardSurface({
   */
   const renderEditor = (
     areaId: AreaId
-  ): Partial<Record<EditorId, React.ReactNode>> => ({
+  ): Partial<Record<EditorId, React.ReactNode>> => {
+    // Resolved once per area, so the header's slots and the body below them
+    // name the same two planes rather than each deciding for itself.
+    const sides = sidesFor(areaId)
+    const pair = sides ? predCompares[`${sides[0].areaId}|${sides[1].areaId}`] : null
+    return {
     outliner: (
           <BoardSidebar
             areaInfo={areaInfo}
@@ -2226,23 +2542,29 @@ export function BoardSurface({
           />
     ),
     runParams: runBar ?? null,
-    domainShift:
-      compareSides && compareSides[0].result && compareSides[1].result ? (
-        <div className="panel-scroll h-full w-full overflow-auto p-3">
-          <DomainShiftSection
-            resultA={compareSides[0].result}
-            resultB={compareSides[1].result}
-            labelA={compareSides[0].label}
-            labelB={compareSides[1].label}
-          />
-        </div>
-      ) : (
-        <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
-          Pick two prediction planes to measure how far their domains sit apart.
-        </p>
-      ),
+    domainShift: (
+      <DomainShiftEditor
+        mode={shiftModeOf(areaId)}
+        sides={sides}
+        available={availableSides}
+        sourceId={cohortSources[areaId]}
+        // A point in the figure names its area; selecting it is what carries
+        // the reader from the aggregate back to the raster it stands for.
+        onPickTarget={(boardAreaId: string) => {
+          const layer = areas
+            .find((a) => a.id === boardAreaId)
+            ?.layers.find((l) => l.id === "prediction")
+          if (layer) setSelection([layerRow(boardAreaId, layer.id)])
+        }}
+      />
+    ),
     table: <StudioTables runs={selectedRuns} />,
-    compare: compareSides ? (
+    /*
+      No longer `sides ? ... : null`. An editor that renders nothing at all
+      when it cannot answer is indistinguishable from one that is broken, and
+      the domain-shift editor beside it has said what it needs all along.
+    */
+    compare: sides ? (
           <BoardSolarDetail
             placement="area"
             leftOffset="var(--board-left)"
@@ -2263,12 +2585,19 @@ export function BoardSurface({
             onResize={onDetailResize}
             collapsed={detailCollapsed}
             onToggleCollapsed={onDetailToggleCollapsed}
-            compareSides={compareSides}
-            compare={predCompare}
-            compareError={predCompareError}
+            compareSides={sides}
+            compare={pair?.compare ?? null}
+            compareError={pair?.error ?? null}
           />
-    ) : null,
-  })
+    ) : (
+      <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
+        {availableSides.length < 2
+          ? "Add a second run to the board to read one classification against another."
+          : "Pick two prediction planes, or pin them to the A and B slots above."}
+      </p>
+    ),
+    }
+  }
 
 
   return (
@@ -2726,7 +3055,7 @@ export function BoardSurface({
             canClose={leaves.length > 1}
             transparent={editor === "viewport"}
             maximized={!!restoreTree[workspaceId]}
-            slots={headerSlots[editor]}
+            slots={headerSlotsFor(id)[editor]}
             modes={editorModesFor(id)}
             onRetype={(next) => setTree(retypeArea(tree, id, next))}
             onSplit={(dir) => setTree(splitArea(tree, id, dir, "properties"))}

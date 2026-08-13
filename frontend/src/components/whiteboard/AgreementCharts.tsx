@@ -26,7 +26,11 @@
  * place.
  */
 import { cn } from "@/lib/utils"
-import type { LULCAgreement, LULCClassAccuracy } from "@/lib/types"
+import type {
+  LULCAgreement,
+  LULCAgreementBlocks,
+  LULCClassAccuracy,
+} from "@/lib/types"
 
 /**
  * Producer's against user's, per class, as an estimate with its interval.
@@ -508,6 +512,304 @@ export function ConfusionMatrix({
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Where each run's agreement sits, block by block, for both runs at once.
+ *
+ * A single overall figure cannot separate a classifier that is uniformly
+ * mediocre from one that is accurate everywhere except a corner. On a synthetic
+ * case with one bad quadrant the overall reads 92% while the worst block reads
+ * 25%, and the second number is the one that says what to look at.
+ *
+ * It is also the second axis on which two AOIs compare. One figure per area
+ * says which is higher; the spread says whether an area is evenly classified or
+ * carries a failure in one place, and two areas can differ in that while
+ * agreeing on the mean.
+ *
+ * ONE COLOUR DOMAIN over both grids, 0..100, for the reason the confusion pair
+ * gives: two grids each stretched to their own range put two different
+ * agreements in the same colour. Blocks below the cell floor are drawn empty
+ * rather than dark -- no measurement is not a low score.
+ */
+export function BlockAgreementPair({
+  a,
+  b,
+  labelA,
+  labelB,
+}: {
+  a: LULCAgreement
+  b: LULCAgreement
+  labelA: string
+  labelB: string
+}) {
+  const grids = [
+    { letter: "A", label: labelA, blocks: a.blocks },
+    { letter: "B", label: labelB, blocks: b.blocks },
+  ].filter(
+    (g): g is { letter: string; label: string; blocks: LULCAgreementBlocks } =>
+      !!g.blocks
+  )
+  if (grids.length < 2) return null
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <p className="eyebrow !text-[9px]">Agreement by block</p>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        Each block is its own agreement against the reference. Spread says
+        whether the disagreement sits in one place or everywhere; blank blocks
+        held fewer than {grids[0].blocks.min_cells} reference cells.
+      </p>
+      <div className="flex flex-row items-start gap-3">
+        {grids.map((g) => {
+          const at = new Map(
+            g.blocks.cells.map((c) => [`${c.row}:${c.col}`, c])
+          )
+          return (
+            <div key={g.letter} className="flex flex-col gap-1">
+              <p className="telemetry truncate text-[9px] text-muted-foreground">
+                {g.letter} · {g.label}
+              </p>
+              <div
+                className="grid gap-px"
+                style={{
+                  gridTemplateColumns: `repeat(${g.blocks.cols}, 0.85rem)`,
+                }}
+              >
+                {Array.from({ length: g.blocks.rows }).flatMap((_, r) =>
+                  Array.from({ length: g.blocks.cols }).map((__, c) => {
+                    const cell = at.get(`${r}:${c}`)
+                    const v = cell?.overall_pct ?? null
+                    return (
+                      <div
+                        key={`${r}:${c}`}
+                        className="h-[0.85rem] rounded-[1px]"
+                        style={{
+                          background:
+                            v == null
+                              ? "rgb(var(--p-line) / 0.12)"
+                              : `rgb(var(--p-accent) / ${0.12 + (v / 100) * 0.7})`,
+                        }}
+                        title={
+                          cell == null
+                            ? "No reference cells in this block"
+                            : v == null
+                              ? `${cell.n_reference_cells} reference cells, below the floor of ${g.blocks.min_cells}`
+                              : `${v.toFixed(1)}% over ${cell.n_reference_cells} reference cells`
+                        }
+                      />
+                    )
+                  })
+                )}
+              </div>
+              <p className="telemetry text-[9px] text-muted-foreground">
+                med {g.blocks.median_pct.toFixed(0)} · IQR{" "}
+                {g.blocks.iqr_pct.toFixed(0)} · {g.blocks.min_pct.toFixed(0)}–
+                {g.blocks.max_pct.toFixed(0)}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Both runs' confusion against the reference, on one axis and one colour scale.
+ *
+ * WHY THIS AND NOT THE TRANSITION MATRIX. The A-to-B matrix answers "where did
+ * A's labels land in B", and it needs the two rasters to cover the same pixels.
+ * Two AOIs never do -- which is every comparison this studio exists for, and
+ * the case where the compare editor had a sentence of apology in the space a
+ * matrix would have taken.
+ *
+ * Each run separately carries a full confusion against the MapBiomas reference.
+ * Two of those share the reference legend, so they can be read against each
+ * other with no shared pixel anywhere. The question is the same one the
+ * transition matrix was asked -- which classes are taken for which -- and here
+ * it is answered against ground rather than against the other run.
+ *
+ * NORMALISED DOWN THE REFERENCE AXIS, WHICH IS NOT A PRESENTATION CHOICE. The
+ * matrices carry counts of reference cells, and a larger AOI has larger counts
+ * in every cell. Set side by side as counts, the bigger area looks like the
+ * more confused one and the reading is an artefact of extent.
+ *
+ * Which axis to divide by is decided by the data and not by taste.
+ * `agreement_against_reference` fills `matrix[predicted][reference]`, so the
+ * reference is the COLUMN axis -- the same axis `producers_pct` is derived
+ * from, via `matrix.sum(axis=0)`. Dividing each column by its own total is
+ * therefore what puts the producer's accuracy on the diagonal and makes a cell
+ * read as "this share of the reference class was called that".
+ *
+ * Drawn transposed, so rows are the reference and the grid reads the way an
+ * accuracy assessment is written. The transpose is in the rendering only; the
+ * arithmetic is done on the axis the sidecar actually filled.
+ *
+ * ONE AXIS AND ONE SCALE, which is the precondition the design record raises
+ * against side-by-side surfaces: two grids rescaled to their own ranges present
+ * two different values in the same colour. Row shares are bounded at 100 by
+ * construction, so both grids are shaded against 0..100 rather than against
+ * whatever each happens to reach, and the axis is the union of the two class
+ * sets so a class sits in the same place in both.
+ */
+export function ReferenceConfusionPair({
+  a,
+  b,
+  labelA,
+  labelB,
+}: {
+  a: LULCAgreement
+  b: LULCAgreement
+  labelA: string
+  labelB: string
+}) {
+  const named = (agreement: LULCAgreement) =>
+    new Map(agreement.per_class.map((c) => [c.class_id, c]))
+  const namesA = named(a)
+  const namesB = named(b)
+
+  /*
+    The union, in A's order then B's. `matrix_classes` is the matrix's own axis
+    order and the two need not carry the same set: a class present in one
+    region's reference and absent from the other's would otherwise shift every
+    column after it in one grid and not the other, and two grids whose columns
+    do not line up cannot be compared by eye at all.
+  */
+  const ids: number[] = []
+  for (const id of [...a.matrix_classes, ...b.matrix_classes])
+    if (!ids.includes(id)) ids.push(id)
+  const axis = ids.map((id) => ({
+    id,
+    name: namesA.get(id)?.name ?? namesB.get(id)?.name ?? `Class ${id}`,
+    color: namesA.get(id)?.color ?? namesB.get(id)?.color ?? "#888888",
+  }))
+  if (!axis.length || !a.matrix.length || !b.matrix.length) return null
+
+  /**
+   * `[referenceClass][predictedClass]` shares, on the union axis.
+   *
+   * The source is `matrix[predicted][reference]`, so the column is the
+   * reference: the total is taken down a column and the result is transposed
+   * on the way out, which is what puts the reference on the rows here.
+   */
+  const sharesOf = (agreement: LULCAgreement) => {
+    const at = new Map(agreement.matrix_classes.map((id, i) => [id, i]))
+    return axis.map((refClass) => {
+      const j = at.get(refClass.id)
+      // A class this side's reference has no cells of is not zero confusion;
+      // it is no measurement, and a row of zeroes would read as the former.
+      if (j == null) return axis.map(() => null)
+      let total = 0
+      for (const row of agreement.matrix) total += row[j] ?? 0
+      if (!total) return axis.map(() => null)
+      return axis.map((predClass) => {
+        const i = at.get(predClass.id)
+        return i == null ? null : ((agreement.matrix[i]?.[j] ?? 0) / total) * 100
+      })
+    })
+  }
+
+  const grids = [
+    { label: labelA, letter: "A", shares: sharesOf(a) },
+    { label: labelB, letter: "B", shares: sharesOf(b) },
+  ]
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <p className="eyebrow !text-[9px]">Confusion against reference</p>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        Rows = MapBiomas reference, columns = the run. Each reference class is
+        its own share, so the two grids are comparable across areas of
+        different size; the diagonal is the producer&apos;s accuracy.
+      </p>
+      <div className="flex flex-row items-start gap-3">
+        {grids.map((g) => (
+          <div key={g.letter} className="flex min-w-0 flex-col gap-1">
+            <p className="telemetry truncate text-[9px] text-muted-foreground">
+              {g.letter} · {g.label}
+            </p>
+            <table className="border-separate border-spacing-0.5 text-[9px]">
+              <thead>
+                <tr>
+                  <th className="p-0.5" />
+                  {axis.map((c) => (
+                    <th key={c.id} className="p-0.5 font-normal" title={c.name}>
+                      <span
+                        className="mx-auto flex size-3 items-center justify-center rounded-[2px] text-[7px] text-white"
+                        style={{ backgroundColor: c.color }}
+                      >
+                        {c.id}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {axis.map((rowClass, i) => (
+                  <tr key={rowClass.id}>
+                    <th
+                      className="p-0.5 text-left font-normal"
+                      title={rowClass.name}
+                    >
+                      <span className="flex items-center gap-1">
+                        <span
+                          className="size-2.5 shrink-0 rounded-[2px]"
+                          style={{ backgroundColor: rowClass.color }}
+                          aria-hidden
+                        />
+                        <span className="telemetry text-muted-foreground">
+                          {rowClass.id}
+                        </span>
+                      </span>
+                    </th>
+                    {axis.map((colClass, j) => {
+                      const v = g.shares[i]?.[j] ?? null
+                      // Against 100, not against this grid's own maximum.
+                      const t = v == null ? 0 : v / 100
+                      const diag = rowClass.id === colClass.id
+                      return (
+                        <td key={colClass.id} className="p-0">
+                          <div
+                            className={cn(
+                              "telemetry flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-[2px] px-0.5",
+                              diag && "ring-1 ring-primary/50"
+                            )}
+                            style={{
+                              background:
+                                v == null
+                                  ? "transparent"
+                                  : v > 0
+                                    ? `rgb(var(--p-accent) / ${0.15 + t * 0.65})`
+                                    : "rgb(var(--p-line) / 0.08)",
+                            }}
+                            title={
+                              v == null
+                                ? `${rowClass.name} → ${colClass.name}: not measured in ${g.label}`
+                                : `${rowClass.name} → ${colClass.name}: ${v.toFixed(1)}% of the reference class, in ${g.label}`
+                            }
+                          >
+                            <span
+                              className={cn(
+                                "telemetry",
+                                t > 0.55 ? "text-background" : "text-foreground"
+                              )}
+                            >
+                              {v == null ? "" : v >= 0.5 ? v.toFixed(0) : "·"}
+                            </span>
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
     </div>
   )

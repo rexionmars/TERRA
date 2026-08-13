@@ -21,7 +21,11 @@ import {
   CoverChipList,
   SkyViewFigures,
 } from "@/components/solar/SolarDetailFigures"
-import { AgreementDelta } from "@/components/whiteboard/AgreementCharts"
+import {
+  AgreementDelta,
+  BlockAgreementPair,
+  ReferenceConfusionPair,
+} from "@/components/whiteboard/AgreementCharts"
 import { PlotSwipeView } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import type { BrushRadiusPx, ClassMapCompare, ClassProbeSample } from "@/lib/boardProbe"
@@ -485,6 +489,75 @@ function PredictionBody({
   )
 }
 
+/**
+ * What differs between the two runs, and nothing that does not.
+ *
+ * A delta is uninterpretable without it. The identity blocks named the area,
+ * the model and the period, which is what a reader would have set deliberately
+ * -- but a run also carries how many scenes it found, over what dates, and
+ * which reference year it was scored against, and none of those were on screen.
+ * The last one matters most and is the easiest to miss: two runs measured
+ * against different MapBiomas years have an accuracy delta that is partly the
+ * reference moving rather than the model, and nothing said so.
+ *
+ * Only the differing rows are drawn. A list of six facets of which five agree
+ * is five rows asking to be checked and discarded; what a reader needs is the
+ * short list of things that are not the same. This is the device QGIS's
+ * Processing History supplies for expensive asynchronous work -- and a TERRA
+ * run costs minutes and quota, so re-running one to find out what it used is
+ * not a way of asking.
+ */
+function WhatDiffers({
+  a,
+  b,
+}: {
+  a: PredictionCompareSide
+  b: PredictionCompareSide
+}) {
+  const span = (dates: string[] | null | undefined) =>
+    dates?.length ? `${dates[0]} – ${dates[dates.length - 1]}` : null
+  const reference = (s: PredictionCompareSide) =>
+    s.result.lulc ? `${s.result.lulc.source} ${s.result.lulc.year}` : null
+
+  const facets: { label: string; a: string | null; b: string | null }[] = [
+    { label: "Area", a: a.label, b: b.label },
+    {
+      label: "Model",
+      a: a.model ? modelLabel(a.model as ModelKind) : null,
+      b: b.model ? modelLabel(b.model as ModelKind) : null,
+    },
+    { label: "Period", a: a.period ?? null, b: b.period ?? null },
+    {
+      label: "Scenes",
+      a: String(a.result.n_dates),
+      b: String(b.result.n_dates),
+    },
+    { label: "Acquired", a: span(a.result.date_range), b: span(b.result.date_range) },
+    { label: "Reference", a: reference(a), b: reference(b) },
+  ]
+  const differing = facets.filter((f) => f.a !== f.b)
+  if (!differing.length) return null
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="eyebrow !text-[9px]">What differs</p>
+      <ul className="flex flex-col gap-0.5">
+        {differing.map((f) => (
+          <li key={f.label} className="flex flex-col">
+            <span className="telemetry text-[9px] text-muted-foreground">
+              {f.label}
+            </span>
+            <span className="truncate text-[10px] text-foreground" title={`${f.a ?? "—"} → ${f.b ?? "—"}`}>
+              {f.a ?? "—"} <span className="text-muted-foreground">&rarr;</span>{" "}
+              {f.b ?? "—"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export interface PredictionCompareSide {
   areaId: string
   label: string
@@ -507,6 +580,34 @@ function PredictionCompareBody({
   compareError: string | null
   compact?: boolean
 }) {
+  /*
+    THE SHARED COLOUR DOMAIN, and why there is no control for it.
+
+    Two rasters set side by side are not comparable by eye unless they share a
+    colour mapping: rescaled each to its own range, one presents two different
+    values in the same colour, and the reading is confident and wrong. It is
+    the precondition the design record raises against every side-by-side
+    arrangement, and ParaView's answer -- a transfer function decoupled from
+    the view, with rescaling stated rather than implicit -- is the mechanism it
+    asks for.
+
+    Checked against what this editor actually draws, and it is already met at
+    the source rather than needing a control here:
+
+      - Class rasters take their colour from `MAPBIOMAS_COLORS` in
+        `sidecar/class_palette.py`, a fixed map keyed by class id. The same
+        class is the same colour in every run by construction.
+      - `write_confidence_png` and `write_ndvi_mean_png` clip to [0, 1] and ramp
+        over that absolute domain. Neither is rescaled to the run's own range.
+
+    So a basis selector here would be chrome for a condition this application
+    does not produce, and the geometric budget is the reason that matters: at
+    the 1000x700 minimum the chrome already takes half the width. The one place
+    a per-instance scale did exist was the confusion grids, which shaded against
+    their own maxima -- reconciled in `ReferenceConfusionPair` against 0..100
+    and said on screen, since a reconciliation a reader cannot see is one they
+    cannot check.
+  */
   const [a, b] = sides
   // Where the divider stands. Local, because it is a way of looking rather
   // than a property of either raster.
@@ -517,7 +618,40 @@ function PredictionCompareBody({
   // MapBiomas cells behind it has nothing to be more or less accurate than.
   const agreementA = a.result.lulc?.agreement ?? null
   const agreementB = b.result.lulc?.agreement ?? null
+
+  /*
+    The share delta over the UNION of the two legends, not over A's.
+
+    Iterating A alone drops a class B found and A did not, which is the finding
+    the row would have carried. `AgreementDelta` was made to keep those rows for
+    that reason and this list, in the same panel, was still discarding them.
+
+    Absence means something different here than it does there, though, and the
+    two are not fixed the same way. `per_class` absent is NOT MEASURED, so its
+    delta is unknown and the row says `only B`. `class_stats` absent is a share
+    of ZERO -- the class is not in the raster -- so the delta is a real figure in
+    both directions: -pct for a class only A has, +pct for one only B has.
+  */
+  const byIdA = new Map(statsA.map((c) => [c.class_id, c]))
   const byIdB = new Map(statsB.map((c) => [c.class_id, c]))
+  const shareRows = [
+    ...statsA.map((ca) => ({
+      classId: ca.class_id,
+      name: ca.name,
+      color: ca.color,
+      delta: (byIdB.get(ca.class_id)?.pct ?? 0) - ca.pct,
+    })),
+    // A's order first, so a reader who knows one legend still reads it in the
+    // order they know; what only B has lands after it rather than interleaved.
+    ...statsB
+      .filter((cb) => !byIdA.has(cb.class_id))
+      .map((cb) => ({
+        classId: cb.class_id,
+        name: cb.name,
+        color: cb.color,
+        delta: cb.pct,
+      })),
+  ]
 
   return (
     <div
@@ -550,6 +684,8 @@ function PredictionCompareBody({
             </div>
           ))}
         </div>
+
+        <WhatDiffers a={a} b={b} />
 
         {compareError && (
           <p className="text-[10px] leading-snug text-muted-foreground">
@@ -615,6 +751,27 @@ function PredictionCompareBody({
         </div>
       )}
 
+      {/*
+        WHERE THE TWO COVER DIFFERENT GROUND, which is every comparison of two
+        areas: each run's own confusion against the reference, side by side.
+
+        This slot used to hold the transition matrix or, failing that, the
+        sentence saying why it could not run -- and the failing case is the one
+        the studio exists for. The two readings are not alternatives dressed as
+        one: A-to-B says where A's labels went in B and needs shared pixels;
+        this says where each run's labels went against ground and needs none.
+      */}
+      {!compare && agreementA && agreementB && (
+        <div className={cn(compact && "shrink-0")}>
+          <ReferenceConfusionPair
+            a={agreementA}
+            b={agreementB}
+            labelA={sides[0].label}
+            labelB={sides[1].label}
+          />
+        </div>
+      )}
+
       {compare && (
         <div className={cn(compact && "shrink-0")}>
           <CompactMatrix
@@ -658,6 +815,22 @@ function PredictionCompareBody({
         </div>
       )}
 
+      {/*
+        Offered whether or not the grids match: a block breakdown is computed
+        inside each run against its own reference, so it needs no shared pixel
+        -- the same property that makes the confusion pair work for two areas.
+      */}
+      {agreementA && agreementB && (
+        <div className={cn(compact && "shrink-0")}>
+          <BlockAgreementPair
+            a={agreementA}
+            b={agreementB}
+            labelA={sides[0].label}
+            labelB={sides[1].label}
+          />
+        </div>
+      )}
+
       {statsA.length > 0 && statsB.length > 0 && (
         <div
           className={cn(
@@ -667,37 +840,33 @@ function PredictionCompareBody({
         >
           <p className="eyebrow !text-[9px]">Share delta (A → B)</p>
           <ul className="flex flex-col gap-1">
-            {statsA.map((ca) => {
-              const cb = byIdB.get(ca.class_id)
-              const d = (cb?.pct ?? 0) - ca.pct
-              return (
-                <li
-                  key={ca.class_id}
-                  className="flex items-center gap-2 text-[10px]"
+            {shareRows.map((r) => (
+              <li
+                key={r.classId}
+                className="flex items-center gap-2 text-[10px]"
+              >
+                <span
+                  className="size-2 shrink-0 rounded-[2px]"
+                  style={{ backgroundColor: r.color }}
+                />
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                  {r.name}
+                </span>
+                <span
+                  className={cn(
+                    "telemetry shrink-0",
+                    r.delta > 0.05
+                      ? "text-emerald-400"
+                      : r.delta < -0.05
+                        ? "text-rose-400"
+                        : "text-foreground"
+                  )}
                 >
-                  <span
-                    className="size-2 shrink-0 rounded-[2px]"
-                    style={{ backgroundColor: ca.color }}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                    {ca.name}
-                  </span>
-                  <span
-                    className={cn(
-                      "telemetry shrink-0",
-                      d > 0.05
-                        ? "text-emerald-400"
-                        : d < -0.05
-                          ? "text-rose-400"
-                          : "text-foreground"
-                    )}
-                  >
-                    {d > 0 ? "+" : ""}
-                    {d.toFixed(1)} pp
-                  </span>
-                </li>
-              )
-            })}
+                  {r.delta > 0 ? "+" : ""}
+                  {r.delta.toFixed(1)} pp
+                </span>
+              </li>
+            ))}
           </ul>
         </div>
       )}
