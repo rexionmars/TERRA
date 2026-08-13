@@ -203,9 +203,50 @@ type LULCAgreement struct {
 	PerClass []LULCClassAccuracy `json:"per_class"`
 	// Reference cells carrying a class the classifier has no label for. Not
 	// errors -- the share of the area the assessment is silent about.
-	NOutsideLegend int     `json:"n_outside_legend"`
-	Matrix         [][]int `json:"matrix"`
-	MatrixClasses  []int   `json:"matrix_classes"`
+	NOutsideLegend int `json:"n_outside_legend"`
+	// Rows are the classification, columns the reference. `agreement_against_
+	// reference` fills matrix[pred][ref] and takes producer's accuracy from the
+	// column totals; reading it the other way inverts omission and commission.
+	Matrix        [][]int `json:"matrix"`
+	MatrixClasses []int   `json:"matrix_classes"`
+	// Agreement per spatial block. Absent where no block held enough reference
+	// cells to carry a percentage.
+	Blocks *LULCAgreementBlocks `json:"blocks,omitempty"`
+}
+
+/*
+LULCAgreementBlocks is agreement broken down over a fixed grid of blocks.
+
+OverallPct cannot separate a classifier that is uniformly mediocre from one
+that is accurate everywhere but a corner, and those call for different work.
+The spread here is what distinguishes them, and it is also the second axis on
+which two AOIs can be compared -- one number per area says nothing about
+whether they differ in level or in evenness.
+
+Descriptive, not inferential: the blocks are a grid over the raster's own
+extent rather than a sampling design, they hold different numbers of cells,
+and they are not independent of the landscape.
+*/
+type LULCAgreementBlocks struct {
+	Rows int `json:"rows"`
+	Cols int `json:"cols"`
+	// Reference cells a block needs before its percentage is reported.
+	MinCells int                  `json:"min_cells"`
+	Cells    []LULCAgreementBlock `json:"cells"`
+	// Blocks that cleared MinCells, and the spread over those.
+	NMeasured int     `json:"n_measured"`
+	MedianPct float64 `json:"median_pct"`
+	IQRPct    float64 `json:"iqr_pct"`
+	MinPct    float64 `json:"min_pct"`
+	MaxPct    float64 `json:"max_pct"`
+}
+
+// LULCAgreementBlock is one block's agreement; OverallPct is nil below MinCells.
+type LULCAgreementBlock struct {
+	Row             int      `json:"row"`
+	Col             int      `json:"col"`
+	NReferenceCells int      `json:"n_reference_cells"`
+	OverallPct      *float64 `json:"overall_pct"`
 }
 
 /*

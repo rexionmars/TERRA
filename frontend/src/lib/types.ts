@@ -172,8 +172,47 @@ export interface LULCAgreement {
   per_class: LULCClassAccuracy[]
   /** Reference cells whose class the classifier has no label for. */
   n_outside_legend: number
+  /**
+   * Rows are the classification, columns the reference.
+   *
+   * `agreement_against_reference` fills `matrix[pred][ref]` and derives
+   * producer's accuracy from the column totals. Read the other way round it
+   * still looks like a confusion matrix and reports commission as omission,
+   * which is why the orientation is stated here and not left to the reader.
+   */
   matrix: number[][]
   matrix_classes: number[]
+  /** Absent where no block held enough reference cells to carry a figure. */
+  blocks?: LULCAgreementBlocks | null
+}
+
+/**
+ * Agreement over a fixed grid of spatial blocks.
+ *
+ * `overall_pct` cannot tell a classifier that is uniformly mediocre from one
+ * that is accurate everywhere but a corner, and the two call for different
+ * work. Descriptive rather than inferential: the blocks are a grid over the
+ * raster's extent, not a sampling design.
+ */
+export interface LULCAgreementBlocks {
+  rows: number
+  cols: number
+  /** Reference cells a block needs before its percentage is reported. */
+  min_cells: number
+  cells: LULCAgreementBlock[]
+  n_measured: number
+  median_pct: number
+  iqr_pct: number
+  min_pct: number
+  max_pct: number
+}
+
+export interface LULCAgreementBlock {
+  row: number
+  col: number
+  n_reference_cells: number
+  /** Null below `min_cells`: arithmetic rather than a measurement. */
+  overall_pct: number | null
 }
 
 export interface LULCAnalysis {
