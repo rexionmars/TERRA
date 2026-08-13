@@ -34,7 +34,14 @@ import {
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
 import { BoardRunBar } from "@/components/whiteboard/BoardRunBar"
-import { BOARD_RIGHT_REM } from "@/components/whiteboard/BoardSolarDetail"
+import {
+  BOARD_DETAIL_REM,
+  BOARD_LEFT_REM,
+  BOARD_RIGHT_REM,
+  boardPartition,
+  clampDetail,
+  partitionVars,
+} from "@/lib/boardPartition"
 import { rasterLayers } from "@/lib/mapLayers"
 import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
@@ -65,54 +72,12 @@ const prefetchBoard = () => void import("@/components/whiteboard/BoardSurface")
  * it, and the tallest control at 1.375rem come to 40px, plus the scroller's
  * py-1. What is left is the air the one-line band did not have.
  */
-const BAND_REM = 4
-/**
- * The detail band that sits on the run controls (prediction / solar / brush).
- *
- * Land-cover legends live in the right sidebar; this reservation is for the
- * product readout that used to compete with them in a cramped foot strip.
- */
-const STATS_REM = BAND_REM * 2 + 1.25
-/**
- * How far the detail band may be dragged, in rem.
- *
- * Bounded at both ends for the same reason: below the floor it cannot show a
- * figure and its own border, and above the ceiling it starts eating the board
- * it exists to describe.
- */
-const STATS_MIN_REM = 3.5
-const STATS_MAX_REM = 22
-/**
- * What actually stands in the foot, which the reservation must equal.
- *
- * Arithmetic here rather than `calc()` in the variable, and the reason is not
- * style: boardScene reads --map-foot with parseFloat to lift the axis helper
- * clear of the foot, and parseFloat of a calc() expression is NaN, which the
- * `|| 0` there turns into no clearance at all. The helper would sit under both
- * bands and nothing would report it.
- */
-/**
- * What actually stands in the foot, which the reservation must equal.
- *
- * A function now rather than a constant, because the detail band is draggable:
- * everything that clears the foot -- the result panel, the drawers, and the
- * scene's axis gizmo -- has to follow it. Arithmetic in JS rather than a
- * `calc()` in the variable, since boardScene reads --map-foot with parseFloat
- * and parseFloat of a calc() expression is NaN, which its `|| 0` turns into no
- * clearance at all.
- */
-/**
- * What the band folds down to: its grip, and nothing else.
- *
- * Not zero. The studio holds land cover, solar and wind, and the band is fixed
- * furniture across all three -- collapsing gives back its body, not the edge
- * that unfolds it. A band that vanished would leave no way back to itself.
- *
- * 1.25rem, not the grip's own 10px: the strip carries a chevron that has to be
- * clicked, and a 12px band around a 16px button leaves no margin for a miss.
- */
-const STATS_COLLAPSED_REM = 1.25
-const footRem = (statsRem: number) => BAND_REM + statsRem
+/*
+  The studio's geometry comes from lib/boardPartition, which is the one place
+  that describes it. It used to be declared here and repeated as literals in
+  six other files, and each repetition was a promise that two numbers written
+  apart would stay equal -- a promise that broke four times.
+*/
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
@@ -389,14 +354,17 @@ export function MapScreen(props: MapScreenProps) {
    * scene's axis gizmo measure from, so a band that grew without telling this
    * level would slide under all three.
    */
-  const [statsRem, setStatsRem] = useState(STATS_REM)
+  const [statsRem, setStatsRem] = useState(BOARD_DETAIL_REM)
   /*
     Collapsed is remembered SEPARATELY from the height, so unfolding restores
     the height that was dragged rather than resetting it to the default. The
     two are different questions: how tall, and whether shown.
   */
   const [statsCollapsed, setStatsCollapsed] = useState(false)
-  const effectiveStatsRem = statsCollapsed ? STATS_COLLAPSED_REM : statsRem
+  const partition = boardPartition({
+    detailRem: statsRem,
+    detailCollapsed: statsCollapsed,
+  })
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
@@ -856,14 +824,14 @@ export function MapScreen(props: MapScreenProps) {
       */
       style={
         {
-          "--map-band": `${BAND_REM}rem`,
-          "--map-stats": `${effectiveStatsRem}rem`,
-          /*
-            Everything anchored to the bottom measures from here: the result
-            panel, the drawers, and the scene's axis helper. On the map it is
-            the period track alone.
+/*
+            Published by the partition, not written here. Everything anchored
+            to the bottom measures from --map-foot -- the result panel, the
+            drawers, the status panels and the scene's axis helper -- and the
+            columns publish their widths too, so the scene can read them
+            instead of holding a copy of a number it cannot import.
           */
-          "--map-foot": boardOpen ? `${footRem(effectiveStatsRem)}rem` : "3.0625rem",
+          ...partitionVars(partition, !!boardOpen),
         } as React.CSSProperties
       }
     >
@@ -1058,18 +1026,13 @@ export function MapScreen(props: MapScreenProps) {
           onAnalyzeLULC={props.onAnalyzeLULC}
           lulcRunning={props.lulcRunning}
           /*
-            The board column's width, so the band begins where the column ends.
-            The two are neighbours along the foot rather than one crossing the
-            other, which is why the column can now run to the bottom. Matches
-            w-[15rem] in BoardSidebar -- one number said twice, and the seam
-            shows immediately if they drift.
-
-            The right recess comes from the shared constant rather than a
-            literal, which is exactly the drift that comment warned about: the
-            right column widened and this stayed at 15rem, so the band ran on
-            underneath it.
+            Both recesses from the partition, so the band meets the columns
+            edge to edge by construction. This is where the comment used to
+            warn that the number was "said twice, and the seam shows
+            immediately if they drift" -- which is exactly what happened when
+            the right column widened and this stayed at 15rem.
           */
-          leftOffset="15rem"
+          leftOffset={`${BOARD_LEFT_REM}rem`}
           rightOffset={`${BOARD_RIGHT_REM}rem`}
         />
       ) : (
@@ -1114,11 +1077,9 @@ export function MapScreen(props: MapScreenProps) {
                 the layout is computed from.
               */
               detailHeightRem={statsRem}
-              onDetailResize={(rem) =>
-                setStatsRem(
-                  Math.min(STATS_MAX_REM, Math.max(STATS_MIN_REM, rem))
-                )
-              }
+              // Bounded by the partition, which owns them: the reservation is
+              // derived from this number, so the bound belongs with the value.
+              onDetailResize={(rem) => setStatsRem(clampDetail(rem))}
               detailCollapsed={statsCollapsed}
               onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
               layers={boardLayers}

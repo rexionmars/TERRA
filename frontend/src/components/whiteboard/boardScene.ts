@@ -49,6 +49,11 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three"
+/*
+  Numbers and pure functions -- no React, no three -- which is what lets this
+  file consult the partition without the chrome it must not pull.
+*/
+import { BOARD_RIGHT_REM, remToPx } from "@/lib/boardPartition"
 import type { CardGroup, CardPlane } from "@/lib/boardLayout"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
@@ -116,18 +121,6 @@ export interface PlaneState {
  * Only the two units this variable is ever written in. Anything else returns 0,
  * which is the same fallback the caller had and is honest about not knowing.
  */
-function remToPx(value: string): number {
-  const raw = value.trim()
-  const n = parseFloat(raw)
-  if (!Number.isFinite(n)) return 0
-  if (raw.endsWith("rem")) {
-    const root =
-      parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-    return n * root
-  }
-  return raw.endsWith("px") ? n : 0
-}
-
 export interface BoardHandle {
   /** Redraw once. The board renders on demand, not in a permanent loop. */
   render: () => void
@@ -430,16 +423,21 @@ export function createBoard(
     small enough that nothing looked broken; growing the reservation for the
     statistics band is what made a long-standing unit error visible.
   */
-  const footPx = remToPx(
-    getComputedStyle(host).getPropertyValue("--map-foot")
-  )
   /*
-    Same 15rem as BoardSidebar / BoardStatsBar. Said as a rem string here
-    rather than imported from either column: boardScene must not pull React
-    chrome, and the two columns are required to stay the same width for the
-    foot bands to meet them edge to edge.
+    The partition, read from the properties it publishes.
+
+    lib/boardPartition is numbers and pure functions -- no React and no three --
+    so this file can consult it without the chrome it must not pull. Read from
+    the custom properties rather than imported as constants, because the
+    columns are to become draggable and a value captured at setup would then
+    be stale on the next drag.
   */
-  const sideColPx = remToPx("15rem")
+  const style = getComputedStyle(host)
+  const footPx = remToPx(style.getPropertyValue("--map-foot"))
+  // Only the right column is read here: the gizmo sits in the bottom-right
+  // corner, so the left column's width does not bear on its placement.
+  const rightColPx =
+    remToPx(style.getPropertyValue("--board-right")) || remToPx(BOARD_RIGHT_REM)
   const viewHelper = new ViewHelper(camera, renderer.domElement)
   /*
     Bottom-right of the VISIBLE board, not of the canvas.
@@ -450,10 +448,19 @@ export function createBoard(
     on the left. Clear the right column and the foot reservation so the gizmo
     sits in the open corner between them.
   */
+  /*
+    The RIGHT column on the right, which is not what this cleared before.
+
+    It used `sideColPx`, the LEFT column's width, on the right inset -- the two
+    were equal when it was written and stopped being equal when the right
+    column took the 15px it was asked for, leaving the gizmo 0.9375rem inside
+    the column it was measured to clear. Deriving both from the partition is
+    what makes that class of mistake unavailable rather than merely fixed.
+  */
   viewHelper.location = {
     ...viewHelper.location,
     bottom: footPx + 12,
-    right: sideColPx + 12,
+    right: rightColPx + 12,
   }
   // It orbits about the same point the controls do, or a snap would swing the
   // camera around the origin while the controls still believe in the target.

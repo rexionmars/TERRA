@@ -54,6 +54,7 @@ import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
 import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
+import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
 
 /**
  * What the column is listing.
@@ -841,8 +842,14 @@ export function BoardSidebar({
         beneath it -- so the last rows are reachable and the two surfaces meet
         edge to edge instead of one crossing the other.
       */
-      className="app-no-drag absolute bottom-0 left-0 top-0 z-[10] flex w-[15rem] flex-col border-r"
+      className="app-no-drag absolute bottom-0 left-0 top-0 z-[10] flex flex-col border-r"
       style={{
+        /*
+          Width from the partition. It was a literal here while the foot bands
+          recessed by a constant declared elsewhere, which is the pairing that
+          let the two drift apart.
+        */
+        width: `${BOARD_LEFT_REM}rem`,
         /*
           The board's own ink, not --p-surface: that token is a warm, lighter
           plate meant to sit above the background, and against a board painted

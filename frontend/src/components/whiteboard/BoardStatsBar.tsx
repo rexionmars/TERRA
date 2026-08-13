@@ -16,9 +16,7 @@ import type { RunLogEntry } from "@/lib/runLog"
 import { Paintbrush } from "lucide-react"
 import type { LayerLegend } from "@/lib/layerLegend"
 import type { LULCAgreement } from "@/lib/types"
-import {
-  BOARD_RIGHT_REM,
-} from "@/components/whiteboard/BoardSolarDetail"
+import { BOARD_RIGHT_REM } from "@/lib/boardPartition"
 import {
   ClassAccuracyChart,
   DisagreementBar,

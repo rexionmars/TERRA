@@ -10,6 +10,7 @@
  * `sidebar` keeps the older full-height right column when a call site needs it.
  */
 import { ChevronDown, Paintbrush, Sun, Layers } from "lucide-react"
+import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
 import { useMemo } from "react"
 import {
   ContinuousRamp,
@@ -32,9 +33,12 @@ import type {
 import { modelLabel } from "@/lib/runAssets"
 
 /** Same width as BoardSidebar — one number said on both edges. */
-// 15.9375rem: 15 plus the 15px asked for. Both right-hand columns and the
-// band's recess derive from this one number, so they move together.
-export const BOARD_RIGHT_REM = 15.9375
+/*
+  Re-exported, not declared. The width belongs to lib/boardPartition with the
+  rest of the studio's geometry; this line keeps the existing importers working
+  while the partition is the single source it comes from.
+*/
+export { BOARD_RIGHT_REM } from "@/lib/boardPartition"
 
 export type BoardDetailFocus = "terrain" | "siting" | "prediction"
 /** @deprecated Prefer BoardDetailFocus; kept for call sites that only mean solar. */
@@ -663,7 +667,7 @@ export function BoardSolarDetail({
   compare = null,
   compareError = null,
   placement = "band",
-  leftOffset = "15rem",
+  leftOffset = `${BOARD_LEFT_REM}rem`,
   rightOffset = `${BOARD_RIGHT_REM}rem`,
 }: {
   focus: BoardDetailFocus | null

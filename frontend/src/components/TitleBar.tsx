@@ -24,6 +24,7 @@ import {
 } from "@/lib/basemaps"
 import { useAuth, type AppScreen } from "@/lib/auth"
 import { cn } from "@/lib/utils"
+import { BOARD_LEFT_REM } from "@/lib/boardPartition"
 
 interface TitleBarProps {
   view: { lat: number; lon: number; zoom: number }
@@ -190,13 +191,15 @@ export function TitleBar({
           pretending otherwise puts the logo underneath them.
         */}
         <div
+          style={boardOpen ? { width: `${BOARD_LEFT_REM}rem` } : undefined}
           className={cn(
             "flex items-center gap-2",
             boardOpen &&
-              // 15rem is the studio's left column (BoardSidebar). The two are
-              // separate elements in separate trees, so this is the one place
-              // that has to be changed with it.
-              "w-[15rem] justify-center pl-[4.5rem]"
+              // The box is the studio's left column, so the brand centres over
+              // that column rather than over an unrelated width. From the
+              // partition: the two live in separate trees and a literal here
+              // was a fifth copy of the same number.
+              "justify-center pl-[4.5rem]"
           )}
         >
           <img

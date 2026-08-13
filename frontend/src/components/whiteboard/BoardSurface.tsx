@@ -28,7 +28,7 @@ import { BoardCompareModal } from "@/components/whiteboard/BoardCompareModal"
 import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
 import {
   BoardSolarDetail,
-  BOARD_RIGHT_REM,
+
   type BoardDetailFocus,
   type PredictionCompareSide,
 } from "@/components/whiteboard/BoardSolarDetail"
@@ -74,6 +74,7 @@ import type {
 } from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
 import { createBoard, tokenColor } from "@/components/whiteboard/boardScene"
+import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
 
 /**
  * Separation between stacked layers, in world units where the AOI's longest
@@ -1570,7 +1571,7 @@ export function BoardSurface({
       {compareSides && (
       <BoardSolarDetail
         placement="band"
-        leftOffset="15rem"
+        leftOffset={`${BOARD_LEFT_REM}rem`}
         rightOffset={`${BOARD_RIGHT_REM}rem`}
         focus={detailFocus?.focus ?? null}
         terrain={detailTerrain}
