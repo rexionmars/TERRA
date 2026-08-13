@@ -34,6 +34,7 @@ import {
   LineLoop,
   LineSegments,
   Mesh,
+  MOUSE,
   MeshBasicMaterial,
   NearestFilter,
   PerspectiveCamera,
@@ -393,6 +394,53 @@ export function createBoard(
   controls.maxPolarAngle = Math.PI / 2 - 0.05
   controls.target.set(0, 0, 0)
 
+  /*
+    BLENDER'S NAVIGATION, and the reason is not familiarity alone.
+
+    The default here was left-drag to orbit and right-drag to pan, which spends
+    the two buttons a reader most wants for other things: left had to be shared
+    with selecting and dragging a plane -- arbitrated by a raycast at pointerup
+    within four pixels -- and right had nothing left for a context menu.
+
+    Blender puts all three navigations on the MIDDLE button and its modifiers,
+    which frees left entirely for what is IN the scene and right entirely for
+    what can be done to it. That is why its viewport can afford a select tool,
+    a box select and a right-click menu at once.
+
+      MMB              orbit
+      Shift MMB        pan
+      Ctrl MMB         zoom
+      Wheel            zoom
+
+    Left and right are handed to nothing here, so the board's own handlers own
+    them without an arbitration.
+  */
+  const NAV_ORBIT = { LEFT: null, MIDDLE: MOUSE.ROTATE, RIGHT: null }
+  const NAV_PAN = { LEFT: null, MIDDLE: MOUSE.PAN, RIGHT: null }
+  const NAV_ZOOM = { LEFT: null, MIDDLE: MOUSE.DOLLY, RIGHT: null }
+  controls.mouseButtons = { ...NAV_ORBIT }
+
+  /*
+    The modifier decides what the middle button does, and it is read while the
+    key is held rather than at the moment of press: OrbitControls latches its
+    action on pointerdown, so a reader who presses Shift after taking hold of
+    the button would otherwise orbit until they let go and try again.
+  */
+  const onNavModifier = (e: KeyboardEvent) => {
+    const next = e.ctrlKey || e.metaKey ? NAV_ZOOM : e.shiftKey ? NAV_PAN : NAV_ORBIT
+    controls.mouseButtons = { ...next }
+  }
+  window.addEventListener("keydown", onNavModifier)
+  window.addEventListener("keyup", onNavModifier)
+  /*
+    A window that loses focus with a modifier held would keep the pan mapping
+    for the next press, since the keyup never arrives here.
+  */
+  const onNavBlur = () => {
+    controls.mouseButtons = { ...NAV_ORBIT }
+  }
+  window.addEventListener("blur", onNavBlur)
+
   /**
    * Places the camera so the whole raster is in frame, at the opening angle.
    *
@@ -638,6 +686,15 @@ export function createBoard(
   }
 
   const onPointerDown = (e: PointerEvent) => {
+    /*
+      The middle button navigates now, and the browser's own autoscroll would
+      answer it first -- a scroll cursor pinned to the middle of the canvas
+      while the camera tries to orbit under it.
+    */
+    if (e.button === 1) {
+      e.preventDefault()
+      return
+    }
     if (e.button !== 0) return
     /*
       Only the planes that are drawn. A hidden layer is built rather than
@@ -1829,6 +1886,9 @@ export function createBoard(
       observer.disconnect()
       controls.removeEventListener("change", render)
       controls.dispose()
+      window.removeEventListener("keydown", onNavModifier)
+      window.removeEventListener("keyup", onNavModifier)
+      window.removeEventListener("blur", onNavBlur)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointermove", onPointerMove)
       renderer.domElement.removeEventListener("pointercancel", endDrag)

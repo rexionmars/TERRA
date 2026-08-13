@@ -64,9 +64,14 @@ export function StudioStatusBar({
       <span className="telemetry flex shrink-0 items-center gap-2 text-[9px] text-muted-foreground">
         <Binding keys="Press" what="Select" />
         <Binding keys="Shift" what="Extend" />
-        <Binding keys="Drag" what="Move plane" />
-        <Binding keys="Right drag" what="Pan" />
-        <Binding keys="Ctrl Space" what="Maximise area" />
+        <Binding keys="Drag" what="Move" />
+        {/*
+          The navigation reads as one group because it is one button and its
+          modifiers, which is the whole point of taking it off the left.
+        */}
+        <Binding keys="Middle" what="Orbit" />
+        <Binding keys="Shift Middle" what="Pan" />
+        <Binding keys="Ctrl Middle" what="Zoom" />
       </span>
 
       <span className="flex-1" />
