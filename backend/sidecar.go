@@ -17,6 +17,23 @@ import (
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+/*
+emitProgress is wails' EventsEmit behind one name.
+
+The indirection exists so a Runner can be exercised outside a Wails context.
+EventsEmit requires the specific context the lifecycle hooks hand out and calls
+its fatal logger otherwise, which terminates the process -- so a test that runs
+the real sidecar could not assert anything, and the sidecar boundary was
+therefore covered only by tests that fed hand-written JSON to the parsers on
+either side of it. Standardisation broke twice in exactly the gap those tests
+leave.
+
+Production behaviour is unchanged: this is EventsEmit under a variable.
+*/
+var emitProgress = func(ctx context.Context, event string, data ...any) {
+	wruntime.EventsEmit(ctx, event, data...)
+}
+
 // Runner locates the repo, the Python interpreter, the model and the sidecar
 // script, and runs inference requests.
 type Runner struct {
@@ -389,7 +406,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
 				// Non-JSON stderr (e.g. library warnings): forward as a message.
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -400,7 +417,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -469,14 +486,14 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 	}
 
 	result := &PredictResult{
-		Extent:          sres.Extent,
-		OverlayURI:      overlayURI,
-		ConfidenceURI:   confidenceURI,
-		NDVIMeanURI:     ndviMeanURI,
-		TrueColorURI:    trueColorURI,
-		ReferenceURI:    referenceURI,
-		RasterTIF:       sres.RasterTIF,
-		MeanConfidence:  sres.MeanConfidence,
+		Extent:         sres.Extent,
+		OverlayURI:     overlayURI,
+		ConfidenceURI:  confidenceURI,
+		NDVIMeanURI:    ndviMeanURI,
+		TrueColorURI:   trueColorURI,
+		ReferenceURI:   referenceURI,
+		RasterTIF:      sres.RasterTIF,
+		MeanConfidence: sres.MeanConfidence,
 		// Carried, and it was not. The sidecar computes 1/K and emits it, both
 		// structs declare the field, and this literal simply never copied it --
 		// so it marshalled away under omitempty and every consumer saw
@@ -484,13 +501,13 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		// max(predict_proba) and lives on [1/K, 1], so a mean of 0.37 against a
 		// floor of 0.20 is a different statement from the same 0.37 on a scale
 		// that starts at zero.
-		ConfidenceFloor: sres.ConfidenceFloor,
-		NDates:          sres.NDates,
-		DateRange:       sres.DateRange,
-		ClassStats:      sres.ClassStats,
-		Temporal:        sres.Temporal,
-		VISeries:        sres.VISeries,
-		Phenology:       sres.Phenology,
+		ConfidenceFloor:   sres.ConfidenceFloor,
+		NDates:            sres.NDates,
+		DateRange:         sres.DateRange,
+		ClassStats:        sres.ClassStats,
+		Temporal:          sres.Temporal,
+		VISeries:          sres.VISeries,
+		Phenology:         sres.Phenology,
 		PhenologyStates:   sres.PhenologyStates,
 		LULC:              convertLULC(sres.LULC),
 		DomainFingerprint: sres.DomainFingerprint,
@@ -628,7 +645,7 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -639,7 +656,7 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -774,7 +791,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -785,7 +802,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -934,7 +951,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -945,7 +962,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -1188,7 +1205,7 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
+				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
 			if ev.Error != "" {
@@ -1199,7 +1216,7 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 			if ev.Progress != nil {
 				p = *ev.Progress
 			}
-			wruntime.EventsEmit(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
+			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
 		}
 	}()
 
@@ -1313,12 +1330,12 @@ func (r *Runner) AnalyzeDomainShift(ctx context.Context, req DomainShiftRequest)
 	defer os.RemoveAll(workDir)
 
 	payload := map[string]any{
-		"action":         "domain_shift",
-		"model_dir":      r.modelDir,
-		"work_dir":       workDir,
-		"fingerprint_a":  req.FingerprintA,
-		"fingerprint_b":  req.FingerprintB,
-		"include_tsne":   req.IncludeTSNE,
+		"action":        "domain_shift",
+		"model_dir":     r.modelDir,
+		"work_dir":      workDir,
+		"fingerprint_a": req.FingerprintA,
+		"fingerprint_b": req.FingerprintB,
+		"include_tsne":  req.IncludeTSNE,
 	}
 	if req.AgreementA != nil {
 		payload["agreement_a"] = req.AgreementA

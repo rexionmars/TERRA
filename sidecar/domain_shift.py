@@ -332,17 +332,32 @@ def feature_shift_table(
     return rows[:top]
 
 
-def f1_from_confusion(matrix: list[list[int]] | np.ndarray) -> dict[str, Any]:
+def f1_from_confusion(
+    matrix: list[list[int]] | np.ndarray,
+    classes: list[int] | None = None,
+) -> dict[str, Any]:
     """
     Per-class and macro F1 from a confusion matrix.
 
     Convention matches sidecar/lulc.agreement_against_reference: rows = predicted,
     columns = reference.
+
+    `classes` is the matrix's own axis order, which the caller already sends as
+    `matrix_classes` and this function did not read. Without it each row was
+    identified by a bare position, so a per-class F1 could not be attached to a
+    class -- and a per-class figure whose class is unknown is not a per-class
+    figure. The macro average is unaffected either way.
+
+    Note on the macro convention: classes with no predictions AND no reference
+    cells have an undefined F1 and are skipped rather than counted as zero, so
+    this reads higher than a convention that counts them. Stated because the
+    two are not comparable and the difference is not visible in the number.
     """
     M = np.asarray(matrix, dtype=np.float64)
     if M.ndim != 2 or M.shape[0] == 0 or M.shape[0] != M.shape[1]:
         return {"macro_f1": None, "per_class": []}
     k = M.shape[0]
+    ids = list(classes) if classes and len(classes) >= k else None
     per = []
     f1s: list[float] = []
     for i in range(k):
@@ -358,6 +373,7 @@ def f1_from_confusion(matrix: list[list[int]] | np.ndarray) -> dict[str, Any]:
             f1s.append(f1)
         per.append({
             "index": i,
+            "class_id": ids[i] if ids else None,
             "precision": None if prec is None else float(round(prec, 4)),
             "recall": None if rec is None else float(round(rec, 4)),
             "f1": None if f1 is None else float(round(f1, 4)),
@@ -449,6 +465,20 @@ def _sample_matrix(fp: dict[str, Any]) -> np.ndarray:
     return np.asarray(fp.get("sample") or [], dtype=np.float64)
 
 
+def _width(fp: dict[str, Any]) -> int:
+    """
+    The feature space's width, from the mean vector rather than the declaration.
+
+    `n_features` is written beside the vectors and could disagree with them;
+    the length of `mean` is what every distance below actually indexes.
+    """
+    mean = fp.get("mean")
+    if isinstance(mean, list):
+        return len(mean)
+    n = fp.get("n_features")
+    return int(n) if isinstance(n, int) else -1
+
+
 def _standardise(X: np.ndarray, fp: dict[str, Any]) -> np.ndarray:
     """
     A stored sample in training standard deviations.
@@ -483,7 +513,13 @@ def _agreement_block(agreement: dict[str, Any] | None, label: str) -> dict[str, 
     if not agreement:
         return None
     matrix = agreement.get("matrix")
-    f1 = f1_from_confusion(matrix) if matrix else {"macro_f1": None, "per_class": []}
+    # `matrix_classes` travelled in this payload all along and was not read, so
+    # every per-class row came back identified by a bare axis position.
+    f1 = (
+        f1_from_confusion(matrix, agreement.get("matrix_classes"))
+        if matrix
+        else {"macro_f1": None, "per_class": []}
+    )
     n_ref = int(agreement.get("n_reference_cells") or 0)
     n_out = int(agreement.get("n_outside_legend") or 0)
     outside_pct = (
@@ -529,8 +565,20 @@ def compare_fingerprints(
     forest calls NDVI_mean in a standardised space. Taking min(80, 1) columns
     produced a number from two different quantities, and it was reported with
     no more warning than a `space` field nobody had to read.
+
+    THE NAME IS NOT ENOUGH, THOUGH, and this was a string comparison alone. Two
+    fingerprints both called `spectral_rf` but of different width -- a model
+    refitted with more dates, so a different `n_dates_model`, is the ordinary
+    way to get there -- passed as the same space, and `cva_magnitude` then
+    truncated to `min(d_a, d_b)` in silence. That is the same failure the
+    paragraph above describes, one level up and harder to see, because both
+    sides answer to the same name. Width is part of the identity of a feature
+    space, so it is part of the test.
     """
-    same_space = fp_a.get("space") == fp_b.get("space")
+    same_space = (
+        fp_a.get("space") == fp_b.get("space")
+        and _width(fp_a) == _width(fp_b)
+    )
     za = fp_a.get("z_mean")
     zb = fp_b.get("z_mean")
     standardised = bool(za) and bool(zb) and same_space
@@ -571,12 +619,34 @@ def compare_fingerprints(
     if standardised and Xa.size and Xb.size:
         mmd = mmd_rbf(_standardise(Xa, fp_a), _standardise(Xb, fp_b))
 
+    """
+    On the standardised samples too, for the reason the MMD gives.
+
+    Both projections took the raw samples while the MMD above was deliberately
+    moved off them, and the argument that moved it applies here unchanged: a
+    PCA is euclidean geometry, so its axes are set by whichever feature carries
+    the largest raw units. On this model that is the acquisition indices, which
+    span 0..21 against reflectances near 0.1 -- so the scatter the panel drew
+    separated the two runs mostly by WHEN their scenes were taken. t-SNE
+    inherits the same defect through its own distance metric.
+
+    Which space it was done in travels with the result, because a projection
+    whose axes carry no units still has a space, and PCA on raw features and
+    PCA on standardised ones are two different pictures.
+    """
     projection = None
     if Xa.ndim == 2 and Xb.ndim == 2 and Xa.shape[0] > 1 and Xb.shape[0] > 1:
+        Pa, Pb = (
+            (_standardise(Xa, fp_a), _standardise(Xb, fp_b))
+            if standardised
+            else (Xa, Xb)
+        )
         if include_tsne:
-            projection = project_tsne(Xa, Xb) or project_pca(Xa, Xb)
+            projection = project_tsne(Pa, Pb) or project_pca(Pa, Pb)
         else:
-            projection = project_pca(Xa, Xb)
+            projection = project_pca(Pa, Pb)
+        if projection is not None:
+            projection["space"] = "standardised" if standardised else "raw"
 
     return {
         "space_a": fp_a.get("space"),

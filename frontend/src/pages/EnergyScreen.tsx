@@ -502,7 +502,7 @@ export function EnergyScreen(props: EnergyScreenProps) {
         />
         <RunButton
           label="Screen the wind resource, returns figures"
-          runningLabel="Screening\u2026"
+          runningLabel="Screening…"
           running={windBusy}
           disabled={!props.hasArea || windBusy}
           onClick={props.onRunWind}

@@ -536,6 +536,23 @@ type DomainShiftPoint struct {
 type DomainShiftProjection struct {
 	Method string             `json:"method"`
 	Points []DomainShiftPoint `json:"points"`
+	// "standardised" or "raw". A projection's axes carry no units either way,
+	// but the two are different pictures: on raw features the geometry is set
+	// by the acquisition indices, which span 0..21 against reflectances near
+	// 0.1, so the separation drawn is largely one of acquisition date.
+	Space string `json:"space,omitempty"`
+}
+
+// DomainShiftClassF1 is one class's precision, recall and F1 from the matrix.
+//
+// ClassID is nil only for a matrix that arrived without its axis order, in
+// which case Index is all that identifies the row.
+type DomainShiftClassF1 struct {
+	Index     int      `json:"index"`
+	ClassID   *int     `json:"class_id,omitempty"`
+	Precision *float64 `json:"precision,omitempty"`
+	Recall    *float64 `json:"recall,omitempty"`
+	F1        *float64 `json:"f1,omitempty"`
 }
 
 // DomainShiftAgreementBlock summarises MapBiomas concordance + F1 for one side.
@@ -547,6 +564,11 @@ type DomainShiftAgreementBlock struct {
 	QuantityDisagreementPct   *float64 `json:"quantity_disagreement_pct,omitempty"`
 	AllocationDisagreementPct *float64 `json:"allocation_disagreement_pct,omitempty"`
 	MacroF1                   *float64 `json:"macro_f1,omitempty"`
+	// The sidecar has emitted these all along; the struct declared no field for
+	// them, so precision, recall and F1 per class were discarded at the
+	// unmarshal boundary and only the macro average survived. A macro average
+	// says the model got worse; only the per-class rows say which class.
+	PerClassF1 []DomainShiftClassF1 `json:"per_class_f1,omitempty"`
 }
 
 // DomainShiftReport is the diagnosis payload returned by AnalyzeDomainShift.

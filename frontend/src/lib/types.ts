@@ -366,6 +366,24 @@ export interface DomainShiftPoint {
 export interface DomainShiftProjection {
   method: string
   points: DomainShiftPoint[]
+  /**
+   * "standardised" or "raw".
+   *
+   * The axes carry no units either way, but the two are different pictures: on
+   * raw features the geometry is set by the acquisition indices, which span
+   * 0..21 against reflectances near 0.1.
+   */
+  space?: string
+}
+
+/** One class's precision, recall and F1, from the agreement matrix. */
+export interface DomainShiftClassF1 {
+  index: number
+  /** Null only when the matrix arrived without its axis order. */
+  class_id?: number | null
+  precision?: number | null
+  recall?: number | null
+  f1?: number | null
 }
 
 export interface DomainShiftAgreementBlock {

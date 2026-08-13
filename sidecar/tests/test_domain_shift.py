@@ -194,3 +194,122 @@ def test_project_pca_labels():
     out = ds.project_pca(A, B, max_points=20)
     domains = {p["domain"] for p in out["points"]}
     assert domains == {"A", "B"}
+
+
+def _scaled_pair(d=20, n=80, loc_b=1.0, seed=11, d_b=None):
+    """Two fingerprints sharing the scaler fitted on A, as a real pair does."""
+    rng = np.random.default_rng(seed)
+    Xa = rng.normal(loc=0.0, size=(n, d))
+    Xb = rng.normal(loc=loc_b, size=(n, d_b or d))
+    mean = Xa.mean(axis=0)
+    scale = Xa.std(axis=0)
+
+    def kw(width):
+        return dict(
+            sample_n=40,
+            rng=np.random.default_rng(seed),
+            scaler_mean=mean[:width] if width <= d else np.r_[mean, np.ones(width - d)],
+            scaler_scale=scale[:width] if width <= d else np.r_[scale, np.ones(width - d)],
+            feature_names=[f"f{i}" for i in range(width)],
+            feature_importances=np.full(width, 1.0 / width),
+        )
+
+    return (
+        ds.build_fingerprint(Xa, **kw(d)),
+        ds.build_fingerprint(Xb, **kw(d_b or d)),
+    )
+
+
+def test_same_space_is_not_satisfied_by_the_name_alone():
+    """
+    Two `spectral_rf` fingerprints of different width are different spaces.
+
+    A model refitted over more dates produces a wider fingerprint under the
+    same name, and the change vector then truncated to the shorter of the two
+    in silence -- the failure the module documents for spectral-against-NDVI,
+    one level up and harder to see because both sides answer to the same name.
+    """
+    fp_a, fp_b = _scaled_pair(d=20, d_b=24)
+    assert fp_a["space"] == fp_b["space"] == "spectral_rf"
+    report = ds.compare_fingerprints(fp_a, fp_b)
+    assert report["same_space"] is False
+    assert report["standardised"] is False
+    assert report["cva_magnitude_sd"] is None
+    assert report["feature_shift"] is None
+
+
+def test_projection_follows_the_space_the_distances_use():
+    """
+    The projection is standardised whenever the distances are.
+
+    It used to run on the raw samples while the MMD beside it ran on the
+    standardised ones. A PCA is euclidean geometry, so its axes were set by
+    whichever feature carried the largest raw units -- on this model the
+    acquisition indices, which span 0..21 against reflectances near 0.1. The
+    two clouds then separated by when the scenes were taken, which reads
+    exactly like a domain difference and is not one.
+    """
+    fp_a, fp_b = _scaled_pair(seed=12)
+    report = ds.compare_fingerprints(fp_a, fp_b)
+    assert report["standardised"] is True
+    assert report["projection"]["space"] == "standardised"
+
+    # And it says so honestly when it could not standardise.
+    for fp in (fp_a, fp_b):
+        fp["z_mean"] = None
+        fp["z_var"] = None
+    raw = ds.compare_fingerprints(fp_a, fp_b)
+    assert raw["standardised"] is False
+    assert raw["projection"]["space"] == "raw"
+
+
+def test_feature_shift_is_capped_at_twelve_rows():
+    """
+    The table is a top-N by displacement, and the N was never pinned. A cap
+    that silently grew would turn a readable panel into the whole feature set.
+    """
+    fp_a, fp_b = _scaled_pair(d=40, seed=13)
+    report = ds.compare_fingerprints(fp_a, fp_b)
+    assert len(report["feature_shift"]) == 12
+
+
+def test_per_class_f1_carries_the_class_it_is_about():
+    """
+    `matrix_classes` travelled in the agreement payload all along and was not
+    read, so each per-class row came back identified by a bare axis position.
+    A per-class figure whose class is unknown is not a per-class figure.
+    """
+    fp_a, fp_b = _scaled_pair(seed=14)
+    classes = [3, 21, 39]
+    # Rows predicted, columns reference. Class 3 is over-called: its row sums
+    # to 10 and its column to 13, so precision and recall have to differ.
+    matrix = [[8, 1, 1], [3, 9, 1], [2, 0, 8]]
+    report = ds.compare_fingerprints(
+        fp_a,
+        fp_b,
+        agreement_a={
+            "matrix": matrix,
+            "matrix_classes": classes,
+            "n_reference_cells": 30,
+            "n_outside_legend": 0,
+        },
+    )
+    per = report["agreement_a"]["per_class_f1"]
+    assert [r["class_id"] for r in per] == classes
+    assert all(r["f1"] is not None for r in per)
+    # Precision and recall differ per class here, which is what distinguishes
+    # a class the model over-calls from one it misses.
+    assert per[0]["precision"] != per[0]["recall"]
+
+
+def test_per_class_f1_leaves_the_class_null_without_the_axis_order():
+    """Absent `matrix_classes` gives an unlabelled row, not a wrong label."""
+    fp_a, fp_b = _scaled_pair(seed=15)
+    report = ds.compare_fingerprints(
+        fp_a,
+        fp_b,
+        agreement_a={"matrix": [[5, 1], [1, 5]], "n_reference_cells": 12},
+    )
+    per = report["agreement_a"]["per_class_f1"]
+    assert [r["class_id"] for r in per] == [None, None]
+    assert [r["index"] for r in per] == [0, 1]

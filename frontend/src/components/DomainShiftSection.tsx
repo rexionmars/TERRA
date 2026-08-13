@@ -2,7 +2,7 @@
  * Domain Shift diagnosis panel for Compare analyses (and whiteboard summary).
  *
  * Metrics follow the study-guide distances: KL on NDVI histograms, CVA
- * magnitude (and red–NIR angle), linear MMD on feature samples, F1 / outside-
+ * magnitude (and red–NIR angle), RBF MMD on feature samples, F1 / outside-
  * legend rates from MapBiomas agreement when present. PCA scatter by default;
  * t-SNE on demand.
  */
@@ -21,9 +21,11 @@ import {
 } from "recharts"
 import { WaterFigure } from "@/components/analysisPrimitives"
 import {
+  canStandardise,
   compareDomainShift,
   hasDomainFingerprint,
 } from "@/lib/domainShift"
+import { mapbiomasCoverName } from "@/lib/mapbiomasCovers"
 import type { DomainShiftReport, PredictResult } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -88,6 +90,62 @@ function AgreementBlock({
           sub="Pontius disagreement %"
         />
       </div>
+
+      {/*
+        The classes behind the macro average.
+
+        A macro F1 says the run got worse and stops there. These say which
+        class carries it, and precision against recall says which way it
+        fails -- a class the model finds everywhere it is not reads low
+        precision, one it misses reads low recall, and the average of the two
+        is the same number for both.
+
+        Rows with no F1 at all are dropped: a class with neither predictions
+        nor reference cells is not a measurement, and the macro average skips
+        it for the same reason.
+      */}
+      {block.per_class_f1 && block.per_class_f1.some((c) => c.f1 != null) && (
+        <ul className="flex flex-col gap-0.5">
+          {block.per_class_f1
+            .filter((c) => c.f1 != null)
+            .map((c) => (
+              <li
+                key={c.class_id ?? c.index}
+                className="flex items-baseline gap-1.5 text-[10px]"
+              >
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                  {c.class_id != null
+                    ? mapbiomasCoverName(c.class_id)
+                    : `Class at ${c.index}`}
+                </span>
+                <span
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] tabular-nums text-muted-foreground"
+                  title={`Precision ${fmt(c.precision, 3)}`}
+                >
+                  {fmt(c.precision, 2)}
+                </span>
+                <span
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] tabular-nums text-muted-foreground"
+                  title={`Recall ${fmt(c.recall, 3)}`}
+                >
+                  {fmt(c.recall, 2)}
+                </span>
+                <span
+                  className="telemetry w-[2.5rem] shrink-0 text-right text-[9px] tabular-nums text-foreground"
+                  title={`F1 ${fmt(c.f1, 3)}`}
+                >
+                  {fmt(c.f1, 2)}
+                </span>
+              </li>
+            ))}
+          {/* The key, said once, in the order the columns stand. */}
+          <li className="telemetry flex items-baseline justify-end gap-1.5 text-[9px] text-muted-foreground">
+            <span className="w-[2.5rem] text-right">prec.</span>
+            <span className="w-[2.5rem] text-right">recall</span>
+            <span className="w-[2.5rem] text-right">F1</span>
+          </li>
+        </ul>
+      )}
     </div>
   )
 }
@@ -97,15 +155,24 @@ export function DomainShiftSection({
   resultB,
   labelA = "A",
   labelB = "B",
-  compact = false,
+  placement = "card",
 }: {
   resultA: PredictResult
   resultB: PredictResult
   labelA?: string
   labelB?: string
-  /** Whiteboard: fewer charts, same metrics. */
-  compact?: boolean
+  /**
+   * Where this is mounted, in `BoardSolarDetail`'s vocabulary.
+   *
+   * "card" is the analysis page and the modal, where the section is one plate
+   * among several. "area" is a studio area, which already draws the border, the
+   * background and a header naming the editor.
+   */
+  placement?: "card" | "area"
 }) {
+  // Every branch below asked the same question of the old flag; the flag is
+  // gone and the question is now about where this is drawn.
+  const inArea = placement === "area"
   /*
     The legend's names, shortened to the segment that tells them apart.
 
@@ -140,6 +207,33 @@ export function DomainShiftSection({
 
   const ready =
     hasDomainFingerprint(resultA) && hasDomainFingerprint(resultB)
+  /*
+    WHICH side cannot be standardised, and WHY -- because the two causes call
+    for different actions and only one of them is worth acting on.
+
+    A fingerprint whose space is `ndvi_only` came from a run with no spectral
+    feature matrix, which is Prithvi or the temporal transformer. There is no
+    training scaler to carry and re-running the same model will not produce
+    one.
+
+    A fingerprint whose space is `spectral_rf` and which still has no moments
+    came from a run classified before the fingerprint carried them. Every run
+    stored before that fix is in this state, and for those re-classifying is
+    exactly the fix -- which is the opposite of the advice the other case
+    deserves, so the panel must not give one message for both.
+  */
+  const unstandardisable = (
+    [
+      [resultA, labelA],
+      [resultB, labelB],
+    ] as const
+  )
+    .filter(([r]) => !canStandardise(r))
+    .map(([r, label]) => ({
+      label,
+      byConstruction: r.domain_fingerprint?.space === "ndvi_only",
+    }))
+  const staleRuns = unstandardisable.filter((s) => !s.byConstruction)
   const [report, setReport] = useState<DomainShiftReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -187,11 +281,25 @@ export function DomainShiftSection({
     }
   }
 
+  /*
+    The plate belongs to the PAGE, not to the section.
+
+    `placement` decides it, which is the distinction `BoardSolarDetail` already
+    draws with the same word. On the analysis page this is one card among
+    several and the border is what separates it from its neighbours. In a studio
+    area there is no neighbour to separate from: `StudioArea` already draws the
+    border, the ink background and a 26px header carrying the editor's name, so
+    a second border and a second tint inside it are one box drawn inside
+    another.
+
+    This used to hang off `compact`, which the foot band passed. The editor left
+    the band and nothing passes it any more, so every mount took the card branch
+    -- including the one placement the comment above it said should be flush.
+  */
   const shell = cn(
     "flex flex-col",
-    // Compare page: plate. Whiteboard foot: flush with the band — no card.
-    compact
-      ? "min-w-[16rem] shrink-0 gap-1.5"
+    placement === "area"
+      ? "gap-3"
       : "gap-3 rounded-sm border border-border bg-secondary/50 p-4"
   )
 
@@ -215,38 +323,41 @@ export function DomainShiftSection({
 
   return (
     <section className={shell}>
-      <div
-        className={cn(
-          "flex flex-wrap items-end justify-between gap-2",
-          !compact && "mb-0"
-        )}
-      >
-        <div>
-          <p className="eyebrow !text-foreground">Domain shift</p>
-          {!compact && (
-            <p className="mt-1 max-w-xl text-[10px] leading-snug text-muted-foreground">
-              Distance between source ({labelA}) and target ({labelB}) feature
-              domains — KL on NDVI, CVA magnitude, linear MMD. High values with
-              high confidence usually mean the fixed crop legend is out of
-              domain, not that the map is right.
-            </p>
-          )}
-          {compact && (
-            <p className="telemetry mt-0.5 truncate text-[9px] text-muted-foreground">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="min-w-0">
+          {/*
+            The title only where nothing else carries it. In an area the header
+            above already reads "Domain shift", and the paragraph explaining what
+            the section is for is written for a page a reader arrives at, not for
+            a pane they chose by name from a type menu.
+
+            What the area DOES need is which two runs are being read, since its
+            header names the editor and not the subjects.
+          */}
+          {inArea ? (
+            <p className="telemetry truncate text-[9px] text-muted-foreground">
               {labelA} → {labelB}
             </p>
+          ) : (
+            <>
+              <p className="eyebrow !text-foreground">Domain shift</p>
+              <p className="mt-1 max-w-xl text-[10px] leading-snug text-muted-foreground">
+                Distance between source ({labelA}) and target ({labelB}) feature
+                domains — KL on NDVI, CVA magnitude, RBF MMD. High values with
+                high confidence usually mean the fixed crop legend is out of
+                domain, not that the map is right.
+              </p>
+            </>
           )}
         </div>
-        {!compact && (
-          <button
-            type="button"
-            onClick={() => void runTsne()}
-            disabled={tsneBusy || loading}
-            className="rounded-sm border border-border px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50"
-          >
-            {tsneBusy ? "Projecting…" : "t-SNE project"}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => void runTsne()}
+          disabled={tsneBusy || loading}
+          className="shrink-0 rounded-sm border border-border px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          {tsneBusy ? "Projecting…" : "t-SNE project"}
+        </button>
       </div>
 
       {loading && (
@@ -261,13 +372,27 @@ export function DomainShiftSection({
           <div
             className={cn(
               "grid gap-2",
-              compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"
+              "grid-cols-2 sm:grid-cols-4"
             )}
           >
+            {/*
+              The symmetrised figure leads, and the two directions travel under
+              it. KL is not symmetric, and which direction is larger is a
+              different finding from how large the average is: KL(A||B) above
+              KL(B||A) means B's histogram covers ground A's does not -- the
+              target spreading into NDVI the source never saw -- while the
+              reverse means the target is the narrower of the two. The average
+              alone cannot separate a target that moved from one that spread,
+              and both directions reached this component unread.
+            */}
             <WaterFigure
               label="KL (NDVI)"
               value={fmt(report.kl_ndvi)}
-              sub="sym. histogram divergence"
+              sub={
+                report.kl_ndvi_a_to_b != null && report.kl_ndvi_b_to_a != null
+                  ? `${fmt(report.kl_ndvi_a_to_b, 2)} → · ← ${fmt(report.kl_ndvi_b_to_a, 2)}`
+                  : "sym. histogram divergence"
+              }
             />
             {/*
               The standardised magnitude leads where it exists. The raw one is
@@ -292,8 +417,15 @@ export function DomainShiftSection({
               MMD is not comparable across bandwidths, so the gamma the median
               heuristic chose is reported with it rather than dropped.
             */}
+            {/*
+              The escape is spelled out rather than written `\u00b2`: JSX does
+              not process escapes in an attribute value, so that form reached
+              the screen as its own source text. The occurrences a few lines up
+              sit inside template literals, which is why the same spelling
+              worked there and not here.
+            */}
             <WaterFigure
-              label="MMD\u00b2"
+              label="MMD²"
               value={fmt(report.mmd_rbf?.mmd2)}
               sub={
                 report.mmd_rbf?.gamma != null
@@ -326,15 +458,40 @@ export function DomainShiftSection({
               same, and are not comparable.
             </p>
           ) : report.standardised === false ? (
+            /*
+              WHICH run, and WHY, because the remedy differs.
+
+              This read "one of the runs carries no training scaler" and was
+              shown on every comparison ever made, because the request builder
+              stripped the moments in transit rather than either run lacking
+              them. With that fixed the banner is rare -- and the two remaining
+              causes want opposite advice, so naming the side is not enough.
+            */
             <p className="mt-2 text-[10px] leading-snug text-amber-500/90">
-              Not standardised: one of the runs carries no training scaler, so
-              the distances are in raw feature units. On this model the
+              Not standardised:{" "}
+              {unstandardisable.map((s) => s.label).join(" and ")} carr
+              {unstandardisable.length === 1 ? "ies" : "y"} no training scaler,
+              so the distances are in raw feature units — and on this model the
               acquisition-index features dominate a raw distance, so the figures
-              above describe acquisition more than ground.
+              above describe acquisition more than ground.{" "}
+              {staleRuns.length > 0 ? (
+                <>
+                  {staleRuns.map((s) => s.label).join(" and ")} still holds a
+                  spectral fingerprint, so it was classified before the
+                  fingerprint carried the scaler: re-classify it and these
+                  figures populate.
+                </>
+              ) : (
+                <>
+                  Classified without the spectral feature matrix — Prithvi or
+                  the temporal transformer — so there is no scaler to carry and
+                  re-running the same model will not produce one.
+                </>
+              )}
             </p>
           ) : null}
 
-          {(report.agreement_a || report.agreement_b) && !compact && (
+          {(report.agreement_a || report.agreement_b) && (
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {report.agreement_a && (
                 <AgreementBlock title={`${labelA} · vs MapBiomas`} block={report.agreement_a} />
@@ -345,18 +502,6 @@ export function DomainShiftSection({
             </div>
           )}
 
-          {compact && (report.agreement_a?.macro_f1 != null || report.agreement_b?.macro_f1 != null) && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <WaterFigure
-                label={`${labelA} F1`}
-                value={fmt(report.agreement_a?.macro_f1)}
-              />
-              <WaterFigure
-                label={`${labelB} F1`}
-                value={fmt(report.agreement_b?.macro_f1)}
-              />
-            </div>
-          )}
 
           {/*
             Where the shift is, not only how large it is.
@@ -372,10 +517,11 @@ export function DomainShiftSection({
             the product of the two, which is the column to read when deciding
             whether the shift reaches the prediction.
           */}
-          {!compact && report.feature_shift && report.feature_shift.length > 0 && (
+          {report.feature_shift && report.feature_shift.length > 0 && (
             <div className="mt-4">
+              {/* Same reason as the MMD label: JSX text is not a JS literal. */}
               <p className="eyebrow mb-2">
-                Feature shift \u00b7 top {report.feature_shift.length} by displacement
+                Feature shift · top {report.feature_shift.length} by displacement
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-[10px]">
@@ -423,7 +569,7 @@ export function DomainShiftSection({
             </div>
           )}
 
-          {!compact && hist.length > 0 && (
+          {hist.length > 0 && (
             <div className="mt-4">
               <p className="eyebrow mb-2">NDVI histogram · A vs B</p>
               <div className="h-40 w-full">
@@ -509,10 +655,18 @@ export function DomainShiftSection({
             </div>
           )}
 
-          {!compact && report.projection && (
+          {report.projection && (
             <div className="mt-4">
+              {/*
+                The space is named because the two are different pictures. On
+                raw features the geometry is set by the acquisition indices,
+                which span 0..21 against reflectances near 0.1, so the clouds
+                separate largely by when the scenes were taken -- which reads
+                exactly like a domain difference and is not one.
+              */}
               <p className="eyebrow mb-2">
                 Feature space · {report.projection.method.toUpperCase()}
+                {report.projection.space ? ` · ${report.projection.space}` : ""}
               </p>
               <div className="h-52 w-full">
                 <ResponsiveContainer width="100%" height="100%">
