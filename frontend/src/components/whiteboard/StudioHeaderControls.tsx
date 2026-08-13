@@ -196,7 +196,10 @@ export function StudioHeaderRadio<T extends string>({
   value: T
   options: Array<{
     id: T
+    /** Written beside the glyph where the header is wide enough to carry it. */
     label: string
+    /** The full sentence, for the pointer. Falls back to the label. */
+    title?: string
     icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
   }>
   onChange: (id: T) => void
@@ -209,21 +212,29 @@ export function StudioHeaderRadio<T extends string>({
       )}
       style={{ background: "rgb(var(--p-line) / 0.22)" }}
     >
+      {/*
+        The name rides beside the glyph. This drew icons alone, which suits an
+        enum whose members ARE pictures -- a camera view, an axis -- and not one
+        whose members are procedures: a map pin against a clock says nothing
+        about a full temporal stack against cumulative retention. The label
+        withdraws with the rest when the area cannot carry it.
+      */}
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={o.id === value}
-          title={o.label}
+          title={o.title ?? o.label}
           className={cn(
-            "flex h-full w-5 items-center justify-center transition-colors",
+            "flex h-full shrink-0 items-center gap-1 px-1.5 transition-colors",
             o.id === value
               ? "bg-accent text-white"
               : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
           )}
         >
-          <o.icon className="size-3" strokeWidth={1.75} />
+          <o.icon className="size-3 shrink-0" strokeWidth={1.75} />
+          <span className="header-label text-meta">{o.label}</span>
         </button>
       ))}
     </span>

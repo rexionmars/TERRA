@@ -563,6 +563,41 @@
   border-top: 1px solid var(--hairline);
 }
 
+/*
+  A header that measures itself, and the labels that give way when it narrows.
+
+  Blender's rule is that an enum expands to icon buttons where its members can
+  be glyphed and stays named where they cannot. The run editor's header took
+  the first half and not the second: four tools and two modes were drawn as six
+  bare glyphs, and a droplet, a sun and a clock name nothing on their own --
+  the droplet could be water, humidity or precipitation, and the mode called
+  "Map" is a full temporal stack, which no glyph is going to say.
+
+  Names are therefore the default and the icon is the fallback, which is the
+  reverse of what it was. The header clips rather than scrolls, so the label
+  has to withdraw before it is cut: below the threshold the glyph stands alone
+  with its title, above it the name is written out. 34rem is the run editor's
+  own floor of 28rem plus the room four names and two modes need beyond it.
+
+  Container query rather than a viewport one, because what matters is the width
+  of THIS area and not of the window -- the same header sits in a 15rem column
+  and in a full-width strip.
+*/
+.studio-header {
+  container-type: inline-size;
+  container-name: studio-header;
+}
+
+.header-label {
+  display: none;
+}
+
+@container studio-header (min-width: 34rem) {
+  .header-label {
+    display: inline;
+  }
+}
+
 /* Title bar bottom edge — terra gradient (haze → ochre → dust → fade) */
 .titlebar-terra::after {
   content: "";

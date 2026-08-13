@@ -174,7 +174,10 @@ export function StudioArea({
           e.preventDefault()
           setAreaMenu(true)
         }}
-        className="pointer-events-auto relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1"
+        // `studio-header` makes this the container the labels inside measure
+        // against, so a name withdraws when THIS area narrows rather than when
+        // the window does.
+        className="studio-header pointer-events-auto relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1"
         style={{
           height: headerH,
           background: "rgb(var(--p-ink))",

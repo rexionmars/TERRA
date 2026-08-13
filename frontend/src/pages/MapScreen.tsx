@@ -857,7 +857,15 @@ export function MapScreen(props: MapScreenProps) {
                 )}
               >
                 <Icon className="size-3 shrink-0" strokeWidth={1.75} />
-                {on && t.label}
+                {/*
+                  Every tab named, not only the chosen one. Naming the active
+                  tab alone tells a reader what they already know -- they just
+                  pressed it -- and leaves the three they have not tried as
+                  bare glyphs, which is the half of the choice that actually
+                  needs saying. `header-label` withdraws them together when the
+                  area is too narrow to carry four names.
+                */}
+                <span className={cn(!on && "header-label")}>{t.label}</span>
               </button>
             )
           }
@@ -870,7 +878,10 @@ export function MapScreen(props: MapScreenProps) {
         onChange={props.onModeChange}
         options={MODE_OPTIONS.map((m) => ({
           id: m.id,
-          label: `${m.label} — ${m.detail}`,
+          // The short name is written; the detail is what the pointer adds,
+          // since "Map" on its own does not say that it is the full stack.
+          label: m.label,
+          title: `${m.label} — ${m.detail}`,
           icon: m.id === "single" ? MapGlyph : Clock,
         }))}
       />
