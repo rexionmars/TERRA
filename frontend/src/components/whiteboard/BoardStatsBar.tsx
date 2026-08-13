@@ -362,9 +362,14 @@ function Entry({ entry }: { entry: StatsEntry }) {
         sit here is what made this column scroll: it spent k² cells to say what
         producer's against user's says in k rows, and its cell-by-cell reading
         -- which pair of classes gets confused for which -- needs width this
-        column does not have. It moves to the compare modal, drawn large enough
-        to read, and what stays is the part that answers "which way does this
+        column does not have. It moves to the COMPARE EDITOR, drawn large
+        enough to read: one plane selected draws that run's own grid, two draw
+        the pair. What stays here is the part that answers "which way does this
         class fail" at a glance.
+
+        It used to say the compare modal, which is retired -- a comparison
+        opened by a gesture on the board should not cover the board it was
+        about.
       */}
       {agreement && (
         <div className="flex w-full flex-col gap-2.5">

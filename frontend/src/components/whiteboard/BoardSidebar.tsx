@@ -199,7 +199,7 @@ function AreasPane({
   onActivate: (rowId: string, additive?: boolean) => void
   onUseArea?: (id: string) => void
   onRenameSavedAoi?: (id: string, name: string) => void
-  onDeleteSavedAoi?: (id: string) => void
+  onDeleteSavedAoi?: (id: string, title: string) => void
 }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
@@ -293,11 +293,30 @@ function AreasPane({
               Use
             </button>
           )}
-          {a.catalogId && !a.current && onDeleteSavedAoi && (
+          {/*
+            THE ACTIVE AREA CAN BE DELETED TOO, and it could not before.
+
+            The guard was `!a.current`, which left the one area a reader is most
+            likely to be finished with as the one they could not remove -- and
+            the handler already clears the active geometry when the id it drops
+            is the active one, so the guard was protecting against a case that
+            was handled.
+
+            It asks first, which the others do not need to. Taking a raster off
+            the board costs a press to undo; a drawn polygon is not stored
+            anywhere else and cannot be drawn again the same way, so this is the
+            one control in the tree whose mistake is unrecoverable. The asking
+            belongs to the studio, which owns the dialog -- this only requests.
+          */}
+          {a.catalogId && onDeleteSavedAoi && (
             <button
               type="button"
-              onClick={() => onDeleteSavedAoi(a.catalogId!)}
-              title="Remove from catalog"
+              onClick={() => onDeleteSavedAoi(a.catalogId!, a.title)}
+              title={
+                a.current
+                  ? "Delete this area, which is the one in use"
+                  : "Delete this area"
+              }
               className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
             >
               <Trash2 className="size-3" />
@@ -352,6 +371,17 @@ interface Row {
    * another tab means changing tabs to undo what you just looked at.
    */
   removeId: string | null
+  /**
+   * Take the whole stack off, for the row that IS an area.
+   *
+   * The area row carried no remove at all, so clearing an area meant pressing
+   * the same control once per plane -- four presses for a run that produced a
+   * prediction, a confidence, an NDVI mean and a true colour, and no way to
+   * say the thing the reader actually meant. The parent's eye already sets
+   * every child at once; this is the same idea for the other of the two things
+   * you do to something in a scene.
+   */
+  removeAll?: () => void
 }
 
 export function BoardSidebar({
@@ -378,6 +408,7 @@ export function BoardSidebar({
   names,
   onRename,
   onDropRun,
+  onDeleteRun,
   flat,
   onReorder,
   canLink,
@@ -437,6 +468,8 @@ export function BoardSidebar({
    * board fetched, and dropping it would mean closing the board.
    */
   onDropRun?: (runId: string) => void
+  /** Ends the run everywhere, unlike onDropRun which only unloads it. */
+  onDeleteRun?: (runId: string, title: string) => void
   /**
    * Layers dropped to the base of their stack, by scene key.
    *
@@ -470,7 +503,7 @@ export function BoardSidebar({
    */
   onUseArea?: (id: string) => void
   onRenameSavedAoi?: (id: string, name: string) => void
-  onDeleteSavedAoi?: (id: string) => void
+  onDeleteSavedAoi?: (id: string, title: string) => void
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
   onModeChange: (m: OutlinerMode) => void
@@ -564,12 +597,21 @@ export function BoardSidebar({
       dimmed: false,
       renamable: true,
       /*
-        No remove on an area's own row. An area exists because rasters are on
-        it, so it is ended by taking the last one off -- and the run behind it
-        is dropped from the data tree, where the control says what it drops.
-        A second way to make an area vanish would be a second answer.
+        No single id to remove, because this row is not a plane.
+
+        It used to carry nothing at all, on the reading that an area is ended
+        by taking its last raster off and that a second control would be a
+        second answer. The rule holds and the conclusion did not: taking every
+        raster off IS that same ending, done once instead of once per plane,
+        and a run that produced a prediction, a confidence, an NDVI mean and a
+        true colour charged four presses for it. The eye on this row already
+        sets every child at once for the other of the two things a scene does
+        to a thing, so the precedent is on the row itself.
       */
       removeId: null,
+      removeAll: stack.length
+        ? () => stack.forEach((l) => onRemoveFromScene(area.id, l.id))
+        : undefined,
       posinset: areas.indexOf(area) + 1,
       setsize: areas.length,
     })
@@ -1100,6 +1142,27 @@ export function BoardSidebar({
                     <Minus className="size-3.5" />
                   </button>
                 )}
+                {row.removeAll && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      row.removeAll!()
+                    }}
+                    tabIndex={-1}
+                    aria-label={`Remove every raster of ${row.title} from the board`}
+                    // Named by its count, so the press is not a guess about how
+                    // much it takes. Nothing is destroyed -- the run keeps its
+                    // rasters and the data tree still lists it -- so this asks
+                    // for no confirmation.
+                    title={`Take all ${
+                      areas.find((a) => a.id === row.areaId)?.layers.length ?? 0
+                    } rasters off the board`}
+                    className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
+                  >
+                    <Minus className="size-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1196,16 +1259,18 @@ export function BoardSidebar({
                     Only a run the board fetched, and only while none of its
                     rasters is on the board.
 
-                    Refused rather than hidden while it is in use, with the
-                    reason on the control: dropping it then would take planes
+                    It used to REFUSE while the run was in use, with the reason
+                    on the control, because dropping it then would take planes
                     off the board through something that says nothing about
-                    them, and the user would be left looking for what had
-                    gone. Taking its last raster off is what makes it go.
+                    them. The objection was to a silent side effect, not to the
+                    act -- so the control names the side effect and performs
+                    it, rather than sending the reader to another tab to do by
+                    hand what this press already implies. A disabled control
+                    whose remedy is elsewhere is a dead end wearing a tooltip.
                   */}
                   {onDropRun && row.run.areaId !== areaId && (
                     <button
                       type="button"
-                      disabled={inUse}
                       onClick={(e) => {
                         e.stopPropagation()
                         onDropRun(row.run.runId)
@@ -1214,17 +1279,42 @@ export function BoardSidebar({
                       aria-label={`Drop ${row.run.title}`}
                       title={
                         inUse
-                          ? "On the board: remove its rasters first"
+                          ? `Drop this run and take its ${
+                              row.run.assets.filter((a) =>
+                                sceneIds.has(
+                                  sceneKey(row.run.areaId, a.sceneId)
+                                )
+                              ).length
+                            } rasters off the board`
                           : "Drop this run"
                       }
-                      className={cn(
-                        "shrink-0 rounded-sm transition-colors",
-                        inUse
-                          ? "cursor-not-allowed text-muted-foreground/25"
-                          : "text-muted-foreground/50 hover:text-foreground"
-                      )}
+                      className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
                     >
                       <X className="size-3.5" />
+                    </button>
+                  )}
+                  {/*
+                    Ending the run, which the tree could list and not do.
+
+                    Beside the drop and deliberately unlike it: dropping leaves
+                    the board and keeps the file, and this ends it in the
+                    analysis list, its project and the exports. Two presses a
+                    pixel apart, one recoverable and one not, so the shapes
+                    differ and the destructive one is the only one that asks.
+                  */}
+                  {onDeleteRun && row.run.deletable && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteRun(row.run.runId, row.run.title)
+                      }}
+                      tabIndex={-1}
+                      aria-label={`Delete ${row.run.title} permanently`}
+                      title="Delete this run from disk"
+                      className="shrink-0 rounded-sm text-muted-foreground/40 transition-colors hover:text-destructive"
+                    >
+                      <Trash2 className="size-3.5" />
                     </button>
                   )}
                 </div>

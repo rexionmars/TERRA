@@ -61,6 +61,15 @@ export interface AssetRun {
    * board exists to compare: same ground, same window, different estimator.
    */
   model?: string
+  /**
+   * Whether a record exists to delete.
+   *
+   * A live result that has never been saved is listed here like any other run,
+   * and there is nothing on disk behind it -- offering to delete it produced a
+   * lookup for a run the store has never heard of. The tree asks this rather
+   * than testing the id against a sentinel it should not have to know.
+   */
+  deletable?: boolean
   assets: RunAsset[]
 }
 

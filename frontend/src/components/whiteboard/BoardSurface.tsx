@@ -24,7 +24,6 @@ import {
   sceneKey,
   stackRow,
 } from "@/components/whiteboard/BoardSidebar"
-import { BoardCompareModal } from "@/components/whiteboard/BoardCompareModal"
 import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
 import {
   BoardSolarDetail,
@@ -32,6 +31,8 @@ import {
   type BoardDetailFocus,
   type PredictionCompareSide,
 } from "@/components/whiteboard/BoardSolarDetail"
+import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
+import { ConfusionMatrix } from "@/components/whiteboard/AgreementCharts"
 import {
   CompareSlots,
   SourceSlot,
@@ -81,7 +82,7 @@ import {
   compareShareDeltaTable,
 } from "@/lib/compareTables"
 import { saveWhiteboard } from "@/lib/whiteboards"
-import { LoadAnalysis } from "../../../wailsjs/go/main/App"
+import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
   InferenceRun,
@@ -607,7 +608,7 @@ export function BoardSurface({
     readonly { run: InferenceRun; result: PredictResult }[]
   >("extraRuns", [])
   const [loadingRun, setLoadingRun] = useState(false)
-  const { runs, projects } = useAuth()
+  const { runs, projects, refreshRuns } = useAuth()
 
   /**
    * The board's own identity, once it has been saved under a name.
@@ -730,6 +731,9 @@ export function BoardSurface({
               which is the honest answer rather than the live control's.
             */
             model: runModel(runId),
+            // A saved run is one the list knows; the map's live result
+            // before its first save is not, and has nothing to delete.
+            deletable: runs.some((r) => r.id === runId),
             assets,
           },
         ]
@@ -739,6 +743,7 @@ export function BoardSurface({
       // reopen, and it is what a saved arrangement will record.
       areaId: run.id,
       runId: run.id,
+      deletable: true,
       title: displayRunLabel(run.label) || run.model_kind,
       model: runModel(run.id),
       period:
@@ -1068,14 +1073,74 @@ export function BoardSurface({
    * take planes off the board through a control that says nothing about them,
    * and the user would be left looking for what had gone.
    */
+  /*
+    Drop a run the board fetched, and take whatever it has on the board with it.
+
+    This used to return early while any of the run's rasters were planes, which
+    made the control in the data tree a dead end: it refused, named the remedy,
+    and left the reader to perform it in another tab. The objection that guard
+    was written for -- planes vanishing through a control that says nothing
+    about them -- is answered by the control saying so, which it now does.
+
+    `added` is the record of what this run put on the board, so clearing it is
+    what takes the planes off; the scene is rebuilt from it.
+  */
   const dropRun = (runId: string) => {
-    if ((added[runId] ?? []).length > 0) return
     setExtraRuns((prev) => prev.filter((x) => x.run.id !== runId))
     setAdded((prev) => {
       const next = { ...prev }
       delete next[runId]
       return next
     })
+  }
+
+  /**
+   * Delete a run from disk, which the data tree could list and not remove.
+   *
+   * The tree's other control DROPS a run: it leaves the board and stays on
+   * disk, a press to undo by adding it again. This one ends it everywhere --
+   * the analysis list, its project, the exports. Two acts that read alike and
+   * differ in whether they can be taken back, so they do not look alike: the
+   * drop is a thin X and this is a bin, and only this one asks.
+   *
+   * Wording follows the analysis page's own deletion, since a reader who has
+   * seen one should recognise the other.
+   */
+  /**
+   * What a destructive control has asked for, until it is confirmed.
+   *
+   * One state for both kinds, so the studio asks in one voice and a third
+   * destructive act does not become a third dialog.
+   */
+  const [pendingDelete, setPendingDelete] = useState<
+    | { kind: "run"; id: string; title: string }
+    | { kind: "area"; id: string; title: string }
+    | null
+  >(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    const { kind, id, title } = pendingDelete
+    setDeleteBusy(true)
+    try {
+      if (kind === "run") {
+        await DeleteAnalysis(id)
+        dropRun(id)
+        await refreshRuns()
+      } else {
+        onDeleteSavedAoi?.(id)
+      }
+      notifySuccess(`“${title}” deleted`)
+      setPendingDelete(null)
+    } catch (e) {
+      notifyError(
+        kind === "run" ? "Could not delete that run" : "Could not delete that area",
+        e
+      )
+    } finally {
+      setDeleteBusy(false)
+    }
   }
 
   /*
@@ -1208,11 +1273,6 @@ export function BoardSurface({
   chooseRowRef.current = chooseRow
 
   /** The pair an arrowhead was pressed for, or null. */
-  const [comparing, setComparing] = useState<{
-    from: { groupId: string; id: string }
-    to: { groupId: string; id: string }
-  } | null>(null)
-
   /*
     The legend material per area. The current one is handed in; a fetched one
     travels in its own payload, which is where its classes and scales already
@@ -1846,9 +1906,27 @@ export function BoardSurface({
         onSelect: (groupId, id, additive) =>
           chooseRowRef.current(layerRow(groupId, id), additive),
         onProbe: (sample) => probeRef.current(sample),
-        // The arrow between two planes is a question -- how do these compare --
-        // and pressing it is the only place on the board that asks it.
-        onLinkPick: (a, b) => setComparing({ from: a, to: b }),
+        /*
+          The arrow between two planes is a question -- how do these compare --
+          and pressing it is the only place on the board that asks it.
+
+          IT USED TO ANSWER WITH A DIALOG OVER THE BOARD, which is the one
+          structural contradiction the workspaces were built to end: the
+          gesture is performed ON two planes and its result covered the two
+          planes it was about. The answer is now the Compare workspace, where
+          the board keeps the upper half and the reading takes the lower -- so
+          what is being compared stays visible above what the comparison says.
+
+          The two planes are put in the selection rather than pinned. Pinning
+          is a deliberate act with its own control, and a gesture that silently
+          froze a pair would leave the reader with an editor that stops
+          following them for a reason they never chose. Unpinned slots take the
+          last two picks, which is exactly this pair.
+        */
+        onLinkPick: (a, b) => {
+          setSelection([layerRow(a.groupId, a.id), layerRow(b.groupId, b.id)])
+          setWorkspaceId("compare")
+        },
         // An area's outline is the only thing on the board that IS that area
         // while it has no rasters, so pressing it chooses the area's own row.
         onAreaPick: (groupId) => chooseRowRef.current(stackRow(groupId)),
@@ -2443,6 +2521,17 @@ export function BoardSurface({
     // Resolved once per area, so the header's slots and the body below them
     // name the same two planes rather than each deciding for itself.
     const sides = sidesFor(areaId)
+    /*
+      The one selected prediction plane that carries an agreement, where there
+      is exactly one. A pair is the editor's subject; this is what it can still
+      answer with half of one.
+    */
+    const soleAgreement = (() => {
+      if (sides || predictionPicks.length !== 1) return null
+      const only = sideOf(predictionPicks[0].areaId)
+      const agreement = only?.result.lulc?.agreement
+      return only && agreement ? { label: only.label, agreement } : null
+    })()
     const pair = sides ? predCompares[`${sides[0].areaId}|${sides[1].areaId}`] : null
     return {
     outliner: (
@@ -2466,7 +2555,9 @@ export function BoardSurface({
               } as GeoJSONGeometry)
             }}
             onRenameSavedAoi={onRenameSavedAoi}
-            onDeleteSavedAoi={onDeleteSavedAoi}
+            onDeleteSavedAoi={(id, title) =>
+              setPendingDelete({ kind: "area", id, title })
+            }
             areas={areas}
             areaId={CURRENT_AREA}
             assetRuns={assetRuns}
@@ -2498,6 +2589,12 @@ export function BoardSurface({
             onToggleExpanded={toggleExpanded}
             onLayerChange={changeLayer}
             onDropRun={dropRun}
+            // Both destructive controls only ASK here; the studio owns the
+            // dialog and the act, so neither tree has to carry a confirmation
+            // of its own.
+            onDeleteRun={(id, title) =>
+              setPendingDelete({ kind: "run", id, title })
+            }
             flat={flat}
             onReorder={reorderArea}
             // Nothing to join until some area holds more than one raster.
@@ -2589,6 +2686,26 @@ export function BoardSurface({
             compare={pair?.compare ?? null}
             compareError={pair?.error ?? null}
           />
+    ) : soleAgreement ? (
+      /*
+        ONE PLANE, AND ITS OWN CONFUSION AGAINST THE REFERENCE.
+
+        The properties column dropped the k x k grid deliberately: it spent k²
+        cells to say what producer's against user's says in k rows, and its
+        cell-by-cell reading needs width that column does not have. The comment
+        there sent it to the compare modal, which no longer exists -- so
+        retiring the modal would have taken this reading with it.
+
+        It lands here because this editor has the width, and because a reader
+        who has selected one plane and opened Compare is already asking about
+        that plane's errors. Selecting a second turns it into the pair.
+      */
+      <div className="panel-scroll h-full w-full overflow-auto px-2 py-1.5">
+        <ConfusionMatrix a={soleAgreement.agreement} title={soleAgreement.label} />
+        <p className="mt-3 text-[10px] leading-snug text-muted-foreground">
+          Pick a second prediction plane to read this against another run.
+        </p>
+      </div>
     ) : (
       <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
         {availableSides.length < 2
@@ -2731,55 +2848,31 @@ export function BoardSurface({
       )}
 
 
-      {comparing && (() => {
-        /*
-          Built from what is DRAWN, so the swipe shows the pixels the arrow was
-          pointing at: with the majority filter on, a card's uri is the smoothed
-          one and the raw raster has different frontiers.
-        */
-        const side = (t: { groupId: string; id: string }) => {
-          const card = groups
-            ?.find((g) => g.id === t.groupId)
-            ?.cards.find((c) => c.id === t.id)
-          const area = areas.find((a) => a.id === t.groupId)
-          const layer = area?.layers.find((l) => l.id === t.id)
-          if (!card || !layer) return null
-          return {
-            areaTitle: areas.length > 1 ? area?.title : undefined,
-            layerTitle: names[layerRow(t.groupId, t.id)] ?? layer.title,
-            model: assetRuns.find((r) => r.areaId === t.groupId)?.model,
-            uri: card.uri,
-            pixelated: layer.pixelated,
-            legend: legendFor(t.id, legendByArea.get(t.groupId) ?? {}),
-            // Same ground is the precondition for counting agreement, and the
-            // extent is what says so -- two areas can be rastered alike.
-            extentKey: JSON.stringify(layer.extent),
-            /*
-              The run behind the raster, for the domain-shift comparison: it
-              reads the feature fingerprint the run carries, which the image
-              itself does not have. Undefined for a layer with no run behind
-              it, and the section withholds itself there.
-            */
-            result: legendByArea.get(t.groupId)?.result,
-            // Only the prediction plane is measured against MapBiomas; a
-            // confidence or composition raster has no reference to agree with.
-            agreement:
-              t.id === "prediction"
-                ? legendByArea.get(t.groupId)?.result?.lulc?.agreement
-                : undefined,
+      {/*
+        THE ONE PLACE THE STUDIO ASKS BEFORE DESTROYING SOMETHING.
+
+        Both trees only request; the act and the asking live here, so the two
+        destructive controls cannot drift into asking in two different ways --
+        which is exactly what had happened across the application, one act
+        opening a modal and the other calling `window.confirm`.
+      */}
+      {pendingDelete && (
+        <ConfirmDelete
+          eyebrow={pendingDelete.kind === "run" ? "DELETE RUN" : "DELETE AREA"}
+          title={<>Delete “{pendingDelete.title}”?</>}
+          subtitle={
+            pendingDelete.kind === "run"
+              ? "This cannot be undone. The run leaves the analysis list, its project and the exports, and its rasters come off the board."
+              : "This cannot be undone. The geometry is not stored anywhere else, and a shape redrawn by hand is a different shape — runs made over it cannot be compared with runs made over this one."
           }
-        }
-        const from = side(comparing.from)
-        const to = side(comparing.to)
-        if (!from || !to) return null
-        return (
-          <BoardCompareModal
-            from={from}
-            to={to}
-            onClose={() => setComparing(null)}
-          />
-        )
-      })()}
+          confirmLabel={
+            pendingDelete.kind === "run" ? "Delete run" : "Delete area"
+          }
+          busy={deleteBusy}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => void confirmDelete()}
+        />
+      )}
 
       {/*
         THE WORKSPACE TABS.
