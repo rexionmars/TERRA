@@ -24,6 +24,7 @@ import {
   Clock,
   Color,
   ConeGeometry,
+  DoubleSide,
   EdgesGeometry,
   Float32BufferAttribute,
   Fog,
@@ -39,6 +40,7 @@ import {
   Plane,
   PlaneGeometry,
   Raycaster,
+  RingGeometry,
   Scene,
   Sphere,
   SRGBColorSpace,
@@ -215,6 +217,18 @@ export interface BoardHandle {
    * rename, in a module that has no business knowing the application's type.
    */
   setLabels: (on: boolean) => void
+  /**
+   * Which plane the brush probe listens on, or none.
+   *
+   * Separate from selection: the outliner can highlight a plane while the
+   * probe is off, and turning the brush on should not rewrite the path.
+   */
+  setProbeTarget: (target: { groupId: string; id: string } | null) => void
+  /**
+   * Visual rover radius as a fraction of the shorter plane side (0.05–0.35).
+   * Independent of the class-majority pixel radius the React side uses.
+   */
+  setProbeLensScale: (fraction: number) => void
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -319,6 +333,16 @@ export function createBoard(
       x: number,
       z: number
     ) => void
+    /**
+     * UV under the pointer on the probe target, or null when the brush misses.
+     *
+     * Fired from pointermove while a probe target is set and nothing is being
+     * dragged. The React side turns UV into a class via classMask; this module
+     * only reports where on the texture the ray landed.
+     */
+    onProbe?: (
+      sample: { groupId: string; id: string; u: number; v: number } | null
+    ) => void
   }
 ): BoardHandle {
   const renderer = new WebGLRenderer({ antialias: true })
@@ -409,17 +433,28 @@ export function createBoard(
   const footPx = remToPx(
     getComputedStyle(host).getPropertyValue("--map-foot")
   )
+  /*
+    Same 15rem as BoardSidebar / BoardStatsBar. Said as a rem string here
+    rather than imported from either column: boardScene must not pull React
+    chrome, and the two columns are required to stay the same width for the
+    foot bands to meet them edge to edge.
+  */
+  const sideColPx = remToPx("15rem")
   const viewHelper = new ViewHelper(camera, renderer.domElement)
   /*
-    Bottom-right, and lifted clear of the foot.
+    Bottom-right of the VISIBLE board, not of the canvas.
 
-    It was bottom-left, which is where the sidebar now is -- the helper drew
-    into the canvas underneath it and was invisible. The right corner is free
-    because the map's own controls went with the map, but the period track and
-    the island still cross the bottom of the canvas, so the margin clears the
-    reservation they are measured in.
+    The canvas fills the host under both columns. Bottom-left is under the
+    outliner; bottom-right (right: 12) is under the detail column — the helper
+    drew into the canvas underneath it and vanished the same way it once did
+    on the left. Clear the right column and the foot reservation so the gizmo
+    sits in the open corner between them.
   */
-  viewHelper.location = { ...viewHelper.location, bottom: footPx + 12, right: 12 }
+  viewHelper.location = {
+    ...viewHelper.location,
+    bottom: footPx + 12,
+    right: sideColPx + 12,
+  }
   // It orbits about the same point the controls do, or a snap would swing the
   // camera around the origin while the controls still believe in the target.
   viewHelper.center = controls.target
@@ -488,6 +523,126 @@ export function createBoard(
    * expressed relative to its area, so moving one needs the other.
    */
   let dragged: { rt: GroupRuntime; mesh: Mesh | null } | null = null
+  /**
+   * Plane the brush is reading. Null while the probe is off — pointermove then
+   * only serves drag, as before.
+   */
+  let probeTarget: { groupId: string; id: string } | null = null
+  let lastProbeKey: string | null = null
+  /** Rover radius / shorter plane side. Matches the example lens scale. */
+  let probeLensFrac = 0.14
+  /*
+    Circular rover on the plane: white ring + crosshair, like a map lens.
+    Parent is reassigned to the hit mesh so it rides UV without world maths.
+  */
+  const probeLens = new Group()
+  probeLens.visible = false
+  probeLens.renderOrder = 10_000
+  const probeRing = new Mesh(
+    new RingGeometry(0.92, 1.0, 64),
+    new MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      side: DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    })
+  )
+  const probeDisc = new Mesh(
+    new RingGeometry(0.0, 0.92, 64),
+    new MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.06,
+      side: DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    })
+  )
+  const crossPositions = new Float32Array([
+    -0.18, 0, 0.01, 0.18, 0, 0.01, 0, -0.18, 0.01, 0, 0.18, 0.01,
+  ])
+  const crossGeo = new BufferGeometry()
+  crossGeo.setAttribute("position", new BufferAttribute(crossPositions, 3))
+  const probeCross = new LineSegments(
+    crossGeo,
+    new LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+    })
+  )
+  probeLens.add(probeDisc, probeRing, probeCross)
+
+  const hideProbeLens = () => {
+    if (probeLens.parent) probeLens.parent.remove(probeLens)
+    probeLens.visible = false
+  }
+
+  const placeProbeLens = (mesh: Mesh, u: number, v: number) => {
+    const w = (mesh.userData.planeWidth as number) || 1
+    const h = (mesh.userData.planeHeight as number) || 1
+    const r = Math.min(w, h) * probeLensFrac
+    if (probeLens.parent !== mesh) {
+      probeLens.parent?.remove(probeLens)
+      mesh.add(probeLens)
+    }
+    // PlaneGeometry UV: u→local X, v→local Y (mesh is rotated -90° about X).
+    probeLens.position.set((u - 0.5) * w, (v - 0.5) * h, 0.012)
+    probeLens.scale.setScalar(r)
+    probeLens.visible = true
+  }
+
+  const emitProbe = (
+    sample: { groupId: string; id: string; u: number; v: number } | null
+  ) => {
+    const key = sample
+      ? `${sample.groupId}\0${sample.id}\0${sample.u.toFixed(4)}\0${sample.v.toFixed(4)}`
+      : ""
+    if (key === lastProbeKey) return
+    lastProbeKey = key
+    opts.onProbe?.(sample)
+  }
+
+  const sampleProbe = (e: PointerEvent) => {
+    if (!probeTarget || !opts.onProbe) {
+      hideProbeLens()
+      emitProbe(null)
+      return
+    }
+    const targets: Mesh[] = []
+    for (const rt of runtimes) {
+      if (rt.id !== probeTarget.groupId) continue
+      for (let i = 0; i < rt.meshes.length; i++) {
+        const m = rt.meshes[i]
+        if (m && m.visible && rt.cards[i]?.id === probeTarget.id) targets.push(m)
+      }
+    }
+    if (!targets.length) {
+      hideProbeLens()
+      emitProbe(null)
+      return
+    }
+    toPointer(e)
+    raycaster.setFromCamera(pointer, camera)
+    const hit = raycaster.intersectObjects(targets, false)[0]
+    const uv = hit?.uv
+    if (!hit || !uv) {
+      hideProbeLens()
+      emitProbe(null)
+      return
+    }
+    placeProbeLens(hit.object as Mesh, uv.x, uv.y)
+    emitProbe({
+      groupId: probeTarget.groupId,
+      id: probeTarget.id,
+      u: uv.x,
+      v: uv.y,
+    })
+    render()
+  }
 
   const toPointer = (e: PointerEvent) => {
     const r = renderer.domElement.getBoundingClientRect()
@@ -675,7 +830,10 @@ export function createBoard(
   }
 
   const onPointerMove = (e: PointerEvent) => {
-    if (!dragging) return
+    if (!dragging) {
+      sampleProbe(e)
+      return
+    }
     toPointer(e)
     raycaster.setFromCamera(pointer, camera)
     if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
@@ -741,6 +899,14 @@ export function createBoard(
   renderer.domElement.addEventListener("pointerdown", onPointerDown)
   renderer.domElement.addEventListener("pointermove", onPointerMove)
   renderer.domElement.addEventListener("pointercancel", endDrag)
+  const onPointerLeave = () => {
+    if (!dragging) {
+      hideProbeLens()
+      emitProbe(null)
+      render()
+    }
+  }
+  renderer.domElement.addEventListener("pointerleave", onPointerLeave)
 
   const onPointerUp = (e: PointerEvent) => {
     /*
@@ -844,6 +1010,14 @@ export function createBoard(
   }
 
   const disposables: { dispose: () => void }[] = []
+  disposables.push(
+    probeRing.geometry,
+    probeRing.material as MeshBasicMaterial,
+    probeDisc.geometry,
+    probeDisc.material as MeshBasicMaterial,
+    crossGeo,
+    probeCross.material as LineBasicMaterial
+  )
   let raf = 0
   let disposed = false
 
@@ -1442,6 +1616,8 @@ export function createBoard(
       })
       const mesh = new Mesh(geometry, material)
       mesh.rotation.x = -Math.PI / 2
+      mesh.userData.planeWidth = card.width
+      mesh.userData.planeHeight = card.height
       const at = placed.get(planeKey(rt.id, card.id))
       mesh.position.set(
         at?.x ?? card.x,
@@ -1555,6 +1731,34 @@ export function createBoard(
       if (!on) opts.onLabels([])
       render()
     },
+    setProbeTarget(target) {
+      const same =
+        (!target && !probeTarget) ||
+        (!!target &&
+          !!probeTarget &&
+          target.groupId === probeTarget.groupId &&
+          target.id === probeTarget.id)
+      if (same) return
+      probeTarget = target
+      lastProbeKey = null
+      if (!target) {
+        hideProbeLens()
+        emitProbe(null)
+        render()
+      }
+    },
+    setProbeLensScale(fraction) {
+      const next = Math.min(0.35, Math.max(0.05, fraction))
+      if (Math.abs(next - probeLensFrac) < 1e-4) return
+      probeLensFrac = next
+      if (probeLens.visible && probeLens.parent) {
+        const mesh = probeLens.parent as Mesh
+        const w = (mesh.userData.planeWidth as number) || 1
+        const h = (mesh.userData.planeHeight as number) || 1
+        probeLens.scale.setScalar(Math.min(w, h) * probeLensFrac)
+        render()
+      }
+    },
     setLinks(on) {
       if (links.visible === on) return
       links.visible = on
@@ -1623,6 +1827,7 @@ export function createBoard(
     },
     dispose() {
       disposed = true
+      hideProbeLens()
       if (raf) cancelAnimationFrame(raf)
       observer.disconnect()
       controls.removeEventListener("change", render)
@@ -1631,6 +1836,7 @@ export function createBoard(
       renderer.domElement.removeEventListener("pointermove", onPointerMove)
       renderer.domElement.removeEventListener("pointercancel", endDrag)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)
+      renderer.domElement.removeEventListener("pointerleave", onPointerLeave)
       viewHelper.dispose()
       renderer.domElement.removeEventListener("webglcontextlost", onLost)
       renderer.domElement.removeEventListener("webglcontextrestored", onRestored)

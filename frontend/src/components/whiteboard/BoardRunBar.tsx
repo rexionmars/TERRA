@@ -186,6 +186,8 @@ export interface BoardRunBarProps {
    * crossing another.
    */
   leftOffset?: string
+  /** Where the board's right column begins — same seam as the stats band. */
+  rightOffset?: string
 
   tool: BoardToolId | null
   onToolChange: (id: BoardToolId) => void
@@ -211,6 +213,8 @@ export interface BoardRunBarProps {
 
   hasArea: boolean
   activeExample: string
+  /** Display name of the active custom AOI (drawn / drawn 2 / renamed). */
+  areaLabel?: string
   onImportPolygon: () => void
   /** Opens a map to draw one on; absent where the caller offers no such map. */
   onDrawArea?: () => void
@@ -253,9 +257,10 @@ export function BoardRunBar(props: BoardRunBarProps) {
         the column's right edge rather than spanning the window, so the two are
         neighbours rather than one lying over the other.
       */
-      className="app-no-drag absolute bottom-0 right-0 z-[900] flex h-[var(--map-band,3.0625rem)] items-center border-t"
+      className="app-no-drag absolute bottom-0 z-[900] flex h-[var(--map-band,3.0625rem)] items-center border-t"
       style={{
         left: props.leftOffset ?? 0,
+        right: props.rightOffset ?? 0,
         background: "rgb(var(--p-ink))",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
@@ -319,7 +324,7 @@ export function BoardRunBar(props: BoardRunBarProps) {
               props.hasArea ? "max-w-[10rem] text-foreground" : "text-muted-foreground"
             )}
           >
-            {props.hasArea ? props.activeExample || "drawn" : "none"}
+            {props.hasArea ? props.activeExample || props.areaLabel || "drawn" : "none"}
           </span>
           {/*
             First of the three, because it is the one that MAKES an area: the

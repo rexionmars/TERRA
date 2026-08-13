@@ -26,6 +26,14 @@ import {
 import { cn } from "@/lib/utils"
 
 export interface OverlayToolsPanelProps {
+  /**
+   * Where the drawer's right edge sits, when the default would be covered.
+   *
+   * The whiteboard's right column occupies the corner this opens into. A
+   * readout that duplicates the column is withheld there; this is a tool, so
+   * it moves instead of disappearing.
+   */
+  insetRight?: string
   open: boolean
   onClose: () => void
   result: PredictResult | null
@@ -210,6 +218,7 @@ function OverlayAssetCard({
 
 export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
   const {
+    insetRight,
     open,
     onClose,
     result,
@@ -310,7 +319,11 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
       {open && (
         <motion.div
           className={cn(
-            "panel app-no-drag absolute right-14 z-[1100] flex w-[19rem] flex-col overflow-hidden rounded-md",
+            "panel app-no-drag absolute z-[1100] flex w-[19rem] flex-col overflow-hidden rounded-md",
+            // right-14 unless a caller moves it: the whiteboard's right column
+            // stands where this would otherwise open, and a tool drawer is
+            // pushed clear rather than withheld.
+            insetRight ? undefined : "right-14",
             // Bottom-aligned with the control stack its button sits in, and
             // 0.625rem is that stack's own margin under the last control, so
             // the two share a baseline. A panel that opens at the far end from
@@ -318,6 +331,7 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
             "bottom-[calc(var(--map-foot,0px)+0.625rem)]",
             "max-h-[min(36rem,calc(100%-var(--map-foot,0px)-5rem))]"
           )}
+          style={insetRight ? { right: insetRight } : undefined}
           // Rises from the edge it is attached to.
           initial={{ opacity: 0, x: 16, y: 8 }}
           animate={{ opacity: 1, x: 0, y: 0 }}

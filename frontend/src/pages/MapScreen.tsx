@@ -1,5 +1,5 @@
 import { Droplet, Grid2x2, Image as ImageIcon, type LucideIcon } from "lucide-react"
-import { Suspense, lazy, useEffect, useState } from "react"
+import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence } from "motion/react"
 import type {
@@ -34,6 +34,7 @@ import {
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
 import { BoardRunBar } from "@/components/whiteboard/BoardRunBar"
+import { BOARD_RIGHT_REM } from "@/components/whiteboard/BoardSolarDetail"
 import { rasterLayers } from "@/lib/mapLayers"
 import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
@@ -66,14 +67,21 @@ const prefetchBoard = () => void import("@/components/whiteboard/BoardSurface")
  */
 const BAND_REM = 4
 /**
- * The statistics band that sits on it, at twice its height.
+ * The detail band that sits on the run controls (prediction / solar / brush).
  *
- * A legend used to be a card floating over the planes, which is the one thing
- * the board is for; and thirteen MapBiomas classes as a vertical list make a
- * column tall enough to hide what it explains. Twice the run band turns that
- * list into four short columns.
+ * Land-cover legends live in the right sidebar; this reservation is for the
+ * product readout that used to compete with them in a cramped foot strip.
  */
-const STATS_REM = BAND_REM * 2
+const STATS_REM = BAND_REM * 2 + 1.25
+/**
+ * How far the detail band may be dragged, in rem.
+ *
+ * Bounded at both ends for the same reason: below the floor it cannot show a
+ * figure and its own border, and above the ceiling it starts eating the board
+ * it exists to describe.
+ */
+const STATS_MIN_REM = 3.5
+const STATS_MAX_REM = 22
 /**
  * What actually stands in the foot, which the reservation must equal.
  *
@@ -83,7 +91,28 @@ const STATS_REM = BAND_REM * 2
  * `|| 0` there turns into no clearance at all. The helper would sit under both
  * bands and nothing would report it.
  */
-const FOOT_REM = BAND_REM + STATS_REM
+/**
+ * What actually stands in the foot, which the reservation must equal.
+ *
+ * A function now rather than a constant, because the detail band is draggable:
+ * everything that clears the foot -- the result panel, the drawers, and the
+ * scene's axis gizmo -- has to follow it. Arithmetic in JS rather than a
+ * `calc()` in the variable, since boardScene reads --map-foot with parseFloat
+ * and parseFloat of a calc() expression is NaN, which its `|| 0` turns into no
+ * clearance at all.
+ */
+/**
+ * What the band folds down to: its grip, and nothing else.
+ *
+ * Not zero. The studio holds land cover, solar and wind, and the band is fixed
+ * furniture across all three -- collapsing gives back its body, not the edge
+ * that unfolds it. A band that vanished would leave no way back to itself.
+ *
+ * 1.25rem, not the grip's own 10px: the strip carries a chevron that has to be
+ * clicked, and a 12px band around a 16px button leaves no margin for a miss.
+ */
+const STATS_COLLAPSED_REM = 1.25
+const footRem = (statsRem: number) => BAND_REM + statsRem
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
@@ -105,6 +134,12 @@ export interface MapScreenProps {
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
   /**
+   * Switch the shell layout. Used when the whiteboard opens: Sidebar and
+   * column leaves the navigation column beside the board's own column, so the
+   * board forces Dock (workspace) for as long as it is up.
+   */
+  onLayoutModeChange?: (mode: LayoutMode) => void
+  /**
    * The title bar's host for this screen's whiteboard toggle.
    *
    * An element rather than a callback, because the button has to be DRAWN up
@@ -114,6 +149,13 @@ export interface MapScreenProps {
    * giving the map. Null until the bar mounts, and on every screen without one.
    */
   titleBarSlot?: HTMLElement | null
+  /**
+   * Reported upward so the title bar can withhold the map's telemetry.
+   *
+   * The state stays here -- it must not survive leaving the screen -- and this
+   * is a report of it, not a lift.
+   */
+  onBoardOpenChange?: (open: boolean) => void
   /** Go to another destination, for the dock layout's bar. */
   onNavigate: (groupId: string, itemId?: string) => void
   areas: Area[]
@@ -166,6 +208,14 @@ export interface MapScreenProps {
   /** Which basemap is showing, for the credit in the title bar. */
   onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
+  /** Adopt a run polygon as the active AOI without adding a catalog entry. */
+  onAdoptAreaGeometry?: (geom: GeoJSONGeometry | null) => void
+  /** Catalog of drawn/imported AOIs kept beside the active shape. */
+  savedAois?: import("@/lib/savedAois").SavedAoi[]
+  activeAoiId?: string
+  onActivateSavedAoi?: (id: string) => void
+  onRenameSavedAoi?: (id: string, name: string) => void
+  onDeleteSavedAoi?: (id: string) => void
   onLocationSelect: (lat: number, lon: number) => void
   onClearArea: () => void
   onImportPolygon: () => void
@@ -331,6 +381,22 @@ export function MapScreen(props: MapScreenProps) {
    * modal over it would be a second map over the one that has one.
    */
   const [drawingArea, setDrawingArea] = useState(false)
+  /**
+   * The detail band's height, in rem, which the reader can drag.
+   *
+   * Kept here rather than inside the band because the foot RESERVATION is
+   * derived from it: --map-foot is what the result panel, the drawers and the
+   * scene's axis gizmo measure from, so a band that grew without telling this
+   * level would slide under all three.
+   */
+  const [statsRem, setStatsRem] = useState(STATS_REM)
+  /*
+    Collapsed is remembered SEPARATELY from the height, so unfolding restores
+    the height that was dragged rather than resetting it to the default. The
+    two are different questions: how tall, and whether shown.
+  */
+  const [statsCollapsed, setStatsCollapsed] = useState(false)
+  const effectiveStatsRem = statsCollapsed ? STATS_COLLAPSED_REM : statsRem
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
@@ -443,6 +509,48 @@ export function MapScreen(props: MapScreenProps) {
   const boardOpen =
     board &&
     (boardLayers.length > 0 || boardHoldsOtherAreas() || props.hasArea)
+
+  /*
+    Reported to the title bar, which withholds the map's latitude, longitude,
+    zoom and imagery credit while the studio covers the map. Coerced, because
+    the expression above is an `&&` chain that yields undefined rather than
+    false when `board` is unset.
+  */
+  const reportBoardOpen = props.onBoardOpenChange
+  useEffect(() => {
+    reportBoardOpen?.(!!boardOpen)
+    // Leaving the screen closes it as far as the title bar is concerned:
+    // otherwise a true outlives the surface that justified it, and the map's
+    // readings stay hidden on a screen that has a map.
+    return () => reportBoardOpen?.(false)
+  }, [boardOpen, reportBoardOpen])
+
+  /*
+    The whiteboard and "Sidebar and column" fight for the left edge: the shell
+    keeps AppNav while the board draws its own 15rem column. Dock (workspace)
+    already clears the navigation column, which is the arrangement the board
+    was drawn for. Remember the mode we left so closing the board puts it back
+    rather than silently rewriting the user's preference.
+  */
+  const layoutBeforeBoardRef = useRef<LayoutMode | null>(null)
+  const onLayoutModeChange = props.onLayoutModeChange
+  const layoutMode = props.layoutMode ?? "docked"
+  useEffect(() => {
+    if (!onLayoutModeChange) return
+    if (boardOpen) {
+      if (layoutMode !== "workspace") {
+        if (layoutBeforeBoardRef.current == null) {
+          layoutBeforeBoardRef.current = layoutMode
+        }
+        onLayoutModeChange("workspace")
+      }
+      return
+    }
+    const prev = layoutBeforeBoardRef.current
+    if (prev == null) return
+    layoutBeforeBoardRef.current = null
+    if (layoutMode !== prev) onLayoutModeChange(prev)
+  }, [boardOpen, layoutMode, onLayoutModeChange])
 
   /*
     The same table the overlay tools panel lists, so the board's data mode and
@@ -749,13 +857,13 @@ export function MapScreen(props: MapScreenProps) {
       style={
         {
           "--map-band": `${BAND_REM}rem`,
-          "--map-stats": `${STATS_REM}rem`,
+          "--map-stats": `${effectiveStatsRem}rem`,
           /*
             Everything anchored to the bottom measures from here: the result
             panel, the drawers, and the scene's axis helper. On the map it is
             the period track alone.
           */
-          "--map-foot": boardOpen ? `${FOOT_REM}rem` : "3.0625rem",
+          "--map-foot": boardOpen ? `${footRem(effectiveStatsRem)}rem` : "3.0625rem",
         } as React.CSSProperties
       }
     >
@@ -911,6 +1019,7 @@ export function MapScreen(props: MapScreenProps) {
           }
           hasArea={props.hasArea}
           activeExample={props.activeExample}
+          areaLabel={props.areaLabel}
           onImportPolygon={props.onImportPolygon}
           onDrawArea={() => setDrawingArea(true)}
           onClearArea={props.onClearArea}
@@ -954,8 +1063,14 @@ export function MapScreen(props: MapScreenProps) {
             other, which is why the column can now run to the bottom. Matches
             w-[15rem] in BoardSidebar -- one number said twice, and the seam
             shows immediately if they drift.
+
+            The right recess comes from the shared constant rather than a
+            literal, which is exactly the drift that comment warned about: the
+            right column widened and this stayed at 15rem, so the band ran on
+            underneath it.
           */
           leftOffset="15rem"
+          rightOffset={`${BOARD_RIGHT_REM}rem`}
         />
       ) : (
       <PeriodTimeline
@@ -992,6 +1107,20 @@ export function MapScreen(props: MapScreenProps) {
           <Suspense fallback={null}>
             <BoardSurface
               key="whiteboard"
+              /*
+                The band's height, and the two gestures that change it. Clamped
+                here rather than in the band: the reservation --map-foot is
+                derived from this number, so the bound belongs with the value
+                the layout is computed from.
+              */
+              detailHeightRem={statsRem}
+              onDetailResize={(rem) =>
+                setStatsRem(
+                  Math.min(STATS_MAX_REM, Math.max(STATS_MIN_REM, rem))
+                )
+              }
+              detailCollapsed={statsCollapsed}
+              onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
               layers={boardLayers}
               assets={boardAssets}
               /*
@@ -1005,7 +1134,12 @@ export function MapScreen(props: MapScreenProps) {
                 use. Reusing a shape and drawing one land in one place, so the
                 application cannot come to hold two ideas of what the area is.
               */
-              onUseArea={props.onPolygonDrawn}
+              onUseArea={props.onAdoptAreaGeometry ?? props.onPolygonDrawn}
+              savedAois={props.savedAois}
+              activeAoiId={props.activeAoiId}
+              onActivateSavedAoi={props.onActivateSavedAoi}
+              onRenameSavedAoi={props.onRenameSavedAoi}
+              onDeleteSavedAoi={props.onDeleteSavedAoi}
               runLog={runLog}
               runRunning={boardRun.running}
               legendSources={{
@@ -1090,7 +1224,14 @@ export function MapScreen(props: MapScreenProps) {
         )}
       </AnimatePresence>
 
+      {/*
+        Pushed clear of the board's right column rather than withheld: this is a
+        TOOL drawer, not a readout, so hiding it would remove function instead
+        of removing duplication -- the trade the two status panels above make
+        because the column repeats them.
+      */}
       <OverlayToolsPanel
+        insetRight={boardOpen ? `calc(${BOARD_RIGHT_REM}rem + 3.5rem)` : undefined}
         open={rightDrawer === "overlays"}
         onClose={() => setRightDrawer(null)}
         result={props.result}
@@ -1151,14 +1292,22 @@ export function MapScreen(props: MapScreenProps) {
       {renderPanel("drawer", workspace && rightDrawer === "config")}
 
       <AnimatePresence mode="wait" initial={false}>
-        {showWaterStatus ? (
+        {/*
+          Each gated on the board being closed, the water and composition ones
+          newly so. They paint at right-16 z-[1000], which lands inside the
+          board's 15rem right column and a layer above it -- and the column
+          already carries the same figures for whichever plane is selected. The
+          prediction arm below had the gate and the reasoning; its two siblings
+          did not, and being earlier in this chain they won over it.
+        */}
+        {showWaterStatus && !boardOpen ? (
           <WaterStatusPanel
             leftOffsetClass={statusPanelInset(workspace)}
             key="water-status"
             water={props.water ?? null}
             onClear={props.onClearWater}
           />
-        ) : showCompositionStatus ? (
+        ) : showCompositionStatus && !boardOpen ? (
           <CompositionStatusPanel
             leftOffsetClass={statusPanelInset(workspace)}
             key="composition-status"

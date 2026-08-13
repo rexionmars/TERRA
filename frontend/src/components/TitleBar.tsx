@@ -23,6 +23,7 @@ import {
   type CreditPart,
 } from "@/lib/basemaps"
 import { useAuth, type AppScreen } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 
 interface TitleBarProps {
   view: { lat: number; lon: number; zoom: number }
@@ -60,6 +61,16 @@ interface TitleBarProps {
   boardSlotRef?: (el: HTMLDivElement | null) => void
   layoutMode?: LayoutMode
   onLayoutModeChange?: (mode: LayoutMode) => void
+  /**
+   * Whether the studio covers the map.
+   *
+   * The telemetry in this bar describes the map: latitude, longitude, zoom and
+   * whose imagery is being looked at. With the studio open the map is covered
+   * -- that is the premise of the mode -- so those readings describe a surface
+   * nobody can see, and the credit names imagery that is not on screen. They
+   * are withheld rather than left to read as stale.
+   */
+  boardOpen?: boolean
   /**
    * Which basemap is showing, and the date of the imagery under the centre.
    *
@@ -137,16 +148,57 @@ export function TitleBar({
   layoutMode = "docked",
   onLayoutModeChange,
   credit,
+  boardOpen = false,
 }: TitleBarProps) {
   const { screen, user, loading, goProfile, goAuth } = useAuth()
   const onMap = screen === "map"
   const hasMap = onMap || screen === "energy"
+  // The map's own readings, which need the map to be on screen to mean
+  // anything. The board slot and the layout toggle stay on `hasMap`: they are
+  // how the studio is left, so hiding them inside it would strand the user.
+  const showMapTelemetry = hasMap && !boardOpen
   const run = runLabel?.trim()
 
   return (
-    <header className="titlebar-terra app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pl-20 pr-2 backdrop-blur-md">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
+    <header className={cn(
+        "titlebar-terra app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pr-2 backdrop-blur-md",
+        // The window's traffic lights own the first 4.5rem. In the studio the
+        // brand block carries its own box instead, so the row starts at zero.
+        boardOpen ? "pl-0" : "pl-[4.5rem]"
+      )}>
+      {/*
+        The row's own gap goes to zero in the studio: the brand box already
+        ends exactly at the column's edge, and a gap after it would push the
+        project switcher off that seam. Everything after the box keeps the
+        normal spacing through its own margin.
+      */}
+      <div className={cn("flex items-center", boardOpen ? "gap-0" : "gap-3")}>
+        {/*
+          In the studio the brand is centred over the left column, so the title
+          reads as that column's heading rather than as a banner beginning near
+          it.
+
+          A BOX THE WIDTH OF THE COLUMN, centring its own contents -- not a
+          computed padding. "TERRA" and "STUDIO" are text in two faces with
+          their own tracking, so their widths are what the font decides at
+          render time; adding up estimates put the block off-centre, which is
+          what the measurement was for. Letting the browser centre what it just
+          laid out cannot drift.
+
+          The traffic lights still own the first 4.5rem, so the box pads past
+          them and centres in what is left. Their space is not centrable and
+          pretending otherwise puts the logo underneath them.
+        */}
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            boardOpen &&
+              // 15rem is the studio's left column (BoardSidebar). The two are
+              // separate elements in separate trees, so this is the one place
+              // that has to be changed with it.
+              "w-[15rem] justify-center pl-[4.5rem]"
+          )}
+        >
           <img
             src="/terra-logo.png"
             alt=""
@@ -155,10 +207,54 @@ export function TitleBar({
           <span className="font-display text-sm font-semibold tracking-[0.14em]">
             TERRA
           </span>
+          {/*
+            Inside the centred box in the studio, because the pair is what is
+            being centred: left outside it, the box would centre "TERRA" alone
+            and hang "STUDIO" off its right edge -- which is the offset the
+            screenshot showed.
+          */}
+          {boardOpen && (
+            <span className="eyebrow hidden !text-foreground sm:inline">
+              studio
+            </span>
+          )}
         </div>
-        <span className="hairline h-4 w-px self-center border-l" />
-        <span className="eyebrow hidden sm:inline">{SCREEN_EYEBROW[screen]}</span>
-        {projectSwitcher}
+        {!boardOpen && (
+          <span className="hairline h-4 w-px self-center border-l" />
+        )}
+        {/*
+          In the studio the eyebrow names the mode, not the product. "land
+          cover · sentinel-2" is what the MAP screen works from, and the studio
+          holds solar and wind beside land cover -- naming one of the three
+          after the surface that carries all of them was the same mistake the
+          energy screen already fixed here.
+
+          Set closer to the wordmark than the screen labels are: it reads as
+          part of the name rather than as a description of it.
+        */}
+        {!boardOpen && (
+          <span className="eyebrow hidden sm:inline">
+            {SCREEN_EYEBROW[screen]}
+          </span>
+        )}
+        {/*
+          Held where it was.
+
+          The row is flex, so tightening the brand block ahead of it drags
+          everything after it left by the same amount -- and the project is a
+          landmark the user reaches for by position, not a consequence of how
+          the title is spaced. The offset gives back exactly what the studio's
+          tighter title took: the divider and its gap (0.75rem + 1px) plus the
+          label's own pull (0.5rem).
+        */}
+        <span
+          className={cn("flex items-center", boardOpen && "ml-[1.8125rem]")}
+        >
+          {/* Set off from the column's edge by the row's usual gap. */}
+        <span className={cn("flex items-center", boardOpen && "ml-3")}>
+          {projectSwitcher}
+        </span>
+        </span>
         {run && (
           <>
             <span className="hairline hidden h-4 w-px self-center border-l sm:inline-block" />
@@ -183,7 +279,7 @@ export function TitleBar({
           half the places it describes. The two screens share one view, so the
           readout is the same value in both.
         */}
-        {hasMap && (
+        {showMapTelemetry && (
           <div className="telemetry hidden items-center gap-4 text-[11px] text-muted-foreground lg:flex">
             <span>
               LAT <span className="text-foreground">{fmtCoord(view.lat, "N", "S")}</span>

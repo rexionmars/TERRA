@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import type { Whiteboard } from "@/lib/whiteboards"
@@ -88,6 +89,11 @@ import {
   type AoiContourSchemeId,
 } from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
+import {
+  createSavedAoi,
+  type SavedAoi,
+} from "@/lib/savedAois"
+
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
@@ -194,6 +200,8 @@ function App() {
   const period = useMemo(defaultPeriod, [])
   const [areas, setAreas] = useState<Area[]>([])
   const [customPolygon, setCustomPolygon] = useState<GeoJSONGeometry | null>(null)
+  const [savedAois, setSavedAois] = useState<SavedAoi[]>([])
+  const [activeAoiId, setActiveAoiId] = useState<string | undefined>()
   const [activeExample, setActiveExample] = useState<string>("")
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; key: number } | null>(null)
   const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({
@@ -242,6 +250,9 @@ function App() {
       if (p.theme === "dark" || p.theme === "light" || p.theme === "system") {
         setTheme(p.theme)
       }
+      const extras = parsePreferenceExtras(p.extras_json)
+      setSavedAois(extras.saved_aois ?? [])
+      setActiveAoiId(extras.active_aoi_id)
     },
     [setTheme]
   )
@@ -324,6 +335,7 @@ function App() {
     setCustomPolygon(null)
     setActiveExample("")
     setAnalysisLabel(undefined)
+    setActiveAoiId(undefined)
   }
 
   const handleImportPolygon = async () => {
@@ -366,10 +378,13 @@ function App() {
           notifyError("No polygon found in the file.")
           return
         }
+        const entry = createSavedAoi(geom, savedAois, file.name.replace(/\.[^.]+$/, ""))
+        setSavedAois((prev) => [...prev, entry])
+        setActiveAoiId(entry.id)
         setActiveExample("")
         setCustomPolygon(geom)
-        setAnalysisLabel(undefined)
-        notifySuccess("Polygon imported.")
+        setAnalysisLabel(entry.name)
+        notifySuccess(`Polygon saved as “${entry.name}”.`)
       }
       input.click()
     } catch (e) {
@@ -389,6 +404,8 @@ function App() {
             areas={areas}
             activeExample={activeExample}
             customPolygon={customPolygon}
+            savedAois={savedAois}
+            activeAoiId={activeAoiId}
             flyTo={flyTo}
             view={view}
             start={start}
@@ -414,6 +431,8 @@ function App() {
             hasArea={hasArea}
             setView={setView}
             setCustomPolygon={setCustomPolygon}
+            setSavedAois={setSavedAois}
+            setActiveAoiId={setActiveAoiId}
             setActiveExample={setActiveExample}
             setFlyTo={setFlyTo}
             setStart={setStart}
@@ -451,6 +470,8 @@ function AppBody(props: {
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
+  savedAois: SavedAoi[]
+  activeAoiId?: string
   flyTo: { lat: number; lon: number; key: number } | null
   view: { lat: number; lon: number; zoom: number }
   start: string
@@ -476,6 +497,8 @@ function AppBody(props: {
   hasArea: boolean
   setView: (v: { lat: number; lon: number; zoom: number }) => void
   setCustomPolygon: (g: GeoJSONGeometry | null) => void
+  setSavedAois: Dispatch<SetStateAction<SavedAoi[]>>
+  setActiveAoiId: (id: string | undefined) => void
   setActiveExample: (id: string) => void
   setFlyTo: (v: { lat: number; lon: number; key: number } | null) => void
   setStart: (v: string) => void
@@ -525,6 +548,14 @@ function AppBody(props: {
    * screen is whether the board is open -- deliberately, so leaving the screen
    * and coming back gives the map. Same bridge as MapView's BottomRightSlot.
    */
+  /*
+    Whether the studio covers the map, mirrored here for the title bar alone.
+
+    The state itself stays in the map screen -- it must not survive a trip to
+    another screen -- and this is a report of it, reset when the screen changes
+    so a stale `true` cannot outlive the screen that set it.
+  */
+  const [boardOpen, setBoardOpen] = useState(false)
   const [boardSlotHost, setBoardSlotHost] = useState<HTMLDivElement | null>(
     null
   )
@@ -2357,21 +2388,132 @@ function AppBody(props: {
     null
 
   /**
-   * A polygon drawn on either map. The composition is dropped with it: it was
-   * rendered for the previous AOI and does not describe this one. Water and the
-   * energy products are dropped by their own AOI-change effects.
+   * A polygon drawn on either map. Appended to the saved-AOI catalog so a
+   * second draw does not throw the first away; the new entry becomes active.
+   * Passing null clears the active shape only (catalog stays).
    */
   const handlePolygonDrawn = useCallback(
     (geom: GeoJSONGeometry | null) => {
+      if (!geom) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+        return
+      }
+      const entry = createSavedAoi(geom, props.savedAois)
+      props.setSavedAois((prev) => [...prev, entry])
+      props.setActiveAoiId(entry.id)
       props.setCustomPolygon(geom)
-      if (!geom) return
       props.setActiveExample("")
-      props.setAnalysisLabel(undefined)
+      props.setAnalysisLabel(entry.name)
       setComposition(null)
       setShowCompositionOverlay(true)
     },
-    [props.setCustomPolygon, props.setActiveExample, props.setAnalysisLabel]
+    [
+      props.savedAois,
+      props.setSavedAois,
+      props.setActiveAoiId,
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setAnalysisLabel,
+    ]
   )
+
+  const activateSavedAoi = useCallback(
+    (id: string) => {
+      const entry = props.savedAois.find((a) => a.id === id)
+      if (!entry) return
+      props.setActiveAoiId(entry.id)
+      props.setCustomPolygon(entry.geometry)
+      props.setActiveExample("")
+      props.setAnalysisLabel(entry.name)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [
+      props.savedAois,
+      props.setActiveAoiId,
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  /** Put a run's stored polygon on the map without adding a catalog entry. */
+  const adoptAreaGeometry = useCallback(
+    (geom: GeoJSONGeometry | null) => {
+      if (!geom) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+        return
+      }
+      props.setCustomPolygon(geom)
+      props.setActiveExample("")
+      props.setActiveAoiId(undefined)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setActiveAoiId,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  const renameSavedAoi = useCallback(
+    (id: string, name: string) => {
+      const next = name.trim()
+      if (!next) return
+      props.setSavedAois((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, name: next } : a))
+      )
+      if (props.activeAoiId === id) props.setAnalysisLabel(next)
+    },
+    [props.setSavedAois, props.activeAoiId, props.setAnalysisLabel]
+  )
+
+  const deleteSavedAoi = useCallback(
+    (id: string) => {
+      props.setSavedAois((prev) => prev.filter((a) => a.id !== id))
+      if (props.activeAoiId === id) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+      }
+    },
+    [
+      props.setSavedAois,
+      props.activeAoiId,
+      props.setCustomPolygon,
+      props.setActiveAoiId,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  /** Persist the catalog whenever it changes (silent — no toast). */
+  useEffect(() => {
+    if (!prefs) return
+    const extras = parsePreferenceExtras(prefs.extras_json)
+    const sameAois =
+      JSON.stringify(extras.saved_aois ?? []) === JSON.stringify(props.savedAois)
+    const sameActive = (extras.active_aoi_id ?? undefined) === props.activeAoiId
+    if (sameAois && sameActive) return
+    void savePrefs(
+      {
+        ...prefs,
+        extras_json: mergePreferenceExtras(prefs.extras_json, {
+          saved_aois: props.savedAois,
+          active_aoi_id: props.activeAoiId,
+          aoi_label:
+            props.savedAois.find((a) => a.id === props.activeAoiId)?.name ??
+            extras.aoi_label,
+        }),
+      },
+      { silent: true }
+    ).catch(() => {})
+  }, [props.savedAois, props.activeAoiId, prefs, savePrefs])
 
   /**
    * The analysis payload as the Analysis screen and the exporter see it.
@@ -2431,6 +2573,7 @@ function AppBody(props: {
           surviving a trip to another screen.
         */
         boardSlotRef={setBoardSlotHost}
+        boardOpen={boardOpen}
         result={props.result}
         runLabel={currentRunLabel}
         layoutMode={layoutMode}
@@ -2528,6 +2671,7 @@ function AppBody(props: {
                 <MapScreen
                   onCreditChange={setCredit}
                   titleBarSlot={boardSlotHost}
+                  onBoardOpenChange={setBoardOpen}
                   /*
                     The two solar rasters, so the board can lift them like any
                     other. The energy screen keeps drawing them on its own map;
@@ -2559,6 +2703,7 @@ function AppBody(props: {
                   initialView={initialMapView}
                   leftPanel={leftPanel}
                   layoutMode={layoutMode}
+                  onLayoutModeChange={changeLayoutMode}
                   onNavigate={navigateTo}
                   onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
@@ -2611,6 +2756,12 @@ function AppBody(props: {
                   composeOpacity={composeOpacity}
                   onViewChange={handleViewChange}
                   onPolygonDrawn={handlePolygonDrawn}
+                  onAdoptAreaGeometry={adoptAreaGeometry}
+                  savedAois={props.savedAois}
+                  activeAoiId={props.activeAoiId}
+                  onActivateSavedAoi={activateSavedAoi}
+                  onRenameSavedAoi={renameSavedAoi}
+                  onDeleteSavedAoi={deleteSavedAoi}
                   onLocationSelect={(lat, lon) =>
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }

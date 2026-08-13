@@ -12,8 +12,20 @@
  * the nearest positioned ancestor. That happened to be the window while the
  * pages were flat fills; it stopped being guaranteed the moment the pages became
  * panels. `fixed` says what all five meant.
+ *
+ * AND IT RENDERS THROUGH A PORTAL, because `fixed` fixes the position and not
+ * the stacking. A positioned ancestor carrying a z-index opens a stacking
+ * context, and every z-index inside it is then compared only with its siblings
+ * there -- so the board surface, at z-500, held this shell's z-2000 inside 500
+ * and the run band at z-900 painted over a dialog that outranks it by 1100.
+ * The symptom is unmistakable once seen: the band stays sharp while everything
+ * else goes behind the scrim, because it is not behind it at all.
+ *
+ * The portal puts the shell in document.body, where 2000 is compared against
+ * the panels and the bands it was written to outrank.
  */
 import type { ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { motion } from "motion/react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -40,7 +52,7 @@ export function ModalShell({
   /** False while an operation is in flight, so a click cannot abandon it. */
   dismissible?: boolean
 }) {
-  return (
+  return createPortal(
     <motion.div
       className={cn(
         "app-no-drag fixed inset-0 flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]",
@@ -68,7 +80,8 @@ export function ModalShell({
       >
         {children}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   )
 }
 
