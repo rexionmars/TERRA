@@ -92,7 +92,7 @@ export function BoardAreaModal({
       <ModalHeader
         eyebrow="Area"
         title="Draw the ground to analyse"
-        subtitle="The polygon tool is at the bottom right. One shape at a time; drawing a second replaces the first."
+        subtitle="The polygon tool is at the bottom right. Each finished shape is kept in Areas as drawn, drawn 2, … — rename any of them later."
         onClose={onClose}
         actions={
           <div className="flex items-center gap-1">

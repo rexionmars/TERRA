@@ -100,6 +100,10 @@ export interface AreaInfo {
   layers: number
   /** The map's own area, as opposed to a run fetched beside it. */
   current: boolean
+  /** Drawn / imported catalog entry (can be renamed or removed). */
+  saved?: boolean
+  /** Catalog id to rename/delete when this row is the active map AOI. */
+  catalogId?: string
 }
 
 
@@ -188,12 +192,19 @@ function AreasPane({
   activeRow,
   onActivate,
   onUseArea,
+  onRenameSavedAoi,
+  onDeleteSavedAoi,
 }: {
   areas: AreaInfo[]
   activeRow: string | null
   onActivate: (rowId: string, additive?: boolean) => void
   onUseArea?: (id: string) => void
+  onRenameSavedAoi?: (id: string, name: string) => void
+  onDeleteSavedAoi?: (id: string) => void
 }) {
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState("")
+
   return (
     <ul
       className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1"
@@ -224,37 +235,55 @@ function AreasPane({
               )}
             />
           ) : (
-            // Nothing to draw where the run stored no shape; the generic mark
-            // says that rather than drawing a shape it does not have.
             <Pentagon
               className="size-5 shrink-0 text-muted-foreground/50"
               strokeWidth={1.5}
             />
           )}
-          <button
-            type="button"
-            onClick={() => onActivate(stackRow(a.id))}
-            className="flex min-w-0 flex-1 flex-col text-left"
-          >
-            <span className="truncate text-meta text-foreground">
-              {a.title}
-            </span>
-            {/*
-              Absent rather than zero where a run stored no shape: the board
-              falls back to the raster's rectangle there, and printing 0 ha
-              would report a measurement nobody made.
-            */}
-            <span className="telemetry truncate text-[9px] text-muted-foreground">
-              {a.hectares !== null && a.vertices !== null
-                ? `${a.vertices} vertices · ${a.hectares.toFixed(1)} ha`
-                : "shape not stored"}
-            </span>
-          </button>
-          {/*
-            Not offered for the area already in hand, and not for one whose
-            shape was never stored: both would be a control that cannot do what
-            it says.
-          */}
+          {editing === a.id ? (
+            <input
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => {
+                setEditing(null)
+                if (a.catalogId) onRenameSavedAoi?.(a.catalogId, draft)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  setEditing(null)
+                  if (a.catalogId) onRenameSavedAoi?.(a.catalogId, draft)
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault()
+                  setEditing(null)
+                }
+              }}
+              className="min-w-0 flex-1 rounded-sm border border-border bg-background px-1.5 py-0.5 text-meta text-foreground outline-none"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => onActivate(stackRow(a.id))}
+              onDoubleClick={() => {
+                if (!a.catalogId || !onRenameSavedAoi) return
+                setEditing(a.id)
+                setDraft(a.title)
+              }}
+              className="flex min-w-0 flex-1 flex-col text-left"
+              title={a.catalogId ? "Double-click to rename" : undefined}
+            >
+              <span className="truncate text-meta text-foreground">
+                {a.title}
+              </span>
+              <span className="telemetry truncate text-[9px] text-muted-foreground">
+                {a.hectares !== null && a.vertices !== null
+                  ? `${a.vertices} vertices · ${a.hectares.toFixed(1)} ha`
+                  : "shape not stored"}
+              </span>
+            </button>
+          )}
           {onUseArea && !a.current && a.vertices !== null && (
             <button
               type="button"
@@ -263,6 +292,16 @@ function AreasPane({
               className="shrink-0 rounded-sm px-1.5 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
             >
               Use
+            </button>
+          )}
+          {a.catalogId && !a.current && onDeleteSavedAoi && (
+            <button
+              type="button"
+              onClick={() => onDeleteSavedAoi(a.catalogId!)}
+              title="Remove from catalog"
+              className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+            >
+              <Trash2 className="size-3" />
             </button>
           )}
         </li>
@@ -325,6 +364,8 @@ export function BoardSidebar({
   mode,
   areaInfo = [],
   onUseArea,
+  onRenameSavedAoi,
+  onDeleteSavedAoi,
   activeRow,
   selection,
   activeAsset,
@@ -441,6 +482,8 @@ export function BoardSidebar({
    * refuses two places.
    */
   onUseArea?: (id: string) => void
+  onRenameSavedAoi?: (id: string, name: string) => void
+  onDeleteSavedAoi?: (id: string) => void
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
   onModeChange: (m: OutlinerMode) => void
@@ -883,6 +926,8 @@ export function BoardSidebar({
           activeRow={activeRow}
           onActivate={onActivate}
           onUseArea={onUseArea}
+          onRenameSavedAoi={onRenameSavedAoi}
+          onDeleteSavedAoi={onDeleteSavedAoi}
         />
       ) : mode === "scene" ? (
         <div

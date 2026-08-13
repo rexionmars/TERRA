@@ -10,7 +10,7 @@
  * pay for it until the board is opened; see BoardButton for the other
  * half of that boundary.
  */
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { Save } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
@@ -26,11 +26,24 @@ import {
 } from "@/components/whiteboard/BoardSidebar"
 import { BoardCompareModal } from "@/components/whiteboard/BoardCompareModal"
 import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
+import {
+  BoardSolarDetail,
+  BOARD_RIGHT_REM,
+  type BoardDetailFocus,
+  type PredictionCompareSide,
+} from "@/components/whiteboard/BoardSolarDetail"
+import {
+  compareClassMaps,
+  sampleClassAtUv,
+  type BrushRadiusPx,
+  type ClassMapCompare,
+  type ClassProbeSample,
+} from "@/lib/boardProbe"
+import type { ClassLegendEntry } from "@/lib/classMask"
 import { legendFor, type LegendSources } from "@/lib/layerLegend"
 import type { RunLogEntry } from "@/lib/runLog"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { modelLabel, runAssets } from "@/lib/runAssets"
-import type { ModelKind } from "@/lib/types"
 import type { CardGroup } from "@/lib/boardLayout"
 import { layoutGroups } from "@/lib/boardLayout"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -56,6 +69,7 @@ import { LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
   InferenceRun,
+  ModelKind,
   PredictResult,
 } from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
@@ -172,6 +186,15 @@ export function BoardSurface({
   layers,
   legendSources,
   onUseArea,
+  savedAois = [],
+  activeAoiId,
+  onActivateSavedAoi,
+  onRenameSavedAoi,
+  onDeleteSavedAoi,
+  detailHeightRem,
+  onDetailResize,
+  detailCollapsed,
+  onDetailToggleCollapsed,
   runLog,
   runRunning,
   assets,
@@ -204,41 +227,35 @@ export function BoardSurface({
    * it means. Fetched areas carry their own inside `extraRuns`.
    */
   legendSources?: LegendSources
-  /** Takes a geometry already on the board as the area to work on. */
+  /**
+   * Put a geometry from the Areas tab back onto the map as the active AOI.
+   * Saved catalog entries go through onActivateSavedAoi instead.
+   */
   onUseArea?: (geom: GeoJSONGeometry) => void
-  /** What the run in progress has said, for the statistics band. */
+  /** Drawn / imported AOIs kept in the catalog (not only the active one). */
+  savedAois?: import("@/lib/savedAois").SavedAoi[]
+  activeAoiId?: string
+  onActivateSavedAoi?: (id: string) => void
+  onRenameSavedAoi?: (id: string, name: string) => void
+  onDeleteSavedAoi?: (id: string) => void
+  /** The detail band's height in rem, and where a drag on its edge reports. */
+  detailHeightRem?: number
+  onDetailResize?: (rem: number) => void
+  /** The band folded to its grip; the studio keeps the height it gives back. */
+  detailCollapsed?: boolean
+  onDetailToggleCollapsed?: () => void
   runLog?: RunLogEntry[]
   runRunning?: boolean
-  /**
-   * Everything the run produced, drawn or not.
-   *
-   * Separate from `layers` because they answer different questions: a layer is
-   * something the board is stacking, an asset is something the run made. NDVI
-   * mean and the true-colour scene are assets and never layers.
-   */
   assets: RunAsset[]
-  /**
-   * The run's id and the period it covers, for the branch that carries its
-   * assets. Two runs of one area differ by when they looked, not by where.
-   */
   runId: string
   runPeriod: string
-  /**
-   * The area's own shape, for the selection outline.
-   *
-   * A raster is a rectangle because a raster is a grid; the area analysed is
-   * not, and a box around it claims ground the analysis never looked at.
-   * Absent where the shape cannot be resolved, and the rectangle stands in.
-   */
   aoiPolygon?: LonLat[] | null
   onLayerChange: (id: string, patch: LayerPatch) => void
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
-  /** The map's majority filter, carried across so the board can change it. */
   smooth: boolean
   onSmoothChange: (v: boolean) => void
   title: string
-  /** Escape, and the title bar's toggle. See the header below for why no X. */
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -654,6 +671,15 @@ export function BoardSurface({
         ...extrasFor(CURRENT_AREA, 1000),
       ]),
     },
+    // Catalogued drawings that are not the active map AOI — so a second draw
+    // stays visible and can be put back with Use.
+    ...savedAois
+      .filter((a) => a.id !== activeAoiId)
+      .map((a) => ({
+        id: a.id,
+        title: names[stackRow(a.id)] ?? a.name,
+        layers: applyOrder(a.id, extrasFor(a.id, 200)),
+      })),
     ...assetRuns
       .filter((r) => r.areaId !== CURRENT_AREA)
       .map((r) => ({
@@ -667,7 +693,8 @@ export function BoardSurface({
       // The map's own area survives having nothing on it, so long as an area
       // has been drawn: it is the thing the work is about to be run on, and
       // the board is where that work is started.
-      (a.id === CURRENT_AREA && !!aoiPolygon?.length)
+      (a.id === CURRENT_AREA && !!aoiPolygon?.length) ||
+      savedAois.some((s) => s.id === a.id)
   )
 
   /*
@@ -802,6 +829,13 @@ export function BoardSurface({
   polygonsRef.current = {
     ...(aoiPolygon?.length ? { [CURRENT_AREA]: aoiPolygon } : {}),
     ...Object.fromEntries(
+      savedAois.flatMap((a) => {
+        if (a.id === activeAoiId) return []
+        const ring = polygonOuterRing(a.geometry)
+        return ring ? [[a.id, ring] as const] : []
+      })
+    ),
+    ...Object.fromEntries(
       extraRuns.flatMap(({ run }) => {
         // The run stores the polygon it was asked for; there is no area
         // catalogue to fall back to here, and a run without a stored shape
@@ -894,6 +928,13 @@ export function BoardSurface({
     const geom = ring?.length
       ? ({ type: "Polygon", coordinates: [ring] } as GeoJSONGeometry)
       : null
+    const saved = savedAois.find((s) => s.id === a.id)
+    const catalogId =
+      a.id === CURRENT_AREA
+        ? activeAoiId
+        : saved
+          ? a.id
+          : undefined
     return {
       id: a.id,
       title: a.title,
@@ -904,6 +945,8 @@ export function BoardSurface({
       vertices: ring?.length ? ring.length - 1 : null,
       layers: a.layers.length,
       current: a.id === CURRENT_AREA,
+      saved: !!catalogId,
+      catalogId,
     }
   })
 
@@ -922,6 +965,86 @@ export function BoardSurface({
         ] as [string, LegendSources]
     ),
   ])
+
+  /*
+    Last prediction or solar plane in the selection path drives the right
+    column. Two prediction planes → difference readout instead.
+  */
+  const predictionPicks: { areaId: string; layerId: string }[] = []
+  for (const row of selection) {
+    const t = rowTarget(row)
+    if (t?.layerId === "prediction") {
+      predictionPicks.push({ areaId: t.areaId, layerId: t.layerId })
+    }
+  }
+  let detailFocus: {
+    areaId: string
+    focus: BoardDetailFocus
+  } | null = null
+  for (let i = selection.length - 1; i >= 0; i--) {
+    const t = rowTarget(selection[i])
+    if (!t?.layerId) continue
+    if (t.layerId === "prediction") {
+      detailFocus = { areaId: t.areaId, focus: "prediction" }
+      break
+    }
+    if (t.layerId === "solar:terrain") {
+      detailFocus = { areaId: t.areaId, focus: "terrain" }
+      break
+    }
+    if (t.layerId === "solar:siting") {
+      detailFocus = { areaId: t.areaId, focus: "siting" }
+      break
+    }
+  }
+  const detailSources = detailFocus
+    ? legendByArea.get(detailFocus.areaId)
+    : undefined
+  const detailTerrain =
+    detailSources?.solarTerrain ?? legendSources?.solarTerrain ?? null
+  const detailSiting =
+    detailSources?.solarSiting ?? legendSources?.solarSiting ?? null
+  const detailPrediction: PredictResult | null =
+    detailFocus?.focus === "prediction"
+      ? (detailSources?.result ?? legendSources?.result ?? null)
+      : null
+  const detailPeriod =
+    detailFocus &&
+    assetRuns.find((r) => r.areaId === detailFocus.areaId)?.period
+  const detailModel =
+    detailFocus &&
+    assetRuns.find((r) => r.areaId === detailFocus.areaId)?.model
+
+  const [brushOn, setBrushOn] = useState(false)
+  const [brushRadius, setBrushRadius] = useState<BrushRadiusPx>(2)
+  const [probeUv, setProbeUv] = useState<{
+    groupId: string
+    id: string
+    u: number
+    v: number
+  } | null>(null)
+  const [probeSample, setProbeSample] = useState<ClassProbeSample | null>(null)
+  const probeRef = useRef(setProbeUv)
+  probeRef.current = setProbeUv
+
+  // Brush only makes sense on a single prediction focus.
+  useEffect(() => {
+    if (detailFocus?.focus !== "prediction" || predictionPicks.length >= 2) {
+      setBrushOn(false)
+      setProbeUv(null)
+      setProbeSample(null)
+    }
+  }, [detailFocus?.focus, predictionPicks.length])
+
+  const predictionLegend: ClassLegendEntry[] = useMemo(() => {
+    const stats = detailPrediction?.class_stats
+    if (!stats?.length) return []
+    return stats.map((c) => ({
+      id: c.class_id,
+      name: c.name,
+      color: c.color,
+    }))
+  }, [detailPrediction])
 
   const target = rowTarget(activeRow)
   const targetArea = areas.find((a) => a.id === target?.areaId)
@@ -986,6 +1109,103 @@ export function BoardSurface({
    * without recomputing.
    */
   const [groups, setGroups] = useState<CardGroup[] | null>(null)
+
+  const predictionUri = useMemo(() => {
+    if (!detailFocus || detailFocus.focus !== "prediction" || !groups) {
+      return null
+    }
+    const g = groups.find((x) => x.id === detailFocus.areaId)
+    return g?.cards.find((c) => c.id === "prediction")?.uri ?? null
+  }, [groups, detailFocus?.areaId, detailFocus?.focus])
+
+  const compareSides = useMemo(():
+    | [PredictionCompareSide, PredictionCompareSide]
+    | null => {
+    if (predictionPicks.length < 2 || !groups) return null
+    const lastTwo = predictionPicks.slice(-2)
+    const sides: PredictionCompareSide[] = []
+    for (const pick of lastTwo) {
+      const sources = legendByArea.get(pick.areaId)
+      const result = sources?.result
+      const g = groups.find((x) => x.id === pick.areaId)
+      const uri = g?.cards.find((c) => c.id === "prediction")?.uri
+      if (!result || !uri) return null
+      const run = assetRuns.find((r) => r.areaId === pick.areaId)
+      sides.push({
+        areaId: pick.areaId,
+        label: areas.find((a) => a.id === pick.areaId)?.title ?? pick.areaId,
+        model: run?.model,
+        period: run?.period,
+        result,
+        uri,
+      })
+    }
+    if (sides.length !== 2) return null
+    return [sides[0], sides[1]]
+  }, [predictionPicks, groups, legendByArea, assetRuns, areas])
+
+  const [predCompare, setPredCompare] = useState<ClassMapCompare | null>(null)
+  const [predCompareError, setPredCompareError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!compareSides) {
+      setPredCompare(null)
+      setPredCompareError(null)
+      return
+    }
+    const [a, b] = compareSides
+    const legendA = (a.result.class_stats ?? []).map((c) => ({
+      id: c.class_id,
+      name: c.name,
+      color: c.color,
+    }))
+    const legendB = (b.result.class_stats ?? []).map((c) => ({
+      id: c.class_id,
+      name: c.name,
+      color: c.color,
+    }))
+    if (!legendA.length || !legendB.length) {
+      setPredCompare(null)
+      setPredCompareError("Both predictions need class legends to compare.")
+      return
+    }
+    let cancelled = false
+    setPredCompareError(null)
+    void compareClassMaps(a.uri, legendA, b.uri, legendB)
+      .then((c) => {
+        if (!cancelled) setPredCompare(c)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setPredCompare(null)
+        setPredCompareError(
+          err instanceof Error ? err.message : "Could not compare these rasters."
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [compareSides])
+
+  useEffect(() => {
+    if (!brushOn || !probeUv || !predictionUri || !predictionLegend.length) {
+      setProbeSample(null)
+      return
+    }
+    let cancelled = false
+    void sampleClassAtUv(
+      predictionUri,
+      predictionLegend,
+      probeUv.u,
+      probeUv.v,
+      brushRadius
+    ).then((s) => {
+      if (!cancelled) setProbeSample(s)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [brushOn, probeUv, predictionUri, predictionLegend, brushRadius])
+
   useEffect(() => {
     let cancelled = false
     Promise.all(
@@ -1085,6 +1305,7 @@ export function BoardSurface({
         */
         onSelect: (groupId, id, additive) =>
           chooseRowRef.current(layerRow(groupId, id), additive),
+        onProbe: (sample) => probeRef.current(sample),
         // The arrow between two planes is a question -- how do these compare --
         // and pressing it is the only place on the board that asks it.
         onLinkPick: (a, b) => setComparing({ from: a, to: b }),
@@ -1129,6 +1350,26 @@ export function BoardSurface({
   useEffect(() => {
     boardRef.current?.setGap(gap)
   }, [gap, groups])
+
+  useEffect(() => {
+    boardRef.current?.setProbeTarget(
+      brushOn && detailFocus?.focus === "prediction" && predictionPicks.length < 2
+        ? { groupId: detailFocus.areaId, id: "prediction" }
+        : null
+    )
+  }, [
+    brushOn,
+    detailFocus?.areaId,
+    detailFocus?.focus,
+    predictionPicks.length,
+    groups,
+  ])
+
+  useEffect(() => {
+    // Lens diameter on the plane: S/M/L as fraction of the shorter side.
+    const frac = brushRadius === 0 ? 0.08 : brushRadius === 2 ? 0.14 : 0.22
+    boardRef.current?.setProbeLensScale(frac)
+  }, [brushRadius, groups])
 
 
   /*
@@ -1270,30 +1511,88 @@ export function BoardSurface({
       )}
 
       {/*
-        The selected plane's legend, as a band on the run band rather than a
-        card over the planes. Starts where the column ends, the same 15rem the
-        band below uses, so the foot is one edge in two registers.
-      */}
-      {/*
-        Every selected raster, in the order they were picked -- the same order
-        the scene arrows through. Two rasters side by side is what the board is
-        for, so their figures sit side by side too.
+        The right column describes ONE plane: identity, classes, hectares,
+        confidence, and its agreement against MapBiomas. The foot band is for
+        what relates TWO -- the A to B difference -- and does not exist while a
+        single plane is selected.
       */}
       <BoardStatsBar
-        leftOffset="15rem"
         runLog={runLog}
         running={runRunning}
+        brushOn={brushOn}
+        onBrushOnChange={setBrushOn}
+        // Only where there is a prediction plane for it to read.
+        brushable={!!detailPrediction}
         entries={selection
           .map(rowTarget)
           .filter((t): t is { areaId: string; layerId: string } => !!t?.layerId)
-          .map((t) => ({
-            key: sceneKey(t.areaId, t.layerId),
-            legend: legendFor(t.layerId, legendByArea.get(t.areaId) ?? {}),
-            area: areas.find((a) => a.id === t.areaId)?.title,
-            period: assetRuns.find((r) => r.areaId === t.areaId)?.period,
-            model: assetRuns.find((r) => r.areaId === t.areaId)?.model,
-          }))}
+          .map((t) => {
+            const area = areas.find((a) => a.id === t.areaId)
+            const info = areaInfo.find((a) => a.id === t.areaId)
+            const catalogId = info?.catalogId
+            return {
+              key: sceneKey(t.areaId, t.layerId),
+              legend: legendFor(t.layerId, legendByArea.get(t.areaId) ?? {}),
+              area: area?.title,
+              period: assetRuns.find((r) => r.areaId === t.areaId)?.period,
+              model: assetRuns.find((r) => r.areaId === t.areaId)?.model,
+              /*
+                Only on the layer it describes. A run's agreement is about its
+                CLASSIFICATION, so hanging it on the confidence or true-colour
+                plane of the same run would attach a measurement to a raster it
+                did not measure.
+              */
+              agreement:
+                t.layerId === "prediction"
+                  ? legendByArea.get(t.areaId)?.result?.lulc?.agreement
+                  : undefined,
+              onRenameArea:
+                catalogId && onRenameSavedAoi
+                  ? (name: string) => onRenameSavedAoi(catalogId, name)
+                  : undefined,
+            }
+          })}
       />
+
+      {/*
+        The band exists for the relation between TWO planes, so it is mounted
+        only when there is one. With a single selection it had nothing to
+        relate and still reserved 8rem: the reader saw a strip of ink holding
+        one sentence -- the empty space that sat beside a scrolling column.
+
+        `compareSides` is that predicate already: non-null only where two
+        prediction planes are picked and both carry a result and a drawn
+        raster. The foot RESERVATION is untouched -- --map-band, --map-stats
+        and --map-foot keep their values, because boardScene parses --map-foot
+        to lift the axis gizmo and MapScreen derives it from FOOT_REM. What
+        goes away is the painted box, not the space it was measured in.
+      */}
+      {compareSides && (
+      <BoardSolarDetail
+        placement="band"
+        leftOffset="15rem"
+        rightOffset={`${BOARD_RIGHT_REM}rem`}
+        focus={detailFocus?.focus ?? null}
+        terrain={detailTerrain}
+        siting={detailSiting}
+        prediction={detailPrediction}
+        modelKind={detailModel}
+        period={detailPeriod}
+        brushOn={brushOn}
+        onBrushOnChange={setBrushOn}
+        brushRadius={brushRadius}
+        onBrushRadiusChange={setBrushRadius}
+        probe={brushOn ? probeSample : null}
+        probeIdle={brushOn && !probeUv}
+        heightRem={detailHeightRem}
+        onResize={onDetailResize}
+        collapsed={detailCollapsed}
+        onToggleCollapsed={onDetailToggleCollapsed}
+        compareSides={compareSides}
+        compare={predCompare}
+        compareError={predCompareError}
+      />
+      )}
 
       {comparing && (() => {
         /*
@@ -1318,6 +1617,19 @@ export function BoardSurface({
             // Same ground is the precondition for counting agreement, and the
             // extent is what says so -- two areas can be rastered alike.
             extentKey: JSON.stringify(layer.extent),
+            /*
+              The run behind the raster, for the domain-shift comparison: it
+              reads the feature fingerprint the run carries, which the image
+              itself does not have. Undefined for a layer with no run behind
+              it, and the section withholds itself there.
+            */
+            result: legendByArea.get(t.groupId)?.result,
+            // Only the prediction plane is measured against MapBiomas; a
+            // confidence or composition raster has no reference to agree with.
+            agreement:
+              t.id === "prediction"
+                ? legendByArea.get(t.groupId)?.result?.lulc?.agreement
+                : undefined,
           }
         }
         const from = side(comparing.from)
@@ -1340,6 +1652,10 @@ export function BoardSurface({
           the shape that is worked on is the shape that was on screen.
         */
         onUseArea={(id) => {
+          if (savedAois.some((a) => a.id === id)) {
+            onActivateSavedAoi?.(id)
+            return
+          }
           const ring = polygonsRef.current[id]
           if (!ring?.length || !onUseArea) return
           onUseArea({
@@ -1347,6 +1663,8 @@ export function BoardSurface({
             coordinates: [ring],
           } as GeoJSONGeometry)
         }}
+        onRenameSavedAoi={onRenameSavedAoi}
+        onDeleteSavedAoi={onDeleteSavedAoi}
         areas={areas}
         areaId={CURRENT_AREA}
         assetRuns={assetRuns}

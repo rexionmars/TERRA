@@ -23,7 +23,10 @@ import { useEffect, useRef, useState } from "react"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { PlotSwipeView } from "@/components/AnalysisPlotModal"
 import { classIndexFor, type ClassLegendEntry } from "@/lib/classMask"
+import { DomainShiftSection } from "@/components/DomainShiftSection"
+import { ConfusionMatrix } from "@/components/whiteboard/AgreementCharts"
 import type { LayerLegend } from "@/lib/layerLegend"
+import type { LULCAgreement, PredictResult } from "@/lib/types"
 
 export interface CompareSide {
   /** Area and layer, so a title can say which stack it came from. */
@@ -43,6 +46,18 @@ export interface CompareSide {
   legend: LayerLegend
   /** Pixel width and height are not known until the raster is decoded. */
   extentKey: string
+  /**
+   * The run behind this raster.
+   *
+   * Domain shift reads the fingerprint the run carries, not the image: the
+   * comparison is between feature distributions, and a PNG has none. Optional
+   * because a side can be a layer with no run behind it -- a reference map, an
+   * imported raster -- and the section withholds itself rather than inventing
+   * a domain for it.
+   */
+  result?: PredictResult | null
+  /** MapBiomas accuracy for this side, where the run measured it. */
+  agreement?: LULCAgreement | null
 }
 
 /** A legend usable for counting: named classes with colours that invert. */
@@ -195,7 +210,7 @@ export function BoardCompareModal({
     <ModalShell
       onDismiss={onClose}
       label="Compare two rasters"
-      className="w-[min(72rem,92vw)]"
+      className="max-h-[92vh] w-[min(72rem,92vw)]"
     >
       <ModalHeader
         eyebrow="Compare"
@@ -203,58 +218,8 @@ export function BoardCompareModal({
         onClose={onClose}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-        {!sameGround ? (
-          /*
-            No swipe across two places. What each is MADE of is comparable, so
-            the two compositions run side by side -- and where a side is not a
-            class map there is nothing to list, which the block says.
-          */
-          <div className="grid max-h-[min(58vh,34rem)] grid-cols-2 gap-4 overflow-auto">
-            {[from, to].map((s, i) => (
-              <div key={i} className="flex min-w-0 flex-col gap-2">
-                <p className="eyebrow !text-[9px] truncate">{label(s)}</p>
-                {s.legend?.kind === "classes" ? (
-                  <ul className="flex flex-col gap-1">
-                    {s.legend.entries.map((e) => (
-                      <li
-                        key={`${e.name}-${e.color}`}
-                        className="flex items-center gap-2"
-                      >
-                        <span
-                          className="size-2.5 shrink-0 rounded-[2px]"
-                          style={{
-                            background: e.color,
-                            boxShadow:
-                              "inset 0 0 0 1px rgb(var(--p-line-strong) / 0.5)",
-                          }}
-                        />
-                        <span className="min-w-0 flex-1 truncate text-meta text-foreground">
-                          {e.name}
-                        </span>
-                        {e.areaHa !== undefined && (
-                          <span className="telemetry shrink-0 text-[9px] text-muted-foreground/70">
-                            {e.areaHa.toFixed(0)} ha
-                          </span>
-                        )}
-                        {e.pct !== undefined && (
-                          <span className="telemetry w-14 shrink-0 text-right text-meta text-foreground">
-                            {e.pct.toFixed(1)}%
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-meta text-muted-foreground">
-                    Not a class map, so there is no composition to set beside
-                    the other.
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
+      <div className="panel-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        {sameGround ? (
           /*
             An explicit height, not flex-1. ModalShell sizes to its content, so
             a child asking for "one share of the remaining space" was asking for
@@ -262,28 +227,81 @@ export function BoardCompareModal({
             its agreement line and no swipe above it. The images are
             object-contain, so this box decides how large they are drawn.
           */
-          <div className="h-[min(58vh,34rem)] min-h-0 overflow-hidden rounded-md bg-surface">
-          <PlotSwipeView
-            left={{
-              id: "from",
-              title: corner(from),
-              uri: from.uri,
-              exportPngName: "",
-              pixelated: from.pixelated,
-            }}
-            right={{
-              id: "to",
-              title: corner(to),
-              uri: to.uri,
-              exportPngName: "",
-              pixelated: to.pixelated,
-            }}
-            ratio={ratio}
-            onRatioChange={setRatio}
+          <div className="h-[min(38vh,24rem)] min-h-0 overflow-hidden rounded-md bg-surface">
+            <PlotSwipeView
+              left={{
+                id: "from",
+                title: corner(from),
+                uri: from.uri,
+                exportPngName: "",
+                pixelated: from.pixelated,
+              }}
+              right={{
+                id: "to",
+                title: corner(to),
+                uri: to.uri,
+                exportPngName: "",
+                pixelated: to.pixelated,
+              }}
+              ratio={ratio}
+              onRatioChange={setRatio}
+            />
+          </div>
+        ) : null}
+
+        {/*
+          DOMAIN SHIFT IS WHAT THIS MODAL IS FOR WHEN THE GROUND DIFFERS.
+
+          What used to fill this space with two areas was the two compositions
+          side by side -- the same class list, with the same four columns and
+          the same rounding, that the right column already draws for each
+          selected plane. Two places make a swipe meaningless, so the modal had
+          nothing of its own and repeated what was visible behind it.
+
+          Distance between two feature domains is the opposite: it does not
+          exist for a single plane, and it needs the width a 15rem column
+          cannot give. Its histogram and t-SNE were being withheld under
+          `compact` in the fixed band -- present in the code, invisible in use.
+          Here they are drawn.
+        */}
+        {from.result && to.result && (
+          <DomainShiftSection
+            resultA={from.result}
+            resultB={to.result}
+            labelA={label(from)}
+            labelB={label(to)}
           />
-        </div>
         )}
 
+        {/*
+          The matrix, at a size where a cell can be read.
+
+          It leaves the right column because k x k does not fit in 15rem: it was
+          the single tallest thing there and the reason that column scrolled.
+          What it uniquely answers -- which class gets taken for which -- is a
+          cell-by-cell reading, and a grid too narrow to label its own axes
+          cannot be read that way. Here both sides sit side by side, which is
+          also the comparison the column could never show.
+        */}
+        {(from.agreement || to.agreement) && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[from, to].map((s, i) =>
+              s.agreement ? (
+                <ConfusionMatrix
+                  key={i}
+                  a={s.agreement}
+                  title={label(s)}
+                />
+              ) : (
+                <p key={i} className="text-meta text-muted-foreground">
+                  {label(s)} carries no reference comparison.
+                </p>
+              )
+            )}
+          </div>
+        )}
+
+        {sameGround && (
         <div className="flex items-start gap-4">
           <div className="flex shrink-0 flex-col gap-0.5">
             <span className="eyebrow !text-[9px]">Agreement</span>
@@ -303,6 +321,7 @@ export function BoardCompareModal({
                 : agreement.why}
           </p>
         </div>
+        )}
       </div>
     </ModalShell>
   )
