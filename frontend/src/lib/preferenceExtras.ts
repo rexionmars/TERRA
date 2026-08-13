@@ -32,6 +32,16 @@ export interface PreferenceExtras {
    * place worked on rather than at the continental default.
    */
   map_view?: { lat: number; lon: number; zoom: number }
+  /**
+   * The studio's arrangement: which workspace, and each one's area tree.
+   *
+   * A preference in the same sense `layout_mode` is, and it carries that
+   * entry's argument -- a reader who widens a column and finds it narrow again
+   * tomorrow reads it as the application having changed rather than as a
+   * setting having persisted. The board's CONTENTS are not here; those live in
+   * boardMemory, which states why they should not outlive a restart.
+   */
+  studio_layout?: import("@/lib/studioLayout").StudioLayout
 }
 
 export function parsePreferenceExtras(

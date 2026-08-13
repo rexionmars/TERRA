@@ -24,7 +24,6 @@ import {
 } from "@/lib/basemaps"
 import { useAuth, type AppScreen } from "@/lib/auth"
 import { cn } from "@/lib/utils"
-import { BOARD_LEFT_REM } from "@/lib/boardPartition"
 
 interface TitleBarProps {
   view: { lat: number; lon: number; zoom: number }
@@ -163,45 +162,19 @@ export function TitleBar({
   return (
     <header className={cn(
         "titlebar-terra app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pr-2 backdrop-blur-md",
-        // The window's traffic lights own the first 4.5rem. In the studio the
-        // brand block carries its own box instead, so the row starts at zero.
-        boardOpen ? "pl-0" : "pl-[4.5rem]"
+        // The window's traffic lights own the first 4.5rem in both states.
+        "pl-[4.5rem]"
       )}>
-      {/*
-        The row's own gap goes to zero in the studio: the brand box already
-        ends exactly at the column's edge, and a gap after it would push the
-        project switcher off that seam. Everything after the box keeps the
-        normal spacing through its own margin.
-      */}
-      <div className={cn("flex items-center", boardOpen ? "gap-0" : "gap-3")}>
+      <div className="flex items-center gap-3">
         {/*
-          In the studio the brand is centred over the left column, so the title
-          reads as that column's heading rather than as a banner beginning near
-          it.
+          Hard against the corner, clear of the traffic lights and nothing else.
 
-          A BOX THE WIDTH OF THE COLUMN, centring its own contents -- not a
-          computed padding. "TERRA" and "STUDIO" are text in two faces with
-          their own tracking, so their widths are what the font decides at
-          render time; adding up estimates put the block off-centre, which is
-          what the measurement was for. Letting the browser centre what it just
-          laid out cannot drift.
-
-          The traffic lights still own the first 4.5rem, so the box pads past
-          them and centres in what is left. Their space is not centrable and
-          pretending otherwise puts the logo underneath them.
+          It used to be a box the width of the studio's left column, centred on
+          its own contents, so the wordmark read as that column's heading. The
+          studio's Layout has no left column any more -- the viewport starts at
+          the edge -- so the box was centring over a width that is not there.
         */}
-        <div
-          style={boardOpen ? { width: `${BOARD_LEFT_REM}rem` } : undefined}
-          className={cn(
-            "flex items-center gap-2",
-            boardOpen &&
-              // The box is the studio's left column, so the brand centres over
-              // that column rather than over an unrelated width. From the
-              // partition: the two live in separate trees and a literal here
-              // was a fifth copy of the same number.
-              "justify-center pl-[4.5rem]"
-          )}
-        >
+        <div className="flex items-center gap-2">
           <img
             src="/terra-logo.png"
             alt=""
@@ -210,12 +183,7 @@ export function TitleBar({
           <span className="font-display text-sm font-semibold tracking-[0.14em]">
             TERRA
           </span>
-          {/*
-            Inside the centred box in the studio, because the pair is what is
-            being centred: left outside it, the box would centre "TERRA" alone
-            and hang "STUDIO" off its right edge -- which is the offset the
-            screenshot showed.
-          */}
+          {/* The mode, set close so "TERRA Studio" reads as one name. */}
           {boardOpen && (
             <span className="eyebrow hidden !text-foreground sm:inline">
               studio
@@ -253,10 +221,13 @@ export function TitleBar({
         <span
           className={cn("flex items-center", boardOpen && "ml-[1.8125rem]")}
         >
-          {/* Set off from the column's edge by the row's usual gap. */}
-        <span className={cn("flex items-center", boardOpen && "ml-3")}>
-          {projectSwitcher}
-        </span>
+        {/*
+          Withheld in the studio, which carries its own data-block naming the
+          board that is loaded. Two selectors on one row, each saying what is
+          open and meaning something different by it, is the ambiguity this
+          bar can least afford.
+        */}
+        {!boardOpen && projectSwitcher}
         </span>
         {run && (
           <>

@@ -118,6 +118,7 @@ import {
   Eraser,
   EyeOff,
   Filter,
+  Layers,
   Layers2,
   Link2,
   Paintbrush,
@@ -128,6 +129,14 @@ import {
 import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
+import {
+  mergePreferenceExtras,
+  parsePreferenceExtras,
+} from "@/lib/preferenceExtras"
+import {
+  parseStudioLayout,
+  serializeStudioLayout,
+} from "@/lib/studioLayout"
 import {
   STATUS_BAR_PX,
   StudioStatusBar,
@@ -370,11 +379,54 @@ export function BoardSurface({
     preset; the live tree is what the reader has done to it since, and keeping
     one tree per workspace is what lets switching tabs be reversible.
   */
-  const [workspaceId, setWorkspaceId] = useKept("workspace", DEFAULT_WORKSPACE)
+  /*
+    Seeded from preferences, kept in board memory while the studio is open, and
+    written back when it settles. The three tiers are deliberate: the
+    preference is what a restart restores, board memory is what survives a
+    glance at the map, and component state is what a render sees.
+  */
+  const { prefs, savePrefs } = useAuth()
+  const storedLayout = useMemo(
+    () => parseStudioLayout(parsePreferenceExtras(prefs?.extras_json).studio_layout),
+    [prefs?.extras_json]
+  )
+  const [workspaceId, setWorkspaceId] = useKept(
+    "workspace",
+    storedLayout.workspace ?? DEFAULT_WORKSPACE
+  )
   const [trees, setTrees] = useKept<Readonly<Record<string, StudioTree>>>(
     "trees",
-    {}
+    storedLayout.trees ?? {}
   )
+
+  /*
+    Written on a delay, because a division is dragged continuously and each
+    frame would otherwise be a round trip to the store. Long enough that a drag
+    writes once when it stops, short enough that closing the window a moment
+    later still keeps it.
+  */
+  const layoutRef = useRef({ workspaceId, trees })
+  layoutRef.current = { workspaceId, trees }
+  useEffect(() => {
+    if (!prefs) return
+    const t = window.setTimeout(() => {
+      const { workspaceId: w, trees: ts } = layoutRef.current
+      void savePrefs(
+        {
+          ...prefs,
+          extras_json: mergePreferenceExtras(prefs.extras_json, {
+            studio_layout: serializeStudioLayout(w, ts),
+          }),
+        },
+        // Silent: an arrangement is not an action a reader took by name, and a
+        // toast for every column drag would be the loudest thing in the studio.
+        { silent: true }
+      ).catch(() => {
+        /* best-effort, as the other preference writers are */
+      })
+    }, 800)
+    return () => window.clearTimeout(t)
+  }, [workspaceId, trees, prefs, savePrefs])
   /*
     The arrangement a maximise replaced, so the same keystroke puts it back.
     Without it, maximising would be a join that destroyed the workspace.
@@ -2265,14 +2317,24 @@ export function BoardSurface({
         <div
           className="flex min-w-0 max-w-[26rem] items-center gap-1.5"
         >
-          <div className="min-w-0">
-            <p className="eyebrow !text-foreground">
-              {savedName ?? "Whiteboard"}
-            </p>
-            <p className="mt-0.5 truncate text-emphasis text-muted-foreground">
-              {title}
-            </p>
-          </div>
+          {/*
+            One line, like Blender's Scene and ViewLayer blocks.
+
+            It was a name stacked over a subtitle, which is a shape for a
+            heading and not for a 28px strip: the two lines were clipped to
+            about a line and a half and read as broken text. What a data-block
+            shows is WHICH one is loaded; the rest is the title attribute.
+          */}
+          <span
+            className="flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta"
+            style={{ background: "rgb(var(--p-surface-raised))" }}
+            title={savedName ? `${savedName} — ${title}` : title}
+          >
+            <Layers className="size-3 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            <span className="truncate text-foreground">
+              {savedName ?? title}
+            </span>
+          </span>
           {/*
             Saving names the board. Unnamed it asks for one; named it writes over
             itself, because a second copy of the same work under the same name is
