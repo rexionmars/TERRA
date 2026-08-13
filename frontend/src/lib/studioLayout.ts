@@ -31,6 +31,14 @@ export interface StudioLayout {
   workspace?: string
   /** The live arrangement per workspace, as the reader left it. */
   trees?: Record<string, StudioTree>
+  /**
+   * Which pane each area's editor was left on, keyed `areaId:editorId`.
+   *
+   * Part of the arrangement rather than of the work: two outliners set to
+   * different panes is a layout decision, and Blender keeps exactly this in
+   * the file -- a per-area record of every editor that has occupied the space.
+   */
+  modes?: Record<string, string>
 }
 
 const KNOWN_EDITORS = new Set<string>(STUDIO_EDITORS.map((e) => e.id))
@@ -79,6 +87,17 @@ export function parseStudioLayout(value: unknown): StudioLayout {
     out.workspace = raw.workspace
   }
 
+  if (raw.modes && typeof raw.modes === "object") {
+    const modes: Record<string, string> = {}
+    for (const [k, v] of Object.entries(raw.modes as object)) {
+      // Strings only. The editor that reads one falls back on a value it does
+      // not recognise, which is the same defaulting-by-exception the rest of
+      // this file uses.
+      if (typeof v === "string") modes[k] = v
+    }
+    if (Object.keys(modes).length) out.modes = modes
+  }
+
   if (raw.trees && typeof raw.trees === "object") {
     const trees: Record<string, StudioTree> = {}
     for (const [id, tree] of Object.entries(raw.trees as object)) {
@@ -118,11 +137,12 @@ export function serializeStudioTree(tree: AreaNode<EditorId>): StudioTree {
 
 export function serializeStudioLayout(
   workspace: string,
-  trees: Readonly<Record<string, AreaNode<EditorId>>>
+  trees: Readonly<Record<string, AreaNode<EditorId>>>,
+  modes: Readonly<Record<string, string>> = {}
 ): StudioLayout {
   const out: Record<string, StudioTree> = {}
   for (const [id, tree] of Object.entries(trees)) {
     if (KNOWN_WORKSPACES.has(id)) out[id] = serializeStudioTree(tree)
   }
-  return { workspace, trees: out }
+  return { workspace, trees: out, modes: { ...modes } }
 }

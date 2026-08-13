@@ -87,6 +87,7 @@ import {
   type AreaId,
 } from "@/lib/boardAreas"
 import { STUDIO_EDITORS, type EditorId } from "@/lib/studioEditors"
+import type { LucideIcon } from "lucide-react"
 import {
   DEFAULT_WORKSPACE,
   studioWorkspace,
@@ -404,22 +405,45 @@ export function BoardSurface({
   )
 
   /*
+    THE OUTLINER'S PANE, PER AREA.
+
+    It was one value for the whole studio, so two outliners could not differ:
+    putting one on Scene and the other on Data set both to Data. An editor's
+    state belongs to the AREA that holds it -- Blender keeps exactly this, a
+    per-area record of every editor that has occupied the space, which is also
+    why retyping away and back returns to the pane you left.
+
+    Keyed by area and editor for that second reason: an area that becomes a
+    properties column and later an outliner again finds its own pane, not the
+    one some other area was last left on.
+  */
+  const [areaModes, setAreaModes] = useKept<Readonly<Record<string, OutlinerMode>>>(
+    "areaModes",
+    (storedLayout.modes as Record<string, OutlinerMode>) ?? {}
+  )
+  const modeKey = (areaId: AreaId) => `${areaId}:outliner`
+  const modeOf = (areaId: AreaId): OutlinerMode =>
+    areaModes[modeKey(areaId)] ?? "scene"
+  const setModeOf = (areaId: AreaId, m: OutlinerMode) =>
+    setAreaModes((prev) => ({ ...prev, [modeKey(areaId)]: m }))
+
+  /*
     Written on a delay, because a division is dragged continuously and each
     frame would otherwise be a round trip to the store. Long enough that a drag
     writes once when it stops, short enough that closing the window a moment
     later still keeps it.
   */
-  const layoutRef = useRef({ workspaceId, trees })
-  layoutRef.current = { workspaceId, trees }
+  const layoutRef = useRef({ workspaceId, trees, areaModes })
+  layoutRef.current = { workspaceId, trees, areaModes }
   useEffect(() => {
     if (!prefs) return
     const t = window.setTimeout(() => {
-      const { workspaceId: w, trees: ts } = layoutRef.current
+      const { workspaceId: w, trees: ts, areaModes: ms } = layoutRef.current
       void savePrefs(
         {
           ...prefs,
           extras_json: mergePreferenceExtras(prefs.extras_json, {
-            studio_layout: serializeStudioLayout(w, ts),
+            studio_layout: serializeStudioLayout(w, ts, ms),
           }),
         },
         // Silent: an arrangement is not an action a reader took by name, and a
@@ -430,7 +454,7 @@ export function BoardSurface({
       })
     }, 800)
     return () => window.clearTimeout(t)
-  }, [workspaceId, trees, prefs, savePrefs])
+  }, [workspaceId, trees, areaModes, prefs, savePrefs])
   /*
     The arrangement a maximise replaced, so the same keystroke puts it back.
     Without it, maximising would be a join that destroyed the workspace.
@@ -1321,7 +1345,6 @@ export function BoardSurface({
   }, [areas.map((a) => a.id).join("|")])
 
 
-  const [mode, setMode] = useKept<OutlinerMode>("mode", "scene")
   const [activeAsset, setActiveAsset] = useState<string | null>(null)
   const toggleExpanded = (id: string) =>
     setExpanded((prev) => {
@@ -1717,15 +1740,31 @@ export function BoardSurface({
     pane used to be two gestures -- become an outliner, then find the tab --
     and a reader knows which pane they want when they pick the editor.
 
-    The same state the pane's own tabs read and write, not a copy: both call
-    setMode, so they cannot disagree about which is open.
+    Bound to the area that opened the menu, so the pane's own tablist and this
+    entry write the same value for THAT area and no other. One owner per area
+    rather than one owner for the studio, which is what let two outliners
+    disagree about their panes -- and what stopped them being able to.
   */
-  const editorModes: Partial<Record<EditorId, StudioEditorMode[]>> = {
-    outliner: [
-      { id: "scene", label: "Scene", icon: Layers, active: mode === "scene", select: () => setMode("scene") },
-      { id: "data", label: "Data", icon: ImageIcon, active: mode === "data", select: () => setMode("data") },
-      { id: "areas", label: "Areas", icon: Pentagon, active: mode === "areas", select: () => setMode("areas") },
-    ],
+  const editorModesFor = (
+    areaId: AreaId
+  ): Partial<Record<EditorId, StudioEditorMode[]>> => {
+    const here = modeOf(areaId)
+    const pane = (id: OutlinerMode, label: string, icon: LucideIcon) => ({
+      id,
+      label,
+      icon,
+      active: here === id,
+      // Bound to THIS area, so choosing a pane in one outliner leaves the
+      // other where it was.
+      select: () => setModeOf(areaId, id),
+    })
+    return {
+      outliner: [
+        pane("scene", "Scene", Layers),
+        pane("data", "Data", ImageIcon),
+        pane("areas", "Areas", Pentagon),
+      ],
+    }
   }
 
   const headerSlots: Partial<Record<EditorId, AreaHeaderSlots>> = {
@@ -1900,7 +1939,17 @@ export function BoardSurface({
     component has them. A registry wide enough to pass them all would be a
     second copy of this component's state.
   */
-  const editorNodes: Partial<Record<EditorId, React.ReactNode>> = {
+  /*
+    A FUNCTION OF THE AREA, not a table.
+
+    It was one node per editor, reused in every area that held it -- so the
+    outliner's props came from one place and two of them could not show
+    different panes. An editor's props depend on WHICH area is drawing it,
+    which is what the argument is for.
+  */
+  const renderEditor = (
+    areaId: AreaId
+  ): Partial<Record<EditorId, React.ReactNode>> => ({
     outliner: (
           <BoardSidebar
             areaInfo={areaInfo}
@@ -1940,8 +1989,8 @@ export function BoardSurface({
             onRemoveFromScene={removeFromScene}
             names={names}
             onRename={renameRow}
-            mode={mode}
-            onModeChange={setMode}
+            mode={modeOf(areaId)}
+            onModeChange={(m) => setModeOf(areaId, m)}
             activeAsset={activeAsset}
             onActivateAsset={setActiveAsset}
             onSelectComposition={onSelectComposition}
@@ -2041,7 +2090,7 @@ export function BoardSurface({
             compareError={predCompareError}
           />
     ) : null,
-  }
+  })
 
 
   return (
@@ -2468,7 +2517,7 @@ export function BoardSurface({
             transparent={editor === "viewport"}
             maximized={!!restoreTree[workspaceId]}
             slots={headerSlots[editor]}
-            modes={editorModes}
+            modes={editorModesFor(id)}
             onRetype={(next) => setTree(retypeArea(tree, id, next))}
             onSplit={(dir) => setTree(splitArea(tree, id, dir, "properties"))}
             onClose={() => setTree(joinArea(tree, id))}
@@ -2483,7 +2532,7 @@ export function BoardSurface({
               }
             }}
           >
-            {editorNodes[editor] ?? null}
+            {renderEditor(id)[editor] ?? null}
           </StudioArea>
         )}
       />
