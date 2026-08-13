@@ -11,7 +11,7 @@
  */
 import { ChevronDown, Paintbrush, Sun, Layers } from "lucide-react"
 import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import {
   ContinuousRamp,
   PowerProvenanceNote,
@@ -21,6 +21,8 @@ import {
   CoverChipList,
   SkyViewFigures,
 } from "@/components/solar/SolarDetailFigures"
+import { AgreementDelta } from "@/components/whiteboard/AgreementCharts"
+import { PlotSwipeView } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import type { BrushRadiusPx, ClassMapCompare, ClassProbeSample } from "@/lib/boardProbe"
 import type {
@@ -490,6 +492,8 @@ export interface PredictionCompareSide {
   period?: string | null
   result: PredictResult
   uri: string
+  /** Class maps are drawn unfiltered; a bilinear sample invents a class. */
+  pixelated?: boolean
 }
 
 function PredictionCompareBody({
@@ -504,8 +508,15 @@ function PredictionCompareBody({
   compact?: boolean
 }) {
   const [a, b] = sides
+  // Where the divider stands. Local, because it is a way of looking rather
+  // than a property of either raster.
+  const [swipe, setSwipe] = useState(0.5)
   const statsA = a.result.class_stats ?? []
   const statsB = b.result.class_stats ?? []
+  // Present only where the run was measured against a reference; a run with no
+  // MapBiomas cells behind it has nothing to be more or less accurate than.
+  const agreementA = a.result.lulc?.agreement ?? null
+  const agreementB = b.result.lulc?.agreement ?? null
   const byIdB = new Map(statsB.map((c) => [c.class_id, c]))
 
   return (
@@ -562,6 +573,48 @@ function PredictionCompareBody({
         )}
       </div>
 
+      {/*
+        THE SWIPE, where the two cover the same ground.
+
+        It lived in a dialog that covered the board the arrow was pointing at,
+        which is the contradiction the compare editor was made to end. Here it
+        sits beside what it is being read against: slide it and the figures to
+        its right do not move.
+
+        Only with `compare`, which is non-null exactly when the two rasters
+        share a grid -- sliding one footprint over another puts unrelated
+        pixels in one rectangle and invites reading a difference that is only
+        two different fields.
+      */}
+      {compare && (
+        <div
+          className={cn(
+            "min-h-0 overflow-hidden rounded-sm",
+            compact ? "aspect-[4/3] h-full shrink-0" : "h-[18rem] w-full"
+          )}
+          style={{ background: "rgb(var(--p-surface))" }}
+        >
+          <PlotSwipeView
+            left={{
+              id: "a",
+              title: sides[0].label,
+              uri: sides[0].uri,
+              exportPngName: "",
+              pixelated: sides[0].pixelated ?? true,
+            }}
+            right={{
+              id: "b",
+              title: sides[1].label,
+              uri: sides[1].uri,
+              exportPngName: "",
+              pixelated: sides[1].pixelated ?? true,
+            }}
+            ratio={swipe}
+            onRatioChange={setSwipe}
+          />
+        </div>
+      )}
+
       {compare && (
         <div className={cn(compact && "shrink-0")}>
           <CompactMatrix
@@ -579,6 +632,28 @@ function PredictionCompareBody({
               color: e.color,
             }))}
             matrix={compare.transitions}
+          />
+        </div>
+      )}
+
+      {/*
+        Which of the two gets a class right, which is the question a reader
+        opens this editor to ask and the one nothing here answered. Both runs
+        already carried it: a producer's and a user's accuracy per class,
+        measured against MapBiomas. Reading them against each other meant
+        opening one run, remembering, and opening the other.
+
+        Offered wherever BOTH were measured, same ground or not: two areas
+        classified by one model is exactly the comparison this studio exists
+        for, and it needs no shared pixels.
+      */}
+      {agreementA && agreementB && (
+        <div className={cn(compact && "w-[16rem] shrink-0")}>
+          <AgreementDelta
+            a={agreementA}
+            b={agreementB}
+            labelA={sides[0].label}
+            labelB={sides[1].label}
           />
         </div>
       )}

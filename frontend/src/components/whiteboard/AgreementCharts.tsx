@@ -25,6 +25,7 @@
  * where there is width for axes and a histogram, is where the library earns its
  * place.
  */
+import { cn } from "@/lib/utils"
 import type { LULCAgreement, LULCClassAccuracy } from "@/lib/types"
 
 /**
@@ -496,5 +497,202 @@ export function ConfusionMatrix({
         </table>
       </div>
     </div>
+  )
+}
+
+/**
+ * How two runs classify the same legend, against each other.
+ *
+ * THE COMPARISON THAT WAS MISSING. The compare editor drew two identity
+ * blocks, a share delta and, where the grids allowed it, a transition matrix.
+ * None of those answers the question a reader compares two runs to ask: which
+ * of them gets a class right, and which class does the other lose.
+ *
+ * Both sides already carry it. A run measured against MapBiomas has a
+ * producer's and a user's accuracy per class, with Wilson intervals, and the
+ * quantity/allocation split over the whole map. Reading the two side by side
+ * is possible today only by opening one run, remembering, and opening the
+ * other.
+ *
+ * A DELTA, NOT TWO READINGS. Two dot-and-whisker figures stacked leave the
+ * subtraction to the reader, and the subtraction is the whole question. In
+ * percentage points, B minus A, which is the vocabulary the share delta beside
+ * it already uses -- so the two figures in this editor are read the same way.
+ *
+ * Classes only one side measured are listed and left blank rather than dropped:
+ * a class B found and A did not is a finding, and a row that vanishes hides it.
+ */
+export function AgreementDelta({
+  a,
+  b,
+  labelA,
+  labelB,
+}: {
+  a: LULCAgreement
+  b: LULCAgreement
+  labelA: string
+  labelB: string
+}) {
+  /*
+    Paired by class id, not by position. `per_class` is ordered by the legend
+    each run carried, and two runs of different areas do not carry the same
+    classes in the same order -- pairing by index would compare soy against
+    pasture and report it as a fall.
+  */
+  const byId = new Map(b.per_class.map((c) => [c.class_id, c]))
+  const rows = a.per_class
+    .map((ca) => ({ ca, cb: byId.get(ca.class_id) ?? null }))
+    // Present in one and not the other is kept; present in neither cannot be.
+    .filter((r) => r.ca.producers_pct != null || r.ca.users_pct != null || r.cb)
+  const onlyB = b.per_class.filter(
+    (cb) => !a.per_class.some((ca) => ca.class_id === cb.class_id)
+  )
+
+  const delta = (x?: number | null, y?: number | null) =>
+    typeof x === "number" && typeof y === "number" ? y - x : null
+
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-2">
+      <div className="flex flex-col gap-0.5">
+        <p className="eyebrow !text-[9px]">Accuracy delta (A &rarr; B)</p>
+        <p className="telemetry truncate text-[9px] text-muted-foreground">
+          {labelA} &rarr; {labelB}
+        </p>
+      </div>
+
+      {/*
+        The whole-map figures first. Overall says whether B agrees with the
+        reference more often; quantity and allocation say whether a change in
+        it came from finding a different AMOUNT of a class or the same amount
+        in different PLACES -- which is the distinction Pontius & Millones
+        propose the split for, and it is what tells a model change from a
+        registration one.
+      */}
+      <div className="grid grid-cols-3 gap-2">
+        <DeltaFigure label="Overall" value={delta(a.overall_pct, b.overall_pct)} />
+        <DeltaFigure
+          label="Quantity"
+          value={delta(a.quantity_disagreement_pct, b.quantity_disagreement_pct)}
+          // Less disagreement is better, so the sign that reads as good is the
+          // opposite of the one above it.
+          betterWhenLower
+        />
+        <DeltaFigure
+          label="Allocation"
+          value={delta(
+            a.allocation_disagreement_pct,
+            b.allocation_disagreement_pct
+          )}
+          betterWhenLower
+        />
+      </div>
+
+      <ul className="flex flex-col gap-0.5">
+        {rows.map(({ ca, cb }) => (
+          <li key={ca.class_id} className="flex items-baseline gap-1.5">
+            <span
+              className="size-1.5 shrink-0 translate-y-px"
+              style={{ backgroundColor: ca.color }}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+              {ca.name}
+            </span>
+            <DeltaCell
+              value={delta(ca.producers_pct, cb?.producers_pct)}
+              title={`Producer's: ${fmtPct(ca.producers_pct)} → ${fmtPct(cb?.producers_pct)}`}
+            />
+            <DeltaCell
+              value={delta(ca.users_pct, cb?.users_pct)}
+              title={`User's: ${fmtPct(ca.users_pct)} → ${fmtPct(cb?.users_pct)}`}
+            />
+          </li>
+        ))}
+        {onlyB.map((cb) => (
+          <li key={`b-${cb.class_id}`} className="flex items-baseline gap-1.5">
+            <span
+              className="size-1.5 shrink-0 translate-y-px"
+              style={{ backgroundColor: cb.color }}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+              {cb.name}
+            </span>
+            <span
+              className="telemetry w-[3.25rem] shrink-0 text-right text-[9px] text-muted-foreground"
+              title={`Only ${labelB} measured this class`}
+            >
+              only B
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {/* The key, said once: which column is which accuracy. */}
+      <p className="telemetry flex items-baseline justify-end gap-1.5 text-[9px] text-muted-foreground">
+        <span className="w-[3.25rem] text-right">prod.</span>
+        <span className="w-[3.25rem] text-right">user&apos;s</span>
+      </p>
+    </div>
+  )
+}
+
+function fmtPct(v?: number | null): string {
+  return typeof v === "number" ? `${v.toFixed(1)}%` : "not measured"
+}
+
+/** A headline delta, signed and coloured by which direction is an improvement. */
+function DeltaFigure({
+  label,
+  value,
+  betterWhenLower,
+}: {
+  label: string
+  value: number | null
+  betterWhenLower?: boolean
+}) {
+  const good = value == null ? null : betterWhenLower ? value < 0 : value > 0
+  return (
+    <div className="min-w-0">
+      <div className="eyebrow !text-[9px]">{label}</div>
+      <div
+        className={cn(
+          "telemetry mt-0.5 truncate text-sm tabular-nums",
+          value == null
+            ? "text-muted-foreground"
+            : Math.abs(value) < 0.05
+              ? "text-foreground"
+              : good
+                ? "text-emerald-400"
+                : "text-rose-400"
+        )}
+      >
+        {value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
+        {value != null && (
+          <span className="text-[9px] text-muted-foreground"> pp</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** One per-class delta, in the same units and colours as the share delta. */
+function DeltaCell({ value, title }: { value: number | null; title: string }) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        "telemetry w-[3.25rem] shrink-0 text-right text-[9px] tabular-nums",
+        value == null
+          ? "text-muted-foreground/50"
+          : Math.abs(value) < 0.05
+            ? "text-muted-foreground"
+            : value > 0
+              ? "text-emerald-400"
+              : "text-rose-400"
+      )}
+    >
+      {value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
+    </span>
   )
 }

@@ -1408,6 +1408,11 @@ export function BoardSurface({
       const uri = g?.cards.find((c) => c.id === "prediction")?.uri
       if (!result || !uri) return null
       const run = assetRuns.find((r) => r.areaId === pick.areaId)
+      // From the area's own layer, not the scene card: the card carries what
+      // is DRAWN and the layer carries how it is to be sampled.
+      const layer = areas
+        .find((a) => a.id === pick.areaId)
+        ?.layers.find((l) => l.id === "prediction")
       sides.push({
         areaId: pick.areaId,
         label: areas.find((a) => a.id === pick.areaId)?.title ?? pick.areaId,
@@ -1415,6 +1420,7 @@ export function BoardSurface({
         period: run?.period,
         result,
         uri,
+        pixelated: layer?.pixelated,
       })
     }
     if (sides.length !== 2) return null
