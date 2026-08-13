@@ -269,26 +269,70 @@ export function DomainShiftSection({
               value={fmt(report.kl_ndvi)}
               sub="sym. histogram divergence"
             />
+            {/*
+              The standardised magnitude leads where it exists. The raw one is
+              measured in reflectance units mixed with acquisition indices, and
+              on the shipped model six index features carried 99.7% of the raw
+              squared distance while the sixteen reflectance features carried
+              none -- so the raw figure mostly reports when the scenes were
+              taken, not how the ground differs.
+            */}
             <WaterFigure
-              label="CVA |M|"
-              value={fmt(report.cva_magnitude)}
+              label={report.cva_magnitude_sd != null ? "CVA |M| (SD)" : "CVA |M|"}
+              value={fmt(report.cva_magnitude_sd ?? report.cva_magnitude)}
               sub={
                 report.cva_angle_red_nir_deg != null
-                  ? `ϕ ${fmt(report.cva_angle_red_nir_deg, 0)}° red–NIR`
-                  : "mean feature L2"
+                  ? `\u03d5 ${fmt(report.cva_angle_red_nir_deg, 0)}\u00b0 red\u2013NIR`
+                  : report.cva_magnitude_sd != null
+                    ? "training standard deviations"
+                    : "mean feature L2, unstandardised"
+              }
+            />
+            {/*
+              MMD is not comparable across bandwidths, so the gamma the median
+              heuristic chose is reported with it rather than dropped.
+            */}
+            <WaterFigure
+              label="MMD\u00b2"
+              value={fmt(report.mmd_rbf?.mmd2)}
+              sub={
+                report.mmd_rbf?.gamma != null
+                  ? `RBF, \u03b3 ${fmt(report.mmd_rbf.gamma, 3)}, n ${report.mmd_rbf.n_a}/${report.mmd_rbf.n_b}`
+                  : "not computed"
               }
             />
             <WaterFigure
-              label="MMD"
-              value={fmt(report.mmd_linear)}
-              sub="linear kernel"
-            />
-            <WaterFigure
               label="Spaces"
-              value={`${report.space_a ?? "—"} / ${report.space_b ?? "—"}`}
+              value={`${report.space_a ?? "\u2014"} / ${report.space_b ?? "\u2014"}`}
               sub="fingerprint kind"
             />
           </div>
+
+          {/*
+            The qualifier, stated rather than implied by a dash.
+
+            Both refusals produce a report with distances in it, and those
+            distances mean different things -- or nothing. Comparing an
+            80-feature spectral fingerprint against a one-column NDVI one is a
+            number from two different quantities; comparing without the
+            training scaler is a number in mixed units. Saying so is the
+            difference between a missing figure and a misleading one.
+          */}
+          {report.same_space === false ? (
+            <p className="mt-2 text-[10px] leading-snug text-amber-500/90">
+              These fingerprints describe different feature spaces
+              ({report.space_a ?? "?"} against {report.space_b ?? "?"}). The
+              distances above are computed from quantities that are not the
+              same, and are not comparable.
+            </p>
+          ) : report.standardised === false ? (
+            <p className="mt-2 text-[10px] leading-snug text-amber-500/90">
+              Not standardised: one of the runs carries no training scaler, so
+              the distances are in raw feature units. On this model the
+              acquisition-index features dominate a raw distance, so the figures
+              above describe acquisition more than ground.
+            </p>
+          ) : null}
 
           {(report.agreement_a || report.agreement_b) && !compact && (
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -311,6 +355,71 @@ export function DomainShiftSection({
                 label={`${labelB} F1`}
                 value={fmt(report.agreement_b?.macro_f1)}
               />
+            </div>
+          )}
+
+          {/*
+            Where the shift is, not only how large it is.
+
+            A scalar distance says two domains differ and gives the analyst
+            nothing to act on. This says which features moved, by how many
+            training standard deviations, and whether the forest weighs them --
+            a large displacement in a feature of negligible importance is not
+            the same finding as a small one in a feature the model leans on,
+            and the two are indistinguishable in any single number.
+
+            Sorted by displacement, as the sidecar returns it. `weighted` is
+            the product of the two, which is the column to read when deciding
+            whether the shift reaches the prediction.
+          */}
+          {!compact && report.feature_shift && report.feature_shift.length > 0 && (
+            <div className="mt-4">
+              <p className="eyebrow mb-2">
+                Feature shift \u00b7 top {report.feature_shift.length} by displacement
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-[10px]">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="py-1 pr-2 font-normal">Feature</th>
+                      <th className="py-1 pr-2 text-right font-normal">z(A)</th>
+                      <th className="py-1 pr-2 text-right font-normal">z(B)</th>
+                      <th className="py-1 pr-2 text-right font-normal">gap (SD)</th>
+                      <th className="py-1 pr-2 text-right font-normal">importance</th>
+                      <th className="py-1 text-right font-normal">weighted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.feature_shift.map((r) => (
+                      <tr
+                        key={r.feature}
+                        className="border-t"
+                        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
+                      >
+                        <td className="telemetry py-1 pr-2 text-foreground">
+                          {r.feature}
+                        </td>
+                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-muted-foreground">
+                          {fmt(r.z_a, 2)}
+                        </td>
+                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-muted-foreground">
+                          {fmt(r.z_b, 2)}
+                        </td>
+                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-foreground">
+                          {r.gap_sd > 0 ? "+" : ""}
+                          {fmt(r.gap_sd, 2)}
+                        </td>
+                        <td className="telemetry py-1 pr-2 text-right tabular-nums text-muted-foreground">
+                          {r.importance == null ? "\u2014" : fmt(r.importance, 4)}
+                        </td>
+                        <td className="telemetry py-1 text-right tabular-nums text-foreground">
+                          {fmt(r.weighted, 4)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

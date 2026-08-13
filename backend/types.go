@@ -329,16 +329,16 @@ type sidecarResult struct {
 	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
 	// approaches zero. Without it the figure reads on a 0-100 scale it does
 	// not occupy. Zero when the class count was unavailable.
-	ConfidenceFloor float64               `json:"confidence_floor,omitempty"`
-	NDates          int                   `json:"n_dates"`
-	DateRange       []string              `json:"date_range"`
-	ClassStats      []ClassStat           `json:"class_stats"`
-	Temporal        []TemporalPoint       `json:"temporal"`
-	VISeries        []VISeriesPoint       `json:"vi_series"`
-	Phenology       PhenologyMetrics      `json:"phenology"`
-	PhenologyStates []PhenologyStatePoint `json:"phenology_states"`
-	LULC            *lulcSidecarPayload   `json:"lulc"`
-	DomainFingerprint *DomainFingerprint  `json:"domain_fingerprint,omitempty"`
+	ConfidenceFloor   float64               `json:"confidence_floor,omitempty"`
+	NDates            int                   `json:"n_dates"`
+	DateRange         []string              `json:"date_range"`
+	ClassStats        []ClassStat           `json:"class_stats"`
+	Temporal          []TemporalPoint       `json:"temporal"`
+	VISeries          []VISeriesPoint       `json:"vi_series"`
+	Phenology         PhenologyMetrics      `json:"phenology"`
+	PhenologyStates   []PhenologyStatePoint `json:"phenology_states"`
+	LULC              *lulcSidecarPayload   `json:"lulc"`
+	DomainFingerprint *DomainFingerprint    `json:"domain_fingerprint,omitempty"`
 }
 
 // lulcSidecarPayload is the raw LULC block from Python (map as file path).
@@ -428,16 +428,51 @@ type DomainRedNIR struct {
 
 // DomainFingerprint is a compact per-run summary of the feature domain.
 type DomainFingerprint struct {
-	Space     string          `json:"space"`
-	NFeatures int             `json:"n_features"`
-	NPixels   int             `json:"n_pixels"`
-	NSample   int             `json:"n_sample"`
-	Mean      []float64       `json:"mean"`
-	Var       []float64       `json:"var"`
-	NDVIHist  *DomainHistogram `json:"ndvi_hist,omitempty"`
-	RedNIR    *DomainRedNIR   `json:"red_nir,omitempty"`
+	Space     string    `json:"space"`
+	NFeatures int       `json:"n_features"`
+	NPixels   int       `json:"n_pixels"`
+	NSample   int       `json:"n_sample"`
+	Mean      []float64 `json:"mean"`
+	Var       []float64 `json:"var"`
+	// In training standard deviations, from the model's own scaler.
+	//
+	// These decide whether a comparison can be standardised at all: the
+	// sidecar refuses to standardise when either side lacks them, and an
+	// unstandardised distance is dominated by the acquisition-index features,
+	// which measured 99.7% of the raw squared distance on the shipped model.
+	// A struct that omitted them stripped the fingerprint in transit, so the
+	// comparison always took the refusing branch however the run was made.
+	ZMean              []float64        `json:"z_mean,omitempty"`
+	ZVar               []float64        `json:"z_var,omitempty"`
+	FeatureNames       []string         `json:"feature_names,omitempty"`
+	FeatureImportances []float64        `json:"feature_importances,omitempty"`
+	NDVIHist           *DomainHistogram `json:"ndvi_hist,omitempty"`
+	RedNIR             *DomainRedNIR    `json:"red_nir,omitempty"`
 	// Subsample of feature rows for MMD / PCA (capped at classify time).
 	Sample [][]float64 `json:"sample,omitempty"`
+}
+
+// DomainShiftMMD carries the kernel two-sample statistic and its bandwidth.
+//
+// An object rather than a scalar because the estimate is not readable without
+// the sample sizes it was computed from and the bandwidth the median heuristic
+// chose: MMD is not comparable across different gammas.
+type DomainShiftMMD struct {
+	MMD2  *float64 `json:"mmd2,omitempty"`
+	Gamma *float64 `json:"gamma,omitempty"`
+	NA    int      `json:"n_a"`
+	NB    int      `json:"n_b"`
+}
+
+// DomainFeatureShift is one row of the per-feature displacement table.
+type DomainFeatureShift struct {
+	Feature string  `json:"feature"`
+	ZA      float64 `json:"z_a"`
+	ZB      float64 `json:"z_b"`
+	GapSD   float64 `json:"gap_sd"`
+	// Impurity importance from the fitted forest; absent for other spaces.
+	Importance *float64 `json:"importance,omitempty"`
+	Weighted   float64  `json:"weighted"`
 }
 
 // DomainShiftRequest compares two cached fingerprints (optional agreements).
@@ -464,30 +499,43 @@ type DomainShiftProjection struct {
 
 // DomainShiftAgreementBlock summarises MapBiomas concordance + F1 for one side.
 type DomainShiftAgreementBlock struct {
-	Label                       string    `json:"label"`
-	OverallPct                  *float64  `json:"overall_pct,omitempty"`
-	NOutsideLegend              int       `json:"n_outside_legend"`
-	OutsideLegendPct            *float64  `json:"outside_legend_pct,omitempty"`
-	QuantityDisagreementPct     *float64  `json:"quantity_disagreement_pct,omitempty"`
-	AllocationDisagreementPct   *float64  `json:"allocation_disagreement_pct,omitempty"`
-	MacroF1                     *float64  `json:"macro_f1,omitempty"`
+	Label                     string   `json:"label"`
+	OverallPct                *float64 `json:"overall_pct,omitempty"`
+	NOutsideLegend            int      `json:"n_outside_legend"`
+	OutsideLegendPct          *float64 `json:"outside_legend_pct,omitempty"`
+	QuantityDisagreementPct   *float64 `json:"quantity_disagreement_pct,omitempty"`
+	AllocationDisagreementPct *float64 `json:"allocation_disagreement_pct,omitempty"`
+	MacroF1                   *float64 `json:"macro_f1,omitempty"`
 }
 
 // DomainShiftReport is the diagnosis payload returned by AnalyzeDomainShift.
 type DomainShiftReport struct {
-	SpaceA              string                     `json:"space_a,omitempty"`
-	SpaceB              string                     `json:"space_b,omitempty"`
-	KLNDVI              *float64                   `json:"kl_ndvi,omitempty"`
-	KLNDVIAToB          *float64                   `json:"kl_ndvi_a_to_b,omitempty"`
-	KLNDVIBToA          *float64                   `json:"kl_ndvi_b_to_a,omitempty"`
-	CVAMagnitude        *float64                   `json:"cva_magnitude,omitempty"`
-	CVAAngleRedNIRDeg   *float64                   `json:"cva_angle_red_nir_deg,omitempty"`
-	MMDLinear           *float64                   `json:"mmd_linear,omitempty"`
-	NDVIHistA           *DomainHistogram           `json:"ndvi_hist_a,omitempty"`
-	NDVIHistB           *DomainHistogram           `json:"ndvi_hist_b,omitempty"`
-	AgreementA          *DomainShiftAgreementBlock `json:"agreement_a,omitempty"`
-	AgreementB          *DomainShiftAgreementBlock `json:"agreement_b,omitempty"`
-	Projection          *DomainShiftProjection     `json:"projection,omitempty"`
+	SpaceA     string   `json:"space_a,omitempty"`
+	SpaceB     string   `json:"space_b,omitempty"`
+	KLNDVI     *float64 `json:"kl_ndvi,omitempty"`
+	KLNDVIAToB *float64 `json:"kl_ndvi_a_to_b,omitempty"`
+	KLNDVIBToA *float64 `json:"kl_ndvi_b_to_a,omitempty"`
+	// Whether the two fingerprints describe the same feature space, and
+	// whether both carried the scaler moments needed to standardise. Every
+	// distance below is unqualified without them: an 80-feature spectral
+	// fingerprint compared against a one-column NDVI fingerprint produces a
+	// number from two different quantities.
+	SameSpace    bool     `json:"same_space"`
+	Standardised bool     `json:"standardised"`
+	CVAMagnitude *float64 `json:"cva_magnitude,omitempty"`
+	// The same magnitude in training standard deviations, which is the figure
+	// to read; the raw one is dominated by acquisition-index features.
+	CVAMagnitudeSD    *float64        `json:"cva_magnitude_sd,omitempty"`
+	CVAAngleRedNIRDeg *float64        `json:"cva_angle_red_nir_deg,omitempty"`
+	MMDRBF            *DomainShiftMMD `json:"mmd_rbf,omitempty"`
+	// Where the shift is, by feature. A distance says the domains differ;
+	// this says which features moved and whether the model weighs them.
+	FeatureShift []DomainFeatureShift       `json:"feature_shift,omitempty"`
+	NDVIHistA    *DomainHistogram           `json:"ndvi_hist_a,omitempty"`
+	NDVIHistB    *DomainHistogram           `json:"ndvi_hist_b,omitempty"`
+	AgreementA   *DomainShiftAgreementBlock `json:"agreement_a,omitempty"`
+	AgreementB   *DomainShiftAgreementBlock `json:"agreement_b,omitempty"`
+	Projection   *DomainShiftProjection     `json:"projection,omitempty"`
 }
 
 // ProgressEvent is emitted to the frontend as "predict:progress".

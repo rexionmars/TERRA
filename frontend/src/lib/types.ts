@@ -276,9 +276,46 @@ export interface DomainFingerprint {
   n_sample: number
   mean: number[]
   var: number[]
+  /**
+   * In training standard deviations, from the model's own scaler.
+   *
+   * These decide whether a comparison can be standardised at all. Their
+   * absence is what makes the sidecar refuse, and an unstandardised distance
+   * is dominated by acquisition-index features rather than by reflectance.
+   */
+  z_mean?: number[] | null
+  z_var?: number[] | null
+  feature_names?: string[] | null
+  feature_importances?: number[] | null
   ndvi_hist?: DomainHistogram | null
   red_nir?: DomainRedNIR | null
   sample?: number[][] | null
+}
+
+/**
+ * The kernel two-sample statistic, with what it needs to be read.
+ *
+ * Not a scalar: MMD is not comparable across bandwidths, so the gamma the
+ * median heuristic chose travels with it, as do the sample sizes.
+ */
+export interface DomainShiftMMD {
+  mmd2?: number | null
+  gamma?: number | null
+  n_a: number
+  n_b: number
+}
+
+/** One row of the per-feature displacement table. */
+export interface DomainFeatureShift {
+  feature: string
+  z_a: number
+  z_b: number
+  /** Displacement in training standard deviations. */
+  gap_sd: number
+  /** Impurity importance from the fitted forest; null for other spaces. */
+  importance?: number | null
+  /** gap_sd weighted by importance: movement the model actually reads. */
+  weighted: number
 }
 
 export interface DomainShiftPoint {
@@ -309,9 +346,20 @@ export interface DomainShiftReport {
   kl_ndvi?: number | null
   kl_ndvi_a_to_b?: number | null
   kl_ndvi_b_to_a?: number | null
+  /**
+   * Whether the two fingerprints describe the same feature space, and whether
+   * both carried the moments needed to standardise. Every distance in this
+   * report is unqualified without them.
+   */
+  same_space?: boolean
+  standardised?: boolean
   cva_magnitude?: number | null
+  /** The figure to read: the raw magnitude is dominated by index features. */
+  cva_magnitude_sd?: number | null
   cva_angle_red_nir_deg?: number | null
-  mmd_linear?: number | null
+  mmd_rbf?: DomainShiftMMD | null
+  /** Where the shift is, by feature, in training standard deviations. */
+  feature_shift?: DomainFeatureShift[] | null
   ndvi_hist_a?: DomainHistogram | null
   ndvi_hist_b?: DomainHistogram | null
   agreement_a?: DomainShiftAgreementBlock | null

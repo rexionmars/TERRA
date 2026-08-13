@@ -27,12 +27,37 @@ def test_cva_magnitude_and_angle():
     assert abs(ang - 0.0) < 1.0
 
 
-def test_mmd_linear_zero_when_same_mean():
+def test_mmd_rbf_near_zero_for_two_draws_from_one_distribution():
+    """
+    Two independent samples of the same law, which is the null the statistic
+    is defined against. Not a sample against itself: the cross term would then
+    include the self-similarity diagonal while the two within-sample terms
+    exclude theirs, and the unbiased estimator returns a structurally negative
+    value that says nothing about the distributions.
+    """
     rng = np.random.default_rng(0)
-    X = rng.normal(size=(40, 5))
-    Y = X + rng.normal(scale=0.01, size=X.shape)
-    # Same distribution → small MMD; identical means → ~0
-    assert ds.mmd_linear(X, X) < 1e-9
+    X = rng.normal(size=(60, 5))
+    Y = rng.normal(size=(60, 5))
+    out = ds.mmd_rbf(X, Y)
+    assert out["mmd2"] is not None
+    assert abs(out["mmd2"]) < 5e-2
+    # The bandwidth travels with the estimate: MMD is not comparable across
+    # gammas, so a report that dropped it would not be readable.
+    assert out["gamma"] is not None and out["gamma"] > 0
+    assert out["n_a"] == 60 and out["n_b"] == 60
+
+
+def test_mmd_rbf_separates_shifted_samples():
+    rng = np.random.default_rng(0)
+    X = rng.normal(loc=0.0, size=(60, 5))
+    Y = rng.normal(loc=3.0, size=(60, 5))
+    Z = rng.normal(loc=0.0, size=(60, 5))
+    apart = ds.mmd_rbf(X, Y)["mmd2"]
+    same = ds.mmd_rbf(X, Z)["mmd2"]
+    assert apart > same
+    # A three-sigma separation in every dimension is far from the null, not
+    # merely above it.
+    assert apart > 0.5
 
 
 def test_f1_from_confusion_perfect():
@@ -70,19 +95,78 @@ def test_build_fingerprint_ndvi_only():
     assert fp["n_features"] == 1
 
 
-def test_compare_fingerprints_report():
+def test_compare_refuses_to_standardise_without_a_scaler():
+    """
+    A fingerprint built with no scaler cannot be expressed in training units,
+    and the comparison says so instead of producing a number in mixed ones.
+    """
     rng = np.random.default_rng(1)
     Xa = rng.normal(loc=0.0, size=(80, 20))
     Xb = rng.normal(loc=1.0, size=(80, 20))
     fp_a = ds.build_fingerprint(Xa, sample_n=40, rng=rng)
     fp_b = ds.build_fingerprint(Xb, sample_n=40, rng=rng)
     report = ds.compare_fingerprints(fp_a, fp_b)
-    assert report["kl_ndvi"] is not None
+    assert report["same_space"] is True
+    assert report["standardised"] is False
+    # Raw distances still travel; the standardised ones do not exist.
     assert report["cva_magnitude"] is not None and report["cva_magnitude"] > 0
-    assert report["mmd_linear"] is not None and report["mmd_linear"] > 0
+    assert report["cva_magnitude_sd"] is None
+    assert report["mmd_rbf"]["mmd2"] is None
+    assert report["feature_shift"] is None
+    assert report["kl_ndvi"] is not None
     assert report["projection"] is not None
     assert report["projection"]["method"] == "pca"
     assert len(report["projection"]["points"]) > 0
+
+
+def test_compare_standardises_when_both_carry_a_scaler():
+    rng = np.random.default_rng(1)
+    d = 20
+    Xa = rng.normal(loc=0.0, size=(80, d))
+    Xb = rng.normal(loc=1.0, size=(80, d))
+    # The scaler that ships with the model: fitted on the source domain, so
+    # B's displacement is expressed in the units the forest was fitted in.
+    mean = Xa.mean(axis=0)
+    scale = Xa.std(axis=0)
+    names = [f"f{i}" for i in range(d)]
+    imp = np.full(d, 1.0 / d)
+    kw = dict(
+        sample_n=40,
+        rng=rng,
+        scaler_mean=mean,
+        scaler_scale=scale,
+        feature_names=names,
+        feature_importances=imp,
+    )
+    fp_a = ds.build_fingerprint(Xa, **kw)
+    fp_b = ds.build_fingerprint(Xb, **kw)
+    assert fp_a["z_mean"] is not None and fp_b["z_mean"] is not None
+
+    report = ds.compare_fingerprints(fp_a, fp_b)
+    assert report["standardised"] is True
+    assert report["cva_magnitude_sd"] is not None
+    assert report["mmd_rbf"]["mmd2"] is not None
+    # A shift of one raw unit against a unit-variance scaler is about one
+    # training standard deviation per feature.
+    assert report["cva_magnitude_sd"] > 0
+
+    shift = report["feature_shift"]
+    assert shift is not None and len(shift) > 0
+    row = shift[0]
+    assert set(row) >= {"feature", "z_a", "z_b", "gap_sd", "weighted"}
+    assert row["feature"] in names
+    # Sorted by displacement, largest first.
+    gaps = [abs(r["gap_sd"]) for r in shift]
+    assert gaps == sorted(gaps, reverse=True)
+
+
+def test_compare_refuses_across_feature_spaces():
+    rng = np.random.default_rng(3)
+    fp_spectral = ds.build_fingerprint(rng.normal(size=(60, 20)), sample_n=20, rng=rng)
+    fp_ndvi = ds.build_fingerprint(None, ndvi_values=np.linspace(0.1, 0.8, 60))
+    report = ds.compare_fingerprints(fp_spectral, fp_ndvi)
+    assert report["same_space"] is False
+    assert report["standardised"] is False
 
 
 def test_compare_with_agreement_f1():

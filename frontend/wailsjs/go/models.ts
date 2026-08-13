@@ -290,6 +290,28 @@ export namespace backend {
 		}
 	}
 	
+	export class DomainFeatureShift {
+	    feature: string;
+	    z_a: number;
+	    z_b: number;
+	    gap_sd: number;
+	    importance?: number;
+	    weighted: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainFeatureShift(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.feature = source["feature"];
+	        this.z_a = source["z_a"];
+	        this.z_b = source["z_b"];
+	        this.gap_sd = source["gap_sd"];
+	        this.importance = source["importance"];
+	        this.weighted = source["weighted"];
+	    }
+	}
 	export class DomainRedNIR {
 	    red_mean: number;
 	    nir_mean: number;
@@ -327,6 +349,10 @@ export namespace backend {
 	    n_sample: number;
 	    mean: number[];
 	    var: number[];
+	    z_mean?: number[];
+	    z_var?: number[];
+	    feature_names?: string[];
+	    feature_importances?: number[];
 	    ndvi_hist?: DomainHistogram;
 	    red_nir?: DomainRedNIR;
 	    sample?: number[][];
@@ -343,6 +369,10 @@ export namespace backend {
 	        this.n_sample = source["n_sample"];
 	        this.mean = source["mean"];
 	        this.var = source["var"];
+	        this.z_mean = source["z_mean"];
+	        this.z_var = source["z_var"];
+	        this.feature_names = source["feature_names"];
+	        this.feature_importances = source["feature_importances"];
 	        this.ndvi_hist = this.convertValues(source["ndvi_hist"], DomainHistogram);
 	        this.red_nir = this.convertValues(source["red_nir"], DomainRedNIR);
 	        this.sample = source["sample"];
@@ -390,6 +420,24 @@ export namespace backend {
 	        this.quantity_disagreement_pct = source["quantity_disagreement_pct"];
 	        this.allocation_disagreement_pct = source["allocation_disagreement_pct"];
 	        this.macro_f1 = source["macro_f1"];
+	    }
+	}
+	export class DomainShiftMMD {
+	    mmd2?: number;
+	    gamma?: number;
+	    n_a: number;
+	    n_b: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftMMD(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mmd2 = source["mmd2"];
+	        this.gamma = source["gamma"];
+	        this.n_a = source["n_a"];
+	        this.n_b = source["n_b"];
 	    }
 	}
 	export class DomainShiftPoint {
@@ -446,9 +494,13 @@ export namespace backend {
 	    kl_ndvi?: number;
 	    kl_ndvi_a_to_b?: number;
 	    kl_ndvi_b_to_a?: number;
+	    same_space: boolean;
+	    standardised: boolean;
 	    cva_magnitude?: number;
+	    cva_magnitude_sd?: number;
 	    cva_angle_red_nir_deg?: number;
-	    mmd_linear?: number;
+	    mmd_rbf?: DomainShiftMMD;
+	    feature_shift?: DomainFeatureShift[];
 	    ndvi_hist_a?: DomainHistogram;
 	    ndvi_hist_b?: DomainHistogram;
 	    agreement_a?: DomainShiftAgreementBlock;
@@ -466,9 +518,13 @@ export namespace backend {
 	        this.kl_ndvi = source["kl_ndvi"];
 	        this.kl_ndvi_a_to_b = source["kl_ndvi_a_to_b"];
 	        this.kl_ndvi_b_to_a = source["kl_ndvi_b_to_a"];
+	        this.same_space = source["same_space"];
+	        this.standardised = source["standardised"];
 	        this.cva_magnitude = source["cva_magnitude"];
+	        this.cva_magnitude_sd = source["cva_magnitude_sd"];
 	        this.cva_angle_red_nir_deg = source["cva_angle_red_nir_deg"];
-	        this.mmd_linear = source["mmd_linear"];
+	        this.mmd_rbf = this.convertValues(source["mmd_rbf"], DomainShiftMMD);
+	        this.feature_shift = this.convertValues(source["feature_shift"], DomainFeatureShift);
 	        this.ndvi_hist_a = this.convertValues(source["ndvi_hist_a"], DomainHistogram);
 	        this.ndvi_hist_b = this.convertValues(source["ndvi_hist_b"], DomainHistogram);
 	        this.agreement_a = this.convertValues(source["agreement_a"], DomainShiftAgreementBlock);
