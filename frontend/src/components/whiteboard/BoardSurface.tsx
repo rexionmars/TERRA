@@ -1285,6 +1285,26 @@ export function BoardSurface({
   const [viewMenu, setViewMenu] = useState(false)
   const [overlayMenu, setOverlayMenu] = useState(false)
   const [opacityMenu, setOpacityMenu] = useState(false)
+  /*
+    Where the pointer last was, in surface coordinates.
+
+    Ctrl-Space maximises the area UNDER THE POINTER, which is what Blender
+    binds and what the area menu already promised in writing. Tracked here
+    rather than as hover state on each area: the rects are computed from the
+    tree anyway, so the area is a lookup rather than a second thing to keep in
+    step with the first.
+  */
+  const pointerRef = useRef({ x: 0, y: 0 })
+  // Read through refs, so the keydown handler is bound once and still sees the
+  // current arrangement rather than the one it closed over.
+  const treeRef = useRef(tree)
+  const workspaceIdRef = useRef(workspaceId)
+  const restoreTreeRef = useRef(restoreTree)
+  const surfaceRef2 = useRef(surface)
+  treeRef.current = tree
+  workspaceIdRef.current = workspaceId
+  restoreTreeRef.current = restoreTree
+  surfaceRef2.current = surface
   const [appMenu, setAppMenu] = useState(false)
   const [filterMenu, setFilterMenu] = useState(false)
   /*
@@ -1732,6 +1752,37 @@ export function BoardSurface({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
+
+  /*
+    Ctrl-Space maximises the area under the pointer, and restores it.
+
+    The area menu named this shortcut in writing before anything bound it,
+    which is a promise the interface was not keeping. Bound here rather than
+    in StudioArea because the area under the pointer is not the area a
+    keystroke is delivered to -- there is no focus on a region -- so the
+    surface resolves it from the rects it already computes.
+  */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || !(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      const kept = restoreTreeRef.current[workspaceIdRef.current]
+      if (kept) {
+        setTree(kept)
+        setRestoreTree((p) => ({ ...p, [workspaceIdRef.current]: null }))
+        return
+      }
+      const { x, y } = pointerRef.current
+      const hit = areaRects(treeRef.current, surfaceRef2.current).leaves.find(
+        (l) => x >= l.x && x < l.x + l.w && y >= l.y && y < l.y + l.h
+      )
+      if (!hit) return
+      setRestoreTree((p) => ({ ...p, [workspaceIdRef.current]: treeRef.current }))
+      setTree(maximizeArea(treeRef.current, hit.id))
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [setTree, setRestoreTree])
 
   /*
     The runs behind the selected planes, deduplicated by area.
@@ -2234,6 +2285,11 @@ export function BoardSurface({
         translucent scrim would leave tiles moving behind the rasters.
       */
       ref={surfaceRef}
+      // Where the pointer is, for the shortcut that acts on the area under it.
+      onPointerMove={(e) => {
+        const r = surfaceRef.current?.getBoundingClientRect()
+        if (r) pointerRef.current = { x: e.clientX - r.left, y: e.clientY - r.top }
+      }}
       className="app-no-drag absolute inset-0 z-[500] overflow-hidden"
       style={{ background: "rgb(var(--p-ink))" }}
       initial={{ opacity: 0 }}
