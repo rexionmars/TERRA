@@ -110,7 +110,23 @@ export function StudioArea({
 
   return (
     <div
-      className="absolute flex flex-col overflow-hidden border-r border-t"
+      /*
+        A TRANSPARENT AREA MUST ALSO BE TRANSPARENT TO THE POINTER.
+
+        The viewport's canvas is drawn behind this rectangle rather than inside
+        it, so that changing the arrangement never tears down the WebGL
+        context. Painting the area transparent made the board visible again and
+        left this div sitting over it: every press, drag and wheel landed on an
+        empty box and the board stopped responding entirely.
+
+        The root and the body let events through; the header takes them back,
+        or its own menus would be unreachable for the one editor that needs
+        the strip most.
+      */
+      className={cn(
+        "absolute flex flex-col overflow-hidden border-r border-t",
+        transparent && "pointer-events-none"
+      )}
       style={{
         left: rect.x,
         top: rect.y,
@@ -138,7 +154,7 @@ export function StudioArea({
           e.preventDefault()
           setAreaMenu(true)
         }}
-        className="relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1"
+        className="pointer-events-auto relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1"
         style={{
           height: headerH,
           background: "rgb(var(--p-ink))",
@@ -261,7 +277,7 @@ export function StudioArea({
       {/* TOOL SETTINGS, a second strip when the active tool has any. */}
       {slots?.toolSettings && (
         <div
-          className="flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1"
+          className="pointer-events-auto flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1"
           style={{
             height: AREA_HEADER_PX,
             background: "rgb(var(--p-ink))",
@@ -276,7 +292,7 @@ export function StudioArea({
         {/* TOOLBAR, down the left of the body as Blender's T region is. */}
         {slots?.toolbar && (
           <div
-            className="flex w-8 shrink-0 flex-col items-center gap-0.5 border-r py-1"
+            className="pointer-events-auto flex w-8 shrink-0 flex-col items-center gap-0.5 border-r py-1"
             style={{
               background: "rgb(var(--p-ink))",
               borderColor: "rgb(var(--p-line) / 0.22)",
@@ -285,7 +301,14 @@ export function StudioArea({
             {slots.toolbar}
           </div>
         )}
-        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div
+          className={cn(
+            "min-h-0 min-w-0 flex-1 overflow-hidden",
+            // Only the viewport is see-through; every other editor draws in
+            // its body and has to be able to be pressed there.
+            !transparent && "pointer-events-auto"
+          )}
+        >
           {fits ? (
             children
           ) : (
