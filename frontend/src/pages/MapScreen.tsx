@@ -41,6 +41,7 @@ import {
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
 import { BoardRunBar, TOOL_ICON } from "@/components/whiteboard/BoardRunBar"
+import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import { StudioHeaderRadio } from "@/components/whiteboard/StudioHeaderControls"
 import { BOARD_TOOLS } from "@/lib/mapTools"
 import { MODE_OPTIONS } from "@/lib/classifyOptions"
@@ -1147,7 +1148,22 @@ export function MapScreen(props: MapScreenProps) {
 
       <AnimatePresence>
         {boardOpen && (
-          <Suspense fallback={null}>
+          /*
+            A real surface, not null.
+
+            The studio is a lazy chunk carrying three.js, so the first open of
+            a session downloads and parses it before anything of the studio
+            exists. A blank frame between the press and the board reads as a
+            button that did not work, and a reader who sees no change presses
+            again.
+          */
+          <Suspense
+            fallback={
+              <div className="app-no-drag absolute inset-0 z-[500]">
+                <StudioLoading />
+              </div>
+            }
+          >
             <BoardSurface
               key="whiteboard"
               /*

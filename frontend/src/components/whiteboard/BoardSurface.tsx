@@ -129,6 +129,7 @@ import {
 import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
+import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import {
   mergePreferenceExtras,
   parsePreferenceExtras,
@@ -1227,6 +1228,12 @@ export function BoardSurface({
     assetRuns.find((r) => r.areaId === detailFocus.areaId)?.model
 
   const [brushOn, setBrushOn] = useState(false)
+  /*
+    What the board is still waiting for. Reported by the scene as each texture
+    lands, including the ones that fail -- a board with one unreadable raster
+    must not wait for it forever.
+  */
+  const [cards, setCards] = useState({ loaded: 0, total: 0 })
   // Which header popover is open. One at a time, as a menu bar behaves.
   const [viewMenu, setViewMenu] = useState(false)
   const [overlayMenu, setOverlayMenu] = useState(false)
@@ -1485,6 +1492,7 @@ export function BoardSurface({
       // Read from the computed style rather than hardcoded, so the board
       // follows the theme the rest of the application is painted in.
       board = createBoard(host, {
+        onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
         groups,
         background: tokenColor("--p-ink", "#171717"),
         line: tokenColor("--p-line", "#404040"),
@@ -2376,6 +2384,27 @@ export function BoardSurface({
           )}
         </div>
       </div>
+
+      {/*
+        THE SECOND WAIT: the rasters.
+
+        The chunk has arrived by now -- Suspense answered that one -- but every
+        plane is a data URI still being decoded into a texture, and an empty
+        board with chrome around it reads as a studio that opened onto nothing.
+        Withdrawn the moment the last one lands, including any that failed.
+
+        Over the areas rather than under them, so the arrangement is not seen
+        assembling itself piece by piece; and not over the topbar, so the way
+        out is reachable throughout.
+      */}
+      {cards.total > 0 && cards.loaded < cards.total && (
+        <div
+          className="absolute inset-x-0 z-[45]"
+          style={{ top: WORKSPACE_BAR_PX, bottom: STATUS_BAR_PX }}
+        >
+          <StudioLoading loaded={cards.loaded} total={cards.total} />
+        </div>
+      )}
 
       {/*
         The status bar, and the run's progress with it.

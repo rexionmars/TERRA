@@ -251,6 +251,17 @@ export function createBoard(
      * because the map puts them where they are.
      */
     groups: CardGroup[]
+    /**
+     * How many planes are on the board, and how many have arrived.
+     *
+     * Every raster is a data URI decoded into a texture, and a board of four
+     * areas can carry a dozen of them. Between the click that opens the studio
+     * and the first plane appearing there was nothing to look at and nothing
+     * to read, which is indistinguishable from a surface that has failed to
+     * open. Reported per plane rather than once at the end so the wait has a
+     * shape.
+     */
+    onCardsLoaded?: (loaded: number, total: number) => void
     background: string
     /** --p-line, for the grid. */
     line: string
@@ -1193,6 +1204,17 @@ export function createBoard(
   const world = new Group()
   scene.add(world)
   const loader = new TextureLoader()
+  /*
+    What the studio is waiting for. The total is known at build time -- every
+    visible plane of every area -- and the count rises as each texture lands,
+    including the ones that fail: a board with one unreadable raster must not
+    wait for it forever.
+  */
+  const cardsTotal = opts.groups.reduce((n, g) => n + g.cards.length, 0)
+  let cardsLoaded = 0
+  // Said once at the start, so a board with nothing on it is not reported as
+  // perpetually loading.
+  opts.onCardsLoaded?.(cardsLoaded, cardsTotal)
   let pending = opts.groups.reduce((n, g) => n + g.cards.length, 0)
 
   interface GroupRuntime {
@@ -1625,6 +1647,10 @@ export function createBoard(
         t.dispose()
         return
       }
+      // Counted as it lands. A texture that fails still counts, further down,
+      // or a board with one unreadable raster would wait for it forever.
+      cardsLoaded += 1
+      opts.onCardsLoaded?.(cardsLoaded, cardsTotal)
       t.colorSpace = SRGBColorSpace
       /*
         Nearest for a class raster: bilinear interpolation invents colours
@@ -1725,7 +1751,23 @@ export function createBoard(
         updateLinks()
       }
       render()
-    })
+    },
+    undefined,
+    () => {
+      /*
+        A raster that cannot be decoded still counts.
+
+        Without this the studio would sit at "3 of 4" forever on one bad data
+        URI -- a wait with no end and no explanation, which is worse than a
+        board with a plane missing from it. The plane is simply not placed;
+        the tree still lists it, which is where its absence is legible.
+      */
+      if (disposed) return
+      cardsLoaded += 1
+      opts.onCardsLoaded?.(cardsLoaded, cardsTotal)
+      render()
+    }
+  )
   })
   }
 
