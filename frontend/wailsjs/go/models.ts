@@ -398,6 +398,26 @@ export namespace backend {
 	}
 	
 	
+	export class DomainShiftClassF1 {
+	    index: number;
+	    class_id?: number;
+	    precision?: number;
+	    recall?: number;
+	    f1?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftClassF1(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.class_id = source["class_id"];
+	        this.precision = source["precision"];
+	        this.recall = source["recall"];
+	        this.f1 = source["f1"];
+	    }
+	}
 	export class DomainShiftAgreementBlock {
 	    label: string;
 	    overall_pct?: number;
@@ -406,6 +426,7 @@ export namespace backend {
 	    quantity_disagreement_pct?: number;
 	    allocation_disagreement_pct?: number;
 	    macro_f1?: number;
+	    per_class_f1?: DomainShiftClassF1[];
 	
 	    static createFrom(source: any = {}) {
 	        return new DomainShiftAgreementBlock(source);
@@ -420,8 +441,28 @@ export namespace backend {
 	        this.quantity_disagreement_pct = source["quantity_disagreement_pct"];
 	        this.allocation_disagreement_pct = source["allocation_disagreement_pct"];
 	        this.macro_f1 = source["macro_f1"];
+	        this.per_class_f1 = this.convertValues(source["per_class_f1"], DomainShiftClassF1);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
 	export class DomainShiftMMD {
 	    mmd2?: number;
 	    gamma?: number;
@@ -440,6 +481,188 @@ export namespace backend {
 	        this.n_b = source["n_b"];
 	    }
 	}
+	export class DomainShiftCohortRow {
+	    id: string;
+	    label: string;
+	    space_a?: string;
+	    space_b?: string;
+	    kl_ndvi?: number;
+	    kl_ndvi_a_to_b?: number;
+	    kl_ndvi_b_to_a?: number;
+	    same_space: boolean;
+	    standardised: boolean;
+	    cva_magnitude?: number;
+	    cva_magnitude_sd?: number;
+	    cva_angle_red_nir_deg?: number;
+	    mmd_rbf?: DomainShiftMMD;
+	    comparable: boolean;
+	    agreement_a?: DomainShiftAgreementBlock;
+	    agreement_b?: DomainShiftAgreementBlock;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftCohortRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.space_a = source["space_a"];
+	        this.space_b = source["space_b"];
+	        this.kl_ndvi = source["kl_ndvi"];
+	        this.kl_ndvi_a_to_b = source["kl_ndvi_a_to_b"];
+	        this.kl_ndvi_b_to_a = source["kl_ndvi_b_to_a"];
+	        this.same_space = source["same_space"];
+	        this.standardised = source["standardised"];
+	        this.cva_magnitude = source["cva_magnitude"];
+	        this.cva_magnitude_sd = source["cva_magnitude_sd"];
+	        this.cva_angle_red_nir_deg = source["cva_angle_red_nir_deg"];
+	        this.mmd_rbf = this.convertValues(source["mmd_rbf"], DomainShiftMMD);
+	        this.comparable = source["comparable"];
+	        this.agreement_a = this.convertValues(source["agreement_a"], DomainShiftAgreementBlock);
+	        this.agreement_b = this.convertValues(source["agreement_b"], DomainShiftAgreementBlock);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DomainShiftCohortSource {
+	    id: string;
+	    label: string;
+	    space?: string;
+	    agreement?: DomainShiftAgreementBlock;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftCohortSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.space = source["space"];
+	        this.agreement = this.convertValues(source["agreement"], DomainShiftAgreementBlock);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DomainShiftCohort {
+	    source: DomainShiftCohortSource;
+	    targets: DomainShiftCohortRow[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftCohort(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = this.convertValues(source["source"], DomainShiftCohortSource);
+	        this.targets = this.convertValues(source["targets"], DomainShiftCohortRow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DomainShiftCohortSide {
+	    id: string;
+	    label: string;
+	    fingerprint: Record<string, any>;
+	    agreement?: Record<string, any>;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftCohortSide(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.fingerprint = source["fingerprint"];
+	        this.agreement = source["agreement"];
+	    }
+	}
+	export class DomainShiftCohortRequest {
+	    source: DomainShiftCohortSide;
+	    targets: DomainShiftCohortSide[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftCohortRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = this.convertValues(source["source"], DomainShiftCohortSide);
+	        this.targets = this.convertValues(source["targets"], DomainShiftCohortSide);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
 	export class DomainShiftPoint {
 	    x: number;
 	    y: number;
@@ -459,6 +682,7 @@ export namespace backend {
 	export class DomainShiftProjection {
 	    method: string;
 	    points: DomainShiftPoint[];
+	    space?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DomainShiftProjection(source);
@@ -468,6 +692,7 @@ export namespace backend {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.method = source["method"];
 	        this.points = this.convertValues(source["points"], DomainShiftPoint);
+	        this.space = source["space"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2391,6 +2616,70 @@ export namespace backend {
 	        this.bounding_box = source["bounding_box"];
 	    }
 	}
+	export class LULCAgreementBlock {
+	    row: number;
+	    col: number;
+	    n_reference_cells: number;
+	    overall_pct?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LULCAgreementBlock(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.row = source["row"];
+	        this.col = source["col"];
+	        this.n_reference_cells = source["n_reference_cells"];
+	        this.overall_pct = source["overall_pct"];
+	    }
+	}
+	export class LULCAgreementBlocks {
+	    rows: number;
+	    cols: number;
+	    min_cells: number;
+	    cells: LULCAgreementBlock[];
+	    n_measured: number;
+	    median_pct: number;
+	    iqr_pct: number;
+	    min_pct: number;
+	    max_pct: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LULCAgreementBlocks(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rows = source["rows"];
+	        this.cols = source["cols"];
+	        this.min_cells = source["min_cells"];
+	        this.cells = this.convertValues(source["cells"], LULCAgreementBlock);
+	        this.n_measured = source["n_measured"];
+	        this.median_pct = source["median_pct"];
+	        this.iqr_pct = source["iqr_pct"];
+	        this.min_pct = source["min_pct"];
+	        this.max_pct = source["max_pct"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LULCClassAccuracy {
 	    class_id: number;
 	    name: string;
@@ -2429,6 +2718,7 @@ export namespace backend {
 	    n_outside_legend: number;
 	    matrix: number[][];
 	    matrix_classes: number[];
+	    blocks?: LULCAgreementBlocks;
 	
 	    static createFrom(source: any = {}) {
 	        return new LULCAgreement(source);
@@ -2445,6 +2735,7 @@ export namespace backend {
 	        this.n_outside_legend = source["n_outside_legend"];
 	        this.matrix = source["matrix"];
 	        this.matrix_classes = source["matrix_classes"];
+	        this.blocks = this.convertValues(source["blocks"], LULCAgreementBlocks);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2465,6 +2756,8 @@ export namespace backend {
 		    return a;
 		}
 	}
+	
+	
 	export class LULCCompareRow {
 	    class_id: number;
 	    name: string;

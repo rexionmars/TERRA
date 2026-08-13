@@ -394,6 +394,61 @@ export interface DomainShiftAgreementBlock {
   quantity_disagreement_pct?: number | null
   allocation_disagreement_pct?: number | null
   macro_f1?: number | null
+  /**
+   * Per-class precision, recall and F1.
+   *
+   * A macro average says the model got worse; only these say which class. The
+   * sidecar has emitted them all along and the Go struct declared no field, so
+   * they were dropped at the unmarshal boundary.
+   */
+  per_class_f1?: DomainShiftClassF1[] | null
+}
+
+/**
+ * One target measured against the source.
+ *
+ * Mirrors `DomainShiftReport` minus the histograms, the projection and the
+ * feature-shift table: those are per-pair readings and a cohort consumes none
+ * of them. A reader who wants them opens the pair.
+ */
+export interface DomainShiftCohortRow {
+  id: string
+  label: string
+  space_a?: string
+  space_b?: string
+  kl_ndvi?: number | null
+  kl_ndvi_a_to_b?: number | null
+  kl_ndvi_b_to_a?: number | null
+  same_space: boolean
+  standardised: boolean
+  cva_magnitude?: number | null
+  cva_magnitude_sd?: number | null
+  cva_angle_red_nir_deg?: number | null
+  mmd_rbf?: DomainShiftMMD | null
+  /**
+   * Whether this row may sit on the same axis as the others.
+   *
+   * The two qualifiers resolved to the question the view asks. A row that
+   * cannot is not a low score — it is a distance in other units, and plotting
+   * it beside the rest is the unqualified comparison the qualifiers exist to
+   * prevent.
+   */
+  comparable: boolean
+  agreement_a?: DomainShiftAgreementBlock | null
+  agreement_b?: DomainShiftAgreementBlock | null
+}
+
+export interface DomainShiftCohortSource {
+  id: string
+  label: string
+  space?: string
+  agreement?: DomainShiftAgreementBlock | null
+}
+
+/** One source against N targets: the star the transferability question has. */
+export interface DomainShiftCohort {
+  source: DomainShiftCohortSource
+  targets: DomainShiftCohortRow[]
 }
 
 /** Diagnosis payload from two fingerprints (KL / CVA / MMD / F1). */

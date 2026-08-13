@@ -667,3 +667,64 @@ def compare_fingerprints(
         "agreement_b": _agreement_block(agreement_b, "B"),
         "projection": projection,
     }
+
+
+#: Keys dropped from a cohort row. The histograms are 32 bins x 3 arrays each
+#: and the projection is up to 800 points; over N targets that is most of the
+#: payload, and the cohort reading consumes none of it -- it is a scatter of
+#: scalars and a table. A reader who wants them opens the pair.
+_COHORT_OMIT = ("ndvi_hist_a", "ndvi_hist_b", "projection", "feature_shift")
+
+
+def compare_cohort(
+    source: dict[str, Any],
+    targets: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """
+    One source measured against each of N targets.
+
+    WHY THIS IS ONE CALL AND NOT N. The transferability question has a star
+    topology: one region the model was fitted on, and every other measured
+    against it. For N areas that is N-1 comparisons, and driving them from the
+    frontend would spawn N-1 Python processes, each paying the numpy and
+    sklearn import before doing arithmetic on 512 rows. The comparison itself
+    is cheap; the process is not.
+
+    `compare_fingerprints` is called unchanged, so a cohort row and the pair
+    view cannot disagree about a number. What differs is only what is kept --
+    see `_COHORT_OMIT`.
+
+    Each row carries its own qualifiers. They are not a footnote here: a target
+    whose fingerprint is not in the source's space, or which carries no scaler,
+    has a distance in different units from the rest, and averaging or plotting
+    it beside them is the unqualified comparison the qualifiers exist to
+    prevent. The caller is expected to separate them, and `comparable` says
+    which is which so that decision is not a re-derivation.
+    """
+    source_fp = source.get("fingerprint") or {}
+    rows: list[dict[str, Any]] = []
+    for target in targets:
+        fp = target.get("fingerprint") or {}
+        report = compare_fingerprints(
+            source_fp,
+            fp,
+            agreement_a=source.get("agreement"),
+            agreement_b=target.get("agreement"),
+            include_tsne=False,
+        )
+        row = {k: v for k, v in report.items() if k not in _COHORT_OMIT}
+        row["id"] = target.get("id")
+        row["label"] = target.get("label")
+        # Both qualifiers, resolved to the one question the caller asks: may
+        # this row sit on the same axis as the others?
+        row["comparable"] = bool(report["same_space"] and report["standardised"])
+        rows.append(row)
+    return {
+        "source": {
+            "id": source.get("id"),
+            "label": source.get("label"),
+            "space": source_fp.get("space"),
+            "agreement": _agreement_block(source.get("agreement"), "source"),
+        },
+        "targets": rows,
+    }

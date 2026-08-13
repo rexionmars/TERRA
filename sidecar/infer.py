@@ -1204,6 +1204,26 @@ def main():
         sys.stdout.flush()
         return
 
+    # One source against N targets, in one process. See compare_cohort for why
+    # this is not N invocations of the action above.
+    if action == 'domain_shift_cohort':
+        emit_progress(10, 'comparing domain fingerprints')
+        try:
+            import domain_shift as ds_mod
+            source = req.get('source')
+            targets = req.get('targets')
+            if not isinstance(source, dict):
+                fail('domain_shift_cohort requires a source')
+            if not isinstance(targets, list) or not targets:
+                fail('domain_shift_cohort requires at least one target')
+            report = ds_mod.compare_cohort(source, targets)
+        except Exception as e:
+            fail(f'domain_shift_cohort failed: {e}')
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({'domain_shift_cohort': report}))
+        sys.stdout.flush()
+        return
+
     # Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
     if action == 'list_datacube':
         start = req.get('start')

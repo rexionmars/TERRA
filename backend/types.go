@@ -525,6 +525,72 @@ type DomainShiftRequest struct {
 	IncludeTSNE  bool           `json:"include_tsne,omitempty"`
 }
 
+/*
+DomainShiftCohortRequest measures one source against N targets in one call.
+
+The transferability question has a star topology -- one region the model was
+fitted on, every other measured against it -- so for N areas it is N-1
+comparisons, not the N(N-1)/2 a pairwise device offers. Driving those from the
+frontend would spawn N-1 Python processes, each paying the numpy and sklearn
+import before doing arithmetic on 512 rows.
+*/
+type DomainShiftCohortRequest struct {
+	Source  DomainShiftCohortSide   `json:"source"`
+	Targets []DomainShiftCohortSide `json:"targets"`
+}
+
+// DomainShiftCohortSide is one AOI's fingerprint and its identity.
+type DomainShiftCohortSide struct {
+	ID          string         `json:"id"`
+	Label       string         `json:"label"`
+	Fingerprint map[string]any `json:"fingerprint"`
+	Agreement   map[string]any `json:"agreement,omitempty"`
+}
+
+// DomainShiftCohort is the source and one row per target.
+type DomainShiftCohort struct {
+	Source  DomainShiftCohortSource `json:"source"`
+	Targets []DomainShiftCohortRow  `json:"targets"`
+}
+
+// DomainShiftCohortSource identifies the centre of the star.
+type DomainShiftCohortSource struct {
+	ID        string                     `json:"id"`
+	Label     string                     `json:"label"`
+	Space     string                     `json:"space,omitempty"`
+	Agreement *DomainShiftAgreementBlock `json:"agreement,omitempty"`
+}
+
+/*
+DomainShiftCohortRow is one target measured against the source.
+
+The fields mirror DomainShiftReport, minus the histograms, the projection and
+the feature-shift table -- see _COHORT_OMIT in the sidecar. Those are per-pair
+readings and the cohort view consumes none of them.
+*/
+type DomainShiftCohortRow struct {
+	ID                string          `json:"id"`
+	Label             string          `json:"label"`
+	SpaceA            string          `json:"space_a,omitempty"`
+	SpaceB            string          `json:"space_b,omitempty"`
+	KLNDVI            *float64        `json:"kl_ndvi,omitempty"`
+	KLNDVIAToB        *float64        `json:"kl_ndvi_a_to_b,omitempty"`
+	KLNDVIBToA        *float64        `json:"kl_ndvi_b_to_a,omitempty"`
+	SameSpace         bool            `json:"same_space"`
+	Standardised      bool            `json:"standardised"`
+	CVAMagnitude      *float64        `json:"cva_magnitude,omitempty"`
+	CVAMagnitudeSD    *float64        `json:"cva_magnitude_sd,omitempty"`
+	CVAAngleRedNIRDeg *float64        `json:"cva_angle_red_nir_deg,omitempty"`
+	MMDRBF            *DomainShiftMMD `json:"mmd_rbf,omitempty"`
+	// The two qualifiers resolved to the question the caller asks: may this row
+	// sit on the same axis as the others? A row that cannot is not a low score,
+	// and plotting it beside those that can is the unqualified comparison the
+	// qualifiers exist to prevent.
+	Comparable bool                       `json:"comparable"`
+	AgreementA *DomainShiftAgreementBlock `json:"agreement_a,omitempty"`
+	AgreementB *DomainShiftAgreementBlock `json:"agreement_b,omitempty"`
+}
+
 // DomainShiftPoint is one projected sample in a 2D scatter.
 type DomainShiftPoint struct {
 	X      float64 `json:"x"`

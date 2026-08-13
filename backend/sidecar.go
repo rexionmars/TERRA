@@ -1365,6 +1365,61 @@ func (r *Runner) AnalyzeDomainShift(ctx context.Context, req DomainShiftRequest)
 	return wrapped.DomainShift, nil
 }
 
+// AnalyzeDomainShiftCohort measures one source fingerprint against N targets.
+//
+// One process for N-1 comparisons; see DomainShiftCohortRequest for why that
+// matters. Same constraint as the pair: every side must already carry a
+// fingerprint from classify, and nothing is re-fetched.
+func (r *Runner) AnalyzeDomainShiftCohort(ctx context.Context, req DomainShiftCohortRequest) (*DomainShiftCohort, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.Source.Fingerprint == nil {
+		return nil, fmt.Errorf("source fingerprint is required")
+	}
+	if len(req.Targets) == 0 {
+		return nil, fmt.Errorf("at least one target is required")
+	}
+	for i, t := range req.Targets {
+		if t.Fingerprint == nil {
+			return nil, fmt.Errorf("target %d (%s) carries no fingerprint", i, t.Label)
+		}
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-domain-cohort-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	reqBytes, err := json.Marshal(map[string]any{
+		"action":    "domain_shift_cohort",
+		"model_dir": r.modelDir,
+		"work_dir":  workDir,
+		"source":    req.Source,
+		"targets":   req.Targets,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Cohort *DomainShiftCohort `json:"domain_shift_cohort"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse domain_shift_cohort result: %w", err)
+	}
+	if wrapped.Cohort == nil {
+		return nil, fmt.Errorf("sidecar returned empty domain_shift_cohort payload")
+	}
+	return wrapped.Cohort, nil
+}
+
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
 func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainRequest) (*SolarTerrainAnalysis, error) {
 	if _, err := os.Stat(r.sidecar); err != nil {

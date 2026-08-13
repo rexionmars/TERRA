@@ -406,6 +406,17 @@ func (a *App) AnalyzeDomainShift(req backend.DomainShiftRequest) (*backend.Domai
 	return runner.AnalyzeDomainShift(a.ctx, req)
 }
 
+// AnalyzeDomainShiftCohort measures one source AOI against every target at once.
+func (a *App) AnalyzeDomainShiftCohort(
+	req backend.DomainShiftCohortRequest,
+) (*backend.DomainShiftCohort, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.AnalyzeDomainShiftCohort(a.ctx, req)
+}
+
 // persistSolarRun saves a solar resource run so it survives the session and is
 // listed, opened and exported like the other analyses. Best effort: failing to
 // record a run must not discard the result the user is looking at.

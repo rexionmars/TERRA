@@ -6,6 +6,10 @@ export function AnalyzeDomainShift(arg1) {
   return window['go']['main']['App']['AnalyzeDomainShift'](arg1);
 }
 
+export function AnalyzeDomainShiftCohort(arg1) {
+  return window['go']['main']['App']['AnalyzeDomainShiftCohort'](arg1);
+}
+
 export function AnalyzeEnergyModel(arg1) {
   return window['go']['main']['App']['AnalyzeEnergyModel'](arg1);
 }
