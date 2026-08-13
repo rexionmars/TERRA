@@ -249,6 +249,74 @@ export interface PredictResult {
    * answer different questions and their capacity factors are not comparable.
    */
   wind?: WindAnalysis | null
+  /**
+   * Compact spectral / NDVI fingerprint cached at classify time for
+   * domain-shift diagnostics. Absent on older runs and non-classify products.
+   */
+  domain_fingerprint?: DomainFingerprint | null
+}
+
+/** Fixed-edge histogram (NDVI by default). */
+export interface DomainHistogram {
+  edges: number[]
+  counts: number[]
+  probs: number[]
+}
+
+export interface DomainRedNIR {
+  red_mean: number
+  nir_mean: number
+}
+
+/** Per-run domain summary used by AnalyzeDomainShift. */
+export interface DomainFingerprint {
+  space: string
+  n_features: number
+  n_pixels: number
+  n_sample: number
+  mean: number[]
+  var: number[]
+  ndvi_hist?: DomainHistogram | null
+  red_nir?: DomainRedNIR | null
+  sample?: number[][] | null
+}
+
+export interface DomainShiftPoint {
+  x: number
+  y: number
+  domain: string
+}
+
+export interface DomainShiftProjection {
+  method: string
+  points: DomainShiftPoint[]
+}
+
+export interface DomainShiftAgreementBlock {
+  label: string
+  overall_pct?: number | null
+  n_outside_legend: number
+  outside_legend_pct?: number | null
+  quantity_disagreement_pct?: number | null
+  allocation_disagreement_pct?: number | null
+  macro_f1?: number | null
+}
+
+/** Diagnosis payload from two fingerprints (KL / CVA / MMD / F1). */
+export interface DomainShiftReport {
+  space_a?: string
+  space_b?: string
+  kl_ndvi?: number | null
+  kl_ndvi_a_to_b?: number | null
+  kl_ndvi_b_to_a?: number | null
+  cva_magnitude?: number | null
+  cva_angle_red_nir_deg?: number | null
+  mmd_linear?: number | null
+  ndvi_hist_a?: DomainHistogram | null
+  ndvi_hist_b?: DomainHistogram | null
+  agreement_a?: DomainShiftAgreementBlock | null
+  agreement_b?: DomainShiftAgreementBlock | null
+  projection?: DomainShiftProjection | null
 }
 
 export interface ProgressEvent {
@@ -599,6 +667,20 @@ export interface SolarRenderScale {
   decimals: number
 }
 
+/**
+ * How much of the sky dome the terrain leaves visible, and whether the diffuse
+ * loss was applied. Reported even when not applied: "not applied" and
+ * "applied at zero" are different statements about the terrain.
+ */
+export interface SolarSkyView {
+  applied: boolean
+  mean_horizon_deg: number
+  max_horizon_deg: number
+  threshold_deg: number
+  diffuse_loss_mean_pct: number | null
+  diffuse_loss_max_pct: number | null
+}
+
 export interface SolarTerrainAnalysis {
   poa_min: number
   poa_max: number
@@ -621,6 +703,7 @@ export interface SolarTerrainAnalysis {
   shading_max_pct: number | null
   horizon_max_dist_m: number
   beam_fraction: number
+  sky_view?: SolarSkyView | null
   overlay_uri: string
   raster_tif: string
   extent: Bounds

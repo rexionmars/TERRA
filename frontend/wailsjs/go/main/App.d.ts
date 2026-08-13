@@ -4,6 +4,8 @@ import {backend} from '../models';
 import {store} from '../models';
 import {main} from '../models';
 
+export function AnalyzeDomainShift(arg1:backend.DomainShiftRequest):Promise<backend.DomainShiftReport>;
+
 export function AnalyzeEnergyModel(arg1:backend.EnergyModelRequest):Promise<backend.EnergyModelAnalysis>;
 
 export function AnalyzeLULC(arg1:backend.LULCRequest):Promise<backend.LULCAnalysis>;

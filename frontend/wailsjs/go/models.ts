@@ -290,6 +290,230 @@ export namespace backend {
 		}
 	}
 	
+	export class DomainRedNIR {
+	    red_mean: number;
+	    nir_mean: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainRedNIR(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.red_mean = source["red_mean"];
+	        this.nir_mean = source["nir_mean"];
+	    }
+	}
+	export class DomainHistogram {
+	    edges: number[];
+	    counts: number[];
+	    probs: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainHistogram(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.edges = source["edges"];
+	        this.counts = source["counts"];
+	        this.probs = source["probs"];
+	    }
+	}
+	export class DomainFingerprint {
+	    space: string;
+	    n_features: number;
+	    n_pixels: number;
+	    n_sample: number;
+	    mean: number[];
+	    var: number[];
+	    ndvi_hist?: DomainHistogram;
+	    red_nir?: DomainRedNIR;
+	    sample?: number[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainFingerprint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.space = source["space"];
+	        this.n_features = source["n_features"];
+	        this.n_pixels = source["n_pixels"];
+	        this.n_sample = source["n_sample"];
+	        this.mean = source["mean"];
+	        this.var = source["var"];
+	        this.ndvi_hist = this.convertValues(source["ndvi_hist"], DomainHistogram);
+	        this.red_nir = this.convertValues(source["red_nir"], DomainRedNIR);
+	        this.sample = source["sample"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class DomainShiftAgreementBlock {
+	    label: string;
+	    overall_pct?: number;
+	    n_outside_legend: number;
+	    outside_legend_pct?: number;
+	    quantity_disagreement_pct?: number;
+	    allocation_disagreement_pct?: number;
+	    macro_f1?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftAgreementBlock(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.overall_pct = source["overall_pct"];
+	        this.n_outside_legend = source["n_outside_legend"];
+	        this.outside_legend_pct = source["outside_legend_pct"];
+	        this.quantity_disagreement_pct = source["quantity_disagreement_pct"];
+	        this.allocation_disagreement_pct = source["allocation_disagreement_pct"];
+	        this.macro_f1 = source["macro_f1"];
+	    }
+	}
+	export class DomainShiftPoint {
+	    x: number;
+	    y: number;
+	    domain: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.domain = source["domain"];
+	    }
+	}
+	export class DomainShiftProjection {
+	    method: string;
+	    points: DomainShiftPoint[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftProjection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.method = source["method"];
+	        this.points = this.convertValues(source["points"], DomainShiftPoint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DomainShiftReport {
+	    space_a?: string;
+	    space_b?: string;
+	    kl_ndvi?: number;
+	    kl_ndvi_a_to_b?: number;
+	    kl_ndvi_b_to_a?: number;
+	    cva_magnitude?: number;
+	    cva_angle_red_nir_deg?: number;
+	    mmd_linear?: number;
+	    ndvi_hist_a?: DomainHistogram;
+	    ndvi_hist_b?: DomainHistogram;
+	    agreement_a?: DomainShiftAgreementBlock;
+	    agreement_b?: DomainShiftAgreementBlock;
+	    projection?: DomainShiftProjection;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.space_a = source["space_a"];
+	        this.space_b = source["space_b"];
+	        this.kl_ndvi = source["kl_ndvi"];
+	        this.kl_ndvi_a_to_b = source["kl_ndvi_a_to_b"];
+	        this.kl_ndvi_b_to_a = source["kl_ndvi_b_to_a"];
+	        this.cva_magnitude = source["cva_magnitude"];
+	        this.cva_angle_red_nir_deg = source["cva_angle_red_nir_deg"];
+	        this.mmd_linear = source["mmd_linear"];
+	        this.ndvi_hist_a = this.convertValues(source["ndvi_hist_a"], DomainHistogram);
+	        this.ndvi_hist_b = this.convertValues(source["ndvi_hist_b"], DomainHistogram);
+	        this.agreement_a = this.convertValues(source["agreement_a"], DomainShiftAgreementBlock);
+	        this.agreement_b = this.convertValues(source["agreement_b"], DomainShiftAgreementBlock);
+	        this.projection = this.convertValues(source["projection"], DomainShiftProjection);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DomainShiftRequest {
+	    fingerprint_a: Record<string, any>;
+	    fingerprint_b: Record<string, any>;
+	    agreement_a?: Record<string, any>;
+	    agreement_b?: Record<string, any>;
+	    include_tsne?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainShiftRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fingerprint_a = source["fingerprint_a"];
+	        this.fingerprint_b = source["fingerprint_b"];
+	        this.agreement_a = source["agreement_a"];
+	        this.agreement_b = source["agreement_b"];
+	        this.include_tsne = source["include_tsne"];
+	    }
+	}
 	export class EnergyAssumptions {
 	    performance_ratio_applied: number;
 	    performance_ratio_source: string;
@@ -3473,6 +3697,7 @@ export namespace backend {
 	    solar_siting?: SolarSitingAnalysis;
 	    energy_model?: EnergyModelAnalysis;
 	    wind?: WindAnalysis;
+	    domain_fingerprint?: DomainFingerprint;
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictResult(source);
@@ -3504,6 +3729,7 @@ export namespace backend {
 	        this.solar_siting = this.convertValues(source["solar_siting"], SolarSitingAnalysis);
 	        this.energy_model = this.convertValues(source["energy_model"], EnergyModelAnalysis);
 	        this.wind = this.convertValues(source["wind"], WindAnalysis);
+	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

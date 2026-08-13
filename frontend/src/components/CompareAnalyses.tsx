@@ -25,6 +25,7 @@ import {
   timeLabelFormatter,
   timeTickFormatter,
 } from "@/lib/chartAxis"
+import { DomainShiftSection } from "@/components/DomainShiftSection"
 
 function modelLabel(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
@@ -451,6 +452,13 @@ export function CompareAnalyses({
             <RunSummaryCard slot="A" run={runA} result={resultA} />
             <RunSummaryCard slot="B" run={runB} result={resultB} />
           </div>
+
+          <DomainShiftSection
+            resultA={resultA}
+            resultB={resultB}
+            labelA={runTitle(runA)}
+            labelB={runTitle(runB)}
+          />
 
           <section className="rounded-sm border border-border bg-secondary/50 p-4">
             <p className="eyebrow mb-3">Overlays · prediction & confidence</p>
