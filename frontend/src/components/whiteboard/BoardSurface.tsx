@@ -60,6 +60,7 @@ import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import { RunPicker } from "@/components/whiteboard/RunPicker"
 import {
   CURRENT_AREA,
+  liveAreaId,
   keptObject,
   readBoardMemory,
   snapshotBoard,
@@ -281,6 +282,7 @@ function useKept<T>(key: string, initial: T | (() => T)) {
 
 export function BoardSurface({
   layers,
+  retainedRuns = [],
   legendSources,
   onUseArea,
   savedAois = [],
@@ -318,6 +320,13 @@ export function BoardSurface({
    * setAppearance, which is the one path a plane's state takes.
    */
   layers: RasterLayer[]
+  /**
+   * Runs the map has finished with, still on the board.
+   *
+   * Full results rather than ids because one may never have been saved: a run
+   * made while logged out has no record to reload from.
+   */
+  retainedRuns?: readonly { id: string; result: PredictResult }[]
   /**
    * What the CURRENT area's colours mean, for the legend.
    *
@@ -660,7 +669,7 @@ export function BoardSurface({
       */
       const members = areas
         .map((a) => ({
-          runId: a.id === CURRENT_AREA ? runId : a.id,
+          runId: a.id === live ? runId : a.id,
           layerIds: a.layers.map((l) => l.id),
         }))
         .filter((m) => m.runId && m.runId !== "current")
@@ -709,13 +718,39 @@ export function BoardSurface({
     return kind ? modelLabel(kind as ModelKind) : undefined
   }
 
+  /*
+    Which subject the map's area IS, rather than the slot it sits in.
+
+    Every `CURRENT_AREA` below became this. The literal survives only where
+    there is genuinely no subject -- no run and no catalogued AOI -- which is
+    what `liveAreaId` falls back to.
+  */
+  const live = liveAreaId(runId, activeAoiId)
+
+  /*
+    What the live area is CALLED, derived once.
+
+    It was resolved in two places -- the scene tree's area and the data tree's
+    run -- which is how they came to disagree: the scene said "Campo IFPI"
+    while the data said "drawn 2", and after the title prop stopped falling
+    back to a literal the data row said nothing at all.
+
+    The run's own name first, since a saved run has one; then whatever the map
+    is calling the area; and a generic last, because a row with no name cannot
+    be told from a row that failed to load.
+  */
+  const liveTitle =
+    displayRunLabel(runs.find((r) => r.id === runId)?.label ?? "") ||
+    title ||
+    "Unnamed area"
+
   const assetRuns: AssetRun[] = [
     ...(assets.length
       ? [
           {
-            areaId: CURRENT_AREA,
+            areaId: live,
             runId,
-            title,
+            title: liveTitle,
             period: runPeriod,
             /*
               From the RUN RECORD, not from the model control.
@@ -738,6 +773,55 @@ export function BoardSurface({
           },
         ]
       : []),
+    /*
+      Runs the map has finished with, as areas of their own.
+
+      They are the same shape as a picker-loaded run on purpose: there is one
+      kind of "run on the board", whether it arrived by being chosen or by
+      being what the map was showing a moment ago. A run the picker has since
+      loaded wins, since that one carries its full record; these carry only
+      what the live result had.
+
+      Skipped where the live area still is them -- the map has not moved on --
+      and where the picker already holds the same id, so nothing is listed
+      twice.
+    */
+    ...retainedRuns
+      .filter(
+        (r) =>
+          r.id !== runId && !extraRuns.some((x) => x.run.id === r.id)
+      )
+      .map((r) => ({
+        areaId: r.id,
+        runId: r.id,
+        // An unsaved run has no record behind it to delete.
+        deletable: !r.id.startsWith("unsaved:"),
+        title:
+          displayRunLabel(runs.find((x) => x.id === r.id)?.label ?? "") ||
+          "Previous run",
+        model: runModel(r.id),
+        period:
+          r.result.date_range?.length === 2
+            ? `${r.result.date_range[0]} → ${r.result.date_range[1]}`
+            : "",
+        // Same call the picker-loaded runs make: the run's own water and solar
+        // travel in its payload, and none of the map's overlay switches apply
+        // to a run the map is no longer showing.
+        assets: runAssets({
+          result: r.result,
+          composition: null,
+          compositionGallery: [],
+          water: r.result.water,
+          solarTerrain: r.result.solar_terrain,
+          solarSiting: r.result.solar_siting,
+          showCompositionOverlay: false,
+          showWaterOverlay: false,
+          showSolarTerrain: false,
+          showSolarSiting: false,
+          composeOpacity: 1,
+          waterOpacity: 1,
+        }),
+      })),
     ...extraRuns.map(({ run, result }) => ({
       // The run's own id names its area: it is unique, it is stable across a
       // reopen, and it is what a saved arrangement will record.
@@ -803,9 +887,66 @@ export function BoardSurface({
     () => new Set()
   )
   /** Scene ids added, per area, in the order they were added. */
+  /*
+    Areas the reader has taken off the board.
+
+    A catalogued AOI survives the filter below whether or not it carries a
+    raster -- it is the ground a run is about to be made on, and dropping it
+    the moment its rasters come off would take the subject away with them.
+    That left no way to be FINISHED with one: the row stayed, and the only
+    control that would remove it was the one in the Areas pane that deletes the
+    geometry outright, which is a far larger act than clearing the board.
+
+    Dismissal is a board fact and not a catalogue one, so it lives here and the
+    entry is untouched. Putting a raster back on the area brings it back, and a
+    run over it makes it live again.
+  */
+  const [dismissedAreas, setDismissedAreas] = useKept<readonly string[]>(
+    "dismissedAreas",
+    []
+  )
+  const removeArea = (areaId: string) => {
+    const area = areas.find((a) => a.id === areaId)
+    area?.layers.forEach((l) => removeFromScene(areaId, l.id))
+    setDismissedAreas((prev) =>
+      prev.includes(areaId) ? prev : [...prev, areaId]
+    )
+  }
+
   const [added, setAdded] = useKept<
     Readonly<Record<string, readonly string[]>>
   >("added", {})
+
+  /*
+    HANDING THE OUTGOING RUN ITS OWN MEMBERSHIP.
+
+    The map's area ADDS nothing: its rasters arrive as the `layers` prop and
+    were never recorded in `added`. That is fine while it is the live area and
+    fatal the moment it stops being one -- a retained run would appear in the
+    data tree, list its rasters, and put none of them on the scene, because
+    `extrasFor` reads `added` and there was nothing under its id.
+
+    `snapshotBoard` states the same thing for the save path: the map's own area
+    has to have its membership materialised at the moment it stops being the
+    map's. This is that moment for the live board rather than for a saved one.
+
+    Keyed on the run id leaving, and only ever filling an empty entry, so a
+    reader who has since removed a plane by hand does not have it put back.
+  */
+  const lastLiveRun = useRef<string | null>(null)
+  // Read through a ref, because by the time the run id changes the `layers`
+  // prop has ALREADY been emptied -- the whole defect being fixed here.
+  const layersRef = useRef(layers)
+  if (layers.length) layersRef.current = layers
+  useEffect(() => {
+    const previous = lastLiveRun.current
+    lastLiveRun.current = runId
+    if (!previous || previous === runId || previous === CURRENT_AREA) return
+    if (!retainedRuns.some((r) => r.id === previous)) return
+    const ids = layersRef.current.map((l) => l.id)
+    if (!ids.length) return
+    setAdded((prev) => (prev[previous]?.length ? prev : { ...prev, [previous]: ids }))
+  }, [runId, retainedRuns, setAdded])
   /**
    * Opacity and visibility for rasters the board added.
    *
@@ -970,26 +1111,37 @@ export function BoardSurface({
 
   const areas = [
     {
-      id: CURRENT_AREA,
+      id: live,
       // Renamed like every other stack. It was the one area reading its raw
       // title, so renaming it changed the tree and nothing else.
-      title: names[stackRow(CURRENT_AREA)] ?? title,
-      layers: applyOrder(CURRENT_AREA, [
-        ...layers.filter((l) => !removed.has(sceneKey(CURRENT_AREA, l.id))),
-        ...extrasFor(CURRENT_AREA, 1000),
+      /*
+        The subject's own name, and a generic one only where there is no
+        subject.
+
+        The prop used to fall back to the literal "Analysis", which is what a
+        reader saw whenever the AOI label was empty: a row named after no
+        ground, indistinguishable from a saved run and impossible to place. A
+        run that has been saved carries a name, so it is asked first; the map's
+        label is what remains for an area not yet run.
+      */
+      // A rename outranks the derivation; otherwise both trees say the same.
+      title: names[stackRow(live)] ?? liveTitle,
+      layers: applyOrder(live, [
+        ...layers.filter((l) => !removed.has(sceneKey(live, l.id))),
+        ...extrasFor(live, 1000),
       ]),
     },
     // Catalogued drawings that are not the active map AOI — so a second draw
     // stays visible and can be put back with Use.
     ...savedAois
-      .filter((a) => a.id !== activeAoiId)
+      .filter((a) => a.id !== live && a.id !== activeAoiId)
       .map((a) => ({
         id: a.id,
         title: names[stackRow(a.id)] ?? a.name,
         layers: applyOrder(a.id, extrasFor(a.id, 200)),
       })),
     ...assetRuns
-      .filter((r) => r.areaId !== CURRENT_AREA)
+      .filter((r) => r.areaId !== live)
       .map((r) => ({
         id: r.areaId,
         title: names[stackRow(r.areaId)] ?? r.title,
@@ -1001,9 +1153,11 @@ export function BoardSurface({
       // The map's own area survives having nothing on it, so long as an area
       // has been drawn: it is the thing the work is about to be run on, and
       // the board is where that work is started.
-      (a.id === CURRENT_AREA && !!aoiPolygon?.length) ||
+      (a.id === live && !!aoiPolygon?.length) ||
       savedAois.some((s) => s.id === a.id)
   )
+    // Last, so a dismissal outranks every reason an area would otherwise stay.
+    .filter((a) => !dismissedAreas.includes(a.id))
 
   /*
     Which rasters are planes on the board, keyed by area and scene id together.
@@ -1017,7 +1171,7 @@ export function BoardSurface({
   const localKeys = new Set(
     areas.flatMap((a) =>
       a.layers
-        .filter((l) => a.id !== CURRENT_AREA || !baseIds.has(l.id))
+        .filter((l) => a.id !== live || !baseIds.has(l.id))
         .map((l) => sceneKey(a.id, l.id))
     )
   )
@@ -1040,8 +1194,10 @@ export function BoardSurface({
   }
 
   const addToScene = (areaId: string, id: string) => {
+    // Putting a raster on a dismissed area is the reader asking for it back.
+    setDismissedAreas((prev) => prev.filter((a) => a !== areaId))
     // Putting back one the board had taken out, rather than adding a copy.
-    if (areaId === CURRENT_AREA && baseIds.has(id)) {
+    if (areaId === live && baseIds.has(id)) {
       setRemoved((prev) => {
         const next = new Set(prev)
         next.delete(sceneKey(areaId, id))
@@ -1056,7 +1212,7 @@ export function BoardSurface({
   }
 
   const removeFromScene = (areaId: string, id: string) => {
-    if (areaId === CURRENT_AREA && baseIds.has(id)) {
+    if (areaId === live && baseIds.has(id)) {
       setRemoved((prev) => new Set(prev).add(sceneKey(areaId, id)))
       return
     }
@@ -1195,7 +1351,7 @@ export function BoardSurface({
    */
   const polygonsRef = useRef<Record<string, LonLat[]>>({})
   polygonsRef.current = {
-    ...(aoiPolygon?.length ? { [CURRENT_AREA]: aoiPolygon } : {}),
+    ...(aoiPolygon?.length ? { [live]: aoiPolygon } : {}),
     ...Object.fromEntries(
       savedAois.flatMap((a) => {
         if (a.id === activeAoiId) return []
@@ -1293,7 +1449,7 @@ export function BoardSurface({
       : null
     const saved = savedAois.find((s) => s.id === a.id)
     const catalogId =
-      a.id === CURRENT_AREA
+      a.id === live
         ? activeAoiId
         : saved
           ? a.id
@@ -1307,14 +1463,14 @@ export function BoardSurface({
       // corner twice.
       vertices: ring?.length ? ring.length - 1 : null,
       layers: a.layers.length,
-      current: a.id === CURRENT_AREA,
+      current: a.id === live,
       saved: !!catalogId,
       catalogId,
     }
   })
 
   const legendByArea = new Map<string, LegendSources>([
-    [CURRENT_AREA, legendSources ?? {}],
+    [live, legendSources ?? {}],
     ...extraRuns.map(
       ({ run, result }) =>
         [
@@ -1498,7 +1654,7 @@ export function BoardSurface({
     that has just been created by adding a raster must show the raster.
   */
   const [expanded, setExpanded] = useKept<ReadonlySet<string>>("expanded", () =>
-    new Set([stackRow(CURRENT_AREA)])
+    new Set([stackRow(live)])
   )
   useEffect(() => {
     setExpanded((prev) => {
@@ -2559,13 +2715,14 @@ export function BoardSurface({
               setPendingDelete({ kind: "area", id, title })
             }
             areas={areas}
-            areaId={CURRENT_AREA}
+            areaId={live}
             assetRuns={assetRuns}
             addRun={
               <RunPicker
                 runs={runs}
                 projects={projects}
                 excludeRunIds={new Set(assetRuns.map((r) => r.runId))}
+                surface={surfaceRef.current}
                 busy={loadingRun}
                 onPick={(r) => void addRun(r)}
               />
@@ -2589,6 +2746,7 @@ export function BoardSurface({
             onToggleExpanded={toggleExpanded}
             onLayerChange={changeLayer}
             onDropRun={dropRun}
+            onRemoveArea={removeArea}
             // Both destructive controls only ASK here; the studio owns the
             // dialog and the act, so neither tree has to carry a confirmation
             // of its own.

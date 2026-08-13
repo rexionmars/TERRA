@@ -408,6 +408,7 @@ export function BoardSidebar({
   names,
   onRename,
   onDropRun,
+  onRemoveArea,
   onDeleteRun,
   flat,
   onReorder,
@@ -468,6 +469,8 @@ export function BoardSidebar({
    * board fetched, and dropping it would mean closing the board.
    */
   onDropRun?: (runId: string) => void
+  /** Take a whole area off the board, rasters and all. */
+  onRemoveArea?: (areaId: string) => void
   /** Ends the run everywhere, unlike onDropRun which only unloads it. */
   onDeleteRun?: (runId: string, title: string) => void
   /**
@@ -609,9 +612,17 @@ export function BoardSidebar({
         to a thing, so the precedent is on the row itself.
       */
       removeId: null,
-      removeAll: stack.length
-        ? () => stack.forEach((l) => onRemoveFromScene(area.id, l.id))
-        : undefined,
+      /*
+        Always offered, including on an area with nothing on it.
+
+        Gating this on `stack.length` left the one row a reader most wants gone
+        as the only one with no way to go: a catalogued AOI with no rasters
+        survives the board's filter by design -- it is the ground a run is
+        about to be made on -- and once they are done with it, it stayed. The
+        board's own dismissal is what removes it; the catalogue entry is
+        untouched, and putting a raster on it brings it back.
+      */
+      removeAll: () => onRemoveArea?.(area.id),
       posinset: areas.indexOf(area) + 1,
       setsize: areas.length,
     })
@@ -1155,9 +1166,13 @@ export function BoardSidebar({
                     // much it takes. Nothing is destroyed -- the run keeps its
                     // rasters and the data tree still lists it -- so this asks
                     // for no confirmation.
-                    title={`Take all ${
-                      areas.find((a) => a.id === row.areaId)?.layers.length ?? 0
-                    } rasters off the board`}
+                    title={(() => {
+                      const n =
+                        areas.find((a) => a.id === row.areaId)?.layers.length ?? 0
+                      return n
+                        ? `Take this area and its ${n} rasters off the board`
+                        : "Take this area off the board"
+                    })()}
                     className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
                   >
                     <Minus className="size-3.5" />

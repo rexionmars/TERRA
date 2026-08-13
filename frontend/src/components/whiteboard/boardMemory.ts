@@ -29,6 +29,36 @@ const kept = new Map<string, unknown>()
  */
 export const CURRENT_AREA = "current"
 
+/**
+ * The id of whatever the map is showing: its run, else its AOI, else nothing.
+ *
+ * IDENTITY IS THE SUBJECT, NOT THE SLOT. This was the bare `CURRENT_AREA` for
+ * every live area, so one literal named whatever ground the map happened to be
+ * on. Everything the board remembers per area -- the name a reader typed, the
+ * layer order, what they removed, opacities, where they dragged it, which
+ * planes are pinned in the compare editor -- is keyed by that id, and none of
+ * it was ever rekeyed or pruned. Draw a second AOI and the new subject slid
+ * into the previous one's name and arrangement, which is how a run appeared
+ * under a name its ground never had.
+ *
+ * Run first, deliberately. Keying by AOI would put two runs over the SAME
+ * shape back into one slot, which is the same defect reached by re-running
+ * instead of re-drawing.
+ *
+ * The sentinel keeps its two real jobs: an area with no run and no catalogued
+ * AOI -- an example area, an adopted geometry, a studio opened on nothing --
+ * and the rewrite `snapshotBoard` performs when a board is saved, which
+ * becomes a no-op once the live area already carries its run id.
+ */
+export function liveAreaId(
+  runId?: string | null,
+  aoiId?: string | null
+): string {
+  if (runId && runId !== CURRENT_AREA) return runId
+  if (aoiId) return aoiId
+  return CURRENT_AREA
+}
+
 /** Forget everything. For a board that should open empty. */
 export function clearBoardMemory(): void {
   kept.clear()

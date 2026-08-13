@@ -140,6 +140,8 @@ export interface MapScreenProps {
   customPolygon: GeoJSONGeometry | null
   flyTo: { lat: number; lon: number; key: number } | null
   result: PredictResult | null
+  /** Results the map finished with, still placeable on the board. */
+  retainedRuns: readonly { id: string; result: PredictResult }[]
   overlayOpacity: number
   showConfidence: boolean
   confidenceOnTop: boolean
@@ -1193,6 +1195,7 @@ export function MapScreen(props: MapScreenProps) {
               runBarHeader={runBarHeader}
               layers={boardLayers}
               assets={boardAssets}
+              retainedRuns={props.retainedRuns}
               /*
                 What this run's colours mean. Not derivable from the layers:
                 a layer is what is drawn, and class_stats, the water index and
@@ -1255,7 +1258,22 @@ export function MapScreen(props: MapScreenProps) {
               onRemoveComposition={props.onRemoveComposition}
               smooth={props.smoothOverlay}
               onSmoothChange={props.onSmoothOverlayChange}
-              title={props.areaLabel || "Analysis"}
+              /*
+                The subject's own name, and only a generic one when there is
+                genuinely no subject.
+
+                This read `props.areaLabel || "Analysis"`, and "Analysis" is
+                what a reader saw whenever the AOI label was empty -- a row in
+                the tree named after no ground, indistinguishable from a saved
+                run and impossible to place. The label is the last resort now
+                rather than the only source: the run's own name first, then the
+                active AOI's, then the map's label.
+              */
+              title={
+                props.savedAois?.find((a) => a.id === props.activeAoiId)?.name ||
+                props.areaLabel ||
+                ""
+              }
               onClose={() => setBoard(false)}
             />
           </Suspense>

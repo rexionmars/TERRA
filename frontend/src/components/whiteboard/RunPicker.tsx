@@ -10,21 +10,32 @@
  * in one list, the names alone do not separate them. The period is what tells
  * two runs of one project apart, so it is on every row.
  *
- * NO PORTAL, and no measured position. The first version put the list in a
- * portal on document.body and computed a place for it from the button's
- * rectangle -- a portal to escape a clip, a layout effect to measure, a
- * viewport-relative position to keep in step, and three ways for the list to
- * be somewhere other than where it was wanted. It is a sibling of the button
- * now, placed by CSS against the column itself: `left-full` puts it beside the
- * column and `bottom-2` sits it above the foot. The control lives below the
- * scrolling tree rather than inside it, so nothing clips it and it does not
- * scroll away from the list it adds to.
+ * PLACED BY `StudioPopover`, WHICH MEASURES. This opened with `left-full`, on
+ * the reading that the list belongs beside the column it is added from -- true
+ * while the outliner WAS a column, fixed at 15rem down the left edge.
+ *
+ * The area system ended that. An outliner is an editor now and goes wherever
+ * the partition puts it, and in the default Layout it is the RIGHT column:
+ * `left-full` then opens a 17rem panel past the right edge of the window,
+ * where the list is clipped and the rows run out of the screen. Nothing about
+ * the CSS was wrong; the thing it measured against stopped being where it was.
+ *
+ * The first version of this file DID measure, into a portal on document.body,
+ * and was replaced because a viewport-relative position had three ways to end
+ * up somewhere unintended. `StudioPopover` is the answer the studio arrived at
+ * for the same problem: it portals into the STUDIO SURFACE, clamps on both
+ * axes, and flips above the anchor where there is no room below. Every menu in
+ * every area header already opens that way, so this is not a fourth mechanism.
+ *
+ * The control still lives below the scrolling tree rather than inside it, so
+ * it does not scroll away from the list it adds to.
  */
 import { useMemo, useState } from "react"
-import { Plus, Search, X } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { datesByMonth, runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
+import { StudioPopover } from "@/components/whiteboard/StudioPopover"
 import { cn } from "@/lib/utils"
 
 export function RunPicker({
@@ -33,12 +44,15 @@ export function RunPicker({
   /** Already on the board, so it cannot be added twice. */
   excludeRunIds,
   busy,
+  surface,
   onPick,
 }: {
   runs: InferenceRun[]
   projects: Project[]
   excludeRunIds: ReadonlySet<string>
   busy?: boolean
+  /** The studio surface the list is portalled into and clamped inside. */
+  surface: HTMLElement | null
   onPick: (run: InferenceRun) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -83,48 +97,44 @@ export function RunPicker({
   const total = groups.reduce((n, g) => n + g.runs.length, 0)
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        disabled={busy}
-        aria-expanded={open}
-        className={cn(
-          "flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-meta transition-colors",
-          "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-          open
-            ? "bg-surface-raised text-foreground"
-            : "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
-        )}
-      >
-        <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
-        {busy ? "Loading…" : "Add a run"}
-      </button>
-
-      {open && (
-        /*
-          The board's own ink, like the column it opens from -- and separated
-          the same way that column is, rather than by being a lighter plate.
-
-          It opens entirely to the right of the column, so what is behind it is
-          the BOARD, which draws a grid. A region without one, with a border and
-          a shadow, is a panel; that is how the sidebar itself reads against the
-          same background.
-
-          Not `.panel`: that is `rgb(var(--p-ink) / 0.55)` over a backdrop blur,
-          which over the map reads and over flat ink is ink on ink -- a contrast
-          ratio of 1.000 against its own background, with a 28 %-alpha border as
-          the only evidence it is there. The border here is --p-line-strong at
-          60 %, which measures 2.27 against the ink on both sides of it.
-        */
-        <div
-          className="absolute bottom-2 left-full z-[20] ml-1.5 flex max-h-[22rem] w-[17rem] flex-col overflow-hidden rounded-sm border shadow-xl"
-          style={{
-            background: "rgb(var(--p-ink))",
-            borderColor: "rgb(var(--p-line-strong) / 0.6)",
-          }}
+    <StudioPopover
+      open={open}
+      onOpenChange={setOpen}
+      surface={surface}
+      widthRem={17}
+      trigger={(p) => (
+        <button
+          type="button"
+          ref={p.ref as React.Ref<HTMLButtonElement>}
+          onClick={p.onClick}
+          disabled={busy}
+          aria-expanded={p["aria-expanded"]}
+          aria-haspopup={p["aria-haspopup"]}
+          className={cn(
+            "flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-meta transition-colors",
+            "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+            open
+              ? "bg-surface-raised text-foreground"
+              : "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
+          )}
         >
+          <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
+          {busy ? "Loading…" : "Add a run"}
+        </button>
+      )}
+    >
+      {(
+        /*
+          Layout only. The plate -- background, border, shadow, width and the
+          placement -- belongs to `StudioPopover`, which every other menu in the
+          studio already wears; drawing a second one here is how two surfaces
+          come to disagree about what a panel looks like.
+
+          The height is still bounded here, because this is the one popover
+          whose content is a list of unknown length.
+        */
+        <div className="flex max-h-[20rem] flex-col overflow-hidden">
           <label
             className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
             style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
@@ -143,14 +153,6 @@ export function RunPicker({
               placeholder="Find a run"
               className="min-w-0 flex-1 border-0 bg-transparent text-meta text-foreground outline-none placeholder:text-muted-foreground"
             />
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-              className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <X className="size-3" />
-            </button>
           </label>
 
           <div className="min-h-0 flex-1 overflow-y-auto py-1">
@@ -172,7 +174,9 @@ export function RunPicker({
                   */}
                   <p
                     className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
-                    style={{ background: "rgb(var(--p-ink))" }}
+                    // The popover's own plate, so a heading scrolled under does
+                    // not show the rows through a differently coloured band.
+                    style={{ background: "rgb(var(--p-surface-raised))" }}
                   >
                     {g.name}
                   </p>
@@ -207,6 +211,6 @@ export function RunPicker({
           </div>
         </div>
       )}
-    </>
+    </StudioPopover>
   )
 }

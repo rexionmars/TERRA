@@ -229,6 +229,47 @@ function App() {
   const [progress, setProgress] = useState<number>(0)
   const [progressMsg, setProgressMsg] = useState<string>("")
   const [result, setResult] = useState<PredictResult | null>(null)
+  /**
+   * Results the map has finished with, kept so the board can still show them.
+   *
+   * There is ONE live result, and starting a run empties it before the request
+   * is even built. Everything the map was showing therefore ceased to exist at
+   * the moment the next run began -- not when it finished, and not because of
+   * anything the board did. A studio whose whole purpose is placing analyses
+   * side by side could hold exactly one at a time, and the previous one went
+   * without a word.
+   *
+   * Archived here rather than in the board because it has to outlive the map
+   * screen unmounting, which is what took the rasters away on a trip to the
+   * analyses list and back.
+   *
+   * Bounded at three by recency: each result carries several megabytes of data
+   * URIs. A run that was saved is evicted before one that was not, since a
+   * saved run can be brought back through the run picker and an unsaved one is
+   * gone for good.
+   */
+  const [retainedRuns, setRetainedRuns] = useState<
+    readonly { id: string; result: PredictResult }[]
+  >([])
+  const retainRun = useCallback((outgoing: PredictResult | null) => {
+    // A result with no classification is a water or solar payload the board
+    // reads from its own fields; nothing of it belongs to a scene.
+    if (!outgoing || !(outgoing.class_stats?.length || outgoing.overlay_uri)) {
+      return
+    }
+    setRetainedRuns((prev) => {
+      const id = outgoing.run_id || `unsaved:${prev.length + 1}`
+      if (prev.some((r) => r.id === id)) return prev
+      const next = [{ id, result: outgoing }, ...prev]
+      if (next.length <= 3) return next
+      // Drop the oldest RECOVERABLE one; an unsaved run has nowhere to return
+      // from, so it outlives a saved neighbour.
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (!next[i].id.startsWith("unsaved:")) return next.filter((_, j) => j !== i)
+      }
+      return next.slice(0, 3)
+    })
+  }, [])
   const [analysisLabel, setAnalysisLabel] = useState<string | undefined>()
   const [lulcRunning, setLulcRunning] = useState(false)
   const [booting, setBooting] = useState(true)
@@ -463,6 +504,8 @@ function App() {
             setProgress={setProgress}
             setProgressMsg={setProgressMsg}
             setResult={setResult}
+            retainRun={retainRun}
+            retainedRuns={retainedRuns}
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
@@ -529,6 +572,9 @@ function AppBody(props: {
   setProgress: (v: number) => void
   setProgressMsg: (v: string) => void
   setResult: (r: PredictResult | null) => void
+  /** Archive the outgoing result before the live slot is emptied. */
+  retainRun: (outgoing: PredictResult | null) => void
+  retainedRuns: readonly { id: string; result: PredictResult }[]
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
@@ -1972,6 +2018,9 @@ function AppBody(props: {
     props.setRunning(true)
     props.setProgress(0)
     props.setProgressMsg("iniciando")
+    // Before the slot is emptied, and before the request is built: a run that
+    // fails now costs the reader nothing, where it used to cost them the map.
+    props.retainRun(props.result)
     props.setResult(null)
     const useExample = usesExampleArea(props.activeExample, props.areas)
     const aoiLabel =
@@ -2232,6 +2281,7 @@ function AppBody(props: {
   )
 
   const backToAnalysesList = useCallback(() => {
+    props.retainRun(props.result)
     props.setResult(null)
     setCurrentRunLabel(null)
     setCurrentRunId(null)
@@ -2284,6 +2334,7 @@ function AppBody(props: {
    * defines its own AOI on its own screen and clears nothing here.
    */
   const startNewClassification = useCallback(() => {
+    props.retainRun(props.result)
     props.setResult(null)
     setCurrentRunLabel(null)
     setCurrentRunId(null)
@@ -2678,6 +2729,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MapScreen
+                  retainedRuns={props.retainedRuns}
                   onCreditChange={setCredit}
                   titleBarSlot={boardSlotHost}
                   onBoardOpenChange={setBoardOpen}
