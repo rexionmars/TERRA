@@ -53,7 +53,6 @@ import {
   Numbers and pure functions -- no React, no three -- which is what lets this
   file consult the partition without the chrome it must not pull.
 */
-import { BOARD_RIGHT_REM, remToPx } from "@/lib/boardPartition"
 import type { CardGroup, CardPlane } from "@/lib/boardLayout"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
@@ -418,62 +417,26 @@ export function createBoard(
    *
    * three ships it, so it costs 12.8 kB of an addon rather than a component.
    */
-  /*
-    --map-foot in PIXELS, which parseFloat alone does not give.
-
-    A custom property that is not registered with @property computes to its
-    token stream, so getPropertyValue returns the literal "12rem" -- and
-    parseFloat of that is 12, not 192. The helper was being lifted twelve pixels
-    off the bottom of a canvas whose last twelve rem are covered by two bands,
-    so it sat underneath them and was simply not there.
-
-    It was always wrong. It read 3.0625 for the map's own 3.0625rem, which is
-    small enough that nothing looked broken; growing the reservation for the
-    statistics band is what made a long-standing unit error visible.
-  */
-  /*
-    The partition, read from the properties it publishes.
-
-    lib/boardPartition is numbers and pure functions -- no React and no three --
-    so this file can consult it without the chrome it must not pull.
-
-    READ ONCE, HERE, at board creation. createBoard runs from an effect keyed
-    on [groups], so these values are captured when the board is built and do
-    not follow a later change. That is correct while the partition is
-    constant and will not be once a seam can be dragged: making the columns
-    resizable requires an update path on the handle -- the properties are the
-    channel, but nothing re-reads them yet.
-  */
   const viewHelper = new ViewHelper(camera, renderer.domElement)
   /*
-    Bottom-right of the VISIBLE board, not of the canvas.
+    Twelve pixels from the corner of the canvas, and nothing subtracted.
 
-    The canvas fills the host under both columns. Bottom-left is under the
-    outliner; bottom-right (right: 12) is under the detail column — the helper
-    drew into the canvas underneath it and vanished the same way it once did
-    on the left. Clear the right column and the foot reservation so the gizmo
-    sits in the open corner between them.
-  */
-  /*
-    The RIGHT column on the right, which is not what this cleared before.
+    This used to read --map-foot and --board-right and take the gizmo clear of
+    two bands and a column, because the canvas ran the whole width of the
+    studio with the chrome painted over it. It got that wrong twice: once by
+    parsing "12rem" as twelve pixels, and once by clearing the LEFT column's
+    width on the right-hand side.
 
-    It used the LEFT column's width on the right inset -- the two were equal
-    when it was written and stopped being equal when the right column took the
-    15px it was asked for, leaving the gizmo 0.9375rem inside the column it was
-    measured to clear.
-
-    A function, because the seams move. It re-reads the published properties
-    rather than closing over the values captured at setup, which is what lets a
-    drag reach a module that must not import React chrome.
+    The canvas is now the viewport AREA's own rectangle, so there is nothing
+    over it to clear. The arithmetic that was wrong twice is gone rather than
+    corrected a third time -- which is what putting the surface where it
+    belongs buys.
   */
   function placeViewHelper() {
-    const now = getComputedStyle(host)
     viewHelper.location = {
       ...viewHelper.location,
-      bottom: remToPx(now.getPropertyValue("--map-foot")) + 12,
-      right:
-        (remToPx(now.getPropertyValue("--board-right")) ||
-          remToPx(BOARD_RIGHT_REM)) + 12,
+      bottom: 12,
+      right: 12,
     }
   }
   placeViewHelper()

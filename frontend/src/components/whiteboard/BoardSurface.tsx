@@ -10,7 +10,7 @@
  * pay for it until the board is opened; see BoardButton for the other
  * half of that boundary.
  */
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { Save } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
@@ -74,7 +74,59 @@ import type {
 } from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
 import { createBoard, tokenColor } from "@/components/whiteboard/boardScene"
-import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
+import { cn } from "@/lib/utils"
+import { remToPx } from "@/lib/boardPartition"
+import {
+  areaLeaves,
+  areaRects,
+  joinArea,
+  maximizeArea,
+  moveSplit,
+  retypeArea,
+  splitArea,
+  type AreaId,
+} from "@/lib/boardAreas"
+import { STUDIO_EDITORS, type EditorId } from "@/lib/studioEditors"
+import {
+  DEFAULT_WORKSPACE,
+  studioWorkspace,
+  type StudioTree,
+} from "@/lib/studioWorkspaces"
+
+/** The tab strip's height; the areas divide what is left below it. */
+const WORKSPACE_BAR_PX = 28
+import {
+  AREA_HEADER_PX,
+  StudioArea,
+  type AreaHeaderSlots,
+} from "@/components/whiteboard/StudioArea"
+import {
+  StudioMenuItem,
+  StudioMenuRule,
+  StudioPopover,
+} from "@/components/whiteboard/StudioPopover"
+import {
+  StudioHeaderMenu,
+  StudioHeaderPopoverButton,
+  StudioHeaderRule,
+  StudioHeaderToggle,
+} from "@/components/whiteboard/StudioHeaderControls"
+import { NumberField } from "@/components/ui/NumberField"
+import {
+  Box,
+  BoxSelect,
+  Eraser,
+  Layers2,
+  Link2,
+  Paintbrush,
+  RotateCcw,
+  Tag,
+  X,
+} from "lucide-react"
+import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
+import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
+import { StudioTables } from "@/components/whiteboard/StudioTables"
+import { DomainShiftSection } from "@/components/DomainShiftSection"
 
 /**
  * Separation between stacked layers, in world units where the AOI's longest
@@ -196,10 +248,7 @@ export function BoardSurface({
   onDetailResize,
   detailCollapsed,
   onDetailToggleCollapsed,
-  leftRem = BOARD_LEFT_REM,
-  rightRem = BOARD_RIGHT_REM,
-  onLeftRemChange,
-  onRightRemChange,
+  runBar,
   runLog,
   runRunning,
   assets,
@@ -250,15 +299,14 @@ export function BoardSurface({
   detailCollapsed?: boolean
   onDetailToggleCollapsed?: () => void
   /**
-   * The columns' widths, and where a drag on their seams reports.
+   * The run controls, handed in rather than rebuilt.
    *
-   * Owned by the screen rather than by each column: the foot bands recess by
-   * the same numbers, and a divided owner is how they drifted apart before.
+   * They belong to the map screen -- which owns the parameters, the handlers
+   * and the progress -- and threading twenty props through here to reassemble
+   * them would put that state in a second place. As a node, the studio decides
+   * only WHERE they are drawn, which is the one thing the area tree is for.
    */
-  leftRem?: number
-  rightRem?: number
-  onLeftRemChange?: (rem: number) => void
-  onRightRemChange?: (rem: number) => void
+  runBar?: React.ReactNode
   runLog?: RunLogEntry[]
   runRunning?: boolean
   assets: RunAsset[]
@@ -295,6 +343,84 @@ export function BoardSurface({
     "names",
     {}
   )
+
+  /*
+    THE ARRANGEMENT, and which named one it started from.
+
+    Through useKept, so it survives a glance at the map and does not survive a
+    restart -- the position boardMemory states for itself. A workspace is a
+    preset; the live tree is what the reader has done to it since, and keeping
+    one tree per workspace is what lets switching tabs be reversible.
+  */
+  const [workspaceId, setWorkspaceId] = useKept("workspace", DEFAULT_WORKSPACE)
+  const [trees, setTrees] = useKept<Readonly<Record<string, StudioTree>>>(
+    "trees",
+    {}
+  )
+  /*
+    The arrangement a maximise replaced, so the same keystroke puts it back.
+    Without it, maximising would be a join that destroyed the workspace.
+  */
+  const [restoreTree, setRestoreTree] = useKept<
+    Readonly<Record<string, StudioTree | null>>
+  >("restore", {})
+  const tree: StudioTree =
+    trees[workspaceId] ?? studioWorkspace(workspaceId).build()
+  const setTree = useCallback(
+    (next: StudioTree) => setTrees((prev) => ({ ...prev, [workspaceId]: next })),
+    [setTrees, workspaceId]
+  )
+
+  /*
+    The surface's own rectangle, measured rather than assumed.
+
+    The areas are placed in pixels from one walk of the tree, so the walk needs
+    a real box to divide. An observer rather than a read at mount: the window
+    resizes, and a snapshot would leave every area where it was when the studio
+    opened.
+  */
+  const surfaceRef = useRef<HTMLDivElement | null>(null)
+  const [surface, setSurface] = useState({ x: 0, y: 0, w: 0, h: 0 })
+  useEffect(() => {
+    const el = surfaceRef.current
+    if (!el) return
+    const read = () =>
+      setSurface({
+        x: 0,
+        // Below the workspace tabs, which are outside the partition for the
+        // same reason Blender keeps its topbar outside the splittable area:
+        // the thing that chooses an arrangement cannot be part of it.
+        y: WORKSPACE_BAR_PX,
+        w: el.clientWidth,
+        h: Math.max(0, el.clientHeight - WORKSPACE_BAR_PX),
+      })
+    read()
+    const obs = new ResizeObserver(read)
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  const rootPx = remToPx(1)
+  const leaves = areaLeaves(tree)
+  /*
+    Where the canvas goes: the viewport area's rectangle, or nowhere.
+
+    Read from the same walk that places the areas, so the canvas cannot end up
+    somewhere the viewport area is not -- the class of mismatch that had the
+    axis gizmo clearing one column's width on the other column's side.
+  */
+  const viewportRect = useMemo(() => {
+    const { leaves: rects } = areaRects(tree, surface)
+    return rects.find((r) => r.editor === "viewport") ?? null
+  }, [tree, surface])
+  // The viewport owns the one GL context, so it may be in one area at a time.
+  const takenUnique = useMemo(() => {
+    const taken = new Set<EditorId>()
+    for (const l of leaves) {
+      if (STUDIO_EDITORS.find((e) => e.id === l.editor)?.unique) taken.add(l.editor)
+    }
+    return taken
+  }, [leaves])
   const renameRow = (rowId: string, name: string) =>
     setNames((prev) => {
       const next = { ...prev }
@@ -1031,6 +1157,10 @@ export function BoardSurface({
     assetRuns.find((r) => r.areaId === detailFocus.areaId)?.model
 
   const [brushOn, setBrushOn] = useState(false)
+  // Which header popover is open. One at a time, as a menu bar behaves.
+  const [viewMenu, setViewMenu] = useState(false)
+  const [overlayMenu, setOverlayMenu] = useState(false)
+  const [appMenu, setAppMenu] = useState(false)
   const [brushRadius, setBrushRadius] = useState<BrushRadiusPx>(2)
   const [probeUv, setProbeUv] = useState<{
     groupId: string
@@ -1448,6 +1578,323 @@ export function BoardSurface({
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
+  /*
+    The runs behind the selected planes, deduplicated by area.
+
+    Selection is per plane and several planes come from one run, so listing
+    them straight would offer the same tables three times under three names.
+  */
+  const selectedRuns = useMemo(() => {
+    const out: Array<{ id: string; label: string; result: PredictResult }> = []
+    for (const t of selection) {
+      const target = rowTarget(t)
+      if (!target?.areaId) continue
+      if (out.some((r) => r.id === target.areaId)) continue
+      const result = legendByArea.get(target.areaId)?.result
+      if (!result) continue
+      out.push({
+        id: target.areaId,
+        label: areas.find((a) => a.id === target.areaId)?.title ?? target.areaId,
+        result,
+      })
+    }
+    return out
+  }, [selection, legendByArea, areas])
+
+  /*
+    THE HEADERS, one per editor.
+
+    This is where the density comes from, and its absence is what made the
+    first version of the area system "Blender's regions with none of their
+    contents". A header is a control surface: the viewport's carries what is
+    SHOWN, which until now lived in the outliner's footer three levels away
+    from the thing it acts on.
+
+    Built here rather than in a registry for the reason studioEditors states
+    for keeping renderers out of itself -- only this component holds the state
+    these controls read and write.
+  */
+  const headerSlots: Partial<Record<EditorId, AreaHeaderSlots>> = {
+    viewport: {
+      menus: (
+        <>
+          <StudioPopover
+            open={viewMenu}
+            onOpenChange={setViewMenu}
+            surface={surfaceRef.current}
+            widthRem={14}
+            trigger={(p) => (
+              <StudioHeaderMenu
+                label="Select"
+                ref={p.ref}
+                onClick={p.onClick}
+                aria-expanded={p["aria-expanded"]}
+                aria-haspopup="menu"
+              />
+            )}
+          >
+            <StudioMenuItem
+              icon={BoxSelect}
+              label="Select all planes"
+              onSelect={() => {
+                setSelection(
+                  areas.flatMap((a) =>
+                    a.layers.map((l) => layerRow(a.id, l.id))
+                  )
+                )
+                setViewMenu(false)
+              }}
+            />
+            <StudioMenuItem
+              icon={Eraser}
+              label="Clear selection"
+              note="Esc"
+              disabled={!selection.length}
+              onSelect={() => {
+                setSelection([])
+                setViewMenu(false)
+              }}
+            />
+          </StudioPopover>
+        </>
+      ),
+      options: (
+        <>
+          {/*
+            OVERLAYS. Blender's own name for the popover that carries what is
+            drawn over the scene without being of it -- names, links, guides.
+            These three were in the outliner's VIEW footer, which is a panel
+            for the scene's structure and not for how it is drawn.
+          */}
+          <StudioPopover
+            open={overlayMenu}
+            onOpenChange={setOverlayMenu}
+            surface={surfaceRef.current}
+            align="end"
+            widthRem={15}
+            trigger={(p) => (
+              <StudioHeaderPopoverButton
+                {...p}
+                icon={Layers2}
+                label="Overlays"
+                open={overlayMenu}
+                title="What is drawn over the board"
+              />
+            )}
+          >
+            <StudioMenuItem
+              icon={Tag}
+              label="Plane names"
+              checked={labels}
+              onSelect={() => setLabels((v) => !v)}
+            />
+            <StudioMenuItem
+              icon={Link2}
+              label="Link each area's rasters"
+              checked={links}
+              onSelect={() => setLinks((v) => !v)}
+            />
+            <StudioMenuRule />
+            <div className="px-2 py-1">
+              <NumberField
+                label="Spread"
+                value={gap}
+                min={0}
+                max={GAP_MAX}
+                step={0.01}
+                // World units where the AOI's longest side is 1, so the figure
+                // reads the same whatever the area covers on the ground.
+                format={(v) => v.toFixed(3)}
+                parse={(t) => {
+                  const v = parseFloat(t)
+                  return Number.isFinite(v) ? v : null
+                }}
+                onChange={setGap}
+              />
+            </div>
+          </StudioPopover>
+
+          <StudioHeaderRule />
+          <StudioHeaderToggle
+            icon={Paintbrush}
+            label="Brush"
+            on={brushOn}
+            disabled={!detailPrediction}
+            onToggle={() => setBrushOn((v) => !v)}
+            title={
+              detailPrediction
+                ? "Read the class under the lens"
+                : "Select a prediction plane to brush it"
+            }
+          />
+        </>
+      ),
+    },
+  }
+
+  /*
+    THE EDITORS, one expression each.
+
+    They used to be four surfaces positioned by hand in the render tree below,
+    which is why each of them had to know where it went. Naming them here makes
+    them values an area can hold: what decides where the outliner appears is
+    the tree, not the outliner.
+
+    Not a registry of render functions -- lib/studioEditors carries the labels,
+    the icons and the floors, and the props live here because only this
+    component has them. A registry wide enough to pass them all would be a
+    second copy of this component's state.
+  */
+  const editorNodes: Partial<Record<EditorId, React.ReactNode>> = {
+    outliner: (
+          <BoardSidebar
+            areaInfo={areaInfo}
+            /*
+              The ring the board is already drawing, handed back as a geometry.
+              Taken from the same source the footprint and the figures come from, so
+              the shape that is worked on is the shape that was on screen.
+            */
+            onUseArea={(id) => {
+              if (savedAois.some((a) => a.id === id)) {
+                onActivateSavedAoi?.(id)
+                return
+              }
+              const ring = polygonsRef.current[id]
+              if (!ring?.length || !onUseArea) return
+              onUseArea({
+                type: "Polygon",
+                coordinates: [ring],
+              } as GeoJSONGeometry)
+            }}
+            onRenameSavedAoi={onRenameSavedAoi}
+            onDeleteSavedAoi={onDeleteSavedAoi}
+            areas={areas}
+            areaId={CURRENT_AREA}
+            assetRuns={assetRuns}
+            addRun={
+              <RunPicker
+                runs={runs}
+                projects={projects}
+                excludeRunIds={new Set(assetRuns.map((r) => r.runId))}
+                busy={loadingRun}
+                onPick={(r) => void addRun(r)}
+              />
+            }
+            sceneIds={sceneIds}
+            onAddToScene={addToScene}
+            onRemoveFromScene={removeFromScene}
+            names={names}
+            onRename={renameRow}
+            mode={mode}
+            onModeChange={setMode}
+            activeAsset={activeAsset}
+            onActivateAsset={setActiveAsset}
+            onSelectComposition={onSelectComposition}
+            onRemoveComposition={onRemoveComposition}
+            activeRow={active}
+            selection={selection}
+            expanded={expanded}
+            gap={gap}
+            gapMax={GAP_MAX}
+            smooth={smooth}
+            onActivate={chooseRow}
+            onToggleExpanded={toggleExpanded}
+            onGapChange={setGap}
+            onLayerChange={changeLayer}
+            onDropRun={dropRun}
+            flat={flat}
+            onToggleFlat={toggleFlat}
+            onReorder={reorderArea}
+            links={links}
+            onLinksChange={setLinks}
+            labels={labels}
+            onLabelsChange={setLabels}
+            // Nothing to join until some area holds more than one raster.
+            canLink={areas.some((a) => a.layers.length > 1)}
+            onSmoothChange={onSmoothChange}
+          />
+    ),
+    properties: (
+          <BoardStatsBar
+            runLog={runLog}
+            running={runRunning}
+            entries={selection
+              .map(rowTarget)
+              .filter((t): t is { areaId: string; layerId: string } => !!t?.layerId)
+              .map((t) => {
+                const area = areas.find((a) => a.id === t.areaId)
+                const info = areaInfo.find((a) => a.id === t.areaId)
+                const catalogId = info?.catalogId
+                return {
+                  key: sceneKey(t.areaId, t.layerId),
+                  legend: legendFor(t.layerId, legendByArea.get(t.areaId) ?? {}),
+                  area: area?.title,
+                  period: assetRuns.find((r) => r.areaId === t.areaId)?.period,
+                  model: assetRuns.find((r) => r.areaId === t.areaId)?.model,
+                  /*
+                    Only on the layer it describes. A run's agreement is about its
+                    CLASSIFICATION, so hanging it on the confidence or true-colour
+                    plane of the same run would attach a measurement to a raster it
+                    did not measure.
+                  */
+                  agreement:
+                    t.layerId === "prediction"
+                      ? legendByArea.get(t.areaId)?.result?.lulc?.agreement
+                      : undefined,
+                  onRenameArea:
+                    catalogId && onRenameSavedAoi
+                      ? (name: string) => onRenameSavedAoi(catalogId, name)
+                      : undefined,
+                }
+              })}
+          />
+    ),
+    runParams: runBar ?? null,
+    domainShift:
+      compareSides && compareSides[0].result && compareSides[1].result ? (
+        <div className="panel-scroll h-full w-full overflow-auto p-3">
+          <DomainShiftSection
+            resultA={compareSides[0].result}
+            resultB={compareSides[1].result}
+            labelA={compareSides[0].label}
+            labelB={compareSides[1].label}
+          />
+        </div>
+      ) : (
+        <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
+          Pick two prediction planes to measure how far their domains sit apart.
+        </p>
+      ),
+    table: <StudioTables runs={selectedRuns} />,
+    compare: compareSides ? (
+          <BoardSolarDetail
+            placement="area"
+            leftOffset="var(--board-left)"
+            rightOffset="var(--board-right)"
+            focus={detailFocus?.focus ?? null}
+            terrain={detailTerrain}
+            siting={detailSiting}
+            prediction={detailPrediction}
+            modelKind={detailModel}
+            period={detailPeriod}
+            brushOn={brushOn}
+            onBrushOnChange={setBrushOn}
+            brushRadius={brushRadius}
+            onBrushRadiusChange={setBrushRadius}
+            probe={brushOn ? probeSample : null}
+            probeIdle={brushOn && !probeUv}
+            heightRem={detailHeightRem}
+            onResize={onDetailResize}
+            collapsed={detailCollapsed}
+            onToggleCollapsed={onDetailToggleCollapsed}
+            compareSides={compareSides}
+            compare={predCompare}
+            compareError={predCompareError}
+          />
+    ) : null,
+  }
+
+
   return (
     <motion.div
       /*
@@ -1461,6 +1908,7 @@ export function BoardSurface({
         Opaque, because the map keeps rendering underneath as a sibling and a
         translucent scrim would leave tiles moving behind the rasters.
       */
+      ref={surfaceRef}
       className="app-no-drag absolute inset-0 z-[500] overflow-hidden"
       style={{ background: "rgb(var(--p-ink))" }}
       initial={{ opacity: 0 }}
@@ -1468,7 +1916,34 @@ export function BoardSurface({
       exit={{ opacity: 0 }}
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
     >
-      <div ref={hostRef} className="absolute inset-0" />
+      {/*
+        The canvas, at the viewport area's rectangle and never unmounted.
+
+        Kept OUTSIDE the tree deliberately. It carries the one WebGL context,
+        and React would tear it down and rebuild it whenever the tree changed
+        shape -- losing the camera, the arrangement and, on this webview, one
+        context per rebuild until it refuses to give another. Positioning it
+        from the same rectangle the viewport area occupies gets the same
+        result without ever remounting: boardScene already watches its host
+        with a ResizeObserver, so it follows.
+
+        Hidden rather than removed when no area holds a viewport, for the same
+        reason.
+      */}
+      <div
+        ref={hostRef}
+        className="absolute"
+        style={
+          viewportRect
+            ? {
+                left: viewportRect.x,
+                top: viewportRect.y + AREA_HEADER_PX,
+                width: viewportRect.w,
+                height: Math.max(0, viewportRect.h - AREA_HEADER_PX),
+              }
+            : { left: 0, top: 0, width: 0, height: 0, visibility: "hidden" }
+        }
+      />
 
       {/*
         The names, over the canvas and out of the way of it.
@@ -1479,7 +1954,27 @@ export function BoardSurface({
         pressing a raster through its own name must still press the raster.
       */}
       {labels && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        /*
+          At the CANVAS's rectangle, not the surface's.
+
+          boardScene places each label in canvas pixels, from the renderer's
+          own clientWidth and clientHeight. While the canvas filled the studio
+          the two frames agreed; now the canvas is the viewport area's body and
+          an overlay at inset-0 would put every name off by the area's origin.
+        */
+        <div
+          className="pointer-events-none absolute overflow-hidden"
+          style={
+            viewportRect
+              ? {
+                  left: viewportRect.x,
+                  top: viewportRect.y + AREA_HEADER_PX,
+                  width: viewportRect.w,
+                  height: Math.max(0, viewportRect.h - AREA_HEADER_PX),
+                }
+              : { display: "none" }
+          }
+        >
           {areas.flatMap((a) =>
             a.layers
               .filter((l) => l.visible)
@@ -1525,92 +2020,6 @@ export function BoardSurface({
         </div>
       )}
 
-      {/*
-        The right column describes ONE plane: identity, classes, hectares,
-        confidence, and its agreement against MapBiomas. The foot band is for
-        what relates TWO -- the A to B difference -- and does not exist while a
-        single plane is selected.
-      */}
-      <BoardStatsBar
-        seamRem={rightRem}
-        onSeamDrag={onRightRemChange}
-        onSeamEnd={() => boardRef.current?.setPartition()}
-        runLog={runLog}
-        running={runRunning}
-        brushOn={brushOn}
-        onBrushOnChange={setBrushOn}
-        // Only where there is a prediction plane for it to read.
-        brushable={!!detailPrediction}
-        entries={selection
-          .map(rowTarget)
-          .filter((t): t is { areaId: string; layerId: string } => !!t?.layerId)
-          .map((t) => {
-            const area = areas.find((a) => a.id === t.areaId)
-            const info = areaInfo.find((a) => a.id === t.areaId)
-            const catalogId = info?.catalogId
-            return {
-              key: sceneKey(t.areaId, t.layerId),
-              legend: legendFor(t.layerId, legendByArea.get(t.areaId) ?? {}),
-              area: area?.title,
-              period: assetRuns.find((r) => r.areaId === t.areaId)?.period,
-              model: assetRuns.find((r) => r.areaId === t.areaId)?.model,
-              /*
-                Only on the layer it describes. A run's agreement is about its
-                CLASSIFICATION, so hanging it on the confidence or true-colour
-                plane of the same run would attach a measurement to a raster it
-                did not measure.
-              */
-              agreement:
-                t.layerId === "prediction"
-                  ? legendByArea.get(t.areaId)?.result?.lulc?.agreement
-                  : undefined,
-              onRenameArea:
-                catalogId && onRenameSavedAoi
-                  ? (name: string) => onRenameSavedAoi(catalogId, name)
-                  : undefined,
-            }
-          })}
-      />
-
-      {/*
-        The band exists for the relation between TWO planes, so it is mounted
-        only when there is one. With a single selection it had nothing to
-        relate and still reserved 8rem: the reader saw a strip of ink holding
-        one sentence -- the empty space that sat beside a scrolling column.
-
-        `compareSides` is that predicate already: non-null only where two
-        prediction planes are picked and both carry a result and a drawn
-        raster. The foot RESERVATION is untouched -- --map-band, --map-stats
-        and --map-foot keep their values, because boardScene parses --map-foot
-        to lift the axis gizmo and MapScreen derives it from FOOT_REM. What
-        goes away is the painted box, not the space it was measured in.
-      */}
-      {compareSides && (
-      <BoardSolarDetail
-        placement="band"
-        leftOffset="var(--board-left)"
-        rightOffset="var(--board-right)"
-        focus={detailFocus?.focus ?? null}
-        terrain={detailTerrain}
-        siting={detailSiting}
-        prediction={detailPrediction}
-        modelKind={detailModel}
-        period={detailPeriod}
-        brushOn={brushOn}
-        onBrushOnChange={setBrushOn}
-        brushRadius={brushRadius}
-        onBrushRadiusChange={setBrushRadius}
-        probe={brushOn ? probeSample : null}
-        probeIdle={brushOn && !probeUv}
-        heightRem={detailHeightRem}
-        onResize={onDetailResize}
-        collapsed={detailCollapsed}
-        onToggleCollapsed={onDetailToggleCollapsed}
-        compareSides={compareSides}
-        compare={predCompare}
-        compareError={predCompareError}
-      />
-      )}
 
       {comparing && (() => {
         /*
@@ -1662,149 +2071,226 @@ export function BoardSurface({
         )
       })()}
 
-      <BoardSidebar
-        seamRem={leftRem}
-        onSeamDrag={onLeftRemChange}
-        onSeamEnd={() => boardRef.current?.setPartition()}
-        areaInfo={areaInfo}
-        /*
-          The ring the board is already drawing, handed back as a geometry.
-          Taken from the same source the footprint and the figures come from, so
-          the shape that is worked on is the shape that was on screen.
-        */
-        onUseArea={(id) => {
-          if (savedAois.some((a) => a.id === id)) {
-            onActivateSavedAoi?.(id)
-            return
-          }
-          const ring = polygonsRef.current[id]
-          if (!ring?.length || !onUseArea) return
-          onUseArea({
-            type: "Polygon",
-            coordinates: [ring],
-          } as GeoJSONGeometry)
-        }}
-        onRenameSavedAoi={onRenameSavedAoi}
-        onDeleteSavedAoi={onDeleteSavedAoi}
-        areas={areas}
-        areaId={CURRENT_AREA}
-        assetRuns={assetRuns}
-        addRun={
-          <RunPicker
-            runs={runs}
-            projects={projects}
-            excludeRunIds={new Set(assetRuns.map((r) => r.runId))}
-            busy={loadingRun}
-            onPick={(r) => void addRun(r)}
-          />
-        }
-        sceneIds={sceneIds}
-        onAddToScene={addToScene}
-        onRemoveFromScene={removeFromScene}
-        names={names}
-        onRename={renameRow}
-        mode={mode}
-        onModeChange={setMode}
-        activeAsset={activeAsset}
-        onActivateAsset={setActiveAsset}
-        onSelectComposition={onSelectComposition}
-        onRemoveComposition={onRemoveComposition}
-        activeRow={active}
-        selection={selection}
-        expanded={expanded}
-        gap={gap}
-        gapMax={GAP_MAX}
-        smooth={smooth}
-        onActivate={chooseRow}
-        onToggleExpanded={toggleExpanded}
-        onGapChange={setGap}
-        onLayerChange={changeLayer}
-        onDropRun={dropRun}
-        flat={flat}
-        onToggleFlat={toggleFlat}
-        onReorder={reorderArea}
-        links={links}
-        onLinksChange={setLinks}
-        labels={labels}
-        onLabelsChange={setLabels}
-        // Nothing to join until some area holds more than one raster.
-        canLink={areas.some((a) => a.layers.length > 1)}
-        onSmoothChange={onSmoothChange}
-      />
-
       {/*
-        Left, and clear of the top-right corner where the search bar sits.
+        THE WORKSPACE TABS.
 
-        No close button, and the rule that used to put one here is the reason.
-        It read: the X appears only where the toggle that opened the board is
-        hidden behind it. That was the island in one layout and Leaflet's
-        control stack in the other, and only the stack goes under this surface.
+        Named arrangements, one per kind of work, switched here -- which is
+        what Blender's topbar carries and what makes density a matter of the
+        task rather than of one compromise that has to serve them all.
 
-        The toggle now sits in the title bar, which is the first child of a
-        full-height flex column while this surface is inset within the screen
-        below it -- so it is hidden in neither layout, and the rule yields no X
-        in either. It stays pressable for as long as the board is up (MapScreen
-        gates its `disabled` on boardOpen precisely so the exit cannot go dead),
-        and its tooltip carries the Escape shortcut this button used to name.
+        Outside the partition: a tab strip that could be divided or retyped
+        would be an arrangement that can delete the way back to the others.
       */}
       <div
-        /*
-          One gutter clear of the left column, derived rather than added by
-          hand: this was `left-[16rem]`, which is 15 plus 1 with the
-          arithmetic already performed, and therefore a seventh copy of the
-          column's width in a form no search for "15rem" would find.
-        */
-        style={{ left: "calc(var(--board-left) + 1rem)" }}
-        className="absolute top-3 flex min-w-0 max-w-[30rem] items-start gap-2"
+        className="absolute inset-x-0 top-0 z-[35] flex items-stretch gap-0.5 border-b px-1"
+        style={{
+          height: WORKSPACE_BAR_PX,
+          background: "rgb(var(--p-ink))",
+          borderColor: "rgb(var(--p-line) / 0.28)",
+        }}
       >
-        <div className="min-w-0">
-          <p className="eyebrow !text-foreground">
-            {savedName ?? "Whiteboard"}
-          </p>
-          <p className="mt-0.5 truncate text-emphasis text-muted-foreground">
-            {title}
-          </p>
-        </div>
         {/*
-          Saving names the board. Unnamed it asks for one; named it writes over
-          itself, because a second copy of the same work under the same name is
-          not what pressing save again means.
+          The application menu, at the left end where Blender puts File/Edit.
+          One entrance rather than five words, because this studio has fewer
+          verbs than a 3D suite and a row of near-empty menus reads as an
+          imitation rather than as a tool.
         */}
-        {naming === null ? (
-          <button
-            type="button"
-            onClick={() =>
-              savedName ? void doSave(savedName) : setNaming("")
-            }
+        <StudioPopover
+          open={appMenu}
+          onOpenChange={setAppMenu}
+          surface={surfaceRef.current}
+          widthRem={14}
+          trigger={(p) => (
+            <button
+              ref={p.ref as React.Ref<HTMLButtonElement>}
+              type="button"
+              onClick={p.onClick}
+              aria-expanded={p["aria-expanded"]}
+              aria-haspopup="menu"
+              title="Studio"
+              className="flex h-full items-center gap-1 px-2 text-meta text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Box className="size-3.5" strokeWidth={1.75} />
+              Studio
+            </button>
+          )}
+        >
+          <StudioMenuItem
+            icon={Save}
+            label={savedName ? `Save over "${savedName}"` : "Save whiteboard"}
             disabled={saving}
-            title={
-              savedName
-                ? `Save over "${savedName}"`
-                : "Save this whiteboard under a name"
-            }
-            className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Save className="size-3.5" strokeWidth={1.75} />
-            {saving ? "Saving…" : "Save"}
-          </button>
-        ) : (
-          <input
-            autoFocus
-            value={naming}
-            placeholder="Name this whiteboard"
-            onChange={(e) => setNaming(e.target.value)}
-            onBlur={() => setNaming(null)}
-            onKeyDown={(e) => {
-              // Escape closes the board from a listener on the window, so a
-              // name abandoned here must not leave the board with it.
-              e.stopPropagation()
-              if (e.key === "Enter") void doSave(naming)
-              else if (e.key === "Escape") setNaming(null)
+            onSelect={() => {
+              savedName ? void doSave(savedName) : setNaming("")
+              setAppMenu(false)
             }}
-            className="app-no-drag h-7 w-48 shrink-0 rounded-sm border-0 bg-surface-raised px-2 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
           />
-        )}
+          <StudioMenuRule />
+          <StudioMenuItem
+            icon={RotateCcw}
+            label="Reset this workspace"
+            title="Put the arrangement back the way it ships"
+            onSelect={() => {
+              setTrees((prev) => {
+                const next = { ...prev }
+                delete next[workspaceId]
+                return next
+              })
+              setRestoreTree((p) => ({ ...p, [workspaceId]: null }))
+              setAppMenu(false)
+            }}
+          />
+          <StudioMenuRule />
+          <StudioMenuItem
+            icon={X}
+            label="Close the studio"
+            note="Esc"
+            onSelect={onClose}
+          />
+        </StudioPopover>
+
+        <span
+          className="mx-1 h-4 w-px self-center"
+          style={{ background: "rgb(var(--p-line) / 0.45)" }}
+          aria-hidden
+        />
+
+        {STUDIO_WORKSPACES.map((w) => (
+          <button
+            key={w.id}
+            type="button"
+            onClick={() => setWorkspaceId(w.id)}
+            title={w.hint}
+            aria-current={w.id === workspaceId}
+            className={cn(
+              /*
+                A tab, not a button: the current one carries the ground it
+                sits on, which is how Blender's workspace tabs read as a row
+                of destinations rather than as four switches.
+              */
+              "relative -mb-px h-full px-2.5 text-meta transition-colors",
+              w.id === workspaceId
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            style={
+              w.id === workspaceId
+                ? {
+                    background: "rgb(var(--p-surface-raised))",
+                    borderTopLeftRadius: 3,
+                    borderTopRightRadius: 3,
+                  }
+                : undefined
+            }
+          >
+            {w.label}
+          </button>
+        ))}
+
+        <span className="flex-1" />
+
+        {/*
+          The board's data-block, at the right end -- which is where Blender
+          keeps the Scene and ViewLayer selectors. It used to float over the
+          board at `absolute top-3`, positioned for a layout with nothing
+          above the canvas, and after the areas arrived it was drawn across
+          two of their headers at once.
+        */}
+        <div
+          className="flex min-w-0 max-w-[26rem] items-center gap-1.5"
+        >
+          <div className="min-w-0">
+            <p className="eyebrow !text-foreground">
+              {savedName ?? "Whiteboard"}
+            </p>
+            <p className="mt-0.5 truncate text-emphasis text-muted-foreground">
+              {title}
+            </p>
+          </div>
+          {/*
+            Saving names the board. Unnamed it asks for one; named it writes over
+            itself, because a second copy of the same work under the same name is
+            not what pressing save again means.
+          */}
+          {naming === null ? (
+            <button
+              type="button"
+              onClick={() =>
+                savedName ? void doSave(savedName) : setNaming("")
+              }
+              disabled={saving}
+              title={
+                savedName
+                  ? `Save over "${savedName}"`
+                  : "Save this whiteboard under a name"
+              }
+              className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Save className="size-3.5" strokeWidth={1.75} />
+              {saving ? "Saving…" : "Save"}
+            </button>
+          ) : (
+            <input
+              autoFocus
+              value={naming}
+              placeholder="Name this whiteboard"
+              onChange={(e) => setNaming(e.target.value)}
+              onBlur={() => setNaming(null)}
+              onKeyDown={(e) => {
+                // Escape closes the board from a listener on the window, so a
+                // name abandoned here must not leave the board with it.
+                e.stopPropagation()
+                if (e.key === "Enter") void doSave(naming)
+                else if (e.key === "Escape") setNaming(null)
+              }}
+              className="app-no-drag h-7 w-48 shrink-0 rounded-sm border-0 bg-surface-raised px-2 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
+            />
+          )}
+        </div>
       </div>
+
+      {/*
+        THE ARRANGEMENT, drawn.
+
+        Every leaf becomes an area with a header naming its editor, and every
+        division becomes a draggable edge. What used to be four surfaces that
+        each knew where they went is now one walk of a tree -- so which surface
+        sits where is a choice the reader makes, which is the whole point.
+      */}
+      <StudioAreaTree
+        tree={tree}
+        viewport={surface}
+        surface={surfaceRef.current}
+        onMoveSplit={(id, at) => setTree(moveSplit(tree, id, at))}
+        renderArea={({ id, editor, rect }) => (
+          <StudioArea
+            editor={editor}
+            rect={rect}
+            rootPx={rootPx}
+            surface={surfaceRef.current}
+            takenUnique={takenUnique}
+            canClose={leaves.length > 1}
+            transparent={editor === "viewport"}
+            maximized={!!restoreTree[workspaceId]}
+            slots={headerSlots[editor]}
+            onRetype={(next) => setTree(retypeArea(tree, id, next))}
+            onSplit={(dir) => setTree(splitArea(tree, id, dir, "properties"))}
+            onClose={() => setTree(joinArea(tree, id))}
+            onMaximize={() => {
+              const kept = restoreTree[workspaceId]
+              if (kept) {
+                setTree(kept)
+                setRestoreTree((p) => ({ ...p, [workspaceId]: null }))
+              } else {
+                setRestoreTree((p) => ({ ...p, [workspaceId]: tree }))
+                setTree(maximizeArea(tree, id))
+              }
+            }}
+          >
+            {editorNodes[editor] ?? null}
+          </StudioArea>
+        )}
+      />
+
     </motion.div>
   )
 }

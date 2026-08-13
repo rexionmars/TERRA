@@ -12,9 +12,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { BoardSeam } from "@/components/whiteboard/BoardSeam"
 import type { RunLogEntry } from "@/lib/runLog"
-import { Paintbrush } from "lucide-react"
 import type { LayerLegend } from "@/lib/layerLegend"
 import type { LULCAgreement } from "@/lib/types"
 import { BOARD_RIGHT_REM } from "@/lib/boardPartition"
@@ -388,12 +386,6 @@ export function BoardStatsBar({
   entries,
   runLog = [],
   running = false,
-  brushOn = false,
-  onBrushOnChange,
-  brushable = false,
-  seamRem = BOARD_RIGHT_REM,
-  onSeamDrag,
-  onSeamEnd,
 }: {
   /** The selected rasters, in the order they were picked. */
   entries: StatsEntry[]
@@ -406,16 +398,6 @@ export function BoardStatsBar({
    */
   runLog?: RunLogEntry[]
   running?: boolean
-  /** The brush rover, which reads the class under the lens on a prediction. */
-  brushOn?: boolean
-  onBrushOnChange?: (on: boolean) => void
-  /** Whether a prediction plane is selected for it to act on. */
-  brushable?: boolean
-  /** The column's own width in rem, which its seam drags from. */
-  seamRem?: number
-  onSeamDrag?: (rem: number) => void
-  /** Fired once at the end, so the scene re-reads the partition. */
-  onSeamEnd?: () => void
 }) {
   const empty = (
     <p className="px-1 text-meta leading-snug text-muted-foreground">
@@ -453,26 +435,12 @@ export function BoardStatsBar({
           a gap between the two instead of moving them together -- the band
           stopped short of the column by exactly the amount the column grew.
         */
-        className="app-no-drag absolute bottom-0 right-0 top-0 z-[10] flex flex-col border-l"
+        className="app-no-drag flex h-full w-full flex-col"
       style={{
-        width: "var(--board-right)",
         background: "rgb(var(--p-ink))",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >
-      {/*
-        The seam, inside the column so it travels with it and half outside its
-        border so the board side of the edge is grabbable too.
-      */}
-      {onSeamDrag && (
-        <BoardSeam
-          side="right"
-          rem={seamRem}
-          onDrag={onSeamDrag}
-          onDragEnd={onSeamEnd}
-          label="Resize the selection column"
-        />
-      )}
       <div
         className="flex shrink-0 items-center gap-2 border-b px-2 py-1.5"
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
@@ -482,30 +450,6 @@ export function BoardStatsBar({
           <span className="telemetry text-[9px] text-muted-foreground">
             {entries.length}
           </span>
-        )}
-        {/*
-          The brush, back in the column it was in. It is a tool on ONE plane --
-          the class under the lens on the prediction raster -- so by the board's
-          division it belongs beside that plane's description rather than in the
-          band, which is for what relates two. Withheld where the caller offers
-          no brush, and where no prediction is selected to brush.
-        */}
-        {onBrushOnChange && brushable && !running && (
-          <button
-            type="button"
-            onClick={() => onBrushOnChange(!brushOn)}
-            title="Brush rover — class under the lens on the prediction plane"
-            className={cn(
-              "ml-auto flex h-[1.375rem] shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors inset-ring-1",
-              "focus-visible:outline-none focus-visible:inset-ring-ring",
-              brushOn
-                ? "bg-accent-dim text-foreground inset-ring-accent"
-                : "text-muted-foreground inset-ring-line-strong hover:text-foreground"
-            )}
-          >
-            <Paintbrush className="size-3 shrink-0" strokeWidth={1.75} />
-            Brush
-          </button>
         )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{body}</div>

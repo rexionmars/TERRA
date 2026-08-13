@@ -691,7 +691,14 @@ export function BoardSolarDetail({
    * `band` — foot strip above the run controls (default).
    * `sidebar` — full-height right column.
    */
-  placement?: "band" | "sidebar"
+  /**
+   * Where this is drawn.
+   *
+   * `area` is the one that fills whatever rectangle it is given, which is what
+   * an editor in the studio's area tree is. `band` and `sidebar` position
+   * themselves and are what the studio used before areas existed.
+   */
+  placement?: "band" | "sidebar" | "area"
   leftOffset?: string
   rightOffset?: string
 }) {
@@ -701,12 +708,12 @@ export function BoardSolarDetail({
       sides={compareSides}
       compare={compare}
       compareError={compareError}
-      compact={placement === "band"}
+      compact={placement !== "sidebar"}
     />
   ) : focus === "terrain" && terrain ? (
-    <TerrainBody terrain={terrain} compact={placement === "band"} />
+    <TerrainBody terrain={terrain} compact={placement !== "sidebar"} />
   ) : focus === "siting" && siting ? (
-    <SitingBody siting={siting} compact={placement === "band"} />
+    <SitingBody siting={siting} compact={placement !== "sidebar"} />
   ) : focus === "prediction" && prediction ? (
     <PredictionBody
       result={prediction}
@@ -718,7 +725,7 @@ export function BoardSolarDetail({
       onBrushRadiusChange={(r) => onBrushRadiusChange?.(r)}
       probe={probe}
       probeIdle={probeIdle}
-      compact={placement === "band"}
+      compact={placement !== "sidebar"}
     />
   ) : (
     <p className="text-meta leading-snug text-muted-foreground">
@@ -777,6 +784,20 @@ export function BoardSolarDetail({
       )}
     </div>
   )
+
+  /*
+    An area fills what it is given. No anchor, no grip and no recesses: the
+    area tree decides the rectangle and the division between areas is dragged
+    on the seam, so a second resize handle inside the body would be a second
+    way to say the same thing.
+  */
+  if (placement === "area") {
+    return (
+      <div className="panel-scroll h-full w-full overflow-auto px-2 py-1.5">
+        {body}
+      </div>
+    )
+  }
 
   if (placement === "band") {
     return (

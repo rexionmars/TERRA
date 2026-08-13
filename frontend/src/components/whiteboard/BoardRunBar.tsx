@@ -188,6 +188,14 @@ export interface BoardRunBarProps {
   leftOffset?: string
   /** Where the board's right column begins — same seam as the stats band. */
   rightOffset?: string
+  /**
+   * `area` fills the rectangle the studio's area tree gives it.
+   *
+   * The band anchored itself to the foot and recessed by the two columns,
+   * which is what a band does. Inside an area there is nothing to recess
+   * from: the area is the recess.
+   */
+  placement?: "band" | "area"
 
   tool: BoardToolId | null
   onToolChange: (id: BoardToolId) => void
@@ -264,10 +272,14 @@ export function BoardRunBar(props: BoardRunBarProps) {
         the band above it left for it, with a gap between them. Both now name
         the same number.
       */
-      className="app-no-drag absolute bottom-0 z-[900] flex h-[var(--map-band,4rem)] items-center border-t"
+      className={
+        props.placement === "area"
+          ? "app-no-drag flex h-full w-full items-center overflow-x-auto"
+          : "app-no-drag absolute bottom-0 z-[900] flex h-[var(--map-band,4rem)] items-center border-t"
+      }
       style={{
-        left: props.leftOffset ?? 0,
-        right: props.rightOffset ?? 0,
+        left: props.placement === "area" ? undefined : (props.leftOffset ?? 0),
+        right: props.placement === "area" ? undefined : (props.rightOffset ?? 0),
         background: "rgb(var(--p-ink))",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}

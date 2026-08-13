@@ -199,9 +199,15 @@ export function partitionVars(
     "--board-right": `${p.rightRem}rem`,
     "--map-band": `${p.runBandRem}rem`,
     "--map-stats": `${p.detailRem}rem`,
-    // Closed, the foot is the workspace bar's own height: the panels that read
-    // this are on the map screen too, and they lift off whatever is down there.
-    "--map-foot": studioOpen ? `${footRem(p)}rem` : `${MAP_FOOT_REM}rem`,
+    /*
+      Nothing stands in the map's foot while the studio is open.
+
+      This reserved the run band plus the detail band -- 13.25rem -- on the
+      premise that both were docked foot chrome. They are areas now, inside
+      the studio's own partition, so the reservation was space held for
+      surfaces that had moved. Zero, and the map's own foot when it is closed.
+    */
+    "--map-foot": studioOpen ? "0rem" : `${MAP_FOOT_REM}rem`,
   }
 }
 

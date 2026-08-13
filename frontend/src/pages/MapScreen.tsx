@@ -810,6 +810,88 @@ export function MapScreen(props: MapScreenProps) {
    * answers.
    */
 
+  /*
+    The run controls, handed to the studio as a node.
+
+    They used to stand in the foot beside the detail band, which is where a
+    band goes; inside the area tree they are an editor like any other and the
+    tree decides where. The props stay here because the parameters, handlers
+    and progress are the map screen's.
+  */
+  const runBarNode = (
+    <BoardRunBar
+      tool={bandTool}
+      onToolChange={(id) => {
+        setBoardTool(id)
+        // The map's dock and navigation read leftPanel, and solar is not
+        // one of their ids -- see BoardToolId in lib/mapTools.
+        if (isMapTool(id)) setLeftPanel(id)
+      }}
+      solar={
+        props.solarParams && props.onRunSolar
+          ? {
+              product: solarProduct,
+              onProductChange: setSolarProduct,
+              hourlyYears: props.solarParams.hourlyYears,
+              onHourlyYearsChange: (v) =>
+                props.onSolarParamsChange?.({ hourlyYears: v }),
+              season: props.solarParams.season,
+              onSeasonChange: (season) =>
+                props.onSolarParamsChange?.({ season }),
+              slopeAcceptableDeg: props.solarParams.slopeAcceptableDeg,
+              slopeRestrictiveDeg: props.solarParams.slopeRestrictiveDeg,
+              onSlopeChange: (acceptable, restrictive) =>
+                props.onSolarParamsChange?.({
+                  slopeAcceptableDeg: acceptable,
+                  slopeRestrictiveDeg: restrictive,
+                }),
+            }
+          : undefined
+      }
+      hasArea={props.hasArea}
+      activeExample={props.activeExample}
+      areaLabel={props.areaLabel}
+      onImportPolygon={props.onImportPolygon}
+      onDrawArea={() => setDrawingArea(true)}
+      onClearArea={props.onClearArea}
+      start={props.start}
+      end={props.end}
+      onStartChange={props.onStartChange}
+      onEndChange={props.onEndChange}
+      maxCloud={props.maxCloud}
+      onMaxCloudChange={props.onMaxCloudChange}
+      monthlyBest={props.monthlyBest}
+      onMonthlyBestChange={props.onMonthlyBestChange}
+      modelKind={props.modelKind}
+      onModelKindChange={props.onModelKindChange}
+      mode={props.mode}
+      onModeChange={props.onModeChange}
+      /*
+        The chosen tool's own run, resolved once above for both the island
+        and this band. Two resolutions of "can this go" would be two
+        answers.
+      */
+      runLabel={boardRun.label}
+      running={boardRun.running}
+      progress={boardRun.progress}
+      progressMsg={boardRun.progressMsg}
+      canRun={boardRun.canRun}
+      blockedBy={
+        !props.hasArea
+          ? "Draw an area on the map first."
+          : bandTool === "solar" && props.solarBusy
+            ? "The sidecar runs one analysis at a time."
+            : bandTool === "compose" && !props.selectedSceneId
+              ? "Choose a scene under Compositions on the map."
+              : undefined
+      }
+      onRun={boardRun.onRun}
+      onAnalyzeLULC={props.onAnalyzeLULC}
+      lulcRunning={props.lulcRunning}
+      placement="area"
+    />
+  )
+
   return (
     <div
       className="relative h-full min-h-0 w-full"
@@ -967,87 +1049,7 @@ export function MapScreen(props: MapScreenProps) {
         this application has: exactly what nine small choices need and what a
         15rem column cannot give them.
       */}
-      {boardOpen ? (
-        <BoardRunBar
-          tool={bandTool}
-          onToolChange={(id) => {
-            setBoardTool(id)
-            // The map's dock and navigation read leftPanel, and solar is not
-            // one of their ids -- see BoardToolId in lib/mapTools.
-            if (isMapTool(id)) setLeftPanel(id)
-          }}
-          solar={
-            props.solarParams && props.onRunSolar
-              ? {
-                  product: solarProduct,
-                  onProductChange: setSolarProduct,
-                  hourlyYears: props.solarParams.hourlyYears,
-                  onHourlyYearsChange: (v) =>
-                    props.onSolarParamsChange?.({ hourlyYears: v }),
-                  season: props.solarParams.season,
-                  onSeasonChange: (season) =>
-                    props.onSolarParamsChange?.({ season }),
-                  slopeAcceptableDeg: props.solarParams.slopeAcceptableDeg,
-                  slopeRestrictiveDeg: props.solarParams.slopeRestrictiveDeg,
-                  onSlopeChange: (acceptable, restrictive) =>
-                    props.onSolarParamsChange?.({
-                      slopeAcceptableDeg: acceptable,
-                      slopeRestrictiveDeg: restrictive,
-                    }),
-                }
-              : undefined
-          }
-          hasArea={props.hasArea}
-          activeExample={props.activeExample}
-          areaLabel={props.areaLabel}
-          onImportPolygon={props.onImportPolygon}
-          onDrawArea={() => setDrawingArea(true)}
-          onClearArea={props.onClearArea}
-          start={props.start}
-          end={props.end}
-          onStartChange={props.onStartChange}
-          onEndChange={props.onEndChange}
-          maxCloud={props.maxCloud}
-          onMaxCloudChange={props.onMaxCloudChange}
-          monthlyBest={props.monthlyBest}
-          onMonthlyBestChange={props.onMonthlyBestChange}
-          modelKind={props.modelKind}
-          onModelKindChange={props.onModelKindChange}
-          mode={props.mode}
-          onModeChange={props.onModeChange}
-          /*
-            The chosen tool's own run, resolved once above for both the island
-            and this band. Two resolutions of "can this go" would be two
-            answers.
-          */
-          runLabel={boardRun.label}
-          running={boardRun.running}
-          progress={boardRun.progress}
-          progressMsg={boardRun.progressMsg}
-          canRun={boardRun.canRun}
-          blockedBy={
-            !props.hasArea
-              ? "Draw an area on the map first."
-              : bandTool === "solar" && props.solarBusy
-                ? "The sidecar runs one analysis at a time."
-                : bandTool === "compose" && !props.selectedSceneId
-                  ? "Choose a scene under Compositions on the map."
-                  : undefined
-          }
-          onRun={boardRun.onRun}
-          onAnalyzeLULC={props.onAnalyzeLULC}
-          lulcRunning={props.lulcRunning}
-          /*
-            Both recesses from the partition, so the band meets the columns
-            edge to edge by construction. This is where the comment used to
-            warn that the number was "said twice, and the seam shows
-            immediately if they drift" -- which is exactly what happened when
-            the right column widened and this stayed at 15rem.
-          */
-          leftOffset="var(--board-left)"
-          rightOffset="var(--board-right)"
-        />
-      ) : (
+      {!boardOpen && (
       <PeriodTimeline
         start={props.start}
         end={props.end}
@@ -1094,16 +1096,7 @@ export function MapScreen(props: MapScreenProps) {
               onDetailResize={(rem) => setStatsRem(clampDetail(rem))}
               detailCollapsed={statsCollapsed}
               onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
-              /*
-                The seams. Clamped here rather than in the handle: the recesses
-                and the foot reservation are computed from these numbers, so a
-                bound that lived with the control could reserve space the
-                window cannot give.
-              */
-              leftRem={partition.leftRem}
-              rightRem={partition.rightRem}
-              onLeftRemChange={(rem) => setLeftRem(clampColumn(rem))}
-              onRightRemChange={(rem) => setRightRem(clampColumn(rem))}
+              runBar={runBarNode}
               layers={boardLayers}
               assets={boardAssets}
               /*
@@ -1214,7 +1207,12 @@ export function MapScreen(props: MapScreenProps) {
         because the column repeats them.
       */}
       <OverlayToolsPanel
-        insetRight={boardOpen ? "calc(var(--board-right) + 3.5rem)" : undefined}
+        /*
+          The studio has no fixed right column any more -- the properties area
+          is a fraction of the area tree and moves with a drag. Withheld
+          entirely instead, like every other map readout while the studio is up.
+        */
+        insetRight={undefined}
         open={rightDrawer === "overlays"}
         onClose={() => setRightDrawer(null)}
         result={props.result}
@@ -1255,6 +1253,10 @@ export function MapScreen(props: MapScreenProps) {
 
       <ConfidenceLegend
         visible={
+          // Withheld while the studio is up, like every sibling readout on
+          // this screen. It was the one without the gate, so it painted over
+          // the studio's right column at z-1100.
+          !boardOpen &&
           !!props.showConfidence &&
           !!props.result?.confidence_uri &&
           (props.result.n_dates ?? 0) > 0
