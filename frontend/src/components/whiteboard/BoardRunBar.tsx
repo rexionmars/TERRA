@@ -39,17 +39,14 @@ import {
   SunSnow,
   Trash2,
   Upload,
-  Workflow,
 } from "lucide-react"
 import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"
 import {
   MODEL_OPTIONS,
-  MODE_OPTIONS,
-  modeBlockedBy,
   type ClassifyMode,
 } from "@/lib/classifyOptions"
-import { BOARD_TOOLS, type BoardToolId } from "@/lib/mapTools"
+import type { BoardToolId } from "@/lib/mapTools"
 import type { ModelKind, SolarSeason } from "@/lib/types"
 import { SOLAR_SEASONS } from "@/lib/solarOptions"
 import { cn } from "@/lib/utils"
@@ -59,7 +56,8 @@ import { cn } from "@/lib/utils"
   names. The same glyphs the board's tree uses for the rasters each tool
   produces, because a tool and its output are one subject.
 */
-const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
+/** One glyph per product, exported so the area header names them the same. */
+export const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
   classify: Grid2x2,
   compose: ImageIcon,
   water: Droplet,
@@ -291,45 +289,6 @@ export function BoardRunBar(props: BoardRunBarProps) {
         reachable from anywhere in the band.
       */}
       <div className="panel-scroll flex min-w-0 flex-1 items-center overflow-x-auto py-1">
-        <div
-          role="tablist"
-          className="flex shrink-0 items-center gap-0.5 pl-2.5"
-        >
-          {/*
-            Solar only where this band was given a way to run it. Offering a
-            tool that cannot be started is the dead control this file's
-            neighbour argues against, and it would be a whole tab of one.
-          */}
-          {BOARD_TOOLS.filter((t) => t.id !== "solar" || !!props.solar).map(
-            (t) => {
-              const on = props.tool === t.id
-              const Icon = TOOL_ICON[t.id]
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={on}
-                  onClick={() => props.onToolChange(t.id)}
-                  title={t.label}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-sm px-1.5 py-1 text-meta transition-colors",
-                    "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-                    on
-                      ? "bg-surface-raised text-foreground"
-                      : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground",
-                  )}
-                >
-                  <Icon className="size-3.5 shrink-0" strokeWidth={1.75} />
-                  {on && t.label}
-                </button>
-              )
-            },
-          )}
-        </div>
-
-        <Divider />
-
         <Group icon={Pentagon} label="Area">
           {/*
             Loud when there is an area and quiet when there is not. It is a
@@ -584,34 +543,33 @@ export function BoardRunBar(props: BoardRunBarProps) {
         {props.tool === "classify" && (
           <>
             <Divider />
+            {/*
+              A menu, not three buttons. The guidelines expand an enum into
+              buttons where its members can be glyphed and leave it a dropdown
+              where they cannot -- and "Random Forest", "Temporal Transformer"
+              and "Prithvi-EO 2.0" are names, not pictures. Three labels always
+              visible cost about 180px to say what one plus a chevron says.
+            */}
             <Group icon={Network} label="Model">
+              <select
+                value={props.modelKind}
+                disabled={busy}
+                onChange={(e) =>
+                  props.onModelKindChange(e.target.value as ModelKind)
+                }
+                title={
+                  MODEL_OPTIONS.find((m) => m.id === props.modelKind)?.detail
+                }
+                className="field-input h-[1.375rem] w-auto px-1 text-meta"
+              >
                 {MODEL_OPTIONS.map((m) => (
-                  <Choice
-                    key={m.id}
-                    label={m.label}
-                    chosen={props.modelKind === m.id}
-                    disabled={busy}
-                    onPick={() => props.onModelKindChange(m.id)}
-                  />
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
                 ))}
+              </select>
             </Group>
 
-            <Divider />
-            <Group icon={Workflow} label="Mode">
-                {MODE_OPTIONS.map((m) => {
-                  const blocked = modeBlockedBy(m.id, props.modelKind)
-                  return (
-                    <Choice
-                      key={m.id}
-                      label={m.label}
-                      chosen={props.mode === m.id}
-                      disabled={busy || !!blocked}
-                      blockedBy={blocked}
-                      onPick={() => props.onModeChange(m.id)}
-                    />
-                  )
-                })}
-            </Group>
           </>
         )}
       </div>

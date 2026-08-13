@@ -255,6 +255,7 @@ export function BoardSurface({
   detailCollapsed,
   onDetailToggleCollapsed,
   runBar,
+  runBarHeader,
   runLog,
   runRunning,
   runProgress = 0,
@@ -314,6 +315,14 @@ export function BoardSurface({
    * only WHERE they are drawn, which is the one thing the area tree is for.
    */
   runBar?: React.ReactNode
+  /**
+   * The run editor's own header contents, built where its props are.
+   *
+   * The tool tabs and the mode belong in a header's left zone -- they decide
+   * what the editor is ABOUT -- but the state behind them is the map screen's.
+   * Handed in for the same reason the band itself is.
+   */
+  runBarHeader?: AreaHeaderSlots
   runLog?: RunLogEntry[]
   runRunning?: boolean
   /** 0 to 100, for the status bar's middle zone. */
@@ -1638,6 +1647,7 @@ export function BoardSurface({
   )
 
   const headerSlots: Partial<Record<EditorId, AreaHeaderSlots>> = {
+    runParams: runBarHeader ?? {},
     properties: {
       options: selection.length ? (
         <span className="telemetry px-1 text-[9px] text-muted-foreground">

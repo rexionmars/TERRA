@@ -1,4 +1,11 @@
-import { Droplet, Grid2x2, Image as ImageIcon, type LucideIcon } from "lucide-react"
+import {
+  Clock,
+  Droplet,
+  Grid2x2,
+  Image as ImageIcon,
+  Map as MapGlyph,
+  type LucideIcon,
+} from "lucide-react"
 import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence } from "motion/react"
@@ -33,7 +40,10 @@ import {
 } from "@/lib/mapTools"
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
-import { BoardRunBar } from "@/components/whiteboard/BoardRunBar"
+import { BoardRunBar, TOOL_ICON } from "@/components/whiteboard/BoardRunBar"
+import { StudioHeaderRadio } from "@/components/whiteboard/StudioHeaderControls"
+import { BOARD_TOOLS } from "@/lib/mapTools"
+import { MODE_OPTIONS } from "@/lib/classifyOptions"
 import {
   BOARD_DETAIL_REM,
   BOARD_LEFT_REM,
@@ -811,6 +821,62 @@ export function MapScreen(props: MapScreenProps) {
    */
 
   /*
+    The run editor's header: what the run is ABOUT, and how it is run.
+
+    The tool tabs used to open the band's own left end and the mode sat at its
+    far right, both inside a strip that ran past two thousand pixels and
+    scrolled. A header's left zone is for exactly the first of those -- which
+    subject the editor is showing -- and the guidelines expand a glyphable
+    enum into icon buttons, which the two modes are and the three models are
+    not.
+  */
+  const runBarHeader = {
+    menus: (
+      <>
+        {BOARD_TOOLS.filter((t) => t.id !== "solar" || !!props.solarParams).map(
+          (t) => {
+            const on = bandTool === t.id
+            const Icon = TOOL_ICON[t.id]
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => {
+                  setBoardTool(t.id)
+                  if (isMapTool(t.id)) setLeftPanel(t.id)
+                }}
+                title={t.label}
+                className={cn(
+                  "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+                  on
+                    ? "bg-accent text-white"
+                    : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                )}
+              >
+                <Icon className="size-3 shrink-0" strokeWidth={1.75} />
+                {on && t.label}
+              </button>
+            )
+          }
+        )}
+      </>
+    ),
+    options: bandTool === "classify" ? (
+      <StudioHeaderRadio
+        value={props.mode}
+        onChange={props.onModeChange}
+        options={MODE_OPTIONS.map((m) => ({
+          id: m.id,
+          label: `${m.label} — ${m.detail}`,
+          icon: m.id === "single" ? MapGlyph : Clock,
+        }))}
+      />
+    ) : null,
+  }
+
+  /*
     The run controls, handed to the studio as a node.
 
     They used to stand in the foot beside the detail band, which is where a
@@ -1097,6 +1163,7 @@ export function MapScreen(props: MapScreenProps) {
               detailCollapsed={statsCollapsed}
               onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
               runBar={runBarNode}
+              runBarHeader={runBarHeader}
               layers={boardLayers}
               assets={boardAssets}
               /*

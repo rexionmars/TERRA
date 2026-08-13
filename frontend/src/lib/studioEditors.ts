@@ -126,9 +126,14 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     id: "runParams",
     label: "Run",
     icon: PanelBottom,
-    // Nine controls across one row -- area, period, cloud, model, mode. It was
-    // a full-width band and it is wide because its contents are.
-    minRem: 36,
+    /*
+      28rem, down from 36. The tool tabs and the mode moved to this editor's
+      own header and the three model labels became one menu, so the body now
+      carries area, period and model rather than nine controls across. It
+      still scrolls sideways below that, which is what a run's parameters
+      should do rather than reflow into a shape a reader has to re-learn.
+    */
+    minRem: 28,
     minRowRem: 3,
     hint: "Area, period and model for the next run",
   },
