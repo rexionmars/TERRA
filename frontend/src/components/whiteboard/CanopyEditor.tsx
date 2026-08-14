@@ -36,7 +36,27 @@ import { BuildCanopyField } from "../../../wailsjs/go/main/App"
 
 import { createCanopyScene, type CanopyHandle, type CanopyView } from "./canopyScene"
 
-/** The orchard the user is describing. */
+/**
+ * What the canopy is made of.
+ *
+ * "rows" is the default because it is what this application is for: TERRA
+ * classifies field crops, and a field of soy or maize is a strip of vegetation
+ * repeating every row spacing -- neither a set of discrete crowns nor a uniform
+ * mat. "crowns" is the orchard, kept because the agrivoltaic study is about
+ * trees and because the two share every line of machinery below.
+ */
+type CanopySource = "rows" | "crowns"
+
+/** A row crop: strips of vegetation on a spacing. */
+interface Crop {
+  spacing: number
+  lai: number
+  cell: number
+  height: number
+  rowWidthFrac: number
+}
+
+/** An orchard: ellipsoidal crowns on a grid. */
 interface Orchard {
   spacing: number
   lai: number
@@ -46,11 +66,24 @@ interface Orchard {
   crownZ: number
 }
 
+const DEFAULT_CROP: Crop = {
+  // Soy and maize are both planted at about half a metre between rows.
+  spacing: 0.5,
+  lai: 3,
+  // 0.5 / 0.05 is 10 cells across. The builder refuses a cell that does not
+  // divide the spacing, because the march's periodic wrap needs a whole number
+  // of them.
+  cell: 0.05,
+  height: 0.9,
+  // The fraction of the spacing the canopy actually covers. At 1 the strip
+  // fills the module and the field becomes a uniform slab, which is the
+  // degenerate case the parity gate checks against analytic Beer-Lambert.
+  rowWidthFrac: 0.6,
+}
+
 const DEFAULT_ORCHARD: Orchard = {
   spacing: 6,
   lai: 2,
-  // 6 / 0.3 is 20 cells across. The builder refuses a cell that does not divide
-  // the module, because the march's periodic wrap needs a whole number of them.
   cell: 0.3,
   crownA: 1.8,
   crownB: 1.2,
@@ -60,7 +93,17 @@ const DEFAULT_ORCHARD: Orchard = {
 interface FieldState {
   meta: CanopyFieldMeta
   grid: Float32Array
-  againstUniform: Array<{ cos_zenith: number; field: number; uniform: number; ratio: number | null }>
+  againstUniform: Array<{
+    cos_zenith: number
+    field: number
+    uniform: number
+    ratio: number | null
+    fapar: number
+    fapar_fixed_k: number
+    k_emergent: number | null
+    fixed_k: number
+    fixed_k_error_pct: number | null
+  }>
 }
 
 function decodeGrid(base64: string): Float32Array {
@@ -78,6 +121,8 @@ function sunVector(elevationDeg: number, azimuthDeg: number): [number, number, n
 }
 
 export function CanopyEditor() {
+  const [source, setSource] = useState<CanopySource>("rows")
+  const [crop, setCrop] = useState<Crop>(DEFAULT_CROP)
   const [orchard, setOrchard] = useState<Orchard>(DEFAULT_ORCHARD)
   const [elevation, setElevation] = useState(50)
   const [azimuth, setAzimuth] = useState(35)
@@ -94,16 +139,26 @@ export function CanopyEditor() {
   // --- the field -----------------------------------------------------------
 
   const request = useMemo(
-    () => ({
-      source: "ellipsoid",
-      spacing: orchard.spacing,
-      lai: orchard.lai,
-      cell: orchard.cell,
-      crown_a: orchard.crownA,
-      crown_b: orchard.crownB,
-      crown_z: orchard.crownZ,
-    }),
-    [orchard]
+    () =>
+      source === "rows"
+        ? {
+            source: "rows",
+            spacing: crop.spacing,
+            lai: crop.lai,
+            cell: crop.cell,
+            height: crop.height,
+            row_width_frac: crop.rowWidthFrac,
+          }
+        : {
+            source: "ellipsoid",
+            spacing: orchard.spacing,
+            lai: orchard.lai,
+            cell: orchard.cell,
+            crown_a: orchard.crownA,
+            crown_b: orchard.crownB,
+            crown_z: orchard.crownZ,
+          },
+    [source, crop, orchard]
   )
 
   useEffect(() => {
@@ -175,6 +230,12 @@ export function CanopyEditor() {
     sceneRef.current?.setView({ sun: sunVector(elevation, azimuth), gain, mode })
   }, [elevation, azimuth, gain, mode])
 
+  const setCropValue = useCallback(
+    <K extends keyof Crop>(key: K) =>
+      (v: number) =>
+        setCrop((prev) => ({ ...prev, [key]: v })),
+    []
+  )
   const set = useCallback(
     <K extends keyof Orchard>(key: K) =>
       (v: number) =>
@@ -213,58 +274,154 @@ export function CanopyEditor() {
         an uneven row. The strip wraps at narrow widths instead of eliding.
       */}
       <div className="flex flex-wrap items-end gap-x-2 gap-y-1 border-b border-line/60 px-2 py-1">
-        <div className="shrink-0">
-          <NumberField
-            label="Spacing"
-            value={orchard.spacing}
-            min={1}
-            max={20}
-            step={0.5}
-            format={metres}
-            parse={readMetres}
-            onChange={set("spacing")}
-          />
+        {/*
+          A closed set of two, so buttons rather than a field -- the rule the
+          brush radius follows in BoardSolarDetail. Rows first because that is
+          what this application classifies.
+        */}
+        <div className="flex gap-0.5 self-center">
+          {(
+            [
+              ["rows", "Rows"],
+              ["crowns", "Crowns"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setSource(id)}
+              className={cn(
+                "rounded-sm px-1.5 py-0.5 text-[9px] transition-colors",
+                source === id
+                  ? "bg-surface-raised text-foreground"
+                  : "text-muted-foreground hover:bg-surface-raised/40"
+              )}
+              title={
+                id === "rows"
+                  ? "A field crop: strips of vegetation on a row spacing"
+                  : "An orchard: ellipsoidal crowns on a grid"
+              }
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        <div className="shrink-0">
-          <NumberField
-            label="LAI"
-            value={orchard.lai}
-            min={0.1}
-            max={8}
-            step={0.1}
-            // Leaf area per unit ground, so it is a ratio and carries no unit.
-            format={(v) => v.toFixed(2)}
-            parse={(t) => {
-              const v = parseFloat(t)
-              return Number.isFinite(v) ? v : null
-            }}
-            onChange={set("lai")}
-          />
-        </div>
-        <div className="shrink-0">
-          <NumberField
-            label="Crown"
-            value={orchard.crownA}
-            min={0.2}
-            max={8}
-            step={0.1}
-            format={metres}
-            parse={readMetres}
-            onChange={set("crownA")}
-          />
-        </div>
-        <div className="shrink-0">
-          <NumberField
-            label="Height"
-            value={orchard.crownZ}
-            min={0.3}
-            max={12}
-            step={0.1}
-            format={metres}
-            parse={readMetres}
-            onChange={set("crownZ")}
-          />
-        </div>
+
+        {source === "rows" ? (
+          <>
+            <div className="shrink-0">
+              <NumberField
+                label="Row spacing"
+                value={crop.spacing}
+                min={0.2}
+                max={2}
+                step={0.05}
+                format={metres}
+                parse={readMetres}
+                onChange={setCropValue("spacing")}
+              />
+            </div>
+            <div className="shrink-0">
+              <NumberField
+                label="LAI"
+                value={crop.lai}
+                min={0.1}
+                max={8}
+                step={0.1}
+                format={(v) => v.toFixed(2)}
+                parse={(t) => {
+                  const v = parseFloat(t)
+                  return Number.isFinite(v) ? v : null
+                }}
+                onChange={setCropValue("lai")}
+              />
+            </div>
+            <div className="shrink-0">
+              <NumberField
+                label="Height"
+                value={crop.height}
+                min={0.1}
+                max={4}
+                step={0.05}
+                format={metres}
+                parse={readMetres}
+                onChange={setCropValue("height")}
+              />
+            </div>
+            <div className="shrink-0">
+              <NumberField
+                label="Row cover"
+                value={crop.rowWidthFrac}
+                min={0.1}
+                max={1}
+                step={0.05}
+                // The fraction of the spacing the canopy covers, read as a
+                // percentage. At 100% the field is a uniform slab.
+                format={(v) => `${Math.round(v * 100)}%`}
+                parse={(t) => {
+                  const v = parseFloat(t.replace("%", "").trim())
+                  return Number.isFinite(v) ? v / 100 : null
+                }}
+                onChange={setCropValue("rowWidthFrac")}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="shrink-0">
+              <NumberField
+                label="Spacing"
+                value={orchard.spacing}
+                min={1}
+                max={20}
+                step={0.5}
+                format={metres}
+                parse={readMetres}
+                onChange={set("spacing")}
+              />
+            </div>
+            <div className="shrink-0">
+              <NumberField
+                label="LAI"
+                value={orchard.lai}
+                min={0.1}
+                max={8}
+                step={0.1}
+                format={(v) => v.toFixed(2)}
+                parse={(t) => {
+                  const v = parseFloat(t)
+                  return Number.isFinite(v) ? v : null
+                }}
+                onChange={set("lai")}
+              />
+            </div>
+            <div className="shrink-0">
+              <NumberField
+                label="Crown"
+                value={orchard.crownA}
+                min={0.2}
+                max={8}
+                step={0.1}
+                format={metres}
+                parse={readMetres}
+                onChange={set("crownA")}
+              />
+            </div>
+            <div className="shrink-0">
+              <NumberField
+                label="Height"
+                value={orchard.crownZ}
+                min={0.3}
+                max={12}
+                step={0.1}
+                format={metres}
+                parse={readMetres}
+                onChange={set("crownZ")}
+              />
+            </div>
+          </>
+        )}
+
         <div className="shrink-0">
           <NumberField
             label="Sun"
@@ -369,14 +526,36 @@ export function CanopyEditor() {
             {(field.meta.occupancy * 100).toFixed(0)}% occupied at{" "}
             {field.meta.density_in_crown.toFixed(1)} m&sup2;/m&sup3;
           </span>
-          {atSun?.ratio != null ? (
-            <span title="Beer-Lambert is not linear in density, so the same leaf area gathered into crowns passes more light than a slab of it. The figure is the whole reason for modelling the arrangement rather than the average.">
-              passes {atSun.ratio.toFixed(1)}&times; a uniform canopy of the same
-              leaf area
+          {atSun ? (
+            <span title="Beer-Lambert is not linear in density, so the same leaf area gathered into rows or crowns passes more light than a slab of it.">
+              intercepts {(atSun.fapar * 100).toFixed(0)}%
+            </span>
+          ) : null}
+          {atSun?.k_emergent != null ? (
+            /*
+              The coefficient this canopy behaves as, against the one a crop
+              model holds fixed. It is the finding worth surfacing: k is not a
+              constant, and here it is not even constant within a day -- move
+              the sun and the sign of the error changes. Measured on sorghum
+              driven by STICS, it also falls over a season, from 1.05 to 0.73,
+              which this engine cannot show because its architecture does not
+              develop.
+            */
+            <span
+              title={`A crop model would hold k at ${atSun.fixed_k.toFixed(2)} and report ${(atSun.fapar_fixed_k * 100).toFixed(0)}% intercepted. k is not a constant: it moves with the sun angle and, where architecture develops, across the season.`}
+            >
+              k {atSun.k_emergent.toFixed(2)} against {atSun.fixed_k.toFixed(2)}
+              {atSun.fixed_k_error_pct != null
+                ? ` (${atSun.fixed_k_error_pct > 0 ? "+" : ""}${atSun.fixed_k_error_pct.toFixed(0)}%)`
+                : ""}
             </span>
           ) : null}
           <span className="opacity-60">
-            {field.meta.source === "ellipsoid" ? "ellipsoid crowns" : "grown leaves"}
+            {field.meta.source === "rows"
+              ? `rows ${((field.meta as { row_width?: number }).row_width ?? 0).toFixed(2)} m wide`
+              : field.meta.source === "ellipsoid"
+                ? "ellipsoid crowns"
+                : "grown leaves"}
           </span>
         </div>
       ) : null}

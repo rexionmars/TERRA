@@ -32,6 +32,7 @@ import { fileURLToPath } from "node:url"
 
 import {
   VERIFY_FRAGMENT_GLSL,
+  VERIFY_GROUND_FRAGMENT_GLSL,
   FULLSCREEN_VERTEX_GLSL,
   fieldToTextureOrder,
   type CanopyFieldMeta,
@@ -59,6 +60,21 @@ const CASES = [
     // half-cell sampling offset would show up largest.
     name: "sparse orchard, 8 m spacing, 50 cm cells",
     request: { spacing: 8.0, lai: 1.0, cell: 0.5, crown_a: 2.0, crown_b: 1.6, crown_z: 2.0 },
+  },
+  {
+    // A row crop, which is what this application classifies. Very different
+    // proportions from the orchard cases -- a half-metre module instead of six
+    // -- so the periodic wrap is crossed many times per ray rather than once.
+    name: "soy rows, 0.5 m spacing, 5 cm cells",
+    request: { source: "rows", spacing: 0.5, lai: 3.0, cell: 0.05, height: 0.9, row_width_frac: 0.6 },
+  },
+  {
+    // The degenerate case: the strip fills the module, so the field is a
+    // uniform slab and the march has an answer in closed form. If the shader
+    // reproduces numpy here it also reproduces analytic Beer-Lambert, which is
+    // the condition the handoff set for this shader existing at all.
+    name: "uniform slab (rows at full width)",
+    request: { source: "rows", spacing: 0.5, lai: 3.0, cell: 0.05, height: 0.9, row_width_frac: 1.0 },
   },
   {
     // Just inside the step budget: 1.2 cm cells under 3 m of canopy need about
@@ -200,6 +216,22 @@ try {
   gl.linkProgram(prog)
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
     throw new Error("link: " + gl.getProgramInfoLog(prog))
+
+  // The second pass drives toField, which the scattered points cannot reach:
+  // a consumer comparing against those is handed field coordinates and never
+  // performs the mapping. That mapping is what the scene gets wrong when the
+  // picture is smooth and wrong everywhere.
+  const groundProg = gl.createProgram()
+  gl.attachShader(groundProg, compile(gl.VERTEX_SHADER, ${JSON.stringify(
+    "#version 300 es\n" + FULLSCREEN_VERTEX_GLSL
+  )}))
+  gl.attachShader(groundProg, compile(gl.FRAGMENT_SHADER, ${JSON.stringify(
+    "#version 300 es\n" + VERIFY_GROUND_FRAGMENT_GLSL
+  )}))
+  gl.linkProgram(groundProg)
+  if (!gl.getProgramParameter(groundProg, gl.LINK_STATUS))
+    throw new Error("ground link: " + gl.getProgramInfoLog(groundProg))
+
   gl.useProgram(prog)
 
   // The field, as a single-channel float volume. NEAREST because texelFetch
@@ -276,15 +308,63 @@ try {
 
   const shader = R.suns.map((_, y) =>
     Array.from({ length: nPoints }, (_, x) => pixels[(y * nPoints + x) * 4]))
+
+  // --- the ground pass, one draw per sun over an n by n grid of the module ---
+  const gN = R.ground.n
+  const gTarget = gl.createTexture()
+  gl.activeTexture(gl.TEXTURE0 + 4)
+  gl.bindTexture(gl.TEXTURE_2D, gTarget)
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, gN, gN)
+  const gFb = gl.createFramebuffer()
+  gl.bindFramebuffer(gl.FRAMEBUFFER, gFb)
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, gTarget, 0)
+  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
+    throw new Error("ground framebuffer incomplete")
+
+  gl.useProgram(groundProg)
+  const gu = (n) => gl.getUniformLocation(groundProg, n)
+  gl.uniform1i(gu("uField"), 0)
+  gl.uniform1f(gu("uCell"), F.cell)
+  gl.uniform1f(gu("uSpacing"), F.spacing)
+  gl.uniform1f(gu("uZTop"), F.z_top)
+  gl.uniform1f(gu("uStepFrac"), R.step_frac)
+  gl.uniform1f(gu("uMaxPath"), R.max_path)
+  gl.uniform1f(gu("uG"), R.g_leaf)
+  gl.uniform3i(gu("uDims"), F.n_xy, F.n_xy, F.n_z)
+  gl.uniform1i(gu("uSamples"), gN)
+  const gLoc = gl.getAttribLocation(groundProg, "position")
+  gl.enableVertexAttribArray(gLoc)
+  gl.vertexAttribPointer(gLoc, 3, gl.FLOAT, false, 0, 0)
+  gl.viewport(0, 0, gN, gN)
+
+  const ground = R.ground.suns.map((s) => {
+    gl.uniform3f(gu("uSun"), s.direction[0], s.direction[1], s.direction[2])
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    const px = new Float32Array(gN * gN * 4)
+    gl.readPixels(0, 0, gN, gN, gl.RGBA, gl.FLOAT, px)
+    // Row-major over (i, j) with i along x, the order the field builder emits.
+    return Array.from({ length: gN * gN }, (_, k) => {
+      const i = k / gN | 0, j = k % gN
+      return px[(j * gN + i) * 4]
+    })
+  })
+
+  const err2 = gl.getError()
+  if (err2 !== gl.NO_ERROR) throw new Error("gl error in the ground pass " + err2)
+
   out.textContent = JSON.stringify({
     renderer: gl.getParameter(gl.RENDERER),
     shader,
+    ground,
   })
 } catch (e) { fail(e && e.message ? e.message : e) }
 </script>`
 }
 
-function shaderSide(chrome: string, html: string): { renderer: string; shader: number[][] } {
+function shaderSide(
+  chrome: string,
+  html: string
+): { renderer: string; shader: number[][]; ground: number[][] } {
   const dir = mkdtempSync(join(tmpdir(), "terra-canopy-"))
   const file = join(dir, "check.html")
   writeFileSync(file, html)
@@ -336,6 +416,37 @@ for (const { name, request } of CASES) {
       `${reference.points.length} points x ${reference.suns.length} suns`
   )
 
+  // The ground pass first: if the mapping is wrong every point below is
+  // meaningless, and the mapping is the layer a picture can be smooth and wrong
+  // in without any of the scattered points noticing.
+  const gN = reference.ground.n
+  console.log(`  ground, ${gN}x${gN} over the module`)
+  for (let s = 0; s < reference.ground.suns.length; s++) {
+    const sun = reference.ground.suns[s]
+    const got = result.ground[s]
+    const want = sun.transmittance
+    if (!got || got.length !== want.length) {
+      console.log(`  FAIL cos z=${sun.cos_zenith.toFixed(2)}  the shader returned ${got?.length ?? 0} of ${want.length} samples`)
+      failures++
+      continue
+    }
+    let worst = 0
+    let worstAt = -1
+    for (let i = 0; i < want.length; i++) {
+      const d = Math.abs(got[i] - want[i])
+      if (d > worst) { worst = d; worstAt = i }
+    }
+    const ok = worst <= reference.tolerance
+    if (!ok) failures++
+    console.log(
+      `  ${ok ? "ok  " : "FAIL"} cos z=${sun.cos_zenith.toFixed(2)}  worst |shader-numpy| ${worst.toExponential(2)}` +
+        (ok
+          ? ""
+          : `  at sample (${(worstAt / gN) | 0},${worstAt % gN}): ${got[worstAt].toFixed(6)} vs ${want[worstAt].toFixed(6)}`)
+    )
+  }
+
+  console.log(`  scattered points`)
   for (let s = 0; s < reference.suns.length; s++) {
     const sun = reference.suns[s]
     const got = result.shader[s]

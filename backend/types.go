@@ -1985,6 +1985,12 @@ type CanopyFieldRequest struct {
 	CrownA  *float64 `json:"crown_a,omitempty"`
 	CrownB  *float64 `json:"crown_b,omitempty"`
 	CrownZ  *float64 `json:"crown_z,omitempty"`
+	// Rows only. A field of soy or maize is a strip of vegetation repeating
+	// every spacing, not a set of crowns: all the module's leaf area lives
+	// inside the strips, which is what Beer's law over the whole field misses.
+	Height       *float64 `json:"height,omitempty"`
+	RowWidthFrac *float64 `json:"row_width_frac,omitempty"`
+	Base         *float64 `json:"base,omitempty"`
 	// Helios only. Ignored when the crowns are ellipsoids.
 	Species string `json:"species,omitempty"`
 	Days    int    `json:"days,omitempty"`
@@ -2017,6 +2023,10 @@ type CanopyFieldMeta struct {
 	CrownB         float64 `json:"crown_b,omitempty"`
 	CrownZ         float64 `json:"crown_z,omitempty"`
 	Leaves         int     `json:"leaves,omitempty"`
+	RowWidth       float64 `json:"row_width,omitempty"`
+	RowWidthFrac   float64 `json:"row_width_frac,omitempty"`
+	Height         float64 `json:"height,omitempty"`
+	Base           float64 `json:"base,omitempty"`
 }
 
 // CanopyReferenceSun is one solar direction and what the numpy march answered
@@ -2059,6 +2069,17 @@ type CanopyAgainstUniform struct {
 	CosZenith float64 `json:"cos_zenith"`
 	Field     float64 `json:"field"`
 	Uniform   float64 `json:"uniform"`
+	// What the canopy intercepts, and what a crop model holding one fitted
+	// extinction coefficient would have said instead. KEmergent inverts Beer
+	// on the resolved answer (Braud et al. 2026, eq. 29); it is null where
+	// there is too little leaf to invert or the canopy is closed.
+	FAPAR       float64  `json:"fapar"`
+	FAPARFixedK float64  `json:"fapar_fixed_k"`
+	KEmergent   *float64 `json:"k_emergent"`
+	FixedK      float64  `json:"fixed_k"`
+	// Signed, and the sign is the finding: it changes within a single day,
+	// which a fixed coefficient cannot express.
+	FixedKErrorPct *float64 `json:"fixed_k_error_pct"`
 	// Null where the uniform canopy underflows to zero, which happens at high
 	// LAI and a low sun. Not NaN: json.dumps writes NaN and Infinity as bare
 	// tokens and encoding/json refuses both, discarding an otherwise complete

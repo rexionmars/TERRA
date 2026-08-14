@@ -251,6 +251,93 @@ def ellipsoid_field(spacing, lai, crown_a, crown_b, crown_z, cell=0.30,
     return grid, meta
 
 
+def row_field(spacing, lai, height, row_width_frac=0.6, base=0.0, cell=0.05,
+              z_top=None):
+    """
+    Voxelise one periodic module of a row crop.
+
+    WHY THIS EXISTS BESIDE THE ELLIPSOID. A field of soy or maize is neither a
+    set of discrete crowns nor a uniform mat: it is a strip of vegetation of
+    width `row_width_frac * spacing` repeating every `spacing`, standing
+    `height` tall. All of the module's leaf area lives inside those strips, so
+    the density there is higher than the field average by the reciprocal of the
+    width fraction -- and that is precisely what Beer's law applied to the whole
+    field ignores.
+
+    THE STRIP IS UNIFORM ALONG ITSELF, so the geometry is really two-dimensional
+    in (x, z). It is stored as the same three-dimensional grid every other
+    source produces, replicated along y, because the consumer is a 3D texture
+    and a second field layout would mean a second shader. Verified against the
+    studies repository's own 2D row engine: replicated along y and marched by
+    canopy_voxel, the two agree to zero -- not approximately, bit for bit,
+    across twelve sun positions. Rows therefore run along the field's y axis,
+    and a planting at an angle is expressed by rotating the sun rather than the
+    grid, which costs nothing and avoids resampling a field to turn it.
+
+    `lai` is leaf area per unit GROUND, which is what an NDVI inversion gives.
+    """
+    spacing, cell = float(spacing), float(cell)
+    lai, height, base = float(lai), float(height), float(base)
+    width = float(row_width_frac) * spacing
+    if spacing <= 0 or cell <= 0:
+        raise ValueError("spacing and cell must be positive")
+    if height <= 0:
+        raise ValueError("row height must be positive")
+    if not 0 < row_width_frac <= 1:
+        raise ValueError("row_width_frac must be above zero and at most one, "
+                         "since the strip cannot be wider than its own spacing")
+
+    top = float(z_top) if z_top is not None else base + height
+    n_xy = _check_tiles(spacing, cell)
+    n_z = max(int(np.ceil(top / cell)), 1)
+    _check_extent(n_xy, n_z, spacing, cell)
+    _check_march(n_z * cell, cell)
+
+    # All the module's leaf area inside the strip's volume, not the module's.
+    # This one line is the whole difference from a slab, and with the strip at
+    # full width it reduces to one -- which is the acceptance test.
+    density = lai * spacing / (width * height)
+
+    axis_xy = (np.arange(n_xy) + 0.5) * cell
+    axis_z = (np.arange(n_z) + 0.5) * cell
+    in_x = np.abs(axis_xy - spacing / 2) <= width / 2
+    in_z = (axis_z >= base) & (axis_z <= base + height)
+
+    grid = np.zeros((n_xy, n_xy, n_z))
+    grid[np.ix_(in_x, np.ones(n_xy, bool), in_z)] = density
+
+    # The strip does not tile into cells any more than an ellipsoid does, so the
+    # voxelised area is a little off what was asked for. Rescaled for the same
+    # reason: the field is compared against analytic Beer-Lambert, and a canopy
+    # holding less leaf than it claims would read as a march error.
+    voxel_area = grid.sum() * cell ** 3
+    if voxel_area <= 0:
+        raise ValueError(
+            f"a strip {width:g} m wide and {height:g} m tall contains no cell "
+            f"centre at {cell:g} m cells, so the field is empty. Refine the "
+            f"cell below {min(width, height):g} m."
+        )
+    grid *= (lai * spacing ** 2) / voxel_area
+
+    meta = {
+        "source": "rows",
+        "spacing": spacing,
+        "cell": cell,
+        "z_top": n_z * cell,
+        "n_xy": n_xy,
+        "n_z": n_z,
+        "lai": lai,
+        "leaf_area": lai * spacing ** 2,
+        "row_width": width,
+        "row_width_frac": float(row_width_frac),
+        "height": height,
+        "base": base,
+        "occupancy": float((grid > 0).mean()),
+        "density_in_crown": float(grid[grid > 0].mean()),
+    }
+    return grid, meta
+
+
 def leaf_cloud_field(pos, area, spacing, cell=0.30, z_top=None):
     """
     Voxelise an explicit leaf cloud -- what `helios_bridge.leaf_cloud` returns.
@@ -383,18 +470,103 @@ def reference_cases(canopy, n_points=64, seed=0, step_frac=0.5):
         "max_steps": MAX_MARCH_STEPS,
         "tolerance": SHADER_TOLERANCE,
         "suns": cases,
+        "ground": ground_reference(canopy, step_frac=step_frac),
     }
 
 
-def analytic_check(canopy, step_frac=0.5):
-    """
-    What the same field would transmit if its leaf area were spread uniformly.
+# How many samples across the module the ground reference carries.
+GROUND_SAMPLES = 48
 
-    Not a test of the march -- the march is checked against this in
-    test_canopy_voxel.py, where the deviation is bounded and the bound is
-    measured. It is here because it is the number that says how much the
-    orchard's structure matters: uniform is the null model, and the gap between
-    it and the field is the whole reason for voxelising anything.
+
+def ground_reference(canopy, n=GROUND_SAMPLES, step_frac=0.5):
+    """
+    Direct light reaching the orchard floor, on a regular grid of the module.
+
+    WHY THIS IS SEPARATE FROM THE SCATTERED POINTS ABOVE. Those verify the
+    march. This verifies the mapping into it -- which is a different layer, and
+    it is the one that has broken. A view drawing this floor has to turn a
+    fragment's position on a piece of geometry into a position in the field,
+    and a mapping that is transposed, offset by half a module or reading the
+    wrong pair of axes produces a picture that is smooth, plausible and wrong
+    everywhere. Scattered points cannot catch it, because a consumer comparing
+    against them is handed the field coordinates directly and never performs
+    the mapping under test.
+
+    The grid is stated in the field's own metres so that a consumer has to
+    arrive at the same places by its own arithmetic: sample (i, j) is the
+    centre of cell (i, j) of an n-by-n division of [0, spacing] squared, with i
+    running along x and j along y.
+    """
+    axis = (np.arange(n) + 0.5) / n * canopy.spacing
+    gx, gy = np.meshgrid(axis, axis, indexing="ij")
+    points = np.stack([gx.ravel(), gy.ravel(),
+                       np.full(gx.size, 1e-3)], axis=1)
+
+    out = []
+    for cos_zenith, azimuth, why in REFERENCE_SUNS:
+        direction = _sun(cos_zenith, azimuth)
+        tau = canopy.transmittance(points, direction, step_frac=step_frac)
+        out.append({
+            "cos_zenith": float(cos_zenith),
+            "azimuth": float(azimuth),
+            "why": why,
+            "direction": [float(v) for v in direction],
+            # Row-major over (i, j), i along x.
+            "transmittance": [float(v) for v in tau],
+        })
+    return {"n": int(n), "suns": out}
+
+
+# The extinction coefficient a crop model holds fixed.
+#
+# STICS uses 0.7 for sorghum and the same order for maize and soy. It is the
+# number the comparison below exists to test, and it is NOT this module's
+# G_LEAF: G is the projection coefficient of a spherical leaf angle
+# distribution, a property of the geometry, while k is a bulk fitted constant
+# standing in for the whole canopy. Two exponentials, two different quantities.
+# Substituting one for the other is not a small error -- on a real series it
+# moved an interception comparison by 22 percentage points and reversed its
+# sign.
+CROP_MODEL_K = 0.7
+
+
+def analytic_check(canopy, step_frac=0.5, fixed_k=CROP_MODEL_K):
+    """
+    What the same leaf area would intercept under two coarser models, and the
+    extinction coefficient this canopy actually behaves as.
+
+    THE EMERGENT k IS THE POINT. A crop model treats the canopy as a slab with
+    one fitted k and holds it constant all season. Inverting Beer on what the
+    resolved canopy actually intercepts -- k = -ln(1 - faPAR) / LAI, equation 29
+    of Braud et al. (2026) -- gives the coefficient it behaves as, and that
+    coefficient is not constant.
+
+    WHAT THIS ENGINE CAN AND CANNOT SHOW, stated because the difference is easy
+    to overclaim. Measured in studies/E-archicrop-sorghum-growth of the
+    numerical-studies repository, on the paper's own sorghum case driven by
+    STICS, the emergent k falls from 1.05 to 0.73 across the season while STICS
+    holds 0.7 throughout, so a fixed k underestimates interception by 32% at LAI
+    0.11 and converges to about 1% past LAI 2.
+
+    This engine does NOT reproduce that fall, and cannot. There the canopy's
+    architecture develops -- leaves are added, the plant rises, the angle
+    distribution changes -- and the seasonal drift in k comes from that
+    development, not from LAI. Here the geometry is held and only leaf area
+    scales, so the emergent k barely moves with LAI (0.58 to 0.57 over a
+    tenfold range, in a soy row canopy). Producing the seasonal curve needs
+    architecture that grows, which is what ArchiCrop does and what the sidecar
+    cannot carry: it is conda-only, its light core is a compiled binary invoked
+    as a subprocess, and it is CeCILL-C.
+
+    WHAT IT DOES SHOW is a second and independent failure of the same
+    assumption: k is not constant across SUN ANGLE either. In that same soy
+    canopy it reads 0.58 at cos z 0.85 and 0.90 at cos z 0.55, so a fixed 0.7
+    overstates interception by 18% at a high sun and understates it by 20% at a
+    low one -- the error changes sign within a single day. A slab cannot express
+    that, and this engine measures it without needing any architecture at all.
+
+    `uniform` remains the slab this engine's own G would give, which is the
+    null model the voxelisation exists to be an alternative to.
     """
     rng = np.random.default_rng(1)
     points = np.stack([rng.uniform(0, canopy.spacing, 2000),
@@ -415,11 +587,34 @@ def analytic_check(canopy, step_frac=0.5):
         # character. The ratio is reported as None where it does not exist,
         # which survives the boundary as null.
         ratio = field / uniform if uniform > 1e-300 else None
+
+        # The coefficient this canopy behaves as, by inverting Beer on what it
+        # actually intercepts. Undefined where there is too little leaf to
+        # invert or where the canopy is closed: at faPAR of 1 the logarithm
+        # diverges, and below LAI 0.1 the quotient is noise over a vanishing
+        # denominator. Reported as null rather than as a large number, because
+        # a large number there would be read as a measurement.
+        fapar_field = 1.0 - field
+        lai = canopy.lai_ground
+        emergent = (-np.log(1.0 - fapar_field) / lai
+                    if lai > 0.1 and 0.0 < fapar_field < 1.0 else None)
+
+        # And what a crop model holding k fixed would have said instead.
+        fapar_fixed = 1.0 - float(np.exp(-fixed_k * lai))
+
         out.append({
             "cos_zenith": float(cos_zenith),
             "field": field,
             "uniform": uniform,
             "ratio": ratio,
+            "fapar": float(fapar_field),
+            "fapar_fixed_k": fapar_fixed,
+            "k_emergent": float(emergent) if emergent is not None else None,
+            "fixed_k": float(fixed_k),
+            # Signed, and the sign is the finding: negative means the fixed
+            # coefficient fell short of what the resolved canopy intercepts.
+            "fixed_k_error_pct": (100.0 * (fapar_fixed / fapar_field - 1.0)
+                                  if fapar_field > 1e-9 else None),
         })
     return out
 
@@ -441,7 +636,15 @@ def build(request, progress=None):
     cell = float(request.get("cell", 0.30))
     lai = float(request.get("lai", 2.0))
 
-    if source == "ellipsoid":
+    if source == "rows":
+        step(20, "laying the rows")
+        grid, meta = row_field(
+            spacing=spacing, lai=lai,
+            height=float(request.get("height", 0.9)),
+            row_width_frac=float(request.get("row_width_frac", 0.6)),
+            base=float(request.get("base", 0.0)),
+            cell=cell, z_top=request.get("z_top"))
+    elif source == "ellipsoid":
         step(20, "placing the crowns")
         grid, meta = ellipsoid_field(
             spacing=spacing, lai=lai,

@@ -70,6 +70,41 @@ uniform float uStepFrac;          // march step, in fractions of a cell
 uniform float uMaxPath;           // longest path considered, m
 uniform float uG;                 // projection coefficient of the leaf angles
 uniform ivec3 uDims;              // n_xy, n_xy, n_z
+uniform vec3 uSun;                // direction towards the sun, field frame
+`
+
+/**
+ * Where a point in the scene sits in the field.
+ *
+ * THIS IS IN THE SHARED MODULE FOR THE SAME REASON THE MARCH IS. It is a
+ * second thing a view has to get right, it is invisible when wrong -- a
+ * transposed pair of axes or an offset of half a module draws a smooth,
+ * plausible floor that is wrong at every point -- and it has already been the
+ * defect twice. Keeping it beside the march means the parity check can drive
+ * it, which the scattered reference points cannot: a consumer comparing
+ * against those is handed field coordinates and never performs this step.
+ *
+ * The convention, which the geometry has to match rather than the other way
+ * round: three's up is the field's height, the module is centred on the origin
+ * and spans one spacing in x and z.
+ *
+ *     field.x = world.x + spacing/2
+ *     field.y = world.z + spacing/2
+ *     field.z = world.y
+ */
+export const CANOPY_WORLD_GLSL = /* glsl */ `
+vec3 toField(vec3 world) {
+  return vec3(world.x + uSpacing * 0.5, world.z + uSpacing * 0.5, world.y);
+}
+
+/** Direct light reaching the orchard floor under a point of the scene. */
+float groundTransmittance(vec3 world) {
+  vec3 p = toField(world);
+  // A hair above the ground rather than on it: at exactly zero the first
+  // sample sits on a cell boundary, which is the one place the index is
+  // decided by rounding.
+  return canopyTransmittance(vec3(p.x, p.y, 0.001), uSun);
+}
 `
 
 /**
@@ -163,6 +198,41 @@ void main() {
 }
 `
 
+/**
+ * Fragment shader that answers the ground pass over the module.
+ *
+ * One texel per sample of the reference grid, in the same order the field
+ * builder emits it: texel (i, j) is the centre of cell (i, j) of an n-by-n
+ * division of the module, i along x. The world position is reconstructed from
+ * the texel so that `toField` is exercised rather than bypassed -- which is the
+ * whole point, since that mapping is what this pass exists to check.
+ */
+export const VERIFY_GROUND_FRAGMENT_GLSL = /* glsl */ `
+precision highp float;
+precision highp int;
+precision highp sampler3D;
+
+${CANOPY_UNIFORMS_GLSL}
+
+uniform int uSamples;
+
+out vec4 fragColor;
+
+${CANOPY_MARCH_GLSL}
+${CANOPY_WORLD_GLSL}
+
+void main() {
+  ivec2 texel = ivec2(gl_FragCoord.xy);
+  float n = float(uSamples);
+  // Field metres, then back into world, so the mapping under test runs
+  // forwards on a position it did not choose.
+  float fx = (float(texel.x) + 0.5) / n * uSpacing;
+  float fy = (float(texel.y) + 0.5) / n * uSpacing;
+  vec3 world = vec3(fx - uSpacing * 0.5, 0.0, fy - uSpacing * 0.5);
+  fragColor = vec4(groundTransmittance(world), 0.0, 0.0, 1.0);
+}
+`
+
 /** Everything the march reads, in the shape the field builder reports it. */
 export interface CanopyFieldMeta {
   spacing: number
@@ -203,6 +273,10 @@ export interface CanopyReference {
   max_steps: number
   tolerance: number
   suns: ReferenceSun[]
+  ground: {
+    n: number
+    suns: ReferenceSun[]
+  }
 }
 
 /**

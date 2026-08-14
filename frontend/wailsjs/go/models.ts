@@ -81,6 +81,11 @@ export namespace backend {
 	    cos_zenith: number;
 	    field: number;
 	    uniform: number;
+	    fapar: number;
+	    fapar_fixed_k: number;
+	    k_emergent?: number;
+	    fixed_k: number;
+	    fixed_k_error_pct?: number;
 	    ratio?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -92,6 +97,11 @@ export namespace backend {
 	        this.cos_zenith = source["cos_zenith"];
 	        this.field = source["field"];
 	        this.uniform = source["uniform"];
+	        this.fapar = source["fapar"];
+	        this.fapar_fixed_k = source["fapar_fixed_k"];
+	        this.k_emergent = source["k_emergent"];
+	        this.fixed_k = source["fixed_k"];
+	        this.fixed_k_error_pct = source["fixed_k_error_pct"];
 	        this.ratio = source["ratio"];
 	    }
 	}
@@ -191,6 +201,10 @@ export namespace backend {
 	    crown_b?: number;
 	    crown_z?: number;
 	    leaves?: number;
+	    row_width?: number;
+	    row_width_frac?: number;
+	    height?: number;
+	    base?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CanopyFieldMeta(source);
@@ -213,6 +227,10 @@ export namespace backend {
 	        this.crown_b = source["crown_b"];
 	        this.crown_z = source["crown_z"];
 	        this.leaves = source["leaves"];
+	        this.row_width = source["row_width"];
+	        this.row_width_frac = source["row_width_frac"];
+	        this.height = source["height"];
+	        this.base = source["base"];
 	    }
 	}
 	export class CanopyField {
@@ -262,6 +280,9 @@ export namespace backend {
 	    crown_a?: number;
 	    crown_b?: number;
 	    crown_z?: number;
+	    height?: number;
+	    row_width_frac?: number;
+	    base?: number;
 	    species?: string;
 	    days?: number;
 	    seed?: number;
@@ -280,6 +301,9 @@ export namespace backend {
 	        this.crown_a = source["crown_a"];
 	        this.crown_b = source["crown_b"];
 	        this.crown_z = source["crown_z"];
+	        this.height = source["height"];
+	        this.row_width_frac = source["row_width_frac"];
+	        this.base = source["base"];
 	        this.species = source["species"];
 	        this.days = source["days"];
 	        this.seed = source["seed"];

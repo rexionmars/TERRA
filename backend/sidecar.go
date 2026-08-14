@@ -1930,6 +1930,8 @@ func (r *Runner) BuildCanopyField(ctx context.Context, req CanopyFieldRequest) (
 	for key, value := range map[string]*float64{
 		"spacing": req.Spacing, "lai": req.LAI, "cell": req.Cell,
 		"crown_a": req.CrownA, "crown_b": req.CrownB, "crown_z": req.CrownZ,
+		"height": req.Height, "row_width_frac": req.RowWidthFrac,
+		"base": req.Base,
 	} {
 		if value != nil {
 			payload[key] = *value

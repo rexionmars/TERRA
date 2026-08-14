@@ -445,3 +445,127 @@ def test_the_payload_holds_no_token_go_would_refuse():
     assert "NaN" not in text and "Infinity" not in text
     assert any(row["ratio"] is None for row in payload["against_uniform"]), (
         "at LAI 400 the uniform canopy underflows, so some ratio has no value")
+
+
+# ---------------------------------------------------------------------------
+# Row crops, which is what this application classifies
+# ---------------------------------------------------------------------------
+
+ROW = dict(spacing=0.5, lai=3.0, height=0.9, row_width_frac=0.6, cell=0.05)
+
+
+def test_a_row_field_holds_the_leaf_area_asked_for():
+    grid, meta = cf.row_field(**ROW)
+    np.testing.assert_allclose(grid.sum() * ROW["cell"] ** 3,
+                               ROW["lai"] * ROW["spacing"] ** 2, rtol=1e-12)
+    assert meta["source"] == "rows"
+    np.testing.assert_allclose(meta["row_width"], 0.30, rtol=1e-12)
+
+
+def test_the_strip_concentrates_the_density_by_the_reciprocal_of_its_width():
+    """
+    All of the module's leaf area inside a fraction of its volume. This one
+    relation is the whole difference from a slab, and getting it wrong would
+    leave a field that integrates correctly and transmits like the average.
+    """
+    grid, meta = cf.row_field(**ROW)
+    slab = ROW["lai"] / ROW["height"]
+    np.testing.assert_allclose(meta["density_in_crown"], slab / ROW["row_width_frac"],
+                               rtol=1e-9)
+    # And the gaps are empty, or it is not a row crop.
+    assert np.any(grid == 0.0)
+    np.testing.assert_allclose(meta["occupancy"], ROW["row_width_frac"], atol=0.05)
+
+
+@pytest.mark.parametrize("cos_zenith", [1.0, 0.4])
+def test_a_full_width_strip_reduces_to_analytic_beer_lambert(cos_zenith):
+    """
+    THE ACCEPTANCE TEST for the row engine, and it is a degenerate case rather
+    than a comparison against another configuration of itself: at full width the
+    strip fills the module, the canopy is homogeneous, and transmittance to the
+    ground has to be exp(-G*LAI/cos z) exactly. If the density inside the strip
+    is wrong by any factor, this is where it shows.
+
+    The two angles are the ones whose optical path lands on whole marching
+    steps, so the quantisation this engine's own tests characterise contributes
+    nothing and the comparison is against the analytic value alone.
+    """
+    grid, meta = cf.row_field(**{**ROW, "row_width_frac": 1.0})
+    canopy = cf.canopy_of(grid, meta)
+    rng = np.random.default_rng(0)
+    points = np.stack([rng.uniform(0, ROW["spacing"], 2000),
+                       rng.uniform(0, ROW["spacing"], 2000),
+                       np.full(2000, 1e-3)], axis=1)
+    direction = np.array([0.0, np.sqrt(1 - cos_zenith ** 2), cos_zenith])
+
+    got = float(canopy.transmittance(points, direction).mean())
+    exact = float(np.exp(-cv.G_LEAF * ROW["lai"] / cos_zenith))
+    np.testing.assert_allclose(got, exact, rtol=1e-9)
+
+
+def test_a_strip_wider_than_its_spacing_is_refused():
+    with pytest.raises(ValueError, match="wider than its own spacing"):
+        cf.row_field(**{**ROW, "row_width_frac": 1.4})
+
+
+def test_the_action_dispatches_the_row_source():
+    grid, payload = cf.build({"source": "rows", **{k: v for k, v in ROW.items()
+                                                   if k != "row_width_frac"},
+                              "row_width_frac": ROW["row_width_frac"]})
+    assert payload["field"]["source"] == "rows"
+    assert grid.shape == (payload["field"]["n_xy"], payload["field"]["n_xy"],
+                          payload["field"]["n_z"])
+
+
+# ---------------------------------------------------------------------------
+# The emergent extinction coefficient
+# ---------------------------------------------------------------------------
+
+def test_the_emergent_k_is_reported_and_differs_from_the_fixed_one():
+    """
+    A crop model holds one fitted k all season. Inverting Beer on what the
+    resolved canopy intercepts gives the coefficient it behaves as, and the two
+    are not the same number.
+    """
+    grid, meta = cf.row_field(**ROW)
+    rows = cf.analytic_check(cf.canopy_of(grid, meta))
+    for row in rows:
+        assert row["fixed_k"] == cf.CROP_MODEL_K
+        if row["k_emergent"] is not None:
+            assert 0.1 < row["k_emergent"] < 3.0
+    assert any(r["k_emergent"] is not None for r in rows)
+
+
+def test_the_fixed_k_error_changes_sign_within_a_day():
+    """
+    The finding worth surfacing, and the one a slab cannot express: k moves with
+    the sun angle, so a single fitted coefficient overstates interception at a
+    high sun and understates it at a low one. A test asserting only a magnitude
+    would pass on a model that had the dependence backwards.
+    """
+    grid, meta = cf.row_field(**ROW)
+    rows = [r for r in cf.analytic_check(cf.canopy_of(grid, meta))
+            if r["fixed_k_error_pct"] is not None]
+    errors = [r["fixed_k_error_pct"] for r in rows]
+    assert max(errors) > 0 and min(errors) < 0, (
+        f"the fixed coefficient errs in one direction only: {errors}")
+
+    # And the emergent k rises as the sun drops, since a low beam crosses more
+    # rows for the same leaf area.
+    ks = [(r["cos_zenith"], r["k_emergent"]) for r in rows if r["k_emergent"]]
+    ks.sort(key=lambda pair: -pair[0])
+    assert ks[0][1] < ks[-1][1], f"k did not rise as the sun fell: {ks}"
+
+
+def test_a_uniform_canopy_behaves_as_the_coefficient_it_was_built_with():
+    """
+    At full row width the canopy is a slab, so the emergent k has to come back
+    as G divided by the cosine -- the projection, and nothing else. It is the
+    one configuration where the answer is known in closed form.
+    """
+    grid, meta = cf.row_field(**{**ROW, "row_width_frac": 1.0})
+    for row in cf.analytic_check(cf.canopy_of(grid, meta)):
+        if row["k_emergent"] is None:
+            continue
+        np.testing.assert_allclose(row["k_emergent"],
+                                   cv.G_LEAF / row["cos_zenith"], rtol=2e-2)
