@@ -1359,6 +1359,25 @@ export function BoardSurface({
         return ring ? [[a.id, ring] as const] : []
       })
     ),
+    /*
+      A retained run's outline, from the run record where there is one.
+
+      Without it the area falls back to its raster's rectangle, so a run the
+      map has moved on from is outlined as a box while every other area shows
+      its real shape.
+    */
+    ...Object.fromEntries(
+      retainedRuns.flatMap(({ id }) => {
+        const rec = runs.find((r) => r.id === id)
+        if (!rec) return []
+        const geom = resolveProjectGeometry(
+          { polygon_geojson: rec.polygon_geojson },
+          []
+        )
+        const ring = geom ? polygonOuterRing(geom) : null
+        return ring ? [[id, ring] as const] : []
+      })
+    ),
     ...Object.fromEntries(
       extraRuns.flatMap(({ run }) => {
         // The run stores the polygon it was asked for; there is no area
@@ -1469,8 +1488,31 @@ export function BoardSurface({
     }
   })
 
+  /*
+    A retained run has to appear HERE too, not only in `assetRuns`.
+
+    `sideOf` asks this map for the result behind an area, and every reading
+    built on a pair goes through it -- the compare editor, the domain-shift
+    pair, the cohort. A run that was listed in the data tree and absent from
+    this map could be selected, drawn, and then refused by both editors with
+    "pick two prediction planes" while two were plainly picked.
+  */
   const legendByArea = new Map<string, LegendSources>([
     [live, legendSources ?? {}],
+    ...retainedRuns.map(
+      ({ id, result }) =>
+        [
+          id,
+          {
+            result,
+            water: result.water,
+            solarTerrain: result.solar_terrain,
+            solarSiting: result.solar_siting,
+          },
+        ] as [string, LegendSources]
+    ),
+    // After the retained ones, so a run the picker has since loaded wins: it
+    // carries the full record where a retained entry carries only the result.
     ...extraRuns.map(
       ({ run, result }) =>
         [
