@@ -19,9 +19,12 @@ most of its installed weight removed.
 
 DEGRADING VISIBLY. pyhelios3d is not in requirements.txt and the managed
 environment never contains it, so absence is the common case rather than an edge
-one. The import below is at module top level on purpose: it fails loudly at
-import, and the caller in infer.py turns that into a sentence naming the package
-instead of a traceback. What it must NOT do is the pattern in phenology.py,
+one. The import is inside `grow` rather than at module top level, for one
+reason: `LIBRARY` below is the species list a picker needs in order to offer
+anything, and a top-level import made it unreadable on exactly the machines it
+was written for. The refusal still happens on the only call that needs Helios,
+and the caller in infer.py turns it into a sentence naming the package instead
+of a traceback. What it must NOT do is the pattern in phenology.py,
 where a missing scipy rebinds the symbol to None and the run continues
 unsmoothed -- that produces a plausible answer that is quietly worse, which is
 the failure class this whole path is built to avoid. Without Helios the canopy
@@ -33,8 +36,6 @@ envelope intercepts markedly more light than the architecture it stands in for.
 from __future__ import annotations
 
 import numpy as np
-
-import pyhelios3d as ph
 
 
 # The species plantarchitecture ships. Recorded here rather than queried lazily
@@ -83,6 +84,8 @@ def grow(species="almond", days=120, seed=None):
         )
     if days <= 0:
         raise ValueError("days must be positive")
+
+    import pyhelios3d as ph
 
     ctx = ph.Context()
     if seed is not None:

@@ -15,6 +15,10 @@ import (
 // hasPyHelios reports whether the interpreter under test can import the
 // optional 3D toolkit, so the refusal test can stand aside where there is
 // nothing to refuse.
+// f is the address of a literal, since the request carries geometry by pointer
+// so that a deliberate zero is distinguishable from an omission.
+func f(v float64) *float64 { return &v }
+
 func hasPyHelios(t *testing.T, python string) bool {
 	t.Helper()
 	return exec.Command(python, "-c", "import pyhelios3d").Run() == nil
@@ -26,12 +30,16 @@ document that describes it, and the two have to agree.
 
 That is not a hypothetical pairing. The grid is written by numpy into the work
 dir and read back by Go from a path, so the only thing tying the bytes to their
-shape is the meta the same payload carries. A field whose dimensions were
-reported for one grid and whose bytes came from another would upload to a
-texture without error and render a canopy rotated into its own depth axis --
-plausible looking, and wrong at every point. The size check in BuildCanopyField
-is what refuses that, and this is what proves the check runs against the real
-sidecar rather than against a hand-written fixture.
+shape is the meta the same payload carries. A field whose bytes were truncated
+would upload to a texture without error and shade a canopy that stops partway
+up. The size check in BuildCanopyField refuses that, and this is what proves it
+runs against the real sidecar rather than against a hand-written fixture.
+
+What this canNOT catch is a transposed write, since a permutation of axes
+preserves the element count -- confirmed by transposing it and watching this
+test still pass. That failure is caught by frontend/scripts/check-canopy-shader.ts,
+which marches the bytes this action produces and compares against
+transmittances computed from the untransposed field.
 
 Runs the real binary, like TestDomainShiftStandardisesOverTheRealSidecar.
 */
@@ -52,8 +60,8 @@ func TestCanopyFieldOverTheRealSidecar(t *testing.T) {
 
 	const spacing, lai, cell = 6.0, 2.0, 0.30
 	field, err := r.BuildCanopyField(ctx, CanopyFieldRequest{
-		Source: "ellipsoid", Spacing: spacing, LAI: lai, Cell: cell,
-		CrownA: 1.8, CrownB: 1.2, CrownZ: 1.6,
+		Source: "ellipsoid", Spacing: f(spacing), LAI: f(lai), Cell: f(cell),
+		CrownA: f(1.8), CrownB: f(1.2), CrownZ: f(1.6),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -197,8 +205,8 @@ func TestCanopyFieldRefusesAGridTooLargeToCarry(t *testing.T) {
 
 	// 40 m at 1 cm is 4000 cells across, so 4000 x 4000 x 400 cells.
 	_, err = r.BuildCanopyField(ctx, CanopyFieldRequest{
-		Source: "ellipsoid", Spacing: 40, LAI: 2, Cell: 0.01,
-		CrownA: 3, CrownB: 2, CrownZ: 2,
+		Source: "ellipsoid", Spacing: f(40), LAI: f(2), Cell: f(0.01),
+		CrownA: f(3), CrownB: f(2), CrownZ: f(2),
 	})
 	if err == nil {
 		t.Fatal("a 4000x4000x400 field was accepted")

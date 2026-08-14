@@ -70,6 +70,79 @@ SHADER_TOLERANCE = 2.0e-3
 MAX_FIELD_CELLS = 8 << 20
 
 
+# The longest march either implementation will run, in steps.
+#
+# Mirrored by CANOPY_MAX_STEPS in frontend/src/lib/canopyShader.ts, where it is
+# the compile-time loop bound a fragment shader needs. The two have to be the
+# same number, and the field builder is the side that has to respect it: numpy
+# will happily march ten thousand steps and the GLSL loop simply stops at the
+# bound, so a field needing more produces two different answers with nothing
+# raised. Measured, a 1.5 cm cell under a 6 m canopy needs 3311 steps at the
+# lowest reference sun and the shader ran 2048, disagreeing by 7e-2 -- thirty
+# times the tolerance the gate allows.
+#
+# Refusing rather than silently truncating is the choice, and the constraint is
+# real: this many texture fetches per fragment is already a heavy interactive
+# budget, and a canopy resolved that finely is asking the viewport for something
+# it cannot do at frame rate. The remedy is a coarser cell, which the message
+# says.
+MAX_MARCH_STEPS = 2048
+
+# What canopy_voxel.Canopy.transmittance caps the path at, and what the shader
+# is given as uMaxPath. Stated here because the step count depends on it and a
+# consumer that guessed a different one would compare against a different march.
+MAX_PATH = 25.0
+
+
+def _march_steps(z_top, cell, step_frac, cos_zenith):
+    """Steps `canopy_voxel.Canopy.transmittance` runs, by its own arithmetic."""
+    step = cell * step_frac
+    return int(min(MAX_PATH, (z_top + step) / cos_zenith) / step) + 1
+
+
+def _check_march(z_top, cell, step_frac=0.5):
+    lowest = min(sun[0] for sun in REFERENCE_SUNS)
+    steps = _march_steps(z_top, cell, step_frac, lowest)
+    if steps > MAX_MARCH_STEPS:
+        raise ValueError(
+            f"a {z_top:g} m canopy at {cell:g} m cells needs {steps:,} marching "
+            f"steps at the lowest reference sun, over the {MAX_MARCH_STEPS:,} a "
+            f"fragment shader runs. Coarsen the cell to at least "
+            f"{8 * z_top / MAX_MARCH_STEPS:.3f} m."
+        )
+    return steps
+
+
+def _check_tiles(spacing, cell):
+    """
+    The grid has to tile the module exactly, or the march reads a canopy
+    narrower than the one that was built.
+
+    `Canopy.transmittance` wraps with `int(mod(x, spacing) / cell) % n_xy`. When
+    spacing is not a whole number of cells the grid spans n_xy * cell, which is
+    wider than the module, and the last column is reached only over the leftover
+    strip -- so it carries a full cell of leaf area while receiving less than a
+    cell of rays. The rescale then normalises over the grid rather than over the
+    module and hides the difference: at 4 m in 15 cm cells the field reports LAI
+    3.50 and the march integrates 3.43, a 1.9% overstatement that no other check
+    would show.
+
+    Refusing rather than snapping, because the two nearest cell sizes are worth
+    seeing: which one to take is a resolution decision, not arithmetic.
+    """
+    exact = spacing / cell
+    n = round(exact)
+    if n < 1 or abs(exact - n) > 1e-9:
+        below = spacing / (int(np.floor(exact)) + 1)
+        above = spacing / max(int(np.floor(exact)), 1)
+        raise ValueError(
+            f"a {spacing:g} m module is {exact:.4f} cells wide at {cell:g} m, and "
+            f"the periodic wrap needs a whole number of them. Use {below:.4f} m "
+            f"or {above:.4f} m."
+        )
+    return n
+
+
 def _check_extent(n_xy, n_z, spacing, cell):
     cells = n_xy * n_xy * n_z
     if cells > MAX_FIELD_CELLS:
@@ -82,7 +155,7 @@ def _check_extent(n_xy, n_z, spacing, cell):
 
 
 def ellipsoid_field(spacing, lai, crown_a, crown_b, crown_z, cell=0.30,
-                    z_top=None, images=1):
+                    z_top=None, images=None):
     """
     Voxelise one periodic orchard module whose crowns are uniform ellipsoids.
 
@@ -104,9 +177,10 @@ def ellipsoid_field(spacing, lai, crown_a, crown_b, crown_z, cell=0.30,
         raise ValueError("crown semi-axes must be positive")
 
     z_top = float(z_top) if z_top is not None else crown_z + crown_b
-    n_xy = max(int(np.ceil(spacing / cell)), 1)
+    n_xy = _check_tiles(spacing, cell)
     n_z = max(int(np.ceil(z_top / cell)), 1)
     _check_extent(n_xy, n_z, spacing, cell)
+    _check_march(n_z * cell, cell)
 
     # Cell centres, which is what the march samples -- a cell either counts
     # whole or not at all, so testing the centre is the consistent choice.
@@ -118,6 +192,13 @@ def ellipsoid_field(spacing, lai, crown_a, crown_b, crown_z, cell=0.30,
     volume = 4.0 / 3.0 * np.pi * crown_a ** 2 * crown_b
     density = leaf_area / volume if volume > 0 else 0.0
 
+    # How far the periodic sum has to reach. A cell at the far edge of the
+    # module is crown_a + spacing/2 from the nearest centre it can still belong
+    # to, so a fixed range of one image silently truncates the sum as soon as
+    # the crown is wider than 1.5 modules -- measured, up to 31% of the density
+    # in a cell for a 5 m crown on 3 m spacing. Deriving it costs nothing.
+    if images is None:
+        images = int(np.ceil((crown_a + spacing / 2.0) / spacing))
     centre = np.array([spacing / 2.0, spacing / 2.0])
     inside = np.zeros_like(gx, dtype=bool)
     count = np.zeros_like(gx, dtype=np.float64)
@@ -137,9 +218,20 @@ def ellipsoid_field(spacing, lai, crown_a, crown_b, crown_z, cell=0.30,
     # discrepancy in: the field is compared against analytic Beer-Lambert, and a
     # canopy holding 3% less leaf than it claims would read as a march error.
     voxel_area = grid.sum() * cell ** 3
-    if voxel_area > 0:
-        grid *= leaf_area / voxel_area
-        voxel_area = leaf_area
+    if voxel_area <= 0:
+        # No cell centre landed inside any crown, so there is nothing to rescale
+        # and nothing to march. Left through, the payload would carry the LAI
+        # that was asked for beside a leaf area of zero and a canopy that
+        # intercepts no light -- self-contradictory, and accepted by every
+        # downstream check, since the cell count and the byte count are both
+        # right.
+        raise ValueError(
+            f"a crown of {crown_a:g} x {crown_b:g} m at {crown_z:g} m contains no "
+            f"cell centre at {cell:g} m cells, so the field is empty. Refine the "
+            f"cell below {min(crown_a, crown_b):g} m or enlarge the crown."
+        )
+    grid *= leaf_area / voxel_area
+    voxel_area = leaf_area
 
     meta = {
         "source": "ellipsoid",
@@ -170,8 +262,9 @@ def leaf_cloud_field(pos, area, spacing, cell=0.30, z_top=None):
     spacing, cell = float(spacing), float(cell)
     top = float(z_top) if z_top is not None else (
         float(pos[:, 2].max()) + cell if len(pos) else cell)
-    _check_extent(max(int(np.ceil(spacing / cell)), 1),
-                  max(int(np.ceil(top / cell)), 1), spacing, cell)
+    n_z = max(int(np.ceil(top / cell)), 1)
+    _check_extent(_check_tiles(spacing, cell), n_z, spacing, cell)
+    _check_march(n_z * cell, cell)
 
     canopy = cv.Canopy(pos, np.asarray(area, float),
                        spacing=spacing, cell=cell, z_max=z_top)
@@ -200,8 +293,20 @@ def canopy_of(grid, meta):
     here -- the field is already the answer. Constructing empty and assigning
     keeps one marching implementation instead of two.
     """
+    # Not `z_max=meta["z_top"]`, which looks like the obvious argument and is
+    # wrong. `z_top` is n_z * cell, and Canopy recovers the depth by taking
+    # ceil(z_max / cell) -- a round trip that is not a fixed point in binary
+    # floating point. ceil(2.4 / 0.1) is 24, 24 * 0.1 is 2.4000000000000004, and
+    # ceil of that over 0.1 is 25. The field then fails its own shape check.
+    # Measured over ordinary parameters this fired on about 7% of requests, and
+    # the tests missed it because their cell sizes happened to round exactly.
+    #
+    # Any height strictly inside the top cell recovers n_z, so the midpoint of
+    # that cell is the argument furthest from either boundary rather than the
+    # one sitting on it.
     canopy = cv.Canopy(np.zeros((0, 3)), np.zeros(0), spacing=meta["spacing"],
-                       cell=meta["cell"], z_max=meta["z_top"])
+                       cell=meta["cell"],
+                       z_max=(meta["n_z"] - 0.5) * meta["cell"])
     if canopy.grid.shape != grid.shape:
         raise ValueError(f"field {grid.shape} does not fit a canopy "
                          f"{canopy.grid.shape} built from its own meta")
@@ -274,6 +379,8 @@ def reference_cases(canopy, n_points=64, seed=0, step_frac=0.5):
         "points": [[float(v) for v in p] for p in points],
         "step_frac": float(step_frac),
         "g_leaf": float(cv.G_LEAF),
+        "max_path": MAX_PATH,
+        "max_steps": MAX_MARCH_STEPS,
         "tolerance": SHADER_TOLERANCE,
         "suns": cases,
     }
@@ -301,11 +408,18 @@ def analytic_check(canopy, step_frac=0.5):
         field = float(canopy.transmittance(points, direction,
                                            step_frac=step_frac).mean())
         uniform = float(np.exp(-cv.G_LEAF * density * canopy.z_top / cos_zenith))
+        # Not `field / uniform` unguarded, and not a NaN sentinel. A uniform
+        # canopy at high LAI underflows to exactly zero, and json.dumps writes
+        # NaN and Infinity as bare tokens that Go's encoding/json refuses --
+        # discarding an otherwise complete payload with a message about a
+        # character. The ratio is reported as None where it does not exist,
+        # which survives the boundary as null.
+        ratio = field / uniform if uniform > 1e-300 else None
         out.append({
             "cos_zenith": float(cos_zenith),
             "field": field,
             "uniform": uniform,
-            "ratio": field / uniform if uniform > 0 else float("nan"),
+            "ratio": ratio,
         })
     return out
 

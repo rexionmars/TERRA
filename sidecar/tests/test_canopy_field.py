@@ -314,3 +314,134 @@ def test_build_reports_progress_in_order():
     assert seen, "a build that reports nothing leaves the progress bar empty"
     assert [p for p, _ in seen] == sorted(p for p, _ in seen)
     assert all(0 <= p <= 100 for p, _ in seen)
+
+
+# ---------------------------------------------------------------------------
+# What an adversarial review found, and what now stops it coming back
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("cell,crown_z,crown_b", [
+    (0.1, 1.4, 1.0),    # z_top 2.4: ceil(2.4/0.1) is 24, 24*0.1 is 2.4000000000000004
+    (0.05, 1.4, 1.0),
+    (0.05, 1.6, 1.3),
+    (0.125, 1.5, 1.0),
+])
+def test_a_field_fits_the_canopy_built_from_its_own_meta(cell, crown_z, crown_b):
+    """
+    `canopy_of` recovers the grid depth by handing z_top back to Canopy, which
+    takes ceil(z_top / cell). That round trip is not a fixed point in binary
+    floating point: n_z * cell frequently lands one ulp above the boundary and
+    ceils to n_z + 1, so the field fails its own shape check and the whole
+    action dies.
+
+    It fired on about 7% of ordinary requests and no test saw it, because the
+    two cell sizes the suite used -- 0.30 and 0.20 -- happen to round exactly.
+    These are chosen to be the cases that do not.
+    """
+    grid, meta = cf.ellipsoid_field(spacing=SPACING, lai=LAI, cell=cell,
+                                    crown_a=1.8, crown_b=crown_b, crown_z=crown_z)
+    canopy = cf.canopy_of(grid, meta)
+    assert canopy.grid.shape == grid.shape
+    assert canopy.n_z == meta["n_z"]
+    np.testing.assert_allclose(canopy.z_top, meta["z_top"], rtol=0, atol=1e-12)
+
+
+def test_a_field_needing_more_steps_than_the_shader_runs_is_refused():
+    """
+    numpy marches as many steps as the geometry asks for; the GLSL loop stops at
+    its compile-time bound and returns a brighter canopy with nothing raised.
+    Measured, a 1.5 cm cell under a 6 m canopy wanted 3311 steps against the
+    shader's 2048 and disagreed by 7e-2 -- thirty times the tolerance.
+
+    The builder is the side that has to respect the bound, since it is the side
+    that can refuse.
+    """
+    # Tiles the module and fits the cell budget, so the march guard is the one
+    # that has to fire: 50 x 50 x 310 cells, 2484 steps at the lowest sun.
+    with pytest.raises(ValueError, match="marching steps"):
+        cf.ellipsoid_field(spacing=1.0, lai=2.0, cell=0.02,
+                           crown_a=0.5, crown_b=3.0, crown_z=3.2)
+
+
+def test_the_step_budget_is_the_same_number_the_shader_compiles():
+    """
+    MAX_MARCH_STEPS here and CANOPY_MAX_STEPS in the shader are one contract.
+    Reading the TypeScript is cruder than importing it, but the alternative is
+    two numbers nobody compares -- which is how this defect existed.
+    """
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib"
+              / "canopyShader.ts").read_text(encoding="utf-8")
+    import re
+    match = re.search(r"CANOPY_MAX_STEPS\s*=\s*(\d+)", source)
+    assert match, "CANOPY_MAX_STEPS is no longer a literal in canopyShader.ts"
+    assert int(match.group(1)) == cf.MAX_MARCH_STEPS
+
+
+def test_a_grid_that_does_not_tile_the_module_is_refused():
+    """
+    The march wraps with int(mod(x, spacing) / cell) % n_xy. When spacing is not
+    a whole number of cells the grid is wider than the module and the last
+    column receives less than a cell of rays while holding a full cell of leaf.
+    At 4 m in 15 cm cells the field reported LAI 3.50 and the march integrated
+    3.43 -- and the rescale is what hid it, by normalising over the grid instead
+    of over the module.
+    """
+    with pytest.raises(ValueError, match="whole number"):
+        cf.ellipsoid_field(spacing=4.0, lai=3.5, cell=0.15,
+                           crown_a=2.4, crown_b=1.0, crown_z=1.4)
+    # And the message offers the two cell sizes that do tile it.
+    cf.ellipsoid_field(spacing=4.0, lai=3.5, cell=0.16,
+                       crown_a=2.4, crown_b=1.0, crown_z=1.4)
+
+
+def test_an_empty_field_is_refused_rather_than_labelled_with_the_lai_asked_for():
+    """
+    A crown containing no cell centre leaves the grid all zeros, and the rescale
+    was skipped, so the payload carried the requested LAI beside a leaf area of
+    zero and a canopy intercepting nothing. Every downstream check passed it:
+    the cell count and the byte count are both right.
+    """
+    with pytest.raises(ValueError, match="no cell centre"):
+        cf.ellipsoid_field(spacing=6.0, lai=2.0, cell=0.5,
+                           crown_a=0.1, crown_b=0.1, crown_z=1.6)
+
+
+def test_the_periodic_sum_reaches_as_far_as_the_crown_is_wide():
+    """
+    The image range was fixed at one module, which truncates the sum as soon as
+    a crown is wider than 1.5 modules -- up to 31% of the density in a cell for
+    a 5 m crown on 3 m spacing. It is derived from the crown now, so the field
+    matches the converged periodic sum.
+    """
+    wide = dict(spacing=2.0, lai=2.0, cell=0.1, crown_a=3.5, crown_b=1.2, crown_z=1.6)
+    grid, _ = cf.ellipsoid_field(**wide)
+    converged, _ = cf.ellipsoid_field(**wide, images=6)
+    np.testing.assert_allclose(grid, converged, rtol=1e-12)
+
+
+def test_the_reference_states_every_parameter_the_march_reads():
+    """
+    max_path changes the answer and was left for the consumer to hard-code --
+    the hand-copied constant the whole payload exists to prevent. The divergence
+    would be invisible on any field whose longest path is under both values.
+    """
+    grid, meta = cf.ellipsoid_field(spacing=SPACING, lai=LAI, cell=CELL, **CROWN)
+    cases = cf.reference_cases(cf.canopy_of(grid, meta), n_points=8)
+    assert cases["max_path"] == cf.MAX_PATH
+    assert cases["max_steps"] == cf.MAX_MARCH_STEPS
+
+
+def test_the_payload_holds_no_token_go_would_refuse():
+    """
+    json.dumps writes NaN and Infinity as bare tokens, and Go's encoding/json
+    rejects both -- discarding a complete payload with a message about a
+    character. A uniform canopy at high LAI underflows to zero, which is where
+    the ratio used to become NaN.
+    """
+    import json
+    _, payload = cf.build({"spacing": SPACING, "lai": 400.0, "cell": CELL})
+    text = json.dumps(payload)
+    assert "NaN" not in text and "Infinity" not in text
+    assert any(row["ratio"] is None for row in payload["against_uniform"]), (
+        "at LAI 400 the uniform canopy underflows, so some ratio has no value")

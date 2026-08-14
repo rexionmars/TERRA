@@ -43,13 +43,19 @@
 
 /** Compile-time ceiling on the march, since GLSL wants a bounded loop.
  *
- * The real bound is the runtime `nSteps`, which the loop breaks on. This only
- * has to be larger than any nSteps the field can produce: with the numpy
- * default max_path of 25 m and the smallest sane step of a tenth of a 15 cm
- * cell, that is 25 / 0.015 = 1667. The value below covers the configurations
- * the field builder emits (a 3 m canopy at half a 30 cm cell needs 84 steps at
- * the lowest reference sun) with two orders of margin, and costs nothing when
- * unused because the loop exits on nSteps.
+ * This is a CONTRACT, not a safety margin, and it is the same number as
+ * MAX_MARCH_STEPS in sidecar/canopy_field.py. Getting that wrong is not a
+ * clamped edge case: numpy marches as many steps as the geometry asks for while
+ * this loop simply stops, so the two produce different answers with nothing
+ * raised on either side. Measured, a 1.5 cm cell under a 6 m canopy wants 3311
+ * steps; running 2048 of them disagreed with numpy by 7e-2, thirty times the
+ * gate's tolerance, on a field the builder was perfectly willing to emit.
+ *
+ * The builder is the side that respects it -- `_check_march` refuses a field
+ * needing more and names the cell size that would fit. So raising this number
+ * without raising that one only re-opens the gap in the other direction, and
+ * raising both trades frame rate for resolution: this many texture fetches per
+ * fragment is already a heavy interactive budget.
  */
 export const CANOPY_MAX_STEPS = 2048
 
@@ -180,10 +186,21 @@ export interface ReferenceSun {
   transmittance: number[]
 }
 
+/**
+ * Everything a second implementation needs in order to be compared.
+ *
+ * All four march parameters travel, including `max_path` -- which changes the
+ * answer and was originally left for the consumer to hard-code, exactly the
+ * hand-copied constant this whole arrangement exists to prevent. The divergence
+ * would be invisible on any field whose longest path is under both values,
+ * which is most of them.
+ */
 export interface CanopyReference {
   points: [number, number, number][]
   step_frac: number
   g_leaf: number
+  max_path: number
+  max_steps: number
   tolerance: number
   suns: ReferenceSun[]
 }

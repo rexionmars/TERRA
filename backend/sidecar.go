@@ -1925,12 +1925,14 @@ func (r *Runner) BuildCanopyField(ctx context.Context, req CanopyFieldRequest) (
 	if req.Source != "" {
 		payload["source"] = req.Source
 	}
-	for key, value := range map[string]float64{
+	// Present means present, including zero. Filtering on `> 0` here would
+	// reintroduce the falsiness bug the request type documents.
+	for key, value := range map[string]*float64{
 		"spacing": req.Spacing, "lai": req.LAI, "cell": req.Cell,
 		"crown_a": req.CrownA, "crown_b": req.CrownB, "crown_z": req.CrownZ,
 	} {
-		if value > 0 {
-			payload[key] = value
+		if value != nil {
+			payload[key] = *value
 		}
 	}
 	if req.Species != "" {
@@ -1981,9 +1983,14 @@ func (r *Runner) BuildCanopyField(ctx context.Context, req CanopyFieldRequest) (
 	if err != nil {
 		return nil, fmt.Errorf("canopy field file missing: %w", err)
 	}
-	// Guards a transposed or truncated write, which would otherwise reach the
-	// shader as a canopy rotated into its own depth axis -- plausible looking
-	// and wrong everywhere.
+	// Guards a truncated write, and only that. A transposition preserves the
+	// element count under any permutation of axes, so this length check cannot
+	// see one -- verified by transposing the write and watching every test on
+	// this side still pass. What does see it is frontend/scripts/
+	// check-canopy-shader.ts, which drives this same action and marches the
+	// bytes it produces against transmittances computed from the untransposed
+	// field: the same mutation fails 24 of its 24 comparisons. Order is checked
+	// where order is used.
 	if len(gridBytes) != cells*4 {
 		return nil, fmt.Errorf("canopy field is %d bytes, expected %d for %dx%dx%d float32",
 			len(gridBytes), cells*4, field.Field.NXY, field.Field.NXY, field.Field.NZ)

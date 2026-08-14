@@ -25,7 +25,7 @@
  * Set TERRA_PYTHON to pick the interpreter and CHROME to pick the browser.
  */
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs"
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -51,14 +51,25 @@ const CASES = [
   {
     // Finer cells and a wider crown: the crown now overlaps its own periodic
     // images, so rays wrap through leaf area rather than through empty module.
-    name: "closed canopy, 4 m spacing, 15 cm cells",
-    request: { spacing: 4.0, lai: 3.5, cell: 0.15, crown_a: 2.4, crown_b: 1.0, crown_z: 1.4 },
+    name: "closed canopy, 4 m spacing, 16 cm cells",
+    request: { spacing: 4.0, lai: 3.5, cell: 0.16, crown_a: 2.4, crown_b: 1.0, crown_z: 1.4 },
   },
   {
     // Coarse cells make each step optically thick, which is where a
     // half-cell sampling offset would show up largest.
     name: "sparse orchard, 8 m spacing, 50 cm cells",
     request: { spacing: 8.0, lai: 1.0, cell: 0.5, crown_a: 2.0, crown_b: 1.6, crown_z: 2.0 },
+  },
+  {
+    // Just inside the step budget: 1.2 cm cells under 3 m of canopy need about
+    // 2000 of the 2048 steps the shader runs.
+    //
+    // The first three cases all sit two orders below the cap, so they could not
+    // have caught the shader silently stopping short -- and it did, by 7e-2, on
+    // a slightly finer field than this. A parity check whose cases never
+    // approach a bound does not test the bound.
+    name: "fine hedgerow, 1 m spacing, 1.25 cm cells (1925 of 2048 steps)",
+    request: { spacing: 1.0, lai: 3.0, cell: 0.0125, crown_a: 0.5, crown_b: 1.4, crown_z: 1.6 },
   },
 ]
 
@@ -85,31 +96,44 @@ function resolvePython(): string {
   )
 }
 
-const PY_DRIVER = `
-import base64, json, sys
-sys.path.insert(0, ${JSON.stringify(SIDECAR)})
-import numpy as np
-import canopy_field as cf
-
-request = json.loads(sys.argv[1])
-grid, payload = cf.build(request)
-payload["grid_b64"] = base64.b64encode(
-    np.ascontiguousarray(grid, dtype=np.float32).tobytes()).decode()
-json.dump(payload, sys.stdout)
-`
-
 interface PythonSide {
-  field: CanopyFieldMeta
+  field: CanopyFieldMeta & { path: string }
   reference: CanopyReference
-  grid_b64: string
+  grid: Float32Array
 }
 
+/**
+ * Run the real `canopy_field` action, not the library behind it.
+ *
+ * Going through sidecar/infer.py means the grid the shader marches is the one
+ * the application writes, byte for byte. That matters for one failure the Go
+ * side cannot catch: its guard compares the file length against the cell count,
+ * and a transposed write preserves the length under any permutation of axes. A
+ * canopy rotated into its own depth axis passes every check on the boundary and
+ * renders as a plausible canopy that is wrong at every point -- but it cannot
+ * survive this comparison, because the numpy transmittances come from the
+ * untransposed field and the shader would be marching a different one.
+ */
 function numpySide(python: string, request: object): PythonSide {
-  const out = execFileSync(python, ["-c", PY_DRIVER, JSON.stringify(request)], {
-    maxBuffer: 256 * 1024 * 1024,
-    encoding: "utf8",
-  })
-  return JSON.parse(out) as PythonSide
+  const workDir = mkdtempSync(join(tmpdir(), "terra-field-"))
+  try {
+    const payload = JSON.stringify({ ...request, action: "canopy_field", work_dir: workDir })
+    const out = execFileSync(python, [join(SIDECAR, "infer.py")], {
+      input: payload,
+      maxBuffer: 256 * 1024 * 1024,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+    const parsed = JSON.parse(out).canopy_field
+    const bytes = readFileSync(parsed.field.path)
+    return {
+      field: parsed.field,
+      reference: parsed.reference,
+      grid: new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4),
+    }
+  } finally {
+    rmSync(workDir, { recursive: true, force: true })
+  }
 }
 
 function resolveChrome(): string {
@@ -131,12 +155,7 @@ function resolveChrome(): string {
  *  literally the exported source, not a paraphrase of it. */
 function page(side: PythonSide): string {
   const { n_xy, n_z } = side.field
-  const grid = Buffer.from(side.grid_b64, "base64")
-  const textureOrder = fieldToTextureOrder(
-    new Float32Array(grid.buffer, grid.byteOffset, grid.byteLength / 4),
-    n_xy,
-    n_z
-  )
+  const textureOrder = fieldToTextureOrder(side.grid, n_xy, n_z)
   const payload = {
     field: side.field,
     reference: side.reference,
@@ -223,7 +242,7 @@ try {
   gl.uniform1f(u("uSpacing"), F.spacing)
   gl.uniform1f(u("uZTop"), F.z_top)
   gl.uniform1f(u("uStepFrac"), R.step_frac)
-  gl.uniform1f(u("uMaxPath"), 25.0)
+  gl.uniform1f(u("uMaxPath"), R.max_path)
   gl.uniform1f(u("uG"), R.g_leaf)
   gl.uniform3i(u("uDims"), F.n_xy, F.n_xy, F.n_z)
 

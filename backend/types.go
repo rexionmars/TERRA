@@ -1970,14 +1970,21 @@ carry. The two are not interchangeable: an ellipsoid preserving leaf area and
 crown envelope intercepts markedly more light than the architecture it stands
 in for, so the result reports which one produced it.
 */
+// Geometry is carried by pointer, not by value with omitempty. Zero is a value
+// a caller can mean here -- a crown centred at ground level is a hedgerow, and
+// an LAI of zero is the bare module the against-uniform comparison is about --
+// and `omitempty` on a float64 drops both, letting the sidecar substitute its
+// own default. That is the pattern sidecar/infer.py:82-91 records as having
+// silently moved four numeric parameters in this repository, one of which
+// shifted every energy figure by 5.78 percent.
 type CanopyFieldRequest struct {
-	Source  string  `json:"source,omitempty"`
-	Spacing float64 `json:"spacing,omitempty"`
-	LAI     float64 `json:"lai,omitempty"`
-	Cell    float64 `json:"cell,omitempty"`
-	CrownA  float64 `json:"crown_a,omitempty"`
-	CrownB  float64 `json:"crown_b,omitempty"`
-	CrownZ  float64 `json:"crown_z,omitempty"`
+	Source  string   `json:"source,omitempty"`
+	Spacing *float64 `json:"spacing,omitempty"`
+	LAI     *float64 `json:"lai,omitempty"`
+	Cell    *float64 `json:"cell,omitempty"`
+	CrownA  *float64 `json:"crown_a,omitempty"`
+	CrownB  *float64 `json:"crown_b,omitempty"`
+	CrownZ  *float64 `json:"crown_z,omitempty"`
 	// Helios only. Ignored when the crowns are ellipsoids.
 	Species string `json:"species,omitempty"`
 	Days    int    `json:"days,omitempty"`
@@ -2033,9 +2040,15 @@ while nothing failed. These are the numbers frontend/scripts/check-canopy-shader
 holds the shader to.
 */
 type CanopyReference struct {
-	Points    [][]float64          `json:"points"`
-	StepFrac  float64              `json:"step_frac"`
-	GLeaf     float64              `json:"g_leaf"`
+	Points   [][]float64 `json:"points"`
+	StepFrac float64     `json:"step_frac"`
+	GLeaf    float64     `json:"g_leaf"`
+	// Every parameter the march reads travels, MaxPath included. It changes the
+	// answer, and leaving it for the consumer to hard-code is the hand-copied
+	// constant this payload exists to prevent -- the divergence would be
+	// invisible on any field whose longest path is under both values.
+	MaxPath   float64              `json:"max_path"`
+	MaxSteps  int                  `json:"max_steps"`
 	Tolerance float64              `json:"tolerance"`
 	Suns      []CanopyReferenceSun `json:"suns"`
 }
@@ -2046,7 +2059,11 @@ type CanopyAgainstUniform struct {
 	CosZenith float64 `json:"cos_zenith"`
 	Field     float64 `json:"field"`
 	Uniform   float64 `json:"uniform"`
-	Ratio     float64 `json:"ratio"`
+	// Null where the uniform canopy underflows to zero, which happens at high
+	// LAI and a low sun. Not NaN: json.dumps writes NaN and Infinity as bare
+	// tokens and encoding/json refuses both, discarding an otherwise complete
+	// payload with a message about a character.
+	Ratio *float64 `json:"ratio"`
 }
 
 // CanopyGrown records what Helios produced, when Helios produced it.

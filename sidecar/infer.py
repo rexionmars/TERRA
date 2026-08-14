@@ -1241,21 +1241,27 @@ def main():
         # reader, and an uncaught one would reach the user as `exit status 1`.
         if source == 'helios':
             try:
+                # helios_grow itself imports without the toolkit, so a species
+                # list can be offered on a machine that cannot grow anything;
+                # the ImportError arrives from grow(). Catching it here rather
+                # than around the import is what keeps the message specific.
                 import helios_grow
+                grown = helios_grow.grow(
+                    species=req.get('species', 'almond'),
+                    days=int(req.get('days', 120)),
+                    seed=req.get('seed'))
             except ImportError as e:
                 fail('Growing a 3D crop needs pyhelios3d, which this '
                      'interpreter does not have. Install it there, or choose '
                      'another Python in Settings > System. Canopies from '
                      f'ellipsoid crowns need nothing extra. ({e})')
+            except Exception as e:
+                fail(f'growing the plant failed: {e}')
             try:
-                grown = helios_grow.grow(
-                    species=req.get('species', 'almond'),
-                    days=int(req.get('days', 120)),
-                    seed=req.get('seed'))
                 emit_progress(35, f'extracting {grown.species} at day {grown.days}')
                 pos, area, grow_meta = helios_grow.leaf_cloud(grown)
             except Exception as e:
-                fail(f'growing the plant failed: {e}')
+                fail(f'extracting the grown scene failed: {e}')
             req = dict(req, source='leaves',
                        leaf_positions=pos.tolist(), leaf_areas=area.tolist())
 
