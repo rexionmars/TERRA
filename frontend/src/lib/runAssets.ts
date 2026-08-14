@@ -35,7 +35,7 @@ import type {
   SolarTerrainAnalysis,
   WaterAnalysis,
 } from "@/lib/types"
-import { isZeroExtent } from "@/lib/mapLayers"
+import { isZeroExtent, predictionSource } from "@/lib/mapLayers"
 import { seasonLabel } from "@/lib/solarOptions"
 
 /**
@@ -202,6 +202,19 @@ export function compositionList(i: {
   return i.composition?.overlay_uri ? [i.composition] : []
 }
 
+/**
+ * What a run's prediction raster should be CALLED.
+ *
+ * Mirrors the naming in `rasterLayers` so the scene tree does not give one
+ * raster two names depending on which area holds it.
+ */
+function predictionTitle(r: PredictResult | null | undefined): string {
+  const src = predictionSource(r ?? undefined)?.source
+  if (src === "lulc") return `MapBiomas ${r?.lulc?.year ?? ""}`.trim()
+  if (src === "reference") return "Reference map"
+  return "Classification"
+}
+
 /** Everything this run produced, in the order it is worth reading. */
 export function runAssets(i: RunAssetInput): RunAsset[] {
   const out: RunAsset[] = []
@@ -211,7 +224,18 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
     out.push({
       id: "prediction",
       sceneId: "prediction",
-      title: "Prediction",
+      /*
+        Named for what it IS, which is the rule `rasterLayers` already states
+        for the same raster on the live area: the three sources are three
+        different maps with three different class sets.
+
+        This said "Prediction" flatly -- the slot's name, which is what that
+        rule argues against -- so one board showed the same layer as
+        "Classification" under the area the map is on and as "Prediction"
+        under every other, and a reader had no way to tell whether they were
+        looking at two things or at one thing named twice.
+      */
+      title: predictionTitle(r),
       params: [
         i.areaLabel?.trim() || null,
         modelLabel(i.modelKind),
