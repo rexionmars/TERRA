@@ -173,6 +173,40 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
         leaf("a-table", "table")
       ),
   },
+  {
+    id: "simulation",
+    label: "Simulation",
+    hint: "An orchard module and the light that reaches through it",
+    /*
+      The canopy takes the width because the question is spatial: where the
+      light falls between the crowns is not readable in a column. The run strip
+      stays because the orchard is the same ground the classification is about,
+      and the outliner under it says which area that is.
+
+      No viewport in this preset. Not to save the second WebGL context -- the
+      board's is never released on a workspace switch, so it is spent either
+      way -- but because a stack of rasters and a shaded orchard are two
+      answers to two different questions, and putting them side by side invites
+      reading one as an overlay of the other.
+
+      Fractions measured at the 1000x700 minimum, after the 28px workspace bar,
+      the 22px status bar and each area's own 26px header: the canopy body is
+      720x533 against a 288x224 floor, the outliner 280x533 against 176x128,
+      and the run strip 1000x65 against 448x48.
+    */
+    build: () =>
+      col(
+        "w-sim-foot",
+        0.86,
+        row(
+          "w-sim-split",
+          0.72,
+          leaf("a-canopy", "canopy"),
+          leaf("a-outliner", "outliner")
+        ),
+        leaf("a-run", "runParams")
+      ),
+  },
 ]
 
 export const DEFAULT_WORKSPACE = STUDIO_WORKSPACES[0].id

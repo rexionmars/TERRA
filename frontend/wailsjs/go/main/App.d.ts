@@ -22,6 +22,8 @@ export function AnalyzeWater(arg1:backend.WaterRequest):Promise<backend.WaterAna
 
 export function AnalyzeWind(arg1:backend.WindRequest):Promise<backend.WindAnalysis>;
 
+export function BuildCanopyField(arg1:backend.CanopyFieldRequest):Promise<backend.CanopyField>;
+
 export function BuildManagedEnvironment(arg1:string):Promise<void>;
 
 export function CancelEnvironmentBuild():Promise<void>;

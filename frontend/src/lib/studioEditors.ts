@@ -23,6 +23,7 @@ import {
   PanelBottom,
   SlidersHorizontal,
   Table2,
+  TreePine,
   Waves,
 } from "lucide-react"
 
@@ -34,6 +35,7 @@ export type EditorId =
   | "domainShift"
   | "table"
   | "runParams"
+  | "canopy"
 
 export interface StudioEditorMeta {
   id: EditorId
@@ -59,6 +61,17 @@ export interface StudioEditorMeta {
    * second one would need a second renderer. Nothing else here is exclusive.
    */
   unique?: boolean
+  /**
+   * Whether this editor builds a WebGL context of its own.
+   *
+   * Recorded because the webview caps live contexts and the studio's budget is
+   * not obvious from any one file. The viewport's context lives outside the
+   * area tree and is never disposed on a workspace switch, so it is always
+   * spent; an editor marked here spends a second one for as long as its area
+   * is on screen. Two is comfortable, and this is what makes the count
+   * countable rather than a thing to rediscover.
+   */
+  gl?: boolean
   /** One line in the type selector, saying what the editor is for. */
   hint: string
 }
@@ -71,6 +84,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 12,
     minRowRem: 8,
     unique: true,
+    gl: true,
     hint: "The rasters themselves, lifted off their coordinates",
   },
   {
@@ -136,6 +150,28 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 28,
     minRowRem: 3,
     hint: "Area, period and model for the next run",
+  },
+  {
+    id: "canopy",
+    label: "Canopy",
+    icon: TreePine,
+    /*
+      A volume ray-march has to be large enough to read a gap between two
+      crowns, and the shading a reader is looking for lives in the last third
+      of the depth. Below roughly this the crowns are a few pixels across and
+      the question the editor answers cannot be asked of it.
+    */
+    minRem: 18,
+    minRowRem: 14,
+    gl: true,
+    /*
+      NOT unique. Two canopies is a comparison -- the same leaf area at two
+      spacings, or an ellipsoid crown against a grown one -- and each builds
+      its own small scene, so the cost is one more context rather than a
+      contested singleton. The viewport is exclusive because there is one
+      board; there is no one orchard.
+    */
+    hint: "An orchard module, shaded by marching its leaf-area density",
   },
 ]
 

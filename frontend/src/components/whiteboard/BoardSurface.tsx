@@ -153,6 +153,7 @@ import {
 } from "lucide-react"
 import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
+import { CanopyEditor } from "@/components/whiteboard/CanopyEditor"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import {
@@ -2856,6 +2857,13 @@ export function BoardSurface({
       />
     ),
     table: <StudioTables runs={selectedRuns} />,
+    /*
+      Takes no props. The orchard is the editor's own subject rather
+      than a view of the studio's state, so two areas holding it describe
+      two orchards -- which is a comparison worth having, and is why this
+      editor is not marked unique.
+    */
+    canopy: <CanopyEditor />,
     /*
       No longer `sides ? ... : null`. An editor that renders nothing at all
       when it cannot answer is indistinguishable from one that is broken, and

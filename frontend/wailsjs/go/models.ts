@@ -77,6 +77,218 @@ export namespace backend {
 		}
 	}
 	
+	export class CanopyAgainstUniform {
+	    cos_zenith: number;
+	    field: number;
+	    uniform: number;
+	    ratio?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyAgainstUniform(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cos_zenith = source["cos_zenith"];
+	        this.field = source["field"];
+	        this.uniform = source["uniform"];
+	        this.ratio = source["ratio"];
+	    }
+	}
+	export class CanopyGrown {
+	    leaf_area: number;
+	    reported: number;
+	    relative_error: number;
+	    organs: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyGrown(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.leaf_area = source["leaf_area"];
+	        this.reported = source["reported"];
+	        this.relative_error = source["relative_error"];
+	        this.organs = source["organs"];
+	    }
+	}
+	export class CanopyReferenceSun {
+	    cos_zenith: number;
+	    azimuth: number;
+	    why: string;
+	    direction: number[];
+	    transmittance: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyReferenceSun(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cos_zenith = source["cos_zenith"];
+	        this.azimuth = source["azimuth"];
+	        this.why = source["why"];
+	        this.direction = source["direction"];
+	        this.transmittance = source["transmittance"];
+	    }
+	}
+	export class CanopyReference {
+	    points: number[][];
+	    step_frac: number;
+	    g_leaf: number;
+	    max_path: number;
+	    max_steps: number;
+	    tolerance: number;
+	    suns: CanopyReferenceSun[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyReference(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.points = source["points"];
+	        this.step_frac = source["step_frac"];
+	        this.g_leaf = source["g_leaf"];
+	        this.max_path = source["max_path"];
+	        this.max_steps = source["max_steps"];
+	        this.tolerance = source["tolerance"];
+	        this.suns = this.convertValues(source["suns"], CanopyReferenceSun);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CanopyFieldMeta {
+	    source: string;
+	    spacing: number;
+	    cell: number;
+	    z_top: number;
+	    n_xy: number;
+	    n_z: number;
+	    lai: number;
+	    leaf_area: number;
+	    occupancy: number;
+	    density_in_crown: number;
+	    bytes: number;
+	    crown_a?: number;
+	    crown_b?: number;
+	    crown_z?: number;
+	    leaves?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFieldMeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.spacing = source["spacing"];
+	        this.cell = source["cell"];
+	        this.z_top = source["z_top"];
+	        this.n_xy = source["n_xy"];
+	        this.n_z = source["n_z"];
+	        this.lai = source["lai"];
+	        this.leaf_area = source["leaf_area"];
+	        this.occupancy = source["occupancy"];
+	        this.density_in_crown = source["density_in_crown"];
+	        this.bytes = source["bytes"];
+	        this.crown_a = source["crown_a"];
+	        this.crown_b = source["crown_b"];
+	        this.crown_z = source["crown_z"];
+	        this.leaves = source["leaves"];
+	    }
+	}
+	export class CanopyField {
+	    field: CanopyFieldMeta;
+	    field_base64: string;
+	    reference: CanopyReference;
+	    against_uniform: CanopyAgainstUniform[];
+	    grown?: CanopyGrown;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.field = this.convertValues(source["field"], CanopyFieldMeta);
+	        this.field_base64 = source["field_base64"];
+	        this.reference = this.convertValues(source["reference"], CanopyReference);
+	        this.against_uniform = this.convertValues(source["against_uniform"], CanopyAgainstUniform);
+	        this.grown = this.convertValues(source["grown"], CanopyGrown);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class CanopyFieldRequest {
+	    source?: string;
+	    spacing?: number;
+	    lai?: number;
+	    cell?: number;
+	    crown_a?: number;
+	    crown_b?: number;
+	    crown_z?: number;
+	    species?: string;
+	    days?: number;
+	    seed?: number;
+	    n_reference?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFieldRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.spacing = source["spacing"];
+	        this.lai = source["lai"];
+	        this.cell = source["cell"];
+	        this.crown_a = source["crown_a"];
+	        this.crown_b = source["crown_b"];
+	        this.crown_z = source["crown_z"];
+	        this.species = source["species"];
+	        this.days = source["days"];
+	        this.seed = source["seed"];
+	        this.n_reference = source["n_reference"];
+	    }
+	}
+	
+	
+	
 	export class ClassStat {
 	    class_id: number;
 	    name: string;
