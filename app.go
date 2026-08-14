@@ -417,6 +417,21 @@ func (a *App) AnalyzeDomainShiftCohort(
 	return runner.AnalyzeDomainShiftCohort(a.ctx, req)
 }
 
+// BuildCanopyField returns the leaf-area-density field of one orchard module,
+// together with the transmittances the GLSL march has to reproduce.
+//
+// Not persisted as a run: the field is a function of its parameters and costs
+// under a second to rebuild, so storing it would keep a copy that the next
+// change of spacing invalidates. The analyses that do get saved are the ones
+// carrying a satellite acquisition nobody can reproduce on demand.
+func (a *App) BuildCanopyField(req backend.CanopyFieldRequest) (*backend.CanopyField, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.BuildCanopyField(a.ctx, req)
+}
+
 // persistSolarRun saves a solar resource run so it survives the session and is
 // listed, opened and exported like the other analyses. Best effort: failing to
 // record a run must not discard the result the user is looking at.

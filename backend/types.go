@@ -1957,3 +1957,120 @@ type WindAnalysis struct {
 // NDates reports the whole years of hourly record behind the screening, so a
 // saved wind run states its basis the way the other kinds do.
 func (w *WindAnalysis) NDates() int { return int(w.RecordYears) }
+
+/*
+CanopyFieldRequest asks for the leaf-area-density field of one orchard module.
+
+The field is periodic: it covers a single spacing module and a ray leaving one
+side returns on the opposite one, which represents a closed orchard without
+replicating a tree. Source picks how the crowns are filled -- "ellipsoid"
+computes them analytically and needs nothing beyond numpy, "helios" grows an
+explicit plant and needs pyhelios3d, which the managed environment does not
+carry. The two are not interchangeable: an ellipsoid preserving leaf area and
+crown envelope intercepts markedly more light than the architecture it stands
+in for, so the result reports which one produced it.
+*/
+type CanopyFieldRequest struct {
+	Source  string  `json:"source,omitempty"`
+	Spacing float64 `json:"spacing,omitempty"`
+	LAI     float64 `json:"lai,omitempty"`
+	Cell    float64 `json:"cell,omitempty"`
+	CrownA  float64 `json:"crown_a,omitempty"`
+	CrownB  float64 `json:"crown_b,omitempty"`
+	CrownZ  float64 `json:"crown_z,omitempty"`
+	// Helios only. Ignored when the crowns are ellipsoids.
+	Species string `json:"species,omitempty"`
+	Days    int    `json:"days,omitempty"`
+	Seed    *int   `json:"seed,omitempty"`
+	// How many points the reference cases evaluate. Raising it costs one
+	// march per point and nothing at draw time.
+	NReference int `json:"n_reference,omitempty"`
+}
+
+// CanopyFieldMeta describes the grid the march reads.
+//
+// Occupancy and the in-crown density are here because they are what explains a
+// transmittance: the same leaf area concentrated into a tenth of the volume
+// passes far more light than spread through all of it, Beer-Lambert being
+// non-linear in density, and a surface reporting only LAI cannot say why two
+// canopies of equal LAI differ.
+type CanopyFieldMeta struct {
+	Source         string  `json:"source"`
+	Spacing        float64 `json:"spacing"`
+	Cell           float64 `json:"cell"`
+	ZTop           float64 `json:"z_top"`
+	NXY            int     `json:"n_xy"`
+	NZ             int     `json:"n_z"`
+	LAI            float64 `json:"lai"`
+	LeafArea       float64 `json:"leaf_area"`
+	Occupancy      float64 `json:"occupancy"`
+	DensityInCrown float64 `json:"density_in_crown"`
+	Bytes          int     `json:"bytes"`
+	CrownA         float64 `json:"crown_a,omitempty"`
+	CrownB         float64 `json:"crown_b,omitempty"`
+	CrownZ         float64 `json:"crown_z,omitempty"`
+	Leaves         int     `json:"leaves,omitempty"`
+}
+
+// CanopyReferenceSun is one solar direction and what the numpy march answered
+// for it at every reference point.
+type CanopyReferenceSun struct {
+	CosZenith     float64   `json:"cos_zenith"`
+	Azimuth       float64   `json:"azimuth"`
+	Why           string    `json:"why"`
+	Direction     []float64 `json:"direction"`
+	Transmittance []float64 `json:"transmittance"`
+}
+
+/*
+CanopyReference is what a second implementation of the march has to reproduce.
+
+The shading in the viewport marches this same field in GLSL, which makes the
+shader a second implementation of sidecar/canopy_voxel.py. Two implementations
+of one numerical method drift unless something compares them, and this
+repository has already shipped a hand-copied table that drifted on every stop
+while nothing failed. These are the numbers frontend/scripts/check-canopy-shader.ts
+holds the shader to.
+*/
+type CanopyReference struct {
+	Points    [][]float64          `json:"points"`
+	StepFrac  float64              `json:"step_frac"`
+	GLeaf     float64              `json:"g_leaf"`
+	Tolerance float64              `json:"tolerance"`
+	Suns      []CanopyReferenceSun `json:"suns"`
+}
+
+// CanopyAgainstUniform contrasts the field with a uniform canopy of the same
+// leaf area -- the null model, and the reason for voxelising anything.
+type CanopyAgainstUniform struct {
+	CosZenith float64 `json:"cos_zenith"`
+	Field     float64 `json:"field"`
+	Uniform   float64 `json:"uniform"`
+	Ratio     float64 `json:"ratio"`
+}
+
+// CanopyGrown records what Helios produced, when Helios produced it.
+type CanopyGrown struct {
+	LeafArea      float64  `json:"leaf_area"`
+	Reported      float64  `json:"reported"`
+	RelativeError float64  `json:"relative_error"`
+	Organs        []string `json:"organs"`
+}
+
+/*
+CanopyField is the field plus everything needed to check what reads it.
+
+FieldBase64 carries the grid itself as little-endian float32 in the Python
+index order (ix, iy, iz), C-contiguous. It is base64 rather than a path because
+the consumer is a webview that uploads it to a 3D texture: a path would have to
+be served, and the grids are small -- a 27x27x16 field is 47 kB. The transpose
+into texture axis order happens in the frontend, next to the texelFetch whose
+axis order it exists to satisfy.
+*/
+type CanopyField struct {
+	Field          CanopyFieldMeta        `json:"field"`
+	FieldBase64    string                 `json:"field_base64"`
+	Reference      CanopyReference        `json:"reference"`
+	AgainstUniform []CanopyAgainstUniform `json:"against_uniform"`
+	Grown          *CanopyGrown           `json:"grown,omitempty"`
+}

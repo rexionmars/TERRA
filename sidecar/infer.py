@@ -1224,6 +1224,64 @@ def main():
         sys.stdout.flush()
         return
 
+    # The leaf-area-density field of one periodic orchard module, plus the
+    # transmittances a second implementation of the march has to reproduce.
+    #
+    # The grid leaves as a binary file rather than inside the JSON: a 27x27x16
+    # field is 47 kB of float32 and several times that as decimal text, and the
+    # consumer uploads it to a texture, where it wants to be bytes anyway.
+    if action == 'canopy_field':
+        emit_progress(5, 'building the canopy field')
+        source = req.get('source', 'ellipsoid')
+        grow_meta = None
+
+        # Helios is only ever asked for architecture. Its ImportError is caught
+        # apart from every other failure, because "you do not have this package"
+        # and "this package misbehaved" call for different things from the
+        # reader, and an uncaught one would reach the user as `exit status 1`.
+        if source == 'helios':
+            try:
+                import helios_grow
+            except ImportError as e:
+                fail('Growing a 3D crop needs pyhelios3d, which this '
+                     'interpreter does not have. Install it there, or choose '
+                     'another Python in Settings > System. Canopies from '
+                     f'ellipsoid crowns need nothing extra. ({e})')
+            try:
+                grown = helios_grow.grow(
+                    species=req.get('species', 'almond'),
+                    days=int(req.get('days', 120)),
+                    seed=req.get('seed'))
+                emit_progress(35, f'extracting {grown.species} at day {grown.days}')
+                pos, area, grow_meta = helios_grow.leaf_cloud(grown)
+            except Exception as e:
+                fail(f'growing the plant failed: {e}')
+            req = dict(req, source='leaves',
+                       leaf_positions=pos.tolist(), leaf_areas=area.tolist())
+
+        try:
+            import canopy_field as cfield
+            grid, payload = cfield.build(
+                req, progress=lambda p, m: emit_progress(p, m))
+        except Exception as e:
+            fail(f'canopy_field failed: {e}')
+
+        try:
+            import numpy as _np
+            field_path = work_dir / 'canopy_field.f32'
+            _np.ascontiguousarray(grid, dtype=_np.float32).tofile(str(field_path))
+        except Exception as e:
+            fail(f'writing the canopy field failed: {e}')
+
+        payload['field']['path'] = str(field_path)
+        payload['field']['bytes'] = int(grid.size * 4)
+        if grow_meta is not None:
+            payload['grown'] = grow_meta
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({'canopy_field': payload}))
+        sys.stdout.flush()
+        return
+
     # Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
     if action == 'list_datacube':
         start = req.get('start')
