@@ -60,19 +60,25 @@ import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import { RunPicker } from "@/components/whiteboard/RunPicker"
 import {
   CURRENT_AREA,
+  boardIsDirty,
+  clearBoardDirty,
   liveAreaId,
   keptObject,
+  markBoardDirty,
   readBoardMemory,
+  renameBoardArea,
   snapshotBoard,
   writeBoardMemory,
 } from "@/components/whiteboard/boardMemory"
 import { useAuth } from "@/lib/auth"
+import { isSavedAoiId } from "@/lib/savedAois"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
 import {
   geometryAreaHectares,
   polygonOuterRing,
   resolveProjectGeometry,
+  sameGround,
 } from "@/lib/geometry"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { tableToCSV, type DataTable } from "@/lib/analysisTables"
@@ -671,6 +677,16 @@ export function BoardSurface({
     const pending = readBoardMemory<string[]>("pendingRunIds", [])
     if (!pending.length) return
     writeBoardMemory("pendingRunIds", [])
+    /*
+      The live area's keys, brought back to the id it carries here.
+
+      A board is stored as runs, so what the live area held was written under
+      the run it reopens as. If the map is on that same ground now, the live
+      area is the AREA (see `liveAreaId`) and those keys name a run instead --
+      and a raster taken off the board comes back, silently, because the key
+      that says it was removed no longer matches any area.
+    */
+    renameBoardArea(runId || CURRENT_AREA, live)
     void (async () => {
       for (const runId of pending) {
         const run = runs.find((r) => r.id === runId)
@@ -701,17 +717,35 @@ export function BoardSurface({
           runId: a.id === live ? runId : a.id,
           layerIds: a.layers.map((l) => l.id),
         }))
-        .filter((m) => m.runId && m.runId !== "current")
+        // A member is a RUN. The live area answers with the run it is showing;
+        // a catalogued drawing with nothing on it answers with its own id,
+        // which is an area and not a run, and would be stored as a member that
+        // reopens as nothing.
+        .filter(
+          (m) => m.runId && m.runId !== "current" && !isSavedAoiId(m.runId)
+        )
+      if (!members.length) {
+        notifyError(
+          "Nothing to save on this whiteboard",
+          new Error(
+            "a board is the runs arranged on it, and none of these areas is a saved run yet — run something, or add a run from the outliner, before saving"
+          )
+        )
+        return
+      }
       const board = await saveWhiteboard(
         trimmed,
         // The run the map's area belongs to, so its keys are rewritten to the
         // id that area will carry when the board is opened again.
-        snapshotBoard(members, runId),
+        snapshotBoard(members, runId, live),
         savedId ?? undefined
       )
       setSavedId(board.id)
       setSavedName(board.name)
       setNaming(null)
+      // What is on disk is what is on screen again, so a switch has nothing
+      // left to warn about.
+      clearBoardDirty()
       notifySuccess(`Whiteboard "${board.name}" saved.`)
     } catch (e) {
       notifyError("Could not save this whiteboard", e)
@@ -748,13 +782,56 @@ export function BoardSurface({
   }
 
   /*
+    WHICH CATALOGUED AREA EACH RUN IS OF.
+
+    A run records it since `InferenceRun.aoi_id`; a run written before that
+    column existed does not, and is matched by its polygon instead -- it was
+    sent the drawing's exact ring, so ring equality is the honest test and
+    `sameGround` says why it is not a spatial predicate.
+
+    Memoised because the fallback parses a polygon per run, and this is read
+    from three places in a render that runs on every drag of a division.
+  */
+  const aoiOfRun = useMemo(() => {
+    const out = new Map<string, string>()
+    for (const r of runs) {
+      const linked = (r.aoi_id ?? "").trim()
+      if (linked) {
+        out.set(r.id, linked)
+        continue
+      }
+      if (!savedAois.length || !r.polygon_geojson) continue
+      let geom: GeoJSONGeometry | null = null
+      try {
+        geom = JSON.parse(r.polygon_geojson) as GeoJSONGeometry
+      } catch {
+        continue
+      }
+      const match = savedAois.find((a) => sameGround(a.geometry, geom))
+      if (match) out.set(r.id, match.id)
+    }
+    return out
+  }, [runs, savedAois])
+
+  /*
     Which subject the map's area IS, rather than the slot it sits in.
 
     Every `CURRENT_AREA` below became this. The literal survives only where
     there is genuinely no subject -- no run and no catalogued AOI -- which is
     what `liveAreaId` falls back to.
+
+    The ground of the SHOWN run decides it, and the active drawing only stands
+    in where no run is shown. Read from the run's own record where the list
+    knows it: activating another area while a result is on screen must not
+    rename the result's own ground. A run the list has not caught up with --
+    one saved a moment ago -- was made over the area that is active now, which
+    is the only case where the two can disagree and the newer answer is right.
   */
-  const live = liveAreaId(runId, activeAoiId)
+  const live = liveAreaId(
+    runId,
+    activeAoiId,
+    runs.some((r) => r.id === runId) ? aoiOfRun.get(runId) : activeAoiId
+  )
 
   /*
     What the live area is CALLED, derived once.
@@ -976,6 +1053,31 @@ export function BoardSurface({
     if (!ids.length) return
     setAdded((prev) => (prev[previous]?.length ? prev : { ...prev, [previous]: ids }))
   }, [runId, retainedRuns, setAdded])
+  /*
+    THE LIVE AREA RE-RESOLVED, not replaced.
+
+    Its id answers with the ground when the ground is known, and the ground can
+    become known a moment after the board is up: the run record arrives, or a
+    catalogued drawing is matched by geometry. That is the same subject under a
+    better name, so what the board remembers about it moves with it -- without
+    this, removing a plane and then having the run list arrive would put the
+    plane back, since the key that recorded the removal named an id nothing is
+    called any more.
+
+    Only for the same subject. The live area also changes id when the map moves
+    to another field, and carrying one field's removals onto the next would be
+    the very defect `liveAreaId` was rewritten to end.
+  */
+  const previousLive = useRef(live)
+  useEffect(() => {
+    const before = previousLive.current
+    previousLive.current = live
+    if (before === live) return
+    if (before === (runId || CURRENT_AREA) || before === CURRENT_AREA) {
+      renameBoardArea(before, live)
+    }
+  }, [live, runId])
+
   /**
    * Opacity and visibility for rasters the board added.
    *
@@ -1138,6 +1240,24 @@ export function BoardSurface({
     return [...known, ...ls.filter((l) => !rank.has(l.id))]
   }
 
+  /*
+    THE GROUND ALREADY DRAWN BY A RUN, so it is not drawn a second time empty.
+
+    A catalogued drawing is offered as an area of its own -- that is how a
+    second draw stays visible and can be put back with Use -- but once a run
+    over that same ground is on the board, the drawing has nothing to add: the
+    run's plane IS that ground, and the outline beside it was the second area
+    per field the reader was counting. Two AOIs and two runs made four areas.
+
+    The empty outline is kept in the one case it says something: a drawing with
+    no run yet, which is where the next one will happen.
+  */
+  const groundOnBoard = new Set(
+    assetRuns
+      .map((r) => aoiOfRun.get(r.runId))
+      .filter((id): id is string => !!id)
+  )
+
   const areas = [
     {
       id: live,
@@ -1153,17 +1273,42 @@ export function BoardSurface({
         run that has been saved carries a name, so it is asked first; the map's
         label is what remains for an area not yet run.
       */
-      // A rename outranks the derivation; otherwise both trees say the same.
-      title: names[stackRow(live)] ?? liveTitle,
+      /*
+        A rename outranks the derivation; otherwise both trees say the same.
+
+        The DRAWING'S name where this area is one, and the run's only where it
+        is not. The scene tree lists ground and the data tree lists runs, so an
+        area that is a catalogued drawing reads "drawn 2" here and its run
+        reads "run-drawn-…" there -- one name per thing, instead of the same
+        field appearing under a drawing name, a run name and a placeholder.
+      */
+      title:
+        names[stackRow(live)] ??
+        savedAois.find((a) => a.id === live)?.name ??
+        liveTitle,
       layers: applyOrder(live, [
         ...layers.filter((l) => !removed.has(sceneKey(live, l.id))),
         ...extrasFor(live, 1000),
       ]),
     },
-    // Catalogued drawings that are not the active map AOI — so a second draw
-    // stays visible and can be put back with Use.
+    /*
+      Catalogued drawings, and only where something has been put on one.
+
+      They used to be areas whether or not they carried anything, so a reader
+      with five drawings opened any board and found five empty outlines over
+      it -- in the scene, in the tree and in the layout -- none of which was
+      part of that board: a drawing belongs to the catalog, and a board is the
+      runs arranged on it. The catalog has a pane of its own, and the Areas tab
+      lists every drawing with its footprint, its hectares and Use whether or
+      not it is on the board.
+
+      The live one keeps its outline. That is the ground the next run happens
+      on, which is the one drawing this surface is about.
+    */
     ...savedAois
-      .filter((a) => a.id !== live && a.id !== activeAoiId)
+      .filter(
+        (a) => a.id !== live && a.id !== activeAoiId && !groundOnBoard.has(a.id)
+      )
       .map((a) => ({
         id: a.id,
         title: names[stackRow(a.id)] ?? a.name,
@@ -1181,9 +1326,13 @@ export function BoardSurface({
       a.layers.length > 0 ||
       // The map's own area survives having nothing on it, so long as an area
       // has been drawn: it is the thing the work is about to be run on, and
-      // the board is where that work is started.
-      (a.id === live && !!aoiPolygon?.length) ||
-      savedAois.some((s) => s.id === a.id)
+      // the board is where that work is started. Unless a run of that same
+      // ground is already on the board, in which case the outline would stand
+      // empty beside the plane that is the same field.
+      (a.id === live && !!aoiPolygon?.length && !groundOnBoard.has(live)) ||
+      // Nothing else earns a place. A drawing with no raster on it is a
+      // catalog entry, and the Areas tab is where a catalog is read.
+      false
   )
     // Last, so a dismissal outranks every reason an area would otherwise stay.
     .filter((a) => !dismissedAreas.includes(a.id))
@@ -1516,6 +1665,34 @@ export function BoardSurface({
       catalogId,
     }
   })
+
+  /*
+    THE CATALOG, WHICH IS LONGER THAN THE BOARD.
+
+    A drawing stops being an area once it has nothing on it -- see the note in
+    `areas` -- and this pane is where it did not stop being anything. It lists
+    the ground a reader has drawn, on the board or not, which is what makes Use
+    a way back to a field rather than a way back to whatever happens to be
+    arranged right now.
+
+    Measured from the catalog's own geometry rather than from the ring the
+    board holds, because the board holds none for an area it is not drawing.
+  */
+  for (const a of savedAois) {
+    if (areaInfo.some((x) => x.id === a.id || x.catalogId === a.id)) continue
+    const ring = polygonOuterRing(a.geometry)
+    areaInfo.push({
+      id: a.id,
+      title: names[stackRow(a.id)] ?? a.name,
+      geometry: a.geometry,
+      hectares: geometryAreaHectares(a.geometry),
+      vertices: ring?.length ? ring.length - 1 : null,
+      layers: 0,
+      current: false,
+      saved: true,
+      catalogId: a.id,
+    })
+  }
 
   /*
     A retained run has to appear HERE too, not only in `assetRuns`.

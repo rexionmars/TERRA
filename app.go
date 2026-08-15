@@ -407,6 +407,10 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 		NDates:         res.NDates,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID:          strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -636,6 +640,10 @@ func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalys
 		NDates:         res.Resource.NYears,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID:          strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -650,7 +658,7 @@ func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.Sol
 		return nil, err
 	}
 	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
-		req.ProjectID, "solar_terrain", res.Season, res, res.OverlayURI, res.NDates())
+		req.ProjectID, req.AoiID, "solar_terrain", res.Season, res, res.OverlayURI, res.NDates())
 	return res, nil
 }
 
@@ -665,7 +673,7 @@ func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.Solar
 		return nil, err
 	}
 	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
-		req.ProjectID, "solar_siting", "siting", res, res.OverlayURI, 0)
+		req.ProjectID, req.AoiID, "solar_siting", "siting", res, res.OverlayURI, 0)
 	return res, nil
 }
 
@@ -673,7 +681,7 @@ func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.Solar
 // reopening the run puts the raster back rather than only its numbers.
 func (a *App) persistSolarRaster(
 	areaID string, poly *backend.GeoJSONGeometry,
-	label, runLabel, projectID, kindTag, variant string,
+	label, runLabel, projectID, aoiID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
 ) {
 	a.mu.RLock()
@@ -736,6 +744,8 @@ func (a *App) persistSolarRaster(
 		NDates:         nDates,
 		Label:          rl,
 		ProjectID:      strings.TrimSpace(projectID),
+		// See the other run writers: which catalogued area this is OF.
+		AoiID:          strings.TrimSpace(aoiID),
 	})
 }
 
@@ -836,6 +846,10 @@ func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend
 		NDates:         res.NDates(),
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID:          strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -927,6 +941,10 @@ func (a *App) persistWindRun(req backend.WindRequest, res *backend.WindAnalysis)
 		NDates:         res.NDates(),
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID:          strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -1347,6 +1365,10 @@ func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictRe
 		NDates:         res.NDates,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID:          strings.TrimSpace(req.AoiID),
 	})
 	if strings.TrimSpace(req.ProjectID) != "" {
 		st.TouchProject(req.ProjectID)

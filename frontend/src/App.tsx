@@ -1679,6 +1679,10 @@ function AppBody(props: {
         index: waterIndex,
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
@@ -1729,6 +1733,10 @@ function AppBody(props: {
       const req: SolarRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1778,6 +1786,10 @@ function AppBody(props: {
       const req: SolarTerrainRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1822,6 +1834,10 @@ function AppBody(props: {
       const req: SolarSitingRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1891,6 +1907,10 @@ function AppBody(props: {
       const req: EnergyModelRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1983,6 +2003,10 @@ function AppBody(props: {
       const req: WindRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -2084,6 +2108,9 @@ function AppBody(props: {
       project_id: activeProjectId || undefined,
       label: aoiLabel,
       run_label: nameThisRun(aoiLabel),
+      // See the note on the other requests: the board needs which area
+      // this run is of, not only where it was made.
+      aoi_id: props.activeAoiId,
     }
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult
@@ -2921,6 +2948,17 @@ function AppBody(props: {
                   onAnalyzeLULC={handleAnalyzeLULC}
                   lulcRunning={props.lulcRunning}
                   openBoardNonce={openBoardNonce}
+                  /*
+                    The saved boards, and the way back into one.
+
+                    Offered inside the studio as well as in the project menu:
+                    the studio's own title block names the board that is loaded,
+                    and a name that cannot be changed from where it is shown is
+                    a readout pretending to be a control.
+                  */
+                  whiteboards={whiteboards}
+                  onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
+                  onWhiteboardsMenu={() => void refreshWhiteboards()}
                   onCloseResult={() => {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)

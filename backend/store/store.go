@@ -66,6 +66,20 @@ type InferenceRun struct {
 	// One of the RunKind constants below. Empty on rows written before the
 	// column existed, which are all classifications; readers normalise it.
 	Kind string `json:"kind,omitempty"`
+	/*
+		The catalogued area this run was made over, when there was one.
+
+		A run has always carried its polygon, which says WHERE it was made and
+		not WHICH area it belongs to. The board needs the second: a drawn area
+		and the runs over it are one subject, and without a link between them
+		the same ground appears twice -- once as the drawing and once as each
+		run -- with nothing saying they are the same place.
+
+		Empty for a run over an example area, over an imported shape that was
+		never catalogued, and on every row written before this column existed.
+		A reader that finds it empty falls back to comparing geometry.
+	*/
+	AoiID string `json:"aoi_id,omitempty"`
 }
 
 // Run kinds. A classification comes from a model; a descriptive product such as
@@ -293,6 +307,9 @@ CREATE INDEX IF NOT EXISTS idx_runs_user_created ON inference_runs(user_id, crea
 		// surface water, which has no model and no trained legend. Existing
 		// rows predate water and are all classifications.
 		`ALTER TABLE inference_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'classification'`,
+		// The catalogued area a run belongs to. Existing rows carry no link and
+		// resolve by geometry instead; see InferenceRun.AoiID.
+		`ALTER TABLE inference_runs ADD COLUMN aoi_id TEXT NOT NULL DEFAULT ''`,
 	} {
 		_, _ = s.db.Exec(stmt)
 	}
@@ -784,12 +801,12 @@ func (s *Store) SaveRun(run InferenceRun) (*InferenceRun, error) {
 		`INSERT INTO inference_runs
 		 (id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson, status,
 		  summary_json, overlay_relpath, n_dates, result_json, assets_relpath, label, project_id,
-		  kind)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  kind, aoi_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.UserID, run.CreatedAt, run.ModelKind, run.PeriodStart, run.PeriodEnd,
 		run.PolygonGeoJSON, run.Status, run.SummaryJSON, nullIfEmpty(run.OverlayRelPath), run.NDates,
 		run.ResultJSON, nullIfEmpty(run.AssetsRelPath), run.Label, nullIfEmpty(run.ProjectID),
-		run.Kind,
+		run.Kind, run.AoiID,
 	)
 	if err != nil {
 		return nil, err
@@ -808,7 +825,7 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification')
+		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,'')
 		 FROM inference_runs WHERE user_id = ?
 		 ORDER BY created_at DESC LIMIT ?`,
 		userID, limit,
@@ -823,7 +840,7 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		if err := rows.Scan(
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind,
+			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
 		); err != nil {
 			return nil, err
 		}
@@ -892,13 +909,13 @@ func (s *Store) GetRun(userID, runID string) (*InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification')
+		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,'')
 		 FROM inference_runs WHERE id = ? AND user_id = ?`,
 		runID, userID,
 	).Scan(
 		&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 		&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind,
+		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
