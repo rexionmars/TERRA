@@ -557,6 +557,16 @@ export interface InferenceRun {
   project_id?: string
   /** "classification" or "water"; empty on rows written before the column. */
   kind?: string
+  /**
+   * The catalogued area this run was made over, when there was one.
+   *
+   * The polygon says WHERE the run was made; this says which area it is OF.
+   * The board reads it to keep a drawing and the runs over it as one subject
+   * instead of one outline per drawing plus one per run. Absent for example
+   * areas, for shapes never catalogued, and on runs written before the column
+   * existed -- those resolve by geometry instead.
+   */
+  aoi_id?: string
 }
 
 export interface Project {
