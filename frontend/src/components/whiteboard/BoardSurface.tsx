@@ -2863,7 +2863,7 @@ export function BoardSurface({
       two orchards -- which is a comparison worth having, and is why this
       editor is not marked unique.
     */
-    canopy: <CanopyEditor />,
+    canopy: <CanopyEditor runs={selectedRuns} />,
     /*
       No longer `sides ? ... : null`. An editor that renders nothing at all
       when it cannot answer is indistinguishable from one that is broken, and

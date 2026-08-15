@@ -1978,6 +1978,145 @@ in for, so the result reports which one produced it.
 // silently moved four numeric parameters in this repository, one of which
 // shifted every energy figure by 5.78 percent.
 /*
+CanopyFromAOIRequest reads an AOI's own vegetation-index series as a canopy.
+
+The one request in this file that carries observation rather than parameters.
+Everything else about a canopy is a choice the reader makes; this is what the
+ground was measured to be, and the sowing it has to be read through.
+
+Lat/Lon are optional and change the answer rather than decorating it: given, the
+canopy is lit by the NASA POWER record for that cell -- real azimuths and
+elevations weighted by the beam energy that arrived at each -- instead of by the
+six reference suns, which exist to cross-validate a shader and are not sky.
+*/
+type CanopyFromAOIRequest struct {
+	Species  string          `json:"species,omitempty"`
+	VISeries []VIObservation `json:"vi_series"`
+	// Sowing, which is what turns leaf area per plant into an LAI.
+	InterRow   *float64 `json:"inter_row,omitempty"`
+	InterPlant *float64 `json:"inter_plant,omitempty"`
+	// The bearing the rows run on. Agronomy, not convention: rows laid
+	// north-south intercept differently from rows laid east-west.
+	RowAzimuthDeg *float64 `json:"row_azimuth_deg,omitempty"`
+	Lat           *float64 `json:"lat,omitempty"`
+	Lon           *float64 `json:"lon,omitempty"`
+	Elevation     *float64 `json:"elevation,omitempty"`
+	HourlyYears   int      `json:"hourly_years,omitempty"`
+	Seed          *int     `json:"seed,omitempty"`
+}
+
+// VIObservation is one acquisition's vegetation index over the AOI. Mirrors the
+// shape VISeriesPoint already carries, so a run's series feeds this unchanged.
+type VIObservation struct {
+	Date     string  `json:"date"`
+	NDVIMean float64 `json:"ndvi_mean"`
+}
+
+/*
+CanopyFromAOI is the season read as canopies, and what each reading is worth.
+
+TWO ANCHORS FOR THE AGE TRAVEL TOGETHER, and neither is chosen for the reader.
+Leaf area gives one, phenology gives another, and AgeCheck holds their
+comparison. Where they agree the isolated-plant model describes the field; where
+they do not, the disagreement is the finding, because Helios grows a plant with
+no neighbours and in a dense sowing reaches a given leaf area far too early.
+*/
+type CanopyFromAOI struct {
+	Species      string  `json:"species"`
+	Density      float64 `json:"density"`
+	InterRow     float64 `json:"inter_row"`
+	InterPlant   float64 `json:"inter_plant"`
+	ReachableLAI float64 `json:"reachable_lai"`
+
+	LAI       CanopyLAISeries    `json:"lai"`
+	States    []string           `json:"states"`
+	Phenology map[string]float64 `json:"phenology"`
+	Resolved  []CanopyResolved   `json:"resolved"`
+	NUsable   int                `json:"n_usable"`
+	Sun       CanopySun          `json:"sun"`
+	// Absent when no date could be lit -- no location, or nothing the ladder
+	// could build.
+	Light *CanopyLight `json:"light,omitempty"`
+}
+
+type CanopyLAISeries struct {
+	NDVI          []float64          `json:"ndvi"`
+	LAI           []float64          `json:"lai"`
+	PeakLAI       float64            `json:"peak_lai"`
+	N             int                `json:"n"`
+	NSaturated    int                `json:"n_saturated"`
+	SaturationLAI float64            `json:"saturation_lai"`
+	Parameters    map[string]float64 `json:"parameters"`
+}
+
+// CanopyResolved is one observation: what it was, what age it implies, or why
+// it implies none. Day is a pointer because a canopy past the plateau has no
+// identifiable age, and zero would be a lie the front end could not detect.
+type CanopyResolved struct {
+	Date       string   `json:"date"`
+	LAI        float64  `json:"lai"`
+	State      string   `json:"state,omitempty"`
+	Day        *float64 `json:"day,omitempty"`
+	DayAtLeast *float64 `json:"day_at_least,omitempty"`
+	HeightM    *float64 `json:"height_m,omitempty"`
+	LeafAreaM2 *float64 `json:"leaf_area_m2,omitempty"`
+	PlateauDay *float64 `json:"plateau_day,omitempty"`
+	AtPlateau  bool     `json:"at_plateau,omitempty"`
+	Declining  bool     `json:"declining,omitempty"`
+	// Days since the series first left bare soil. The independent age.
+	DaysSinceGreenup *float64       `json:"days_since_greenup,omitempty"`
+	AgeCheck         CanopyAgeCheck `json:"age_check"`
+	Why              string         `json:"why,omitempty"`
+	Error            string         `json:"error,omitempty"`
+}
+
+// CanopyAgeCheck compares development PROGRESS and not days, because the two
+// clocks run at different rates: Helios sorghum saturates at day 40 while a
+// field season takes near a hundred days to peak, and subtracting one from the
+// other mixes that with the competition it is meant to detect.
+type CanopyAgeCheck struct {
+	Comparable     bool     `json:"comparable"`
+	ProgressHelios *float64 `json:"progress_helios,omitempty"`
+	ProgressField  *float64 `json:"progress_field,omitempty"`
+	DeltaProgress  *float64 `json:"delta_progress,omitempty"`
+	Agrees         bool     `json:"agrees,omitempty"`
+	Why            string   `json:"why,omitempty"`
+}
+
+type CanopySun struct {
+	Source          string    `json:"source"`
+	Cell            []float64 `json:"cell,omitempty"`
+	Years           int       `json:"years,omitempty"`
+	BeamEnergyTotal float64   `json:"beam_energy_total,omitempty"`
+	NAzimuthBins    int       `json:"n_azimuth_bins,omitempty"`
+	NElevationBins  int       `json:"n_elevation_bins,omitempty"`
+	DiffuseShare    float64   `json:"diffuse_share,omitempty"`
+	// Why the reference suns were used instead, when they were.
+	Why string `json:"why,omitempty"`
+}
+
+// CanopyLight is the canopy marched under that sun. FixedKErrorPct is the
+// number a crop-model reader has a question about: how far Beer with a constant
+// coefficient lands from what this canopy actually intercepted.
+type CanopyLight struct {
+	Date                 string   `json:"date,omitempty"`
+	Day                  *float64 `json:"day,omitempty"`
+	LAI                  float64  `json:"lai"`
+	FaPAR                float64  `json:"fapar"`
+	Transmittance        float64  `json:"transmittance"`
+	BeamTransmittance    float64  `json:"beam_transmittance"`
+	DiffuseTransmittance *float64 `json:"diffuse_transmittance,omitempty"`
+	DiffuseShare         float64  `json:"diffuse_share"`
+	KEmergent            *float64 `json:"k_emergent,omitempty"`
+	FaPARFixedK          *float64 `json:"fapar_fixed_k,omitempty"`
+	FixedK               float64  `json:"fixed_k,omitempty"`
+	FixedKErrorPct       *float64 `json:"fixed_k_error_pct,omitempty"`
+	BeamBinsMarched      int      `json:"beam_bins_marched,omitempty"`
+	RowAzimuthDeg        float64  `json:"row_azimuth_deg,omitempty"`
+	Error                string   `json:"error,omitempty"`
+}
+
+/*
 CanopyMeshRequest asks for a stand of plants as geometry.
 
 Distinct from CanopyFieldRequest and not a variant of it. The field is a

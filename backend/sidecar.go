@@ -1907,6 +1907,82 @@ const maxCanopyFieldCells = 8 << 20
 const maxCanopyMeshBytes = 96 << 20
 
 /*
+BuildCanopyFromAOI reads an AOI's vegetation-index series as a canopy.
+
+The only canopy call that carries observation. Nothing binary crosses -- the
+reply is series and scalars -- so this is the plain runSidecarJSON shape with no
+work dir to read back, unlike the mesh.
+
+Slow when a location is given, because the first request for a POWER cell
+fetches it; the parquet cache makes every later one immediate. That is why the
+front end commits this behind a button rather than running it on a scrub.
+*/
+func (r *Runner) BuildCanopyFromAOI(ctx context.Context, req CanopyFromAOIRequest) (*CanopyFromAOI, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if len(req.VISeries) < 3 {
+		return nil, fmt.Errorf(
+			"a canopy needs a vegetation-index series; this run carries %d "+
+				"observation(s), and three is the minimum the phenology smoother "+
+				"can label", len(req.VISeries))
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-canopy-aoi-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":    "canopy_from_aoi",
+		"work_dir":  workDir,
+		"vi_series": req.VISeries,
+	}
+	if req.Species != "" {
+		payload["species"] = req.Species
+	}
+	if req.HourlyYears > 0 {
+		payload["hourly_years"] = req.HourlyYears
+	}
+	// Geometry and location by pointer, for the reason CanopyFieldRequest
+	// documents: zero is a value a caller can mean, and omitempty drops it.
+	for key, value := range map[string]*float64{
+		"inter_row": req.InterRow, "inter_plant": req.InterPlant,
+		"row_azimuth_deg": req.RowAzimuthDeg,
+		"lat":             req.Lat, "lon": req.Lon, "elevation": req.Elevation,
+	} {
+		if value != nil {
+			payload[key] = *value
+		}
+	}
+	if req.Seed != nil {
+		payload["seed"] = *req.Seed
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		CanopyFromAOI *CanopyFromAOI `json:"canopy_from_aoi"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse canopy_from_aoi result: %w", err)
+	}
+	if wrapped.CanopyFromAOI == nil {
+		return nil, fmt.Errorf("sidecar returned empty canopy_from_aoi payload")
+	}
+	return wrapped.CanopyFromAOI, nil
+}
+
+/*
 BuildCanopyMesh grows a stand of plants and returns it as glTF.
 
 Separate from BuildCanopyField because it answers a different question. The

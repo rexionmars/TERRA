@@ -105,6 +105,28 @@ export namespace backend {
 	        this.ratio = source["ratio"];
 	    }
 	}
+	export class CanopyAgeCheck {
+	    comparable: boolean;
+	    progress_helios?: number;
+	    progress_field?: number;
+	    delta_progress?: number;
+	    agrees?: boolean;
+	    why?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyAgeCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.comparable = source["comparable"];
+	        this.progress_helios = source["progress_helios"];
+	        this.progress_field = source["progress_field"];
+	        this.delta_progress = source["delta_progress"];
+	        this.agrees = source["agrees"];
+	        this.why = source["why"];
+	    }
+	}
 	export class CanopyGrown {
 	    leaf_area: number;
 	    reported: number;
@@ -310,6 +332,268 @@ export namespace backend {
 	        this.n_reference = source["n_reference"];
 	    }
 	}
+	export class CanopyLight {
+	    date?: string;
+	    day?: number;
+	    lai: number;
+	    fapar: number;
+	    transmittance: number;
+	    beam_transmittance: number;
+	    diffuse_transmittance?: number;
+	    diffuse_share: number;
+	    k_emergent?: number;
+	    fapar_fixed_k?: number;
+	    fixed_k?: number;
+	    fixed_k_error_pct?: number;
+	    beam_bins_marched?: number;
+	    row_azimuth_deg?: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyLight(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.day = source["day"];
+	        this.lai = source["lai"];
+	        this.fapar = source["fapar"];
+	        this.transmittance = source["transmittance"];
+	        this.beam_transmittance = source["beam_transmittance"];
+	        this.diffuse_transmittance = source["diffuse_transmittance"];
+	        this.diffuse_share = source["diffuse_share"];
+	        this.k_emergent = source["k_emergent"];
+	        this.fapar_fixed_k = source["fapar_fixed_k"];
+	        this.fixed_k = source["fixed_k"];
+	        this.fixed_k_error_pct = source["fixed_k_error_pct"];
+	        this.beam_bins_marched = source["beam_bins_marched"];
+	        this.row_azimuth_deg = source["row_azimuth_deg"];
+	        this.error = source["error"];
+	    }
+	}
+	export class CanopySun {
+	    source: string;
+	    cell?: number[];
+	    years?: number;
+	    beam_energy_total?: number;
+	    n_azimuth_bins?: number;
+	    n_elevation_bins?: number;
+	    diffuse_share?: number;
+	    why?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopySun(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.cell = source["cell"];
+	        this.years = source["years"];
+	        this.beam_energy_total = source["beam_energy_total"];
+	        this.n_azimuth_bins = source["n_azimuth_bins"];
+	        this.n_elevation_bins = source["n_elevation_bins"];
+	        this.diffuse_share = source["diffuse_share"];
+	        this.why = source["why"];
+	    }
+	}
+	export class CanopyResolved {
+	    date: string;
+	    lai: number;
+	    state?: string;
+	    day?: number;
+	    day_at_least?: number;
+	    height_m?: number;
+	    leaf_area_m2?: number;
+	    plateau_day?: number;
+	    at_plateau?: boolean;
+	    declining?: boolean;
+	    days_since_greenup?: number;
+	    age_check: CanopyAgeCheck;
+	    why?: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyResolved(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.lai = source["lai"];
+	        this.state = source["state"];
+	        this.day = source["day"];
+	        this.day_at_least = source["day_at_least"];
+	        this.height_m = source["height_m"];
+	        this.leaf_area_m2 = source["leaf_area_m2"];
+	        this.plateau_day = source["plateau_day"];
+	        this.at_plateau = source["at_plateau"];
+	        this.declining = source["declining"];
+	        this.days_since_greenup = source["days_since_greenup"];
+	        this.age_check = this.convertValues(source["age_check"], CanopyAgeCheck);
+	        this.why = source["why"];
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CanopyLAISeries {
+	    ndvi: number[];
+	    lai: number[];
+	    peak_lai: number;
+	    n: number;
+	    n_saturated: number;
+	    saturation_lai: number;
+	    parameters: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyLAISeries(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ndvi = source["ndvi"];
+	        this.lai = source["lai"];
+	        this.peak_lai = source["peak_lai"];
+	        this.n = source["n"];
+	        this.n_saturated = source["n_saturated"];
+	        this.saturation_lai = source["saturation_lai"];
+	        this.parameters = source["parameters"];
+	    }
+	}
+	export class CanopyFromAOI {
+	    species: string;
+	    density: number;
+	    inter_row: number;
+	    inter_plant: number;
+	    reachable_lai: number;
+	    lai: CanopyLAISeries;
+	    states: string[];
+	    phenology: Record<string, number>;
+	    resolved: CanopyResolved[];
+	    n_usable: number;
+	    sun: CanopySun;
+	    light?: CanopyLight;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFromAOI(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.density = source["density"];
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.reachable_lai = source["reachable_lai"];
+	        this.lai = this.convertValues(source["lai"], CanopyLAISeries);
+	        this.states = source["states"];
+	        this.phenology = source["phenology"];
+	        this.resolved = this.convertValues(source["resolved"], CanopyResolved);
+	        this.n_usable = source["n_usable"];
+	        this.sun = this.convertValues(source["sun"], CanopySun);
+	        this.light = this.convertValues(source["light"], CanopyLight);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VIObservation {
+	    date: string;
+	    ndvi_mean: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new VIObservation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi_mean = source["ndvi_mean"];
+	    }
+	}
+	export class CanopyFromAOIRequest {
+	    species?: string;
+	    vi_series: VIObservation[];
+	    inter_row?: number;
+	    inter_plant?: number;
+	    row_azimuth_deg?: number;
+	    lat?: number;
+	    lon?: number;
+	    elevation?: number;
+	    hourly_years?: number;
+	    seed?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFromAOIRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.vi_series = this.convertValues(source["vi_series"], VIObservation);
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.row_azimuth_deg = source["row_azimuth_deg"];
+	        this.lat = source["lat"];
+	        this.lon = source["lon"];
+	        this.elevation = source["elevation"];
+	        this.hourly_years = source["hourly_years"];
+	        this.seed = source["seed"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	export class CanopyMesh {
 	    url: string;
@@ -369,6 +653,8 @@ export namespace backend {
 	        this.organs = source["organs"];
 	    }
 	}
+	
+	
 	
 	
 	export class ClassStat {
@@ -4570,6 +4856,7 @@ export namespace backend {
 		    return a;
 		}
 	}
+	
 	
 	
 	

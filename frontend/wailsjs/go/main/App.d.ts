@@ -24,6 +24,8 @@ export function AnalyzeWind(arg1:backend.WindRequest):Promise<backend.WindAnalys
 
 export function BuildCanopyField(arg1:backend.CanopyFieldRequest):Promise<backend.CanopyField>;
 
+export function BuildCanopyFromAOI(arg1:backend.CanopyFromAOIRequest):Promise<backend.CanopyFromAOI>;
+
 export function BuildCanopyMesh(arg1:backend.CanopyMeshRequest):Promise<backend.CanopyMesh>;
 
 export function BuildManagedEnvironment(arg1:string):Promise<void>;

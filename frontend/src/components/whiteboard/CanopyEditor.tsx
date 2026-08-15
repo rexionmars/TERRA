@@ -37,8 +37,9 @@ import { AlertTriangle, Loader2, Sprout } from "lucide-react"
 
 import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
-import { BuildCanopyMesh } from "../../../wailsjs/go/main/App"
+import { BuildCanopyFromAOI, BuildCanopyMesh } from "../../../wailsjs/go/main/App"
 
+import { CanopyFromAOIPanel, type AOICanopy } from "./CanopyFromAOI"
 import { createStandScene, type StandHandle } from "./standScene"
 
 /*
@@ -99,7 +100,30 @@ const readDegrees = (t: string) => {
   return Number.isFinite(v) ? v : null
 }
 
-export function CanopyEditor() {
+/*
+  The runs this editor may read, and why the prop is optional.
+
+  The comment beside `canopy:` in BoardSurface says this editor takes no props
+  because the orchard is its own subject rather than a view of the studio's
+  state -- which is what lets two areas hold two different stands and compare
+  them. That is still true and is not being given up: with no run selected the
+  editor behaves exactly as it did, and the AOI mode simply is not offered.
+
+  What a run adds is the one thing the reader cannot type: the ground. The
+  vegetation-index series is the only input here that was measured rather than
+  chosen.
+*/
+export interface CanopyRun {
+  id: string
+  label: string
+  // Nullable and not merely optional, because that is what the generated
+  // binding carries: a run whose acquisitions yielded no index series has
+  // `vi_series: null`, and narrowing it away here would put the check in the
+  // wrong file.
+  result: { vi_series?: Array<{ date: string; ndvi_mean: number }> | null }
+}
+
+export function CanopyEditor({ runs }: { runs?: CanopyRun[] } = {}) {
   const [stand, setStand] = useState<Stand>(DEFAULT_STAND)
   const [elevation, setElevation] = useState(50)
   const [azimuth, setAzimuth] = useState(35)
@@ -107,6 +131,36 @@ export function CanopyEditor() {
   const [mesh, setMesh] = useState<MeshState | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // --- the AOI mode --------------------------------------------------------
+  const withSeries = useMemo(
+    () => (runs ?? []).filter((r) => (r.result?.vi_series?.length ?? 0) >= 3),
+    [runs]
+  )
+  const [aoiId, setAoiId] = useState<string | null>(null)
+  const [aoi, setAoi] = useState<AOICanopy | null>(null)
+  const [aoiBusy, setAoiBusy] = useState(false)
+  const selectedRun = withSeries.find((r) => r.id === aoiId) ?? null
+
+  const readAOI = useCallback(async () => {
+    if (!selectedRun?.result?.vi_series) return
+    setAoiBusy(true)
+    try {
+      const built = await BuildCanopyFromAOI({
+        species: stand.species,
+        vi_series: selectedRun.result.vi_series,
+        inter_row: stand.interRow,
+        inter_plant: stand.interPlant,
+      } as never)
+      setAoi(built as unknown as AOICanopy)
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setAoi(null)
+    } finally {
+      setAoiBusy(false)
+    }
+  }, [selectedRun, stand.species, stand.interRow, stand.interPlant])
   // What the drawn stand was grown from, so the button can say whether the
   // staged parameters still describe what is on screen.
   const [drawn, setDrawn] = useState<Stand | null>(null)
@@ -260,6 +314,74 @@ export function CanopyEditor() {
           </div>
         ) : null}
       </div>
+
+      {/*
+        The AOI reading, when a run with a series is selected. Sits between the
+        stand and its parameters because it is about the same stand: the sowing
+        below is what turns the observed LAI into an age, so the two have to be
+        read together.
+      */}
+      {aoi && (
+        <div className="max-h-[46%] shrink-0 overflow-auto border-t"
+             style={{ borderColor: "var(--p-line)", background: "var(--p-surface)" }}>
+          <CanopyFromAOIPanel data={aoi} />
+        </div>
+      )}
+
+      {/*
+        Offered only when a run carries a series long enough to read. An empty
+        picker would promise a mode the studio cannot enter, and the editor's
+        own subject -- a stand the reader builds -- is still there without it.
+      */}
+      {withSeries.length > 0 && (
+        <div
+          className="flex shrink-0 flex-wrap items-end gap-x-4 gap-y-2 border-t px-3 py-2"
+          style={{ borderColor: "var(--p-line)", background: "var(--p-surface)" }}
+        >
+          <div className="shrink-0">
+            <label className="block text-[10px] uppercase tracking-wide"
+                   style={{ color: "var(--p-text-muted)" }}>
+              AOI analisada
+            </label>
+            <select
+              value={aoiId ?? ""}
+              onChange={(e) => {
+                setAoiId(e.target.value || null)
+                setAoi(null)
+              }}
+              className="mt-0.5 h-6 max-w-[16rem] rounded border bg-transparent px-1 text-[12px] outline-none"
+              style={{ borderColor: "var(--p-line)", color: "var(--p-text)" }}
+            >
+              <option value="">— nenhuma —</option>
+              {withSeries.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label} ({r.result.vi_series?.length} datas)
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => void readAOI()}
+            disabled={!selectedRun || aoiBusy}
+            className={cn(
+              "flex h-6 shrink-0 items-center gap-1.5 rounded border px-2 text-[12px]",
+              !selectedRun || aoiBusy ? "opacity-50" : "hover:brightness-110"
+            )}
+            style={{ borderColor: "var(--p-line)", color: "var(--p-text)" }}
+          >
+            {aoiBusy ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sprout className="h-3 w-3" />
+            )}
+            {aoiBusy ? "Lendo" : "Ler a AOI"}
+          </button>
+          <span className="text-[10px]" style={{ color: "var(--p-text-muted)" }}>
+            usa a espécie e a semeadura abaixo
+          </span>
+        </div>
+      )}
 
       <div
         className="flex shrink-0 flex-wrap items-end gap-x-5 gap-y-2 border-t px-3 py-2"

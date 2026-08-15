@@ -459,6 +459,20 @@ func (a *App) BuildCanopyField(req backend.CanopyFieldRequest) (*backend.CanopyF
 	return runner.BuildCanopyField(a.ctx, req)
 }
 
+// BuildCanopyFromAOI reads an AOI's own vegetation-index series as a canopy:
+// LAI by date, the Helios age that carries it, and -- given a location -- what
+// that canopy intercepts under the sun the cell actually received.
+//
+// Not persisted, for the reason the other two canopy calls give: it is a
+// function of a saved run plus a sowing, and both are already recorded.
+func (a *App) BuildCanopyFromAOI(req backend.CanopyFromAOIRequest) (*backend.CanopyFromAOI, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.BuildCanopyFromAOI(a.ctx, req)
+}
+
 // BuildCanopyMesh grows a stand of plants and returns it as glTF, for a reader
 // who wants to see the canopy rather than a density that stands for it.
 //
