@@ -44,6 +44,7 @@ import { BuildCanopyFromAOI, BuildCanopyMesh } from "../../../wailsjs/go/main/Ap
 import { readBoardMemory, writeBoardMemory } from "./boardMemory"
 import {
   canopyAOICentre,
+  MIN_AOI_OBSERVATIONS,
   readableCanopyRuns,
   type AOICanopy,
   type CanopyRun,
@@ -304,7 +305,31 @@ export function CanopyWorkflowProvider({
   const aoiStale = aoi !== null && readFor !== null && readFor !== readRequest
 
   const readArea = useCallback(async () => {
-    const series = source?.result?.vi_series
+    /*
+      THE CROP'S SERIES WHEN THERE IS ONE, and the AOI's otherwise.
+
+      An area mean over mixed cover is not the crop's index, and the gap is not
+      small: on the soybean AOI this was built against, the peak reads 0.314 as
+      an area mean with a standard deviation of 0.190, which for a roughly even
+      two-population mix puts the crop pixels near 0.50 and everything else near
+      0.12. Every leaf area below that flows from the AOI-wide series is an
+      average of canopy and bare ground, and the canopy built from it is the
+      wrong canopy.
+
+      The sidecar computes both and the run carries both; this picks. Falling
+      back matters as much as preferring: an AOI with no cropland has an empty
+      crop series, and that is a statement rather than a failure -- the AOI-wide
+      series still answers, and the payload still says which one it read.
+
+      The bound is the same one that decides whether a run is offered at all:
+      a crop series too short for the phenology smoother is not a series, and
+      falling back to the AOI-wide one beats refusing the run.
+    */
+    const cropSeries = source?.result?.vi_series_crop
+    const series =
+      cropSeries && cropSeries.length >= MIN_AOI_OBSERVATIONS
+        ? cropSeries
+        : source?.result?.vi_series
     if (!source || !series || busyRef.current.read) return
     busyRef.current.read = true
     setReading(true)
@@ -329,6 +354,23 @@ export function CanopyWorkflowProvider({
         inter_row: stand.interRow,
         inter_plant: stand.interPlant,
         ...(centre ? { lat: centre.lat, lon: centre.lon } : {}),
+        /*
+          WHAT THE CLASSIFICATION ALREADY KNOWS GROWS HERE.
+
+          The sidecar maps a dominant class to a plantarchitecture species and,
+          as importantly, refuses -- cane, coffee and eucalyptus have no plant
+          in the library, and the catch-all crop classes identify none. Without
+          this the guard on the far side was never true, so the suggestion never
+          fired and the species was always whatever the picker held: the
+          classification and the simulation ran over the same ground and never
+          spoke.
+
+          It suggests; `species` above still wins, because a reader who
+          overrides the classification means to.
+        */
+        ...(source.result?.class_stats?.length
+          ? { class_stats: source.result.class_stats }
+          : {}),
       } as never)
       setAoi(built as unknown as AOICanopy)
       setReadFor(readRequest)

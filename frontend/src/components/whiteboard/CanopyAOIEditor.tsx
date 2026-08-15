@@ -148,6 +148,29 @@ export interface CanopyRun {
   result: {
     vi_series?: Array<{ date: string; ndvi_mean: number }> | null
     /**
+     * The same dates averaged over CROP PIXELS ONLY, which is the series a
+     * canopy should be built from when the AOI has one.
+     *
+     * An area mean over mixed cover is not the crop's index. On the soybean AOI
+     * this was built against the peak reads 0.314 as an area mean with a
+     * standard deviation of 0.190, which for a roughly even two-population mix
+     * puts the crop pixels near 0.50 and everything else near 0.12 -- so a leaf
+     * area inverted from the AOI-wide mean is an average of canopy and bare
+     * ground.
+     *
+     * Empty when the AOI carries no cropland, which is a statement and not a
+     * failure; the AOI-wide series then answers. The two may differ in length,
+     * since a date whose crop pixels were entirely cloud-obscured leaves this
+     * one and stays in the other, so they must be read by date and never
+     * zipped by index.
+     */
+    vi_series_crop?: Array<{ date: string; ndvi_mean: number }> | null
+    /**
+     * The classification's per-class shares, which is how the simulation learns
+     * what grows here instead of taking whatever the species picker holds.
+     */
+    class_stats?: Array<{ class_id: number; name: string; pct: number }> | null
+    /**
      * The AOI's own box, which is the whole of what the light pane needs.
      *
      * Without a location the sidecar lights nothing at all -- it says

@@ -376,6 +376,8 @@ type sidecarResult struct {
 	ClassStats        []ClassStat           `json:"class_stats"`
 	Temporal          []TemporalPoint       `json:"temporal"`
 	VISeries          []VISeriesPoint       `json:"vi_series"`
+	VISeriesCrop      []VISeriesPoint       `json:"vi_series_crop"`
+	CropPixelPct      float64               `json:"crop_pixel_pct"`
 	Phenology         PhenologyMetrics      `json:"phenology"`
 	PhenologyStates   []PhenologyStatePoint `json:"phenology_states"`
 	LULC              *lulcSidecarPayload   `json:"lulc"`
@@ -430,6 +432,24 @@ type PredictResult struct {
 	ClassStats      []ClassStat           `json:"class_stats"`
 	Temporal        []TemporalPoint       `json:"temporal"`
 	VISeries        []VISeriesPoint       `json:"vi_series"`
+	// The same dates averaged over CROP PIXELS ONLY, alongside the AOI-wide
+	// series rather than replacing it: the series above is what every export
+	// and figure already carries, and narrowing it in place would move numbers
+	// nobody asked to move.
+	//
+	// The two can differ in length -- a date whose crop pixels were entirely
+	// cloud-obscured leaves this series and stays in the other -- so they must
+	// be read by date and never zipped by index.
+	//
+	// Empty when the AOI carries no cropland, which is a statement and not a
+	// failure. Anything inverting an index to leaf area should prefer this one:
+	// on the soybean AOI this was built against, the peak reads 0.314 as an
+	// area mean with a standard deviation of 0.190, which for a roughly even
+	// two-population mix puts the crop pixels near 0.50.
+	VISeriesCrop []VISeriesPoint `json:"vi_series_crop,omitempty"`
+	// The crop share of the AOI, as a percentage. The denominator that says how
+	// much of the area mean above is actually the crop.
+	CropPixelPct float64 `json:"crop_pixel_pct,omitempty"`
 	Phenology       PhenologyMetrics      `json:"phenology"`
 	PhenologyStates []PhenologyStatePoint `json:"phenology_states"`
 	LULC            *LULCAnalysis         `json:"lulc,omitempty"`
@@ -2003,6 +2023,26 @@ type CanopyFromAOIRequest struct {
 	Elevation     *float64 `json:"elevation,omitempty"`
 	HourlyYears   int      `json:"hourly_years,omitempty"`
 	Seed          *int     `json:"seed,omitempty"`
+	// The classification's own reading of what grows here. The sidecar maps a
+	// dominant class to a plantarchitecture species and, as importantly,
+	// refuses: cane, coffee and eucalyptus have no plant in the library, and
+	// the catch-all crop classes identify none.
+	//
+	// Without this field the guard on the far side was never true, so the
+	// suggestion never fired and the species was always whatever the picker
+	// held -- the classification and the simulation ran over the same ground
+	// and never spoke. Species selects the architecture, which is the largest
+	// single geometry choice in the run.
+	ClassStats []ClassStat `json:"class_stats,omitempty"`
+	// How many plants are drawn before the answer is reported as a band.
+	// helios_grow draws stochastically, and on soybean at fixed LAI five seeds
+	// spanned 0.096 in faPAR -- larger than the whole seasonal term. Zero
+	// leaves the sidecar's default.
+	NSeeds int `json:"n_seeds,omitempty"`
+	// Half-width, in days, of the day-of-year window the solar record is
+	// narrowed to around the lit date. Zero leaves the sidecar's default;
+	// the sidecar treats a window wider than half a year as no window.
+	SunWindowDays int `json:"sun_window_days,omitempty"`
 }
 
 // VIObservation is one acquisition's vegetation index over the AOI. Mirrors the
@@ -2037,6 +2077,41 @@ type CanopyFromAOI struct {
 	// Absent when no date could be lit -- no location, or nothing the ladder
 	// could build.
 	Light *CanopyLight `json:"light,omitempty"`
+	// The cycles the window was split into. More than one means it covers more
+	// than one crop -- safra and safrinha, or a crop followed by a cover -- and
+	// every age above is then measured from its own cycle's green-up rather
+	// than from the start of the record. The sidecar emitted these and no
+	// field received them, so a reader could not tell a two-crop window from a
+	// one-crop one.
+	Cycles []CanopyCycle `json:"cycles,omitempty"`
+	// What the classification suggested and why, including why it refused.
+	SpeciesSuggestion *SpeciesSuggestion `json:"species_suggestion,omitempty"`
+	// The dominant class's share of the AOI. The series above is an area mean,
+	// and a mean over mixed cover is not the crop's index; this is how much of
+	// it is the crop.
+	CropFraction *float64 `json:"crop_fraction,omitempty"`
+}
+
+// CanopyCycle is one contiguous stretch of the series outside bare soil and
+// fallow. Bare-soil stretches are not cycles: there is no canopy to date in
+// them.
+type CanopyCycle struct {
+	Start   string `json:"start"`
+	End     string `json:"end"`
+	Greenup string `json:"greenup"`
+	N       int    `json:"n"`
+}
+
+// SpeciesSuggestion is the classification's reading, or its refusal. Species is
+// empty when the dominant class has no plant in the library or does not
+// identify one, and Why then says which of the two it was -- a refusal carrying
+// its reason, rather than a silent fallback to the picker's default.
+type SpeciesSuggestion struct {
+	Species    string  `json:"species,omitempty"`
+	ClassID    int     `json:"class_id,omitempty"`
+	ClassName  string  `json:"class_name,omitempty"`
+	Confidence float64 `json:"confidence,omitempty"`
+	Why        string  `json:"why,omitempty"`
 }
 
 type CanopyLAISeries struct {
@@ -2091,6 +2166,26 @@ type CanopySun struct {
 	NAzimuthBins    int       `json:"n_azimuth_bins,omitempty"`
 	NElevationBins  int       `json:"n_elevation_bins,omitempty"`
 	DiffuseShare    float64   `json:"diffuse_share,omitempty"`
+	// WHICH SKY THIS IS. The record fetched is three whole years, and averaging
+	// all of it gives the sun of no particular time, while this canopy is one
+	// dated observation. WindowDays is the half-width of the day-of-year window
+	// the record was narrowed to around WindowCentre; zero means the whole
+	// record answered, which happens when no date resolved to an age.
+	//
+	// Measured on this cell: the month spans 0.0588 in faPAR at LAI 3, and the
+	// whole-record average is wrong by up to 0.0367 for the worst month --
+	// against 0.016 for the entire latitude range of Brazil. Before this the
+	// panel captioned a three-year all-season sky with the observation's date.
+	WindowDays   int    `json:"window_days,omitempty"`
+	WindowCentre string `json:"window_centre,omitempty"`
+	NHours       int    `json:"n_hours,omitempty"`
+	// Whether the POWER record was fetched or read from cache, and which
+	// revision. POWER reprocesses historical data, so a cached series can be a
+	// superseded revision; every other POWER-reading surface in this app
+	// renders this and the canopy panel was the one that could not.
+	// One series and not the daily/hourly pair PowerProvenance carries: this
+	// action reads the hourly record only.
+	Provenance *PowerSeriesProvenance `json:"provenance,omitempty"`
 	// Why the reference suns were used instead, when they were.
 	Why string `json:"why,omitempty"`
 }
@@ -2113,7 +2208,44 @@ type CanopyLight struct {
 	FixedKErrorPct       *float64 `json:"fixed_k_error_pct,omitempty"`
 	BeamBinsMarched      int      `json:"beam_bins_marched,omitempty"`
 	RowAzimuthDeg        float64  `json:"row_azimuth_deg,omitempty"`
-	Error                string   `json:"error,omitempty"`
+	// The fraction of the module's ground that has leaf above it. The one
+	// geometric number that tracks the answer: measured at fixed LAI, sweeping
+	// the canopy's horizontal extent moves faPAR 0.19 to 0.88 and faPAR follows
+	// cover almost proportionally, while sweeping its HEIGHT over a factor of
+	// 2.4 moves it 0.020. Carried so a reader with an observed cover -- which a
+	// nadir view gives cheaply, and which needs no 3D reconstruction -- can
+	// check the simulated canopy against the field's.
+	Cover float64 `json:"cover,omitempty"`
+	Seed  int     `json:"seed,omitempty"`
+	// The spread across the plants that were drawn. Absent only on error.
+	Ensemble *CanopyEnsemble `json:"ensemble,omitempty"`
+	Error    string          `json:"error,omitempty"`
+}
+
+/*
+CanopyEnsemble is how far apart the drawn plants landed.
+
+WHY A POINT ESTIMATE WAS THE WRONG SHAPE. helios_grow draws a plant
+stochastically, and the draw is not a rounding detail: on soybean at 55 days
+with everything else held -- same species, same age, same sowing, leaf area
+rescaled to an identical LAI so only shape could differ -- five seeds spanned
+faPAR 0.703 to 0.799. That 0.096 is larger than the whole seasonal term and
+three times a 20% error in the LAI the inversion works so hard to recover, and
+the surface was printing three decimals of a number whose own spread lands in
+the second.
+
+No data buys this away. It is the model's own variance and can only be sampled,
+so the honest form of the same computation is a band.
+*/
+type CanopyEnsemble struct {
+	N            int     `json:"n"`
+	FaPARMin     float64 `json:"fapar_min"`
+	FaPARMax     float64 `json:"fapar_max"`
+	FaPARSpread  float64 `json:"fapar_spread"`
+	CoverMin     float64 `json:"cover_min"`
+	CoverMax     float64 `json:"cover_max"`
+	// In faPAR order, so the ends of the band can be reproduced.
+	Seeds []int `json:"seeds"`
 }
 
 /*

@@ -507,6 +507,8 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		ClassStats:        sres.ClassStats,
 		Temporal:          sres.Temporal,
 		VISeries:          sres.VISeries,
+		VISeriesCrop:      sres.VISeriesCrop,
+		CropPixelPct:      sres.CropPixelPct,
 		Phenology:         sres.Phenology,
 		PhenologyStates:   sres.PhenologyStates,
 		LULC:              convertLULC(sres.LULC),
@@ -1958,6 +1960,18 @@ func (r *Runner) BuildCanopyFromAOI(ctx context.Context, req CanopyFromAOIReques
 	}
 	if req.Seed != nil {
 		payload["seed"] = *req.Seed
+	}
+	// The classification's reading of what grows here. Omitted when empty
+	// rather than sent as an empty list, so the sidecar's own guard decides
+	// between "no classification" and "a classification that suggests nothing".
+	if len(req.ClassStats) > 0 {
+		payload["class_stats"] = req.ClassStats
+	}
+	if req.NSeeds > 0 {
+		payload["n_seeds"] = req.NSeeds
+	}
+	if req.SunWindowDays > 0 {
+		payload["sun_window_days"] = req.SunWindowDays
 	}
 
 	reqBytes, err := json.Marshal(payload)
