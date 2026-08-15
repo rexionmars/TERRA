@@ -84,6 +84,14 @@ export const SPLASH_STILLS: SplashStill[] = [
     photographer: "stonesdonotdisappear",
     since: "0.4.0",
   },
+  {
+    name: "Soybean",
+    path: "/terra-splash-images/soybean.webp",
+    subject: "a soybean field under an advancing storm front",
+    source: "https://www.pexels.com/photo/8726632/",
+    photographer: "Scott Platt",
+    since: "0.4.0",
+  },
 ]
 
 /**
