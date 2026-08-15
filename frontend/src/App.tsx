@@ -71,6 +71,7 @@ import {
   layoutModeFromPrefs,
   mergePreferenceExtras,
   parsePreferenceExtras,
+  startSurfaceFromPrefs,
 } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import {
@@ -594,6 +595,29 @@ function AppBody(props: {
    */
   const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
+
+  /*
+    THE SURFACE THE SESSION OPENS ON, asked for once and not again.
+
+    The same nonce a saved whiteboard uses, because it means the same thing: the
+    studio was asked for BY NAME rather than toggled over what happens to be on
+    screen. That distinction is what lets it open with an empty board -- the
+    toggle refuses that, and should, since a press with nothing to work on has
+    no result to show for itself.
+
+    Once per run of the application, guarded by a ref rather than by the
+    preference's value: prefs arrive after the shell is up and change again
+    whenever anything else is saved, and an effect keyed on them alone would
+    reopen the studio over a reader who had just closed it.
+  */
+  const startSurfaceAsked = useRef(false)
+  useEffect(() => {
+    if (!prefs || startSurfaceAsked.current) return
+    startSurfaceAsked.current = true
+    if (startSurfaceFromPrefs(prefs) === "studio") {
+      setOpenBoardNonce((n) => n + 1)
+    }
+  }, [prefs])
   /**
    * The title bar's host element for the map screen's whiteboard toggle.
    *
@@ -814,9 +838,26 @@ function AppBody(props: {
     setLayoutMode(stored)
   }, [prefs])
 
+  /*
+    `persist: false` applies a layout for this session without storing it.
+
+    The whiteboard forces Dock while it is up -- the two fight for the left
+    edge -- and puts the previous one back on close. That is an arrangement the
+    surface requires, not a choice the reader made, and writing it to
+    preferences turned "open the studio, quit" into a silent edit of the Map
+    layout setting. With a session that OPENS on the studio the edit would have
+    happened on every launch.
+
+    The ref is left alone in that case, on purpose: it records what this
+    component wrote, and the seeding effect follows any stored value that
+    differs from it. A forced mode written into the ref would make the next
+    preference refresh look like the reader's own change and flip the layout
+    out from under the board.
+  */
   const changeLayoutMode = useCallback(
-    (mode: LayoutMode) => {
+    (mode: LayoutMode, opts?: { persist?: boolean }) => {
       setLayoutMode(mode)
+      if (opts?.persist === false) return
       lastWrittenLayoutRef.current = mode
       if (!prefs) return
       // Silent: this fires on a toggle the user just watched happen, and a

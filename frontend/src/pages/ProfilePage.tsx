@@ -33,10 +33,16 @@ import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { StorageModal } from "@/components/StorageModal"
 import { cn } from "@/lib/utils"
-import type { InferenceRun, LayoutMode, Preferences } from "@/lib/types"
+import type {
+  InferenceRun,
+  LayoutMode,
+  Preferences,
+  StartSurface,
+} from "@/lib/types"
 import {
   layoutModeFromPrefs,
   mergePreferenceExtras,
+  startSurfaceFromPrefs,
 } from "@/lib/preferenceExtras"
 import { NAV_GROUPS } from "@/lib/navigation"
 import { displayRunLabel } from "@/lib/aoiLabel"
@@ -192,17 +198,21 @@ export function ProfilePage({
     the stored value through keeps a theme change to being a theme change.
   */
   const persistPreferences = useCallback(
-    async (next: { theme: string; layoutMode?: LayoutMode }) => {
+    async (next: {
+      theme: string
+      layoutMode?: LayoutMode
+      startSurface?: StartSurface
+    }) => {
       if (!user) return
       const payload: Preferences = {
         user_id: user.id,
         default_model: prefs?.default_model || "spectral",
         overlay_opacity: prefs?.overlay_opacity ?? 0.75,
         theme: next.theme,
-        extras_json: mergePreferenceExtras(
-          prefs?.extras_json,
-          next.layoutMode ? { layout_mode: next.layoutMode } : {}
-        ),
+        extras_json: mergePreferenceExtras(prefs?.extras_json, {
+          ...(next.layoutMode ? { layout_mode: next.layoutMode } : {}),
+          ...(next.startSurface ? { start_surface: next.startSurface } : {}),
+        }),
       }
       await savePrefs(payload)
       if (
@@ -224,6 +234,7 @@ export function ProfilePage({
   )
 
   const layoutMode = layoutModeFromPrefs(prefs)
+  const startSurface = startSurfaceFromPrefs(prefs)
 
   /*
     Named from the navigation table so the button and the column agree on what
@@ -234,7 +245,13 @@ export function ProfilePage({
     NAV_GROUPS.find((g) => g.id === settingsReturnTo)?.label ?? "the map"
 
   const schedulePrefsSave = useCallback(
-    (patch: Partial<{ theme: string; layoutMode: LayoutMode }>) => {
+    (
+      patch: Partial<{
+        theme: string
+        layoutMode: LayoutMode
+        startSurface: StartSurface
+      }>
+    ) => {
       if (!prefsReady.current) return
       prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
       if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
@@ -883,6 +900,39 @@ export function ProfilePage({
                     {layoutMode === "workspace"
                       ? "Controls sit in a bar at the foot of the map, with parameters in a drawer. The map takes the full width."
                       : "A navigation column on the left and the product's controls in a panel beside it."}
+                  </p>
+                </div>
+              </SettingRow>
+
+              {/*
+                Beside the layout, because the two are read together: one is
+                how a screen is arranged, the other is which screen the
+                application opens on.
+              */}
+              <SettingRow
+                id="account.start"
+                title="Opening surface"
+                description="Which surface a session starts on. The explorer is the map with its tools around it, where an area is drawn and a run is started; the studio is the area tree over it, where what has been run is arranged and read. The title bar switches between them at any time."
+                focused={focusedSetting === "account.start"}
+                onFocus={() => setFocusedSetting("account.start")}
+              >
+                <div className="flex max-w-md flex-col gap-2">
+                  <select
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                    value={startSurface}
+                    onChange={(e) =>
+                      schedulePrefsSave({
+                        startSurface: e.target.value as StartSurface,
+                      })
+                    }
+                  >
+                    <option value="explorer">TERRA Explorer</option>
+                    <option value="studio">TERRA Studio</option>
+                  </select>
+                  <p className="text-meta leading-relaxed text-muted-foreground">
+                    {startSurface === "studio"
+                      ? "The studio opens over the map, empty until a run is on it. Its run band draws an area and starts a run without leaving it."
+                      : "The map opens first. The studio is a press away in the title bar, once there is an area or a run to put on it."}
                   </p>
                 </div>
               </SettingRow>

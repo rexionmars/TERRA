@@ -115,7 +115,10 @@ export interface MapScreenProps {
    * column leaves the navigation column beside the board's own column, so the
    * board forces Dock (workspace) for as long as it is up.
    */
-  onLayoutModeChange?: (mode: LayoutMode) => void
+  onLayoutModeChange?: (
+    mode: LayoutMode,
+    opts?: { persist?: boolean }
+  ) => void
   /**
    * The title bar's host for this screen's whiteboard toggle.
    *
@@ -390,11 +393,23 @@ export function MapScreen(props: MapScreenProps) {
     detailRem: statsRem,
     detailCollapsed: statsCollapsed,
   })
+  /**
+   * Whether the studio was asked for by name rather than toggled onto what is
+   * on screen.
+   *
+   * A saved whiteboard and the opening-surface preference both arrive as the
+   * nonce, and both mean the same thing: this reader wants the studio, not the
+   * studio OF something. The emptiness rule below is what that has to survive
+   * -- it exists so a board with nothing left in it stops covering the map,
+   * and at the start of a session there has never been anything in it.
+   */
+  const [boardAsked, setBoardAsked] = useState(false)
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
     if (nonce > 0) {
       setBoard(true)
+      setBoardAsked(true)
       // What the two toggle handlers do inline. This path skipped it, and with
       // the island withheld there is no longer a button on screen to shut a
       // drawer that opened before the board did.
@@ -498,10 +513,20 @@ export function MapScreen(props: MapScreenProps) {
    * areas are not among them. Everything that hides while the board is up
    * reads this same value, so there is no state where the board is gone and
    * what it replaced is still hidden.
+   *
+   * `boardAsked` is the exception, and only that: a studio opened by name --
+   * a saved whiteboard, or a session that opens on it by preference -- stands
+   * with nothing on it, because that is the state it necessarily starts in and
+   * its own run band draws an area and starts a run without leaving it. The
+   * rule above still governs the toggle, which is a gesture over what is on
+   * screen rather than a request for the surface itself.
    */
   const boardOpen =
     board &&
-    (boardLayers.length > 0 || boardHoldsOtherAreas() || props.hasArea)
+    (boardLayers.length > 0 ||
+      boardHoldsOtherAreas() ||
+      props.hasArea ||
+      boardAsked)
 
   /*
     Reported to the title bar, which withholds the map's latitude, longitude,
@@ -535,14 +560,17 @@ export function MapScreen(props: MapScreenProps) {
         if (layoutBeforeBoardRef.current == null) {
           layoutBeforeBoardRef.current = layoutMode
         }
-        onLayoutModeChange("workspace")
+        // Not persisted: this is what the surface requires, not what the
+        // reader chose, and storing it edits the Map layout setting behind
+        // their back -- every launch, for a session that opens on the studio.
+        onLayoutModeChange("workspace", { persist: false })
       }
       return
     }
     const prev = layoutBeforeBoardRef.current
     if (prev == null) return
     layoutBeforeBoardRef.current = null
-    if (layoutMode !== prev) onLayoutModeChange(prev)
+    if (layoutMode !== prev) onLayoutModeChange(prev, { persist: false })
   }, [boardOpen, layoutMode, onLayoutModeChange])
 
   /*
@@ -1028,7 +1056,9 @@ export function MapScreen(props: MapScreenProps) {
               below covers -- so without the first clause the board could be up,
               carrying a second area, with its only toggle greyed out.
             */
-            disabled={!boardOpen && !boardLayers.length && !props.hasArea}
+            disabled={
+              !boardOpen && !boardLayers.length && !props.hasArea && !boardAsked
+            }
             onClick={() =>
               setBoard((o) => {
                 // Closing the overlay drawer on the way in: the sidebar carries

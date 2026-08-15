@@ -1,10 +1,15 @@
-import type { LayoutMode, LeftDockTabsMode, Preferences } from "@/lib/types"
+import type {
+  LayoutMode,
+  LeftDockTabsMode,
+  Preferences,
+  StartSurface,
+} from "@/lib/types"
 import {
   parseSavedAois,
   type SavedAoi,
 } from "@/lib/savedAois"
 
-export type { LayoutMode, LeftDockTabsMode }
+export type { LayoutMode, LeftDockTabsMode, StartSurface }
 
 export interface PreferenceExtras {
   left_dock_tabs?: LeftDockTabsMode
@@ -14,6 +19,16 @@ export interface PreferenceExtras {
    * the application having changed rather than as a setting having persisted.
    */
   layout_mode?: LayoutMode
+  /**
+   * Which surface a session opens on: the map, or the studio over it.
+   *
+   * Beside `layout_mode` because it answers the neighbouring question -- that
+   * one is how a screen is arranged, this one is which screen the application
+   * hands the reader first -- and both are restored on start for the same
+   * reason: landing somewhere other than where the work is read as the
+   * application having changed.
+   */
+  start_surface?: StartSurface
   active_project_id?: string
   /** Last custom AOI display name (survives restart with active project / prefs). */
   aoi_label?: string
@@ -79,6 +94,20 @@ export function layoutModeFromPrefs(
 ): LayoutMode {
   const mode = parsePreferenceExtras(prefs?.extras_json).layout_mode
   return mode === "workspace" ? "workspace" : "docked"
+}
+
+/**
+ * Where a session opens, defaulting by exception.
+ *
+ * The map, unless the stored value is exactly the other string -- so an absent
+ * key, a value written by a newer build or a corrupted blob all resolve to the
+ * surface that needs nothing to be on screen before it can be shown.
+ */
+export function startSurfaceFromPrefs(
+  prefs: Preferences | null | undefined
+): StartSurface {
+  const surface = parsePreferenceExtras(prefs?.extras_json).start_surface
+  return surface === "studio" ? "studio" : "explorer"
 }
 
 export function mergePreferenceExtras(
