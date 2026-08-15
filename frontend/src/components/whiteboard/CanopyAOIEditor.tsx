@@ -110,6 +110,26 @@ export interface AOILight {
   fixed_k_error_pct?: number
   beam_bins_marched?: number
   row_azimuth_deg?: number
+  /**
+   * The fraction of the module's ground with leaf above it.
+   *
+   * The one geometric number that tracks the answer: measured at fixed LAI,
+   * sweeping the canopy's horizontal extent moves faPAR from 0.19 to 0.88 and
+   * faPAR follows cover almost proportionally, while sweeping its HEIGHT over a
+   * factor of 2.4 moves it 0.020.
+   */
+  cover?: number
+  seed?: number
+  /** The spread across the plants that were drawn. */
+  ensemble?: {
+    n: number
+    fapar_min: number
+    fapar_max: number
+    fapar_spread: number
+    cover_min: number
+    cover_max: number
+    seeds: number[]
+  }
   error?: string
 }
 

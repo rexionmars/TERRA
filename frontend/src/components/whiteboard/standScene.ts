@@ -78,6 +78,69 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 export interface StandSky {
   diffuseShare?: number
   clearness?: number
+  /**
+   * The fraction of ground under leaf, which decides what colour the light
+   * bouncing back UP is.
+   *
+   * A hemisphere light's lower half is the ground's own reflection, and under a
+   * closed canopy that ground is leaves rather than soil. The effect is real
+   * multiple scattering and not a tint: it is why the underside of a canopy
+   * reads green and not brown, and it grows with cover.
+   */
+  cover?: number
+}
+
+/*
+  Rayleigh optical depth at the three primaries, at sea level.
+
+  From tau ~ 0.0088 * lambda^-4.15 with lambda in micrometres, evaluated at 0.60,
+  0.55 and 0.45 um. Blue is scattered out roughly three times as hard as red,
+  which is the whole reason a low sun is orange -- and, at this project's own
+  latitude, the reason the first and last hours of the track look nothing like
+  the middle: air mass runs 1.0 at noon against 7.8 at seven degrees elevation.
+*/
+const RAYLEIGH_TAU: [number, number, number] = [0.0733, 0.1052, 0.242]
+
+/*
+  The two ends the sky colour runs between, and the two the ground bounce does.
+
+  OVERCAST is warm-neutral and not grey: a real overcast sky is slightly warm,
+  and a neutral one reads as a lighting bug rather than as weather. CANOPY_BOUNCE
+  is a desaturated green, because light that has been through a leaf twice is
+  much duller than the leaf.
+*/
+const CLEAR_SKY = new Color(0xbcd6ff)
+const OVERCAST_SKY = new Color(0xd8d5cf)
+const SOIL_BOUNCE = new Color(0x6b5a3e)
+const CANOPY_BOUNCE = new Color(0x4a5c33)
+
+/**
+ * Relative air mass by Kasten and Young (1989).
+ *
+ * Not the schoolbook 1/sin(elevation), which diverges at the horizon and is
+ * already 10 percent wrong by five degrees -- exactly the elevations where the
+ * reddening this feeds is largest and most visible.
+ */
+export function airMass(elevationDeg: number): number {
+  const e = Math.max(elevationDeg, -1)
+  const denom =
+    Math.sin((e * Math.PI) / 180) + 0.50572 * Math.pow(e + 6.07995, -1.6364)
+  return denom > 0 ? 1 / denom : 40
+}
+
+/**
+ * The beam's colour after that much atmosphere, normalised to white at zenith.
+ *
+ * Relative to air mass 1 rather than absolute, so a high sun renders neutral and
+ * the whole effect is the CHANGE with elevation. An absolute Rayleigh
+ * transmittance is slightly warm even overhead, which would leave every scene
+ * faintly yellow and read as a colour-grading choice rather than as air.
+ */
+export function beamColour(elevationDeg: number): Color {
+  const extra = Math.max(airMass(elevationDeg) - 1, 0)
+  const rgb = RAYLEIGH_TAU.map((tau) => Math.exp(-tau * extra))
+  const peak = Math.max(rgb[0], rgb[1], rgb[2], 1e-6)
+  return new Color(rgb[0] / peak, rgb[1] / peak, rgb[2] / peak)
 }
 
 /** The sun as the surface states it, in degrees, plus the sky it sits in. */
@@ -218,9 +281,22 @@ export function createStandScene(
   */
   const BEAM_FULL = 2.1 / (1 - 0.33)
   const SKY_FULL = 1.15 / 0.33
-  // A floor of ambient so the undersides of leaves are not black. Deep shade in
-  // a real canopy is dim, not absent, and a black underside reads as a hole.
-  const fill = new AmbientLight(0xffffff, 0.35)
+  /*
+    A floor of ambient so the undersides of leaves are not black. Deep shade in
+    a real canopy is dim, not absent, and a black underside reads as a hole.
+
+    LOWERED FROM 0.35 BECAUSE THE SHADOWS NOW DO THIS JOB. That figure was set
+    when shadowMap was off and nothing else filled a shaded surface, so it had
+    to carry the whole of "not black" on its own. With the sun casting, the same
+    0.35 lands on top of shadows that are already lit by the hemisphere and
+    flattens them: the first stand rendered with shadows came out visibly washed,
+    with the cast shade on the ground barely readable.
+
+    Not zero, and not close to it. The number this stands for is real -- a
+    canopy floor under a closed crop still receives light, and the march itself
+    measures a diffuse transmittance rather than assuming darkness.
+  */
+  const fill = new AmbientLight(0xffffff, 0.18)
   // The target too: a DirectionalLight aims at its target's world position,
   // and a target outside the graph never gets one, so the shadow camera would
   // look at the origin however the stand was framed.
@@ -310,7 +386,9 @@ export function createStandScene(
     disposeCatcher()
     const plane = new Mesh(
       new PlaneGeometry(span, span),
-      new ShadowMaterial({ opacity: 0.32 })
+      // Raised alongside the ambient drop: at 0.32 over a 0.35 fill the cast
+      // shade was barely separable from the grid it fell on.
+      new ShadowMaterial({ opacity: 0.45 })
     )
     plane.rotation.x = -Math.PI / 2
     // Just under the grid, for the reason the grid sits just under the stems:
@@ -593,6 +671,50 @@ export function createStandScene(
       sun.intensity = BEAM_FULL * (1 - 0.33)
       sky.intensity = SKY_FULL * 0.33
     }
+
+    // The beam reddens with the air it crossed. Applied always, since air mass
+    // is a function of the elevation the caller already gave and needs no
+    // record behind it -- a hand-placed sun low in the sky is low in the sky.
+    sun.color.copy(beamColour(view.elevation))
+
+    /*
+      Cloud whitens the sky and desaturates it.
+
+      A clear sky is the blue this scene has always used; an overcast one is a
+      grey-white sheet, and the hemisphere light's upper colour is the only
+      place that difference can live. Interpolated on clearness rather than
+      switched, because a record runs the whole way between: on this cell an
+      afternoon falls from 0.89 to 0.49 within one day.
+
+      OVERCAST_SKY is warm-neutral rather than pure grey: a real overcast sky is
+      slightly warm, and a neutral one reads as a lighting bug.
+    */
+    const clear = view.sky?.clearness
+    if (clear != null && Number.isFinite(clear)) {
+      const k = Math.min(Math.max(clear, 0), 1)
+      sky.color.copy(OVERCAST_SKY).lerp(CLEAR_SKY, k)
+    } else {
+      sky.color.copy(CLEAR_SKY)
+    }
+
+    /*
+      What bounces back up is leaves once the canopy closes.
+
+      The hemisphere light's lower half stands for the ground's own reflection,
+      and it has been soil brown regardless of what was standing on the soil.
+      Under a closed canopy the upward light is green -- real multiple
+      scattering, and the reason a canopy's underside reads green rather than
+      brown. Cover is what says how much of the floor is still soil, and the
+      sidecar now measures it: 0.91 on the reading this was developed against.
+    */
+    const cover = view.sky?.cover
+    if (cover != null && Number.isFinite(cover)) {
+      const k = Math.min(Math.max(cover, 0), 1)
+      sky.groundColor.copy(SOIL_BOUNCE).lerp(CANOPY_BOUNCE, k)
+    } else {
+      sky.groundColor.copy(SOIL_BOUNCE)
+    }
+
     skyClearness = view.sky?.clearness ?? null
     updateFog()
   }

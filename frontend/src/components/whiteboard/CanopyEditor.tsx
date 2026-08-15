@@ -163,14 +163,17 @@ function StandPanel() {
   */
   const diffuseShare = w?.aoi?.sun?.diffuse_share
   const clearness = w?.aoi?.sun?.clearness
+  // What the simulated canopy covered, which decides how green the light
+  // bouncing back up off the floor is.
+  const cover = w?.aoi?.light?.cover
   useEffect(() => {
     if (elevation == null || azimuth == null) return
     sceneRef.current?.setView({
       elevation,
       azimuth,
-      sky: { diffuseShare, clearness },
+      sky: { diffuseShare, clearness, cover },
     })
-  }, [elevation, azimuth, diffuseShare, clearness])
+  }, [elevation, azimuth, diffuseShare, clearness, cover])
 
   /*
     The mesh the workflow last grew, loaded into this panel's scene.
