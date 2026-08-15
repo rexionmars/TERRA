@@ -1610,6 +1610,20 @@ def main():
             'sun': {'source': 'reference'},
         }
 
+        # WHICH DATE THE CANOPY IS BUILT FOR, decided here rather than inside
+        # the sun block because the sun now depends on it.
+        #
+        # The densest canopy the ladder can actually build, which is where the
+        # architecture matters: at low LAI every geometry transmits alike and
+        # the answer says nothing.
+        #
+        # Not the peak of the series, which is the obvious choice and is wrong
+        # often enough to matter -- a season that reaches the species' ceiling
+        # has its peak AT the plateau, where the ladder returns no age at all,
+        # and the naive `max` then silently fell through to the first usable
+        # row: LAI 0.10 lit instead of 3.75.
+        lit_row = max(usable, key=lambda r: r['lai'], default=None)
+
         # The AOI's own sun, when there is a point to ask POWER about.
         lat, lon = req.get('lat'), req.get('lon')
         if lat is not None and lon is not None:
@@ -1631,6 +1645,29 @@ def main():
                 )
                 df, solpos = solar_mod.prepare_hourly(
                     hourly, cell_lat, cell_lon, float(req.get('elevation', 0.0)))
+
+                # THE SEASON, WHICH IS THE LARGEST THING THIS BLOCK DECIDES.
+                #
+                # The record fetched above is three whole years, and averaging
+                # all of it gives the sun of no particular time. This canopy is
+                # dated -- it is one Sentinel-2 observation -- and season is the
+                # bigger term by far: measured on this app's own cached POWER
+                # records, faPAR varies 0.068 across months at one site against
+                # 0.016 across the entire latitude range of Brazil.
+                #
+                # Until this window existed the panel printed "faPAR under the
+                # real sun, on <date>" beside a sky averaged over every other
+                # month of three years, which is a caption contradicting its own
+                # number. Narrowing costs nothing: the parquet is already local
+                # and the other years still contribute through the day-of-year
+                # window, so a February canopy is lit by three Februaries.
+                window_days = int(req.get('sun_window_days', 21))
+                season = solar_mod.doy_window_mask(
+                    df.index, (lit_row or {}).get('date'), window_days)
+                if season is not None and bool(season.any()):
+                    df, solpos = df[season], solpos[season]
+                else:
+                    window_days = None
                 energy, el_edges = solar_mod.beam_energy_histogram(df, solpos)
                 # The diffuse share of what arrives, from the record rather than
                 # assumed: a canopy lit by the beam alone is lit by a fraction
@@ -1647,42 +1684,94 @@ def main():
                     'n_azimuth_bins': int(energy.shape[0]),
                     'n_elevation_bins': int(energy.shape[1]),
                     'diffuse_share': dhi_share,
+                    # Which sky this is, so the reader is not left inferring it
+                    # from a caption. `window_days` None means the whole record
+                    # answered, which happens when no date resolved to an age.
+                    'window_days': window_days,
+                    'window_centre': (lit_row or {}).get('date') if window_days else None,
+                    'n_hours': int(len(df)),
                 }
 
                 # Light the canopy the series resolved, under that sun.
                 #
-                # WHICH DATE. The densest canopy the ladder can actually build,
-                # which is where the architecture matters: at low LAI every
-                # geometry transmits alike and the answer says nothing.
+                # MORE THAN ONE PLANT, BECAUSE ONE PLANT IS NOT AN ANSWER.
+                # helios_grow draws a plant stochastically, and the draw is not
+                # a rounding detail: measured here on soybean at 55 days with
+                # everything else held -- same species, same age, same sowing,
+                # leaf area rescaled to an identical LAI so only the shape can
+                # differ -- five seeds spanned faPAR 0.703 to 0.799. That 0.096
+                # is larger than the whole seasonal term the window above was
+                # added to capture, and three times a 20% error in the LAI this
+                # action works so hard to invert.
                 #
-                # Not the peak of the series, which is the obvious choice and is
-                # wrong often enough to matter -- a season that reaches the
-                # species' ceiling has its peak AT the plateau, where the ladder
-                # returns no age at all, and the naive `max` then silently fell
-                # through to the first usable row: LAI 0.10 lit instead of 3.75.
-                lit_row = max(usable, key=lambda r: r['lai'], default=None)
+                # Until this loop existed the action grew seed 7 and printed
+                # `fapar.toFixed(3)`, so it reported three decimals of a number
+                # whose own spread lands in the second. The band is the honest
+                # form of the same computation, and no new data buys it: it is
+                # the model's own variance, and it can only be sampled.
+                #
+                # Cost is why the default is three and not thirty. The march is
+                # ~11 s and dominates; growing a plant is 0.24 s.
                 if lit_row is not None:
-                    emit_progress(85, 'lighting the canopy under that sun')
                     try:
                         import canopy_field as cfield
                         import helios_grow as hgrow
                         row_az = float(req.get('row_azimuth_deg', 0.0))
-                        grown = hgrow.grow(species=species_name,
-                                           days=int(round(lit_row['day'])),
-                                           seed=int(req.get('seed', 7)))
-                        pos, leaf_area, _m = hgrow.leaf_cloud(grown)
-                        pos = np.asarray(pos, float).copy()
+                        base_seed = int(req.get('seed', 7))
+                        n_seeds = max(1, min(int(req.get('n_seeds', 3)), 12))
                         # One periodic module carrying one plant, so the LAI the
                         # march integrates is the sowing's and not the plant's.
                         module = float(np.sqrt(inter_row * inter_plant))
                         cell = module / max(int(round(module / 0.05)), 4)
-                        pos[:, 0] = np.mod(pos[:, 0] + module / 2, module)
-                        pos[:, 1] = np.mod(pos[:, 1] + module / 2, module)
-                        grid, fmeta = cfield.leaf_cloud_field(
-                            pos, leaf_area, spacing=module, cell=cell)
-                        lit = cfield.light_under_sun(
-                            cfield.canopy_of(grid, fmeta), energy, el_edges,
-                            dhi_share=dhi_share, row_azimuth_deg=row_az)
+
+                        runs = []
+                        for i in range(n_seeds):
+                            emit_progress(
+                                80 + int(15 * i / n_seeds),
+                                f'lighting canopy {i + 1} of {n_seeds}')
+                            grown = hgrow.grow(species=species_name,
+                                               days=int(round(lit_row['day'])),
+                                               seed=base_seed + i)
+                            pos, leaf_area, _m = hgrow.leaf_cloud(grown)
+                            pos = np.asarray(pos, float).copy()
+                            pos[:, 0] = np.mod(pos[:, 0] + module / 2, module)
+                            pos[:, 1] = np.mod(pos[:, 1] + module / 2, module)
+                            grid, fmeta = cfield.leaf_cloud_field(
+                                pos, leaf_area, spacing=module, cell=cell)
+                            one = cfield.light_under_sun(
+                                cfield.canopy_of(grid, fmeta), energy, el_edges,
+                                dhi_share=dhi_share, row_azimuth_deg=row_az)
+                            # THE FRACTION OF GROUND UNDER LEAF, which is the
+                            # one geometric number that tracks the answer.
+                            # Measured here at fixed LAI: sweeping the canopy's
+                            # horizontal extent moves faPAR 0.19 to 0.88 and
+                            # faPAR follows cover almost proportionally, while
+                            # sweeping its HEIGHT over a factor of 2.4 moves it
+                            # 0.020. Reported so a reader with an observed cover
+                            # -- which a nadir view gives cheaply, and which no
+                            # 3D reconstruction is needed for -- can check the
+                            # simulated canopy against the field's.
+                            one['cover'] = float(
+                                (grid.sum(axis=2) > 0).mean())
+                            one['seed'] = base_seed + i
+                            runs.append(one)
+
+                        # The median run carries the headline, so the reported
+                        # figures stay a self-consistent single canopy rather
+                        # than a mean of quantities that do not average.
+                        runs.sort(key=lambda r: r.get('fapar', 0.0))
+                        lit = dict(runs[len(runs) // 2])
+                        fapars = [float(r['fapar']) for r in runs]
+                        covers = [float(r['cover']) for r in runs]
+                        lit['ensemble'] = {
+                            'n': len(runs),
+                            'fapar_min': min(fapars),
+                            'fapar_max': max(fapars),
+                            'fapar_spread': max(fapars) - min(fapars),
+                            'cover_min': min(covers),
+                            'cover_max': max(covers),
+                            'seeds': [int(r['seed']) for r in runs],
+                        }
                         lit['date'] = lit_row.get('date')
                         lit['day'] = lit_row.get('day')
                         payload['light'] = lit

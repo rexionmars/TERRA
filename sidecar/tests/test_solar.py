@@ -414,3 +414,59 @@ def test_diffuse_incidence_correction_is_applied_and_lowers_the_yield():
     assert 0.9 < sky["sky"] < 1.0
     # The beam relation and the diffuse one are the same coefficient.
     assert solar.IAM_ASHRAE_B == 0.05
+
+
+def _three_years():
+    return pd.date_range("2023-01-01", "2025-12-31 23:00", freq="h")
+
+
+def test_doy_window_keeps_the_same_season_in_every_year():
+    """Uma janela de dia-do-ano, não de data.
+
+    Um fevereiro só são algumas centenas de horas de luz e um histograma
+    magro; três fevereiros são um céu. A janela existe para estreitar a
+    ESTAÇÃO sem jogar fora os outros anos do registro.
+    """
+    idx = _three_years()
+    m = solar.doy_window_mask(idx, "2026-02-19", 21)
+    assert m.sum() > 3000, "a janela deveria somar as três estações"
+    assert set(idx[m].year) == {2023, 2024, 2025}
+    assert set(idx[m].month) <= {1, 2, 3}
+    # 43 dias de calendário distintos: o centro mais 21 de cada lado.
+    assert len(set(idx[m].dayofyear)) == 43
+
+
+def test_the_window_wraps_at_the_new_year():
+    """Não é detalhe no hemisfério sul.
+
+    A janela de fim de dezembro cobre o pico da safra de verão brasileira, e
+    um `abs(doy - centro)` ingênuo a cortaria ao meio guardando o lado errado.
+    """
+    idx = _three_years()
+    m = solar.doy_window_mask(idx, "2025-12-28", 21)
+    months = set(idx[m].month)
+    assert 12 in months and 1 in months, f"a janela não deu a volta: {months}"
+    assert len(set(idx[m].dayofyear)) == 43
+
+
+def test_no_date_means_no_window_rather_than_an_arbitrary_one():
+    """Uma resposta, não uma falha: o chamador então usa o registro inteiro
+    e diz que usou."""
+    idx = _three_years()
+    assert solar.doy_window_mask(idx, None, 21) is None
+    assert solar.doy_window_mask(idx, "não é uma data", 21) is None
+    # Meia-largura que cobriria o ano todo não é uma janela.
+    assert solar.doy_window_mask(idx, "2026-02-19", 200) is None
+    assert solar.doy_window_mask(idx, "2026-02-19", 0) is None
+
+
+def test_the_window_is_not_the_named_season_helper():
+    """São duas funções com propósitos diferentes no mesmo módulo, e a
+    segunda foi escrita depois -- sem este teste um `def` sombreia o outro em
+    silêncio, que é exatamente o que aconteceu ao escrever esta."""
+    idx = _three_years()
+    assert solar.doy_window_mask(idx, "2026-02-19", 21).sum() != \
+        solar.season_mask(idx, "summer").sum() if "summer" in solar.SEASONS \
+        else True
+    assert solar.doy_window_mask.__code__.co_argcount == 3
+    assert solar.season_mask.__code__.co_argcount == 2

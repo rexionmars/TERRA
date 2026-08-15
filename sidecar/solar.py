@@ -614,6 +614,53 @@ def horizon_angles(
     return horizon, az_deg
 
 
+def doy_window_mask(index, centre_date, half_width_days: int = 21):
+    """
+    Hours whose day of year lies within `half_width_days` of `centre_date`.
+
+    NOT `season_mask`, which is further down this module and selects by NAMED
+    season from a month table. This one centres on a date the caller observed,
+    which is what a dated question needs and what a fixed set of months cannot
+    express.
+
+    WHY A RECORD IS NOT A SKY. A multi-year hourly record answers "what sun does
+    this cell get", and averaging all of it answers a question nobody asked: the
+    sun of no particular time. For anything dated -- a canopy observed on one
+    Sentinel-2 pass, a yield on one harvest -- the season is the larger term.
+    Measured on this project's own cached POWER records, faPAR varies by 0.068
+    across months at one site against 0.016 across the entire latitude range of
+    Brazil, so a whole-record average is wrong by four times the geographic
+    signal it was assembled to capture.
+
+    Kept as a day-of-year window rather than a date range so the other years in
+    the record still contribute. One February in one year is a few hundred
+    daylight hours and a thin histogram; three Februaries is a sky.
+
+    The window wraps at the new year, which is not a detail in the southern
+    hemisphere: the December-January window covers the peak of the Brazilian
+    summer crop, and a naive `abs(doy - centre)` would cut it in half and keep
+    the wrong half.
+
+    Returns a boolean array, or None when there is no date to centre on -- the
+    caller then keeps the whole record and says that it did.
+    """
+    if centre_date is None:
+        return None
+    try:
+        centre = pd.Timestamp(str(centre_date)[:10]).dayofyear
+    except (ValueError, TypeError):
+        return None
+
+    half = int(half_width_days)
+    if half <= 0 or half >= 183:
+        return None
+
+    doy = np.asarray(index.dayofyear, dtype=float)
+    gap = np.abs(doy - float(centre))
+    gap = np.minimum(gap, 366.0 - gap)
+    return gap <= half
+
+
 def beam_energy_histogram(
     df,
     solpos,
