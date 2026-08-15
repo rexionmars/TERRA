@@ -554,9 +554,24 @@ def analytic_check(canopy, step_frac=0.5, fixed_k=CROP_MODEL_K):
     development, not from LAI. Here the geometry is held and only leaf area
     scales, so the emergent k barely moves with LAI (0.58 to 0.57 over a
     tenfold range, in a soy row canopy). Producing the seasonal curve needs
-    architecture that grows, which is what ArchiCrop does and what the sidecar
-    cannot carry: it is conda-only, its light core is a compiled binary invoked
-    as a subprocess, and it is CeCILL-C.
+    architecture that grows.
+
+    THAT LAST CLAUSE USED TO SAY the sidecar could not carry such architecture,
+    since ArchiCrop is conda-only, invokes a compiled binary as a subprocess,
+    and is CeCILL-C. That remains true of ArchiCrop and is no longer true of
+    the sidecar: helios_grow.py grows architecture by species and age through
+    pyhelios3d, which is pip-installable and GPL-2. What is still absent is a
+    growth curve DRIVEN BY A CROP MODEL -- Helios grows to its own schedule,
+    not to a given LAI and height -- so the seasonal k of a stressed season is
+    still out of reach here, for a different reason than the one recorded
+    before.
+
+    Measured with that architecture, in studies/E-architecture-vs-slab of the
+    numerical-studies repository: at matched LAI, an ellipsoid overstates faPAR
+    by 35-48% and a row strip by 58-61%, against the explicit leaves. The
+    clumping index behind it is 0.40-0.56, so the same leaf area passes roughly
+    twice the light a random medium would. That is the same comparison the
+    44% above records, measured again rather than inherited.
 
     WHAT IT DOES SHOW is a second and independent failure of the same
     assumption: k is not constant across SUN ANGLE either. In that same soy
