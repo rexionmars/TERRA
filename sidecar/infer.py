@@ -1408,6 +1408,18 @@ def main():
         emit_progress(5, 'reading the vegetation index series')
 
         series = req.get('vi_series') or []
+        # The classification already knows what grows here, so the species is a
+        # consequence of the data rather than a field the reader fills from a
+        # default that has nothing to do with the AOI. It suggests and refuses:
+        # cane, coffee and eucalyptus have no plant in the library, and the
+        # catch-all crop classes do not identify one.
+        suggestion = None
+        if req.get('class_stats'):
+            try:
+                import crop_species
+                suggestion = crop_species.suggest(req['class_stats'])
+            except Exception as e:
+                suggestion = {'species': None, 'why': f'suggestion failed: {e}'}
         if len(series) < 3:
             fail('a canopy needs a vegetation-index series; this run carries '
                  f'{len(series)} observation(s), and three is the minimum the '
@@ -1415,7 +1427,10 @@ def main():
 
         dates = [str(p.get('date', '')) for p in series]
         ndvi = [float(p.get('ndvi_mean', 'nan')) for p in series]
-        species_name = req.get('species', 'sorghum')
+        # An explicit species wins: the suggestion is the classification's
+        # reading, and a reader who overrides it means to.
+        species_name = req.get('species') or (
+            (suggestion or {}).get('species') or 'sorghum')
 
         # Density from the sowing the reader set, which is how every other
         # canopy action states it. The ladder is per plant, so this is what
@@ -1517,6 +1532,19 @@ def main():
             'inter_row': inter_row,
             'inter_plant': inter_plant,
             'reachable_lai': lai_to_age.reachable_lai(species_name, density),
+            'species_suggestion': suggestion,
+            # HOW MUCH OF THIS AOI IS THE CROP, because the series is an area
+            # mean and a mean over mixed cover is not the crop's index.
+            #
+            # Measured on the soybean AOI this was built against: the peak
+            # reads 0.314 with a standard deviation of 0.190, which for a
+            # roughly even two-population mix puts the crop pixels near 0.50
+            # and everything else near 0.12. So the LAI below is an area mean
+            # and understates the crop by about that much. Reading the series
+            # over crop pixels only is the fix, and it belongs upstream in the
+            # index extraction rather than here.
+            'crop_fraction': (
+                None if not suggestion else suggestion.get('confidence')),
             'lai': inverted,
             'states': states,
             'phenology': phen.phenology_metrics(ndvi, dates),

@@ -61,15 +61,36 @@ def assign_states_from_ndvi(ndvi: np.ndarray) -> np.ndarray:
     slope = np.gradient(y)
     s_thr = 0.35 * np.std(slope) if np.std(slope) > 1e-6 else 0.01
 
+    """
+    LEVEL DECIDES BEFORE SLOPE AT THE TOP OF THE RANGE, and that ordering is the
+    whole of this fix.
+
+    Senescence used to be tested before maturity, which labels every peak as
+    senescing: a maximum is by definition the point where the derivative turns,
+    so the smoothed slope there is already negative while the value is still the
+    highest of the season. Measured on a real soybean AOI, the largest NDVI of
+    the year -- 0.3142, and the same date `phenology_metrics` independently
+    returns as POS -- came back "Senescence", while a lower reading months later
+    came back "Peak / mature". Two functions in this module disagreed about
+    where the season peaked.
+
+    A sample sitting at or above thr_high is mature whatever its slope is doing.
+    Falling is what a canopy does on the way down from mature, so senescence
+    still needs a negative slope, but it now only claims the samples that have
+    actually left the top.
+    """
     states = np.empty(t, dtype=np.int64)
     for i in range(t):
         v, s = y[i], slope[i]
-        if s > s_thr and v < thr_high:
+        if v >= thr_high:
+            states[i] = STATE_MATURE
+        # `v < thr_high` is implied by the branch above, so the original
+        # condition is unchanged here rather than merely equivalent: this fix
+        # moves one test and rewrites none of the others.
+        elif s > s_thr:
             states[i] = STATE_GREENUP
         elif s < -s_thr and v > thr_low:
             states[i] = STATE_SENESCENCE
-        elif v >= thr_high:
-            states[i] = STATE_MATURE
         elif v <= thr_low:
             states[i] = STATE_SOIL
         else:
