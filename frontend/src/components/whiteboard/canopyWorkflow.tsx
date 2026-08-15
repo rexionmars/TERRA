@@ -42,6 +42,7 @@ import {
 
 import { BuildCanopyFromAOI, BuildCanopyMesh } from "../../../wailsjs/go/main/App"
 import { readBoardMemory, writeBoardMemory } from "./boardMemory"
+import { sceneAzimuthFromCompass } from "./standScene"
 import {
   canopyAOICentre,
   MIN_AOI_OBSERVATIONS,
@@ -372,7 +373,33 @@ export function CanopyWorkflowProvider({
           ? { class_stats: source.result.class_stats }
           : {}),
       } as never)
-      setAoi(built as unknown as AOICanopy)
+      const read = built as unknown as AOICanopy
+      setAoi(read)
+      /*
+        THE STAND MOVES UNDER THE AREA'S OWN SUN.
+
+        `sun` above is a light control -- "light, not agronomy", as its type
+        says -- and until an area is read there is no sky to be faithful to, so
+        a studio default is the honest thing to draw. Once one is read there is:
+        the record puts the beam at elevation 56 degrees and due north in June
+        on this project's cell, against 80 degrees to the south in February, and
+        a picture that keeps pointing a fixed light at 50/35 through that is
+        drawing a sun the number beside it never saw.
+
+        Adopted on the read and not on every render, because a read is a button
+        a reader pressed. A reader who then moves the sun by hand keeps it: this
+        writes once per read, and `setSun` still owns the value afterwards.
+      */
+      const dir = read.sun?.direction
+      if (dir && Number.isFinite(dir.elevation_deg)) {
+        setSun({
+          elevation: dir.elevation_deg,
+          azimuth: sceneAzimuthFromCompass(
+            dir.azimuth_deg,
+            read.light?.row_azimuth_deg ?? 0
+          ),
+        })
+      }
       setReadFor(readRequest)
       setReadError(null)
     } catch (e) {

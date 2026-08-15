@@ -133,7 +133,52 @@
    "diffuse_share": 0.4465633233917987,
    "window_days": 21,
    "window_centre": "2026-02-19",
-   "n_hours": 3096
+   "n_hours": 3096,
+   "direction": {
+    "azimuth_deg": 170.0240298795994,
+    "elevation_deg": 79.85471048017578,
+    "concentration": 0.7696570364354653
+   },
+   "clearness": 0.7430712848877914,
+   "track_date": "2025-02-19",
+   "track": [
+    {
+     "hour_utc": 9,
+     "azimuth_deg": 100.66431458652664,
+     "elevation_deg": 7.405860602335977,
+     "dni": 80.42,
+     "dhi": 49.22,
+     "ghi": 61.35,
+     "clearness": 0.8895171813832101
+    },
+    {
+     "hour_utc": 10,
+     "azimuth_deg": 100.17593679895487,
+     "elevation_deg": 22.03885341570772,
+     "dni": 329.49,
+     "dhi": 125.28,
+     "ghi": 246.85,
+     "clearness": 0.8140148392415498
+    },
+    {
+     "hour_utc": 11,
+     "azimuth_deg": 100.49272188893661,
+     "elevation_deg": 36.73669597451611,
+     "dni": 557.76,
+     "dhi": 149.33,
+     "ghi": 429.05,
+     "clearness": 0.7785620962473687
+    },
+    {
+     "hour_utc": 12,
+     "azimuth_deg": 102.14420211997583,
+     "elevation_deg": 51.40061948532983,
+     "dni": 463.38,
+     "dhi": 245.77,
+     "ghi": 637.65,
+     "clearness": 0.8332571055210715
+    }
+   ]
   },
   "light": {
    "fapar": 0.21281280272419,

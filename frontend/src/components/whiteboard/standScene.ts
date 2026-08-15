@@ -43,18 +43,48 @@ import {
   Mesh,
   MeshLambertMaterial,
   MOUSE,
+  PCFSoftShadowMap,
   PerspectiveCamera,
+  PlaneGeometry,
   Scene,
+  ShadowMaterial,
+  Sphere,
   Vector3,
   WebGLRenderer,
 } from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 
-/** The sun as the surface states it, in degrees. */
+/**
+ * The sky the stand stands under, as the AOI's own record measured it.
+ *
+ * WHY THE BALANCE AND NOT THE BRIGHTNESS. A canopy under a clear sky is lit
+ * mostly by a beam from one direction and throws hard shadows; under an
+ * overcast one the same canopy is lit from the whole hemisphere and throws
+ * almost none. That is not a mood, it is the term the march weights by, and it
+ * moves between seasons on one site: the cell this was developed against runs
+ * a diffuse share of 0.293 in June against 0.447 in February.
+ *
+ * So `diffuseShare` splits the two lights the scene already has and leaves the
+ * total roughly where it was -- the picture changes character, not exposure.
+ * `clearness` is global over clear-sky, 1 being cloudless, and drives the haze
+ * instead of the intensity, because the two are correlated and scaling both by
+ * cloud would count it twice.
+ *
+ * Both optional. Absent, the scene keeps the fixed studio lighting it had, and
+ * that is the right default for the drawn stand, which stands under no sky at
+ * all until an area is read.
+ */
+export interface StandSky {
+  diffuseShare?: number
+  clearness?: number
+}
+
+/** The sun as the surface states it, in degrees, plus the sky it sits in. */
 export interface StandView {
   elevation: number
   azimuth: number
+  sky?: StandSky
 }
 
 export interface StandHandle {
@@ -86,6 +116,33 @@ function tokenColor(host: HTMLElement, name: string): Color {
   return Number.isFinite(r) ? new Color(r, g, b) : new Color(0.1, 0.1, 0.1)
 }
 
+/**
+ * A solar compass bearing, in the scene's own frame.
+ *
+ * TWO CONVENTIONS MEET HERE AND NEITHER IS WRONG, which is the same joint
+ * `canopy_field._canopy_azimuth` documents on the sidecar side, and this
+ * mirrors its arithmetic on purpose so the picture and the number are lit by
+ * one sun. Solar azimuth is clockwise from north; the scene measures
+ * anticlockwise from its own +x, because a stand has no north -- it has a
+ * module with two axes.
+ *
+ * What joins them is the direction the rows run, which is agronomy and not
+ * convention. `rowAzimuthDeg` is that bearing, so the sun's bearing relative to
+ * the rows is the difference, and the sign flips because one convention turns
+ * the other way.
+ *
+ * THE ASSUMPTION THIS CARRIES, stated because it is not verifiable from here:
+ * that the loaded mesh has its rows along the scene's +x. The sidecar builds
+ * the stand that way and the march reads it that way; a mesh built otherwise
+ * would need its own offset, and the shadows would point plausibly and wrongly.
+ */
+export function sceneAzimuthFromCompass(
+  compassDeg: number,
+  rowAzimuthDeg = 0
+): number {
+  return 90 - (compassDeg - rowAzimuthDeg)
+}
+
 /** Sun direction from elevation and azimuth in degrees, in three's frame. */
 function sunVector(elevationDeg: number, azimuthDeg: number): Vector3 {
   const e = (elevationDeg * Math.PI) / 180
@@ -110,6 +167,23 @@ export function createStandScene(
   // Not capped as hard as the march is: this is geometry-bound rather than
   // fill-rate bound, and leaf edges are exactly what a reader is looking at.
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  /*
+    SHADOWS, because without them this view cannot show the one thing the
+    simulation exists to measure.
+
+    The march's whole subject is that leaves shade other leaves: explicit
+    geometry intercepts 35 to 61 percent less than the coarse shapes a crop
+    model uses at the same leaf area, and the clumping index that gap implies
+    runs 0.40 to 0.56. A scene with shadowMap disabled draws every leaf as
+    though it stood alone, so the picture flatly contradicts the number printed
+    beside it -- and reads as correct, which is worse than reading as broken.
+
+    Soft rather than hard: the sky term is a third to a half of the light on a
+    Brazilian day, and a hard-edged shadow under a canopy is a claim about a
+    beam-only sky nobody has here.
+  */
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = PCFSoftShadowMap
   host.appendChild(renderer.domElement)
 
   const scene = new Scene()
@@ -122,11 +196,35 @@ export function createStandScene(
   // Bindings are set below, beside the modifier that completes them.
 
   const sun = new DirectionalLight(0xffffff, 2.1)
+  sun.castShadow = true
+  sun.shadow.mapSize.set(2048, 2048)
+  // A stand is centimetres of detail across a couple of metres, so the default
+  // bias leaves acne on every leaf. Negative normalBias pulls the comparison
+  // off the surface along its own normal, which is what thin double-sided
+  // geometry needs; the plain bias stays small because a large one detaches
+  // the shadow from the stem that casts it.
+  sun.shadow.bias = -0.0005
+  sun.shadow.normalBias = 0.02
   const sky = new HemisphereLight(0xbcd6ff, 0x6b5a3e, 1.15)
+
+  /*
+    The intensities the two lights carry when the sky is not stated.
+
+    Derived so that the studio default -- the fixed 2.1 and 1.15 this scene has
+    always used -- is what a diffuse share of 0.33 produces, which is roughly
+    the annual figure for the cell this was developed against. So an unread
+    stand looks exactly as it did, and a read one moves away from that in the
+    direction its own record says.
+  */
+  const BEAM_FULL = 2.1 / (1 - 0.33)
+  const SKY_FULL = 1.15 / 0.33
   // A floor of ambient so the undersides of leaves are not black. Deep shade in
   // a real canopy is dim, not absent, and a black underside reads as a hole.
   const fill = new AmbientLight(0xffffff, 0.35)
-  scene.add(sun, sky, fill)
+  // The target too: a DirectionalLight aims at its target's world position,
+  // and a target outside the graph never gets one, so the shadow camera would
+  // look at the origin however the stand was framed.
+  scene.add(sun, sky, fill, sun.target)
 
   let stand: Group | null = null
   const loader = new GLTFLoader()
@@ -159,6 +257,12 @@ export function createStandScene(
   // The radius of the stand's bounding sphere, kept from the last framing so
   // the fog can start just past it.
   let fitRadius = 0
+  // Global over clear-sky for the read area, or null for the studio default.
+  let skyClearness: number | null = null
+  // The surface the stand's shadow falls on. The grid is lines and catches
+  // nothing, so without this the plants shade each other and stand on nothing,
+  // which reads as a stand floating over its own floor.
+  let catcher: Mesh | null = null
 
   const disposeGrid = () => {
     if (!grid) return
@@ -168,6 +272,16 @@ export function createStandScene(
     if (Array.isArray(m)) m.forEach((x) => x.dispose())
     else m?.dispose()
     grid = null
+  }
+
+  const disposeCatcher = () => {
+    if (!catcher) return
+    scene.remove(catcher)
+    catcher.geometry.dispose()
+    const m = catcher.material
+    if (Array.isArray(m)) m.forEach((x) => x.dispose())
+    else m?.dispose()
+    catcher = null
   }
 
   const addGround = (box: Box3) => {
@@ -190,6 +304,44 @@ export function createStandScene(
     scene.add(g)
     grid = g
     gridSpan = span
+
+    // ShadowMaterial draws nothing except where it is shadowed, so the floor
+    // stays the grid over the panel's own background and gains only the shade.
+    disposeCatcher()
+    const plane = new Mesh(
+      new PlaneGeometry(span, span),
+      new ShadowMaterial({ opacity: 0.32 })
+    )
+    plane.rotation.x = -Math.PI / 2
+    // Just under the grid, for the reason the grid sits just under the stems:
+    // two coplanar surfaces z-fight, and the artefact moves with the camera.
+    plane.position.set(centre.x, box.min.y - 0.002, centre.z)
+    plane.receiveShadow = true
+    scene.add(plane)
+    catcher = plane
+
+    /*
+      The shadow camera, fitted to the stand.
+
+      A DirectionalLight shadows through an orthographic camera whose default
+      frustum is 10 units across and 500 deep. A stand is a metre or two, so the
+      default spends its whole 2048 map on mostly empty space and the leaves
+      come out as steps. Fitted to the bounding sphere the same map lands on the
+      plants, which is where the shading being drawn actually happens.
+
+      Padded by half, so a sun near the horizon -- which is when the shadows are
+      longest and most worth seeing -- does not push them out of the frustum.
+    */
+    const radius = box.getBoundingSphere(new Sphere()).radius || 1
+    const half = radius * 1.5
+    const cam = sun.shadow.camera
+    cam.left = -half
+    cam.right = half
+    cam.top = half
+    cam.bottom = -half
+    cam.near = 0.1
+    cam.far = 200
+    cam.updateProjectionMatrix()
   }
 
   const updateFog = () => {
@@ -199,7 +351,21 @@ export function createStandScene(
     // whatever distance the reader has orbited to.
     const d = camera.position.distanceTo(controls.target)
     fog.near = d + fitRadius * 1.2
-    fog.far = d + gridSpan * 0.5
+    /*
+      Cloud thickens the haze, and this is where clearness is spent rather than
+      on the light intensities.
+
+      Cloud and diffuse share are the same phenomenon measured twice -- an
+      overcast hour is both dimmer in the beam and more diffuse -- so scaling
+      the lights by one and the balance by the other would count it twice and
+      darken an overcast scene that is, in life, evenly bright. Depth of haze is
+      the free axis, and it is the one a reader actually reads as weather.
+
+      Clamped rather than trusted: a clearness above 1 is possible on an hour
+      with cloud brightening, and it would push the near plane past the far one.
+    */
+    const k = skyClearness == null ? 1 : Math.min(Math.max(skyClearness, 0.2), 1)
+    fog.far = d + gridSpan * 0.5 * k
   }
 
   /*
@@ -413,6 +579,22 @@ export function createStandScene(
     // read. Kept well outside the stand so the helper, if ever added, is not
     // inside the plants.
     sun.position.copy(d).multiplyScalar(50)
+    // The shadow camera looks from the light at the stand, so its target has to
+    // travel with the stand rather than sit at the origin.
+    sun.target.position.copy(controls.target)
+    sun.target.updateMatrixWorld()
+
+    const share = view.sky?.diffuseShare
+    if (share != null && Number.isFinite(share)) {
+      const d0 = Math.min(Math.max(share, 0), 1)
+      sun.intensity = BEAM_FULL * (1 - d0)
+      sky.intensity = SKY_FULL * d0
+    } else {
+      sun.intensity = BEAM_FULL * (1 - 0.33)
+      sky.intensity = SKY_FULL * 0.33
+    }
+    skyClearness = view.sky?.clearness ?? null
+    updateFog()
   }
   applyView(opts.view)
 
@@ -472,6 +654,11 @@ export function createStandScene(
 
       group.traverse((o) => {
         if (!(o instanceof Mesh)) return
+        // Both, and not only cast: the subject of this whole view is leaves
+        // shading OTHER leaves, so a plant that casts without receiving
+        // draws a canopy whose interior is as bright as its top.
+        o.castShadow = true
+        o.receiveShadow = true
         // The organ name is on the mesh: the bridge writes one node per organ
         // and names it, and three carries that name onto the object it builds.
         // Falling back to `other` rather than skipping, so an organ this file

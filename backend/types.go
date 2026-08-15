@@ -426,12 +426,12 @@ type PredictResult struct {
 	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
 	// approaches zero. Without it the figure reads on a 0-100 scale it does
 	// not occupy. Zero when the class count was unavailable.
-	ConfidenceFloor float64               `json:"confidence_floor,omitempty"`
-	NDates          int                   `json:"n_dates"`
-	DateRange       []string              `json:"date_range"`
-	ClassStats      []ClassStat           `json:"class_stats"`
-	Temporal        []TemporalPoint       `json:"temporal"`
-	VISeries        []VISeriesPoint       `json:"vi_series"`
+	ConfidenceFloor float64         `json:"confidence_floor,omitempty"`
+	NDates          int             `json:"n_dates"`
+	DateRange       []string        `json:"date_range"`
+	ClassStats      []ClassStat     `json:"class_stats"`
+	Temporal        []TemporalPoint `json:"temporal"`
+	VISeries        []VISeriesPoint `json:"vi_series"`
 	// The same dates averaged over CROP PIXELS ONLY, alongside the AOI-wide
 	// series rather than replacing it: the series above is what every export
 	// and figure already carries, and narrowing it in place would move numbers
@@ -449,7 +449,7 @@ type PredictResult struct {
 	VISeriesCrop []VISeriesPoint `json:"vi_series_crop,omitempty"`
 	// The crop share of the AOI, as a percentage. The denominator that says how
 	// much of the area mean above is actually the crop.
-	CropPixelPct float64 `json:"crop_pixel_pct,omitempty"`
+	CropPixelPct    float64               `json:"crop_pixel_pct,omitempty"`
 	Phenology       PhenologyMetrics      `json:"phenology"`
 	PhenologyStates []PhenologyStatePoint `json:"phenology_states"`
 	LULC            *LULCAnalysis         `json:"lulc,omitempty"`
@@ -2186,8 +2186,52 @@ type CanopySun struct {
 	// One series and not the daily/hourly pair PowerProvenance carries: this
 	// action reads the hourly record only.
 	Provenance *PowerSeriesProvenance `json:"provenance,omitempty"`
+	// THE SUN AS SOMETHING THAT CAN BE DRAWN, not only summed. Everything above
+	// describes the sky as totals and bin counts, which a march consumes and a
+	// viewer cannot; a scene handed only those has to invent a light, and the
+	// picture then shows a sun that had nothing to do with the number beside it.
+	Direction *SunDirection `json:"direction,omitempty"`
+	// Global irradiance over its clear-sky reference across the window: 1.0 is
+	// a cloudless record and the shortfall is cloud. Measured on the cell this
+	// was developed against, a 21-day window runs 0.743 in February against
+	// 0.927 in October -- the same site, two visibly different skies. Absent
+	// when the record predates the clear-sky parameter.
+	Clearness *float64 `json:"clearness,omitempty"`
+	// One real day of the window, hour by hour, for a viewer that moves the sun
+	// rather than fixing it.
+	TrackDate string    `json:"track_date,omitempty"`
+	Track     []SunHour `json:"track,omitempty"`
 	// Why the reference suns were used instead, when they were.
 	Why string `json:"why,omitempty"`
+}
+
+// SunDirection is the beam-energy-weighted mean direction, so a scene lit from
+// it is lit by the same sun the faPAR came from. It is NOT solar noon and must
+// not be captioned as such: it leans toward the hours that carried the energy.
+//
+// Concentration says how far a single direction represents the record at all.
+// Near 1 the beam effectively arrived from one place; low means the energy was
+// spread across the sky and one direction is a poor summary of it.
+type SunDirection struct {
+	AzimuthDeg    float64 `json:"azimuth_deg"`
+	ElevationDeg  float64 `json:"elevation_deg"`
+	Concentration float64 `json:"concentration"`
+}
+
+// SunHour is one hour of the representative day.
+//
+// HourUTC is named for its standard because assuming local places the sun three
+// hours wrong for a Brazilian AOI: solar noon lands at 15h UTC on this
+// project's own cell. A renderer should drive itself from azimuth and elevation
+// and treat the hour as a caption.
+type SunHour struct {
+	HourUTC      int      `json:"hour_utc"`
+	AzimuthDeg   float64  `json:"azimuth_deg"`
+	ElevationDeg float64  `json:"elevation_deg"`
+	DNI          float64  `json:"dni"`
+	DHI          float64  `json:"dhi"`
+	GHI          float64  `json:"ghi"`
+	Clearness    *float64 `json:"clearness,omitempty"`
 }
 
 // CanopyLight is the canopy marched under that sun. FixedKErrorPct is the
@@ -2238,12 +2282,12 @@ No data buys this away. It is the model's own variance and can only be sampled,
 so the honest form of the same computation is a band.
 */
 type CanopyEnsemble struct {
-	N            int     `json:"n"`
-	FaPARMin     float64 `json:"fapar_min"`
-	FaPARMax     float64 `json:"fapar_max"`
-	FaPARSpread  float64 `json:"fapar_spread"`
-	CoverMin     float64 `json:"cover_min"`
-	CoverMax     float64 `json:"cover_max"`
+	N           int     `json:"n"`
+	FaPARMin    float64 `json:"fapar_min"`
+	FaPARMax    float64 `json:"fapar_max"`
+	FaPARSpread float64 `json:"fapar_spread"`
+	CoverMin    float64 `json:"cover_min"`
+	CoverMax    float64 `json:"cover_max"`
 	// In faPAR order, so the ends of the band can be reproduced.
 	Seeds []int `json:"seeds"`
 }

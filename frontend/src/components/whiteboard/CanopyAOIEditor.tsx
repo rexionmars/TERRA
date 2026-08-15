@@ -134,6 +134,43 @@ export interface AOICanopy {
     cell?: number[]
     years?: number
     diffuse_share?: number
+    /**
+     * The beam-energy-weighted mean direction of the sun over the window read.
+     *
+     * NOT solar noon, and it must not be captioned as such: it leans toward the
+     * hours that carried the energy. It is, though, the one direction that
+     * represents what the march integrated, so a scene lit from it is lit by
+     * the same sun the faPAR beside it came from.
+     *
+     * Azimuth is a compass bearing, clockwise from north. A viewer in the
+     * stand's own frame has to convert -- `sceneAzimuthFromCompass` in
+     * standScene does it, mirroring the sidecar's `_canopy_azimuth`.
+     */
+    direction?: {
+      azimuth_deg: number
+      elevation_deg: number
+      /** Near 1 the beam came from one place; low means one direction is a
+       *  poor summary of where the energy actually arrived from. */
+      concentration: number
+    }
+    /** Global over clear-sky across the window: 1 is cloudless. */
+    clearness?: number
+    /** Half-width in days of the day-of-year window, and its centre. Absent
+     *  when the whole record answered because no date resolved to an age. */
+    window_days?: number
+    window_centre?: string
+    n_hours?: number
+    /** One real day of the window, hour by hour. Hours are UTC. */
+    track_date?: string
+    track?: Array<{
+      hour_utc: number
+      azimuth_deg: number
+      elevation_deg: number
+      dni: number
+      dhi: number
+      ghi: number
+      clearness?: number
+    }>
     why?: string
   }
   light?: AOILight

@@ -148,10 +148,29 @@ function StandPanel() {
 
   const elevation = w?.sun.elevation
   const azimuth = w?.sun.azimuth
+  /*
+    The sky the read area actually stood under, when one has been read.
+
+    Not decoration and not a mood: the diffuse share is a term the march weights
+    by, and it moves 0.293 in June against 0.447 in February on one cell. Under
+    the first the stand throws hard shadows from a low northern sun; under the
+    second it is lit from most of the hemisphere and throws almost none. Both
+    pictures are of the same plants, and only one of them describes the number
+    printed beside it.
+
+    Undefined until an area is read, and the scene keeps its studio lighting for
+    exactly that case -- a drawn stand stands under no sky at all.
+  */
+  const diffuseShare = w?.aoi?.sun?.diffuse_share
+  const clearness = w?.aoi?.sun?.clearness
   useEffect(() => {
     if (elevation == null || azimuth == null) return
-    sceneRef.current?.setView({ elevation, azimuth })
-  }, [elevation, azimuth])
+    sceneRef.current?.setView({
+      elevation,
+      azimuth,
+      sky: { diffuseShare, clearness },
+    })
+  }, [elevation, azimuth, diffuseShare, clearness])
 
   /*
     The mesh the workflow last grew, loaded into this panel's scene.

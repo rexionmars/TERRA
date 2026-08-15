@@ -458,6 +458,46 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class SunHour {
+	    hour_utc: number;
+	    azimuth_deg: number;
+	    elevation_deg: number;
+	    dni: number;
+	    dhi: number;
+	    ghi: number;
+	    clearness?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SunHour(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hour_utc = source["hour_utc"];
+	        this.azimuth_deg = source["azimuth_deg"];
+	        this.elevation_deg = source["elevation_deg"];
+	        this.dni = source["dni"];
+	        this.dhi = source["dhi"];
+	        this.ghi = source["ghi"];
+	        this.clearness = source["clearness"];
+	    }
+	}
+	export class SunDirection {
+	    azimuth_deg: number;
+	    elevation_deg: number;
+	    concentration: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SunDirection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.azimuth_deg = source["azimuth_deg"];
+	        this.elevation_deg = source["elevation_deg"];
+	        this.concentration = source["concentration"];
+	    }
+	}
 	export class PowerSeriesProvenance {
 	    source: string;
 	    fetched_utc?: string;
@@ -494,6 +534,10 @@ export namespace backend {
 	    window_centre?: string;
 	    n_hours?: number;
 	    provenance?: PowerSeriesProvenance;
+	    direction?: SunDirection;
+	    clearness?: number;
+	    track_date?: string;
+	    track?: SunHour[];
 	    why?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -513,6 +557,10 @@ export namespace backend {
 	        this.window_centre = source["window_centre"];
 	        this.n_hours = source["n_hours"];
 	        this.provenance = this.convertValues(source["provenance"], PowerSeriesProvenance);
+	        this.direction = this.convertValues(source["direction"], SunDirection);
+	        this.clearness = source["clearness"];
+	        this.track_date = source["track_date"];
+	        this.track = this.convertValues(source["track"], SunHour);
 	        this.why = source["why"];
 	    }
 	
@@ -4985,6 +5033,8 @@ export namespace backend {
 		    return a;
 		}
 	}
+	
+	
 	
 	
 	

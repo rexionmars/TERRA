@@ -175,10 +175,23 @@ func TestNoSidecarKeyIsSilentlyDropped(t *testing.T) {
 			}
 		}
 		// One level further, for the nested blocks that were themselves added
-		// to carry things that used to be lost.
-		for _, nested := range []string{"ensemble", "provenance"} {
-			sub, ok := inner[nested].(map[string]any)
-			if !ok {
+		// to carry things that used to be lost. Arrays are checked through
+		// their first element: jsonTags follows a slice to its element type,
+		// so the object inside is compared against the type that receives it.
+		for _, nested := range []string{
+			"ensemble", "provenance", "direction", "track",
+		} {
+			var sub map[string]any
+			switch v := inner[nested].(type) {
+			case map[string]any:
+				sub = v
+			case []any:
+				if len(v) == 0 {
+					continue
+				}
+				sub, _ = v[0].(map[string]any)
+			}
+			if sub == nil {
 				continue
 			}
 			subFields := jsonTags(fields[nested])
