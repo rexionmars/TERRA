@@ -465,6 +465,7 @@ export namespace backend {
 	    dni: number;
 	    dhi: number;
 	    ghi: number;
+	    diffuse_share?: number;
 	    clearness?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -479,6 +480,7 @@ export namespace backend {
 	        this.dni = source["dni"];
 	        this.dhi = source["dhi"];
 	        this.ghi = source["ghi"];
+	        this.diffuse_share = source["diffuse_share"];
 	        this.clearness = source["clearness"];
 	    }
 	}

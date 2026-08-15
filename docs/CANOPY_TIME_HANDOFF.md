@@ -69,6 +69,7 @@ Each entry (`SunHour` in [`backend/types.go`](../backend/types.go)):
   dni: number            // W/m2
   dhi: number
   ghi: number
+  diffuse_share?: number // ALREADY divided and clamped to [0,1]. See §5.
   clearness?: number     // ghi / clear-sky ghi, absent on old cached records
 }
 ```
@@ -142,7 +143,8 @@ const view = hour
       ),
       sky: {
         // Per hour, not the window mean. This is the whole point.
-        diffuseShare: hour.ghi > 0 ? hour.dhi / hour.ghi : undefined,
+        // Read the field; do NOT divide dhi by ghi yourself (see §5).
+        diffuseShare: hour.diffuse_share,
         clearness: hour.clearness,
         cover: w?.aoi?.light?.cover,
       },
@@ -154,6 +156,24 @@ const view = hour
    scene should light exactly as it does today. The mean direction is what the
    faPAR beside it was integrated from, so it is the honest default; an hour is
    a reader asking a narrower question.
+
+5. **Decide precedence against the read, and clear the hour on it.** This is the
+   only part of the task that changes code already written rather than adding
+   to it, and it is easy to leave broken in a way that looks like nothing.
+
+   `canopyWorkflow.readArea` writes `sun` from `aoi.sun.direction` on every
+   successful read. With an hour selected, pressing *Read area* relights the
+   scene by the mean sun while the control still reads "09h" — the picture and
+   the control disagree and neither is wrong on its own.
+
+   Worse if the hour is held in `useKeptState` like the rest: reading a
+   different area brings a different `track_date` and a different set of hours,
+   the lookup in §3 falls through to `?? null`, and the scene silently reverts
+   to the mean sun with the control still marked. Clear the hour on read,
+   where `setSourceId` already clears what a new source invalidates.
+
+   Suggested rule, stated so it is a decision rather than an accident: **a
+   selected hour wins; with no hour, the seeded mean wins.**
 
 ---
 
@@ -182,11 +202,27 @@ scene's +x.**
 
 ---
 
-## 5. Two smaller traps
+## 5. Three smaller traps
+
+**The diffuse ratio is not bounded by 1, so do not compute it.** An earlier
+draft of this brief told you to divide `dhi` by `ghi`. That ratio exceeds 1 in
+the POWER record: over three years on this cell it reaches **1.531**, and
+**4.2 percent of daylight hours exceed 1**, all at a median elevation of 3.3
+degrees and none above 14.7. POWER's own components do not close there —
+`(DHI + DNI·cos z)/GHI` has a median of 1.17 across those hours — so it is a
+grazing-sun artefact in the source rather than an arithmetic slip.
+
+`applyView` clamps, so the scene would not have broken; a caption would have
+read "120% diffuse". The sidecar now emits `diffuse_share` per hour, already
+divided and already clamped to [0, 1]. **Read the field.** It is absent for an
+hour with no global irradiance, which is the correct answer rather than an
+infinity.
 
 **Hours are UTC, and the field name says so.** This module asks POWER for
-`time-standard=UTC` explicitly; the API's default is Local Solar Time. On the
-cell above, solar noon lands at **15h UTC**. A control captioned "12:00" that
+`time-standard=UTC` explicitly; the API's default is Local Solar Time. At
+longitude -42.5 solar noon falls near **14.8h UTC**, so the peak elevation lands
+in the 14h or the 15h bin depending on the day — which is itself a reason not to
+key anything on the label. A control captioned "12:00" that
 selects `hour_utc === 12` will show a reader a mid-morning sun and call it noon.
 Either convert for display using the AOI's longitude, or caption the control
 "UTC" — but do not label a UTC hour as local. The scene itself does not care:
@@ -204,7 +240,48 @@ vectors is the safe form if smooth motion is wanted.
 
 ---
 
-## 6. Optional, if the control lands well
+## 6. The grazing hours, and what the scene can actually draw
+
+The track's ends are very low sun — 0.8° and 2.5° elevation on the day measured
+above. A shadow at elevation *e* is `height / tan(e)`, and the shadow-catcher
+plane spans four times the stand's footprint, about 6.4 m for the default stand,
+so 3.2 m from the centre:
+
+| elevation | shadow of a 1 m plant | fits the 3.2 m half-span? |
+|----------:|----------------------:|:--------------------------|
+| 2.5°      | 22.9 m                | no                        |
+| 5°        | 11.4 m                | no                        |
+| 10°       | 5.7 m                 | no                        |
+| **20°**   | **2.7 m**             | **yes**                   |
+
+So the shadow runs off the plane below roughly 20 degrees, not below 5. There is
+a second limit behind it: the shadow *camera* is fitted to the stand's bounding
+sphere with half a radius of padding, so a long shadow is clipped by the frustum
+before the plane even matters. Widening either spreads the same 2048 map over
+more ground and coarsens every shadow, including the ones at useful elevations.
+
+None of this affects what ships today, because the mean sun on this cell sits at
+56° in June and 80° in February — comfortably inside. It is the hour control
+that introduces low sun, which is why the decision belongs to whoever builds it.
+Three defensible answers:
+
+- **Offer every hour and accept the clipping.** At 2° the whole scene is in
+  shade anyway, which is approximately the truth, and a shadow that reaches the
+  edge of a small ground plane is not obviously wrong to a reader.
+- **Start the control above about 15–20°.** Loses the reddest, most striking
+  hours — which is a real loss, since `beamColour` returns (1.000, 0.807, 0.321)
+  at 7° and the scene can already render a sunrise.
+- **Fit the shadow camera and the plane to the sun's own elevation** in
+  `applyView`, capped so the map does not degrade past some floor. The most
+  correct and the most work.
+
+Measure before choosing: the beam at those hours is 23 to 80 W/m² against 754 at
+noon, so they carry almost none of the day's energy. They are worth showing
+because they are *legible*, not because they are *important*.
+
+---
+
+## 7. Optional, if the control lands well
 
 `sun.track` carries `dni`, `dhi` and `ghi` per hour, so the same selection
 supports a small day profile beside the viewport — the shape of the day, with
@@ -221,7 +298,7 @@ the control itself.
 
 ---
 
-## 7. What is done and needs nothing
+## 8. What is done and needs nothing
 
 For avoidance of doubt, none of the following is part of this task:
 

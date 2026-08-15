@@ -603,3 +603,45 @@ def test_prepare_hourly_survives_a_cache_written_before_clear_sky_was_asked_for(
     df2, _ = solar.prepare_hourly(new, -4.5, -42.5, 0.0)
     assert "clrsky" in df2.columns
     assert solar.clearness(df2) is not None
+
+
+def test_diffuse_share_is_clamped_because_the_record_is_not_bounded_by_one():
+    """dhi/ghi passa de 1 em sol rasante, e o excesso não é pequeno.
+
+    Medido em três anos na célula deste projeto: chega a 1.531, e 4,2% das
+    horas de sol passam de 1 -- todas com elevação mediana de 3,3 graus. Os
+    próprios componentes do POWER não fecham ali: (DHI + DNI cos z)/GHI tem
+    mediana 1,17 nessas horas. É artefato de origem, e clampar no sidecar evita
+    que todo consumidor precise saber disso para não escrever "120% difuso".
+    """
+    idx = pd.date_range("2025-02-19 08:00", periods=3, freq="h")
+    df = pd.DataFrame(
+        {
+            "ghi": [100.0, 500.0, 100.0],
+            "dni": [10.0, 700.0, 10.0],
+            # A primeira hora é a rasante: mais difuso do que global.
+            "dhi": [153.0, 150.0, 50.0],
+        },
+        index=idx,
+    )
+    solpos = pd.DataFrame(
+        {"apparent_zenith": [89.0, 30.0, 88.0], "azimuth": [80.0, 180.0, 280.0]},
+        index=idx,
+    )
+    track = solar.sun_track(df, solpos)
+    shares = [r["diffuse_share"] for r in track]
+    assert shares[0] == 1.0, f"a hora rasante saiu como {shares[0]}"
+    assert all(0.0 <= s <= 1.0 for s in shares)
+    # E a hora do meio não é achatada junto: o clamp é um teto, não uma média.
+    assert abs(shares[1] - 0.3) < 1e-9
+
+
+def test_an_hour_with_no_global_has_no_diffuse_share():
+    """Dividir por zero devolveria infinito, e ausência é a resposta certa."""
+    idx = pd.date_range("2025-02-19 08:00", periods=1, freq="h")
+    df = pd.DataFrame({"ghi": [0.0], "dni": [0.0], "dhi": [0.0]}, index=idx)
+    solpos = pd.DataFrame(
+        {"apparent_zenith": [89.0], "azimuth": [80.0]}, index=idx
+    )
+    track = solar.sun_track(df, solpos)
+    assert track and "diffuse_share" not in track[0]

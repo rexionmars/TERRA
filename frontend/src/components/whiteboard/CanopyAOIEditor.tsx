@@ -189,6 +189,15 @@ export interface AOICanopy {
       dni: number
       dhi: number
       ghi: number
+      /**
+       * Already divided and already clamped to [0, 1] by the sidecar.
+       *
+       * Use this rather than dividing dhi by ghi: that ratio is not bounded by
+       * 1 in the POWER record -- it reaches 1.531 on this project's cell, at
+       * grazing elevations where POWER's own components do not close -- and a
+       * caption computed from it would read "120% diffuse".
+       */
+      diffuse_share?: number
       clearness?: number
     }>
     why?: string

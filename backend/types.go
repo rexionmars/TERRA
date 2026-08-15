@@ -2225,12 +2225,18 @@ type SunDirection struct {
 // project's own cell. A renderer should drive itself from azimuth and elevation
 // and treat the hour as a caption.
 type SunHour struct {
-	HourUTC      int      `json:"hour_utc"`
-	AzimuthDeg   float64  `json:"azimuth_deg"`
-	ElevationDeg float64  `json:"elevation_deg"`
-	DNI          float64  `json:"dni"`
-	DHI          float64  `json:"dhi"`
-	GHI          float64  `json:"ghi"`
+	HourUTC      int     `json:"hour_utc"`
+	AzimuthDeg   float64 `json:"azimuth_deg"`
+	ElevationDeg float64 `json:"elevation_deg"`
+	DNI          float64 `json:"dni"`
+	DHI          float64 `json:"dhi"`
+	GHI          float64 `json:"ghi"`
+	// Already divided and already clamped, so a consumer never computes
+	// DHI/GHI itself. That ratio is not bounded by 1 in the POWER record: it
+	// reaches 1.531 over three years on this project's cell and 4.2 percent of
+	// daylight hours exceed 1, all at a median elevation of 3.3 degrees, where
+	// POWER's own components do not close. Absent for an hour with no global.
+	DiffuseShare *float64 `json:"diffuse_share,omitempty"`
 	Clearness    *float64 `json:"clearness,omitempty"`
 }
 

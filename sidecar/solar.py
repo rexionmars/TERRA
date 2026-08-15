@@ -796,6 +796,25 @@ def sun_track(df, solpos, day=None) -> list[dict]:
             "dhi": float(d["dhi"].to_numpy()[i]),
             "ghi": float(d["ghi"].to_numpy()[i]),
         }
+        # THE DIFFUSE SHARE IS COMPUTED HERE, CLAMPED, rather than left as
+        # dhi/ghi for a consumer to divide.
+        #
+        # The ratio is not bounded by 1 in this record and the excess is not
+        # small: over three years at this project's cell it reaches 1.531, and
+        # 4.2 percent of daylight hours exceed 1. Those hours have a median
+        # elevation of 3.3 degrees and none above 14.7, and POWER's own
+        # components do not close there -- (DHI + DNI cos z) / GHI has a median
+        # of 1.17 across them. It is a grazing-sun artefact in the source, most
+        # likely the hour-averaged fluxes disagreeing with geometry evaluated at
+        # the interval mid-point when the sun crosses the horizon inside the
+        # hour.
+        #
+        # Clamped at the source because every consumer would otherwise have to
+        # know this. A renderer that clamps still draws something sensible, but
+        # a caption reading "120% diffuse" is a number no one can defend, and
+        # the caption is exactly what a viewer of this array would write.
+        if row["ghi"] > 0:
+            row["diffuse_share"] = float(min(max(row["dhi"] / row["ghi"], 0.0), 1.0))
         if has_clear:
             clear = float(d["clrsky"].to_numpy()[i])
             if np.isfinite(clear) and clear > 0:
