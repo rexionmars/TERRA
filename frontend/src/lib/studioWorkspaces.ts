@@ -22,6 +22,9 @@
  * The fractions are chosen against the application's minimum window of
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
+import type { LucideIcon } from "lucide-react"
+import { Box, GitCompareArrows, Table2, TreePine, Waves } from "lucide-react"
+
 import type { AreaNode } from "@/lib/boardAreas"
 import type { EditorId } from "@/lib/studioEditors"
 
@@ -33,6 +36,17 @@ export interface StudioWorkspace {
   label: string
   /** One line, for the tab's title attribute. */
   hint: string
+  /**
+   * The tab's glyph, taken from the editor the arrangement is built around.
+   *
+   * Not a fifth vocabulary. Every one of these presets exists to give one
+   * reading the room it needs -- the comparison the lower half, the tables
+   * their width, the canopy the whole board -- and it is already listed in the
+   * type menu under that editor's own glyph. Wearing the same one makes the
+   * tab and the area it leads to legible as one subject, which is the argument
+   * `BoardRunBar` makes for reusing the board tree's glyphs on its tools.
+   */
+  icon: LucideIcon
   /** Built fresh per call: a shared tree would be mutated across workspaces. */
   build: () => StudioTree
 }
@@ -64,6 +78,7 @@ const col = (id: string, at: number, a: StudioTree, b: StudioTree): StudioTree =
 export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   {
     id: "layout",
+    icon: Box,
     label: "Layout",
     hint: "The general arrangement: the board, what is in it, and what is selected",
     /*
@@ -101,6 +116,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "compare",
+    icon: GitCompareArrows,
     label: "Compare",
     hint: "Two planes read against each other, without a dialog over the board",
     /*
@@ -129,6 +145,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "diagnose",
+    icon: Waves,
     label: "Diagnose",
     hint: "How far the domains are apart, and where the difference sits",
     /*
@@ -152,6 +169,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "data",
+    icon: Table2,
     label: "Data",
     hint: "The run's own tables, at the width a table needs",
     /*
@@ -175,6 +193,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "simulation",
+    icon: TreePine,
     label: "Simulation",
     hint: "An orchard module and the light that reaches through it",
     /*

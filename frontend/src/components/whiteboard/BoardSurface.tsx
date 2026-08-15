@@ -3530,7 +3530,7 @@ export function BoardSurface({
                 sits on, which is how Blender's workspace tabs read as a row
                 of destinations rather than as four switches.
               */
-              "relative -mb-px h-full px-2.5 text-meta transition-colors",
+              "relative -mb-px flex h-full items-center gap-1.5 px-2.5 text-meta transition-colors",
               w.id === workspaceId
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -3545,6 +3545,13 @@ export function BoardSurface({
                 : undefined
             }
           >
+            {/*
+              The glyph of the editor the preset is built around, which the
+              type menu already uses for that editor. The name stays: a tab
+              strip of five glyphs would be five destinations a reader has to
+              learn before they can be chosen between.
+            */}
+            <w.icon className="size-3 shrink-0" strokeWidth={1.75} />
             {w.label}
           </button>
         ))}
