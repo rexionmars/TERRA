@@ -88,7 +88,7 @@ import {
   compareOverallDeltaTable,
   compareShareDeltaTable,
 } from "@/lib/compareTables"
-import { saveWhiteboard } from "@/lib/whiteboards"
+import { saveWhiteboard, type Whiteboard } from "@/lib/whiteboards"
 import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
@@ -127,6 +127,7 @@ import {
   type StudioEditorMode,
 } from "@/components/whiteboard/StudioArea"
 import {
+  StudioMenuGroup,
   StudioMenuItem,
   StudioMenuRule,
   StudioPopover,
@@ -142,6 +143,7 @@ import {
   Box,
   Blend,
   BoxSelect,
+  ChevronDown,
   Eraser,
   EyeOff,
   Filter,
@@ -282,16 +284,35 @@ function sameStructure(a: CardGroup[], b: CardGroup[]): boolean {
  * remounts when another screen is visited, and the arrangement would be lost
  * by the same gesture in a longer form.
  */
-function useKept<T>(key: string, initial: T | (() => T)) {
+function useKept<T>(
+  key: string,
+  initial: T | (() => T),
+  /**
+   * Whether changing this is a change to the BOARD, as opposed to the studio.
+   *
+   * A saved board carries what is on it and how it is arranged; the workspace
+   * and its area tree are a preference and travel elsewhere. Only the first
+   * kind makes a board unsaved, and only that kind is worth stopping a reader
+   * over when they open another one.
+   */
+  partOfBoard = false
+) {
   const [value, setValue] = useState<T>(() =>
     readBoardMemory(
       key,
       typeof initial === "function" ? (initial as () => T)() : initial
     )
   )
+  const seeded = useRef(false)
   useEffect(() => {
     writeBoardMemory(key, value)
-  }, [key, value])
+    // The first write is the seed, not an edit.
+    if (!seeded.current) {
+      seeded.current = true
+      return
+    }
+    if (partOfBoard) markBoardDirty()
+  }, [key, value, partOfBoard])
   return [value, setValue] as const
 }
 
@@ -324,6 +345,9 @@ export function BoardSurface({
   smooth,
   onSmoothChange,
   title,
+  whiteboards = [],
+  onOpenWhiteboard,
+  onWhiteboardsMenu,
   onClose,
 }: {
   /**
@@ -399,6 +423,17 @@ export function BoardSurface({
   smooth: boolean
   onSmoothChange: (v: boolean) => void
   title: string
+  /**
+   * The saved boards, and the way into one.
+   *
+   * The studio's title block names the board that is loaded; without these it
+   * could only ever name it. Absent where the caller offers no catalog, in
+   * which case the block stays a readout.
+   */
+  whiteboards?: readonly Whiteboard[]
+  onOpenWhiteboard?: (board: Whiteboard) => void
+  /** Refreshes the list as the menu opens, so it is not a stale catalog. */
+  onWhiteboardsMenu?: () => void
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -421,7 +456,8 @@ export function BoardSurface({
    */
   const [names, setNames] = useKept<Readonly<Record<string, string>>>(
     "names",
-    {}
+    {},
+    true
   )
 
   /*
@@ -664,6 +700,21 @@ export function BoardSurface({
   const [savedName, setSavedName] = useKept<string | null>("savedName", null)
   const [naming, setNaming] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  /** Whether the title block's catalog is open. */
+  const [boardMenu, setBoardMenu] = useState(false)
+  /**
+   * A board chosen while this one has changes that were never saved.
+   *
+   * Opening one replaces everything the board is holding -- `restoreBoard`
+   * clears the store before it writes -- so a switch is where unsaved work
+   * goes silently. Held here until the reader has said what to do with it.
+   */
+  const [pendingOpen, setPendingOpen] = useState<Whiteboard | null>(null)
+  const openBoard = (board: Whiteboard) => {
+    if (board.id === savedId) return
+    if (boardIsDirty()) setPendingOpen(board)
+    else onOpenWhiteboard?.(board)
+  }
 
   /*
     Runs a whiteboard named that are not on the board yet.
@@ -702,6 +753,25 @@ export function BoardSurface({
   const doSave = async (name: string) => {
     const trimmed = name.trim()
     if (!trimmed) return
+    /*
+      A BOARD WITH NOTHING ON IT IS NOT A SAVE, IT IS A DELETION.
+
+      Saving writes the membership whole, so a save made before a board has
+      finished fetching its runs replaces the list of what is on it with
+      nothing -- and reported success while doing it. Two boards in this
+      author's own store are at zero members for exactly that reason: opened,
+      saved a moment later, emptied. The save is refused while runs are still
+      arriving, and refused when there is nothing to record.
+    */
+    if (loadingRun) {
+      notifyError(
+        "Still opening this whiteboard",
+        new Error(
+          "its runs are still being fetched, and saving now would store the board without them"
+        )
+      )
+      return
+    }
     setSaving(true)
     try {
       /*
@@ -990,7 +1060,8 @@ export function BoardSurface({
    */
   const [removed, setRemoved] = useKept<ReadonlySet<string>>(
     "removed",
-    () => new Set()
+    () => new Set(),
+    true
   )
   /** Scene ids added, per area, in the order they were added. */
   /*
@@ -1009,7 +1080,8 @@ export function BoardSurface({
   */
   const [dismissedAreas, setDismissedAreas] = useKept<readonly string[]>(
     "dismissedAreas",
-    []
+    [],
+    true
   )
   const removeArea = (areaId: string) => {
     const area = areas.find((a) => a.id === areaId)
@@ -1021,7 +1093,7 @@ export function BoardSurface({
 
   const [added, setAdded] = useKept<
     Readonly<Record<string, readonly string[]>>
-  >("added", {})
+  >("added", {}, true)
 
   /*
     HANDING THE OUTGOING RUN ITS OWN MEMBERSHIP.
@@ -1088,7 +1160,7 @@ export function BoardSurface({
    */
   const [extraState, setExtraState] = useKept<
     Readonly<Record<string, { opacity: number; visible: boolean }>>
-  >("extraState", {})
+  >("extraState", {}, true)
 
   /**
    * Layers dropped to the base of their stack.
@@ -1097,7 +1169,11 @@ export function BoardSurface({
    * in this stack is a fact about looking at it here, and the map has no
    * stack to have an opinion about.
    */
-  const [flat, setFlat] = useKept<ReadonlySet<string>>("flat", () => new Set())
+  const [flat, setFlat] = useKept<ReadonlySet<string>>(
+    "flat",
+    () => new Set(),
+    true
+  )
 
   /**
    * A stack order the user has set, per area, bottom first.
@@ -1115,7 +1191,8 @@ export function BoardSurface({
    */
   const [order, setOrder] = useKept<Readonly<Record<string, string[]>>>(
     "order",
-    {}
+    {},
+    true
   )
   const reorderArea = (areaId: string, topFirst: string[]) =>
     // Stored bottom first, which is how a stack is built and how layoutGroups
@@ -3335,6 +3412,29 @@ export function BoardSurface({
       )}
 
       {/*
+        The other thing this studio asks before destroying, and it asks in the
+        same way for the reason ConfirmDelete's own docblock gives: a second
+        destructive act must not become a second way of asking. What is
+        destroyed here is not a run but the arrangement -- which planes were
+        taken off, what was renamed, what was reordered -- and it is gone the
+        moment another board is restored over it.
+      */}
+      {pendingOpen && (
+        <ConfirmDelete
+          eyebrow="UNSAVED CHANGES"
+          title={<>Open “{pendingOpen.name}”?</>}
+          subtitle={`This board has changes that were never saved${savedName ? ` to “${savedName}”` : ""} — planes taken off, renames, the order they sit in. Opening another one replaces them and they cannot be brought back. Cancel, press Save, and open it again to keep both.`}
+          confirmLabel="Discard and open"
+          onCancel={() => setPendingOpen(null)}
+          onConfirm={() => {
+            const board = pendingOpen
+            setPendingOpen(null)
+            onOpenWhiteboard?.(board)
+          }}
+        />
+      )}
+
+      {/*
         THE WORKSPACE TABS.
 
         Named arrangements, one per kind of work, switched here -- which is
@@ -3468,17 +3568,105 @@ export function BoardSurface({
             heading and not for a 28px strip: the two lines were clipped to
             about a line and a half and read as broken text. What a data-block
             shows is WHICH one is loaded; the rest is the title attribute.
+
+            AND IT IS A SELECTOR, which is the other half of what a data-block
+            is. It named the board that was loaded and offered no way to load
+            another: the catalog was in the project menu, on a screen the
+            studio covers. A name shown where it cannot be changed is a readout
+            wearing a control's clothes.
           */}
-          <span
-            className="flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta"
-            style={{ background: "rgb(var(--p-surface-raised))" }}
-            title={savedName ? `${savedName} — ${title}` : title}
+          <StudioPopover
+            open={boardMenu}
+            onOpenChange={(next) => {
+              // Refreshed as it opens: a board saved from another window, or
+              // one saved here a moment ago, should be in the list rather than
+              // in the list next time.
+              if (next) onWhiteboardsMenu?.()
+              setBoardMenu(next)
+            }}
+            surface={surfaceRef.current}
+            align="end"
+            widthRem={17}
+            trigger={(p) => (
+              <button
+                {...p}
+                ref={p.ref as React.Ref<HTMLButtonElement>}
+                type="button"
+                disabled={!onOpenWhiteboard}
+                className="app-no-drag flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta transition-colors hover:brightness-125 disabled:cursor-default"
+                style={{ background: "rgb(var(--p-surface-raised))" }}
+                title={
+                  onOpenWhiteboard
+                    ? `${savedName ?? title} — open another whiteboard`
+                    : savedName
+                      ? `${savedName} — ${title}`
+                      : title
+                }
+              >
+                <Layers
+                  className="size-3 shrink-0 text-muted-foreground"
+                  strokeWidth={1.75}
+                />
+                <span className="truncate text-foreground">
+                  {savedName ?? title}
+                </span>
+                {onOpenWhiteboard ? (
+                  <ChevronDown
+                    className="size-2.5 shrink-0 opacity-60"
+                    strokeWidth={2}
+                  />
+                ) : null}
+              </button>
+            )}
           >
-            <Layers className="size-3 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-            <span className="truncate text-foreground">
-              {savedName ?? title}
-            </span>
-          </span>
+            <StudioMenuGroup label="Whiteboards">
+              {whiteboards.length ? (
+                whiteboards.map((b) => (
+                  <StudioMenuItem
+                    key={b.id}
+                    icon={Layers}
+                    label={b.name}
+                    // How many runs are arranged on it, which is the only
+                    // thing about a board that says how much is there.
+                    note={String(b.member_count ?? 0)}
+                    checked={b.id === savedId}
+                    title={
+                      b.id === savedId
+                        ? "Already open"
+                        : `Open "${b.name}" — this arrangement is replaced by it`
+                    }
+                    onSelect={() => {
+                      setBoardMenu(false)
+                      openBoard(b)
+                    }}
+                  />
+                ))
+              ) : (
+                <StudioMenuItem
+                  icon={Save}
+                  label="No whiteboards saved yet"
+                  disabled
+                  title="Save this one under a name and it is listed here"
+                  onSelect={() => {}}
+                />
+              )}
+            </StudioMenuGroup>
+            <StudioMenuRule />
+            {/*
+              Renaming is a save under another name over the same board, which
+              is what the store already does with an id and a name. Offered
+              here rather than beside the button, because the name being
+              changed is the one this block shows.
+            */}
+            <StudioMenuItem
+              icon={Save}
+              label={savedName ? "Save under another name…" : "Save whiteboard…"}
+              onSelect={() => {
+                setBoardMenu(false)
+                setNaming(savedName ?? "")
+              }}
+            />
+          </StudioPopover>
           {/*
             Saving names the board. Unnamed it asks for one; named it writes over
             itself, because a second copy of the same work under the same name is
@@ -3490,11 +3678,13 @@ export function BoardSurface({
               onClick={() =>
                 savedName ? void doSave(savedName) : setNaming("")
               }
-              disabled={saving}
+              disabled={saving || loadingRun}
               title={
-                savedName
-                  ? `Save over "${savedName}"`
-                  : "Save this whiteboard under a name"
+                loadingRun
+                  ? "Still fetching this board's runs; saving now would store it without them"
+                  : savedName
+                    ? `Save over "${savedName}"`
+                    : "Save this whiteboard under a name"
               }
               className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >

@@ -237,6 +237,11 @@ export interface MapScreenProps {
    * twice in a row has to work.
    */
   openBoardNonce?: number
+  /** Saved whiteboards, for the studio's own title block. */
+  whiteboards?: import("@/lib/whiteboards").Whiteboard[]
+  onOpenWhiteboard?: (board: import("@/lib/whiteboards").Whiteboard) => void
+  /** Called when the studio's board menu opens, to refresh the list. */
+  onWhiteboardsMenu?: () => void
   onNewClassification: () => void
   onViewDataCube: () => void
   dataCubeLoading?: boolean
@@ -1208,7 +1213,18 @@ export function MapScreen(props: MapScreenProps) {
             }
           >
             <BoardSurface
-              key="whiteboard"
+              /*
+                REMOUNTED WHEN A BOARD IS OPENED, which is what makes opening
+                one from inside the studio work at all.
+
+                Everything the surface holds is seeded from `boardMemory` on
+                mount -- that is how a restored board arrives -- so a restore
+                into a surface already up would write the memory and change
+                nothing on screen. The nonce is the same request that opens the
+                studio in the first place; keying by it turns a second request
+                into the mount the restore path already expects.
+              */
+              key={`whiteboard-${nonce}`}
               /*
                 The band's height, and the two gestures that change it. Clamped
                 here rather than in the band: the reservation --map-foot is
@@ -1304,6 +1320,9 @@ export function MapScreen(props: MapScreenProps) {
                 props.areaLabel ||
                 ""
               }
+              whiteboards={props.whiteboards}
+              onOpenWhiteboard={props.onOpenWhiteboard}
+              onWhiteboardsMenu={props.onWhiteboardsMenu}
               onClose={() => setBoard(false)}
             />
           </Suspense>
