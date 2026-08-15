@@ -93,3 +93,36 @@ def suggest(class_stats) -> dict:
 
     return {**common, "species": None,
             "why": f"{name} cobre {pct:.0f}% da área e não é lavoura"}
+
+
+# As classes que são lavoura de fato, para mascarar a série de índice.
+#
+# O MOSAICO AGRICULTURA-PASTAGEM (21) NÃO ENTRA, e essa é a decisão que faz a
+# máscara valer alguma coisa. Ele é mistura declarada: incluí-lo devolve para
+# dentro da média exatamente a diluição que mascarar existe para tirar. Numa AOI
+# medida, soja cobria 50% e mosaico 42%, então incluir o mosaico deixaria 92% da
+# área "lavoura" e a média praticamente onde estava.
+#
+# Cana e café ficam porque são lavoura e a série é sobre a lavoura; que o Helios
+# não cresça essas plantas é problema da simulação, não da extração do índice.
+CROP_CLASSES = frozenset({
+    20,  # Sugar Cane
+    39,  # Soybean
+    41,  # Other Temporary Crops
+    46,  # Coffee
+})
+
+
+def crop_mask(classification_map):
+    """Máscara booleana dos pixels de lavoura num mapa de classes.
+
+    `-1` é o que `classify_from_features` escreve onde não houve predição, e cai
+    fora por não estar no conjunto.
+    """
+    import numpy as np
+
+    m = np.asarray(classification_map)
+    out = np.zeros(m.shape, dtype=bool)
+    for cid in CROP_CLASSES:
+        out |= m == cid
+    return out

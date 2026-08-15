@@ -597,15 +597,29 @@ def write_ndvi_mean_png(ndvi_mean, valid_mask, out_path):
             dst.write(rgba[:, :, i], i + 1)
 
 
-def compute_aoi_vi_series(products, polygon, ref_prof):
+def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None):
     """Mean ± std NDVI/EVI/SAVI per date; also spatial NDVI temporal mean.
 
     Also keeps reflectance for the peak-NDVI scene so we can write a true-color
     AOI chip aligned to the same grid as the other overlays.
+
+    `crop_mask` ADDS A SECOND SERIES, it does not narrow the first.
+
+    An area mean over mixed cover is not the crop's index, and the gap is not
+    small: on a measured soybean AOI the peak read 0.314 with a standard
+    deviation of 0.190, which for a roughly even two-population mix puts the
+    crop pixels near 0.50 and everything else near 0.12. Anything downstream
+    that inverts that mean to a leaf area index -- which is what the canopy
+    reading does -- is answering for an average of soybean and bare ground.
+
+    Both are returned because they answer different questions and because the
+    AOI-wide one is what every existing export and figure already carries;
+    narrowing it in place would move numbers nobody asked to move.
     """
     import composite as comp
 
     series = []
+    crop_series = []
     dates = []
     ndvi_means = []
     ndvi_stack = []
@@ -647,6 +661,25 @@ def compute_aoi_vi_series(products, polygon, ref_prof):
                     "savi_std": round(float(np.std(savi[valid])), 4),
                 }
             )
+            if crop_mask is not None:
+                # Valid AND crop. A date whose crop pixels were all cloud drops
+                # out of this series while staying in the AOI-wide one, so the
+                # two can have different lengths and each carries its own dates.
+                on_crop = valid & crop_mask
+                n = int(np.count_nonzero(on_crop))
+                if n:
+                    crop_series.append(
+                        {
+                            "date": date_str,
+                            "ndvi_mean": round(float(np.mean(ndvi[on_crop])), 4),
+                            "ndvi_std": round(float(np.std(ndvi[on_crop])), 4),
+                            "evi_mean": round(float(np.mean(evi[on_crop])), 4),
+                            "evi_std": round(float(np.std(evi[on_crop])), 4),
+                            "savi_mean": round(float(np.mean(savi[on_crop])), 4),
+                            "savi_std": round(float(np.std(savi[on_crop])), 4),
+                            "n_pixels": n,
+                        }
+                    )
         except Exception as e:
             sys.stderr.write(json.dumps({"progress": -1, "msg": f"VI series: {e}"}) + "\n")
             continue
@@ -670,7 +703,8 @@ def compute_aoi_vi_series(products, polygon, ref_prof):
         r, g, b, mask = best_rgb
         true_color_rgba = comp.rgb_to_rgba(r, g, b, mask)
 
-    return series, dates, ndvi_means, ndvi_mean_map, valid_mask, true_color_rgba
+    return (series, crop_series, dates, ndvi_means, ndvi_mean_map,
+            valid_mask, true_color_rgba)
 
 
 def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
@@ -1477,11 +1511,19 @@ def main():
         }
         states = [state_slugs.get(int(s), 'soil') for s in state_ids]
 
-        # The independent age: days since the series first turned green. Taken
-        # from the states rather than from phenology_metrics' SOS, because the
-        # ages below are per observation and SOS is one date for the season.
-        greenup_ordinal = next(
-            (o for o, s in zip(ordinals, states) if s != 'soil'), None)
+        # THE INDEPENDENT AGE, COUNTED FROM ITS OWN CYCLE'S GREEN-UP.
+        #
+        # A year of Brazilian cropland holds more than one cycle -- a summer
+        # crop and a safrinha, or a crop followed by a cover -- and taking the
+        # first green-up of the whole series dates every later cycle from the
+        # start of the file. Measured on a real AOI: the July and August 2026
+        # observations were handed 344 days of age because the series begins
+        # green in August 2025, when their own cycle had started weeks earlier.
+        cycle_ids = phen.cycle_of(state_ids)
+        cycle_list = phen.cycles(state_ids)
+        greenup_by_cycle = {
+            k: ordinals[c['greenup']] for k, c in enumerate(cycle_list)
+        }
 
         emit_progress(50, 'matching leaf area to an age')
         try:
@@ -1510,7 +1552,10 @@ def main():
         # do Helios. Do próprio NDVI, que é onde ela é observável.
         season_days = float(phen.phenology_metrics(ndvi, dates).get('los_days') or 0.0)
         for i, (row, o) in enumerate(zip(resolved, ordinals)):
-            since = None if greenup_ordinal is None else float(o - greenup_ordinal)
+            k = int(cycle_ids[i])
+            start = greenup_by_cycle.get(k)
+            since = None if start is None else float(o - start)
+            row['cycle'] = k if k >= 0 else None
             row['days_since_greenup'] = since
             row['declining'] = i > peak_index
             if row['declining']:
@@ -1550,6 +1595,18 @@ def main():
             'phenology': phen.phenology_metrics(ndvi, dates),
             'resolved': resolved,
             'n_usable': len(usable),
+            # The cycles the season was split into. More than one means the
+            # window covers more than one crop, and every age below is measured
+            # from its own cycle rather than from the start of the record.
+            'cycles': [
+                {
+                    'start': dates[c['start']],
+                    'end': dates[c['end']],
+                    'greenup': dates[c['greenup']],
+                    'n': c['end'] - c['start'] + 1,
+                }
+                for c in cycle_list
+            ],
             'sun': {'source': 'reference'},
         }
 
@@ -3095,8 +3152,20 @@ def main():
     emit_progress(88, 'computing vegetation index series and phenology')
     import phenology as pheno
     import composite as comp
-    vi_series, vi_dates, ndvi_means, ndvi_mean_map, ndvi_valid, true_color_rgba = (
-        compute_aoi_vi_series(products, polygon, ref_profile)
+    # The classification is already built above, so the crop pixels are known
+    # before the index is averaged and the masked series costs one extra mean
+    # per date rather than a second pass over the scenes.
+    try:
+        import crop_species
+        crop_pixels = crop_species.crop_mask(classification_map)
+        if not crop_pixels.any():
+            crop_pixels = None
+    except Exception:
+        crop_pixels = None
+
+    (vi_series, vi_series_crop, vi_dates, ndvi_means, ndvi_mean_map,
+     ndvi_valid, true_color_rgba) = compute_aoi_vi_series(
+        products, polygon, ref_profile, crop_mask=crop_pixels
     )
     phenology = pheno.phenology_metrics(ndvi_means, vi_dates) if vi_dates else {
         'sos_doy': None, 'pos_doy': None, 'eos_doy': None, 'los_days': None,
@@ -3241,6 +3310,13 @@ def main():
         'class_stats': class_statistics(classification_map),
         'temporal': temporal,
         'vi_series': vi_series,
+        # The same dates averaged over crop pixels only. Empty when the AOI
+        # carries no cropland, which is a statement and not a failure.
+        'vi_series_crop': vi_series_crop,
+        'crop_pixel_pct': (
+            round(100.0 * float(crop_pixels.mean()), 2)
+            if crop_pixels is not None else 0.0
+        ),
         'phenology': phenology,
         'phenology_states': phenology_states,
         'lulc': lulc_payload,

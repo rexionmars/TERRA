@@ -129,3 +129,47 @@ def test_the_two_functions_agree_on_where_the_season_peaked():
         f"{phenology.STATE_NAMES[int(states[nearest])]!r}"
     )
     assert states[int(np.argmax(ndvi))] == phenology.STATE_MATURE
+
+
+def test_a_year_of_cropland_is_split_into_its_own_cycles():
+    """Uma série não é uma safra.
+
+    A janela real de onde isto veio cobre agosto/25 a agosto/26 e contém dois
+    ciclos separados por solo nu em maio e junho. Tratada como uma estação, as
+    observações de julho recebiam 344 dias de idade porque o primeiro green-up
+    da série é de agosto do ano anterior.
+    """
+    ndvi = np.array([
+        0.1188, 0.1281, 0.1444, 0.2495, 0.2919, 0.2944, 0.3142,
+        0.1698, 0.2202, 0.1934, 0.2315, 0.2272, 0.2256,
+    ])
+    states = phenology.assign_states_from_ndvi(ndvi)
+    found = phenology.cycles(states)
+
+    assert len(found) == 2, f"esperados dois ciclos, achados {len(found)}"
+    # O segundo começa depois do vão de solo nu, e não no começo do arquivo.
+    assert found[1]["greenup"] > found[0]["end"]
+    # E cada observação sabe a qual ciclo pertence; o vão não pertence a nenhum.
+    ids = phenology.cycle_of(states)
+    assert ids[0] == 0 and ids[-1] == 1
+    assert -1 in ids, "o trecho de solo nu foi absorvido por um ciclo"
+
+
+def test_bare_soil_is_not_a_cycle():
+    """Não há dossel para datar num trecho de solo nu."""
+    states = np.array([
+        phenology.STATE_SOIL, phenology.STATE_SOIL, phenology.STATE_FALLOW,
+    ])
+    assert phenology.cycles(states) == []
+    assert list(phenology.cycle_of(states)) == [-1, -1, -1]
+
+
+def test_a_series_that_never_leaves_the_canopy_is_one_cycle():
+    """Perene, ou uma janela dentro de uma safra só."""
+    states = np.array([
+        phenology.STATE_GREENUP, phenology.STATE_MATURE,
+        phenology.STATE_MATURE, phenology.STATE_SENESCENCE,
+    ])
+    found = phenology.cycles(states)
+    assert len(found) == 1
+    assert found[0] == {"start": 0, "end": 3, "greenup": 0}

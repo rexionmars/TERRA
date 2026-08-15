@@ -69,3 +69,39 @@ def test_an_empty_classification_answers_rather_than_raising():
         got = cs.suggest(empty)
         assert got["species"] is None
         assert got["why"]
+
+
+def test_the_mosaic_is_not_crop_for_the_purpose_of_masking():
+    """A decisão que faz a máscara valer alguma coisa.
+
+    O mosaico agricultura-pastagem é mistura declarada. Incluí-lo devolve para
+    dentro da média exatamente a diluição que mascarar existe para tirar: na AOI
+    medida, soja cobria 50% e mosaico 42%, então com ele a máscara pegaria 92%
+    da área e a média ficaria praticamente onde estava.
+    """
+    assert 21 not in cs.CROP_CLASSES
+    assert 39 in cs.CROP_CLASSES
+
+
+def test_crop_mask_selects_only_crop_pixels():
+    import numpy as np
+
+    m = np.array([
+        [39, 21, -1],   # soja, mosaico, sem predição
+        [41, 15, 20],   # temporárias, pastagem, cana
+        [24, 46, 3],    # urbano, café, floresta
+    ])
+    got = cs.crop_mask(m)
+    assert got.sum() == 4
+    assert got[0, 0] and got[1, 0] and got[1, 2] and got[2, 1]
+    # -1 é o que classify_from_features escreve onde não houve predição, e não
+    # pode entrar por acidente.
+    assert not got[0, 2]
+    assert not got[1, 1] and not got[2, 0] and not got[2, 2]
+
+
+def test_an_aoi_with_no_cropland_masks_nothing():
+    """Uma resposta, não uma falha: nem toda AOI tem lavoura."""
+    import numpy as np
+
+    assert not cs.crop_mask(np.array([[15, 24], [3, 33]])).any()
