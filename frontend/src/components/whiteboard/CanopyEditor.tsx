@@ -1,213 +1,128 @@
 /**
- * An orchard module, its shading, and the numbers that explain the shading.
+ * A stand of plants, grown and drawn.
  *
- * WHAT IT IS FOR. The same leaf area arranged two ways transmits very
- * differently, and the difference is not small: an orchard whose leaves sit in
- * crowns passes between two and thirteen times the light of a uniform canopy
- * holding the same area, because Beer-Lambert is not linear in density. That
- * ratio is what this editor exists to make visible -- the picture shows where
- * the light falls, and the readout says how far the arrangement moves the
- * answer away from the slab a coarser model would assume.
+ * WHAT IT IS FOR. To show the crop. A reader asking to see a canopy means the
+ * plants -- stems, blades, the way rows close over as they grow -- and this
+ * grows them with Helios and draws the triangles.
  *
- * WHERE THE PARAMETERS LIVE. In the body, not the header. The studio's header
- * carries chrome -- how a thing is shown, what is visible -- and these are not
- * that: an orchard IS its spacing, leaf area and crown shape, so they are the
- * editor's subject rather than a view of it. Keeping them here also makes two
- * canopies side by side work by construction, since each component holds its
- * own, rather than by threading a record keyed on area id through the surface.
+ * WHAT THIS REPLACED, AND WHY IT HAD TO BE REPLACED RATHER THAN IMPROVED. The
+ * earlier surface drew a leaf-area density on a voxel grid: a translucent box
+ * with a ray-march in it. That is a correct picture of a field of numbers and
+ * an unrecognisable one of a crop, and no amount of shading fixes it, because
+ * the density has no leaf in it to draw. The architecture is integrated away at
+ * the moment the field is built -- feeding the voxeliser a real Helios plant
+ * still yields a box, since the voxeliser's whole job is to turn geometry into
+ * numbers. So there was no incremental path from that view to this one, and
+ * keeping it beside this would only invite the two to be mistaken for each
+ * other. The march, the field and the extinction coefficient still exist in
+ * sidecar/canopy_field.py, where they answer the question they are good at:
+ * how much light gets through. They are not a picture.
+ *
+ * WHERE THE PARAMETERS LIVE. In the body, not the header, for the reason the
+ * previous surface gave and which still holds: a stand IS its species, its age
+ * and its sowing geometry, so those are the subject rather than a view of it.
  *
  * NO SLIDERS, which in this project is a rule rather than a preference:
  * `components/whiteboard/` contains none, and NumberField's own docblock argues
- * the case -- a slider spends a row on a value it cannot show, and returning to
- * an exact figure is a matter of aim.
+ * the case.
  *
- * COST. Building the field is a sidecar round trip of well under a second, and
- * it is debounced so dragging a value does not queue one request per pixel.
- * The scene holds the second WebGL context in the application and releases it
- * when this unmounts; see canopyScene.ts for why that differs from the board.
+ * COST, WHICH IS THE ONE REAL DIFFERENCE FROM THE FIELD. Growing twenty sorghum
+ * to day 60 is about two seconds and a few hundred thousand triangles, where
+ * building a field was well under a second. So this does not rebuild while a
+ * value is being scrubbed: the parameters are staged and a Grow button commits
+ * them. Debouncing a two-second job would only make the surface feel broken.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle, Loader2, Sprout } from "lucide-react"
 
 import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
-import type { CanopyFieldMeta } from "@/lib/canopyShader"
-import { BuildCanopyField } from "../../../wailsjs/go/main/App"
+import { BuildCanopyMesh } from "../../../wailsjs/go/main/App"
 
-import { createCanopyScene, type CanopyHandle, type CanopyView } from "./canopyScene"
+import { createStandScene, type StandHandle } from "./standScene"
 
-/**
- * What the canopy is made of.
- *
- * "rows" is the default because it is what this application is for: TERRA
- * classifies field crops, and a field of soy or maize is a strip of vegetation
- * repeating every row spacing -- neither a set of discrete crowns nor a uniform
- * mat. "crowns" is the orchard, kept because the agrivoltaic study is about
- * trees and because the two share every line of machinery below.
- */
-type CanopySource = "rows" | "crowns"
+/*
+  The species plantarchitecture ships, mirrored from sidecar/helios_grow.py.
 
-/** A row crop: strips of vegetation on a spacing. */
-interface Crop {
-  spacing: number
-  lai: number
-  cell: number
-  height: number
-  rowWidthFrac: number
+  Recorded here rather than fetched so the picker can be offered on a machine
+  with no toolkit installed, which is the common case: the package is an
+  optional extra. A name that disappears upstream fails against helios_grow's
+  own list with a message naming what it ships.
+*/
+const SPECIES = [
+  "sorghum", "maize", "wheat", "rice", "soybean", "cowpea", "bean",
+  "tomato", "cherrytomato", "capsicum", "strawberry", "sugarbeet",
+  "asparagus", "butterlettuce", "grapevine_VSP", "grapevine_Wye",
+  "almond", "apple", "apple_fruitingwall", "olive", "pistachio", "walnut",
+  "easternredbud", "bougainvillea",
+] as const
+
+interface Stand {
+  species: string
+  days: number
+  rows: number
+  perRow: number
+  interRow: number
+  interPlant: number
 }
 
-/** An orchard: ellipsoidal crowns on a grid. */
-interface Orchard {
-  spacing: number
-  lai: number
-  cell: number
-  crownA: number
-  crownB: number
-  crownZ: number
+const DEFAULT_STAND: Stand = {
+  // Sorghum because it is the crop the numerical studies grew, so a reader can
+  // hold this beside the figures in that repository.
+  species: "sorghum",
+  days: 60,
+  // Twelve plants is a stand that reads as a stand and still grows in about a
+  // second. The mesh is roughly 264k triangles at day 60, most of it blade.
+  rows: 3,
+  perRow: 4,
+  interRow: 0.8,
+  interPlant: 0.25,
 }
 
-const DEFAULT_CROP: Crop = {
-  // Soy and maize are both planted at about half a metre between rows.
-  spacing: 0.5,
-  lai: 3,
-  // 0.5 / 0.05 is 10 cells across. The builder refuses a cell that does not
-  // divide the spacing, because the march's periodic wrap needs a whole number
-  // of them.
-  cell: 0.05,
-  height: 0.9,
-  // The fraction of the spacing the canopy actually covers. At 1 the strip
-  // fills the module and the field becomes a uniform slab, which is the
-  // degenerate case the parity gate checks against analytic Beer-Lambert.
-  rowWidthFrac: 0.6,
+interface MeshState {
+  species: string
+  days: number
+  plants: number
+  leafArea: number
+  bytes: number
+  organs: Record<string, number>
 }
 
-const DEFAULT_ORCHARD: Orchard = {
-  spacing: 6,
-  lai: 2,
-  cell: 0.3,
-  crownA: 1.8,
-  crownB: 1.2,
-  crownZ: 1.6,
+const metres = (v: number) => `${v.toFixed(2)} m`
+const readMetres = (t: string) => {
+  const v = parseFloat(t.replace("m", "").trim())
+  return Number.isFinite(v) ? v : null
 }
-
-interface FieldState {
-  meta: CanopyFieldMeta
-  grid: Float32Array
-  againstUniform: Array<{
-    cos_zenith: number
-    field: number
-    uniform: number
-    ratio: number | null
-    fapar: number
-    fapar_fixed_k: number
-    k_emergent: number | null
-    fixed_k: number
-    fixed_k_error_pct: number | null
-  }>
-}
-
-function decodeGrid(base64: string): Float32Array {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new Float32Array(bytes.buffer)
-}
-
-/** Sun direction from elevation and azimuth in degrees, in the field's frame. */
-function sunVector(elevationDeg: number, azimuthDeg: number): [number, number, number] {
-  const e = (elevationDeg * Math.PI) / 180
-  const a = (azimuthDeg * Math.PI) / 180
-  return [Math.cos(e) * Math.cos(a), Math.cos(e) * Math.sin(a), Math.sin(e)]
+const degrees = (v: number) => `${Math.round(v)}°`
+const readDegrees = (t: string) => {
+  const v = parseFloat(t.replace("°", "").trim())
+  return Number.isFinite(v) ? v : null
 }
 
 export function CanopyEditor() {
-  const [source, setSource] = useState<CanopySource>("rows")
-  const [crop, setCrop] = useState<Crop>(DEFAULT_CROP)
-  const [orchard, setOrchard] = useState<Orchard>(DEFAULT_ORCHARD)
+  const [stand, setStand] = useState<Stand>(DEFAULT_STAND)
   const [elevation, setElevation] = useState(50)
   const [azimuth, setAzimuth] = useState(35)
-  const [gain, setGain] = useState(1)
-  const [mode, setMode] = useState<CanopyView["mode"]>("shadow")
 
-  const [field, setField] = useState<FieldState | null>(null)
+  const [mesh, setMesh] = useState<MeshState | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // What the drawn stand was grown from, so the button can say whether the
+  // staged parameters still describe what is on screen.
+  const [drawn, setDrawn] = useState<Stand | null>(null)
 
   const hostRef = useRef<HTMLDivElement>(null)
-  const sceneRef = useRef<CanopyHandle | null>(null)
-
-  // --- the field -----------------------------------------------------------
-
-  const request = useMemo(
-    () =>
-      source === "rows"
-        ? {
-            source: "rows",
-            spacing: crop.spacing,
-            lai: crop.lai,
-            cell: crop.cell,
-            height: crop.height,
-            row_width_frac: crop.rowWidthFrac,
-          }
-        : {
-            source: "ellipsoid",
-            spacing: orchard.spacing,
-            lai: orchard.lai,
-            cell: orchard.cell,
-            crown_a: orchard.crownA,
-            crown_b: orchard.crownB,
-            crown_z: orchard.crownZ,
-          },
-    [source, crop, orchard]
-  )
-
-  useEffect(() => {
-    let cancelled = false
-    // Debounced because NumberField scrubs: dragging one value would otherwise
-    // queue a Python process per pixel of travel.
-    const timer = setTimeout(async () => {
-      setBusy(true)
-      try {
-        const built = await BuildCanopyField(request as never)
-        if (cancelled) return
-        setField({
-          meta: built.field as unknown as CanopyFieldMeta,
-          grid: decodeGrid(built.field_base64),
-          againstUniform: built.against_uniform as never,
-        })
-        setError(null)
-      } catch (e) {
-        if (cancelled) return
-        // The builder refuses geometry it cannot represent -- a cell that does
-        // not divide the module, a crown containing no cell centre, a field
-        // needing more marching steps than a fragment shader runs -- and every
-        // refusal names what to change. Showing it is the whole point.
-        setError(e instanceof Error ? e.message : String(e))
-        setField(null)
-      } finally {
-        if (!cancelled) setBusy(false)
-      }
-    }, 250)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [request])
+  const sceneRef = useRef<StandHandle | null>(null)
 
   // --- the scene -----------------------------------------------------------
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    let scene: CanopyHandle | null = null
+    let scene: StandHandle | null = null
     try {
-      scene = createCanopyScene(host, {
-        view: { sun: sunVector(elevation, azimuth), gain, mode },
-      })
+      scene = createStandScene(host, { view: { elevation, azimuth } })
     } catch {
-      // A context can fail even where the capability exists -- too many live
-      // contexts, or a driver reset. The body says so rather than sitting
-      // blank, because a blank surface says nothing.
       setError("This area could not open a WebGL context. Close another 3D area and reopen it.")
       return
     }
@@ -216,211 +131,210 @@ export function CanopyEditor() {
       sceneRef.current = null
       scene?.dispose()
     }
-    // Created once per mount. Every parameter below reaches it through a
-    // setter, never by rebuilding -- which would drop the camera and spend a
-    // context on every keystroke.
+    // Created once per mount, like the board: every parameter reaches it
+    // through a setter rather than by rebuilding, which would drop the camera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    if (field) sceneRef.current?.setField(field.meta, field.grid)
-  }, [field])
+    sceneRef.current?.setView({ elevation, azimuth })
+  }, [elevation, azimuth])
 
+  // --- growing -------------------------------------------------------------
+
+  const grow = useCallback(async () => {
+    setBusy(true)
+    /*
+      Each await is labelled because the failure that took four attempts to
+      place -- "Maximum call stack size exceeded" -- carries no stack that
+      points anywhere useful and can be thrown by any of three different layers:
+      the Wails bridge marshalling a reply, the fetch decoding a payload, or the
+      loader walking a scene. Naming the step turns the next report into a
+      location instead of a symptom.
+    */
+    let step = "calling the sidecar"
+    try {
+      const built = await BuildCanopyMesh({
+        species: stand.species,
+        days: stand.days,
+        rows: stand.rows,
+        per_row: stand.perRow,
+        inter_row: stand.interRow,
+        inter_plant: stand.interPlant,
+      } as never)
+      step = `fetching and drawing ${built.url} (${(built.bytes / 1e6).toFixed(1)} MB)`
+      await sceneRef.current?.setMesh(built.url)
+      step = "recording what was drawn"
+      setMesh({
+        species: built.species,
+        days: built.days,
+        plants: built.plants,
+        leafArea: built.leaf_area,
+        bytes: built.bytes,
+        organs: (built.organs ?? {}) as Record<string, number>,
+      })
+      setDrawn(stand)
+      setError(null)
+    } catch (e) {
+      // Every refusal on the way here names what to change -- a missing
+      // toolkit, an unknown species, a stand too large to carry -- so the
+      // message is shown verbatim. The step is prefixed to it because the one
+      // failure that did NOT name anything was a stack overflow, and knowing
+      // which of these three layers threw it is the whole difficulty.
+      const detail = e instanceof Error ? e.message : String(e)
+      setError(`while ${step}: ${detail}`)
+    } finally {
+      setBusy(false)
+    }
+  }, [stand])
+
+  // Grown once on mount so the area opens with a canopy in it rather than an
+  // empty frame and an instruction.
   useEffect(() => {
-    sceneRef.current?.setView({ sun: sunVector(elevation, azimuth), gain, mode })
-  }, [elevation, azimuth, gain, mode])
+    void grow()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const setCropValue = useCallback(
-    <K extends keyof Crop>(key: K) =>
-      (v: number) =>
-        setCrop((prev) => ({ ...prev, [key]: v })),
-    []
+  const stale = useMemo(
+    () => drawn !== null && JSON.stringify(drawn) !== JSON.stringify(stand),
+    [drawn, stand]
   )
+
   const set = useCallback(
-    <K extends keyof Orchard>(key: K) =>
+    <K extends keyof Stand>(key: K) =>
+      (v: Stand[K]) =>
+        setStand((prev) => ({ ...prev, [key]: v })),
+    []
+  )
+  const setNumber = useCallback(
+    <K extends keyof Stand>(key: K) =>
       (v: number) =>
-        setOrchard((prev) => ({ ...prev, [key]: v })),
+        setStand((prev) => ({ ...prev, [key]: v })),
     []
   )
 
-  // --- the readout ---------------------------------------------------------
-
-  const atSun = useMemo(() => {
-    if (!field?.againstUniform.length) return null
-    const target = Math.sin((elevation * Math.PI) / 180)
-    return field.againstUniform.reduce((best, row) =>
-      Math.abs(row.cos_zenith - target) < Math.abs(best.cos_zenith - target) ? row : best
-    )
-  }, [field, elevation])
-
-  const metres = (v: number) => `${v.toFixed(2)} m`
-  const readMetres = (t: string) => {
-    const v = parseFloat(t.replace("m", "").trim())
-    return Number.isFinite(v) ? v : null
-  }
-  const degrees = (v: number) => `${Math.round(v)}°`
-  const readDegrees = (t: string) => {
-    const v = parseFloat(t.replace("°", "").trim())
-    return Number.isFinite(v) ? v : null
-  }
+  const triangles = useMemo(
+    () => Object.values(mesh?.organs ?? {}).reduce((a, b) => a + b, 0),
+    [mesh]
+  )
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
-      {/*
-        Each field is the width of its own label and value rather than a shared
-        one. A uniform width has to be set for the longest name, which wastes it
-        on "LAI" and still truncated "Spacing" -- and a truncated label on a
-        control whose whole job is to say which quantity it holds is worse than
-        an uneven row. The strip wraps at narrow widths instead of eliding.
-      */}
-      <div className="flex flex-wrap items-end gap-x-2 gap-y-1 border-b border-line/60 px-2 py-1">
-        {/*
-          A closed set of two, so buttons rather than a field -- the rule the
-          brush radius follows in BoardSolarDetail. Rows first because that is
-          what this application classifies.
-        */}
-        <div className="flex gap-0.5 self-center">
-          {(
-            [
-              ["rows", "Rows"],
-              ["crowns", "Crowns"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setSource(id)}
-              className={cn(
-                "rounded-sm px-1.5 py-0.5 text-[9px] transition-colors",
-                source === id
-                  ? "bg-surface-raised text-foreground"
-                  : "text-muted-foreground hover:bg-surface-raised/40"
-              )}
-              title={
-                id === "rows"
-                  ? "A field crop: strips of vegetation on a row spacing"
-                  : "An orchard: ellipsoidal crowns on a grid"
-              }
-            >
-              {label}
-            </button>
-          ))}
+    <div className="flex h-full w-full flex-col">
+      <div
+        ref={hostRef}
+        className="relative min-h-0 flex-1"
+        style={{ background: "var(--p-surface-sunken)" }}
+      >
+        {busy ? (
+          <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded px-2 py-1 text-[11px]"
+               style={{ background: "var(--p-surface-raised)", color: "var(--p-text-muted)" }}>
+            <Loader2 className="h-3 w-3 animate-spin" />
+            growing {stand.species}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="absolute inset-x-3 bottom-3 flex items-start gap-2 rounded px-2 py-1.5 text-[11px]"
+               style={{ background: "var(--p-surface-raised)", color: "var(--p-text)" }}>
+            <AlertTriangle className="mt-px h-3 w-3 shrink-0" style={{ color: "var(--p-warning)" }} />
+            <span className="leading-snug">{error}</span>
+          </div>
+        ) : null}
+      </div>
+
+      <div
+        className="flex shrink-0 flex-wrap items-end gap-x-5 gap-y-2 border-t px-3 py-2"
+        style={{ borderColor: "var(--p-line)", background: "var(--p-surface)" }}
+      >
+        <div className="shrink-0">
+          <label className="block text-[10px] uppercase tracking-wide"
+                 style={{ color: "var(--p-text-muted)" }}>
+            Species
+          </label>
+          <select
+            value={stand.species}
+            onChange={(e) => set("species")(e.target.value)}
+            className="mt-0.5 h-6 rounded border bg-transparent px-1 text-[12px] outline-none"
+            style={{ borderColor: "var(--p-line)", color: "var(--p-text)" }}
+          >
+            {SPECIES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </div>
 
-        {source === "rows" ? (
-          <>
-            <div className="shrink-0">
-              <NumberField
-                label="Row spacing"
-                value={crop.spacing}
-                min={0.2}
-                max={2}
-                step={0.05}
-                format={metres}
-                parse={readMetres}
-                onChange={setCropValue("spacing")}
-              />
-            </div>
-            <div className="shrink-0">
-              <NumberField
-                label="LAI"
-                value={crop.lai}
-                min={0.1}
-                max={8}
-                step={0.1}
-                format={(v) => v.toFixed(2)}
-                parse={(t) => {
-                  const v = parseFloat(t)
-                  return Number.isFinite(v) ? v : null
-                }}
-                onChange={setCropValue("lai")}
-              />
-            </div>
-            <div className="shrink-0">
-              <NumberField
-                label="Height"
-                value={crop.height}
-                min={0.1}
-                max={4}
-                step={0.05}
-                format={metres}
-                parse={readMetres}
-                onChange={setCropValue("height")}
-              />
-            </div>
-            <div className="shrink-0">
-              <NumberField
-                label="Row cover"
-                value={crop.rowWidthFrac}
-                min={0.1}
-                max={1}
-                step={0.05}
-                // The fraction of the spacing the canopy covers, read as a
-                // percentage. At 100% the field is a uniform slab.
-                format={(v) => `${Math.round(v * 100)}%`}
-                parse={(t) => {
-                  const v = parseFloat(t.replace("%", "").trim())
-                  return Number.isFinite(v) ? v / 100 : null
-                }}
-                onChange={setCropValue("rowWidthFrac")}
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="shrink-0">
-              <NumberField
-                label="Spacing"
-                value={orchard.spacing}
-                min={1}
-                max={20}
-                step={0.5}
-                format={metres}
-                parse={readMetres}
-                onChange={set("spacing")}
-              />
-            </div>
-            <div className="shrink-0">
-              <NumberField
-                label="LAI"
-                value={orchard.lai}
-                min={0.1}
-                max={8}
-                step={0.1}
-                format={(v) => v.toFixed(2)}
-                parse={(t) => {
-                  const v = parseFloat(t)
-                  return Number.isFinite(v) ? v : null
-                }}
-                onChange={set("lai")}
-              />
-            </div>
-            <div className="shrink-0">
-              <NumberField
-                label="Crown"
-                value={orchard.crownA}
-                min={0.2}
-                max={8}
-                step={0.1}
-                format={metres}
-                parse={readMetres}
-                onChange={set("crownA")}
-              />
-            </div>
-            <div className="shrink-0">
-              <NumberField
-                label="Height"
-                value={orchard.crownZ}
-                min={0.3}
-                max={12}
-                step={0.1}
-                format={metres}
-                parse={readMetres}
-                onChange={set("crownZ")}
-              />
-            </div>
-          </>
-        )}
+        <div className="shrink-0">
+          <NumberField
+            label="Day"
+            value={stand.days}
+            min={5}
+            max={200}
+            step={5}
+            format={(v) => `${Math.round(v)}`}
+            parse={(t) => {
+              const v = parseInt(t, 10)
+              return Number.isFinite(v) ? v : null
+            }}
+            onChange={setNumber("days")}
+          />
+        </div>
+
+        <div className="shrink-0">
+          <NumberField
+            label="Rows"
+            value={stand.rows}
+            min={1}
+            max={8}
+            step={1}
+            format={(v) => `${Math.round(v)}`}
+            parse={(t) => {
+              const v = parseInt(t, 10)
+              return Number.isFinite(v) ? v : null
+            }}
+            onChange={setNumber("rows")}
+          />
+        </div>
+
+        <div className="shrink-0">
+          <NumberField
+            label="Per row"
+            value={stand.perRow}
+            min={1}
+            max={10}
+            step={1}
+            format={(v) => `${Math.round(v)}`}
+            parse={(t) => {
+              const v = parseInt(t, 10)
+              return Number.isFinite(v) ? v : null
+            }}
+            onChange={setNumber("perRow")}
+          />
+        </div>
+
+        <div className="shrink-0">
+          <NumberField
+            label="Row spacing"
+            value={stand.interRow}
+            min={0.1}
+            max={6}
+            step={0.05}
+            format={metres}
+            parse={readMetres}
+            onChange={setNumber("interRow")}
+          />
+        </div>
+
+        <div className="shrink-0">
+          <NumberField
+            label="In row"
+            value={stand.interPlant}
+            min={0.05}
+            max={4}
+            step={0.05}
+            format={metres}
+            parse={readMetres}
+            onChange={setNumber("interPlant")}
+          />
+        </div>
 
         <div className="shrink-0">
           <NumberField
@@ -434,6 +348,7 @@ export function CanopyEditor() {
             onChange={setElevation}
           />
         </div>
+
         <div className="shrink-0">
           <NumberField
             label="Azimuth"
@@ -447,115 +362,52 @@ export function CanopyEditor() {
           />
         </div>
 
-        <span className="flex-1" />
-
         {/*
-          A closed set of two, so buttons rather than a field -- the rule the
-          brush radius follows in BoardSolarDetail.
+          A button rather than a debounce, because growing is seconds rather
+          than milliseconds: rebuilding while a number is being scrubbed would
+          queue jobs the reader has already moved past and make the surface feel
+          stuck. It says so when the staged parameters no longer describe what
+          is drawn.
         */}
-        <div className="flex gap-0.5">
-          {(
-            [
-              ["shadow", "Ground"],
-              ["volume", "Volume"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setMode(id)}
-              className={cn(
-                "rounded-sm px-1.5 py-0.5 text-[9px] transition-colors",
-                mode === id
-                  ? "bg-surface-raised text-foreground"
-                  : "text-muted-foreground hover:bg-surface-raised/40"
-              )}
-              title={
-                id === "shadow"
-                  ? "Direct light reaching the orchard floor"
-                  : "The leaf-area density itself, shaded by what reaches each cell"
-              }
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="shrink-0">
-          <NumberField
-            label="Gain"
-            value={gain}
-            min={0.2}
-            max={4}
-            step={0.1}
-            format={(v) => `${v.toFixed(1)}x`}
-            parse={(t) => {
-              const v = parseFloat(t.replace("x", "").trim())
-              return Number.isFinite(v) ? v : null
-            }}
-            onChange={setGain}
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => void grow()}
+          disabled={busy}
+          className={cn(
+            "ml-auto flex h-6 shrink-0 items-center gap-1.5 rounded border px-2 text-[12px]",
+            busy ? "opacity-50" : "hover:brightness-110"
+          )}
+          style={{
+            borderColor: stale ? "var(--p-accent)" : "var(--p-line)",
+            color: stale ? "var(--p-accent)" : "var(--p-text)",
+          }}
+        >
+          <Sprout className="h-3 w-3" />
+          {busy ? "Growing" : stale ? "Regrow" : "Grow"}
+        </button>
       </div>
 
-      <div className="relative min-h-0 flex-1">
-        <div ref={hostRef} className="absolute inset-0" />
-
-        {busy ? (
-          <span className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 text-meta text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            building
-          </span>
-        ) : null}
-
-        {error ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-ink/80 px-6">
-            <p className="flex max-w-[26rem] items-start gap-2 text-center text-meta text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-destructive" />
-              <span className="text-left">{error}</span>
-            </p>
-          </div>
-        ) : null}
-      </div>
-
-      {field ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-line/60 px-2 py-1 text-meta text-muted-foreground">
+      {mesh ? (
+        <div
+          className="flex shrink-0 flex-wrap items-baseline gap-x-5 gap-y-1 border-t px-3 py-1.5 text-[11px]"
+          style={{ borderColor: "var(--p-line)", background: "var(--p-surface)", color: "var(--p-text-muted)" }}
+        >
           <span>
-            {field.meta.n_xy}&times;{field.meta.n_xy}&times;{field.meta.n_z} cells
+            {mesh.plants} {mesh.species} at day {mesh.days}
           </span>
-          <span>
-            {(field.meta.occupancy * 100).toFixed(0)}% occupied at{" "}
-            {field.meta.density_in_crown.toFixed(1)} m&sup2;/m&sup3;
-          </span>
-          {atSun ? (
-            <span title="Beer-Lambert is not linear in density, so the same leaf area gathered into rows or crowns passes more light than a slab of it.">
-              intercepts {(atSun.fapar * 100).toFixed(0)}%
-            </span>
-          ) : null}
-          {atSun?.k_emergent != null ? (
-            /*
-              The coefficient this canopy behaves as, against the one a crop
-              model holds fixed. It is the finding worth surfacing: k is not a
-              constant, and here it is not even constant within a day -- move
-              the sun and the sign of the error changes. Measured on sorghum
-              driven by STICS, it also falls over a season, from 1.05 to 0.73,
-              which this engine cannot show because its architecture does not
-              develop.
-            */
-            <span
-              title={`A crop model would hold k at ${atSun.fixed_k.toFixed(2)} and report ${(atSun.fapar_fixed_k * 100).toFixed(0)}% intercepted. k is not a constant: it moves with the sun angle and, where architecture develops, across the season.`}
-            >
-              k {atSun.k_emergent.toFixed(2)} against {atSun.fixed_k.toFixed(2)}
-              {atSun.fixed_k_error_pct != null
-                ? ` (${atSun.fixed_k_error_pct > 0 ? "+" : ""}${atSun.fixed_k_error_pct.toFixed(0)}%)`
-                : ""}
-            </span>
-          ) : null}
-          <span className="opacity-60">
-            {field.meta.source === "rows"
-              ? `rows ${((field.meta as { row_width?: number }).row_width ?? 0).toFixed(2)} m wide`
-              : field.meta.source === "ellipsoid"
-                ? "ellipsoid crowns"
-                : "grown leaves"}
+          {/*
+            Helios's own figure for the stand, not one this surface derived. It
+            is here because it is the quantity the light calculation would
+            consume, so a reader can tell this is the canopy those numbers would
+            have described.
+          */}
+          <span>{mesh.leafArea.toFixed(2)} m² of leaf</span>
+          <span>{triangles.toLocaleString()} triangles</span>
+          <span>{(mesh.bytes / 1e6).toFixed(1)} MB</span>
+          <span className="opacity-70">
+            {Object.entries(mesh.organs)
+              .map(([o, n]) => `${o} ${n.toLocaleString()}`)
+              .join(" · ")}
           </span>
         </div>
       ) : null}

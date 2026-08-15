@@ -22,3 +22,7 @@ geosense-run-*/
 # Editor
 .vscode/
 .idea/
+.temp
+# Grown canopy meshes. The app always writes these into a temp work dir;
+# one lands here only when the sidecar action is run by hand without one.
+sidecar/*.glb

@@ -19,9 +19,12 @@ import (
 // so that a deliberate zero is distinguishable from an omission.
 func f(v float64) *float64 { return &v }
 
+// The package is pyhelios3d on PyPI; the module it installs is pyhelios.
+// Probing the distribution name always failed, so the refusal test below ran
+// even where the toolkit was present and the growth path was never exercised.
 func hasPyHelios(t *testing.T, python string) bool {
 	t.Helper()
-	return exec.Command(python, "-c", "import pyhelios3d").Run() == nil
+	return exec.Command(python, "-c", "import pyhelios").Run() == nil
 }
 
 /*

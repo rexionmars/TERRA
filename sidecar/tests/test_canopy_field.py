@@ -363,19 +363,16 @@ def test_a_field_needing_more_steps_than_the_shader_runs_is_refused():
                            crown_a=0.5, crown_b=3.0, crown_z=3.2)
 
 
-def test_the_step_budget_is_the_same_number_the_shader_compiles():
-    """
-    MAX_MARCH_STEPS here and CANOPY_MAX_STEPS in the shader are one contract.
-    Reading the TypeScript is cruder than importing it, but the alternative is
-    two numbers nobody compares -- which is how this defect existed.
-    """
-    from pathlib import Path
-    source = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib"
-              / "canopyShader.ts").read_text(encoding="utf-8")
-    import re
-    match = re.search(r"CANOPY_MAX_STEPS\s*=\s*(\d+)", source)
-    assert match, "CANOPY_MAX_STEPS is no longer a literal in canopyShader.ts"
-    assert int(match.group(1)) == cf.MAX_MARCH_STEPS
+# The step budget used to be one contract across two languages: MAX_MARCH_STEPS
+# here and CANOPY_MAX_STEPS in frontend/src/lib/canopyShader.ts, checked against
+# each other because two numbers nobody compares is how that defect arose.
+#
+# The GLSL march is gone. The canopy surface draws grown plants now, so nothing
+# outside this module marches the field and there is no second number to keep in
+# step. The test that compared them is removed rather than adapted: it existed
+# for the disagreement, and with one side deleted it could only assert that a
+# file it reads still exists. MAX_MARCH_STEPS itself stays -- `_check_march`
+# still bounds the field it builds, which is a real limit on a real grid.
 
 
 def test_a_grid_that_does_not_tile_the_module_is_refused():

@@ -311,6 +311,64 @@ export namespace backend {
 	    }
 	}
 	
+	export class CanopyMesh {
+	    url: string;
+	    bytes: number;
+	    species: string;
+	    days: number;
+	    plants: number;
+	    rows: number;
+	    per_row: number;
+	    inter_row: number;
+	    inter_plant: number;
+	    leaf_area: number;
+	    organs: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyMesh(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.bytes = source["bytes"];
+	        this.species = source["species"];
+	        this.days = source["days"];
+	        this.plants = source["plants"];
+	        this.rows = source["rows"];
+	        this.per_row = source["per_row"];
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.leaf_area = source["leaf_area"];
+	        this.organs = source["organs"];
+	    }
+	}
+	export class CanopyMeshRequest {
+	    species?: string;
+	    days?: number;
+	    rows?: number;
+	    per_row?: number;
+	    inter_row?: number;
+	    inter_plant?: number;
+	    seed?: number;
+	    organs?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyMeshRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.days = source["days"];
+	        this.rows = source["rows"];
+	        this.per_row = source["per_row"];
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.seed = source["seed"];
+	        this.organs = source["organs"];
+	    }
+	}
 	
 	
 	export class ClassStat {

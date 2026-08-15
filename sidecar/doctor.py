@@ -85,7 +85,11 @@ NEEDS = [
     # the canopy engines are numpy. Nothing degrades until someone asks to grow
     # a plant, which is why this reports missing without making the environment
     # unusable.
-    Need("pyhelios3d", "pyhelios3d", "growing a 3D crop", optional=True,
+    # The import name and the distribution name differ: `pip install pyhelios3d`
+    # provides the module `pyhelios`. Probing the distribution name reported the
+    # toolkit absent on machines where it was installed and working, which is
+    # exactly the misdiagnosis this file exists to prevent.
+    Need("pyhelios", "pyhelios3d", "growing a 3D crop", optional=True,
          floor=(0, 1, 27),
          why="plantarchitecture growth and the organ labels the bridge reads"),
 ]

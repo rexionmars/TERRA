@@ -1251,10 +1251,11 @@ def main():
                     days=int(req.get('days', 120)),
                     seed=req.get('seed'))
             except ImportError as e:
-                fail('Growing a 3D crop needs pyhelios3d, which this '
-                     'interpreter does not have. Install it there, or choose '
-                     'another Python in Settings > System. Canopies from '
-                     f'ellipsoid crowns need nothing extra. ({e})')
+                fail('Growing a 3D crop needs the pyhelios3d package, which '
+                     'installs as the module `pyhelios`. This interpreter does '
+                     'not have it: run `pip install pyhelios3d` there, or '
+                     'choose another Python in Settings > System. Canopies '
+                     f'from ellipsoid crowns need nothing extra. ({e})')
             except Exception as e:
                 fail(f'growing the plant failed: {e}')
             try:
@@ -1285,6 +1286,90 @@ def main():
             payload['grown'] = grow_meta
         emit_progress(100, 'done')
         sys.stdout.write(json.dumps({'canopy_field': payload}))
+        sys.stdout.flush()
+        return
+
+    # A stand of plants as geometry, for a reader who wants to see the canopy.
+    #
+    # This is not the canopy field with a nicer surface on it. The field is a
+    # leaf-area density on a voxel grid: there is no leaf in it, and no
+    # rendering of it can show one, because the architecture was integrated away
+    # when it was built. This action keeps the architecture -- Helios grows the
+    # stand, the bridge pulls the triangles out by organ, and the mesh goes to
+    # the webview as glTF for three.js to draw.
+    #
+    # THE MESH IS LARGE AND THAT IS THE POINT. Twelve sorghum at day 60 is about
+    # 264,000 triangles. Fruit alone is a third of that -- a sorghum panicle,
+    # which nobody asked to see in a canopy -- so `organs` selects, defaulting
+    # to the vegetative structure. Growing is ~2 s for twenty plants, and the
+    # mesh is written once per request rather than per frame.
+    if action == 'canopy_mesh':
+        emit_progress(5, 'growing the stand')
+        try:
+            import helios_grow
+            grown = helios_grow.grow_canopy(
+                species=req.get('species', 'sorghum'),
+                days=int(req.get('days', 60)),
+                rows=int(req.get('rows', 4)),
+                per_row=int(req.get('per_row', 5)),
+                inter_row=float(req.get('inter_row', 0.8)),
+                inter_plant=float(req.get('inter_plant', 0.2)),
+                seed=req.get('seed'))
+        except ImportError as e:
+            fail('Growing a 3D canopy needs the pyhelios3d package, which '
+                 'installs as the module `pyhelios`. This interpreter does not '
+                 'have it: run `pip install -r requirements-helios.txt` there, '
+                 f'or choose another Python in Settings > System. ({e})')
+        except Exception as e:
+            fail(f'growing the stand failed: {e}')
+
+        emit_progress(45, 'extracting the scene')
+        try:
+            import helios_bridge
+            organs = req.get('organs') or ['leaf', 'petiole', 'other']
+            scene = helios_bridge.extract(
+                grown.ctx, organ_uuids=helios_grow.organ_uuids(grown))
+            present = [o for o in organs if o in scene and len(scene[o]['tris'])]
+            if not present:
+                fail(f'the grown scene has none of the organs {organs}; it has '
+                     f'{sorted(scene)}')
+        except SystemExit:
+            raise
+        except Exception as e:
+            fail(f'extracting the grown scene failed: {e}')
+
+        emit_progress(75, 'writing the mesh')
+        try:
+            # GLB rather than glTF: a .gltf carries its buffer as a base64 data
+            # URI, and the Go side base64s the file again to cross the webview
+            # bridge, so 21 MB of geometry arrives as a 37 MB string and the
+            # parser inside the webview exhausts its stack -- reported as
+            # "Maximum call stack size exceeded", which names nothing. GLB keeps
+            # the buffer binary, so there is one encoding on the path instead of
+            # two, and write_glb indexes the vertices on the way out.
+            mesh_path = work_dir / 'canopy_mesh.glb'
+            helios_bridge.write_glb(scene, str(mesh_path), organs=present)
+        except Exception as e:
+            fail(f'writing the mesh failed: {e}')
+
+        # The leaf area Helios reports for the stand, so a reader can tell this
+        # is the same canopy the field would have been built from.
+        pids = grown.plant_id if isinstance(grown.plant_id, list) else [grown.plant_id]
+        payload = {
+            'path': str(mesh_path),
+            'bytes': int(mesh_path.stat().st_size),
+            'species': grown.species,
+            'days': grown.days,
+            'plants': len(pids),
+            'rows': int(req.get('rows', 4)),
+            'per_row': int(req.get('per_row', 5)),
+            'inter_row': float(req.get('inter_row', 0.8)),
+            'inter_plant': float(req.get('inter_plant', 0.2)),
+            'leaf_area': float(sum(grown.pa.getPlantLeafArea(p) for p in pids)),
+            'organs': {o: int(len(scene[o]['tris'])) for o in present},
+        }
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({'canopy_mesh': payload}))
         sys.stdout.flush()
         return
 

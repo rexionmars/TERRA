@@ -1977,6 +1977,57 @@ in for, so the result reports which one produced it.
 // own default. That is the pattern sidecar/infer.py:82-91 records as having
 // silently moved four numeric parameters in this repository, one of which
 // shifted every energy figure by 5.78 percent.
+/*
+CanopyMeshRequest asks for a stand of plants as geometry.
+
+Distinct from CanopyFieldRequest and not a variant of it. The field is a
+leaf-area density on a voxel grid, which holds no leaf to draw; this grows
+plants and keeps their triangles. The two answer different questions, and the
+only thing they share is a species name.
+
+Organs selects what comes back. Sorghum fruit is a third of the triangles of a
+grown stand, and nobody asking to see a canopy means the panicle, so leaving it
+empty asks for the vegetative structure.
+*/
+type CanopyMeshRequest struct {
+	Species    string   `json:"species,omitempty"`
+	Days       int      `json:"days,omitempty"`
+	Rows       int      `json:"rows,omitempty"`
+	PerRow     int      `json:"per_row,omitempty"`
+	InterRow   *float64 `json:"inter_row,omitempty"`
+	InterPlant *float64 `json:"inter_plant,omitempty"`
+	Seed       *int     `json:"seed,omitempty"`
+	Organs     []string `json:"organs,omitempty"`
+}
+
+/*
+CanopyMesh is a grown stand, as glTF plus what it is made of.
+
+The mesh crosses as base64 for the reason the field does: it is a binary the
+webview consumes directly, and the sidecar's work dir is removed by the time the
+front end asks for it. LeafArea is Helios's own figure for the stand, so a
+reader can tell this is the canopy a field would have been built from.
+*/
+type CanopyMesh struct {
+	// The bytes themselves never cross the bridge: the app holds them and the
+	// front end fetches URL. `json:"-"` is what keeps them out of a bound
+	// method's reply, which is where a megabyte-scale string overflowed the
+	// webview's stack before any of this application's code ran.
+	Data []byte `json:"-"`
+	URL  string `json:"url"`
+
+	Bytes      int            `json:"bytes"`
+	Species    string         `json:"species"`
+	Days       int            `json:"days"`
+	Plants     int            `json:"plants"`
+	Rows       int            `json:"rows"`
+	PerRow     int            `json:"per_row"`
+	InterRow   float64        `json:"inter_row"`
+	InterPlant float64        `json:"inter_plant"`
+	LeafArea   float64        `json:"leaf_area"`
+	Organs     map[string]int `json:"organs"`
+}
+
 type CanopyFieldRequest struct {
 	Source  string   `json:"source,omitempty"`
 	Spacing *float64 `json:"spacing,omitempty"`

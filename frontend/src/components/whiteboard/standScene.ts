@@ -1,0 +1,484 @@
+/**
+ * A grown stand of plants, drawn as the triangles it is made of.
+ *
+ * WHAT THIS REPLACED. `canopyScene.ts` drew a leaf-area density on a voxel
+ * grid: a box with a ray-march in it, which is the right picture of a field of
+ * numbers and the wrong one of a crop. There was no leaf anywhere in that
+ * representation to draw, because the architecture is integrated away when the
+ * field is built -- so no amount of shading it produces a canopy a reader
+ * recognises. That file and its GLSL march are gone; this draws the
+ * architecture itself, grown by Helios and carried over as GLB.
+ *
+ * The two were never two qualities of one thing. A density answers "how much
+ * light gets through", and that question still has an answer: the march, the
+ * field and the extinction coefficient live in sidecar/canopy_field.py, in
+ * numpy, where they are computed rather than drawn. A stand answers "what does
+ * this crop look like", which is what someone means when they ask to see a
+ * canopy, and it is the only one of the two that is a picture.
+ *
+ * GEOMETRY IS IN METRES AND Z IS UP, WHICH IS HELIOS'S FRAME, NOT THREE'S.
+ * Helios grows in a right-handed frame with z as height; three's camera and
+ * controls assume y. Rather than transform every vertex, the loaded scene is
+ * rotated -90 degrees about x once, on the group. A reader inspecting a vertex
+ * in the debugger sees the number Helios produced.
+ *
+ * LIGHTING IS NOT THE RADIATION MODEL. The plants are lit by a hemisphere and a
+ * directional light so their shape reads. That is scene lighting for legibility
+ * and nothing more -- the light that gets computed is computed by the canopy
+ * engines in the sidecar, on the field, in numpy. Nothing here feeds a number
+ * back into any calculation, which is why a plain lambert material is honest
+ * here where it would not be in the march.
+ */
+import {
+  AmbientLight,
+  Box3,
+  Color,
+  DirectionalLight,
+  DoubleSide,
+  Group,
+  HemisphereLight,
+  Mesh,
+  MeshLambertMaterial,
+  MOUSE,
+  PerspectiveCamera,
+  Scene,
+  Vector3,
+  WebGLRenderer,
+} from "three"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+
+/** The sun as the surface states it, in degrees. */
+export interface StandView {
+  elevation: number
+  azimuth: number
+}
+
+export interface StandHandle {
+  /** URL the asset server serves the last grown GLB from. */
+  setMesh(url: string): Promise<void>
+  setView(view: StandView): void
+  frame(): void
+  dispose(): void
+}
+
+/*
+  Organ colours.
+
+  Not physical and not the optical properties the radiation model uses -- those
+  live in the sidecar and are per band. These exist so a reader can tell blade
+  from stem at a glance, which is the whole job of this view.
+*/
+const ORGAN_COLOR: Record<string, number> = {
+  leaf: 0x3f7d2a,
+  petiole: 0x4a6b28,
+  peduncle: 0x55702c,
+  fruit: 0x9d5230,
+  other: 0x5a4326,
+}
+
+function tokenColor(host: HTMLElement, name: string): Color {
+  const raw = getComputedStyle(host).getPropertyValue(name).trim()
+  const [r, g, b] = raw.split(/\s+/).map((v) => Number(v) / 255)
+  return Number.isFinite(r) ? new Color(r, g, b) : new Color(0.1, 0.1, 0.1)
+}
+
+/** Sun direction from elevation and azimuth in degrees, in three's frame. */
+function sunVector(elevationDeg: number, azimuthDeg: number): Vector3 {
+  const e = (elevationDeg * Math.PI) / 180
+  const a = (azimuthDeg * Math.PI) / 180
+  // y is up here, so height is sin(elevation) and the compass is in x/z.
+  return new Vector3(
+    Math.cos(e) * Math.cos(a),
+    Math.sin(e),
+    Math.cos(e) * Math.sin(a)
+  ).normalize()
+}
+
+export function createStandScene(
+  host: HTMLDivElement,
+  opts: { view: StandView }
+): StandHandle {
+  let disposed = false
+  let raf = 0
+  const disposables: Array<{ dispose(): void }> = []
+
+  const renderer = new WebGLRenderer({ antialias: true, alpha: true })
+  // Not capped as hard as the march is: this is geometry-bound rather than
+  // fill-rate bound, and leaf edges are exactly what a reader is looking at.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  host.appendChild(renderer.domElement)
+
+  const scene = new Scene()
+  const camera = new PerspectiveCamera(38, 1, 0.02, 500)
+
+  const controls = new OrbitControls(camera, renderer.domElement)
+  controls.enableDamping = true
+  controls.dampingFactor = 0.08
+  controls.maxPolarAngle = Math.PI * 0.495
+  // Bindings are set below, beside the modifier that completes them.
+
+  const sun = new DirectionalLight(0xffffff, 2.1)
+  const sky = new HemisphereLight(0xbcd6ff, 0x6b5a3e, 1.15)
+  // A floor of ambient so the undersides of leaves are not black. Deep shade in
+  // a real canopy is dim, not absent, and a black underside reads as a hole.
+  const fill = new AmbientLight(0xffffff, 0.35)
+  scene.add(sun, sky, fill)
+
+  let stand: Group | null = null
+  const loader = new GLTFLoader()
+
+  /*
+    Drawing is SCHEDULED, never done inline. This is the bug that cost four
+    attempts to find, so it is worth stating exactly.
+
+    `controls.update()` dispatches a `change` event whenever it moves the
+    camera, and with damping enabled it moves the camera on almost every call
+    while a gesture settles. `render` is registered as the `change` listener.
+    Calling `controls.update()` directly inside `render` therefore reads:
+
+        render -> update() -> "change" -> render -> update() -> "change" -> ...
+
+    with nothing to unwind it -- which surfaced as "Maximum call stack size
+    exceeded" the moment a stand was framed, an error naming no file and no
+    layer. It reproduced nowhere outside the webview because every check made
+    here exercised the loader and the geometry, never the controls.
+
+    Guarding on `raf` breaks the cycle without losing damping: a `change` that
+    arrives while a frame is already booked does nothing, and the `update` that
+    would recurse runs one stack frame deep inside the callback instead. When
+    damping settles, update() stops reporting movement, nothing reschedules,
+    and the loop ends on its own.
+  */
+  const render = () => {
+    if (disposed || raf) return
+    raf = requestAnimationFrame(() => {
+      raf = 0
+      if (disposed) return
+      controls.update()
+      renderer.render(scene, camera)
+    })
+  }
+
+  // Whether the reader has moved the camera since the stand was framed. A
+  // resize should re-fit a view nobody has touched -- the first one arrives
+  // after mount, when the aspect the fit used was still 1:1 -- but must not
+  // yank a camera the reader positioned themselves. Declared above `frame`
+  // rather than beside `resize` because `frame` clears it, and a `let` read
+  // before its declaration is a temporal-dead-zone throw waiting for someone
+  // to reorder these two.
+  let userMoved = false
+
+  /*
+    Put the whole stand on screen.
+
+    BOTH AXES, NOT JUST THE VERTICAL ONE. A perspective camera states its fov
+    vertically, so fitting only that overflows sideways on any viewport wider
+    than it is tall -- and this area is a wide strip under a header, where a
+    stand 3.3 m deep and 1.4 m tall ran off both edges. The horizontal half-
+    angle is atan(tan(fov/2) * aspect), so the distance each axis needs is its
+    own half-span over its own tangent, and the camera has to take the larger.
+
+    AFTER LAYOUT, NOT BEFORE. `camera.aspect` is only right once the host has
+    been measured, so a frame computed during mount uses the initial 1:1 and is
+    wrong by however wide the area really is. `resize` re-frames for that
+    reason, and this is safe to call more than once.
+  */
+  const frame = () => {
+    if (!stand) return
+    const box = new Box3().setFromObject(stand)
+    if (box.isEmpty()) return
+    const size = box.getSize(new Vector3())
+    const centre = box.getCenter(new Vector3())
+
+    // Fitted to the bounding SPHERE, not to the box's sides.
+    //
+    // Sides are the obvious thing to fit and they do not work from an oblique
+    // camera: the stand is seen from a corner and above, so what projects
+    // widest is a diagonal, and which diagonal depends on the angle. Fitting
+    // width and height separately let corners past the frustum at wide aspect
+    // ratios -- checked, and it failed at 4.16:1, which is what this area is.
+    // A sphere has no orientation, so its radius bounds the silhouette from
+    // every direction at once and the fit holds however the reader orbits.
+    const radius = size.length() / 2
+    const vFov = (camera.fov * Math.PI) / 180
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
+    const dist = Math.max(
+      radius / Math.sin(vFov / 2),
+      radius / Math.sin(hFov / 2)
+    ) * 1.06
+
+    // A shallow rise: a canopy read from near ground level shows the rows
+    // closing over, which is the thing worth seeing, where a top-down view
+    // flattens it into a texture.
+    const dir = new Vector3(0.62, 0.42, 0.66).normalize()
+    camera.position.copy(centre).addScaledVector(dir, dist)
+    // Framing is the deliberate act of putting the camera somewhere, so it
+    // hands control back: a later resize may re-fit until the reader moves.
+    userMoved = false
+    controls.target.copy(centre)
+    camera.near = Math.max(dist / 1000, 0.01)
+    camera.far = dist * 12
+    camera.updateProjectionMatrix()
+    controls.update()
+    render()
+  }
+
+  const resize = () => {
+    const w = host.clientWidth || 1
+    const h = host.clientHeight || 1
+    /*
+      updateStyle left at its default, and boardScene.ts says why in a comment
+      this file should have been read against before it was written:
+
+        "Passing false writes the drawing buffer in device pixels and leaves
+         the canvas with NO css size, so on a 2x display the element lays out
+         at twice the intended width and height, anchored top-left [...] The
+         raster looked pushed into the corner and hugely magnified because it
+         was."
+
+      That is this area's first reported symptom, exactly: the stand appeared
+      enormous and shoved into a corner. It was diagnosed here as a framing
+      problem and answered with bounding-sphere camera maths, which fitted a
+      camera to a viewport that was never the size the canvas claimed. The
+      maths is right and was not the cause.
+
+      A canvas carries no intrinsic CSS size, so with no style written it lays
+      out at its attribute size in CSS pixels -- 2w x 2h inside a w x h host on
+      a Retina display. It then paints over the parameter bar below it, which
+      is why the controls stop answering and the area reads as frozen. At
+      devicePixelRatio 1 none of this happens, which is why every check made
+      outside this machine passed.
+    */
+    renderer.setSize(w, h)
+    camera.aspect = w / h
+    camera.updateProjectionMatrix()
+    if (userMoved) render()
+    else frame()
+  }
+  const observer = new ResizeObserver(resize)
+  observer.observe(host)
+  // `start` fires on a drag or a wheel, never on the programmatic update()
+  // calls frame() makes, so this marks intent rather than movement.
+  const onUserInput = () => {
+    userMoved = true
+  }
+  controls.addEventListener("start", onUserInput)
+  controls.addEventListener("change", render)
+
+  /*
+    Blender's bindings, and the modifier that goes with them.
+
+    LEFT is deliberately null across this application -- boardScene.ts and the
+    canopy scene before this one both navigate on the middle button -- and
+    Ctrl/Cmd turns that button into a dolly. Copying the bindings without the
+    modifier, which is what this file did at first, leaves a reader with the
+    convention half-applied: the gesture the rest of the studio teaches them
+    does nothing here.
+
+    Blur resets, because a modifier held while the window loses focus never
+    delivers its keyup and the button would stay a dolly.
+  */
+  const NAV_DEFAULT = { LEFT: null, MIDDLE: MOUSE.ROTATE, RIGHT: null }
+  const NAV_ZOOM = { LEFT: null, MIDDLE: MOUSE.DOLLY, RIGHT: null }
+  controls.mouseButtons = { ...NAV_DEFAULT }
+  const onNavModifier = (e: KeyboardEvent) => {
+    controls.mouseButtons = { ...(e.ctrlKey || e.metaKey ? NAV_ZOOM : NAV_DEFAULT) }
+  }
+  const onNavBlur = () => {
+    controls.mouseButtons = { ...NAV_DEFAULT }
+  }
+  window.addEventListener("keydown", onNavModifier)
+  window.addEventListener("keyup", onNavModifier)
+  window.addEventListener("blur", onNavBlur)
+
+  /*
+    WEBGL CONTEXT LOSS, WHICH READS AS THE AREA FREEZING.
+
+    A lost context leaves the canvas showing its last frame and accepting no
+    further draws -- so the stand appears, and then the area is stone. This
+    application makes it likelier than usual: the board holds one context and
+    this holds a second, and a webview is not generous with them.
+
+    `preventDefault` is the load-bearing line. Without it the browser never
+    fires `webglcontextrestored` at all, so the canvas is dead for the lifetime
+    of the area rather than for a moment. The scene before this one had it; this
+    file was written without it, which is a regression rather than an omission.
+
+    Clearing `raf` matters just as much here. A frame booked before the context
+    went away never runs, so nothing resets the guard, and every later render
+    returns early on a raf that will never fire -- frozen even after the context
+    comes back.
+  */
+  const onContextLost = (e: Event) => {
+    e.preventDefault()
+    if (raf) {
+      cancelAnimationFrame(raf)
+      raf = 0
+    }
+  }
+  const onContextRestored = () => {
+    // resize() rebuilds the drawing buffer and re-frames or redraws, which is
+    // everything this scene needs to be whole again: the geometry and the
+    // materials are still in memory, only the GPU-side objects were lost.
+    resize()
+  }
+  renderer.domElement.addEventListener("webglcontextlost", onContextLost)
+  renderer.domElement.addEventListener("webglcontextrestored", onContextRestored)
+
+  resize()
+
+  const applyView = (view: StandView) => {
+    const d = sunVector(view.elevation, view.azimuth)
+    // Distance is arbitrary for a directional light; only the direction is
+    // read. Kept well outside the stand so the helper, if ever added, is not
+    // inside the plants.
+    sun.position.copy(d).multiplyScalar(50)
+  }
+  applyView(opts.view)
+
+  const disposeStand = () => {
+    if (!stand) return
+    scene.remove(stand)
+    stand.traverse((o) => {
+      if (o instanceof Mesh) {
+        o.geometry.dispose()
+        const m = o.material
+        if (Array.isArray(m)) m.forEach((x) => x.dispose())
+        else m?.dispose()
+      }
+    })
+    stand = null
+  }
+
+  scene.background = null
+
+  return {
+    async setMesh(url) {
+      if (disposed) return
+
+      /*
+        Fetched, never carried.
+
+        The mesh used to come back from the bound method as base64 and be
+        decoded here. That is what threw "Maximum call stack size exceeded",
+        and not where it looked: the throw is inside the Wails bridge, which
+        marshals every bound result to JSON and hands the webview one string of
+        it, so it happens before any of this file runs. Shrinking the payload
+        moved the threshold without removing it, and every check made outside
+        the webview passed, because node's stack is not WKWebView's.
+
+        Now the Go side holds the bytes and this fetches them from the asset
+        server. The response is an ArrayBuffer the loader takes directly: no
+        base64 anywhere on the path, and nothing that scales with the mesh
+        crossing the bridge.
+      */
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(
+          `the grown stand could not be fetched (${response.status}). It is held ` +
+            `only until the next grow, so this can mean it was replaced mid-request.`
+        )
+      }
+      const buffer = await response.arrayBuffer()
+      if (disposed) return
+      const gltf = await loader.parseAsync(buffer, "")
+      if (disposed) return
+
+      disposeStand()
+      const group = gltf.scene
+      // Helios grows z-up; three is y-up. One rotation on the group rather than
+      // a transform per vertex, so the numbers in the buffers stay Helios's.
+      group.rotation.x = -Math.PI / 2
+
+      group.traverse((o) => {
+        if (!(o instanceof Mesh)) return
+        // The organ name is on the mesh: the bridge writes one node per organ
+        // and names it, and three carries that name onto the object it builds.
+        // Falling back to `other` rather than skipping, so an organ this file
+        // has no colour for is still drawn.
+        const colour = ORGAN_COLOR[o.name] ?? ORGAN_COLOR.other
+        // The loader builds a PBR material per primitive from the glTF, and
+        // replacing it drops the only reference to it. Disposed rather than
+        // dropped: this runs again on every regrow, and a material abandoned
+        // with GPU-side state behind it is a leak that ends in a lost context
+        // -- which is the failure that looks like the whole area freezing.
+        const built = o.material
+        if (Array.isArray(built)) built.forEach((m) => m.dispose())
+        else built?.dispose()
+        /*
+          DoubleSide because a leaf is a surface with no inside: Helios emits
+          one triangle per blade face, and backface culling would drop every
+          leaf the camera happens to see from below.
+
+          flatShading is NOT a look chosen here -- it is the loader's own
+          compensation, and replacing the material without it silently breaks
+          the lighting. `write_glb` writes POSITION and indices and no NORMAL,
+          so GLTFLoader sets flatShading on the material it builds
+          (GLTFLoader.js:3446 `useFlatShading = geometry.attributes.normal ===
+          undefined`, applied at :3505), which makes three derive the normal per
+          fragment instead of reading an attribute that is not there. A fresh
+          material defaults it to false, the shader then reads a missing normal
+          attribute as (0,0,0), and every directional and hemisphere term
+          collapses -- leaving only AmbientLight, which is why the stand came
+          out a flat, uniform green with no shape in it.
+        */
+        o.material = new MeshLambertMaterial({
+          color: colour,
+          side: DoubleSide,
+          flatShading: true,
+        })
+      })
+
+      stand = group
+      scene.add(group)
+      frame()
+    },
+
+    setView(view) {
+      if (disposed) return
+      applyView(view)
+      render()
+    },
+
+    frame,
+
+    dispose() {
+      disposed = true
+      if (raf) cancelAnimationFrame(raf)
+      observer.disconnect()
+      // Removed explicitly rather than left to controls.dispose(): both
+      // closures hold the renderer and the scene, and a listener that outlives
+      // this handle keeps the whole WebGL context alive behind it.
+      controls.removeEventListener("start", onUserInput)
+      controls.removeEventListener("change", render)
+      controls.dispose()
+      // The window-level ones are the dangerous pair: they outlive the area
+      // that created them, so an unmounted scene would keep rewriting the
+      // bindings of whatever OrbitControls it closed over.
+      window.removeEventListener("keydown", onNavModifier)
+      window.removeEventListener("keyup", onNavModifier)
+      window.removeEventListener("blur", onNavBlur)
+      renderer.domElement.removeEventListener("webglcontextlost", onContextLost)
+      renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored)
+      disposeStand()
+      disposables.forEach((d) => d.dispose())
+      renderer.dispose()
+      // Not optional, and the scene this replaced said so in as many words.
+      // `dispose()` releases three's own objects but leaves the WebGL context
+      // itself alive; the webview caps how many may exist, and this one is
+      // created and destroyed every time its area mounts. Omitted, the budget
+      // is spent within a dozen workspace switches and the next context is
+      // refused or an existing one is taken away -- which is not reported as
+      // an error anywhere, it just leaves an area that draws once and then
+      // sits frozen.
+      renderer.forceContextLoss()
+      if (renderer.domElement.parentElement === host) {
+        host.removeChild(renderer.domElement)
+      }
+    },
+  }
+}
+
+// Kept for the surface that reads a background token off the host.
+export { tokenColor }

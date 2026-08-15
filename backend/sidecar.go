@@ -1899,6 +1899,114 @@ func (w *WindAnalysis) NormalizeNilSlices() {
 // where an out-of-memory would not.
 const maxCanopyFieldCells = 8 << 20
 
+// A grown stand is large by nature -- twelve sorghum at day 60 is about 264,000
+// triangles, and 11 MB of glTF once fruit is dropped. This bound is not a
+// resolution decision like the field's cell count; it is the point past which
+// base64 through the webview bridge stops being reasonable, and refusing here
+// says so with the numbers rather than letting the surface hang on a big stand.
+const maxCanopyMeshBytes = 96 << 20
+
+/*
+BuildCanopyMesh grows a stand of plants and returns it as glTF.
+
+Separate from BuildCanopyField because it answers a different question. The
+field is a leaf-area density that a shader marches; this is the architecture
+that density was measured from, kept as triangles so it can be drawn. Growing
+costs seconds, so this runs on request rather than on every scrub.
+*/
+func (r *Runner) BuildCanopyMesh(ctx context.Context, req CanopyMeshRequest) (*CanopyMesh, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-canopy-mesh-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":   "canopy_mesh",
+		"work_dir": workDir,
+	}
+	if req.Species != "" {
+		payload["species"] = req.Species
+	}
+	if req.Days > 0 {
+		payload["days"] = req.Days
+	}
+	if req.Rows > 0 {
+		payload["rows"] = req.Rows
+	}
+	if req.PerRow > 0 {
+		payload["per_row"] = req.PerRow
+	}
+	// Spacing by pointer for the reason the field request documents: zero is a
+	// value a caller can mean, and omitempty on a float64 would drop it.
+	if req.InterRow != nil {
+		payload["inter_row"] = *req.InterRow
+	}
+	if req.InterPlant != nil {
+		payload["inter_plant"] = *req.InterPlant
+	}
+	if req.Seed != nil {
+		payload["seed"] = *req.Seed
+	}
+	if len(req.Organs) > 0 {
+		payload["organs"] = req.Organs
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// The path stays on this side: it names a file in a work dir this function
+	// removes on return, so it would be a dangling name to anyone else.
+	var wrapped struct {
+		CanopyMesh *struct {
+			CanopyMesh
+			Path string `json:"path"`
+		} `json:"canopy_mesh"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse canopy_mesh result: %w", err)
+	}
+	if wrapped.CanopyMesh == nil {
+		return nil, fmt.Errorf("sidecar returned empty canopy_mesh payload")
+	}
+
+	mesh := wrapped.CanopyMesh.CanopyMesh
+	if mesh.Bytes <= 0 {
+		return nil, fmt.Errorf("canopy mesh reports %d bytes", mesh.Bytes)
+	}
+	if mesh.Bytes > maxCanopyMeshBytes {
+		return nil, fmt.Errorf(
+			"the grown stand is %d MB of glTF, over the %d MB this carries to the view; "+
+				"grow fewer plants, fewer days, or drop an organ",
+			mesh.Bytes>>20, maxCanopyMeshBytes>>20)
+	}
+
+	glb, err := os.ReadFile(wrapped.CanopyMesh.Path)
+	if err != nil {
+		return nil, fmt.Errorf("canopy mesh file missing: %w", err)
+	}
+	// Guards a truncated write, the same and only thing the field's length
+	// check guards.
+	if len(glb) != mesh.Bytes {
+		return nil, fmt.Errorf("canopy mesh is %d bytes, expected %d", len(glb), mesh.Bytes)
+	}
+	// Read into memory because the work dir is removed on return; the caller
+	// holds these and serves them, rather than encoding them into a reply.
+	mesh.Data = glb
+	return &mesh, nil
+}
+
 /*
 BuildCanopyField returns the leaf-area-density field of one orchard module.
 

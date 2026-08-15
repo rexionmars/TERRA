@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,7 +36,32 @@ type App struct {
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
+
+	/*
+		Grown meshes waiting to be fetched, keyed by the id in their URL.
+
+		A single slot was the first shape and it was wrong: the canopy editor is
+		deliberately not marked unique -- BoardSurface's own comment says two
+		areas holding it "describe two orchards, which is a comparison worth
+		having" -- and every instance grows once on mount. Two of them race, the
+		second build overwrites the id the first was handed, and the first area
+		fetches a URL that no longer matches and gets a 404 it cannot recover
+		from without pressing Grow again. The same race fires inside one area
+		whenever a regrow is issued while the previous body is still streaming.
+
+		Bounded because the entries are megabytes: the oldest is dropped once
+		more than a few are held, which is far more than the number of canopy
+		areas anyone opens and still cannot grow without limit.
+	*/
+	meshMu    sync.RWMutex
+	meshes    map[string][]byte
+	meshOrder []string
 }
+
+// How many grown meshes are kept fetchable at once. Each is single-digit
+// megabytes, and a fetch follows its build within a frame or two, so this only
+// has to cover concurrent areas and one regrow racing its own predecessor.
+const maxHeldMeshes = 4
 
 // NewApp creates a new App.
 func NewApp() *App {
@@ -430,6 +457,99 @@ func (a *App) BuildCanopyField(req backend.CanopyFieldRequest) (*backend.CanopyF
 		return nil, errors.New("runner not initialized")
 	}
 	return runner.BuildCanopyField(a.ctx, req)
+}
+
+// BuildCanopyMesh grows a stand of plants and returns it as glTF, for a reader
+// who wants to see the canopy rather than a density that stands for it.
+//
+// Not persisted, for the reason BuildCanopyField gives, and for one more: the
+// stand is deterministic in its seed, so the parameters are a smaller and more
+// durable record of it than the megabytes of triangles they produce.
+func (a *App) BuildCanopyMesh(req backend.CanopyMeshRequest) (*backend.CanopyMesh, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	mesh, err := runner.BuildCanopyMesh(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	/*
+		The bytes are held here and the reply carries a URL instead.
+
+		Returning them would put a base64 string of the whole mesh through the
+		Wails bridge, which marshals every bound result to JSON. On WKWebView
+		that is where "Maximum call stack size exceeded" is thrown -- inside the
+		bridge, before any application JavaScript runs, which is why it survived
+		being verified everywhere outside the webview.
+
+		The id changes per build so the webview cannot serve a previous stand
+		from cache, and each build is held under its own id rather than
+		replacing the last -- see the field's comment for the race that made a
+		single slot wrong.
+	*/
+	id := uuid.NewString()
+
+	a.meshMu.Lock()
+	if a.meshes == nil {
+		a.meshes = make(map[string][]byte)
+	}
+	a.meshes[id] = mesh.Data
+	a.meshOrder = append(a.meshOrder, id)
+	for len(a.meshOrder) > maxHeldMeshes {
+		delete(a.meshes, a.meshOrder[0])
+		a.meshOrder = a.meshOrder[1:]
+	}
+	a.meshMu.Unlock()
+
+	mesh.Data = nil
+	mesh.URL = meshURLPrefix + id
+	return mesh, nil
+}
+
+// The path the grown stand is served from. A prefix rather than a fixed name
+// because the id changes per build, which is what keeps the webview from
+// answering a fetch out of its cache with the previous canopy.
+const meshURLPrefix = "/canopy-mesh/"
+
+/*
+meshMiddleware serves the last grown stand as bytes.
+
+AssetServer middleware rather than its Handler, and the distinction is the whole
+reason this works: Handler is consulted only when Assets reports the file
+missing, and a single-page front end answers any unknown path with index.html
+instead. A mesh request therefore came back as HTML and the loader reported
+"Unrecognized token '<'". Middleware sits ahead of Assets, so this decides its
+own route and passes everything else through untouched.
+*/
+func (a *App) meshMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, meshURLPrefix) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, meshURLPrefix)
+
+		a.meshMu.RLock()
+		data, held := a.meshes[id]
+		a.meshMu.RUnlock()
+
+		// An id nobody is holding is one that has aged out, or one that was
+		// never issued. Either way this must answer rather than fall through:
+		// the asset server behind it replies to unknown paths with index.html,
+		// and a loader handed HTML reports "Unrecognized token '<'".
+		if id == "" || !held || len(data) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "model/gltf-binary")
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		// The id is unique per build, so the bytes behind a URL never change.
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
+	})
 }
 
 // persistSolarRun saves a solar resource run so it survives the session and is

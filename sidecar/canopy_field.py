@@ -11,8 +11,8 @@ not a mirror, and it is where the two engines meet.
 TWO SOURCES FOR THE SAME FIELD. The crowns are ellipsoids of uniform density
 computed here, or they are explicit leaves grown by Helios and voxelised. The
 first needs nothing but numpy and is what almost every install will run; the
-second needs pyhelios3d, which is not in requirements.txt and is absent by
-default. The ellipsoid is not a placeholder for the leaves -- it is a coarser
+second needs pyhelios3d, an optional extra held in requirements-helios.txt
+rather than requirements.txt, and so absent by default. The ellipsoid is not a placeholder for the leaves -- it is a coarser
 model of the same thing, and the studies repository measured what the difference
 costs: an ellipsoid preserving total leaf area and crown envelope assimilates
 about 44% more than the architecture it replaces, because Beer-Lambert is not

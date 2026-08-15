@@ -7,8 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "check:contrast": "tsx scripts/check-contrast.ts",
-    "check:shader": "tsx scripts/check-canopy-shader.ts"
+    "check:contrast": "tsx scripts/check-contrast.ts"
   },
   "dependencies": {
     "@tmcw/togeojson": "^7.1.2",
