@@ -1546,19 +1546,63 @@ def main():
                 )
                 df, solpos = solar_mod.prepare_hourly(
                     hourly, cell_lat, cell_lon, float(req.get('elevation', 0.0)))
-                energy, az_edges = solar_mod.beam_energy_histogram(df, solpos)
+                energy, el_edges = solar_mod.beam_energy_histogram(df, solpos)
+                # The diffuse share of what arrives, from the record rather than
+                # assumed: a canopy lit by the beam alone is lit by a fraction
+                # of a clear day and by almost nothing under cloud.
+                ghi_sum = float(np.nansum(df['ghi'].to_numpy()))
+                dhi_sum = float(np.nansum(df['dhi'].to_numpy()))
+                dhi_share = (dhi_sum / ghi_sum) if ghi_sum > 0 else 0.0
                 payload['sun'] = {
                     'source': 'power',
                     'cell': [cell_lat, cell_lon],
                     'years': years,
                     'provenance': provenance,
-                    # The (azimuth, elevation) table the march would be weighted
-                    # by. Emitted rather than consumed here so the reader can
-                    # see the sun the canopy will be lit with.
                     'beam_energy_total': float(np.sum(energy)),
                     'n_azimuth_bins': int(energy.shape[0]),
                     'n_elevation_bins': int(energy.shape[1]),
+                    'diffuse_share': dhi_share,
                 }
+
+                # Light the canopy the series resolved, under that sun.
+                #
+                # WHICH DATE. The densest canopy the ladder can actually build,
+                # which is where the architecture matters: at low LAI every
+                # geometry transmits alike and the answer says nothing.
+                #
+                # Not the peak of the series, which is the obvious choice and is
+                # wrong often enough to matter -- a season that reaches the
+                # species' ceiling has its peak AT the plateau, where the ladder
+                # returns no age at all, and the naive `max` then silently fell
+                # through to the first usable row: LAI 0.10 lit instead of 3.75.
+                lit_row = max(usable, key=lambda r: r['lai'], default=None)
+                if lit_row is not None:
+                    emit_progress(85, 'lighting the canopy under that sun')
+                    try:
+                        import canopy_field as cfield
+                        import helios_grow as hgrow
+                        row_az = float(req.get('row_azimuth_deg', 0.0))
+                        grown = hgrow.grow(species=species_name,
+                                           days=int(round(lit_row['day'])),
+                                           seed=int(req.get('seed', 7)))
+                        pos, leaf_area, _m = hgrow.leaf_cloud(grown)
+                        pos = np.asarray(pos, float).copy()
+                        # One periodic module carrying one plant, so the LAI the
+                        # march integrates is the sowing's and not the plant's.
+                        module = float(np.sqrt(inter_row * inter_plant))
+                        cell = module / max(int(round(module / 0.05)), 4)
+                        pos[:, 0] = np.mod(pos[:, 0] + module / 2, module)
+                        pos[:, 1] = np.mod(pos[:, 1] + module / 2, module)
+                        grid, fmeta = cfield.leaf_cloud_field(
+                            pos, leaf_area, spacing=module, cell=cell)
+                        lit = cfield.light_under_sun(
+                            cfield.canopy_of(grid, fmeta), energy, el_edges,
+                            dhi_share=dhi_share, row_azimuth_deg=row_az)
+                        lit['date'] = lit_row.get('date')
+                        lit['day'] = lit_row.get('day')
+                        payload['light'] = lit
+                    except Exception as e:
+                        payload['light'] = {'error': str(e)}
             except Exception as e:
                 # A canopy answer is still worth having without the sun record,
                 # so this degrades rather than fails, and says which it did.

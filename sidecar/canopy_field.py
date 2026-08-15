@@ -688,3 +688,158 @@ def build(request, progress=None):
                                           step_frac=float(request.get("step_frac", 0.5))),
     }
     return grid, payload
+
+
+# ---------------------------------------------------------------------------
+# Light under the AOI's own sun, rather than under six directions chosen to
+# exercise a shader.
+# ---------------------------------------------------------------------------
+
+def _canopy_azimuth(compass_deg, row_azimuth_deg=0.0):
+    """A compass bearing, in the canopy's own frame.
+
+    TWO CONVENTIONS MEET HERE AND NEITHER IS WRONG. Solar azimuth is clockwise
+    from north, which is what `solar.py` produces and what the aspect raster
+    uses. `_sun` measures anticlockwise from the field's +x axis, because the
+    field has no north -- it has a module with two axes.
+
+    What joins them is the direction the rows run, which is a real agronomic
+    choice and not a convention: rows laid north-south intercept differently
+    from rows laid east-west, and a canopy lit without that stated is answering
+    for an orientation nobody picked. `row_azimuth_deg` is the bearing of the
+    row direction, so the sun's bearing relative to the rows is the difference,
+    and the sign flips because one convention turns the other way.
+    """
+    return np.radians(90.0 - (float(compass_deg) - float(row_azimuth_deg)))
+
+
+def _hemisphere(n_azimuth=8, n_elevation=6):
+    """Directions and cosine-weights for an isotropic sky.
+
+    Diffuse light arrives from the whole hemisphere, so a canopy lit only by the
+    beam is lit by roughly a fifth of what reaches it on a clear day and by
+    almost nothing under cloud. The weight is cos(zenith) times the solid angle
+    of the band, which is what makes the sum an irradiance rather than a count
+    of directions.
+
+    Coarse on purpose: 48 directions is the order Caribu's turtle sky uses, and
+    the march is the cost here.
+    """
+    dirs, weights = [], []
+    el_edges = np.linspace(0.0, 90.0, n_elevation + 1)
+    for i in range(n_elevation):
+        lo, hi = np.radians(el_edges[i]), np.radians(el_edges[i + 1])
+        # Solid angle of the band, times the cosine projection onto the ground,
+        # integrated analytically over the band: ∫ cos·sin dθ = (sin²hi-sin²lo)/2
+        band = (np.sin(hi) ** 2 - np.sin(lo) ** 2) / 2.0
+        elev = 0.5 * (el_edges[i] + el_edges[i + 1])
+        for j in range(n_azimuth):
+            az = 360.0 * j / n_azimuth
+            dirs.append(_sun(np.cos(np.radians(90.0 - elev)),
+                             np.radians(az)))
+            weights.append(band / n_azimuth)
+    w = np.asarray(weights, float)
+    return np.asarray(dirs, float), w / w.sum()
+
+
+def light_under_sun(canopy, hist, el_edges, *, dhi_share=0.0,
+                    row_azimuth_deg=0.0, n_points=512, step_frac=0.5,
+                    min_share=1e-4):
+    """faPAR under a measured sun, and the coefficient the canopy behaves as.
+
+    `hist` is `solar.beam_energy_histogram`: beam energy per (azimuth sector,
+    elevation band) over the record. Every bin carrying a meaningful share of
+    the year is marched and the results are combined in proportion to the energy
+    that actually arrived from it -- which is the difference between this and
+    the reference suns, where six directions count equally because they were
+    chosen to stress a shader rather than to describe a sky.
+
+    `dhi_share` is the diffuse fraction of the total. Left at zero the answer is
+    beam only, which overstates transmission on any real day; given, the sky is
+    integrated over `_hemisphere` and the two are combined by energy.
+
+    The emergent k inverts Beer on the result, so it is the coefficient a crop
+    model would need in order to reproduce this canopy under this sky -- not a
+    coefficient assumed and applied.
+    """
+    total = float(np.sum(hist))
+    if total <= 0:
+        raise ValueError("the beam record carries no energy, so there is no "
+                         "sun to light the canopy with")
+
+    rng = np.random.default_rng(0)
+    pts = np.stack([rng.uniform(0, canopy.spacing, n_points),
+                    rng.uniform(0, canopy.spacing, n_points),
+                    np.full(n_points, 1e-3)], axis=1)
+
+    n_az = hist.shape[0]
+    centres = 0.5 * (el_edges[:-1] + el_edges[1:])
+
+    # Beam, bin by bin, skipping the ones that carry nothing worth a march.
+    beam_t, beam_w = 0.0, 0.0
+    marched = 0
+    for a in range(n_az):
+        compass = 360.0 * (a + 0.5) / n_az
+        for e, elev in enumerate(centres):
+            share = float(hist[a, e]) / total
+            if share < min_share or elev <= 0:
+                continue
+            direction = _sun(np.cos(np.radians(90.0 - elev)),
+                             _canopy_azimuth(compass, row_azimuth_deg))
+            tau = float(np.mean(canopy.transmittance(
+                pts, direction, step_frac=step_frac)))
+            beam_t += share * tau
+            beam_w += share
+            marched += 1
+    beam_tau = beam_t / beam_w if beam_w > 0 else 1.0
+
+    # Diffuse, over an isotropic sky.
+    diffuse_tau = None
+    if dhi_share > 0:
+        dirs, w = _hemisphere()
+        taus = np.array([
+            float(np.mean(canopy.transmittance(pts, d, step_frac=step_frac)))
+            for d in dirs])
+        diffuse_tau = float(np.sum(w * taus))
+
+    f = float(dhi_share)
+    tau = beam_tau if diffuse_tau is None else (1 - f) * beam_tau + f * diffuse_tau
+    fapar = 1.0 - tau
+    lai = float(canopy.leaf_area) / (float(canopy.spacing) ** 2)
+
+    return {
+        "fapar": fapar,
+        "transmittance": tau,
+        "beam_transmittance": beam_tau,
+        "diffuse_transmittance": diffuse_tau,
+        "diffuse_share": f,
+        "lai": lai,
+        # k = -ln(1 - faPAR) / LAI, equation 29 of Braud et al. (2026), on what
+        # this canopy actually intercepted rather than on an assumed slab.
+        "k_emergent": (-np.log(max(tau, 1e-12)) / lai) if lai > 1e-9 else None,
+        "beam_bins_marched": marched,
+        # Small here by construction, not by physics: a single plant voxelised
+        # into a square module has no row structure to orient, so what moves is
+        # the plant's own asymmetry. A rectangular module or `row_field` is
+        # where orientation earns its keep.
+        "row_azimuth_deg": float(row_azimuth_deg),
+        # WHAT A CONSTANT k WOULD HAVE SAID, which is the number a crop model
+        # actually uses. Reported as the error it carries rather than as a
+        # second faPAR, because the reader's question is how wrong the slab is
+        # here, not what the slab thinks.
+        **_fixed_k_error(fapar, lai),
+    }
+
+
+def _fixed_k_error(fapar, lai, fixed_k=None):
+    """How far Beer with a constant coefficient lands from what was marched."""
+    k = CROP_MODEL_K if fixed_k is None else float(fixed_k)
+    if lai <= 1e-9:
+        return {"fapar_fixed_k": None, "fixed_k": k, "fixed_k_error_pct": None}
+    f_fixed = 1.0 - float(np.exp(-k * lai))
+    err = (f_fixed - fapar) / fapar * 100.0 if fapar > 1e-9 else None
+    return {
+        "fapar_fixed_k": f_fixed,
+        "fixed_k": k,
+        "fixed_k_error_pct": err,
+    }
