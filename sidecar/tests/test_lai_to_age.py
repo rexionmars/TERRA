@@ -130,25 +130,37 @@ def test_a_series_keeps_going_past_a_date_it_cannot_resolve(ladder):
     assert [r["date"] for r in rows] == ["2024-01-01", "2024-02-01", "2024-03-01"]
 
 
-def test_disagreement_reports_both_ages_without_choosing(ladder):
-    """O diagnóstico do modelo de planta isolada.
+def test_disagreement_compares_progress_and_not_days(ladder):
+    """Normalizar é o que separa dois defeitos que somavam.
 
-    O Helios não modela competição -- medido: soja isolada 1.402 m2, em dossel
-    a 30 pl/m2 1.371 m2, razão 0.98 -- então em plantio adensado a área foliar
-    é atingida cedo demais. As duas idades lado a lado mostram isso.
+    Os relógios não andam no mesmo passo: o sorgo do Helios satura no dia 40 e
+    uma safra leva perto de cem dias até o pico. Em dias absolutos a diferença
+    de ritmo se soma à competição e o total cresce ao longo da estação,
+    parecendo um defeito onde há dois. Em fração percorrida o ritmo sai.
     """
-    ok = l2a.disagreement(28.0, 30.0)
-    assert ok["agrees"] is True
+    # Metade do ciclo dos dois lados, apesar de 20 dias contra 50: mesma forma,
+    # relógios diferentes, e a métrica tem que dizer que concordam.
+    same = l2a.disagreement(20.0, 40.0, 50.0, 100.0)
+    assert same["agrees"] is True
+    assert same["progress_helios"] == pytest.approx(0.5)
+    assert same["progress_field"] == pytest.approx(0.5)
+    assert same["delta_progress"] == pytest.approx(0.0)
 
-    bad = l2a.disagreement(12.0, 70.0)
-    assert bad["agrees"] is False
-    assert bad["delta_days"] == pytest.approx(-58.0)
-    assert "competição" in bad["why"]
-    # Ambos preservados: escolher um esconderia o que o leitor precisa ver.
-    assert bad["day_from_leaf_area"] == 12.0
-    assert bad["day_from_phenology"] == 70.0
+
+def test_disagreement_flags_helios_running_ahead_of_the_cycle(ladder):
+    """A assinatura da competição ausente, agora isolada do ritmo."""
+    ahead = l2a.disagreement(36.0, 40.0, 20.0, 100.0)  # 0.90 contra 0.20
+    assert ahead["agrees"] is False
+    assert ahead["delta_progress"] == pytest.approx(0.70)
+    assert "à frente" in ahead["why"]
+    # Ambas preservadas: escolher uma esconderia o que o leitor precisa ver.
+    assert ahead["progress_helios"] == pytest.approx(0.90)
+    assert ahead["progress_field"] == pytest.approx(0.20)
 
 
 def test_disagreement_says_so_when_it_cannot_compare(ladder):
-    assert l2a.disagreement(None, 30.0)["comparable"] is False
-    assert l2a.disagreement(20.0, None)["comparable"] is False
+    assert l2a.disagreement(None, 40.0, 30.0, 100.0)["comparable"] is False
+    assert l2a.disagreement(20.0, None, 30.0, 100.0)["comparable"] is False
+    assert l2a.disagreement(20.0, 40.0, None, 100.0)["comparable"] is False
+    # Duração zero: dividir por ela daria infinito em vez de uma recusa.
+    assert l2a.disagreement(20.0, 40.0, 30.0, 0.0)["comparable"] is False

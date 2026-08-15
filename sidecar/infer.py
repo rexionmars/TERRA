@@ -1373,6 +1373,202 @@ def main():
         sys.stdout.flush()
         return
 
+    # The AOI's own NDVI series, read as a canopy.
+    # #
+    #
+    # WHAT IT CONNECTS. Everything above this line either observes the ground or
+    # simulates a plant, and nothing crossed between them: the canopy actions take
+    # a species and an age from the reader, while lai_ndvi.py -- written to be
+    # exactly this bridge -- was imported by nothing but its own tests. This walks
+    # the AOI's vegetation-index series into leaf area index, asks the ladder which
+    # Helios age produces it, and reports what the answer is worth.
+    #
+    # TWO ANCHORS FOR THE AGE, AND BOTH ARE REPORTED. Leaf area gives one: the age
+    # whose plant carries the observed LAI. Phenology gives another, independent
+    # of it: days since green-up in the series itself. Where the isolated-plant
+    # model describes the field the two agree. Where they do not, the disagreement
+    # is the finding -- Helios grows a plant with no neighbours (measured: soybean
+    # at 60 days is 1.402 m2 alone and 1.371 m2 inside a 24-plant stand, a ratio of
+    # 0.98), so in a dense sowing it reaches a given leaf area far too early. This
+    # action does not choose between them, because choosing would hide the one
+    # thing a reader needs in order to trust or distrust the geometry.
+    #
+    # THE SUN IS THE AOI'S OWN, when a location is given. canopy_field's six
+    # REFERENCE_SUNS exist to cross-validate a shader and are not solar geometry;
+    # solar.prepare_hourly turns the POWER record for this cell into real (azimuth,
+    # elevation) with the beam energy that arrived at each, and the march is
+    # weighted by that instead of by six arbitrary directions. Without a location
+    # the reference suns still answer, and the payload says which was used.
+    #
+    # NO GEOMETRY CROSSES HERE. This returns series and scalars; the mesh is
+    # canopy_mesh's job, and a reader who wants to see the stand asks for it with
+    # the age this action resolved.
+    #
+    if action == 'canopy_from_aoi':
+        emit_progress(5, 'reading the vegetation index series')
+
+        series = req.get('vi_series') or []
+        if len(series) < 3:
+            fail('a canopy needs a vegetation-index series; this run carries '
+                 f'{len(series)} observation(s), and three is the minimum the '
+                 'phenology smoother can label')
+
+        dates = [str(p.get('date', '')) for p in series]
+        ndvi = [float(p.get('ndvi_mean', 'nan')) for p in series]
+        species_name = req.get('species', 'sorghum')
+
+        # Density from the sowing the reader set, which is how every other
+        # canopy action states it. The ladder is per plant, so this is what
+        # turns it into an LAI.
+        inter_row = float(req.get('inter_row', 0.8))
+        inter_plant = float(req.get('inter_plant', 0.25))
+        if inter_row <= 0 or inter_plant <= 0:
+            fail('row and plant spacing must both be positive')
+        density = 1.0 / (inter_row * inter_plant)
+
+        try:
+            import lai_ndvi
+            import lai_to_age
+            import phenology as phen
+        except ImportError as e:
+            fail(f'the canopy bridge is unavailable: {e}')
+
+        # Ordinal days for the smoother, which is by DATE and not by position:
+        # a cloud-screened series is irregular, and a window counted in samples
+        # averages across whatever survived.
+        import datetime as _dt
+        try:
+            ordinals = [
+                _dt.date.fromisoformat(d[:10]).toordinal() if d else None
+                for d in dates
+            ]
+        except ValueError as e:
+            fail(f'a date in the series is not ISO-8601: {e}')
+        if any(o is None for o in ordinals):
+            fail('every observation needs a date for the smoother to use')
+
+        emit_progress(20, 'inverting NDVI to leaf area index')
+        try:
+            inverted = lai_ndvi.invert_series(ndvi, days=ordinals)
+        except Exception as e:
+            fail(f'the NDVI inversion failed: {e}')
+
+        emit_progress(35, 'labelling phenological states')
+        state_ids = phen.assign_states_from_ndvi(np.asarray(ndvi, dtype=float))
+        state_slugs = {
+            phen.STATE_SOIL: 'soil', phen.STATE_GREENUP: 'greenup',
+            phen.STATE_MATURE: 'mature', phen.STATE_SENESCENCE: 'senescence',
+            phen.STATE_FALLOW: 'fallow',
+        }
+        states = [state_slugs.get(int(s), 'soil') for s in state_ids]
+
+        # The independent age: days since the series first turned green. Taken
+        # from the states rather than from phenology_metrics' SOS, because the
+        # ages below are per observation and SOS is one date for the season.
+        greenup_ordinal = next(
+            (o for o, s in zip(ordinals, states) if s != 'soil'), None)
+
+        emit_progress(50, 'matching leaf area to an age')
+        try:
+            resolved = lai_to_age.resolve_series(
+                inverted['lai'], density, species_name,
+                states=states, dates=dates)
+        except lai_to_age.LadderError as e:
+            fail(str(e))
+
+        # THE LADDER IS A GROWTH CURVE AND A SEASON IS NOT.
+        #
+        # Helios plants only grow: leaf area rises with age and never falls, so
+        # the ladder has no age for a canopy that is shedding. Past the peak the
+        # inversion still answers -- a declining LAI matches a young plant -- but
+        # the answer means "a plant carrying this much leaf", not "a canopy of
+        # this age", and the two stop being the same thing.
+        #
+        # Left uncompared, that shows up as a disagreement growing to a hundred
+        # days by the end of the season, which reads as the competition defect
+        # and is not it. So the peak splits the series: before it the two ages
+        # are measuring the same thing and their difference is informative;
+        # after it the row says it is declining and offers no age comparison.
+        lai_values = list(inverted['lai'])
+        peak_index = int(np.nanargmax(lai_values)) if lai_values else 0
+        # A duração da estação, para normalizar o progresso do campo contra o
+        # do Helios. Do próprio NDVI, que é onde ela é observável.
+        season_days = float(phen.phenology_metrics(ndvi, dates).get('los_days') or 0.0)
+        for i, (row, o) in enumerate(zip(resolved, ordinals)):
+            since = None if greenup_ordinal is None else float(o - greenup_ordinal)
+            row['days_since_greenup'] = since
+            row['declining'] = i > peak_index
+            if row['declining']:
+                row['age_check'] = {
+                    'comparable': False,
+                    'why': ('a série já passou do pico e está perdendo folha; a '
+                            'escada só cresce, então a idade que ela devolve é a '
+                            'de uma planta com esta área foliar, não a deste '
+                            'dossel'),
+                }
+            else:
+                row['age_check'] = lai_to_age.disagreement(
+                    row.get('day'), row.get('plateau_day'), since, season_days)
+
+        usable = [r for r in resolved if r.get('day') is not None]
+        payload = {
+            'species': species_name,
+            'density': density,
+            'inter_row': inter_row,
+            'inter_plant': inter_plant,
+            'reachable_lai': lai_to_age.reachable_lai(species_name, density),
+            'lai': inverted,
+            'states': states,
+            'phenology': phen.phenology_metrics(ndvi, dates),
+            'resolved': resolved,
+            'n_usable': len(usable),
+            'sun': {'source': 'reference'},
+        }
+
+        # The AOI's own sun, when there is a point to ask POWER about.
+        lat, lon = req.get('lat'), req.get('lon')
+        if lat is not None and lon is not None:
+            emit_progress(70, 'reading the solar record for this cell')
+            try:
+                import solar as solar_mod
+                cell_lon, cell_lat = solar_mod.grid_key(float(lon), float(lat))
+                last_year = _dt.date.today().year - 1
+                years = int(req.get('hourly_years', 3))
+                start = f'{last_year - years + 1}0101'
+                end = f'{last_year}1231'
+                hourly, provenance = cached_power_series(
+                    power_cache_dir(req),
+                    'hourly', cell_lon, cell_lat, start, end,
+                    solar_mod.HOURLY_PARAMS,
+                    lambda progress: solar_mod.fetch(
+                        'hourly', cell_lon, cell_lat, start, end,
+                        progress=progress),
+                )
+                df, solpos = solar_mod.prepare_hourly(
+                    hourly, cell_lat, cell_lon, float(req.get('elevation', 0.0)))
+                energy, az_edges = solar_mod.beam_energy_histogram(df, solpos)
+                payload['sun'] = {
+                    'source': 'power',
+                    'cell': [cell_lat, cell_lon],
+                    'years': years,
+                    'provenance': provenance,
+                    # The (azimuth, elevation) table the march would be weighted
+                    # by. Emitted rather than consumed here so the reader can
+                    # see the sun the canopy will be lit with.
+                    'beam_energy_total': float(np.sum(energy)),
+                    'n_azimuth_bins': int(energy.shape[0]),
+                    'n_elevation_bins': int(energy.shape[1]),
+                }
+            except Exception as e:
+                # A canopy answer is still worth having without the sun record,
+                # so this degrades rather than fails, and says which it did.
+                payload['sun'] = {'source': 'reference', 'why': str(e)}
+
+        emit_progress(100, 'done')
+        sys.stdout.write(json.dumps({'canopy_from_aoi': payload}))
+        sys.stdout.flush()
+        return
+
     # Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
     if action == 'list_datacube':
         start = req.get('start')

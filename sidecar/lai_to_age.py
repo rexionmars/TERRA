@@ -195,35 +195,53 @@ def reachable_lai(name: str, density: float, path: str | None = None) -> float:
     return float(table["species"][name]["max_leaf_area_m2"]) * float(density)
 
 
-def disagreement(resolved_day: float | None, days_since_greenup: float | None,
-                 tolerance_days: float = 10.0) -> dict:
-    """Compara a idade da área foliar com a idade que a fenologia implica.
+def disagreement(resolved_day: float | None, plateau_day: float | None,
+                 days_since_greenup: float | None, season_days: float | None,
+                 tolerance: float = 0.20) -> dict:
+    """Compara o PROGRESSO do desenvolvimento, não os dias.
 
-    DUAS MEDIDAS INDEPENDENTES DA MESMA COISA. A escada dá a idade cuja área
-    foliar bate com o LAI observado; a série de NDVI dá quantos dias se
-    passaram desde o green-up. Num caso em que o modelo de planta isolada
-    descreve o campo, as duas andam juntas. Quando divergem muito, a divergência
-    é a informação: a planta do Helios atingiu aquela área foliar cedo demais
-    porque cresceu sem vizinhos.
+    POR QUE NÃO DIAS. Os dois relógios não andam no mesmo passo. O sorgo do
+    Helios satura a área foliar no dia 40; uma safra de sorgo em campo leva
+    perto de cem dias até o pico. Subtrair um do outro mistura duas coisas
+    diferentes -- a diferença de ritmo dos relógios, que é uma propriedade do
+    modelo, e a competição que o Helios não representa -- e o resultado cresce
+    ao longo da estação parecendo um defeito onde há dois.
 
-    Devolve os dois números e a diferença, sem escolher entre eles. Escolher
-    seria esconder justamente o que o leitor precisa ver.
+    Normalizar remove o ritmo e deixa a forma. Ambos viram fração percorrida:
+
+        progresso do Helios  = idade / dia do platô
+        progresso do campo   = dias desde o green-up / duração da estação
+
+    Se as duas frações andam juntas, a planta isolada descreve a safra. Se a do
+    Helios corre à frente, ele chega àquela área foliar cedo demais no ciclo --
+    que é a assinatura da competição ausente, agora separada do ritmo.
+
+    Devolve as duas frações sem escolher entre elas. Escolher esconderia
+    justamente o que o leitor precisa ver.
     """
-    if resolved_day is None or days_since_greenup is None:
-        return {"comparable": False, "why": "falta uma das duas idades"}
-    delta = float(resolved_day) - float(days_since_greenup)
+    have = (resolved_day is not None and plateau_day
+            and days_since_greenup is not None and season_days)
+    if not have:
+        return {"comparable": False,
+                "why": "falta a idade, o platô, o green-up ou a duração da estação"}
+
+    p_helios = float(resolved_day) / float(plateau_day)
+    p_field = float(days_since_greenup) / float(season_days)
+    delta = p_helios - p_field
     return {
         "comparable": True,
-        "day_from_leaf_area": float(resolved_day),
-        "day_from_phenology": float(days_since_greenup),
-        "delta_days": delta,
-        "agrees": abs(delta) <= tolerance_days,
+        "progress_helios": p_helios,
+        "progress_field": p_field,
+        "delta_progress": delta,
+        "agrees": abs(delta) <= tolerance,
         "why": (
-            "as duas idades concordam dentro da tolerância"
-            if abs(delta) <= tolerance_days else
-            f"a área foliar é atingida {abs(delta):.0f} dias "
-            f"{'antes' if delta < 0 else 'depois'} do que a fenologia indica; "
-            f"em plantio adensado isto é a competição que o Helios não modela"
+            "as duas progressões andam juntas, então a planta isolada descreve "
+            "esta safra"
+            if abs(delta) <= tolerance else
+            f"o Helios está {abs(delta) * 100:.0f} pontos percentuais "
+            f"{'à frente' if delta > 0 else 'atrás'} do ciclo observado nesta "
+            f"área foliar; à frente é a assinatura da competição que ele não "
+            f"modela"
         ),
     }
 
