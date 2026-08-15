@@ -212,6 +212,26 @@ export function CanopyEditor() {
         setStand((prev) => ({ ...prev, [key]: v })),
     []
   )
+  /*
+    Rounded on the way in, for the fields the sidecar types as whole numbers.
+
+    `parse` only runs on text the reader types; scrubbing calls onChange with
+    the continuous value under the pointer, so dragging Day produced 89.319…
+    and Go refused the request with
+
+        json: cannot unmarshal number 89.3192471590909 into Go struct field
+        CanopyMeshRequest.days of type int
+
+    Rounding in the setter rather than at the call site, because the field is
+    an integer everywhere it is read -- a day, a row count, plants per row --
+    and a float in the state would be wrong even before it reached the bridge.
+  */
+  const setWholeNumber = useCallback(
+    <K extends keyof Stand>(key: K) =>
+      (v: number) =>
+        setStand((prev) => ({ ...prev, [key]: Math.round(v) })),
+    []
+  )
 
   const triangles = useMemo(
     () => Object.values(mesh?.organs ?? {}).reduce((a, b) => a + b, 0),
@@ -223,7 +243,7 @@ export function CanopyEditor() {
       <div
         ref={hostRef}
         className="relative min-h-0 flex-1"
-        style={{ background: "var(--p-surface-sunken)" }}
+        style={{ background: "rgb(var(--p-ink))" }}
       >
         {busy ? (
           <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded px-2 py-1 text-[11px]"
@@ -274,7 +294,7 @@ export function CanopyEditor() {
               const v = parseInt(t, 10)
               return Number.isFinite(v) ? v : null
             }}
-            onChange={setNumber("days")}
+            onChange={setWholeNumber("days")}
           />
         </div>
 
@@ -290,7 +310,7 @@ export function CanopyEditor() {
               const v = parseInt(t, 10)
               return Number.isFinite(v) ? v : null
             }}
-            onChange={setNumber("rows")}
+            onChange={setWholeNumber("rows")}
           />
         </div>
 
@@ -306,7 +326,7 @@ export function CanopyEditor() {
               const v = parseInt(t, 10)
               return Number.isFinite(v) ? v : null
             }}
-            onChange={setNumber("perRow")}
+            onChange={setWholeNumber("perRow")}
           />
         </div>
 

@@ -35,8 +35,11 @@ import {
   Color,
   DirectionalLight,
   DoubleSide,
+  Fog,
+  GridHelper,
   Group,
   HemisphereLight,
+  LineBasicMaterial,
   Mesh,
   MeshLambertMaterial,
   MOUSE,
@@ -129,6 +132,77 @@ export function createStandScene(
   const loader = new GLTFLoader()
 
   /*
+    Ground and haze, as the studio's other viewport has them.
+
+    A stand on nothing has no parallax: orbiting moves the plants against void
+    and the sense of turning around something is lost. The grid is what the eye
+    reads motion against, and the fog is what keeps it from ending at a hard
+    rectangular edge -- boardScene.ts makes the same two moves for the same
+    reason, and this follows its numbers rather than inventing new ones.
+
+    The fog colour is the host's own background token, so the grid dissolves
+    into the panel instead of into a colour that is nearly it. Near and far are
+    set per frame, because fog is measured from the CAMERA: a fixed near plane
+    is correct at exactly one zoom and eats the stand at every other.
+  */
+  const groundColour = tokenColor(host, "--p-line")
+  // `--p-ink` is the studio viewport's own background, which is what
+  // BoardSurface paints behind the board scene. A token this file invented
+  // ("--p-surface-sunken") does not exist, and tokenColor answers a missing
+  // one with near-black -- close enough to the panel to look deliberate and
+  // wrong enough that the haze would never quite dissolve into it.
+  const hazeColour = tokenColor(host, "--p-ink")
+  scene.fog = new Fog(hazeColour.getHex(), 1, 10)
+
+  let grid: GridHelper | null = null
+  let gridSpan = 0
+  // The radius of the stand's bounding sphere, kept from the last framing so
+  // the fog can start just past it.
+  let fitRadius = 0
+
+  const disposeGrid = () => {
+    if (!grid) return
+    scene.remove(grid)
+    grid.geometry.dispose()
+    const m = grid.material
+    if (Array.isArray(m)) m.forEach((x) => x.dispose())
+    else m?.dispose()
+    grid = null
+  }
+
+  const addGround = (box: Box3) => {
+    disposeGrid()
+    const size = box.getSize(new Vector3())
+    const centre = box.getCenter(new Vector3())
+    // Out to four times the stand's own footprint, in twenty cells: far enough
+    // that the edge is in the haze, fine enough to read motion against.
+    const span = Math.max(Math.max(size.x, size.z) * 4, 1)
+    const g = new GridHelper(span, 20, groundColour, groundColour)
+    const material = g.material as LineBasicMaterial
+    material.transparent = true
+    material.opacity = 0.14
+    // Never writes depth, so it cannot fight the plants for a surface.
+    material.depthWrite = false
+    // At the base of the stems rather than at y=0: Helios grows from a ground
+    // plane, but a stand's lowest vertex is a hair under it and a grid at
+    // exactly zero z-fights with it.
+    g.position.set(centre.x, box.min.y - 0.001, centre.z)
+    scene.add(g)
+    grid = g
+    gridSpan = span
+  }
+
+  const updateFog = () => {
+    const fog = scene.fog as Fog | null
+    if (!fog || !fitRadius) return
+    // Starts past the far side of the stand and ends inside the grid, at
+    // whatever distance the reader has orbited to.
+    const d = camera.position.distanceTo(controls.target)
+    fog.near = d + fitRadius * 1.2
+    fog.far = d + gridSpan * 0.5
+  }
+
+  /*
     Drawing is SCHEDULED, never done inline. This is the bug that cost four
     attempts to find, so it is worth stating exactly.
 
@@ -156,6 +230,8 @@ export function createStandScene(
       raf = 0
       if (disposed) return
       controls.update()
+      // After update(), so the distance it reads is the one being drawn.
+      updateFog()
       renderer.render(scene, camera)
     })
   }
@@ -201,6 +277,9 @@ export function createStandScene(
     // A sphere has no orientation, so its radius bounds the silhouette from
     // every direction at once and the fit holds however the reader orbits.
     const radius = size.length() / 2
+    // Kept for the fog, which needs to know how far past the target the stand
+    // reaches before it may start hazing.
+    fitRadius = radius
     const vFov = (camera.fov * Math.PI) / 180
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
     const dist = Math.max(
@@ -432,6 +511,11 @@ export function createStandScene(
 
       stand = group
       scene.add(group)
+      // Sized to the stand, so a wider sowing gets a wider ground rather than
+      // the same square with the plants spilling off it. Rebuilt per mesh
+      // because rows and spacing are the reader's to change.
+      group.updateMatrixWorld(true)
+      addGround(new Box3().setFromObject(group))
       frame()
     },
 
@@ -461,6 +545,7 @@ export function createStandScene(
       window.removeEventListener("blur", onNavBlur)
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost)
       renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored)
+      disposeGrid()
       disposeStand()
       disposables.forEach((d) => d.dispose())
       renderer.dispose()
