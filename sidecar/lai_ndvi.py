@@ -76,7 +76,13 @@ def lai_from_ndvi(ndvi, ndvi_soil=NDVI_SOIL, ndvi_inf=NDVI_INF, k=K_EXTINCTION,
     # Clipped low rather than allowed to reach zero: the log diverges at the
     # ceiling, and a pixel one thousandth above it is not an infinite canopy.
     ratio = np.clip(ratio, np.exp(-k * lai_max), 1.0)
-    lai = -np.log(ratio) / k
+    # `+ 0.0` normalises negative zero, and it is not cosmetic once this leaves
+    # Python. Bare soil clips the ratio to exactly 1.0, and `-log(1.0)` is -0.0
+    # in IEEE 754; it compares equal to zero but serialises to JSON as `-0.0` and
+    # renders as "-0.00". On a real soybean AOI the first three dates of the
+    # series read "-0.00" leaf area, which is a negative canopy as far as anyone
+    # reading the panel can tell. The docstring above already promises zero.
+    lai = -np.log(ratio) / k + 0.0
     return float(lai) if np.isscalar(ndvi) or np.ndim(ndvi) == 0 else lai
 
 

@@ -124,3 +124,24 @@ def test_this_k_is_not_the_canopy_extinction_coefficient():
     import canopy_voxel
 
     assert lai_ndvi.K_EXTINCTION != canopy_voxel.G_LEAF
+
+
+def test_bare_soil_returns_a_zero_that_prints_as_zero():
+    """Zero negativo é zero para o `==` e não é zero para quem lê.
+
+    Solo nu recorta a razão em exatamente 1.0, e `-log(1.0)` é -0.0 em IEEE 754.
+    Comparava igual a zero, serializava para JSON como `-0.0` e chegava ao painel
+    como "-0,00" de área foliar -- um dossel negativo, na leitura de quem vê.
+    """
+    import json
+    import numpy as np
+
+    for ndvi in (lai_ndvi.NDVI_SOIL, 0.1188, 0.05, -0.2):
+        v = lai_ndvi.lai_from_ndvi(ndvi)
+        assert v == 0.0
+        assert not np.signbit(v), f"NDVI {ndvi} devolveu zero negativo"
+        assert json.dumps(round(v, 4)) == "0.0"
+
+    arr = lai_ndvi.lai_from_ndvi(np.array([0.05, 0.15, 0.50]))
+    assert not np.signbit(arr[:2]).any(), "o caminho de array manteve o -0.0"
+    assert arr[2] > 0
