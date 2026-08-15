@@ -142,8 +142,11 @@ import {
   GitCompareArrows,
   Image as ImageIcon,
   Layers,
+  LineChart as LineChartIcon,
   Layers2,
   Pentagon,
+  Sun,
+  TreePine,
   Waves,
   Link2,
   Paintbrush,
@@ -153,7 +156,12 @@ import {
 } from "lucide-react"
 import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
-import { CanopyEditor } from "@/components/whiteboard/CanopyEditor"
+import {
+  CanopyEditor,
+  type CanopyMode,
+} from "@/components/whiteboard/CanopyEditor"
+import { CanopyRunBar } from "@/components/whiteboard/CanopyRunBar"
+import { CanopyWorkflowProvider } from "@/components/whiteboard/canopyWorkflow"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import {
@@ -482,6 +490,26 @@ export function BoardSurface({
     areaModes[shiftModeKey(areaId)] === "cohort" ? "cohort" : "pair"
   const setShiftModeOf = (areaId: AreaId, m: DomainShiftMode) =>
     setAreaModes((prev) => ({ ...prev, [shiftModeKey(areaId)]: m }))
+
+  /*
+    Which question the AOI canopy area is asking.
+
+    Three panes rather than one scrolling body, for the reason the outliner has
+    three: the season is a curve, the light is a grid of scalars and the two
+    ages are a second curve on a different axis. Stacked, each gets a third of
+    the height and none can be read.
+
+    Per area like the others, so one can hold the season beside another holding
+    the light -- which is the comparison the reader actually wants, since the
+    light is what the season is FOR.
+  */
+  const canopyModeKey = (areaId: AreaId) => `${areaId}:canopy`
+  const canopyModeOf = (areaId: AreaId): CanopyMode => {
+    const m = areaModes[canopyModeKey(areaId)]
+    return m === "season" || m === "light" || m === "ages" ? m : "stand"
+  }
+  const setCanopyModeOf = (areaId: AreaId, m: CanopyMode) =>
+    setAreaModes((prev) => ({ ...prev, [canopyModeKey(areaId)]: m }))
 
   /*
     Which board area is the source of the star, per pane.
@@ -2305,6 +2333,25 @@ export function BoardSurface({
   }, [selection, legendByArea, areas])
 
   /*
+    Every run on the board, and not only the ones a plane is selected on.
+
+    `selectedRuns` above is the right source for the table and the comparison,
+    which are views OF a selection. The canopy is not: its subject is a season,
+    and asking a reader to select a plane in the outliner before a picker will
+    list anything is a step with nothing behind it -- the first version did that
+    and the picker simply read as broken.
+  */
+  const boardRuns = useMemo(() => {
+    const out: Array<{ id: string; label: string; result: PredictResult }> = []
+    for (const a of areas) {
+      const result = legendByArea.get(a.id)?.result
+      if (!result) continue
+      out.push({ id: a.id, label: a.title ?? a.id, result })
+    }
+    return out
+  }, [areas, legendByArea])
+
+  /*
     THE HEADERS, one per editor.
 
     This is where the density comes from, and its absence is what made the
@@ -2363,6 +2410,14 @@ export function BoardSurface({
       // other where it was.
       select: () => setModeOf(areaId, id),
     })
+    const canopyHere = canopyModeOf(areaId)
+    const canopyPane = (id: CanopyMode, label: string, icon: LucideIcon) => ({
+      id,
+      label,
+      icon,
+      active: canopyHere === id,
+      select: () => setCanopyModeOf(areaId, id),
+    })
     const shiftHere = shiftModeOf(areaId)
     const shiftPane = (
       id: DomainShiftMode,
@@ -2392,6 +2447,19 @@ export function BoardSurface({
       domainShift: [
         shiftPane("pair", "Pair", GitCompareArrows),
         shiftPane("cohort", "Cohort", Waves),
+      ],
+      /*
+        Three questions about one season, and each wants the whole width. The
+        season is what the ground was; the light is what that canopy does with
+        the sun the cell received; the ages are whether the plant model applies
+        to this sowing at all -- which is the one that says whether to believe
+        the other two.
+      */
+      canopy: [
+        canopyPane("stand", "Stand", TreePine),
+        canopyPane("season", "Season", LineChartIcon),
+        canopyPane("light", "Light", Sun),
+        canopyPane("ages", "Ages", GitCompareArrows),
       ],
     }
   }
@@ -2858,12 +2926,19 @@ export function BoardSurface({
     ),
     table: <StudioTables runs={selectedRuns} />,
     /*
-      Takes no props. The orchard is the editor's own subject rather
-      than a view of the studio's state, so two areas holding it describe
-      two orchards -- which is a comparison worth having, and is why this
-      editor is not marked unique.
+      Four readings of one canopy, and the canopy is the workflow's rather than
+      the panel's: what is grown and which area is read are set once in the
+      canopy band, which is why this takes only which reading to show. Two
+      canopy areas are two questions about one stand -- a Stand beside its
+      season is the comparison the editor exists for -- so it is not unique,
+      and neither area carries a control the other could disagree with.
     */
-    canopy: <CanopyEditor runs={selectedRuns} />,
+    canopy: <CanopyEditor mode={canopyModeOf(areaId)} />,
+    /*
+      The simulation workflow's own band, the canopy's half of what the run
+      band is for the classification products.
+    */
+    canopyParams: <CanopyRunBar />,
     /*
       No longer `sides ? ... : null`. An editor that renders nothing at all
       when it cannot answer is indistinguishable from one that is broken, and
@@ -3341,6 +3416,16 @@ export function BoardSurface({
         each knew where they went is now one walk of a tree -- so which surface
         sits where is a choice the reader makes, which is the whole point.
       */}
+      {/*
+        THE SIMULATION WORKFLOW'S STATE, above every area that reads it.
+
+        The canopy band sets a stand and an area to read; the canopy panels
+        draw what came of it. Both are leaves of this tree, and neither is the
+        other's parent, so the state they share sits over the walk rather than
+        inside either -- the same relation the board's runs already have to the
+        viewport and the tables.
+      */}
+      <CanopyWorkflowProvider runs={boardRuns}>
       <StudioAreaTree
         tree={tree}
         viewport={surface}
@@ -3376,6 +3461,7 @@ export function BoardSurface({
           </StudioArea>
         )}
       />
+      </CanopyWorkflowProvider>
 
     </motion.div>
   )

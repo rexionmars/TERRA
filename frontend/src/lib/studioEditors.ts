@@ -22,6 +22,7 @@ import {
   ListTree,
   PanelBottom,
   SlidersHorizontal,
+  Sprout,
   Table2,
   TreePine,
   Waves,
@@ -36,6 +37,7 @@ export type EditorId =
   | "table"
   | "runParams"
   | "canopy"
+  | "canopyParams"
 
 export interface StudioEditorMeta {
   id: EditorId
@@ -161,17 +163,54 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
       of the depth. Below roughly this the crowns are a few pixels across and
       the question the editor answers cannot be asked of it.
     */
-    minRem: 18,
+    /*
+      Wider than the stand alone needed. This editor carries four readings now
+      -- the stand, the season an AOI implies, the light that canopy makes of
+      the sun, and whether the plant model applies to the sowing at all -- and
+      the three that are charts do not fit the 18rem a 3D view could live in.
+    */
+    minRem: 22,
     minRowRem: 14,
+    /*
+      Only the stand pane builds a context, and it builds it on entering that
+      pane rather than on mounting the area. An area parked on Season spends
+      nothing, which is what makes four panes affordable in a budget of two.
+    */
     gl: true,
     /*
       NOT unique. Two canopies is a comparison -- the same leaf area at two
-      spacings, or an ellipsoid crown against a grown one -- and each builds
-      its own small scene, so the cost is one more context rather than a
-      contested singleton. The viewport is exclusive because there is one
-      board; there is no one orchard.
+      spacings, or a young stand against a grown one -- and each builds its own
+      small scene, so the cost is one more context rather than a contested
+      singleton. The viewport is exclusive because there is one board; there is
+      no one stand.
     */
-    hint: "An orchard module, shaded by marching its leaf-area density",
+    // Was "An orchard module, shaded by marching its leaf-area density", which
+    // described the voxel view this editor replaced. A hint that outlives the
+    // thing it describes sends a reader to the wrong area.
+    hint: "A stand: specified and drawn, or the one an AOI's season implies",
+  },
+  {
+    id: "canopyParams",
+    label: "Canopy run",
+    icon: Sprout,
+    /*
+      The canopy's half of what `runParams` is for the classification products,
+      and the same floor for the same reason: the parameters scroll sideways
+      below it, which is what a band should do rather than reflow into a shape
+      a reader has to re-learn. Wider than the run band by two groups' worth --
+      it carries a sowing of four numbers where that one carries a period of
+      two.
+    */
+    minRem: 32,
+    minRowRem: 3,
+    /*
+      Unique. It is not a view of anything: it holds the species, the age, the
+      sowing and which analysed area is read, once for the board. A second one
+      would be a second set of controls over one stand, which is the exact
+      duplication that moving these out of the canopy panels removed.
+    */
+    unique: true,
+    hint: "Species, age and sowing for the stand, and which area is read",
   },
 ]
 

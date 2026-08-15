@@ -179,9 +179,19 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
     hint: "An orchard module and the light that reaches through it",
     /*
       The canopy takes the width because the question is spatial: where the
-      light falls between the crowns is not readable in a column. The run strip
-      stays because the orchard is the same ground the classification is about,
-      and the outliner under it says which area that is.
+      light falls between the crowns is not readable in a column, and the
+      outliner beside it says which ground is on the board.
+
+      THE STRIP ALONG THE FOOT IS THE CANOPY'S OWN, not the classification's.
+      It was the run band, on the argument that the orchard is the same ground
+      a classification is about -- which is true and was not enough: the
+      canopy's own parameters then had nowhere to live but inside the panels,
+      so every canopy area carried the species, the sowing, an area picker and
+      a commit, and two areas asking two questions about ONE stand offered two
+      sets of controls over it. A workspace is an arrangement for a kind of
+      work; the band that belongs at the foot of this one is the band that sets
+      what is grown. Classifying is a gesture away, in Layout, where its band
+      has always been.
 
       No viewport in this preset. Not to save the second WebGL context -- the
       board's is never released on a workspace switch, so it is spent either
@@ -192,7 +202,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
       Fractions measured at the 1000x700 minimum, after the 28px workspace bar,
       the 22px status bar and each area's own 26px header: the canopy body is
       720x533 against a 288x224 floor, the outliner 280x533 against 176x128,
-      and the run strip 1000x65 against 448x48.
+      and the canopy band 1000x65 against 512x48.
     */
     build: () =>
       col(
@@ -204,7 +214,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-canopy", "canopy"),
           leaf("a-outliner", "outliner")
         ),
-        leaf("a-run", "runParams")
+        leaf("a-canopy-run", "canopyParams")
       ),
   },
 ]
