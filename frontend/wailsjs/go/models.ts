@@ -127,6 +127,48 @@ export namespace backend {
 	        this.why = source["why"];
 	    }
 	}
+	export class CanopyCycle {
+	    start: string;
+	    end: string;
+	    greenup: string;
+	    n: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyCycle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.greenup = source["greenup"];
+	        this.n = source["n"];
+	    }
+	}
+	export class CanopyEnsemble {
+	    n: number;
+	    fapar_min: number;
+	    fapar_max: number;
+	    fapar_spread: number;
+	    cover_min: number;
+	    cover_max: number;
+	    seeds: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyEnsemble(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.n = source["n"];
+	        this.fapar_min = source["fapar_min"];
+	        this.fapar_max = source["fapar_max"];
+	        this.fapar_spread = source["fapar_spread"];
+	        this.cover_min = source["cover_min"];
+	        this.cover_max = source["cover_max"];
+	        this.seeds = source["seeds"];
+	    }
+	}
 	export class CanopyGrown {
 	    leaf_area: number;
 	    reported: number;
@@ -332,6 +374,26 @@ export namespace backend {
 	        this.n_reference = source["n_reference"];
 	    }
 	}
+	export class SpeciesSuggestion {
+	    species?: string;
+	    class_id?: number;
+	    class_name?: string;
+	    confidence?: number;
+	    why?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpeciesSuggestion(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.class_id = source["class_id"];
+	        this.class_name = source["class_name"];
+	        this.confidence = source["confidence"];
+	        this.why = source["why"];
+	    }
+	}
 	export class CanopyLight {
 	    date?: string;
 	    day?: number;
@@ -347,6 +409,9 @@ export namespace backend {
 	    fixed_k_error_pct?: number;
 	    beam_bins_marched?: number;
 	    row_azimuth_deg?: number;
+	    cover?: number;
+	    seed?: number;
+	    ensemble?: CanopyEnsemble;
 	    error?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -369,7 +434,52 @@ export namespace backend {
 	        this.fixed_k_error_pct = source["fixed_k_error_pct"];
 	        this.beam_bins_marched = source["beam_bins_marched"];
 	        this.row_azimuth_deg = source["row_azimuth_deg"];
+	        this.cover = source["cover"];
+	        this.seed = source["seed"];
+	        this.ensemble = this.convertValues(source["ensemble"], CanopyEnsemble);
 	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PowerSeriesProvenance {
+	    source: string;
+	    fetched_utc?: string;
+	    product: string;
+	    cell_key: string;
+	    period: string;
+	    cache_file?: string;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PowerSeriesProvenance(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.fetched_utc = source["fetched_utc"];
+	        this.product = source["product"];
+	        this.cell_key = source["cell_key"];
+	        this.period = source["period"];
+	        this.cache_file = source["cache_file"];
+	        this.note = source["note"];
 	    }
 	}
 	export class CanopySun {
@@ -380,6 +490,10 @@ export namespace backend {
 	    n_azimuth_bins?: number;
 	    n_elevation_bins?: number;
 	    diffuse_share?: number;
+	    window_days?: number;
+	    window_centre?: string;
+	    n_hours?: number;
+	    provenance?: PowerSeriesProvenance;
 	    why?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -395,8 +509,30 @@ export namespace backend {
 	        this.n_azimuth_bins = source["n_azimuth_bins"];
 	        this.n_elevation_bins = source["n_elevation_bins"];
 	        this.diffuse_share = source["diffuse_share"];
+	        this.window_days = source["window_days"];
+	        this.window_centre = source["window_centre"];
+	        this.n_hours = source["n_hours"];
+	        this.provenance = this.convertValues(source["provenance"], PowerSeriesProvenance);
 	        this.why = source["why"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class CanopyResolved {
 	    date: string;
@@ -491,6 +627,9 @@ export namespace backend {
 	    n_usable: number;
 	    sun: CanopySun;
 	    light?: CanopyLight;
+	    cycles?: CanopyCycle[];
+	    species_suggestion?: SpeciesSuggestion;
+	    crop_fraction?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CanopyFromAOI(source);
@@ -510,6 +649,9 @@ export namespace backend {
 	        this.n_usable = source["n_usable"];
 	        this.sun = this.convertValues(source["sun"], CanopySun);
 	        this.light = this.convertValues(source["light"], CanopyLight);
+	        this.cycles = this.convertValues(source["cycles"], CanopyCycle);
+	        this.species_suggestion = this.convertValues(source["species_suggestion"], SpeciesSuggestion);
+	        this.crop_fraction = source["crop_fraction"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -529,6 +671,28 @@ export namespace backend {
 		    }
 		    return a;
 		}
+	}
+	export class ClassStat {
+	    class_id: number;
+	    name: string;
+	    color: string;
+	    pixels: number;
+	    pct: number;
+	    area_ha: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ClassStat(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class_id = source["class_id"];
+	        this.name = source["name"];
+	        this.color = source["color"];
+	        this.pixels = source["pixels"];
+	        this.pct = source["pct"];
+	        this.area_ha = source["area_ha"];
+	    }
 	}
 	export class VIObservation {
 	    date: string;
@@ -555,6 +719,9 @@ export namespace backend {
 	    elevation?: number;
 	    hourly_years?: number;
 	    seed?: number;
+	    class_stats?: ClassStat[];
+	    n_seeds?: number;
+	    sun_window_days?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CanopyFromAOIRequest(source);
@@ -572,6 +739,9 @@ export namespace backend {
 	        this.elevation = source["elevation"];
 	        this.hourly_years = source["hourly_years"];
 	        this.seed = source["seed"];
+	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
+	        this.n_seeds = source["n_seeds"];
+	        this.sun_window_days = source["sun_window_days"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -657,28 +827,7 @@ export namespace backend {
 	
 	
 	
-	export class ClassStat {
-	    class_id: number;
-	    name: string;
-	    color: string;
-	    pixels: number;
-	    pct: number;
-	    area_ha: number;
 	
-	    static createFrom(source: any = {}) {
-	        return new ClassStat(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.class_id = source["class_id"];
-	        this.name = source["name"];
-	        this.color = source["color"];
-	        this.pixels = source["pixels"];
-	        this.pct = source["pct"];
-	        this.area_ha = source["area_ha"];
-	    }
-	}
 	export class CompositeRequest {
 	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
@@ -2156,30 +2305,6 @@ export namespace backend {
 		    }
 		    return a;
 		}
-	}
-	export class PowerSeriesProvenance {
-	    source: string;
-	    fetched_utc?: string;
-	    product: string;
-	    cell_key: string;
-	    period: string;
-	    cache_file?: string;
-	    note: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PowerSeriesProvenance(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.source = source["source"];
-	        this.fetched_utc = source["fetched_utc"];
-	        this.product = source["product"];
-	        this.cell_key = source["cell_key"];
-	        this.period = source["period"];
-	        this.cache_file = source["cache_file"];
-	        this.note = source["note"];
-	    }
 	}
 	export class PowerProvenance {
 	    daily?: PowerSeriesProvenance;
@@ -4617,6 +4742,8 @@ export namespace backend {
 	    class_stats: ClassStat[];
 	    temporal: TemporalPoint[];
 	    vi_series: VISeriesPoint[];
+	    vi_series_crop?: VISeriesPoint[];
+	    crop_pixel_pct?: number;
 	    phenology: PhenologyMetrics;
 	    phenology_states: PhenologyStatePoint[];
 	    lulc?: LULCAnalysis;
@@ -4649,6 +4776,8 @@ export namespace backend {
 	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
 	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
 	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
+	        this.vi_series_crop = this.convertValues(source["vi_series_crop"], VISeriesPoint);
+	        this.crop_pixel_pct = source["crop_pixel_pct"];
 	        this.phenology = this.convertValues(source["phenology"], PhenologyMetrics);
 	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
 	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
@@ -4856,6 +4985,7 @@ export namespace backend {
 		    return a;
 		}
 	}
+	
 	
 	
 	
