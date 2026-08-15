@@ -122,6 +122,22 @@ export function StudioArea({
   const [typeMenu, setTypeMenu] = useState(false)
   const [areaMenu, setAreaMenu] = useState(false)
 
+  /*
+    THE HEADER NAMES THE PANE, NOT THE EDITOR THAT HOLDS IT.
+
+    An area set to Canopy > Season read "Canopy", which is the one thing about
+    it a reader can already see -- the figures in the body are a season, not a
+    stand -- while the answer to "which of the four is this" was folded away
+    inside the menu that set it. The entrance says what was chosen there, which
+    is what makes a second area beside it legible as a different reading of the
+    same subject rather than as a duplicate.
+
+    The GLYPH stays the editor's. Below 12rem the label withdraws and the icon
+    is all that is left, and an area that has stopped saying which editor it is
+    cannot be retyped by anyone who did not already know.
+  */
+  const pane = modes?.[editor]?.find((m) => m.active)
+
   const headerH = AREA_HEADER_PX
   const settingsH = slots?.toolSettings ? AREA_HEADER_PX : 0
   const bodyW = rect.w
@@ -194,10 +210,10 @@ export function StudioArea({
             <StudioHeaderPopoverButton
               {...p}
               icon={meta.icon}
-              label={meta.label}
+              label={pane ? pane.label : meta.label}
               showLabel={rect.w > 12 * rootPx}
               open={typeMenu}
-              title={meta.hint}
+              title={pane ? `${meta.label} · ${pane.label} — ${meta.hint}` : meta.hint}
             />
           )}
         >
