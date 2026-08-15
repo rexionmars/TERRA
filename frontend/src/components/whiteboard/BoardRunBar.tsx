@@ -50,6 +50,7 @@ import type { BoardToolId } from "@/lib/mapTools"
 import type { ModelKind, SolarSeason } from "@/lib/types"
 import { SOLAR_SEASONS } from "@/lib/solarOptions"
 import { cn } from "@/lib/utils"
+import { BandDivider as Divider, BandGroup as Group } from "./runBand"
 
 /*
   A glyph per tool, so the two that are not chosen can be shown without their
@@ -64,53 +65,6 @@ export const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
   solar: Sun,
 }
 
-
-/** A named group of controls. */
-function Group({
-  icon: Icon,
-  label,
-  children,
-}: {
-  /** The group's subject, the same intent as the board tree's layerIcon(). */
-  icon: LucideIcon
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    /*
-      The label ABOVE its controls, not in front of them.
-
-      On one line "SEASON Annual Winter Summer Winter crop" reads as a phrase
-      rather than as a heading and six options: the label competes with the
-      values for the same horizontal run, and at 9px it loses. Stacked, it
-      becomes a column heading and the eye finds the group before it reads any
-      of it. This is what the band's height is for.
-    */
-    <div className="flex shrink-0 flex-col justify-center gap-1 px-2">
-      {/*
-        The glyph rides the eyebrow row, which is the cheap one: a label is
-        26-55px wide against control rows of 96-388px, so a 12px icon there
-        costs nothing horizontally. .eyebrow sets the colour and lucide strokes
-        currentColor, so the glyph is muted with its label without saying so.
-      */}
-      <span className="eyebrow !text-[9px] flex shrink-0 items-center gap-1.5">
-        <Icon className="size-3 shrink-0" strokeWidth={2} />
-        {label}
-      </span>
-      <div className="flex shrink-0 items-center gap-1.5">{children}</div>
-    </div>
-  )
-}
-
-function Divider() {
-  return (
-    <div
-      // Tall enough to separate a stacked group rather than only its controls.
-      className="h-9 w-px shrink-0"
-      style={{ background: "rgb(var(--p-line) / 0.28)" }}
-    />
-  )
-}
 
 /**
  * One of a set of choices.
