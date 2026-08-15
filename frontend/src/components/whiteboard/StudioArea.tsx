@@ -28,7 +28,7 @@
  * domain-shift section was once fitted into a 15rem band and the outcome is
  * recorded in this codebase: "present in the code, invisible in use".
  */
-import { useState } from "react"
+import { useRef, useState } from "react"
 import {
   Columns2,
   Maximize2,
@@ -123,6 +123,24 @@ export function StudioArea({
   const [areaMenu, setAreaMenu] = useState(false)
 
   /*
+    THE RIGHT-CLICK THAT DISMISSES, TOLD APART FROM THE ONE THAT SUMMONS.
+
+    A context menu that cannot be closed by the gesture that opened it reads as
+    stuck, and this one could not: the popover closes on any pointer press
+    outside it, and the press of a second right-click on the header is exactly
+    that. So the sequence was close-then-open on every attempt -- the menu
+    blinked and stayed, and the only way out was to press somewhere else.
+
+    Read at pointerdown rather than at contextmenu, and by hand rather than
+    from the state: the popover's dismissal runs on a window listener in the
+    capture phase, ahead of both, so by the time the contextmenu event arrives
+    the only record that the menu HAD been open is the one taken here. React
+    has not re-rendered in between -- both events are one task -- so the value
+    this closure reads is still the pre-dismissal one.
+  */
+  const dismissedByRightPress = useRef(false)
+
+  /*
     THE HEADER NAMES THE PANE, NOT THE EDITOR THAT HOLDS IT.
 
     An area set to Canopy > Season read "Canopy", which is the one thing about
@@ -186,8 +204,19 @@ export function StudioArea({
     >
       {/* HEADER */}
       <div
+        onPointerDown={(e) => {
+          if (e.button === 2) dismissedByRightPress.current = areaMenu
+        }}
         onContextMenu={(e) => {
           e.preventDefault()
+          if (dismissedByRightPress.current) {
+            dismissedByRightPress.current = false
+            // Closed here as well as by the popover, for the one press it does
+            // not treat as an outside one: a right-click on the grip itself,
+            // which is its anchor. The gesture is a toggle either way.
+            setAreaMenu(false)
+            return
+          }
           setAreaMenu(true)
         }}
         // `studio-header` makes this the container the labels inside measure
