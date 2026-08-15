@@ -148,3 +148,28 @@ def test_row_orientation_reaches_the_march(slab):
     assert a["row_azimuth_deg"] == 0.0
     assert b["row_azimuth_deg"] == 90.0
     assert a["fapar"] == pytest.approx(b["fapar"], abs=0.02)
+
+
+def test_canopy_azimuth_is_mirrored_by_the_scene_in_typescript():
+    """Uma convenção duplicada em duas linguagens.
+
+    `sceneAzimuthFromCompass` em frontend/src/components/whiteboard/standScene.ts
+    faz esta mesma aritmética em graus, para que a figura e o número sejam
+    iluminados pelo mesmo sol. Não há runner de teste no frontend, então o par é
+    fixado aqui: quem mudar esta fórmula tem o nome da gêmea no assert que
+    falhar.
+
+    Azimute solar é horário a partir do norte; o campo mede anti-horário a
+    partir do próprio +x, porque um talhão não tem norte -- tem um módulo com
+    dois eixos. O que junta os dois é a direção das linhas, que é agronomia.
+    """
+    from canopy_field import _canopy_azimuth
+
+    for compass, row in ((0.0, 0.0), (90.0, 0.0), (170.0, 30.0), (350.0, 0.0)):
+        graus_ts = 90.0 - (compass - row)          # sceneAzimuthFromCompass
+        assert np.isclose(_canopy_azimuth(compass, row), np.radians(graus_ts))
+
+    # Norte no compasso é +y no campo; leste é +x. Se isto inverter, toda sombra
+    # da cena aponta para o lado errado de forma inteiramente plausível.
+    assert np.isclose(_canopy_azimuth(0.0), np.radians(90.0))
+    assert np.isclose(_canopy_azimuth(90.0), 0.0)

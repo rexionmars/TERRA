@@ -470,3 +470,136 @@ def test_the_window_is_not_the_named_season_helper():
         else True
     assert solar.doy_window_mask.__code__.co_argcount == 3
     assert solar.season_mask.__code__.co_argcount == 2
+
+
+def _clear_day(hours=24, lat=-4.5, lon=-42.5):
+    idx = pd.date_range("2025-02-19", periods=hours, freq="h")
+    df = pd.DataFrame(
+        {
+            "ghi": np.linspace(0, 900, hours),
+            "dni": np.linspace(0, 800, hours),
+            "dhi": np.linspace(0, 200, hours),
+            "clrsky": np.linspace(1, 1000, hours),
+        },
+        index=idx,
+    )
+    solpos = pd.DataFrame(
+        {
+            "apparent_zenith": np.linspace(100, 10, hours),
+            "azimuth": np.linspace(80, 280, hours),
+        },
+        index=idx,
+    )
+    return df, solpos
+
+
+def test_mean_beam_direction_is_a_vector_mean_not_an_angle_mean():
+    """A média de 350° e 10° é 0°, e nunca 180°.
+
+    Azimute é grandeza circular. Somar os ângulos e dividir devolve exatamente
+    o lado oposto do céu, e a cena iluminada por ele projetaria toda sombra na
+    direção errada -- um erro que não parece erro nenhum numa imagem.
+    """
+    idx = pd.date_range("2025-06-15 09:00", periods=2, freq="h")
+    df = pd.DataFrame({"dni": [500.0, 500.0]}, index=idx)
+    solpos = pd.DataFrame(
+        {"apparent_zenith": [45.0, 45.0], "azimuth": [350.0, 10.0]}, index=idx
+    )
+    got = solar.mean_beam_direction(df, solpos)
+    assert got is not None
+    # O norte, e não o sul.
+    assert min(got["azimuth_deg"], 360 - got["azimuth_deg"]) < 1.0, got
+
+
+def test_mean_beam_direction_leans_towards_the_energy():
+    """Não é o sol do meio-dia, é o sol que trouxe a energia."""
+    idx = pd.date_range("2025-06-15 09:00", periods=2, freq="h")
+    df = pd.DataFrame({"dni": [10.0, 900.0]}, index=idx)
+    solpos = pd.DataFrame(
+        {"apparent_zenith": [45.0, 45.0], "azimuth": [90.0, 270.0]}, index=idx
+    )
+    got = solar.mean_beam_direction(df, solpos)
+    assert 260.0 < got["azimuth_deg"] < 280.0, got
+
+
+def test_a_sun_that_never_rises_has_no_direction():
+    """Uma resposta, não uma falha."""
+    idx = pd.date_range("2025-06-15", periods=3, freq="h")
+    df = pd.DataFrame({"dni": [0.0, 0.0, 0.0]}, index=idx)
+    solpos = pd.DataFrame(
+        {"apparent_zenith": [120.0, 130.0, 140.0], "azimuth": [0.0, 10.0, 20.0]},
+        index=idx,
+    )
+    assert solar.mean_beam_direction(df, solpos) is None
+    assert solar.sun_track(df, solpos) == []
+
+
+def test_sun_track_drops_the_hours_the_sun_is_down():
+    """Uma cena não tem o que fazer com elas, e o azimute ali não significa
+    nada para um renderizador."""
+    df, solpos = _clear_day()
+    track = solar.sun_track(df, solpos)
+    assert track, "o dia inteiro caiu fora"
+    assert all(r["elevation_deg"] > 0 for r in track)
+    # O rótulo diz o padrão de hora, porque assumir local põe o sol três horas
+    # errado numa AOI brasileira: o meio-dia solar cai às 15h UTC nesta célula.
+    assert "hour_utc" in track[0] and "hour" not in track[0]
+
+
+def test_sun_track_carries_clearness_when_the_clear_sky_column_survived():
+    df, solpos = _clear_day()
+    track = solar.sun_track(df, solpos)
+    assert any("clearness" in r for r in track)
+    assert all(0.0 <= r["clearness"] <= 1.0 for r in track if "clearness" in r)
+    # Sem a coluna não há invenção de valor.
+    bare = solar.sun_track(df.drop(columns=["clrsky"]), solpos)
+    assert bare and all("clearness" not in r for r in bare)
+
+
+def test_clearness_is_what_arrived_over_what_was_available():
+    df, _ = _clear_day()
+    got = solar.clearness(df)
+    assert got is not None and 0.0 < got <= 1.0
+    assert solar.clearness(df.drop(columns=["clrsky"])) is None
+
+
+def test_representative_day_is_the_median_and_not_the_brightest():
+    """Uma janela tem dias limpos e encobertos, e o típico é a mediana."""
+    idx = pd.date_range("2025-02-01", periods=72, freq="h")
+    dni = np.concatenate([np.full(24, 100.0), np.full(24, 900.0), np.full(24, 500.0)])
+    df = pd.DataFrame({"dni": dni}, index=idx)
+    got = solar.representative_day(df)
+    assert str(got) == "2025-02-03", got
+    assert solar.representative_day(df.iloc[:0]) is None
+
+
+def test_prepare_hourly_survives_a_cache_written_before_clear_sky_was_asked_for():
+    """O cache do POWER não expira por design.
+
+    Uma série gravada antes deste parâmetro entrar em HOURLY_PARAMS continua
+    sendo lida hoje e não tem a coluna. Exigi-la transformava um cache que
+    funcionava num KeyError -- e o mesmo vale para qualquer chamador que monte
+    o frame à mão, que é o caso de todo teste deste módulo.
+    """
+    idx = pd.date_range("2025-02-19", periods=6, freq="h")
+    old = pd.DataFrame(
+        {
+            "ALLSKY_SFC_SW_DWN": np.linspace(0, 900, 6),
+            "ALLSKY_SFC_SW_DNI": np.linspace(0, 800, 6),
+            "ALLSKY_SFC_SW_DIFF": np.linspace(0, 200, 6),
+            "T2M": np.full(6, 28.0),
+            "WS2M": np.full(6, 2.0),
+        },
+        index=idx,
+    )
+    df, solpos = solar.prepare_hourly(old, -4.5, -42.5, 0.0)
+    assert "clrsky" not in df.columns
+    assert len(df) == 6 and len(solpos) == 6
+    # E o que depende da coluna responde ausência em vez de levantar.
+    assert solar.clearness(df) is None
+    assert all("clearness" not in r for r in solar.sun_track(df, solpos))
+
+    new = old.assign(CLRSKY_SFC_SW_DWN=np.linspace(1, 1000, 6))
+    df2, _ = solar.prepare_hourly(new, -4.5, -42.5, 0.0)
+    assert "clrsky" in df2.columns
+    assert solar.clearness(df2) is not None

@@ -1675,6 +1675,13 @@ def main():
                 ghi_sum = float(np.nansum(df['ghi'].to_numpy()))
                 dhi_sum = float(np.nansum(df['dhi'].to_numpy()))
                 dhi_share = (dhi_sum / ghi_sum) if ghi_sum > 0 else 0.0
+                # One real day of the window rather than an hour-of-day mean.
+                # Near the equator -- where these AOIs are -- the noon sun
+                # passes within ten degrees of the zenith, azimuth swings tens
+                # of degrees in half an hour there, and averaging it produces a
+                # direction no sun ever occupied.
+                track_day = solar_mod.representative_day(df)
+                track = solar_mod.sun_track(df, solpos, track_day)
                 payload['sun'] = {
                     'source': 'power',
                     'cell': [cell_lat, cell_lon],
@@ -1690,6 +1697,23 @@ def main():
                     'window_days': window_days,
                     'window_centre': (lit_row or {}).get('date') if window_days else None,
                     'n_hours': int(len(df)),
+                    # THE SUN AS SOMETHING THAT CAN BE DRAWN, not only summed.
+                    #
+                    # Everything above describes the sky as totals and bin
+                    # counts, which a march consumes and a viewer cannot. A
+                    # scene handed those has no choice but to invent a light,
+                    # and the picture then shows a sun that had nothing to do
+                    # with the number beside it.
+                    #
+                    # `direction` is the beam-energy-weighted mean, so a scene
+                    # lit from it is lit by the same sun the faPAR came from.
+                    # `track` is one real day, hour by hour, for a viewer that
+                    # wants to move the sun rather than fix it.
+                    'direction': solar_mod.mean_beam_direction(df, solpos),
+                    'clearness': solar_mod.clearness(df),
+                    'track_date': (
+                        str(track_day) if track_day is not None else None),
+                    'track': track,
                 }
 
                 # Light the canopy the series resolved, under that sun.
