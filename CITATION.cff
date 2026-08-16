@@ -6,7 +6,7 @@ version: 0.2.0
 date-released: "2026-07-01"
 url: "https://github.com/rexionmars/TERRA"
 repository-code: "https://github.com/rexionmars/TERRA"
-license: MIT
+license: GPL-3.0-only
 authors:
   - family-names: Melo
     given-names: "João Leonardi da Silva"

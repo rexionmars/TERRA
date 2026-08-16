@@ -255,7 +255,8 @@ pytest sidecar/tests -q
 
 ## License and community
 
-MIT — [LICENSE](LICENSE).
+GNU General Public License v3.0 — [LICENSE](LICENSE). TERRA is copyleft: a
+distributed work built on it carries the same terms.
 
 Contributions: [CONTRIBUTING.md](CONTRIBUTING.md) ·
 [Issues](https://github.com/rexionmars/TERRA/issues).

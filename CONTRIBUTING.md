@@ -73,5 +73,5 @@ For planned features, see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the MIT
-License (see [LICENSE](LICENSE)).
+By contributing, you agree that your contributions are licensed under the GNU
+General Public License v3.0 (see [LICENSE](LICENSE)).
