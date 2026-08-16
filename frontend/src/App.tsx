@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
@@ -102,7 +102,18 @@ import { AppNav } from "@/components/AppNav"
 import { MapScreen } from "@/pages/MapScreen"
 import type { MapToolId } from "@/lib/mapTools"
 import type { BasemapKind } from "@/lib/basemaps"
-import { EnergyScreen, type EnergyTab } from "@/pages/EnergyScreen"
+import { type EnergyTab } from "@/pages/EnergyScreen"
+/*
+  Loaded when opened, not at startup.
+
+  These two screens pull recharts (493 KB) and most of the analysis UI, and
+  neither is reachable from the map -- yet both were parsed on every launch,
+  including the many that never leave the map. The map is what the application
+  opens on, so it is the one screen that should not wait on the others.
+*/
+const EnergyScreen = lazy(() =>
+  import("@/pages/EnergyScreen").then((m) => ({ default: m.EnergyScreen }))
+)
 import { useSolarState, useWindState } from "@/lib/energyState"
 import type {
   SolarLayers,
@@ -112,7 +123,20 @@ import type {
 } from "@/lib/energyState"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
-import { AnalysisPage } from "@/pages/AnalysisPage"
+const AnalysisPage = lazy(() =>
+  import("@/pages/AnalysisPage").then((m) => ({ default: m.AnalysisPage }))
+)
+
+/*
+  What a lazily-loaded screen shows while its chunk arrives.
+
+  Deliberately quiet: the chunk is on local disk, so this is visible for a frame
+  or two and a spinner that appears and vanishes that fast reads as a flicker.
+  It holds the space and the background so the transition does not jump.
+*/
+function ScreenLoading() {
+  return <div className="absolute inset-0 bg-background" aria-busy="true" />
+}
 
 function defaultPeriod(): { start: string; end: string } {
   const now = new Date()
@@ -2924,6 +2948,7 @@ function AppBody(props: {
                 exit={{ opacity: 0, x: 12 }}
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
+                <Suspense fallback={<ScreenLoading />}>
                 <EnergyScreen
                   onCreditChange={setCredit}
                   layoutMode={layoutMode}
@@ -2965,6 +2990,7 @@ function AppBody(props: {
                   tab={energyTab}
                   onTabChange={setEnergyTab}
                 />
+                </Suspense>
               </motion.div>
             )}
             {screen === "analysis" && (
@@ -2976,6 +3002,7 @@ function AppBody(props: {
                 exit={{ opacity: 0, x: 12 }}
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
+                <Suspense fallback={<ScreenLoading />}>
                 <AnalysisPage
                   result={resultWithWater}
                   areas={props.areas}
@@ -2994,6 +3021,7 @@ function AppBody(props: {
                   onShowComposition={showCompositionFromHub}
                   activeProjectId={activeProjectId}
                 />
+                </Suspense>
               </motion.div>
             )}
           </AnimatePresence>
