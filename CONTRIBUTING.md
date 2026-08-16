@@ -8,11 +8,21 @@ issues, request features, and submit code.
 Use [GitHub Issues](https://github.com/rexionmars/TERRA/issues) for:
 
 - Bugs (include OS, TERRA version or commit, Python version, and the exact error)
-- Feature requests
+- Product-shell feature requests (UI, packaging, overlays already in TERRA)
 - Questions about installation or usage that are not answered in the docs
 
 Before opening a new issue, search existing issues and check
 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+### Research-method feature requests
+
+Requests that need new scientific methods (crop change, segmentation,
+topography-related workflows, canopy diagnostics, and similar) are developed in
+a private research repository under literature review → implementation → tests,
+then exported into TERRA. Please contact
+**[joao_leonardi.melo@somosicev.com](mailto:joao_leonardi.melo@somosicev.com)**
+or **[opensource.leonardi@gmail.com](mailto:opensource.leonardi@gmail.com)**
+rather than expecting those pipelines to be prototyped only via Issues.
 
 ## Development setup
 

@@ -1,26 +1,29 @@
-import { useState } from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { forwardRef } from "react"
 import {
   Play,
   Loader2,
   Pencil,
   Upload,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Layers,
   CheckCircle2,
   Circle,
   Globe2,
-  Boxes,
 } from "lucide-react"
-import type { Area, GeoJSONGeometry, ModelKind } from "@/lib/types"
+import type { GeoJSONGeometry, ModelKind } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { todayISO } from "@/lib/dates"
+import { btnPrimaryCommit } from "@/components/ui/buttons"
+import { PanelSection as Section } from "@/components/ui/PanelSection"
+import {
+  MODEL_OPTIONS,
+  MODE_OPTIONS,
+  modeBlockedBy,
+} from "@/lib/classifyOptions"
+import type { PanelPlacement } from "@/components/ui/PanelShell"
+import { PanelShell } from "@/components/ui/PanelShell"
 
 interface ControlPanelProps {
-  areas: Area[]
   activeExample: string
-  onSelectExample: (id: string) => void
   customPolygon: GeoJSONGeometry | null
   hasArea: boolean
   onClearArea: () => void
@@ -39,45 +42,22 @@ interface ControlPanelProps {
   onModelKindChange: (m: ModelKind) => void
   prithviMode: "pixel" | "patch"
   onPrithviModeChange: (m: "pixel" | "patch") => void
-  overlayOpacity: number
-  onOpacityChange: (v: number) => void
-  smoothOverlay: boolean
-  onSmoothOverlayChange: (v: boolean) => void
   running: boolean
   progress: number
   progressMsg: string
   onRun: () => void
   onAnalyzeLULC: () => void
-  onViewDataCube: () => void
   lulcRunning?: boolean
-  dataCubeLoading?: boolean
+  /** Hide this panel (dock tabs remain). */
+  onCollapse?: () => void
+  /** Which container draws this panel. See ui/PanelShell. */
+  placement?: PanelPlacement
 }
 
-function Section({
-  step,
-  title,
-  children,
-}: {
-  step: string
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="telemetry text-[10px] text-primary">{step}</span>
-        <span className="eyebrow !text-foreground">{title}</span>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-export function ControlPanel(props: ControlPanelProps) {
+export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
+  function ControlPanel(props, ref) {
   const {
-    areas,
     activeExample,
-    onSelectExample,
     customPolygon,
     hasArea,
     onClearArea,
@@ -96,65 +76,31 @@ export function ControlPanel(props: ControlPanelProps) {
     onModelKindChange,
     prithviMode,
     onPrithviModeChange,
-    overlayOpacity,
-    onOpacityChange,
-    smoothOverlay,
-    onSmoothOverlayChange,
     running,
     progress,
     progressMsg,
     onRun,
     onAnalyzeLULC,
-    onViewDataCube,
     lulcRunning = false,
-    dataCubeLoading = false,
+    onCollapse,
   } = props
 
-  const [collapsed, setCollapsed] = useState(false)
-  const [showExamples, setShowExamples] = useState(false)
   const canLULC = hasArea
-  const busy = running || lulcRunning || dataCubeLoading
+  const busy = running || lulcRunning
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      {collapsed ? (
-        <motion.button
-          key="collapsed"
-          onClick={() => setCollapsed(false)}
-          className="panel app-no-drag absolute left-3 top-3 z-[1000] flex h-9 w-9 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-          title="Show controls"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ type: "spring", stiffness: 420, damping: 32 }}
-        >
-          <ChevronRight className="size-4" />
-        </motion.button>
-      ) : (
-        <motion.div
-          key="panel"
-          className="panel app-no-drag panel-scroll absolute left-3 top-3 bottom-3 z-[1000] flex w-[19rem] flex-col gap-4 overflow-y-auto rounded-md p-4"
-          initial={{ opacity: 0, x: -28 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -28 }}
-          transition={{ type: "spring", stiffness: 360, damping: 34 }}
-        >
-      <div className="flex items-center justify-between">
-        <h1 className="text-sm font-semibold">New classification</h1>
-        <button
-          onClick={() => setCollapsed(true)}
-          className="text-muted-foreground hover:text-foreground"
-          title="Collapse"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-      </div>
+      <PanelShell
+        ref={ref}
+        title="New classification"
+        placement={props.placement}
+        onCollapse={() => onCollapse?.()}
+      >
 
       {/* STEP 1 — area */}
       <Section step="01" title="Area">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Draw a polygon on the map, search a location, or load a file.
-          Works anywhere in the world.
+          Draw a polygon on the map, search a location, or load a file. Works
+          anywhere in the world.
         </p>
         <div className="grid grid-cols-2 gap-2">
           <button
@@ -194,41 +140,6 @@ export function ControlPanel(props: ControlPanelProps) {
             : "No area defined"}
         </div>
 
-        {/* Examples: secondary launcher, collapsed by default */}
-        <div className="flex flex-col gap-1.5">
-          <button
-            onClick={() => setShowExamples((s) => !s)}
-            className="flex items-center gap-1.5 self-start text-[11px] text-muted-foreground hover:text-foreground"
-          >
-            <Layers className="size-3" />
-            Reference examples
-            {showExamples ? (
-              <ChevronLeft className="size-3 rotate-90" />
-            ) : (
-              <ChevronRight className="size-3 rotate-90" />
-            )}
-          </button>
-          {showExamples && (
-            <div className="grid grid-cols-3 gap-1.5">
-              {areas.map((a) => (
-                <button
-                  key={a.id}
-                  disabled={busy}
-                  onClick={() => onSelectExample(a.id)}
-                  title={a.label}
-                  className={cn(
-                    "rounded-sm border px-2 py-1 text-xs disabled:opacity-50",
-                    activeExample === a.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-secondary"
-                  )}
-                >
-                  {a.id}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </Section>
 
       <hr className="hairline" />
@@ -240,6 +151,7 @@ export function ControlPanel(props: ControlPanelProps) {
             <span className="eyebrow">start</span>
             <input
               type="date"
+              max={todayISO()}
               value={start}
               disabled={busy}
               onChange={(e) => onStartChange(e.target.value)}
@@ -250,6 +162,7 @@ export function ControlPanel(props: ControlPanelProps) {
             <span className="eyebrow">end</span>
             <input
               type="date"
+              max={todayISO()}
               value={end}
               disabled={busy}
               onChange={(e) => onEndChange(e.target.value)}
@@ -284,19 +197,6 @@ export function ControlPanel(props: ControlPanelProps) {
           )}
           Best scene per month
         </button>
-        <button
-          type="button"
-          disabled={!hasArea || busy}
-          onClick={onViewDataCube}
-          className="flex h-8 items-center justify-center gap-1.5 rounded-sm border border-border px-2 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50"
-        >
-          {dataCubeLoading ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Boxes className="size-3.5" />
-          )}
-          View data cube
-        </button>
       </Section>
 
       <hr className="hairline" />
@@ -304,13 +204,7 @@ export function ControlPanel(props: ControlPanelProps) {
       {/* STEP 3 — model */}
       <Section step="03" title="Model">
         <div className="grid grid-cols-1 gap-2">
-          {(
-            [
-              ["spectral", "Random Forest", "spectro-temporal features"],
-              ["temporal_transformer", "Temporal Transformer", "lightweight series model"],
-              ["prithvi", "Prithvi-EO 2.0", "embeddings (NASA/IBM)"],
-            ] as const
-          ).map(([m, label, sub]) => (
+          {MODEL_OPTIONS.map(({ id: m, label, detail: sub }) => (
             <button
               key={m}
               disabled={busy}
@@ -367,15 +261,11 @@ export function ControlPanel(props: ControlPanelProps) {
       {/* STEP 4 — mode */}
       <Section step="04" title="Mode">
         <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              ["single", "Map", "full temporal stack"],
-              ["temporal", "Temporal", "cumulative retention"],
-            ] as const
-          ).map(([m, label, sub]) => (
+          {MODE_OPTIONS.map(({ id: m, label, detail: sub }) => (
             <button
               key={m}
-              disabled={busy || (m === "temporal" && modelKind !== "spectral")}
+              disabled={busy || !!modeBlockedBy(m, modelKind)}
+              title={modeBlockedBy(m, modelKind) ?? undefined}
               onClick={() => onModeChange(m)}
               className={cn(
                 "rounded-sm border p-2 text-left text-xs disabled:opacity-50",
@@ -396,35 +286,6 @@ export function ControlPanel(props: ControlPanelProps) {
             Cumulative temporal mode is available with Random Forest only.
           </p>
         )}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="eyebrow">overlay opacity</span>
-            <span className="telemetry text-xs text-foreground">
-              {Math.round(overlayOpacity * 100)}%
-            </span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={overlayOpacity}
-            onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-            className="accent-[var(--primary)]"
-          />
-        </div>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={smoothOverlay}
-            onChange={(e) => onSmoothOverlayChange(e.target.checked)}
-            className="accent-primary"
-          />
-          Smooth prediction overlay
-        </label>
-        <p className="-mt-1 text-[10px] leading-snug text-muted-foreground/80">
-          Contour style — solid classes, curved boundaries
-        </p>
       </Section>
 
       <div className="mt-auto flex flex-col gap-2 pt-2">
@@ -469,7 +330,7 @@ export function ControlPanel(props: ControlPanelProps) {
         <button
           onClick={onRun}
           disabled={busy || !hasArea || !start || !end}
-          className="flex items-center justify-center gap-2 rounded-sm bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+          className={btnPrimaryCommit}
         >
           {running ? (
             <>
@@ -484,8 +345,6 @@ export function ControlPanel(props: ControlPanelProps) {
           )}
         </button>
       </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+      </PanelShell>
   )
-}
+})

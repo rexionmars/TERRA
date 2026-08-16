@@ -1,4 +1,4 @@
-import type { LULCAnalysis } from "@/lib/types"
+import type { LULCAgreement, LULCAnalysis } from "@/lib/types"
 
 const CALENDAR_NOTES: Record<string, string> = {
   A: "Wheat → Soybean → Fallow → Oat → Soybean",
@@ -9,22 +9,20 @@ const CALENDAR_NOTES: Record<string, string> = {
 interface LulcSectionProps {
   lulc: LULCAnalysis
   areaId?: string
-  areaLabel?: string
 }
 
-export function LulcSection({ lulc, areaId, areaLabel }: LulcSectionProps) {
+export function LulcSection({ lulc, areaId }: LulcSectionProps) {
   const m = lulc.metrics
   const calendar = areaId ? CALENDAR_NOTES[areaId] : undefined
   const hasCompare = (lulc.pred_vs_ref?.length ?? 0) > 0
 
   return (
-    <section className="rounded-md border border-border bg-card/40 p-5">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="eyebrow">Land cover / land use</p>
           <h2 className="mt-1 font-display text-base font-semibold tracking-wide">
             MapBiomas {lulc.year || 2023}
-            {areaLabel ? ` — ${areaLabel}` : ""}
           </h2>
           <p className="mt-1 text-[11px] text-muted-foreground">
             {lulc.source || "MapBiomas Collection 10"} · descriptive composition
@@ -32,33 +30,38 @@ export function LulcSection({ lulc, areaId, areaLabel }: LulcSectionProps) {
           </p>
         </div>
         {calendar && (
-          <p className="max-w-xs rounded-sm border border-border/60 bg-secondary/20 px-2 py-1.5 text-[10px] text-muted-foreground">
+          <p className="rounded-sm border border-border bg-secondary max-w-xs px-2.5 py-1.5 text-[10px] text-muted-foreground">
             Documented use: {calendar}
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,16rem)_1fr] xl:grid-cols-[minmax(0,20rem)_1fr] 2xl:grid-cols-[minmax(0,24rem)_1fr]">
+      {/* Map + dense 2×4 metrics — never stretch to 8 sparse columns */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]">
         {lulc.map_uri ? (
-          <div className="overflow-hidden rounded-sm border border-border/60 bg-ink/40">
+          <div className="rounded-sm border border-border bg-background flex aspect-square items-center justify-center overflow-hidden p-3 lg:aspect-auto lg:min-h-[14rem]">
             <img
               src={lulc.map_uri}
               alt="MapBiomas land cover"
-              className="h-full w-full object-contain"
+              className="max-h-full max-w-full object-contain"
             />
           </div>
         ) : (
-          <div className="flex min-h-[8rem] items-center justify-center rounded-sm border border-dashed border-border/60 text-[11px] text-muted-foreground">
+          <div className="rounded-sm border border-border bg-background flex min-h-[12rem] items-center justify-center text-[11px] text-muted-foreground">
             Map unavailable
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:grid-rows-2">
           <Metric label="Area" value={`${m.area_ha.toFixed(1)} ha`} />
           <Metric label="Classes" value={String(m.n_classes)} />
           <Metric label="Shannon H" value={m.shannon_h.toFixed(3)} />
           <Metric label="Pielou J" value={m.pielou_j.toFixed(3)} />
-          <Metric label="Dominant" value={`${m.dominant_pct.toFixed(1)}%`} sub={m.dominant_class} />
+          <Metric
+            label="Dominant"
+            value={`${m.dominant_pct.toFixed(1)}%`}
+            sub={m.dominant_class}
+          />
           <Metric label="Soybean 39" value={`${m.soja_pct.toFixed(1)}%`} />
           <Metric label="Other crops 41" value={`${m.outras_lav_pct.toFixed(1)}%`} />
           <Metric label="Agricultural*" value={`${m.agricola_pct.toFixed(1)}%`} />
@@ -66,12 +69,13 @@ export function LulcSection({ lulc, areaId, areaLabel }: LulcSectionProps) {
       </div>
 
       <div
-        className={`mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 ${
+        className={`mt-4 grid grid-cols-1 gap-3 border-t pt-4 md:grid-cols-2 ${
           hasCompare ? "xl:grid-cols-3" : ""
         }`}
+        style={{ borderColor: "var(--border)" }}
       >
-        <div>
-          <p className="eyebrow mb-2">Cover composition</p>
+        <div className="rounded-sm border border-border bg-secondary p-3">
+          <p className="eyebrow mb-2.5">Cover composition</p>
           <StatBars
             rows={lulc.composition.map((r) => ({
               key: String(r.class_id),
@@ -82,8 +86,8 @@ export function LulcSection({ lulc, areaId, areaLabel }: LulcSectionProps) {
             }))}
           />
         </div>
-        <div>
-          <p className="eyebrow mb-2">Land-use groups</p>
+        <div className="rounded-sm border border-border bg-secondary p-3">
+          <p className="eyebrow mb-2.5">Land-use groups</p>
           <StatBars
             rows={lulc.groups.map((r) => ({
               key: r.group,
@@ -95,8 +99,41 @@ export function LulcSection({ lulc, areaId, areaLabel }: LulcSectionProps) {
           />
         </div>
         {hasCompare && (
-          <div className="md:col-span-2 xl:col-span-1">
-            <p className="eyebrow mb-2">MapBiomas vs predicted (shared pixels)</p>
+          <div className="rounded-sm border border-border bg-secondary p-3 md:col-span-2 xl:col-span-1">
+            {/*
+              Named for what it measures. "MapBiomas vs predicted" reads as
+              validation, and it is not: these are two marginal distributions
+              compared side by side, which agree whenever the two maps hold the
+              same amount of a class regardless of where. The agreement panel
+              below is the one that answers whether they agree.
+            */}
+            <p className="eyebrow mb-1">Class composition · reference vs predicted</p>
+            <p className="mb-1 text-[10px] text-muted-foreground">
+              How much of each class each map holds — not whether they agree on
+              where.
+            </p>
+            {/*
+              The reference is native at 30 m and is resampled onto the 10 m
+              classification grid, so roughly nine pixels carry one label
+              observation. The sample size stated here is the distinct native
+              cell count, not the pixel count.
+            */}
+            <p className="mb-2.5 text-[10px] text-muted-foreground">
+              {typeof lulc.compare_reference_cells === "number" ? (
+                <>
+                  n = {lulc.compare_reference_cells.toLocaleString()} reference
+                  cells at 30 m
+                  {typeof lulc.compare_pixels === "number"
+                    ? ` (${lulc.compare_pixels.toLocaleString()} pixels at 10 m)`
+                    : ""}
+                </>
+              ) : typeof lulc.compare_pixels === "number" ? (
+                <>
+                  {lulc.compare_pixels.toLocaleString()} shared pixels at 10 m ·
+                  reference cell count unavailable
+                </>
+              ) : null}
+            </p>
             <div className="flex flex-col gap-1.5">
               {lulc.pred_vs_ref.map((r) => (
                 <div
@@ -110,14 +147,20 @@ export function LulcSection({ lulc, areaId, areaLabel }: LulcSectionProps) {
                     />
                     {r.class_id}
                   </span>
-                  <div className="relative h-2 overflow-hidden rounded-full bg-secondary">
+                  <div className="bg-background relative h-2 overflow-hidden rounded-sm">
                     <span
-                      className="absolute inset-y-0 left-0 rounded-full opacity-40"
-                      style={{ width: `${r.pct_ref}%`, backgroundColor: r.color }}
+                      className="absolute inset-y-0 left-0 rounded-sm opacity-40"
+                      style={{
+                        width: `${r.pct_ref}%`,
+                        backgroundColor: r.color,
+                      }}
                     />
                     <span
-                      className="absolute inset-y-0 left-0 rounded-full"
-                      style={{ width: `${r.pct_pred}%`, backgroundColor: r.color }}
+                      className="absolute inset-y-0 left-0 rounded-sm"
+                      style={{
+                        width: `${r.pct_pred}%`,
+                        backgroundColor: r.color,
+                      }}
                     />
                   </div>
                   <span className="telemetry text-right text-muted-foreground">
@@ -137,11 +180,113 @@ export function LulcSection({ lulc, areaId, areaLabel }: LulcSectionProps) {
         )}
       </div>
 
-      <p className="mt-4 text-[10px] text-muted-foreground">
+      {lulc.agreement && <AgreementPanel a={lulc.agreement} />}
+
+      <p className="mt-3 text-[10px] text-muted-foreground">
         *Agricultural = annual cropland (39+41) + mosaic (21). Annual MapBiomas
         labels compress crop rotations into a single cover class.
       </p>
     </section>
+  )
+}
+
+/**
+ * Agreement against the reference, beside the composition it corrects.
+ *
+ * The panel above compares how much of each class each map holds. That is not
+ * agreement: a classifier that swaps soybean for other temporary crops in equal
+ * measure reproduces the reference composition exactly and is wrong on every
+ * cell it swapped. Pontius & Millones (2011) name the two halves — quantity, in
+ * the panel above; allocation, invisible until here.
+ */
+function AgreementPanel({ a }: { a: LULCAgreement }) {
+  const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`)
+  const ci = (v?: [number, number]) =>
+    v ? `${v[0].toFixed(0)}–${v[1].toFixed(0)}` : ""
+
+  return (
+    <div
+      className="mt-4 rounded-sm border border-border bg-secondary p-3"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="eyebrow">Agreement with MapBiomas</p>
+        {/* The denominator, stated where the figures are. These are native
+            30 m cells, not the 10 m pixels resampled from them: nine pixels
+            carrying one label are one observation, and counting pixels would
+            narrow every interval below by about three. */}
+        <p className="telemetry text-[10px] text-muted-foreground">
+          n = {a.n_reference_cells.toLocaleString()} reference cells
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Metric
+          label="Overall accuracy"
+          value={`${a.overall_pct.toFixed(1)}%`}
+          sub={`95% CI ${ci(a.overall_ci)}`}
+        />
+        <Metric
+          label="Quantity disagr."
+          value={`${a.quantity_disagreement_pct.toFixed(1)}%`}
+          sub="different amounts"
+        />
+        <Metric
+          label="Allocation disagr."
+          value={`${a.allocation_disagreement_pct.toFixed(1)}%`}
+          sub="same amounts, wrong places"
+        />
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-1 grid grid-cols-[7rem_1fr_1fr] gap-2 text-[10px] text-muted-foreground">
+          <span />
+          <span>Producer&rsquo;s (found)</span>
+          <span>User&rsquo;s (correct)</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          {a.per_class.map((c) => (
+            <div
+              key={c.class_id}
+              className="grid grid-cols-[7rem_1fr_1fr] items-baseline gap-2 text-[11px]"
+            >
+              <span className="flex items-center gap-1.5 truncate text-muted-foreground">
+                <span
+                  className="size-2 shrink-0 rounded-[2px]"
+                  style={{ backgroundColor: c.color }}
+                />
+                {c.class_id} {c.name}
+              </span>
+              <span className="telemetry text-foreground">
+                {pct(c.producers_pct)}
+                <span className="ml-1 text-[9px] text-muted-foreground">
+                  {ci(c.producers_ci)}
+                </span>
+              </span>
+              <span className="telemetry text-foreground">
+                {pct(c.users_pct)}
+                <span className="ml-1 text-[9px] text-muted-foreground">
+                  {ci(c.users_ci)}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {a.n_outside_legend > 0 && (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          {a.n_outside_legend.toLocaleString()} further reference cells carry a
+          class the classifier has no label for. They are excluded rather than
+          counted as errors, so this assessment is silent about them.
+        </p>
+      )}
+      <p className="mt-1.5 text-[10px] text-muted-foreground">
+        Producer&rsquo;s and user&rsquo;s accuracy are reported together because
+        neither means anything alone: a map calling everything soybean scores
+        100% producer&rsquo;s for soybean. Intervals are Wilson score at 95%.
+      </p>
+    </div>
   )
 }
 
@@ -155,9 +300,11 @@ function Metric({
   sub?: string
 }) {
   return (
-    <div className="rounded-sm border border-border/60 bg-secondary/20 px-2 py-1.5">
-      <div className="eyebrow">{label}</div>
-      <div className="telemetry mt-0.5 text-[12px] text-foreground">{value}</div>
+    <div className="rounded-sm border border-border bg-secondary flex min-h-[4.5rem] flex-col justify-center px-3 py-2.5">
+      <div className="eyebrow !text-[9px]">{label}</div>
+      <div className="telemetry mt-1 text-[13px] font-medium text-foreground">
+        {value}
+      </div>
       {sub && (
         <div className="mt-0.5 truncate text-[9px] text-muted-foreground">{sub}</div>
       )}
@@ -174,22 +321,24 @@ function StatBars({
     return <p className="text-[11px] text-muted-foreground">No classes in AOI.</p>
   }
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul className="flex flex-col gap-2">
       {rows.map((r) => (
         <li key={r.key} className="flex items-center gap-2 text-xs">
           <span
             className="size-2.5 shrink-0 rounded-[2px]"
             style={{ backgroundColor: r.color }}
           />
-          <span className="w-40 shrink-0 truncate sm:w-48">{r.label}</span>
-          <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+          <span className="w-36 shrink-0 truncate sm:w-44">{r.label}</span>
+          <span className="bg-background relative h-1.5 flex-1 overflow-hidden rounded-sm">
             <span
-              className="absolute inset-y-0 left-0 rounded-full"
+              className="absolute inset-y-0 left-0 rounded-sm"
               style={{ width: `${r.pct}%`, backgroundColor: r.color }}
             />
           </span>
-          <span className="telemetry w-12 shrink-0 text-right">{r.pct.toFixed(1)}%</span>
-          <span className="telemetry hidden w-16 shrink-0 text-right text-muted-foreground sm:inline">
+          <span className="telemetry w-12 shrink-0 text-right">
+            {r.pct.toFixed(1)}%
+          </span>
+          <span className="telemetry hidden w-14 shrink-0 text-right text-muted-foreground sm:inline">
             {r.right}
           </span>
         </li>

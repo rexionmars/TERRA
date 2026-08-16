@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { toast } from "sonner"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { Dispatch, SetStateAction } from "react"
+import { AnimatePresence, motion } from "motion/react"
+import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
+import type { Whiteboard } from "@/lib/whiteboards"
+import { listWhiteboards, openWhiteboard } from "@/lib/whiteboards"
+import {
+  restoreBoard,
+  writeBoardMemory,
+} from "@/components/whiteboard/boardMemory"
 import { useTheme } from "next-themes"
 import {
   ListEmbeddedAreas,
@@ -7,12 +15,25 @@ import {
   Predict,
   AnalyzeLULC,
   ListDataCube,
-  OpenExternal,
+  InspectEnvironment,
+  RenderComposite,
   RevealMainWindow,
+  SaveProjectOverlay,
+  ListProjectOverlays,
+  GetProject,
+  UpdateProjectAOI,
+  CreateProject,
+  AnalyzeWater,
+  AnalyzeSolar,
+  AnalyzeSolarTerrain,
+  AnalyzeSolarSiting,
+  AnalyzeEnergyModel,
+  AnalyzeWind,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
   Area,
+  LayoutMode,
   PredictResult,
   PredictRequest,
   ProgressEvent,
@@ -23,13 +44,72 @@ import type {
   LULCAnalysis,
   DataCubeResult,
   DataCubeRequest,
+  DataCubeScene,
+  CompositionOverlay,
+  CompositeRequest,
+  CompositeKind,
+  CompositeIndex,
+  CompositeResult,
+  Project,
+  ProjectOverlay,
+  SaveProjectOverlayRequest,
+  WaterAnalysis,
+  WaterIndex,
+  WaterRequest,
+  SolarAnalysis,
+  SolarRequest,
+  SolarTerrainAnalysis,
+  SolarTerrainRequest,
+  SolarSitingAnalysis,
+  SolarSitingRequest,
+  EnergyModelAnalysis,
+  EnergyModelRequest,
+  WindAnalysis,
+  WindRequest,
 } from "@/lib/types"
+import {
+  layoutModeFromPrefs,
+  mergePreferenceExtras,
+  parsePreferenceExtras,
+} from "@/lib/preferenceExtras"
+import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
+import {
+  projectOverlayToComposition,
+  scopeCompositionsToView,
+} from "@/lib/projectOverlays"
+import {
+  geometryBounds,
+  geometryCentroid,
+  usesExampleArea,
+} from "@/lib/geometry"
+import { ProjectSwitcher } from "@/components/ProjectSwitcher"
+import { resolveCompositionMeta } from "@/lib/compositeCatalog"
+import {
+  DEFAULT_AOI_CONTOUR_SCHEME,
+  type AoiContourSchemeId,
+} from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
+import {
+  createSavedAoi,
+  type SavedAoi,
+} from "@/lib/savedAois"
+
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
-import { AppSidebar } from "@/components/AppSidebar"
+import { WhatsNewGate } from "@/components/WhatsNewGate"
+import { AppNav } from "@/components/AppNav"
 import { MapScreen } from "@/pages/MapScreen"
+import type { MapToolId } from "@/lib/mapTools"
+import type { BasemapKind } from "@/lib/basemaps"
+import { EnergyScreen, type EnergyTab } from "@/pages/EnergyScreen"
+import { useSolarState, useWindState } from "@/lib/energyState"
+import type {
+  SolarLayers,
+  SolarParams,
+  SolarProductId,
+  WindParams,
+} from "@/lib/energyState"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
 import { AnalysisPage } from "@/pages/AnalysisPage"
@@ -41,6 +121,39 @@ function defaultPeriod(): { start: string; end: string } {
   past.setFullYear(past.getFullYear() - 1)
   const start = past.toISOString().slice(0, 10)
   return { start, end }
+}
+
+/**
+ * A result with no classification in it.
+ *
+ * Solar needs no satellite scene, so it can be the only product an AOI carries.
+ * The analysis view keys "is there a classification" off n_dates and the overlay
+ * URI, so those stay at zero and the page presents only what was actually run.
+ */
+const EMPTY_RESULT: PredictResult = {
+  extent: { lon_min: 0, lat_min: 0, lon_max: 0, lat_max: 0 },
+  overlay_uri: "",
+  confidence_uri: "",
+  ndvi_mean_uri: "",
+  true_color_uri: "",
+  reference_uri: "",
+  raster_tif: "",
+  mean_confidence: 0,
+  n_dates: 0,
+  date_range: [],
+  class_stats: [],
+  temporal: [],
+  vi_series: [],
+  phenology: {
+    sos_doy: null,
+    pos_doy: null,
+    eos_doy: null,
+    los_days: null,
+    peak: null,
+    base: null,
+    amplitude: null,
+  },
+  phenology_states: [],
 }
 
 function isModelKind(v: string): v is ModelKind {
@@ -87,6 +200,8 @@ function App() {
   const period = useMemo(defaultPeriod, [])
   const [areas, setAreas] = useState<Area[]>([])
   const [customPolygon, setCustomPolygon] = useState<GeoJSONGeometry | null>(null)
+  const [savedAois, setSavedAois] = useState<SavedAoi[]>([])
+  const [activeAoiId, setActiveAoiId] = useState<string | undefined>()
   const [activeExample, setActiveExample] = useState<string>("")
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; key: number } | null>(null)
   const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({
@@ -105,16 +220,71 @@ function App() {
   const [showConfidence, setShowConfidence] = useState(false)
   const [confidenceOnTop, setConfidenceOnTop] = useState(true)
   const [smoothOverlay, setSmoothOverlay] = useState(false)
+  const [showPredictionOverlay, setShowPredictionOverlay] = useState(true)
+  const [swipeCompare, setSwipeCompare] = useState(false)
+  const [swipeRatio, setSwipeRatio] = useState(0.5)
+  const [aoiContourScheme, setAoiContourScheme] =
+    useState<AoiContourSchemeId>(DEFAULT_AOI_CONTOUR_SCHEME)
   const [running, setRunning] = useState<boolean>(false)
   const [progress, setProgress] = useState<number>(0)
   const [progressMsg, setProgressMsg] = useState<string>("")
   const [result, setResult] = useState<PredictResult | null>(null)
+  /**
+   * Results the map has finished with, kept so the board can still show them.
+   *
+   * There is ONE live result, and starting a run empties it before the request
+   * is even built. Everything the map was showing therefore ceased to exist at
+   * the moment the next run began -- not when it finished, and not because of
+   * anything the board did. A studio whose whole purpose is placing analyses
+   * side by side could hold exactly one at a time, and the previous one went
+   * without a word.
+   *
+   * Archived here rather than in the board because it has to outlive the map
+   * screen unmounting, which is what took the rasters away on a trip to the
+   * analyses list and back.
+   *
+   * Bounded at three by recency: each result carries several megabytes of data
+   * URIs. A run that was saved is evicted before one that was not, since a
+   * saved run can be brought back through the run picker and an unsaved one is
+   * gone for good.
+   */
+  const [retainedRuns, setRetainedRuns] = useState<
+    readonly { id: string; result: PredictResult }[]
+  >([])
+  const retainRun = useCallback((outgoing: PredictResult | null) => {
+    // A result with no classification is a water or solar payload the board
+    // reads from its own fields; nothing of it belongs to a scene.
+    if (!outgoing || !(outgoing.class_stats?.length || outgoing.overlay_uri)) {
+      return
+    }
+    setRetainedRuns((prev) => {
+      const id = outgoing.run_id || `unsaved:${prev.length + 1}`
+      if (prev.some((r) => r.id === id)) return prev
+      const next = [{ id, result: outgoing }, ...prev]
+      if (next.length <= 3) return next
+      // Drop the oldest RECOVERABLE one; an unsaved run has nowhere to return
+      // from, so it outlives a saved neighbour.
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (!next[i].id.startsWith("unsaved:")) return next.filter((_, j) => j !== i)
+      }
+      return next.slice(0, 3)
+    })
+  }, [])
   const [analysisLabel, setAnalysisLabel] = useState<string | undefined>()
   const [lulcRunning, setLulcRunning] = useState(false)
   const [booting, setBooting] = useState(true)
   const [splashExiting, setSplashExiting] = useState(false)
   const { setTheme } = useTheme()
 
+  /**
+   * Stored preferences into the controls they own. LOAD ONLY.
+   *
+   * Called once when preferences arrive, and never as the echo of a save.
+   * Every field here is a control the reader can also move by hand, so
+   * re-running it after a save overwrites whatever they moved since -- which
+   * is what silently put the model picker back on the stored default after any
+   * of the five actions that write preferences on their own.
+   */
   const applyPrefs = useCallback(
     (p: Preferences) => {
       if (
@@ -130,6 +300,9 @@ function App() {
       if (p.theme === "dark" || p.theme === "light" || p.theme === "system") {
         setTheme(p.theme)
       }
+      const extras = parsePreferenceExtras(p.extras_json)
+      setSavedAois(extras.saved_aois ?? [])
+      setActiveAoiId(extras.active_aoi_id)
     },
     [setTheme]
   )
@@ -137,15 +310,7 @@ function App() {
   useEffect(() => {
     ListEmbeddedAreas()
       .then((a) => setAreas((a ?? []) as unknown as Area[]))
-      .catch((e) => toast.error("Failed to load examples: " + e))
-  }, [])
-
-  useEffect(() => {
-    EventsOn("predict:progress", (ev: ProgressEvent) => {
-      if (ev.progress >= 0) setProgress(ev.progress)
-      if (ev.msg) setProgressMsg(ev.msg)
-    })
-    return () => EventsOff("predict:progress")
+      .catch((e) => notifyError("Failed to load examples", e))
   }, [])
 
   useEffect(() => {
@@ -154,9 +319,28 @@ function App() {
     let exitTimer: number | undefined
     let revealTimer: number | undefined
 
-    const finish = async () => {
+    /*
+      boot:ready carries whether the probe succeeded, and nothing read it.
+
+      A sidecar that failed its probe wrote the reason into the boot log, the
+      splash showed it for a moment, and then the splash was replaced by an
+      application that looked healthy -- the one report of the failure went
+      away with the screen that carried it.
+
+      The environment gate covers an unusable interpreter specifically. This
+      covers the rest: a missing sidecar script, a probe that timed out, a
+      runner that never built. Reported once, as a notification the user can
+      read after the window opens.
+    */
+    const finish = async (ok?: boolean) => {
       if (cancelled || started) return
       started = true
+      if (ok === false) {
+        notifyError(
+          "TERRA started, but the analysis sidecar did not respond. " +
+            "Settings › System reports what is wrong."
+        )
+      }
       setSplashExiting(true)
       // Match .splash-screen--exit transition (~480ms).
       exitTimer = window.setTimeout(async () => {
@@ -174,7 +358,18 @@ function App() {
     }
 
     EventsOn("boot:ready", finish)
-    const safety = window.setTimeout(finish, 20_000)
+    /*
+      The backstop, for a boot:ready that never arrives.
+
+      Twelve seconds rather than twenty: the probe caps itself at eight and the
+      floor below it is under a second, so anything past that is something
+      genuinely stuck -- and the old timeout meant staring at a frozen splash
+      for twenty seconds before the window would open at all.
+
+      Called with no argument, so it is not reported as a failed probe. Nothing
+      is known here; the probe may still answer after this fires.
+    */
+    const safety = window.setTimeout(() => void finish(), 12_000)
     return () => {
       cancelled = true
       EventsOff("boot:ready")
@@ -186,18 +381,11 @@ function App() {
 
   const hasArea = !!customPolygon || !!activeExample
 
-  const handleSelectExample = (id: string) => {
-    const area = areas.find((a) => a.id === id)
-    if (!area) return
-    setActiveExample(id)
-    setCustomPolygon(area.geometry)
-    setResult(null)
-    setAnalysisLabel(undefined)
-  }
-
   const clearArea = () => {
     setCustomPolygon(null)
     setActiveExample("")
+    setAnalysisLabel(undefined)
+    setActiveAoiId(undefined)
   }
 
   const handleImportPolygon = async () => {
@@ -233,20 +421,24 @@ function App() {
             }
           }
         } catch (e) {
-          toast.error("Invalid file: " + e)
+          notifyError("Invalid file", e)
           return
         }
         if (!geom) {
-          toast.error("No polygon found in the file.")
+          notifyError("No polygon found in the file.")
           return
         }
+        const entry = createSavedAoi(geom, savedAois, file.name.replace(/\.[^.]+$/, ""))
+        setSavedAois((prev) => [...prev, entry])
+        setActiveAoiId(entry.id)
         setActiveExample("")
         setCustomPolygon(geom)
-        toast.success("Polygon imported.")
+        setAnalysisLabel(entry.name)
+        notifySuccess(`Polygon saved as “${entry.name}”.`)
       }
       input.click()
     } catch (e) {
-      toast.error("Import failed: " + e)
+      notifyError("Import failed", e)
     }
   }
 
@@ -257,10 +449,13 @@ function App() {
         <SplashScreen exiting={splashExiting} />
       ) : (
         <div className="app-shell-enter h-full w-full">
+          <WhatsNewGate />
           <AppBody
             areas={areas}
             activeExample={activeExample}
             customPolygon={customPolygon}
+            savedAois={savedAois}
+            activeAoiId={activeAoiId}
             flyTo={flyTo}
             view={view}
             start={start}
@@ -274,6 +469,10 @@ function App() {
             showConfidence={showConfidence}
             confidenceOnTop={confidenceOnTop}
             smoothOverlay={smoothOverlay}
+            showPredictionOverlay={showPredictionOverlay}
+            swipeCompare={swipeCompare}
+            swipeRatio={swipeRatio}
+            aoiContourScheme={aoiContourScheme}
             running={running}
             progress={progress}
             progressMsg={progressMsg}
@@ -282,6 +481,8 @@ function App() {
             hasArea={hasArea}
             setView={setView}
             setCustomPolygon={setCustomPolygon}
+            setSavedAois={setSavedAois}
+            setActiveAoiId={setActiveAoiId}
             setActiveExample={setActiveExample}
             setFlyTo={setFlyTo}
             setStart={setStart}
@@ -295,14 +496,19 @@ function App() {
             setShowConfidence={setShowConfidence}
             setConfidenceOnTop={setConfidenceOnTop}
             setSmoothOverlay={setSmoothOverlay}
+            setShowPredictionOverlay={setShowPredictionOverlay}
+            setSwipeCompare={setSwipeCompare}
+            setSwipeRatio={setSwipeRatio}
+            setAoiContourScheme={setAoiContourScheme}
             setRunning={setRunning}
             setProgress={setProgress}
             setProgressMsg={setProgressMsg}
             setResult={setResult}
+            retainRun={retainRun}
+            retainedRuns={retainedRuns}
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
-            onSelectExample={handleSelectExample}
             onClearArea={clearArea}
             onImportPolygon={handleImportPolygon}
           />
@@ -316,6 +522,8 @@ function AppBody(props: {
   areas: Area[]
   activeExample: string
   customPolygon: GeoJSONGeometry | null
+  savedAois: SavedAoi[]
+  activeAoiId?: string
   flyTo: { lat: number; lon: number; key: number } | null
   view: { lat: number; lon: number; zoom: number }
   start: string
@@ -329,6 +537,10 @@ function AppBody(props: {
   showConfidence: boolean
   confidenceOnTop: boolean
   smoothOverlay: boolean
+  showPredictionOverlay: boolean
+  swipeCompare: boolean
+  swipeRatio: number
+  aoiContourScheme: AoiContourSchemeId
   running: boolean
   progress: number
   progressMsg: string
@@ -337,6 +549,8 @@ function AppBody(props: {
   hasArea: boolean
   setView: (v: { lat: number; lon: number; zoom: number }) => void
   setCustomPolygon: (g: GeoJSONGeometry | null) => void
+  setSavedAois: Dispatch<SetStateAction<SavedAoi[]>>
+  setActiveAoiId: (id: string | undefined) => void
   setActiveExample: (id: string) => void
   setFlyTo: (v: { lat: number; lon: number; key: number } | null) => void
   setStart: (v: string) => void
@@ -350,35 +564,1423 @@ function AppBody(props: {
   setShowConfidence: (v: boolean) => void
   setConfidenceOnTop: (v: boolean) => void
   setSmoothOverlay: (v: boolean) => void
+  setShowPredictionOverlay: (v: boolean) => void
+  setSwipeCompare: (v: boolean) => void
+  setSwipeRatio: (v: number) => void
+  setAoiContourScheme: (id: AoiContourSchemeId) => void
   setRunning: (v: boolean) => void
   setProgress: (v: number) => void
   setProgressMsg: (v: string) => void
   setResult: (r: PredictResult | null) => void
+  /** Archive the outgoing result before the live slot is emptied. */
+  retainRun: (outgoing: PredictResult | null) => void
+  retainedRuns: readonly { id: string; result: PredictResult }[]
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
-  onSelectExample: (id: string) => void
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { refreshRuns, screen, goAnalysis, goMap, runs } = useAuth()
+  const { user, refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
+    useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
+
+  /**
+   * Saved whiteboards, and the request to open one.
+   *
+   * The nonce is how the map screen is told to open its board: the board's
+   * open state is that screen's, and a boolean would only fire the first time
+   * -- opening the same whiteboard twice in a row has to work.
+   */
+  const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
+  const [openBoardNonce, setOpenBoardNonce] = useState(0)
+  /**
+   * The title bar's host element for the map screen's whiteboard toggle.
+   *
+   * A DOM node, not a board state. The button is drawn in the bar because the
+   * bar is above the board in both layouts, and the two surfaces that used to
+   * carry it each had a layout they could not serve. What stays in the map
+   * screen is whether the board is open -- deliberately, so leaving the screen
+   * and coming back gives the map. Same bridge as MapView's BottomRightSlot.
+   */
+  /*
+    Whether the studio covers the map, mirrored here for the title bar alone.
+
+    The state itself stays in the map screen -- it must not survive a trip to
+    another screen -- and this is a report of it, reset when the screen changes
+    so a stale `true` cannot outlive the screen that set it.
+  */
+  const [boardOpen, setBoardOpen] = useState(false)
+  const [boardSlotHost, setBoardSlotHost] = useState<HTMLDivElement | null>(
+    null
+  )
+  const refreshWhiteboards = useCallback(async () => {
+    try {
+      setWhiteboards(await listWhiteboards())
+    } catch {
+      // A board list that cannot be read is an empty menu section, not an
+      // error in front of whatever the user was actually doing.
+    }
+  }, [])
+  useEffect(() => {
+    void refreshWhiteboards()
+  }, [refreshWhiteboards])
+
+  const handleOpenWhiteboard = useCallback(
+    async (board: Whiteboard) => {
+      try {
+        const opened = await openWhiteboard(board.id)
+        if (!opened.snapshot) {
+          notifyError(
+            "Could not read this whiteboard",
+            new Error("its arrangement is unreadable")
+          )
+          return
+        }
+        restoreBoard(opened.snapshot)
+        /*
+          The rasters are fetched by the board itself, where LoadAnalysis
+          already lives. Members whose run has been deleted are left out with
+          a word rather than silently: a board that opened with one side
+          missing and said nothing would look like it had been built that way.
+        */
+        const wanted = opened.snapshot.runIds.filter(
+          (id) => !opened.missingRunIds.includes(id)
+        )
+        writeBoardMemory("pendingRunIds", wanted)
+        writeBoardMemory("savedId", board.id)
+        writeBoardMemory("savedName", board.name)
+        if (opened.missingRunIds.length) {
+          notifyInfo(
+            `${opened.missingRunIds.length} run(s) on this whiteboard no longer exist.`
+          )
+        }
+        goMap()
+        setOpenBoardNonce((n) => n + 1)
+      } catch (e) {
+        notifyError("Could not open this whiteboard", e)
+      }
+    },
+    [goMap]
+  )
+
+  /**
+   * Open settings at System when nothing can be computed.
+   *
+   * Checked here rather than during boot: it imports every dependency in the
+   * target interpreter, which costs seconds, and the splash has a fast probe
+   * for the interpreter itself. This runs once the shell is already up.
+   *
+   * Sending the user somewhere is the point. Without it the application opens
+   * looking healthy, the user draws an area, chooses a period, waits, and the
+   * run dies on an import -- this moves that failure earlier, to the page that
+   * can fix it.
+   *
+   * It goes to a settings page rather than a screen of its own. Configuring the
+   * interpreter is a setting; giving it a separate full-screen route meant the
+   * same subject could be reached three ways and left the window with no way
+   * back to anything else.
+   *
+   * Once per session, and never over an explicit navigation: this is a
+   * first-run gate, not a guard that keeps pulling someone out of a screen
+   * they chose to open.
+   *
+   * Waits for a signed-in user. goProfile sends anyone without one to the auth
+   * screen instead, so firing before sign-in spent the one attempt this gate
+   * gets on a redirect to a page it did not mean -- and an unusable interpreter
+   * then went unreported for the rest of the session, which is precisely the
+   * silence the gate exists to break.
+   */
+  const envGateDone = useRef(false)
+  useEffect(() => {
+    if (!user || envGateDone.current) return
+    envGateDone.current = true
+    void (async () => {
+      /*
+        It says why before it moves anyone.
+
+        This used to redirect in silence: the map appeared, then settings
+        replaced it a moment later with nothing on screen accounting for the
+        jump. That is indistinguishable from a navigation bug, and it was read
+        as one -- the person it was trying to help concluded the application
+        was broken, which is worse than the silence it replaced.
+
+        The toast names what is missing rather than saying "something is
+        wrong", because the specific package is what the user has to act on and
+        the page it lands them on can only repeat it.
+      */
+      try {
+        const state = await InspectEnvironment()
+        if (state.active?.usable) return
+
+        const missing = (state.active?.packages ?? []).filter(
+          (p) => !p.optional && (!p.present || p.version_problem)
+        )
+        const detail = state.active?.unreachable
+          ? state.active.unreachable
+          : missing.length > 0
+            ? `Missing: ${missing
+                .slice(0, 3)
+                .map((p) => p.distribution)
+                .join(", ")}${missing.length > 3 ? ` and ${missing.length - 3} more` : ""}.`
+            : "The selected interpreter cannot run the analysis sidecar."
+
+        notifyError(
+          "Analyses cannot run yet — opening Settings › System",
+          `${detail} Choose a Python there, or let TERRA build one.`,
+          { duration: 9000 }
+        )
+        goProfile("system")
+      } catch (e) {
+        // Failing to inspect is itself a reason to show the page: it is the
+        // only place that can report what went wrong.
+        notifyError("Could not check the Python environment", e, {
+          duration: 9000,
+        })
+        goProfile("system")
+      }
+    })()
+  }, [user, goProfile])
+  /**
+   * Open tool tab of the map's left dock.
+   *
+   * Held here rather than inside MapScreen because that screen unmounts on
+   * every navigation away, so local state reset the dock to the classification
+   * panel on every return.
+   */
+  const [leftPanel, setLeftPanel] = useState<MapToolId | null>("classify")
+  /**
+   * Which map layout is drawn.
+   *
+   * Read in exactly two places -- here, to decide whether the navigation column
+   * is rendered, and inside MapScreen -- which are a parent and its direct
+   * child. That is one level of travel, so it stays a useState rather than
+   * joining the auth context, which already carries user, prefs, runs,
+   * projects, screen and settings page.
+   *
+   * Seeded from prefs below rather than in the initialiser: prefs arrive after
+   * the first render, so an initialiser would read null and pin every session
+   * to docked.
+   */
+  /**
+   * Which basemap the map is showing, for the credit line in the title bar.
+   *
+   * Held here rather than in either screen because both draw a map and the bar
+   * is above both: a credit owned by one screen would be blank on the other.
+   */
+  const [credit, setCredit] = useState<{
+    kind: BasemapKind
+    date: string | null
+  }>({ kind: "esri", date: null })
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
+
+  /**
+   * Go to a destination from the dock layout's bar.
+   *
+   * Written here because navigating is two moves that live at this level: the
+   * screen, which is in the auth context, and the sub-tab, which is the state
+   * just above. The navigation table in lib/navigation carries the structure
+   * and deliberately not this, so the table cannot reach into either.
+   */
+  const navigateTo = useCallback(
+    (groupId: string, itemId?: string) => {
+      if (groupId === "energy") {
+        if (itemId) setEnergyTab(itemId as EnergyTab)
+        goEnergy()
+      } else if (groupId === "analysis") {
+        goAnalysis()
+      } else {
+        if (itemId) setLeftPanel(itemId as MapToolId)
+        goMap()
+      }
+    },
+    [goEnergy, goAnalysis, goMap]
+  )
+  /**
+   * The last value this component wrote, so its own save does not echo back.
+   *
+   * The mode is state rather than derived from prefs because savePrefs
+   * round-trips to Go and SQLite before the context updates, and a layout
+   * toggle that waits on a disk write does not feel like a toggle. But the
+   * settings page writes the same preference, so a stored value this component
+   * did not write is one to follow -- which is also how it is seeded on start.
+   */
+  const lastWrittenLayoutRef = useRef<LayoutMode | null>(null)
+  useEffect(() => {
+    if (!prefs) return
+    const stored = layoutModeFromPrefs(prefs)
+    if (stored === lastWrittenLayoutRef.current) return
+    lastWrittenLayoutRef.current = stored
+    setLayoutMode(stored)
+  }, [prefs])
+
+  const changeLayoutMode = useCallback(
+    (mode: LayoutMode) => {
+      setLayoutMode(mode)
+      lastWrittenLayoutRef.current = mode
+      if (!prefs) return
+      // Silent: this fires on a toggle the user just watched happen, and a
+      // "Preferences saved" toast on every flip is noise about a result that
+      // is already on screen.
+      void savePrefs(
+        {
+          ...prefs,
+          extras_json: mergePreferenceExtras(prefs.extras_json, {
+            layout_mode: mode,
+          }),
+        },
+        { silent: true }
+      ).catch(() => {
+        // A layout that fails to persist still applies for this session. The
+        // next start falls back to docked, which is the safe direction.
+      })
+    },
+    [prefs, savePrefs]
+  )
+  /**
+   * Open tab of the energy screen, held here for the same reason as the dock
+   * tab above: that screen unmounts on every navigation away, so a local value
+   * put a returning user back on Solar after they had been reading Wind. The
+   * navigation column also reads it, to name which resource is in view.
+   */
+  const [energyTab, setEnergyTab] = useState<EnergyTab>("solar")
+  /**
+   * Title of the run whose result is on screen, for the title bar.
+   *
+   * Every action already generates one and sends it to be persisted, but the
+   * generated value was discarded, so the running session had no name for what
+   * it had just produced. Set when a run is made and when a saved one is
+   * opened; cleared wherever the result is.
+   */
+  const [currentRunLabel, setCurrentRunLabel] = useState<string | null>(null)
+  /*
+    The saved run on screen, by id.
+
+    The label was the only run identity the frontend held, and a label can be
+    renamed. Compositions attach to this, so it has to be the row's own id: a
+    composition filed under a renamed label would come loose from its run.
+
+    Null while a run is being made -- the id only exists once the backend has
+    saved it -- and null when the result on screen is a live one nobody kept.
+  */
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null)
+
+  /**
+   * Name a run about to be sent, and record the name.
+   *
+   * One call so the title shown and the title persisted cannot be two different
+   * strings: makeRunLabel stamps the current time, so calling it twice for one
+   * run yields two labels a second apart.
+   */
+  const nameThisRun = useCallback((aoiHint?: string | null): string => {
+    const label = makeRunLabel(aoiHint)
+    setCurrentRunLabel(label)
+    return label
+  }, [])
   const [dataCubeOpen, setDataCubeOpen] = useState(false)
   const [dataCubeLoading, setDataCubeLoading] = useState(false)
   const [dataCubeError, setDataCubeError] = useState<string | null>(null)
   const [dataCubeResult, setDataCubeResult] = useState<DataCubeResult | null>(null)
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
 
-  const handleViewDataCube = async () => {
+  const [composition, setComposition] = useState<CompositionOverlay | null>(null)
+  /** Session gallery of applied compositions (newest first); map shows `composition`. */
+  const [compositionGallery, setCompositionGallery] = useState<
+    CompositionOverlay[]
+  >([])
+  /*
+    The compositions that belong with what is on screen.
+
+    The gallery holds every composition in the project, and a project spans
+    fields: one here had thirteen across three locations up to 100 km apart,
+    all listed whichever run was open, so applying one put a raster off the
+    edge of the area in view. Scoped by the run that made it, or -- for the
+    ones that predate the association, and for any made with no run open -- by
+    whether it covers the area at all.
+  */
+  const visibleAoi = useMemo(() => {
+    const geom =
+      props.customPolygon ??
+      props.areas.find((a) => a.id === props.activeExample)?.geometry ??
+      null
+    const b = geometryBounds(geom)
+    return b
+      ? {
+          lon_min: b.lonMin,
+          lat_min: b.latMin,
+          lon_max: b.lonMax,
+          lat_max: b.latMax,
+        }
+      : null
+  }, [props.customPolygon, props.activeExample, props.areas])
+
+  const scopedCompositions = useMemo(
+    () => scopeCompositionsToView(compositionGallery, currentRunId, visibleAoi),
+    [compositionGallery, currentRunId, visibleAoi]
+  )
+
+  const [showCompositionOverlay, setShowCompositionOverlay] = useState(true)
+  const [composeRunning, setComposeRunning] = useState(false)
+  const [composeProgress, setComposeProgress] = useState(0)
+  const [composeProgressMsg, setComposeProgressMsg] = useState("")
+  const [composeScenes, setComposeScenes] = useState<DataCubeScene[]>([])
+  const [composeScenesLoading, setComposeScenesLoading] = useState(false)
+  const [composeScenesError, setComposeScenesError] = useState<string | null>(null)
+  const [selectedSceneId, setSelectedSceneId] = useState("")
+  const [composeKind, setComposeKind] = useState<CompositeKind>("rgb")
+  const [composeBands, setComposeBands] = useState<[string, string, string]>([
+    "B04",
+    "B03",
+    "B02",
+  ])
+  const [composeIndex, setComposeIndex] = useState<CompositeIndex>("ndvi")
+  const [composeStretchLow, setComposeStretchLow] = useState(2)
+  const [composeStretchHigh, setComposeStretchHigh] = useState(98)
+  const [composeOpacity, setComposeOpacity] = useState(0.85)
+  const [water, setWater] = useState<WaterAnalysis | null>(null)
+  const [waterIndex, setWaterIndex] = useState<WaterIndex>("MNDWI")
+  const [waterRunning, setWaterRunning] = useState(false)
+  const [showWaterOverlay, setShowWaterOverlay] = useState(true)
+  const [waterOpacity, setWaterOpacity] = useState(0.8)
+  /**
+   * The energy axis: parameters, results, layer state and run status for the
+   * four photovoltaic products and for the wind screening.
+   *
+   * Two stores rather than one, and neither one a set of useState values here.
+   * The defaults, the shape of the shared parameters and the rule that a result
+   * is recorded together with the AOI it was computed over all live in
+   * lib/energyState.ts, so this file no longer restates them.
+   */
+  const [solar, solarDispatch] = useSolarState()
+  const [wind, windDispatch] = useWindState()
+
+  const setSolarParams = useCallback(
+    (patch: Partial<SolarParams>) => solarDispatch({ type: "params/set", patch }),
+    [solarDispatch]
+  )
+  const setSolarLayers = useCallback(
+    (patch: Partial<SolarLayers>) => solarDispatch({ type: "layers/set", patch }),
+    [solarDispatch]
+  )
+  /**
+   * A solar row on the whiteboard, translated into the store's own vocabulary.
+   *
+   * The board says which raster changed and how; only this file knows that
+   * `terrain` answers to showTerrain/terrainOpacity. Handing the map screen the
+   * reducer instead would have made every surface that draws a solar raster
+   * know the shape of the store that holds it.
+   */
+  const setSolarBoardLayer = useCallback(
+    (
+      id: "terrain" | "siting",
+      patch: { visible?: boolean; opacity?: number }
+    ) => {
+      const next: Partial<SolarLayers> = {}
+      if (patch.visible !== undefined) {
+        if (id === "terrain") next.showTerrain = patch.visible
+        else next.showSiting = patch.visible
+      }
+      if (patch.opacity !== undefined) {
+        if (id === "terrain") next.terrainOpacity = patch.opacity
+        else next.sitingOpacity = patch.opacity
+      }
+      if (Object.keys(next).length > 0) setSolarLayers(next)
+    },
+    [setSolarLayers]
+  )
+
+  const setWindParams = useCallback(
+    (patch: Partial<WindParams>) => windDispatch({ type: "params/set", patch }),
+    [windDispatch]
+  )
+
+  const didRestoreProjectRef = useRef(false)
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
+  const activeProjectIdRef = useRef(activeProjectId)
+  activeProjectIdRef.current = activeProjectId
+  /** Set when activate runs before prefs have loaded; flushed on next prefs hydrate. */
+  const pendingActiveProjectRef = useRef<string | null | undefined>(undefined)
+
+  const persistAoiLabel = useCallback(
+    async (label: string | null) => {
+      const current = prefsRef.current
+      if (!current) return
+      const extras = parsePreferenceExtras(current.extras_json)
+      // Keep React's active project — prefs may lag behind a just-activated id.
+      const aid = activeProjectIdRef.current?.trim()
+      if (aid) extras.active_project_id = aid
+      else delete extras.active_project_id
+      const next = label?.trim()
+      if (next) extras.aoi_label = next
+      else delete extras.aoi_label
+      try {
+        await savePrefs(
+          {
+            ...current,
+            extras_json: JSON.stringify(extras),
+          },
+          { silent: true }
+        )
+      } catch {
+        /* best-effort */
+      }
+    },
+    [savePrefs]
+  )
+
+  /**
+   * Remember where the map was left, so the next session resumes there.
+   *
+   * The map emits on every pan and zoom frame, so this is debounced and only
+   * writes once the view has settled. Failures are ignored: this is a
+   * convenience, and losing it must never interrupt work.
+   */
+  const viewSaveTimer = useRef<number | undefined>(undefined)
+  /**
+   * Live map position, so returning to the map screen resumes exactly where it
+   * was left rather than at whatever the debounced write last committed.
+   */
+  const liveViewRef = useRef<{ lat: number; lon: number; zoom: number } | null>(
+    null
+  )
+  const persistMapView = useCallback(
+    (v: { lat: number; lon: number; zoom: number }) => {
+      if (viewSaveTimer.current) window.clearTimeout(viewSaveTimer.current)
+      viewSaveTimer.current = window.setTimeout(() => {
+        const current = prefsRef.current
+        if (!current) return
+        const extras = parsePreferenceExtras(current.extras_json)
+        const last = extras.map_view
+        // Skip a write when nothing meaningful moved.
+        if (
+          last &&
+          Math.abs(last.lat - v.lat) < 1e-4 &&
+          Math.abs(last.lon - v.lon) < 1e-4 &&
+          last.zoom === v.zoom
+        ) {
+          return
+        }
+        extras.map_view = {
+          lat: Number(v.lat.toFixed(5)),
+          lon: Number(v.lon.toFixed(5)),
+          zoom: v.zoom,
+        }
+        void savePrefs(
+          { ...current, extras_json: JSON.stringify(extras) },
+          { silent: true }
+        ).catch(() => {
+          /* best-effort */
+        })
+      }, 1200)
+    },
+    [savePrefs]
+  )
+
+  useEffect(
+    () => () => {
+      if (viewSaveTimer.current) window.clearTimeout(viewSaveTimer.current)
+    },
+    []
+  )
+
+  const persistActiveProjectId = useCallback(
+    async (id: string | null) => {
+      setActiveProjectId(id)
+      activeProjectIdRef.current = id
+      const current = prefsRef.current
+      if (!current) {
+        pendingActiveProjectRef.current = id
+        return
+      }
+      pendingActiveProjectRef.current = undefined
+      const extras = parsePreferenceExtras(current.extras_json)
+      if (id) extras.active_project_id = id
+      else delete extras.active_project_id
+      try {
+        await savePrefs(
+          {
+            ...current,
+            extras_json: JSON.stringify(extras),
+          },
+          { silent: true }
+        )
+      } catch {
+        /* best-effort */
+      }
+    },
+    [savePrefs]
+  )
+
+  // Hydrate active project from prefs only when extras change — never on AOI rename.
+  useEffect(() => {
+    if (!prefs) return
+    if (pendingActiveProjectRef.current !== undefined) {
+      const pending = pendingActiveProjectRef.current
+      pendingActiveProjectRef.current = undefined
+      void persistActiveProjectId(pending)
+      return
+    }
+    const extras = parsePreferenceExtras(prefs.extras_json)
+    const id = extras.active_project_id?.trim() || null
+    if (id) {
+      setActiveProjectId(id)
+      return
+    }
+    setActiveProjectId(null)
+    const orphanLabel = extras.aoi_label?.trim()
+    if (orphanLabel && !props.analysisLabel) {
+      props.setAnalysisLabel(orphanLabel)
+    }
+    // Intentionally omit analysisLabel: renaming AOI must not re-run this sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only follow prefs extras
+  }, [prefs, prefs?.extras_json, persistActiveProjectId])
+
+  const syncProjectAoi = useCallback(
+    async (projectId: string, labelOverride?: string) => {
+      const useExample = usesExampleArea(props.activeExample, props.areas)
+      const renamed = (labelOverride ?? props.analysisLabel)?.trim()
+      let label = renamed
+      if (!label) {
+        if (useExample) {
+          label =
+            props.areas.find((a) => a.id === props.activeExample)?.label ||
+            props.activeExample
+        } else if (props.customPolygon) {
+          // Keep an existing project label; never clobber a rename with "Custom AOI".
+          try {
+            const p = (await GetProject(projectId)) as unknown as Project
+            label =
+              p.label?.trim() ||
+              parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
+              "Custom AOI"
+          } catch {
+            label =
+              parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
+              "Custom AOI"
+          }
+        } else {
+          label = ""
+        }
+      }
+      let poly = ""
+      if (!useExample && props.customPolygon) {
+        poly = JSON.stringify(props.customPolygon)
+      }
+      try {
+        await UpdateProjectAOI(
+          projectId,
+          useExample ? props.activeExample : "",
+          poly,
+          label
+        )
+        if (label) void persistAoiLabel(label)
+        await refreshProjects()
+      } catch {
+        /* best-effort */
+      }
+    },
+    [
+      props.activeExample,
+      props.areas,
+      props.customPolygon,
+      props.analysisLabel,
+      prefs?.extras_json,
+      persistAoiLabel,
+      refreshProjects,
+    ]
+  )
+
+  const activateProject = useCallback(
+    async (
+      id: string | null,
+      opts?: { userInitiated?: boolean }
+    ) => {
+      // Opening a project is an explicit action and draws its AOI and most
+      // recent composition on the map. Restoring one at startup is not, and
+      // must not: a session that begins with an AOI outline and an overlay the
+      // user did not ask for in that session leaves them clearing both by hand.
+      const userInitiated = opts?.userInitiated ?? true
+      await persistActiveProjectId(id)
+      if (!id) {
+        setComposition(null)
+        setCompositionGallery([])
+        setShowCompositionOverlay(true)
+        return
+      }
+      try {
+        const p = (await GetProject(id)) as unknown as Project
+        const savedLabel =
+          p.label?.trim() ||
+          parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
+          ""
+        if (userInitiated && p.area_id) {
+          props.setActiveExample(p.area_id)
+          props.setCustomPolygon(null)
+          const label = savedLabel || p.name
+          props.setAnalysisLabel(label)
+          void persistAoiLabel(label)
+        } else if (userInitiated && p.polygon_geojson) {
+          const aoi = parseRunPolygon(p.polygon_geojson, props.areas)
+          props.setActiveExample(aoi.exampleId)
+          props.setCustomPolygon(aoi.polygon)
+          const label = savedLabel || p.name
+          props.setAnalysisLabel(label)
+          void persistAoiLabel(label)
+          const centroid = geometryCentroid(aoi.polygon)
+          if (centroid) {
+            props.setFlyTo({
+              lat: centroid[1],
+              lon: centroid[0],
+              key: Date.now(),
+            })
+          }
+        }
+        const overlays = (await ListProjectOverlays(
+          id
+        )) as unknown as import("@/lib/types").ProjectOverlay[]
+        const gallery = overlays
+          .map(projectOverlayToComposition)
+          .filter((x): x is CompositionOverlay => !!x)
+        // The gallery is always loaded so the compositions stay one click away
+        // in Overlay Tools; only the display is conditional.
+        setCompositionGallery(gallery)
+        /*
+          Only a composition that covers the area being opened is put on the
+          map. This took gallery[0] -- the project's most recent -- and turned
+          the overlay on, so opening a project whose latest composition was
+          made over a different field drew a raster off the edge of the view
+          the same action had just flown to.
+        */
+        // From the project, not from the branch above: the AOI arrives either
+        // as an example area or as a saved polygon, and only one of those runs.
+        const openedGeom = p.area_id
+          ? (props.areas.find((a) => a.id === p.area_id)?.geometry ?? null)
+          : parseRunPolygon(p.polygon_geojson ?? "", props.areas).polygon
+        const openedAoi = geometryBounds(openedGeom)
+        const inView = openedAoi
+          ? scopeCompositionsToView(gallery, null, {
+              lon_min: openedAoi.lonMin,
+              lat_min: openedAoi.latMin,
+              lon_max: openedAoi.lonMax,
+              lat_max: openedAoi.latMax,
+            })
+          : gallery
+        setComposition(userInitiated ? inView[0] ?? null : null)
+        setShowCompositionOverlay(userInitiated && !!inView[0])
+      } catch (e) {
+        notifyError("Could not open project", e)
+      }
+    },
+    [
+      persistActiveProjectId,
+      persistAoiLabel,
+      prefs?.extras_json,
+      props.areas,
+      props.setActiveExample,
+      props.setCustomPolygon,
+      props.setAnalysisLabel,
+      props.setFlyTo,
+    ]
+  )
+
+  // On boot, restore AOI + label from the last active project (prefs only stored the id).
+  useEffect(() => {
+    if (didRestoreProjectRef.current) return
+    const id = parsePreferenceExtras(prefs?.extras_json).active_project_id?.trim()
+    if (!id) return
+    if (!projects.some((p) => p.id === id)) return
+    didRestoreProjectRef.current = true
+    void activateProject(id, { userInitiated: false })
+  }, [prefs?.extras_json, projects, activateProject])
+
+  const handleCreateProjectFromAoi = useCallback(async () => {
+    const hint =
+      props.analysisLabel ||
+      (props.activeExample
+        ? props.areas.find((a) => a.id === props.activeExample)?.label
+        : null) ||
+      (props.customPolygon ? "Custom AOI" : "New field")
+    const name = window.prompt("Project name", hint)
+    if (!name?.trim()) return
+    try {
+      const p = (await CreateProject(name.trim(), "")) as unknown as Project
+      await refreshProjects()
+      await activateProject(p.id)
+      await syncProjectAoi(p.id)
+      notifySuccess("Project created", p.name)
+    } catch (e) {
+      notifyError("Could not create project", e)
+    }
+  }, [
+    activateProject,
+    refreshProjects,
+    syncProjectAoi,
+    props.analysisLabel,
+    props.activeExample,
+    props.areas,
+    props.customPolygon,
+  ])
+
+  const clearAreaAndComposition = useCallback(() => {
+    setComposition(null)
+    setCompositionGallery([])
+    setShowCompositionOverlay(true)
+    setComposeScenes([])
+    setSelectedSceneId("")
+    setComposeScenesError(null)
+    props.setAnalysisLabel(undefined)
+    void persistAoiLabel(null)
+    props.onClearArea()
+  }, [props.onClearArea, props.setAnalysisLabel, persistAoiLabel])
+
+  const handleListComposeScenes = async () => {
     if (!props.start || !props.end) {
-      toast.error("Set the acquisition period.")
+      notifyError("Set the acquisition period.")
       return
     }
     if (!props.customPolygon && !props.activeExample) {
-      toast.error("Define an area: draw, search, or load an example.")
+      notifyError("Define an area: draw, search, or load an example.")
       return
     }
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    const req: DataCubeRequest = {
+      area_id: useExample ? props.activeExample : "",
+      polygon_geojson: useExample ? null : props.customPolygon,
+      start: props.start,
+      end: props.end,
+      max_cloud: props.maxCloud,
+      monthly_best: props.monthlyBest,
+      tiles: [],
+    }
+    setComposeScenesLoading(true)
+    setComposeScenesError(null)
+    try {
+      const res = (await ListDataCube(req as never)) as unknown as DataCubeResult
+      setComposeScenes(res.scenes ?? [])
+      if ((res.scenes?.length ?? 0) === 0) {
+        notifyInfo("No scenes found for this period / cloud filter.")
+      } else if (!selectedSceneId && res.scenes[0]) {
+        setSelectedSceneId(res.scenes[0].id)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setComposeScenesError(msg)
+      notifyError("Scene list error", msg)
+    } finally {
+      setComposeScenesLoading(false)
+    }
+  }
+
+  const handleApplyComposition = async () => {
+    if (!selectedSceneId) {
+      notifyError("Select a scene first.")
+      return
+    }
+    if (!props.start || !props.end) {
+      notifyError("Set the acquisition period.")
+      return
+    }
+    if (!props.customPolygon && !props.activeExample) {
+      notifyError("Define an area first.")
+      return
+    }
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    const req: CompositeRequest = {
+      area_id: useExample ? props.activeExample : "",
+      polygon_geojson: useExample ? null : props.customPolygon,
+      start: props.start,
+      end: props.end,
+      max_cloud: props.maxCloud,
+      monthly_best: props.monthlyBest,
+      tiles: [],
+      scene_id: selectedSceneId,
+      kind: composeKind,
+      bands: composeKind === "rgb" ? [...composeBands] : undefined,
+      index: composeKind === "index" ? composeIndex : undefined,
+      stretch_pct: [composeStretchLow, composeStretchHigh],
+    }
+    setComposeRunning(true)
+    setComposeProgress(5)
+    setComposeProgressMsg("requesting composite…")
+    try {
+      const res = (await RenderComposite(req as never)) as unknown as CompositeResult
+      setComposeProgress(100)
+      setComposeProgressMsg("done")
+      const meta = resolveCompositionMeta({
+        kind: composeKind,
+        bands: composeBands,
+        index: composeIndex,
+      })
+      const sceneDate =
+        composeScenes.find((s) => s.id === selectedSceneId)?.date ?? undefined
+      const entry: CompositionOverlay = {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `comp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        overlay_uri: res.overlay_uri,
+        extent: res.extent,
+        opacity: composeOpacity,
+        label: meta.label,
+        title: meta.title,
+        description: meta.description,
+        kind: meta.kind,
+        bands: meta.bands,
+        index: meta.index,
+        presetId: meta.presetId,
+        sceneDate,
+        raster_tif: res.raster_tif,
+      }
+      setComposition(entry)
+      setCompositionGallery((prev) => [entry, ...prev].slice(0, 12))
+      setShowCompositionOverlay(true)
+      props.setShowPredictionOverlay(false)
+      if (activeProjectId) {
+        try {
+          const metaJson = JSON.stringify({
+            description: meta.description,
+            kind: meta.kind,
+            bands: meta.bands,
+            index: meta.index,
+            presetId: meta.presetId,
+            sceneDate,
+            opacity: composeOpacity,
+            extent: res.extent,
+            label: meta.label,
+          })
+          const reqSave: SaveProjectOverlayRequest = {
+            project_id: activeProjectId,
+            // The run on screen, so this composition surfaces with that run
+            // and not with every other run in the project.
+            run_id: currentRunId ?? "",
+            kind: "composition",
+            title: meta.title,
+            meta_json: metaJson,
+            overlay_uri: res.overlay_uri,
+            raster_tif: res.raster_tif,
+          }
+          await SaveProjectOverlay(reqSave as never)
+          await syncProjectAoi(activeProjectId)
+          await refreshProjects()
+        } catch (e) {
+          notifyError("Composition applied, but save to project failed", e)
+        }
+      }
+      notifySuccess("Composition applied to map.")
+    } catch (e) {
+      notifyError("Composition error", e)
+    } finally {
+      setComposeRunning(false)
+    }
+  }
+
+  /**
+   * Identity of the AOI currently on the map. Changes whenever the drawn
+   * polygon or the selected example changes.
+   */
+  const aoiSignature = useMemo(() => {
+    if (props.activeExample) return `area:${props.activeExample}`
+    return props.customPolygon ? `poly:${JSON.stringify(props.customPolygon)}` : ""
+  }, [props.activeExample, props.customPolygon])
+
+  /** The AOI the current water result was computed over. */
+  const waterAoiRef = useRef<string>("")
+
+  /**
+   * A water result belongs to the AOI it was measured on. When the AOI changes
+   * the raster no longer describes what is on the map, so it is dropped.
+   *
+   * Done by comparing against the AOI the run was made on rather than by
+   * clearing at each call site: the AOI changes from drawing, from loading an
+   * example, from opening a project and from opening a composition, and a
+   * missed path leaves a raster from one field painted over another.
+   */
+  useEffect(() => {
+    if (!water) return
+    if (aoiSignature === waterAoiRef.current) return
+    setWater(null)
+    setShowWaterOverlay(true)
+  }, [aoiSignature, water])
+
+  /**
+   * The same for the four solar products. All four are read off one AOI -- the
+   * resource and the energy model from its centroid, the terrain and siting
+   * rasters from its extent -- so they are invalidated together. The store
+   * compares against the signature recorded with the result and no-ops when it
+   * has not moved, so this fires on every AOI change without a guard here.
+   *
+   * The store's own signature is a dependency, not only the map's. A run that
+   * finishes after the AOI has moved records the signature it was computed on,
+   * and without that dependency this effect would not re-run to notice the
+   * mismatch, leaving one field's raster on another field's map.
+   */
+  useEffect(() => {
+    solarDispatch({ type: "aoi/changed", aoiSignature })
+  }, [aoiSignature, solar.aoiSignature, solarDispatch])
+
+  /**
+   * The wind screening, invalidated separately.
+   *
+   * Not folded into the effect above: wind resolves on the MERRA-2 grid of 0.5
+   * by 0.625 degrees against the 1 degree radiation grid, so an AOI can leave
+   * the radiation cell while staying inside the reanalysis cell, and neither
+   * result's validity implies the other's. Two effects keep the two signatures
+   * independent even though both read the same AOI.
+   */
+  useEffect(() => {
+    windDispatch({ type: "aoi/changed", aoiSignature })
+  }, [aoiSignature, wind.aoiSignature, windDispatch])
+
+  /**
+   * One sidecar progress channel, three destinations.
+   *
+   * The sidecar emits on a single event and runs one action at a time, so the
+   * store with a run in flight decides which display receives it. Sharing one
+   * display let a finished classification leave its last message under a solar
+   * run's button.
+   *
+   * Read through refs so the subscription is registered once: re-registering on
+   * every run state change would drop events emitted between the unsubscribe
+   * and the resubscribe.
+   *
+   * The carried percentage is mirrored in solarSeenRef / windSeenRef rather
+   * than read back from the store. The sidecar emits every raw log line as
+   * progress -1, meaning "message only, percentage unchanged", and several of
+   * those can arrive in one React batch; carrying the store's value would then
+   * read a percentage from before the batch and roll the bar backwards. The
+   * mirrors are reset by startSolarRun / startWindRun below, so a second run of
+   * the same product cannot open on the previous run's percentage.
+   */
+  const solarRunRef = useRef(solar.run)
+  solarRunRef.current = solar.run
+  const windRunRef = useRef(wind.run)
+  windRunRef.current = wind.run
+  const solarSeenRef = useRef({ progress: 0, message: "" })
+  const windSeenRef = useRef({ progress: 0, message: "" })
+  const setProgressRef = useRef(props.setProgress)
+  setProgressRef.current = props.setProgress
+  const setProgressMsgRef = useRef(props.setProgressMsg)
+  setProgressMsgRef.current = props.setProgressMsg
+
+  const startSolarRun = useCallback(
+    (product: SolarProductId) => {
+      solarSeenRef.current = { progress: 0, message: "starting" }
+      solarDispatch({ type: "run/start", product })
+    },
+    [solarDispatch]
+  )
+  const startWindRun = useCallback(() => {
+    windSeenRef.current = { progress: 0, message: "starting" }
+    windDispatch({ type: "run/start" })
+  }, [windDispatch])
+
+  useEffect(() => {
+    EventsOn("predict:progress", (ev: ProgressEvent) => {
+      if (solarRunRef.current.active) {
+        const seen = solarSeenRef.current
+        if (ev.progress >= 0) seen.progress = ev.progress
+        if (ev.msg) seen.message = ev.msg
+        solarDispatch({
+          type: "run/progress",
+          progress: seen.progress,
+          message: seen.message,
+        })
+        return
+      }
+      if (windRunRef.current.active) {
+        const seen = windSeenRef.current
+        if (ev.progress >= 0) seen.progress = ev.progress
+        if (ev.msg) seen.message = ev.msg
+        windDispatch({
+          type: "run/progress",
+          progress: seen.progress,
+          message: seen.message,
+        })
+        return
+      }
+      // No energy run in flight, so this belongs to the classification channel.
+      if (ev.progress >= 0) setProgressRef.current(ev.progress)
+      if (ev.msg) setProgressMsgRef.current(ev.msg)
+    })
+    return () => EventsOff("predict:progress")
+  }, [solarDispatch, windDispatch])
+
+  const handleRunWater = async () => {
+    if (!props.start || !props.end) {
+      notifyError("Set the acquisition period.")
+      return
+    }
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    setWaterRunning(true)
+    // The sidecar emits on the shared predict:progress channel and only one
+    // action runs at a time, so the panel reads the shared progress.
+    props.setProgress(0)
+    props.setProgressMsg("starting")
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: WaterRequest = {
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        start: props.start,
+        end: props.end,
+        max_cloud: props.maxCloud,
+        monthly_best: props.monthlyBest,
+        index: waterIndex,
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        project_id: activeProjectId || undefined,
+      }
+      const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
+      waterAoiRef.current = aoiSignature
+      setWater(res)
+      setShowWaterOverlay(true)
+      notifySuccess(
+        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}% (saved).`,
+        undefined,
+        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+      )
+      void refreshRuns()
+      void refreshProjects()
+    } catch (e) {
+      notifyError("Surface water error", e)
+    } finally {
+      setWaterRunning(false)
+      props.setProgress(0)
+      props.setProgressMsg("")
+    }
+  }
+
+  const handleRunSolar = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    const p = solar.params
+    const parsedPR = p.performanceRatio.trim()
+      ? Number(p.performanceRatio.trim())
+      : null
+    if (
+      parsedPR !== null &&
+      (!Number.isFinite(parsedPR) || parsedPR <= 0 || parsedPR > 1)
+    ) {
+      notifyError("Performance ratio must be between 0 and 1.")
+      return
+    }
+    startSolarRun("resource")
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: SolarRequest = {
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        project_id: activeProjectId || undefined,
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        climatology_years: p.climatologyYears,
+        hourly_years: p.hourlyYears,
+        surface_azimuth: p.surfaceAzimuth,
+        performance_ratio: parsedPR,
+      }
+      const res = (await AnalyzeSolar(req as never)) as unknown as SolarAnalysis
+      // Result and AOI signature in one action. Assigned separately, the
+      // invalidation effect above can observe the fresh result against the old
+      // signature and drop what was just produced.
+      solarDispatch({
+        type: "result/set",
+        product: "resource",
+        result: res,
+        aoiSignature,
+      })
+      notifySuccess(
+        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`,
+        undefined,
+        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+      )
+      void refreshRuns()
+      void refreshProjects()
+    } catch (e) {
+      notifyError("Solar analysis error", e)
+    } finally {
+      solarDispatch({ type: "run/finish" })
+    }
+  }
+
+  const handleRunSolarTerrain = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    startSolarRun("terrain")
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: SolarTerrainRequest = {
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        project_id: activeProjectId || undefined,
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        hourly_years: solar.params.hourlyYears,
+        season: solar.params.season,
+      }
+      const res = (await AnalyzeSolarTerrain(
+        req as never
+      )) as unknown as SolarTerrainAnalysis
+      solarDispatch({
+        type: "result/set",
+        product: "terrain",
+        result: res,
+        aoiSignature,
+      })
+      // A fresh raster has to be visible even if its layer had been switched off.
+      solarDispatch({ type: "layers/set", patch: { showTerrain: true } })
+      notifySuccess(
+        `Terrain irradiation: ${res.poa_min.toFixed(0)} to ${res.poa_max.toFixed(0)} kWh/m2/yr.`
+      )
+    } catch (e) {
+      notifyError("Solar terrain error", e)
+    } finally {
+      solarDispatch({ type: "run/finish" })
+    }
+  }
+
+  const handleRunSolarSiting = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    startSolarRun("siting")
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: SolarSitingRequest = {
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        project_id: activeProjectId || undefined,
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        slope_acceptable_deg: solar.params.slopeAcceptableDeg,
+        slope_restrictive_deg: solar.params.slopeRestrictiveDeg,
+      }
+      const res = (await AnalyzeSolarSiting(
+        req as never
+      )) as unknown as SolarSitingAnalysis
+      solarDispatch({
+        type: "result/set",
+        product: "siting",
+        result: res,
+        aoiSignature,
+      })
+      // A fresh run has to be visible, the same way a water run is. The terrain
+      // result is no longer discarded here: that existed because both rasters
+      // shared one map slot, so keeping two meant one of them was silently
+      // unreachable. They now have a layer each.
+      solarDispatch({ type: "layers/set", patch: { showSiting: true } })
+      notifySuccess(
+        `Siting: ${res.suitable_no_conflict_ha.toFixed(1)} ha without land-use conflict, ${res.suitable_cropland_ha.toFixed(1)} ha on cropland.`
+      )
+    } catch (e) {
+      notifyError("Solar siting error", e)
+    } finally {
+      solarDispatch({ type: "run/finish" })
+    }
+  }
+
+  const handleRunEnergyModel = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    // Same field and same range check as the resource run: one performance
+    // ratio is resolved for the whole energy axis, so the two products cannot
+    // report a yield on two different ratios for one AOI.
+    const p = solar.params
+    const parsedPR = p.performanceRatio.trim()
+      ? Number(p.performanceRatio.trim())
+      : null
+    if (
+      parsedPR !== null &&
+      (!Number.isFinite(parsedPR) || parsedPR <= 0 || parsedPR > 1)
+    ) {
+      notifyError("Performance ratio must be between 0 and 1.")
+      return
+    }
+    const parsedOffset = p.utcOffset.trim() ? Number(p.utcOffset.trim()) : null
+    if (
+      parsedOffset !== null &&
+      (!Number.isFinite(parsedOffset) || parsedOffset < -12 || parsedOffset > 14)
+    ) {
+      notifyError("UTC offset must be between -12 and 14 hours.")
+      return
+    }
+    startSolarRun("energy")
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: EnergyModelRequest = {
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        project_id: activeProjectId || undefined,
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        climatology_years: p.climatologyYears,
+        hourly_years: p.hourlyYears,
+        surface_azimuth: p.surfaceAzimuth,
+        performance_ratio: parsedPR,
+        reporting_basis: p.reportingBasis,
+        // Every numeric below is sent as read. No `x || default` anywhere on
+        // this path, because that reads a deliberate zero as an omission: a
+        // degradation rate of exactly 0 states that no degradation is
+        // modelled, and under an `or` default it became the 0.5 %/yr reference
+        // and multiplied every lifetime-mean figure by 0.9422 instead of 1.0.
+        // Go forwards these through pointers, so a zero reaches the sidecar,
+        // which either admits it (degradation, tracker angle, buildable share,
+        // shading) or fails the run naming the parameter. Neither end
+        // substitutes a default for a value the caller did set.
+        degradation_rate_per_year: p.degradationPct / 100,
+        analysis_period_years: p.analysisPeriodYears,
+        gcr_fixed: p.gcrFixed,
+        gcr_tracker: p.gcrTracker,
+        tracker_max_angle_deg: p.trackerMaxAngleDeg,
+        capacity_density_basis: p.densityBasis,
+        buildable_fraction: p.buildableFraction,
+        utc_offset_hours: parsedOffset,
+        declared_loss_pct: p.declaredLoss,
+        optional_loss_pct: p.optionalLoss,
+        slope_acceptable_deg: p.slopeAcceptableDeg,
+        slope_restrictive_deg: p.slopeRestrictiveDeg,
+        // A siting run already classified this AOI. Reusing its GeoTIFF makes
+        // the capacity figure and the raster that published the area behind it
+        // come from one classification rather than two.
+        siting_raster_tif: solar.results.siting?.raster_tif || undefined,
+        // Off unless the user asks for it. The terrain product measures
+        // shading over the whole AOI, while the field it feeds is documented
+        // as shading over the suitable pixels; carrying it across silently
+        // would file an AOI mean under a different quantity's name. Left off,
+        // the response states that the figures are unshaded.
+        shading_derate:
+          p.applyShading && solar.results.terrain?.shading_mean_pct != null
+            ? 1 - solar.results.terrain.shading_mean_pct / 100
+            : undefined,
+        shading_applied:
+          p.applyShading && solar.results.terrain?.shading_mean_pct != null,
+      }
+      const res = (await AnalyzeEnergyModel(
+        req as never
+      )) as unknown as EnergyModelAnalysis
+      solarDispatch({
+        type: "result/set",
+        product: "energy",
+        result: res,
+        aoiSignature,
+      })
+      notifySuccess(
+        `Energy model: ${res.plant.suitable.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp/yr at performance ratio ${res.performance_ratio.applied.toFixed(3)} (${res.performance_ratio.applied_source}), ${res.reporting_basis} basis.`,
+        undefined,
+        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+      )
+      void refreshRuns()
+      void refreshProjects()
+    } catch (e) {
+      notifyError("Energy model error", e)
+    } finally {
+      solarDispatch({ type: "run/finish" })
+    }
+  }
+
+  const handleRunWind = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    const w = wind.params
+    if (!(w.roughnessLowM > 0) || !(w.roughnessHighM > w.roughnessLowM)) {
+      notifyError(
+        "Roughness band must be two increasing lengths in metres, both above zero."
+      )
+      return
+    }
+    startWindRun()
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: WindRequest = {
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        project_id: activeProjectId || undefined,
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        record_years: w.recordYears,
+        hub_height_m: w.hubHeightM,
+        calm_threshold_ms: w.calmThresholdMS,
+        record_max_floor_ms: w.recordMaxFloorMS,
+        roughness_band_m: [w.roughnessLowM, w.roughnessHighM],
+      }
+      const res = (await AnalyzeWind(req as never)) as unknown as WindAnalysis
+      windDispatch({ type: "result/set", result: res, aoiSignature })
+      // Never stated beside the photovoltaic capacity factor and never without
+      // the qualifier: this figure is gross of every plant loss, rests on an
+      // extrapolation above the highest measured level, and has no external
+      // benchmark of the kind the solar ratio has.
+      notifySuccess(
+        `Wind screening: mean ${res.measured.mean_speed_50m_ms.toFixed(2)} m/s at 50 m, gross capacity factor ${res.hub.gross_capacity_factor_pct.toFixed(1)}% at ${res.hub_height_m.toFixed(0)} m hub. Screening indication, gross of losses, unvalidated.`,
+        undefined,
+        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+      )
+      void refreshRuns()
+      void refreshProjects()
+    } catch (e) {
+      notifyError("Wind screening error", e)
+    } finally {
+      windDispatch({ type: "run/finish" })
+    }
+  }
+
+  const handleViewDataCube = async () => {
+    if (!props.start || !props.end) {
+      notifyError("Set the acquisition period.")
+      return
+    }
+    if (!props.customPolygon && !props.activeExample) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    const useExample = usesExampleArea(props.activeExample, props.areas)
     const req: DataCubeRequest = {
       area_id: useExample ? props.activeExample : "",
       polygon_geojson: useExample ? null : props.customPolygon,
@@ -398,7 +2000,7 @@ function AppBody(props: {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setDataCubeError(msg)
-      toast.error("Data cube error: " + msg)
+      notifyError("Data cube error", msg)
     } finally {
       setDataCubeLoading(false)
     }
@@ -406,19 +2008,27 @@ function AppBody(props: {
 
   const handleRun = async () => {
     if (!props.start || !props.end) {
-      toast.error("Set the acquisition period.")
+      notifyError("Set the acquisition period.")
       return
     }
     if (!props.customPolygon && !props.activeExample) {
-      toast.error("Define an area: draw, search, or load an example.")
+      notifyError("Define an area: draw, search, or load an example.")
       return
     }
     props.setRunning(true)
     props.setProgress(0)
     props.setProgressMsg("iniciando")
+    // Before the slot is emptied, and before the request is built: a run that
+    // fails now costs the reader nothing, where it used to cost them the map.
+    props.retainRun(props.result)
     props.setResult(null)
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    const aoiLabel =
+      props.analysisLabel?.trim() ||
+      (useExample
+        ? props.areas.find((a) => a.id === props.activeExample)?.label
+        : undefined) ||
+      (useExample ? props.activeExample : "Custom AOI")
     const req: PredictRequest = {
       area_id: useExample ? props.activeExample : "",
       polygon_geojson: useExample ? null : props.customPolygon,
@@ -430,33 +2040,43 @@ function AppBody(props: {
       mode: props.mode,
       model_kind: props.modelKind,
       prithvi_mode: props.prithviMode,
+      project_id: activeProjectId || undefined,
+      label: aoiLabel,
+      run_label: nameThisRun(aoiLabel),
     }
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult
       props.setResult(res)
-      const label = useExample
-        ? props.areas.find((a) => a.id === props.activeExample)?.label
-        : "Custom AOI"
-      props.setAnalysisLabel(label)
-      toast.success(`Classification complete — ${res.n_dates} scenes (saved).`, {
+      // The row the backend just wrote. Compositions made from here attach to
+      // it; empty when nothing was saved, which leaves them project-level.
+      setCurrentRunId(res.run_id || null)
+      props.setShowPredictionOverlay(true)
+      if (!props.analysisLabel?.trim()) {
+        props.setAnalysisLabel(req.label)
+      }
+      if (activeProjectId) {
+        await syncProjectAoi(activeProjectId, req.label)
+        await refreshProjects()
+      }
+      notifySuccess(`Classification complete — ${res.n_dates} scenes (saved).`, undefined, {
         action: {
           label: "View analysis",
           onClick: () => goAnalysis(),
         },
       })
       void refreshRuns()
+      void refreshProjects()
     } catch (e) {
-      toast.error("Inference error: " + e)
+      notifyError("Inference error", e)
     } finally {
       props.setRunning(false)
     }
   }
 
   const handleAnalyzeLULC = async () => {
-    const useExample =
-      !!props.activeExample && !!props.areas.find((a) => a.id === props.activeExample)
+    const useExample = usesExampleArea(props.activeExample, props.areas)
     if (!useExample && !props.customPolygon) {
-      toast.error("Draw a polygon or select example A/B/C.")
+      notifyError("Draw a polygon or select example A/B/C.")
       return
     }
     props.setLulcRunning(true)
@@ -469,10 +2089,12 @@ function AppBody(props: {
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
       } as never)) as unknown as LULCAnalysis
-      const label = useExample
-        ? props.areas.find((a) => a.id === props.activeExample)?.label
-        : "Custom AOI"
-      props.setAnalysisLabel(label)
+      if (!props.analysisLabel?.trim()) {
+        const label = useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : "Custom AOI"
+        props.setAnalysisLabel(label)
+      }
       const mapUri = lulc.map_uri ?? ""
       const extent = lulc.extent ?? {
         lon_min: 0,
@@ -500,11 +2122,13 @@ function AppBody(props: {
       // Keep prior classification if any; otherwise expose LULC as the map overlay.
       const prev = props.result
       const keepClassification = !!prev && ((prev.n_dates ?? 0) > 0 || !!prev.overlay_uri)
+      props.setShowPredictionOverlay(true)
       props.setResult({
         extent: keepClassification && prev ? prev.extent : extent,
         overlay_uri: keepClassification && prev?.overlay_uri ? prev.overlay_uri : mapUri,
         confidence_uri: prev?.confidence_uri ?? "",
         ndvi_mean_uri: prev?.ndvi_mean_uri ?? "",
+        true_color_uri: prev?.true_color_uri ?? "",
         reference_uri: mapUri || prev?.reference_uri || "",
         raster_tif: prev?.raster_tif ?? "",
         mean_confidence: prev?.mean_confidence ?? 0,
@@ -520,12 +2144,12 @@ function AppBody(props: {
         phenology_states: prev?.phenology_states ?? [],
         lulc,
       })
-      toast.success("Land cover / land use ready on map.", {
+      notifySuccess("Land cover / land use ready on map.", undefined, {
         action: { label: "Open analysis", onClick: () => goAnalysis() },
       })
       goMap()
     } catch (e) {
-      toast.error("LULC analysis error: " + e)
+      notifyError("LULC analysis error", e)
     } finally {
       props.setLulcRunning(false)
       props.setProgress(0)
@@ -534,36 +2158,102 @@ function AppBody(props: {
   }
 
   const openSavedAnalysis = useCallback(
-    async (run: InferenceRun) => {
+    /**
+     * @param opts.land Where to leave the user once the run is restored.
+     *
+     * The hub and the profile list send someone to the analysis page, which
+     * for the hub is where they already are. The project menu does not: it is
+     * opened from the map, and a run picked there is a request to look at that
+     * run on the map. Passed rather than corrected afterwards -- navigating to
+     * one screen and then to another shows the first one on the way past.
+     */
+    async (run: InferenceRun, opts?: { land?: "analysis" | "map" }) => {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
-        props.setResult(res)
+        // A water or solar run carries no classification: no class stats, no
+        // overlay, no scenes. Held as the result it made the map screen present
+        // one, and the result panel then read a class list that was never
+        // there. The standalone products below are what such a run restores.
+        const isClassification =
+          (res.class_stats?.length ?? 0) > 0 ||
+          !!res.overlay_uri ||
+          !!res.lulc ||
+          res.n_dates > 0
+        props.setResult(isClassification ? res : null)
+        setCurrentRunLabel(run.label ?? null)
+        setCurrentRunId(run.id)
+        props.setShowPredictionOverlay(true)
         if (isModelKind(run.model_kind)) props.setModelKind(run.model_kind)
-        props.setAnalysisLabel(run.label || "Saved analysis")
+        const extras = parsePreferenceExtras(prefs?.extras_json)
+        const project = projects.find(
+          (p) => p.id === (run.project_id || activeProjectId || "")
+        )
+        const displayLabel = resolveAoiDisplayLabel({
+          analysisLabel: props.analysisLabel,
+          projectLabel: project?.label,
+          prefsAoiLabel: extras.aoi_label,
+          summaryAoiLabel: aoiLabelFromRunSummary(run.summary),
+        })
+        props.setAnalysisLabel(displayLabel)
+        if (displayLabel) void persistAoiLabel(displayLabel)
         const aoi = parseRunPolygon(run.polygon_geojson, props.areas)
         props.setActiveExample(aoi.exampleId)
         props.setCustomPolygon(aoi.polygon)
-        if (aoi.polygon?.type === "Polygon") {
-          const ring = aoi.polygon.coordinates?.[0]
-          if (ring?.length) {
-            let lat = 0
-            let lon = 0
-            for (const [x, y] of ring) {
-              lon += x
-              lat += y
-            }
-            props.setFlyTo({
-              lat: lat / ring.length,
-              lon: lon / ring.length,
-              key: Date.now(),
-            })
-          }
+        // A water or solar run carries its raster in the same field a live run
+        // uses, so opening one puts the overlay back on the map. The AOI it was
+        // measured on is recorded first, otherwise the invalidation effect sees
+        // a mismatch and drops the raster that was just restored.
+        const restoredAoi = aoi.exampleId
+          ? `area:${aoi.exampleId}`
+          : aoi.polygon
+            ? `poly:${JSON.stringify(aoi.polygon)}`
+            : ""
+        // Results and the AOI they were computed over in one action, for the
+        // reason a live run records them together: assigned separately, the
+        // invalidation effect can run against the old signature and drop the
+        // results that were just restored.
+        solarDispatch({
+          type: "results/restore",
+          results: {
+            resource: res.solar ?? null,
+            terrain: res.solar_terrain ?? null,
+            siting: res.solar_siting ?? null,
+            energy: res.energy_model ?? null,
+          },
+          aoiSignature: restoredAoi,
+        })
+        // Wind carries its own signature, so a restored wind run records the
+        // AOI it was screened on separately.
+        if (res.wind) {
+          windDispatch({
+            type: "result/set",
+            result: res.wind,
+            aoiSignature: restoredAoi,
+          })
+        } else {
+          windDispatch({ type: "result/clear" })
         }
-        goAnalysis()
-        toast.success("Analysis restored.")
+        if (res.water) {
+          waterAoiRef.current = restoredAoi
+          setWater(res.water)
+          setShowWaterOverlay(true)
+        } else {
+          setWater(null)
+        }
+        const centroid = geometryCentroid(aoi.polygon)
+        if (centroid) {
+          props.setFlyTo({
+            lat: centroid[1],
+            lon: centroid[0],
+            key: Date.now(),
+          })
+        }
+        if (opts?.land === "map") goMap()
+        else goAnalysis()
+        notifySuccess("Analysis restored.")
       } catch (e) {
-        toast.error("Could not load analysis: " + e)
+        notifyError("Could not load analysis", e)
       } finally {
         setLoadingRun(false)
       }
@@ -572,28 +2262,152 @@ function AppBody(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       goAnalysis,
+      goMap,
+      solarDispatch,
+      windDispatch,
       props.areas,
+      props.analysisLabel,
       props.setResult,
       props.setModelKind,
       props.setAnalysisLabel,
       props.setActiveExample,
       props.setCustomPolygon,
       props.setFlyTo,
+      persistAoiLabel,
+      prefs?.extras_json,
+      projects,
+      activeProjectId,
     ]
   )
 
   const backToAnalysesList = useCallback(() => {
+    props.retainRun(props.result)
     props.setResult(null)
+    setCurrentRunLabel(null)
+    setCurrentRunId(null)
+    // The standalone products have to go too. The analysis payload is
+    // non-null whenever any of them is present, so clearing only the
+    // classification leaves the detail view up and the saved list unreachable.
+    setWater(null)
+    solarDispatch({ type: "results/clearAll" })
+    windDispatch({ type: "result/clear" })
+    props.setShowPredictionOverlay(true)
     props.setAnalysisLabel(undefined)
+    props.setSwipeCompare(false)
     goAnalysis()
-  }, [goAnalysis, props.setResult, props.setAnalysisLabel])
+  }, [
+    goAnalysis,
+    solarDispatch,
+    windDispatch,
+    props.setResult,
+    props.setShowPredictionOverlay,
+    props.setAnalysisLabel,
+    props.setSwipeCompare,
+  ])
 
+  const showCompositionFromHub = useCallback((overlay: ProjectOverlay) => {
+    const entry = projectOverlayToComposition(overlay)
+    if (!entry) {
+      notifyError("Composition preview unavailable")
+      return
+    }
+    setComposition(entry)
+    setCompositionGallery((prev) => {
+      if (prev.some((c) => c.id === entry.id)) return prev
+      return [entry, ...prev].slice(0, 12)
+    })
+    setShowCompositionOverlay(true)
+    props.setShowPredictionOverlay(false)
+  }, [props.setShowPredictionOverlay])
+
+  /**
+   * Starts a run of any product, from wherever the user is.
+   *
+   * The hub offered New classification and nothing else, while the application
+   * produces four run kinds and a composition. A user in a project could reach
+   * a classification in one click and everything else by navigating and
+   * remembering which screen holds it.
+   *
+   * The three map products clear the session the same way -- the previous
+   * result, overlay and AOI all belong to the run being replaced -- so they
+   * share startNewClassification and differ only in the panel they open. Energy
+   * defines its own AOI on its own screen and clears nothing here.
+   */
   const startNewClassification = useCallback(() => {
+    props.retainRun(props.result)
     props.setResult(null)
-    props.setAnalysisLabel(undefined)
-    props.onClearArea()
+    setCurrentRunLabel(null)
+    setCurrentRunId(null)
+    props.setShowPredictionOverlay(true)
+    props.setSwipeCompare(false)
+    props.setSwipeRatio(0.5)
+    setWater(null)
+    solarDispatch({ type: "results/clearAll" })
+    windDispatch({ type: "result/clear" })
+    // Starting over drops the AOI, so the session composition must go with it:
+    // otherwise the previous AOI's overlay stays painted over the empty map.
+    // Saved compositions are reloaded from the project on reopen.
+    clearAreaAndComposition()
     goMap()
-  }, [goMap, props.setResult, props.setAnalysisLabel, props.onClearArea])
+  }, [
+    goMap,
+    solarDispatch,
+    windDispatch,
+    clearAreaAndComposition,
+    props.setResult,
+    props.setShowPredictionOverlay,
+    props.setSwipeCompare,
+    props.setSwipeRatio,
+  ])
+
+  /**
+   * Starts a run of any product, from wherever the user is.
+   *
+   * The hub offered New classification and nothing else, while the application
+   * produces four run kinds and a composition. A user in a project could reach
+   * a classification in one click and everything else by navigating and
+   * remembering which screen holds it.
+   *
+   * The three map products clear the session the same way -- the previous
+   * result, overlay and AOI all belong to the run being replaced -- so they
+   * share startNewClassification and differ only in the panel they open. Energy
+   * defines its own AOI on its own screen and clears nothing here.
+   */
+  const startNewRun = useCallback(
+    (product: MapToolId | "energy") => {
+      if (product === "energy") {
+        goEnergy()
+        return
+      }
+      setLeftPanel(product)
+      startNewClassification()
+    },
+    [goEnergy, startNewClassification]
+  )
+
+  const applyAoiRename = useCallback(
+    async (label: string) => {
+      const next = label.trim()
+      if (!next) return
+      props.setAnalysisLabel(next)
+      void persistAoiLabel(next)
+      if (activeProjectId) {
+        try {
+          await syncProjectAoi(activeProjectId, next)
+          await refreshProjects()
+        } catch {
+          /* best-effort */
+        }
+      }
+    },
+    [
+      activeProjectId,
+      persistAoiLabel,
+      props.setAnalysisLabel,
+      refreshProjects,
+      syncProjectAoi,
+    ]
+  )
 
   const areaLabel = useMemo(() => {
     if (props.analysisLabel) return props.analysisLabel
@@ -603,96 +2417,586 @@ function AppBody(props: {
     return props.customPolygon ? "Custom AOI" : undefined
   }, [props.analysisLabel, props.activeExample, props.areas, props.customPolygon])
 
+  /**
+   * The one progress pair the dock's solar panel reads.
+   *
+   * That panel predates the two stores and has a single display for all five
+   * products, so the running store supplies it. The energy screen reads each
+   * store's own run state directly and needs no such collapse.
+   */
+  const energyProgress = wind.run.active ? wind.run : solar.run
+
+  /**
+   * Where the map is, for both screens that carry one.
+   *
+   * One live ref and one debounced write to the same map_view preference. Two
+   * memories would let a pan made on the energy screen be lost on the way back
+   * to the map, or the reverse, depending on which one last committed.
+   */
+  const handleViewChange = useCallback(
+    (v: { lat: number; lon: number; zoom: number }) => {
+      liveViewRef.current = v
+      props.setView(v)
+      persistMapView(v)
+    },
+    [persistMapView, props.setView]
+  )
+
+  const initialMapView =
+    liveViewRef.current ??
+    parsePreferenceExtras(prefs?.extras_json).map_view ??
+    null
+
+  /**
+   * A polygon drawn on either map. Appended to the saved-AOI catalog so a
+   * second draw does not throw the first away; the new entry becomes active.
+   * Passing null clears the active shape only (catalog stays).
+   */
+  const handlePolygonDrawn = useCallback(
+    (geom: GeoJSONGeometry | null) => {
+      if (!geom) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+        return
+      }
+      const entry = createSavedAoi(geom, props.savedAois)
+      props.setSavedAois((prev) => [...prev, entry])
+      props.setActiveAoiId(entry.id)
+      props.setCustomPolygon(geom)
+      props.setActiveExample("")
+      props.setAnalysisLabel(entry.name)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [
+      props.savedAois,
+      props.setSavedAois,
+      props.setActiveAoiId,
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  const activateSavedAoi = useCallback(
+    (id: string) => {
+      const entry = props.savedAois.find((a) => a.id === id)
+      if (!entry) return
+      props.setActiveAoiId(entry.id)
+      props.setCustomPolygon(entry.geometry)
+      props.setActiveExample("")
+      props.setAnalysisLabel(entry.name)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [
+      props.savedAois,
+      props.setActiveAoiId,
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  /** Put a run's stored polygon on the map without adding a catalog entry. */
+  const adoptAreaGeometry = useCallback(
+    (geom: GeoJSONGeometry | null) => {
+      if (!geom) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+        return
+      }
+      props.setCustomPolygon(geom)
+      props.setActiveExample("")
+      props.setActiveAoiId(undefined)
+      setComposition(null)
+      setShowCompositionOverlay(true)
+    },
+    [
+      props.setCustomPolygon,
+      props.setActiveExample,
+      props.setActiveAoiId,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  const renameSavedAoi = useCallback(
+    (id: string, name: string) => {
+      const next = name.trim()
+      if (!next) return
+      props.setSavedAois((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, name: next } : a))
+      )
+      if (props.activeAoiId === id) props.setAnalysisLabel(next)
+    },
+    [props.setSavedAois, props.activeAoiId, props.setAnalysisLabel]
+  )
+
+  const deleteSavedAoi = useCallback(
+    (id: string) => {
+      props.setSavedAois((prev) => prev.filter((a) => a.id !== id))
+      if (props.activeAoiId === id) {
+        props.setCustomPolygon(null)
+        props.setActiveAoiId(undefined)
+        props.setAnalysisLabel(undefined)
+      }
+    },
+    [
+      props.setSavedAois,
+      props.activeAoiId,
+      props.setCustomPolygon,
+      props.setActiveAoiId,
+      props.setAnalysisLabel,
+    ]
+  )
+
+  /** Persist the catalog whenever it changes (silent — no toast). */
+  useEffect(() => {
+    if (!prefs) return
+    const extras = parsePreferenceExtras(prefs.extras_json)
+    const sameAois =
+      JSON.stringify(extras.saved_aois ?? []) === JSON.stringify(props.savedAois)
+    const sameActive = (extras.active_aoi_id ?? undefined) === props.activeAoiId
+    if (sameAois && sameActive) return
+    void savePrefs(
+      {
+        ...prefs,
+        extras_json: mergePreferenceExtras(prefs.extras_json, {
+          saved_aois: props.savedAois,
+          active_aoi_id: props.activeAoiId,
+          aoi_label:
+            props.savedAois.find((a) => a.id === props.activeAoiId)?.name ??
+            extras.aoi_label,
+        }),
+      },
+      { silent: true }
+    ).catch(() => {})
+  }, [props.savedAois, props.activeAoiId, prefs, savePrefs])
+
+  /**
+   * The analysis payload as the Analysis screen and the exporter see it.
+   *
+   * Water comes from its own action, so it is merged at render time rather
+   * than written into the classification result: either can be produced first,
+   * and neither must overwrite the other.
+   */
+  const resultWithWater = useMemo(
+    () => {
+      // Every standalone product counts. A run that carries only one of them
+      // no longer sets a classification result, so leaving any out here would
+      // hand the analysis screen nothing to show for it.
+      const r = solar.results
+      const w = wind.result
+      if (
+        !props.result &&
+        !water &&
+        !r.resource &&
+        !r.terrain &&
+        !r.siting &&
+        !r.energy &&
+        !w
+      ) {
+        return null
+      }
+      return {
+        ...(props.result ?? EMPTY_RESULT),
+        water,
+        solar: r.resource,
+        solar_terrain: r.terrain,
+        solar_siting: r.siting,
+        energy_model: r.energy,
+        wind: w,
+      }
+    },
+    [props.result, water, solar.results, wind.result]
+  )
+
+  const analysisPolygonGeoJSON = useMemo(() => {
+    if (props.customPolygon) return JSON.stringify(props.customPolygon)
+    if (props.activeExample) {
+      const geom = props.areas.find((a) => a.id === props.activeExample)?.geometry
+      if (geom) return JSON.stringify(geom)
+    }
+    return ""
+  }, [props.customPolygon, props.activeExample, props.areas])
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
-      <TitleBar view={props.view} result={props.result} />
+      <TitleBar
+        view={props.view}
+        /*
+          Handed back so the map screen can portal its whiteboard toggle up
+          here. What App holds is WHERE the button goes; whether the board is
+          open stays in the screen, which is the only place it can stay without
+          surviving a trip to another screen.
+        */
+        boardSlotRef={setBoardSlotHost}
+        boardOpen={boardOpen}
+        result={props.result}
+        runLabel={currentRunLabel}
+        layoutMode={layoutMode}
+        onLayoutModeChange={changeLayoutMode}
+        credit={credit}
+        /*
+          Wherever a run is filed under the active project. The energy handlers
+          send project_id exactly as the classification ones do, so a solar or
+          wind run lands in a project the energy screen never named and offered
+          no way to change -- the user could only discover it afterwards, in the
+          hub.
+
+          Not on the project hub itself, which selects a project as its whole
+          purpose, and not on settings or sign-in, which have no project.
+        */
+        projectSwitcher={
+          screen === "map" || screen === "energy" ? (
+            <ProjectSwitcher
+              projects={projects}
+              activeProjectId={activeProjectId}
+              runs={runs}
+              whiteboards={whiteboards}
+              onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
+              onMenuOpen={() => void refreshWhiteboards()}
+              busy={loadingRun}
+              onSelect={(id) => void activateProject(id)}
+              onCreate={() => void handleCreateProjectFromAoi()}
+              onOpenRun={(run) => {
+                void (async () => {
+                  /*
+                    The header must not name one project while the map shows a
+                    run belonging to another, and picking a run inside a
+                    project's own list is as clear a statement of which project
+                    is meant as clicking its name.
+
+                    Not user-initiated: that draws the project's AOI and flies
+                    to it, which is exactly what the run about to load is going
+                    to replace. This sets the context and lets the run draw.
+                  */
+                  if (run.project_id && run.project_id !== activeProjectId) {
+                    await activateProject(run.project_id, {
+                      userInitiated: false,
+                    })
+                  }
+                  await openSavedAnalysis(run, { land: "map" })
+                })()
+              }}
+              onOpenHub={() => goAnalysis()}
+            />
+          ) : undefined
+        }
+      />
 
       <div className="flex min-h-0 flex-1">
-        <AppSidebar
-          onOpenRepo={() => OpenExternal("https://github.com/rexionmars")}
-          hasAnalysis={!!props.result || runs.length > 0}
-          onAnalysisClick={() => {
-            if (screen === "analysis" && props.result) backToAnalysesList()
-            else goAnalysis()
-          }}
-        />
+        {/*
+          The dock layout replaces this column with surfaces inside the map, so
+          it is withheld on the two screens that draw one. The project hub and
+          settings keep it: they have no map to put a bar over, and hiding it
+          there would leave them with no navigation at all.
+
+          The column is in flow, not floating, so omitting it returns 13.5rem
+          of width to the stage and the map fills it without being told.
+        */}
+        <AnimatePresence initial={false}>
+          {(layoutMode === "docked" ||
+            (screen !== "map" && screen !== "energy")) && (
+            <AppNav
+              key="app-nav"
+              hasAnalysis={!!props.result || runs.length > 0}
+              onAnalysisClick={() => {
+                // Tested on the payload the page is actually showing, not on the
+                // classification: a water or solar run has no classification and
+                // would otherwise leave the list unreachable.
+                if (screen === "analysis" && resultWithWater) backToAnalysesList()
+                else goAnalysis()
+              }}
+              leftPanel={leftPanel}
+              onLeftPanelChange={setLeftPanel}
+              energyTab={energyTab}
+              onEnergyTabChange={setEnergyTab}
+            />
+          )}
+        </AnimatePresence>
         <div className="relative min-h-0 min-w-0 flex-1">
-          {screen === "map" && (
-            <MapScreen
-              areas={props.areas}
-              activeExample={props.activeExample}
-              customPolygon={props.customPolygon}
-              flyTo={props.flyTo}
-              result={props.result}
-              overlayOpacity={props.overlayOpacity}
-              showConfidence={props.showConfidence}
-              confidenceOnTop={props.confidenceOnTop}
-              smoothOverlay={props.smoothOverlay}
-              areaLabel={areaLabel}
-              hasArea={props.hasArea}
-              start={props.start}
-              end={props.end}
-              maxCloud={props.maxCloud}
-              monthlyBest={props.monthlyBest}
-              mode={props.mode}
-              modelKind={props.modelKind}
-              prithviMode={props.prithviMode}
-              running={props.running}
-              progress={props.progress}
-              progressMsg={props.progressMsg}
-              onViewChange={props.setView}
-              onPolygonDrawn={(geom) => {
-                props.setCustomPolygon(geom)
-                if (geom) props.setActiveExample("")
-              }}
-              onSelectExample={props.onSelectExample}
-              onLocationSelect={(lat, lon) =>
-                props.setFlyTo({ lat, lon, key: Date.now() })
-              }
-              onClearArea={props.onClearArea}
-              onImportPolygon={props.onImportPolygon}
-              onStartChange={props.setStart}
-              onEndChange={props.setEnd}
-              onMaxCloudChange={props.setMaxCloud}
-              onMonthlyBestChange={props.setMonthlyBest}
-              onModeChange={props.setMode}
-              onModelKindChange={props.setModelKind}
-              onPrithviModeChange={props.setPrithviMode}
-              onOpacityChange={props.setOverlayOpacity}
-              onShowConfidenceChange={props.setShowConfidence}
-              onConfidenceOnTopChange={props.setConfidenceOnTop}
-              onSmoothOverlayChange={props.setSmoothOverlay}
-              onRun={handleRun}
-              onAnalyzeLULC={handleAnalyzeLULC}
-              lulcRunning={props.lulcRunning}
-              onCloseResult={() => {
-                props.setResult(null)
-                props.setAnalysisLabel(undefined)
-              }}
-              onNewClassification={startNewClassification}
-              onViewDataCube={() => void handleViewDataCube()}
-              dataCubeLoading={dataCubeLoading}
-              dataCubeOpen={dataCubeOpen}
-              dataCubeError={dataCubeError}
-              dataCubeResult={dataCubeResult}
-              onCloseDataCube={() => {
-                setDataCubeOpen(false)
-                setDataCubeError(null)
-              }}
-            />
-          )}
-          {screen === "analysis" && (
-            <AnalysisPage
-              result={props.result}
-              modelKind={props.modelKind}
-              areaLabel={areaLabel}
-              areaId={props.activeExample || undefined}
-              loadingRun={loadingRun}
-              onOpenRun={openSavedAnalysis}
-              onBackToList={backToAnalysesList}
-              onNewClassification={startNewClassification}
-            />
-          )}
+          <AnimatePresence mode="wait" initial={false}>
+            {screen === "map" && (
+              <motion.div
+                key="screen-map"
+                className="absolute inset-0 min-h-0"
+                initial={{ opacity: 0, x: -14 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <MapScreen
+                  retainedRuns={props.retainedRuns}
+                  onCreditChange={setCredit}
+                  titleBarSlot={boardSlotHost}
+                  onBoardOpenChange={setBoardOpen}
+                  /*
+                    The two solar rasters, so the board can lift them like any
+                    other. The energy screen keeps drawing them on its own map;
+                    this is the same store read by a second surface, not a copy.
+                  */
+                  solarTerrain={solar.results.terrain}
+                  solarSiting={solar.results.siting}
+                  showSolarTerrain={solar.layers.showTerrain}
+                  showSolarSiting={solar.layers.showSiting}
+                  solarTerrainOpacity={solar.layers.terrainOpacity}
+                  solarSitingOpacity={solar.layers.sitingOpacity}
+                  onSolarLayerChange={setSolarBoardLayer}
+                  /*
+                    And the inputs, so the board can start a solar run rather
+                    than only draw one somebody else started. The same store the
+                    energy screen edits -- a second copy would let the two
+                    disagree about what the next run will compute.
+                  */
+                  solarParams={solar.params}
+                  onSolarParamsChange={setSolarParams}
+                  onRunSolar={(product) => {
+                    if (product === "terrain") void handleRunSolarTerrain()
+                    else void handleRunSolarSiting()
+                  }}
+                  // Any solar product blocks the rest: one sidecar run at a time.
+                  solarBusy={solar.run.active !== null}
+                  solarProgress={solar.run.progress}
+                  solarProgressMsg={solar.run.message}
+                  initialView={initialMapView}
+                  leftPanel={leftPanel}
+                  layoutMode={layoutMode}
+                  onLayoutModeChange={changeLayoutMode}
+                  onNavigate={navigateTo}
+                  onLeftPanelChange={setLeftPanel}
+                  areas={props.areas}
+                  activeExample={props.activeExample}
+                  customPolygon={props.customPolygon}
+                  flyTo={props.flyTo}
+                  result={props.result}
+                  overlayOpacity={props.overlayOpacity}
+                  showConfidence={props.showConfidence}
+                  confidenceOnTop={props.confidenceOnTop}
+                  smoothOverlay={props.smoothOverlay}
+                  showPredictionOverlay={props.showPredictionOverlay}
+                  showCompositionOverlay={showCompositionOverlay}
+                  composition={
+                    composition
+                      ? { ...composition, opacity: composeOpacity }
+                      : null
+                  }
+                  swipeCompare={props.swipeCompare}
+                  swipeRatio={props.swipeRatio}
+                  areaLabel={areaLabel}
+                  onAreaLabelChange={(label) => {
+                    void applyAoiRename(label)
+                  }}
+                  aoiContourScheme={props.aoiContourScheme}
+                  onAoiContourSchemeChange={props.setAoiContourScheme}
+                  hasArea={props.hasArea}
+                  start={props.start}
+                  end={props.end}
+                  maxCloud={props.maxCloud}
+                  monthlyBest={props.monthlyBest}
+                  mode={props.mode}
+                  modelKind={props.modelKind}
+                  prithviMode={props.prithviMode}
+                  running={props.running}
+                  progress={props.progress}
+                  progressMsg={props.progressMsg}
+                  composeRunning={composeRunning}
+                  composeProgress={composeProgress}
+                  composeProgressMsg={composeProgressMsg}
+                  composeScenes={composeScenes}
+                  composeScenesLoading={composeScenesLoading}
+                  composeScenesError={composeScenesError}
+                  selectedSceneId={selectedSceneId}
+                  composeKind={composeKind}
+                  composeBands={composeBands}
+                  composeIndex={composeIndex}
+                  composeStretchLow={composeStretchLow}
+                  composeStretchHigh={composeStretchHigh}
+                  composeOpacity={composeOpacity}
+                  onViewChange={handleViewChange}
+                  onPolygonDrawn={handlePolygonDrawn}
+                  onAdoptAreaGeometry={adoptAreaGeometry}
+                  savedAois={props.savedAois}
+                  activeAoiId={props.activeAoiId}
+                  onActivateSavedAoi={activateSavedAoi}
+                  onRenameSavedAoi={renameSavedAoi}
+                  onDeleteSavedAoi={deleteSavedAoi}
+                  onLocationSelect={(lat, lon) =>
+                    props.setFlyTo({ lat, lon, key: Date.now() })
+                  }
+                  onClearArea={clearAreaAndComposition}
+                  onImportPolygon={props.onImportPolygon}
+                  onStartChange={props.setStart}
+                  onEndChange={props.setEnd}
+                  onMaxCloudChange={props.setMaxCloud}
+                  onMonthlyBestChange={props.setMonthlyBest}
+                  onModeChange={props.setMode}
+                  onModelKindChange={props.setModelKind}
+                  onPrithviModeChange={props.setPrithviMode}
+                  onOpacityChange={props.setOverlayOpacity}
+                  onShowConfidenceChange={props.setShowConfidence}
+                  onConfidenceOnTopChange={props.setConfidenceOnTop}
+                  onSmoothOverlayChange={props.setSmoothOverlay}
+                  onShowPredictionOverlayChange={props.setShowPredictionOverlay}
+                  onShowCompositionOverlayChange={setShowCompositionOverlay}
+                  onSelectScene={setSelectedSceneId}
+                  onComposeKindChange={setComposeKind}
+                  onComposeBandsChange={setComposeBands}
+                  onComposeIndexChange={setComposeIndex}
+                  onComposeStretchChange={(low, high) => {
+                    setComposeStretchLow(low)
+                    setComposeStretchHigh(high)
+                  }}
+                  onComposeOpacityChange={setComposeOpacity}
+                  onListComposeScenes={() => void handleListComposeScenes()}
+                  onApplyComposition={() => void handleApplyComposition()}
+                  onClearComposition={() => {
+                    setComposition(null)
+                    setCompositionGallery([])
+                    setShowCompositionOverlay(true)
+                  }}
+                  compositionGallery={scopedCompositions}
+                  onSelectComposition={(id) => {
+                    const hit = scopedCompositions.find((c) => c.id === id)
+                    if (hit) {
+                      setComposition(hit)
+                      setShowCompositionOverlay(true)
+                    }
+                  }}
+                  onRemoveComposition={(id) => {
+                    setCompositionGallery((prev) => {
+                      const next = prev.filter((c) => c.id !== id)
+                      setComposition((cur) =>
+                        cur?.id === id ? (next[0] ?? null) : cur
+                      )
+                      return next
+                    })
+                  }}
+                  onSwipeCompareChange={props.setSwipeCompare}
+                  onSwipeRatioChange={props.setSwipeRatio}
+                  onRun={handleRun}
+                  onAnalyzeLULC={handleAnalyzeLULC}
+                  lulcRunning={props.lulcRunning}
+                  openBoardNonce={openBoardNonce}
+                  onCloseResult={() => {
+                    props.setResult(null)
+                    props.setShowPredictionOverlay(true)
+                    props.setAnalysisLabel(undefined)
+                    props.setSwipeCompare(false)
+                    props.setSwipeRatio(0.5)
+                  }}
+                  onNewClassification={startNewClassification}
+                  onViewDataCube={() => void handleViewDataCube()}
+                  dataCubeLoading={dataCubeLoading}
+                  dataCubeOpen={dataCubeOpen}
+                  dataCubeError={dataCubeError}
+                  dataCubeResult={dataCubeResult}
+                  onCloseDataCube={() => {
+                    setDataCubeOpen(false)
+                    setDataCubeError(null)
+                  }}
+                  water={water}
+                  waterIndex={waterIndex}
+                  waterRunning={waterRunning}
+                  waterProgress={props.progress}
+                  waterProgressMsg={props.progressMsg}
+                  showWaterOverlay={showWaterOverlay}
+                  onWaterIndexChange={setWaterIndex}
+                  onRunWater={() => void handleRunWater()}
+                  onClearWater={() => {
+                    setWater(null)
+                    setShowWaterOverlay(true)
+                  }}
+                  onShowWaterOverlayChange={setShowWaterOverlay}
+                  waterOpacity={waterOpacity}
+                  onWaterOpacityChange={setWaterOpacity}
+                />
+              </motion.div>
+            )}
+            {screen === "energy" && (
+              <motion.div
+                key="screen-energy"
+                className="absolute inset-0 min-h-0"
+                initial={{ opacity: 0, x: 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <EnergyScreen
+                  onCreditChange={setCredit}
+                  layoutMode={layoutMode}
+                  onNavigate={navigateTo}
+                  solar={solar}
+                  solarDispatch={solarDispatch}
+                  wind={wind}
+                  windDispatch={windDispatch}
+                  onRunSolar={(product: SolarProductId) => {
+                    if (product === "resource") void handleRunSolar()
+                    else if (product === "terrain") void handleRunSolarTerrain()
+                    else if (product === "siting") void handleRunSolarSiting()
+                    else void handleRunEnergyModel()
+                  }}
+                  onRunWind={() => void handleRunWind()}
+                  onOpenAnalysis={goAnalysis}
+                  onLocationSelect={(lat, lon) =>
+                    props.setFlyTo({ lat, lon, key: Date.now() })
+                  }
+                  hasArea={props.hasArea}
+                  areas={props.areas}
+                  activeExample={props.activeExample}
+                  customPolygon={props.customPolygon}
+                  onPolygonDrawn={handlePolygonDrawn}
+                  onImportPolygon={props.onImportPolygon}
+                  onClearArea={clearAreaAndComposition}
+                  areaLabel={areaLabel}
+                  onAreaLabelChange={(label) => {
+                    void applyAoiRename(label)
+                  }}
+                  aoiContourScheme={props.aoiContourScheme}
+                  onAoiContourSchemeChange={props.setAoiContourScheme}
+                  // The same live ref and the same debounced map_view write the
+                  // map screen uses, so panning here and returning there lands
+                  // in the same place.
+                  initialView={initialMapView}
+                  onViewChange={handleViewChange}
+                  flyTo={props.flyTo}
+                  tab={energyTab}
+                  onTabChange={setEnergyTab}
+                />
+              </motion.div>
+            )}
+            {screen === "analysis" && (
+              <motion.div
+                key="screen-analysis"
+                className="absolute inset-0 min-h-0"
+                initial={{ opacity: 0, x: 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <AnalysisPage
+                  result={resultWithWater}
+                  areas={props.areas}
+                  modelKind={props.modelKind}
+                  areaLabel={areaLabel}
+                  areaId={props.activeExample || undefined}
+                  polygonGeoJSON={analysisPolygonGeoJSON}
+                  loadingRun={loadingRun}
+                  onOpenRun={openSavedAnalysis}
+                  onBackToList={backToAnalysesList}
+                  onStartRun={startNewRun}
+                  onAreaLabelChange={(label) => {
+                    void applyAoiRename(label)
+                  }}
+                  onActivateProject={(id) => void activateProject(id)}
+                  onShowComposition={showCompositionFromHub}
+                  activeProjectId={activeProjectId}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
           {screen === "auth" && <AuthPage />}
           {screen === "profile" && (
             <ProfilePage loadingRun={loadingRun} onOpenRun={openSavedAnalysis} />

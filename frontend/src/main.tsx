@@ -42,7 +42,27 @@ root.render(
     storageKey="geosense-theme"
   >
     <App />
-    <Toaster richColors position="top-right" />
+    <Toaster
+      theme="system"
+      position="bottom-right"
+      closeButton
+      gap={10}
+      offset={16}
+      visibleToasts={4}
+      toastOptions={{
+        unstyled: true,
+        classNames: {
+          toast: "terra-toast",
+          title: "terra-toast-title",
+          description: "terra-toast-desc",
+          closeButton: "terra-toast-close",
+          success: "terra-toast-success",
+          error: "terra-toast-error",
+          info: "terra-toast-info",
+          warning: "terra-toast-warning",
+        },
+      }}
+    />
   </ThemeProvider>
 )
 

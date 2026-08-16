@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Search, Loader2, MapPin } from "lucide-react"
-import { toast } from "sonner"
+import { notifyError, notifyInfo } from "@/lib/notify"
 import { GeocodeSearch } from "../../wailsjs/go/main/App"
 import type { GeocodeResult } from "@/lib/types"
 
@@ -23,10 +23,10 @@ export function SearchBar({ onSelectLocation }: SearchBarProps) {
       setResults(res ?? [])
       setOpen(true)
       if ((res ?? []).length === 0) {
-        toast.message("No location found.")
+        notifyInfo("No location found.")
       }
     } catch (e) {
-      toast.error("Falha na busca: " + e)
+      notifyError("Falha na busca", e)
     } finally {
       setLoading(false)
     }

@@ -155,7 +155,7 @@ jobs:
 
             **FULL** supports spectral Random Forest (and LULC / phenology) out of the box.
             Temporal Transformer and Prithvi still need torch (`requirements-prithvi.txt`)
-            via a system/venv install (`GEOSENSE_PYTHON`).
+            via a system/venv install (`TERRA_PYTHON`).
 
             macOS FULL is **arm64** (Apple Silicon). LITE macOS remains **universal**.
 

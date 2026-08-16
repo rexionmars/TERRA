@@ -7,11 +7,12 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { toast } from "sonner"
+import { notifySuccess } from "@/lib/notify"
 import {
   ClearAvatar,
   CurrentUser,
   GetPreferences,
+  ListProjects,
   ListRuns,
   Login,
   Logout,
@@ -20,20 +21,40 @@ import {
   SetAvatar,
   UpdateProfile,
 } from "../../wailsjs/go/main/App"
-import type { InferenceRun, Preferences, User } from "@/lib/types"
+import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
 
-export type AppScreen = "map" | "auth" | "profile" | "analysis"
+export type AppScreen = "map" | "auth" | "profile" | "analysis" | "energy"
+
+/**
+ * A page of the settings screen, when something wants to open a particular one.
+ *
+ * The Python environment briefly had a screen of its own here, which gave one
+ * subject three separate doors -- a full-screen route, a link inside settings,
+ * and the first-run gate. It is a settings page like the others; opening it is
+ * opening settings at that page.
+ */
+export type SettingsPage = "account" | "system"
 
 interface AuthContextValue {
   user: User | null
   prefs: Preferences | null
   runs: InferenceRun[]
+  projects: Project[]
   loading: boolean
   screen: AppScreen
   goMap: () => void
   goAuth: () => void
-  goProfile: () => void
+  goProfile: (page?: SettingsPage) => void
   goAnalysis: () => void
+  goEnergy: () => void
+  /** Which settings page to open on arrival, consumed once by ProfilePage. */
+  settingsPage: SettingsPage | null
+  /** Clears the above, so it steers one arrival rather than every one. */
+  consumeSettingsPage: () => void
+  /** The screen settings was opened from, for naming the way out. */
+  settingsReturnTo: AppScreen
+  /** Return to that screen. */
+  leaveSettings: () => void
   navigate: (screen: AppScreen) => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName: string) => Promise<void>
@@ -41,8 +62,9 @@ interface AuthContextValue {
   updateProfile: (displayName: string) => Promise<void>
   setAvatar: (dataURI: string) => Promise<void>
   clearAvatar: () => Promise<void>
-  savePrefs: (prefs: Preferences) => Promise<void>
+  savePrefs: (prefs: Preferences, opts?: { silent?: boolean }) => Promise<void>
   refreshRuns: () => Promise<void>
+  refreshProjects: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -57,15 +79,25 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(null)
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [runs, setRuns] = useState<InferenceRun[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [screen, setScreen] = useState<AppScreen>("map")
 
   const refreshRuns = useCallback(async () => {
     try {
-      const r = (await ListRuns(20)) as unknown as InferenceRun[]
+      const r = (await ListRuns(50)) as unknown as InferenceRun[]
       setRuns(r ?? [])
     } catch {
       setRuns([])
+    }
+  }, [])
+
+  const refreshProjects = useCallback(async () => {
+    try {
+      const p = (await ListProjects()) as unknown as Project[]
+      setProjects(p ?? [])
+    } catch {
+      setProjects([])
     }
   }, [])
 
@@ -78,10 +110,10 @@ export function AuthProvider({
       } catch {
         setPrefs(null)
       }
-      await refreshRuns()
+      await Promise.all([refreshRuns(), refreshProjects()])
       void u
     },
-    [onPrefsApplied, refreshRuns]
+    [onPrefsApplied, refreshRuns, refreshProjects]
   )
 
   useEffect(() => {
@@ -91,14 +123,23 @@ export function AuthProvider({
         const next = raw?.id ? raw : null
         setUser(next)
         if (next) await loadPrefsAndRuns(next)
-        else await refreshRuns()
+        else {
+          try {
+            const p = (await GetPreferences()) as unknown as Preferences
+            setPrefs(p)
+            onPrefsApplied?.(p)
+          } catch {
+            setPrefs(null)
+          }
+          await Promise.all([refreshRuns(), refreshProjects()])
+        }
       })
       .catch(async () => {
         setUser(null)
-        await refreshRuns()
+        await Promise.all([refreshRuns(), refreshProjects()])
       })
       .finally(() => setLoading(false))
-  }, [loadPrefsAndRuns, refreshRuns])
+  }, [loadPrefsAndRuns, refreshRuns, refreshProjects, onPrefsApplied])
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -106,7 +147,7 @@ export function AuthProvider({
       setUser(u)
       await loadPrefsAndRuns(u)
       setScreen("map")
-      toast.success(`Welcome back, ${u.display_name}.`)
+      notifySuccess(`Welcome back, ${u.display_name}.`)
     },
     [loadPrefsAndRuns]
   )
@@ -117,7 +158,7 @@ export function AuthProvider({
       setUser(u)
       await loadPrefsAndRuns(u)
       setScreen("map")
-      toast.success("Account created.")
+      notifySuccess("Account created.")
     },
     [loadPrefsAndRuns]
   )
@@ -127,53 +168,121 @@ export function AuthProvider({
     setUser(null)
     setPrefs(null)
     setScreen("map")
-    toast.success("Signed out.")
-    await refreshRuns()
-  }, [refreshRuns])
+    notifySuccess("Signed out.")
+    await Promise.all([refreshRuns(), refreshProjects()])
+  }, [refreshRuns, refreshProjects])
 
   const updateProfile = useCallback(async (displayName: string) => {
     const u = (await UpdateProfile(displayName)) as unknown as User
     setUser(u)
-    toast.success("Profile updated.")
+    notifySuccess("Profile updated.")
   }, [])
 
   const setAvatar = useCallback(async (dataURI: string) => {
     const u = (await SetAvatar(dataURI)) as unknown as User
     setUser(u)
-    toast.success("Photo updated.")
+    notifySuccess("Photo updated.")
   }, [])
 
   const clearAvatar = useCallback(async () => {
     const u = (await ClearAvatar()) as unknown as User
     setUser(u)
-    toast.success("Photo removed.")
+    notifySuccess("Photo removed.")
   }, [])
 
+  /*
+    SAVING DOES NOT RE-APPLY, and this used to call `onPrefsApplied`.
+
+    That callback is the LOAD path: it takes stored preferences and pushes them
+    into the controls -- the default model, the overlay opacity, the theme, the
+    saved-AOI catalog. Running it as the echo of every save meant that
+    persisting ANYTHING re-applied EVERYTHING, and most of what is persisted has
+    nothing to do with those controls.
+
+    What it cost: `default_model` is "spectral" for most installs, so picking
+    the temporal transformer and then touching anything that writes preferences
+    put the picker back on spectral, silently, and the next run was a random
+    forest with no sign on screen that a choice had been discarded. Five
+    unrelated actions write preferences on their own -- the studio's layout on a
+    debounced seam drag, the map view on pan and zoom, the layout mode toggle,
+    the saved-AOI catalog on activation, and the what's-new version -- so the
+    reset arrived at times bearing no relation to the control it reset.
+
+    It was intermittent rather than constant because `SavePreferences` is a
+    round trip: the reset landed only if the selection happened inside that
+    window.
+
+    No caller needs the echo. Every one of them already holds the state it just
+    wrote, and Settings applies the theme itself rather than waiting to be told.
+  */
   const savePrefs = useCallback(
-    async (p: Preferences) => {
+    async (p: Preferences, opts?: { silent?: boolean }) => {
       await SavePreferences(p as never)
       setPrefs(p)
-      onPrefsApplied?.(p)
-      toast.success("Preferences saved.")
+      if (!opts?.silent) notifySuccess("Preferences saved.")
     },
-    [onPrefsApplied]
+    []
   )
 
-  const goProfile = useCallback(() => {
-    setScreen(user ? "profile" : "auth")
-  }, [user])
+  /**
+   * Which settings page the next arrival should land on.
+   *
+   * Cleared by consumeSettingsPage once ProfilePage has acted on it, so
+   * returning to settings by hand shows the page last chosen there rather than
+   * replaying the destination of whatever sent the user in the first time.
+   */
+  const [settingsPage, setSettingsPage] = useState<SettingsPage | null>(null)
+
+  const consumeSettingsPage = useCallback(() => setSettingsPage(null), [])
+
+  /**
+   * Where settings was opened from, so leaving it returns there.
+   *
+   * Only the screen is kept: the sub-tabs -- which map tool, which energy
+   * resource -- are held in App precisely so they survive a screen change, so
+   * returning to the screen restores the tab that was open on it.
+   *
+   * Settings is the one screen with no work of its own to go back to. Every
+   * other destination is a place the user chose; this one is a detour, and
+   * the only way out was to pick a destination from the column, which meant
+   * remembering what you had been doing and landing somewhere adjacent to it
+   * rather than back in it.
+   */
+  const [settingsReturnTo, setSettingsReturnTo] = useState<AppScreen>("map")
+
+  const goProfile = useCallback(
+    (page?: SettingsPage) => {
+      setSettingsPage(page ?? null)
+      // Not from settings to settings: a second visit must not overwrite the
+      // work screen the first one recorded.
+      if (screen !== "profile" && screen !== "auth") setSettingsReturnTo(screen)
+      setScreen(user ? "profile" : "auth")
+    },
+    [user, screen]
+  )
+
+  /** Leave settings for the screen it was opened from. */
+  const leaveSettings = useCallback(() => {
+    setScreen(settingsReturnTo)
+  }, [settingsReturnTo])
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       prefs,
       runs,
+      projects,
       loading,
       screen,
       goMap: () => setScreen("map"),
       goAuth: () => setScreen("auth"),
       goProfile,
       goAnalysis: () => setScreen("analysis"),
+      goEnergy: () => setScreen("energy"),
+      settingsPage,
+      consumeSettingsPage,
+      settingsReturnTo,
+      leaveSettings,
       navigate: setScreen,
       login,
       register,
@@ -183,13 +292,19 @@ export function AuthProvider({
       clearAvatar,
       savePrefs,
       refreshRuns,
+      refreshProjects,
     }),
     [
       user,
       prefs,
       runs,
+      projects,
       loading,
       screen,
+      settingsPage,
+      consumeSettingsPage,
+      settingsReturnTo,
+      leaveSettings,
       goProfile,
       login,
       register,
@@ -199,6 +314,7 @@ export function AuthProvider({
       clearAvatar,
       savePrefs,
       refreshRuns,
+      refreshProjects,
     ]
   )
 

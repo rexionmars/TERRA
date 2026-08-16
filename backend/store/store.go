@@ -17,11 +17,11 @@ import (
 )
 
 var (
-	ErrNotFound       = errors.New("not found")
-	ErrEmailTaken     = errors.New("email already registered")
-	ErrInvalidCreds   = errors.New("invalid email or password")
-	ErrUnauthorized   = errors.New("not authenticated")
-	ErrInvalidInput   = errors.New("invalid input")
+	ErrNotFound     = errors.New("not found")
+	ErrEmailTaken   = errors.New("email already registered")
+	ErrInvalidCreds = errors.New("invalid email or password")
+	ErrUnauthorized = errors.New("not authenticated")
+	ErrInvalidInput = errors.New("invalid input")
 )
 
 const sessionTTL = 30 * 24 * time.Hour
@@ -62,10 +62,86 @@ type InferenceRun struct {
 	AssetsRelPath  string `json:"assets_relpath,omitempty"`
 	NDates         int    `json:"n_dates"`
 	Label          string `json:"label,omitempty"`
+	ProjectID      string `json:"project_id,omitempty"`
+	// One of the RunKind constants below. Empty on rows written before the
+	// column existed, which are all classifications; readers normalise it.
+	Kind string `json:"kind,omitempty"`
+}
+
+// Run kinds. A classification comes from a model; a descriptive product such as
+// surface water is a thresholded index with no model and no trained legend.
+//
+// Adding a value here needs no migration: the kind column was added by an ALTER
+// with DEFAULT 'classification' and carries no CHECK constraint, and both
+// readers select COALESCE(kind,'classification'), so a database written before
+// a kind existed keeps working and rows of the new kind are simply new rows.
+// What a new kind does require is that every reader branching on these literals
+// gains its case, which is the failure the wind kind was added to avoid: filed
+// under RunKindSolar a wind run listed as solar, printed the solar summary line
+// and reopened as an empty solar card, with nothing raising an error.
+const (
+	RunKindClassification = "classification"
+	RunKindWater          = "water"
+	RunKindSolar          = "solar"
+	// Wind screening. Its own kind rather than a product inside RunKindSolar:
+	// it comes from a different product on a different grid, its capacity
+	// factor is gross and unvalidated, and the solar readers would label it as
+	// though it were neither.
+	RunKindWind = "wind"
+)
+
+// Project groups AOI, analyses, and overlay assets for an agronomist workflow.
+type Project struct {
+	ID             string `json:"id"`
+	UserID         string `json:"user_id"`
+	Name           string `json:"name"`
+	Notes          string `json:"notes,omitempty"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
+	PolygonGeoJSON string `json:"polygon_geojson,omitempty"`
+	AreaID         string `json:"area_id,omitempty"`
+	Label          string `json:"label,omitempty"`
+	RunCount       int    `json:"run_count,omitempty"`
+	OverlayCount   int    `json:"overlay_count,omitempty"`
+}
+
+// ProjectOverlay is a persisted composition (or similar) asset under a project.
+type ProjectOverlay struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	/*
+		The run this composition was made under, when there was one.
+
+		Empty for a composition made with no run open -- browsing scenes needs
+		no classification -- and for every row written before the column
+		existed. Empty means "belongs to the project", not "belongs to no
+		project", so readers scope those by the recorded extent instead.
+	*/
+	RunID      string `json:"run_id,omitempty"`
+	Kind       string `json:"kind"`
+	Title      string `json:"title"`
+	MetaJSON   string `json:"meta_json,omitempty"`
+	PNGRelPath string `json:"png_relpath,omitempty"`
+	TIFRelPath string `json:"tif_relpath,omitempty"`
+	CreatedAt  string `json:"created_at"`
+	// OverlayURI is hydrated for the UI (data URI); not stored in SQLite.
+	OverlayURI string `json:"overlay_uri,omitempty"`
+	// RasterTIF is an absolute path when a GeoTIFF exists on disk.
+	RasterTIF string `json:"raster_tif,omitempty"`
 }
 
 // LocalUserID owns analyses saved when nobody is signed in.
 const LocalUserID = "00000000-0000-0000-0000-000000000001"
+
+/*
+LocalUserEmail identifies the guest account.
+
+Left at the old domain by the rename, deliberately. It is not an address and is
+never shown; it is the key ensureLocalUser matches on. Changed, that lookup
+finds nothing on an existing install and inserts a second local account, and
+every run and project belonging to the first becomes unreachable -- a rename
+that silently orphans a user's work, in exchange for a string nobody reads.
+*/
 const LocalUserEmail = "local@geosense.local"
 
 // Store is the local SQLite-backed user database.
@@ -74,17 +150,76 @@ type Store struct {
 	dataDir string
 }
 
-// Open creates (or opens) the app database under UserConfigDir/geosense-infer.
+// legacyDirName is where the data lived when the application carried the name
+// of the research repository it grew out of.
+const legacyDirName = "geosense-infer"
+
+// dataDirName is where it lives now.
+const dataDirName = "terra"
+
+/*
+dbFileName is the database inside that directory.
+
+Deliberately unchanged by the rename. Moving the directory is one operation
+that either works or does not; also renaming the file inside it would add a
+second, which has to be applied to a directory that may have been moved by the
+step before, may have been restored from an archive written under either name,
+or may be a fresh install. Every one of those is a case where getting it wrong
+means opening an empty database beside a full one.
+
+The file name is not something a user sees -- the directory is. So the rename
+takes the visible half and leaves the half whose only effect would be more ways
+to lose data.
+*/
+const dbFileName = "geosense.db"
+
+/*
+adoptLegacyDataDir moves a pre-rename data directory to the current name.
+
+The directory holds every saved analysis, project and image. Renaming the
+application without moving it would point a working installation at an empty
+directory: nothing is deleted, but the user opens TERRA and finds none of their
+work, which is indistinguishable from having lost it.
+
+Moved, not copied. A copy leaves two directories that both look current, and
+the next release has to guess which one the user has been adding to since.
+
+Only when the new location does not exist. If both are present the new one
+wins, untouched: that is either a restore, a fresh install beside an old one,
+or a migration that already happened, and in none of those cases is silently
+replacing the current data with older data the right answer.
+*/
+func adoptLegacyDataDir(cfg, dataDir string) error {
+	if _, err := os.Stat(dataDir); err == nil {
+		return nil // Already here.
+	}
+	legacy := filepath.Join(cfg, legacyDirName)
+	info, err := os.Stat(legacy)
+	if err != nil || !info.IsDir() {
+		return nil // Nothing to adopt.
+	}
+	if err := os.Rename(legacy, dataDir); err != nil {
+		return fmt.Errorf("moving %s to %s: %w", legacy, dataDir, err)
+	}
+	return nil
+}
+
+// Open creates (or opens) the app database under UserConfigDir/terra.
 func Open() (*Store, error) {
 	cfg, err := os.UserConfigDir()
 	if err != nil {
 		return nil, fmt.Errorf("user config dir: %w", err)
 	}
-	dataDir := filepath.Join(cfg, "geosense-infer")
+	dataDir := filepath.Join(cfg, dataDirName)
+	// Before the directory is created, or the rename below would find the
+	// destination already occupied by an empty directory and decline.
+	if err := adoptLegacyDataDir(cfg, dataDir); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("mkdir data dir: %w", err)
 	}
-	dbPath := filepath.Join(dataDir, "geosense.db")
+	dbPath := filepath.Join(dataDir, dbFileName)
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -153,8 +288,66 @@ CREATE INDEX IF NOT EXISTS idx_runs_user_created ON inference_runs(user_id, crea
 		`ALTER TABLE inference_runs ADD COLUMN result_json TEXT NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE inference_runs ADD COLUMN assets_relpath TEXT`,
 		`ALTER TABLE inference_runs ADD COLUMN label TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE inference_runs ADD COLUMN project_id TEXT`,
+		// Distinguishes a classification from a descriptive product such as
+		// surface water, which has no model and no trained legend. Existing
+		// rows predate water and are all classifications.
+		`ALTER TABLE inference_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'classification'`,
 	} {
 		_, _ = s.db.Exec(stmt)
+	}
+	projectSchema := `
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  polygon_geojson TEXT NOT NULL DEFAULT '',
+  area_id TEXT NOT NULL DEFAULT '',
+  label TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_projects_user_updated ON projects(user_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS project_overlays (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'composition',
+  title TEXT NOT NULL DEFAULT '',
+  meta_json TEXT NOT NULL DEFAULT '{}',
+  png_relpath TEXT,
+  tif_relpath TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_project_overlays_project ON project_overlays(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id, created_at DESC);
+`
+	if _, err := s.db.Exec(projectSchema); err != nil {
+		return fmt.Errorf("migrate projects: %w", err)
+	}
+	/*
+		Which run a composition was made under.
+
+		Compositions were scoped to the project alone, and a project accumulates
+		runs across separate fields: one here held 57 runs and 13 compositions
+		spread over three locations up to 100 km apart, all listed together
+		whichever run was open. Applying one put a raster off the edge of the
+		area being looked at.
+
+		Nullable, and it will stay nullable: a composition can be made with no
+		run open at all -- browsing scenes on the map needs no classification --
+		and those belong to the project rather than to any run. Rows written
+		before this column exists are in the same position, and readers fall
+		back to comparing the recorded extent against the current area.
+	*/
+	for _, stmt := range []string{
+		`ALTER TABLE project_overlays ADD COLUMN run_id TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_project_overlays_run ON project_overlays(run_id)`,
+	} {
+		_, _ = s.db.Exec(stmt)
+	}
+	if _, err := s.db.Exec(whiteboardSchema); err != nil {
+		return fmt.Errorf("migrate whiteboards: %w", err)
 	}
 	if err := s.ensureLocalUser(); err != nil {
 		return err
@@ -584,14 +777,19 @@ func (s *Store) SaveRun(run InferenceRun) (*InferenceRun, error) {
 	if !json.Valid([]byte(run.ResultJSON)) {
 		run.ResultJSON = "{}"
 	}
+	if run.Kind == "" {
+		run.Kind = RunKindClassification
+	}
 	_, err := s.db.Exec(
 		`INSERT INTO inference_runs
 		 (id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson, status,
-		  summary_json, overlay_relpath, n_dates, result_json, assets_relpath, label)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  summary_json, overlay_relpath, n_dates, result_json, assets_relpath, label, project_id,
+		  kind)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.UserID, run.CreatedAt, run.ModelKind, run.PeriodStart, run.PeriodEnd,
 		run.PolygonGeoJSON, run.Status, run.SummaryJSON, nullIfEmpty(run.OverlayRelPath), run.NDates,
-		run.ResultJSON, nullIfEmpty(run.AssetsRelPath), run.Label,
+		run.ResultJSON, nullIfEmpty(run.AssetsRelPath), run.Label, nullIfEmpty(run.ProjectID),
+		run.Kind,
 	)
 	if err != nil {
 		return nil, err
@@ -609,7 +807,8 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 	rows, err := s.db.Query(
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
-		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,'')
+		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
+		        COALESCE(project_id,''), COALESCE(kind,'classification')
 		 FROM inference_runs WHERE user_id = ?
 		 ORDER BY created_at DESC LIMIT ?`,
 		userID, limit,
@@ -624,11 +823,62 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		if err := rows.Scan(
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-			&r.ResultJSON, &r.AssetsRelPath, &r.Label,
+			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind,
 		); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ActivityDay is one calendar day with the number of runs made on it.
+type ActivityDay struct {
+	// Local calendar date, YYYY-MM-DD.
+	Day   string `json:"day"`
+	Count int    `json:"count"`
+}
+
+// RunActivity counts runs per day over a trailing window.
+//
+// Counted here rather than derived from ListRuns, which caps at 100 rows and
+// carries result_json on every one of them. A year of activity read that way
+// would be both truncated -- showing empty weeks that are not empty -- and
+// wasteful, since the caller needs a number per day and not the runs.
+//
+// created_at is written as RFC3339 in UTC, and localtime converts it to the
+// day the user actually worked; grouped in UTC, an evening run west of
+// Greenwich lands on tomorrow's square.
+func (s *Store) RunActivity(userID string, days int) ([]ActivityDay, error) {
+	if userID == "" {
+		userID = LocalUserID
+	}
+	if days <= 0 || days > 1100 {
+		days = 366
+	}
+	rows, err := s.db.Query(
+		`SELECT date(created_at, 'localtime') AS d, COUNT(*)
+		 FROM inference_runs
+		 WHERE user_id = ?
+		   AND date(created_at, 'localtime') >= date('now', 'localtime', ?)
+		 GROUP BY d
+		 ORDER BY d`,
+		userID, fmt.Sprintf("-%d days", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Never nil: a user with no runs marshals to [] rather than null, so the
+	// caller renders an empty year instead of failing on a missing list.
+	out := []ActivityDay{}
+	for rows.Next() {
+		var a ActivityDay
+		if err := rows.Scan(&a.Day, &a.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
 	}
 	return out, rows.Err()
 }
@@ -641,13 +891,14 @@ func (s *Store) GetRun(userID, runID string) (*InferenceRun, error) {
 	err := s.db.QueryRow(
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
-		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,'')
+		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
+		        COALESCE(project_id,''), COALESCE(kind,'classification')
 		 FROM inference_runs WHERE id = ? AND user_id = ?`,
 		runID, userID,
 	).Scan(
 		&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 		&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-		&r.ResultJSON, &r.AssetsRelPath, &r.Label,
+		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -660,6 +911,33 @@ func (s *Store) GetRun(userID, runID string) (*InferenceRun, error) {
 
 func (s *Store) RunsDir(runID string) string {
 	return filepath.Join(s.dataDir, "runs", runID)
+}
+
+// DeleteRun removes a run row and its on-disk assets.
+func (s *Store) DeleteRun(userID, runID string) error {
+	if userID == "" {
+		userID = LocalUserID
+	}
+	if strings.TrimSpace(runID) == "" {
+		return ErrInvalidInput
+	}
+	run, err := s.GetRun(userID, runID)
+	if err != nil {
+		return err
+	}
+	res, err := s.db.Exec(`DELETE FROM inference_runs WHERE id = ? AND user_id = ?`, runID, userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	_ = os.RemoveAll(s.RunsDir(runID))
+	if run.ProjectID != "" {
+		s.TouchProject(run.ProjectID)
+	}
+	return nil
 }
 
 // WriteDataURIFile decodes a data URI (or copies a filesystem path) into dest.

@@ -1,11 +1,95 @@
-import { useEffect, useRef, useState } from "react"
-import { Camera, FolderOpen, History, LogOut, Save, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  ArrowLeft,
+  Camera,
+  ChartColumn,
+  Heart,
+  Download,
+  FolderOpen,
+  HardDrive,
+  Loader2,
+  LogOut,
+  Save,
+  Star,
+  Trash2,
+  Upload,
+} from "lucide-react"
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime"
+import {
+  ChooseBackupArchive,
+  ExportBackup,
+  InspectStorage,
+  PurgeOrphanedRunAssets,
+  RestoreBackup,
+} from "../../wailsjs/go/main/App"
+import type { store } from "../../wailsjs/go/models"
+import { AnimatePresence } from "motion/react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth"
 import { AvatarCircle } from "@/components/AvatarCircle"
-import type { InferenceRun, Preferences } from "@/lib/types"
+import { ActivityGrid } from "@/components/ActivityGrid"
+import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
+import { btnGhost, btnPrimary } from "@/components/ui/buttons"
+import { EnvironmentPanel } from "@/components/EnvironmentPanel"
+import { StorageModal } from "@/components/StorageModal"
+import { cn } from "@/lib/utils"
+import type { InferenceRun, LayoutMode, Preferences } from "@/lib/types"
+import {
+  layoutModeFromPrefs,
+  mergePreferenceExtras,
+} from "@/lib/preferenceExtras"
+import { NAV_GROUPS } from "@/lib/navigation"
+import { displayRunLabel } from "@/lib/aoiLabel"
+import { formatBytes } from "@/lib/formatBytes"
+import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
+
+type SettingsSectionId = "account" | "system"
+
+/**
+ * The pages of settings, grouped by subject.
+ *
+ * There were five, and two were the same subject: "Account" held who you are
+ * and "Session" held your work, split for no reason anyone chose -- they grew
+ * apart. Worse, "Session" contained no session at all, which made the run list
+ * read as something signing out would take with it. Sign out itself was in
+ * neither, sitting in the column's footer, as far from the account it ends as
+ * the layout allowed.
+ *
+ * "Analysis" is gone. It held the default model and the overlay opacity, and
+ * both are already set where they are used -- the model in the Classification
+ * panel, the opacity in the overlay tools -- so the page was a second place to
+ * change something the map changes better, next to the thing it affects.
+ *
+ * "Appearance" is gone as a page but not as a setting: the colour theme moved
+ * into Account. One control was never a page, and the theme belongs to the
+ * person signed in rather than to the installation, which is what Account is.
+ */
+/*
+  The project and the way to support it. Both taken from what the repository
+  already declares -- the remote, and .github/FUNDING.yml, which names
+  `github: rexionmars` -- rather than guessed: a sponsor button that leads
+  nowhere is worse than no button.
+*/
+const REPO_URL = "https://github.com/rexionmars/TERRA"
+const SPONSOR_URL = "https://github.com/sponsors/rexionmars"
+
+const SECTIONS: {
+  id: SettingsSectionId
+  label: string
+  /** How many settings the page holds, where that is a countable thing. */
+  count?: number
+}[] = [
+  { id: "account", label: "Account", count: 10 },
+  // No count. The other page is a list of controls, and the number says how
+  // long the list is. This one reports the state of an environment and offers
+  // what to do about it, so "(1)" would be counting the wrong thing.
+  { id: "system", label: "System" },
+]
+
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 
 export function ProfilePage({
   loadingRun,
@@ -25,14 +109,62 @@ export function ProfilePage({
     savePrefs,
     refreshRuns,
     goAuth,
+    goAnalysis,
+    settingsPage,
+    consumeSettingsPage,
+    settingsReturnTo,
+    leaveSettings,
   } = useAuth()
   const { setTheme: setNextTheme } = useTheme()
   const [name, setName] = useState("")
-  const [model, setModel] = useState("spectral")
-  const [opacity, setOpacity] = useState(0.75)
   const [theme, setTheme] = useState("dark")
   const [busy, setBusy] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupResult, setBackupResult] = useState<string | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
+  const [restoreBusy, setRestoreBusy] = useState(false)
+  const [restorePreview, setRestorePreview] =
+    useState<store.RestorePreview | null>(null)
+  const [restoreResult, setRestoreResult] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [storage, setStorage] = useState<store.StorageReport | null>(null)
+  const [storageBusy, setStorageBusy] = useState(false)
+  const [storageNote, setStorageNote] = useState<string | null>(null)
+  const [storageError, setStorageError] = useState<string | null>(null)
+  const [storageOpen, setStorageOpen] = useState(false)
+  /*
+    Account, always, unless something asks otherwise while this is open.
+
+    It used to initialise from settingsPage, which made opening settings by
+    hand land on System: useState only reads its argument on the first render,
+    so a request left over from the first-run gate steered every later arrival
+    that reused the same mount, and re-mounting read a value that had not been
+    cleared yet. Either way the user pressed Settings and got the Python
+    environment.
+
+    The request is applied by the effect below instead, which runs when the
+    request actually arrives rather than whenever this component happens to
+    mount.
+  */
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("account")
+
+  /*
+    Applied once, then cleared.
+
+    Clearing is what keeps it to one arrival: left standing, the next visit
+    would be steered by a request nobody made this time, with nothing on screen
+    explaining why settings keeps opening somewhere the user did not choose.
+  */
+  useEffect(() => {
+    if (!settingsPage) return
+    setActiveSection(settingsPage)
+    consumeSettingsPage()
+  }, [settingsPage, consumeSettingsPage])
+  const [focusedSetting, setFocusedSetting] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const prefsReady = useRef(false)
+  const savePrefsTimer = useRef<number | null>(null)
+  const prefsDraftRef = useRef({ theme: "dark" })
 
   useEffect(() => {
     if (!user) {
@@ -45,10 +177,95 @@ export function ProfilePage({
 
   useEffect(() => {
     if (!prefs) return
-    setModel(prefs.default_model || "spectral")
-    setOpacity(prefs.overlay_opacity ?? 0.75)
-    setTheme(prefs.theme || "dark")
+    const next = { theme: prefs.theme || "dark" }
+    setTheme(next.theme)
+    prefsDraftRef.current = next
+    prefsReady.current = true
   }, [prefs])
+
+  /*
+    The model and the opacity are written back exactly as they were read.
+
+    This page no longer edits them -- both are set where they are used, on the
+    map -- but Preferences carries them, so a save that omitted them would
+    write a zero opacity and an empty model over whatever is stored. Passing
+    the stored value through keeps a theme change to being a theme change.
+  */
+  const persistPreferences = useCallback(
+    async (next: { theme: string; layoutMode?: LayoutMode }) => {
+      if (!user) return
+      const payload: Preferences = {
+        user_id: user.id,
+        default_model: prefs?.default_model || "spectral",
+        overlay_opacity: prefs?.overlay_opacity ?? 0.75,
+        theme: next.theme,
+        extras_json: mergePreferenceExtras(
+          prefs?.extras_json,
+          next.layoutMode ? { layout_mode: next.layoutMode } : {}
+        ),
+      }
+      await savePrefs(payload)
+      if (
+        next.theme === "dark" ||
+        next.theme === "light" ||
+        next.theme === "system"
+      ) {
+        setNextTheme(next.theme)
+      }
+    },
+    [
+      prefs?.default_model,
+      prefs?.overlay_opacity,
+      prefs?.extras_json,
+      savePrefs,
+      setNextTheme,
+      user,
+    ]
+  )
+
+  const layoutMode = layoutModeFromPrefs(prefs)
+
+  /*
+    Named from the navigation table so the button and the column agree on what
+    the destination is called. A screen with no entry there -- there is none
+    today -- would fall back to the neutral word rather than to a blank.
+  */
+  const returnLabel =
+    NAV_GROUPS.find((g) => g.id === settingsReturnTo)?.label ?? "the map"
+
+  const schedulePrefsSave = useCallback(
+    (patch: Partial<{ theme: string; layoutMode: LayoutMode }>) => {
+      if (!prefsReady.current) return
+      prefsDraftRef.current = { ...prefsDraftRef.current, ...patch }
+      if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
+      savePrefsTimer.current = window.setTimeout(() => {
+        void persistPreferences(prefsDraftRef.current)
+      }, 280)
+    },
+    [persistPreferences]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (savePrefsTimer.current) window.clearTimeout(savePrefsTimer.current)
+    }
+  }, [])
+
+  const recentRuns = useMemo(() => runs.slice(0, 3), [runs])
+
+  /*
+    The column switches the page; it does not scroll to a heading.
+
+    Every section used to be mounted at once in one scrolling page, with the
+    column scrolling to an anchor and an IntersectionObserver guessing which
+    heading was in view to light the right entry. Two consequences, both bad:
+    the page grows without bound as settings are added, and the column looks
+    like navigation while behaving like a table of contents.
+
+    Rendering one section at a time is what the column already appeared to do,
+    and it removes the observer, the scroll and the refs that fed them.
+  */
+  const page = SECTIONS.find((s) => s.id === activeSection) ?? SECTIONS[0]
 
   if (!user) return null
 
@@ -62,22 +279,152 @@ export function ProfilePage({
     }
   }
 
-  const savePreferences = async () => {
-    setBusy(true)
+  /*
+    The archive is built before the save dialog opens, so a large history
+    spends its time with the button showing it is working rather than behind a
+    dialog the user has already answered.
+
+    An empty path means the dialog was cancelled, which is not an error and not
+    a success -- it clears both and says nothing.
+  */
+  const exportBackup = async () => {
+    setBackupBusy(true)
+    setBackupError(null)
+    setBackupResult(null)
     try {
-      const next: Preferences = {
-        user_id: user.id,
-        default_model: model,
-        overlay_opacity: opacity,
-        theme,
-        extras_json: prefs?.extras_json || "{}",
-      }
-      await savePrefs(next)
-      if (theme === "dark" || theme === "light" || theme === "system") {
-        setNextTheme(theme)
-      }
+      const dest = await ExportBackup()
+      if (dest) setBackupResult(`Saved to ${dest}`)
+    } catch (e) {
+      setBackupError(e instanceof Error ? e.message : String(e))
     } finally {
-      setBusy(false)
+      setBackupBusy(false)
+    }
+  }
+
+  /*
+    Measured on demand, not on mount.
+
+    Walking the data directory costs real time once there are hundreds of
+    analyses, and Account is opened to change a display name far more often
+    than to look at disk usage. Paying for it every visit would slow the common
+    case for the rare one.
+  */
+  const loadStorage = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    setStorageNote(null)
+    try {
+      setStorage(await InspectStorage())
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Measured before the modal opens, not after.
+
+    Opening first would render the dialog against no data, so its first frame
+    would be an empty shell -- and every field in it would have to guard
+    against a report that is not there yet. The button carries the wait
+    instead, where the user already clicked.
+
+    The error stays on the settings row for the same reason: a modal that opens
+    only to say it could not measure anything is a worse way to say it than a
+    line under the button.
+  */
+  const openStorage = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    setStorageNote(null)
+    try {
+      setStorage(await InspectStorage())
+      setStorageOpen(true)
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Clears only the folders no analysis points at.
+
+    No confirmation, deliberately: nothing in the application can open these
+    files and no export includes them, so there is nothing for the user to
+    weigh. A dialog asking them to approve deleting something they cannot see
+    or reach would be theatre.
+  */
+  const purgeOrphans = async () => {
+    setStorageBusy(true)
+    setStorageError(null)
+    try {
+      const result = await PurgeOrphanedRunAssets()
+      setStorageNote(
+        `Cleared ${formatBytes(result.freed_bytes)} from ${result.removed} ${
+          result.removed === 1 ? "folder" : "folders"
+        }.`
+      )
+      setStorage(await InspectStorage())
+    } catch (e) {
+      setStorageError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStorageBusy(false)
+    }
+  }
+
+  /*
+    Choosing a backup describes it and changes nothing.
+
+    An archive that cannot be restored says so here, before the user has agreed
+    to replace anything -- a refusal at this point costs them a file dialog,
+    the same refusal after the swap would cost them their data.
+  */
+  const chooseBackup = async () => {
+    setRestoreBusy(true)
+    setRestoreError(null)
+    setRestoreResult(null)
+    try {
+      const preview = await ChooseBackupArchive()
+      if (!preview) return // Cancelled.
+      if (preview.problem) {
+        setRestoreError(preview.problem)
+        return
+      }
+      setRestorePreview(preview)
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRestoreBusy(false)
+    }
+  }
+
+  /*
+    The restore itself.
+
+    Signing out afterwards is not tidiness: the session belonged to the database
+    that was just replaced, and every restored account carries no password hash.
+    Staying on a profile page describing a user who no longer exists would be
+    the application lying about its own state.
+  */
+  const runRestore = async () => {
+    if (!restorePreview) return
+    setRestoreBusy(true)
+    setRestoreError(null)
+    try {
+      const result = await RestoreBackup(restorePreview.archive_path)
+      setRestorePreview(null)
+      setRestoreResult(
+        `Restored ${result.runs_restored} analyses and ${result.projects_restored} projects. ` +
+          `Your previous data is at ${result.previous_data_path}. Sign in again to continue.`
+      )
+      // Read before signing out: goAuth unmounts this page.
+      window.setTimeout(() => void logout(), 2500)
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRestoreBusy(false)
     }
   }
 
@@ -96,188 +443,598 @@ export function ProfilePage({
   }
 
   return (
-    <div className="app-no-drag flex h-full min-h-0 flex-col overflow-y-auto bg-background">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-8">
-        <div className="flex items-center gap-4">
-          <AvatarCircle uri={user.avatar_uri} size="lg" />
-          <div>
-            <p className="telemetry text-[10px] text-primary">PROFILE</p>
-            <h1 className="mt-1 font-display text-xl font-semibold tracking-wide">{user.display_name}</h1>
-            <p className="mt-1 text-xs text-muted-foreground">{user.email}</p>
-          </div>
-        </div>
-
-        <section className="rounded-md border border-border bg-card/40 p-5">
-          <p className="eyebrow mb-3">Photo</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="hidden"
-              onChange={(e) => void onPickPhoto(e.target.files?.[0] ?? null)}
-            />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => fileRef.current?.click()}
-              className="flex h-8 items-center gap-1.5 rounded-sm border border-border px-3 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-60"
-            >
-              <Camera className="h-3 w-3" />
-              Upload photo
-            </button>
-            {user.avatar_uri && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void clearAvatar()}
-                className="flex h-8 items-center gap-1.5 rounded-sm border border-border px-3 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-60"
-              >
-                <Trash2 className="h-3 w-3" />
-                Remove
-              </button>
-            )}
-            <span className="text-[10px] text-muted-foreground">PNG, JPEG or WebP · max 2 MB</span>
-          </div>
-        </section>
-
-        <section className="rounded-md border border-border bg-card/40 p-5">
-          <p className="eyebrow mb-3">Account</p>
-          <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="eyebrow">Display name</span>
-              <input
-                className="field-input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="eyebrow">Email</span>
-              <input className="field-input opacity-70" value={user.email} readOnly />
-            </label>
-            <button
-              type="button"
-              disabled={busy || !name.trim()}
-              onClick={() => void saveAccount()}
-              className="flex h-9 w-fit items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              <Save className="h-3 w-3" />
-              Save profile
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-md border border-border bg-card/40 p-5">
-          <p className="eyebrow mb-4">Preferences</p>
-          <div className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1">
-              <span className="eyebrow">Default model</span>
-              <select
-                className="field-input"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-              >
-                <option value="spectral">Random Forest (spectral)</option>
-                <option value="temporal_transformer">Temporal Transformer</option>
-                <option value="prithvi">Prithvi-EO 2.0</option>
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="eyebrow">Overlay opacity · {opacity.toFixed(2)}</span>
-              <input
-                type="range"
-                min={0.2}
-                max={1}
-                step={0.05}
-                value={opacity}
-                onChange={(e) => setOpacity(Number(e.target.value))}
-                className="w-full"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="eyebrow">Theme</span>
-              <select
-                className="field-input"
-                value={theme}
-                onChange={(e) => setTheme(e.target.value)}
-              >
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="system">System</option>
-              </select>
-            </label>
-
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void savePreferences()}
-              className="flex h-9 w-fit items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              <Save className="h-3 w-3" />
-              Save preferences
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-md border border-border bg-card/40 p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <History className="h-3.5 w-3.5 text-primary" />
-            <p className="eyebrow !text-foreground">Saved analyses</p>
-          </div>
-          {runs.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No saved analyses yet. Classify an area on the map — results are stored locally.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {runs.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between gap-3 rounded-sm border border-border/60 bg-secondary/30 px-3 py-2.5 text-xs"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium text-foreground">
-                        {r.label || r.model_kind}
-                      </span>
-                      <span className="telemetry shrink-0 text-muted-foreground">
-                        {r.n_dates} scenes
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-muted-foreground">
-                      {r.model_kind} · {r.period_start} → {r.period_end}
-                    </div>
-                    <div className="telemetry mt-1 text-[10px] text-muted-foreground/80">
-                      {new Date(r.created_at).toLocaleString()}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!!loadingRun}
-                    onClick={() => void onOpenRun(r)}
-                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-sm border border-border px-3 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-60"
-                  >
-                    <FolderOpen className="h-3 w-3" />
-                    Open
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
+    <PageShell>
+      <PageAside>
+        {/* Whose settings, which the removed header used to say twice. The
+            display name rather than the literal "User": it is the one thing
+            here the title bar does not already carry. */}
+        {/*
+          The way out, named after where it goes.
+          
+          Settings is the only screen with no work of its own to return to, and
+          leaving it meant picking a destination from the navigation column --
+          which required remembering what you had been doing, and landed you
+          beside it rather than back in it: from the solar tab, the nearest
+          column entry is Classification, which is a different product on a
+          different screen.
+          
+          The label comes from the navigation table, so it is the same word the
+          column uses for the place it returns to.
+        */}
         <button
           type="button"
-          onClick={() => void logout()}
-          className="flex h-9 w-fit items-center justify-center gap-1.5 rounded-sm border border-border px-4 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+          onClick={leaveSettings}
+          className={cn(
+            "flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-emphasis",
+            "text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground",
+            focusRing
+          )}
         >
-          <LogOut className="h-3 w-3" />
-          Sign out
+          <ArrowLeft className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">
+            Back to {returnLabel}
+          </span>
         </button>
-      </div>
+
+        <div className="border-b border-border px-3 py-3">
+          <p className="telemetry text-meta text-accent-quiet">SETTINGS</p>
+          <p className="mt-1 truncate text-emphasis font-medium text-foreground">
+            {user.display_name}
+          </p>
+        </div>
+        <nav className="flex-1 overflow-y-auto px-1.5 py-2">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setActiveSection(s.id)}
+              aria-current={activeSection === s.id ? "true" : undefined}
+              className={cn(
+                "nav-item flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-emphasis",
+                focusRing,
+                activeSection === s.id && "is-active"
+              )}
+            >
+              <span className="truncate text-foreground/90">{s.label}</span>
+              {/* Muted reads 3.20 to 1 on the active row's accent fill, under
+                  the 4.5 floor, so the count follows the label up on that row
+                  rather than staying the one unreadable thing on it. */}
+              {s.count !== undefined && (
+                <span
+                  className={cn(
+                    "telemetry shrink-0 text-meta",
+                    activeSection === s.id
+                      ? "text-foreground/80"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  ({s.count})
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+        <div className="flex flex-col gap-2 border-t border-border px-3 py-2">
+          {/* Kept from the deleted header, next to the column it describes.
+              Only the preferences autosave -- the display name still has its
+              own Save -- so it reads as a property of the page, not a promise
+              about every control on it. */}
+          <p className="telemetry text-meta text-muted-foreground">
+            Preferences apply automatically
+          </p>
+        </div>
+      </PageAside>
+
+      <PageBody>
+        <div className="mx-auto w-full max-w-3xl px-5 py-4 sm:px-8">
+          {/* The page's one heading. Each section used to carry its own, which
+              is why System showed "System" and then "Python environment"
+              directly beneath it. */}
+          <h2 className="mb-1 border-b border-border pb-2 font-display text-heading font-semibold tracking-wide text-foreground">
+            {page.label}
+          </h2>
+
+          {activeSection === "account" && (
+            <Section>
+              <SettingRow
+                id="account.photo"
+                title="Profile photo"
+                description="Shown in the app sidebar. PNG, JPEG or WebP, max 2 MB."
+                focused={focusedSetting === "account.photo"}
+                onFocus={() => setFocusedSetting("account.photo")}
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <AvatarCircle uri={user.avatar_uri} size="lg" />
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => void onPickPhoto(e.target.files?.[0] ?? null)}
+                  />
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => fileRef.current?.click()}
+                    className={btnGhost}
+                  >
+                    <Camera className="h-3 w-3" />
+                    Upload
+                  </button>
+                  {user.avatar_uri && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void clearAvatar()}
+                      className={btnGhost}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </SettingRow>
+
+              <SettingRow
+                id="account.displayName"
+                title="Display name"
+                description="Name shown in the title bar and analysis headers."
+                focused={focusedSetting === "account.displayName"}
+                onFocus={() => setFocusedSetting("account.displayName")}
+              >
+                <div className="flex max-w-md flex-wrap items-center gap-2">
+                  <input
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={busy || !name.trim()}
+                    onClick={() => void saveAccount()}
+                    className={btnPrimary}
+                  >
+                    <Save className="h-3 w-3" />
+                    Save
+                  </button>
+                </div>
+              </SettingRow>
+
+              <SettingRow
+                id="account.email"
+                title="Email"
+                description="Local account identifier. Not editable."
+                focused={focusedSetting === "account.email"}
+                onFocus={() => setFocusedSetting("account.email")}
+              >
+                <input
+                  className="field-input max-w-md opacity-70 focus-visible:ring-1 focus-visible:ring-ring"
+                  value={user.email}
+                  readOnly
+                />
+              </SettingRow>
+
+              {/* Was a section called "Session", which held no session: it held
+                  your work. Your identity and your history are the same
+                  subject, and splitting them put the run list under a heading
+                  that suggested it would be lost on sign-out. */}
+              <SettingRow
+                id="account.activity"
+                title="Activity"
+                description="Runs per day over the last year. A run is one classification, composition, water, solar or wind analysis."
+                focused={focusedSetting === "account.activity"}
+                onFocus={() => setFocusedSetting("account.activity")}
+              >
+                <ActivityGrid />
+              </SettingRow>
+
+              <SettingRow
+                id="account.analyses"
+                title="Saved analyses"
+                description="Full history lives in the project hub. The most recent are listed here."
+                focused={focusedSetting === "account.analyses"}
+                onFocus={() => setFocusedSetting("account.analyses")}
+              >
+                <button type="button" onClick={goAnalysis} className={btnGhost}>
+                  <ChartColumn className="h-3 w-3" />
+                  Open project hub
+                </button>
+                {recentRuns.length === 0 ? (
+                  <p className="mt-3 text-body text-muted-foreground">
+                    No recent analyses yet.
+                  </p>
+                ) : (
+                  <ul className="mt-3 flex flex-col gap-1.5">
+                    {recentRuns.map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 rounded-sm border border-border bg-secondary px-3 py-2 text-body"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-foreground">
+                            {displayRunLabel(r.label) || r.model_kind}
+                          </div>
+                          <div className="mt-0.5 truncate text-muted-foreground">
+                            {runRowLine(r)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!!loadingRun}
+                          onClick={() => void onOpenRun(r)}
+                          className={btnGhost}
+                        >
+                          <FolderOpen className="h-3 w-3" />
+                          Open
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </SettingRow>
+
+              {/* Everything this application saves lives in one directory on
+                  one machine: no server, no account holding a second copy. A
+                  reinstalled laptop takes every analysis with it, and until
+                  now there was no way out. */}
+              <SettingRow
+                id="account.backup"
+                title="Backup"
+                description="Writes your analyses, projects and their images to a single ZIP file. Passwords and sessions are left out, so the file can be stored or sent without carrying a credential."
+                focused={focusedSetting === "account.backup"}
+                onFocus={() => setFocusedSetting("account.backup")}
+              >
+                <button
+                  type="button"
+                  disabled={backupBusy}
+                  onClick={() => void exportBackup()}
+                  className={btnGhost}
+                >
+                  {backupBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3" />
+                  )}
+                  {backupBusy ? "Writing backup" : "Export backup"}
+                </button>
+                {/* The written path, not just "done". A file the user chose
+                    the location of is one they have to find again. */}
+                {backupResult && (
+                  <p className="telemetry mt-2 break-all text-micro text-muted-foreground">
+                    {backupResult}
+                  </p>
+                )}
+                {backupError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {backupError}
+                  </p>
+                )}
+              </SettingRow>
+
+              {/* Where the space went, measured rather than estimated.
+                  Nothing else reports this: the data directory grows with
+                  every analysis and the application never mentions it, so a
+                  user whose disk is filling has no way to learn that this is
+                  where it went or what is safe to remove. */}
+              <SettingRow
+                id="account.storage"
+                title="Storage"
+                description="What the saved data is made of, measured on disk. Opens a full breakdown by analysis, type and project."
+                focused={focusedSetting === "account.storage"}
+                onFocus={() => setFocusedSetting("account.storage")}
+              >
+                <button
+                  type="button"
+                  disabled={storageBusy}
+                  onClick={() => void openStorage()}
+                  className={btnGhost}
+                >
+                  {storageBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <HardDrive className="h-3 w-3" />
+                  )}
+                  {storage
+                    ? `${formatBytes(storage.total_bytes)} used`
+                    : "Measure storage"}
+                </button>
+                {storageError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {storageError}
+                  </p>
+                )}
+              </SettingRow>
+
+              {/* A restore replaces everything, so it is two steps: choose a
+                  file and read what it holds, then confirm. One click from a
+                  file dialog to a replaced database is the wrong weight for an
+                  operation this size. */}
+              <SettingRow
+                id="account.restore"
+                title="Restore from backup"
+                description="Replaces everything here with the contents of a backup. Your current data is moved aside rather than deleted, and accounts come back needing a new password."
+                focused={focusedSetting === "account.restore"}
+                onFocus={() => setFocusedSetting("account.restore")}
+              >
+                {!restorePreview ? (
+                  <button
+                    type="button"
+                    disabled={restoreBusy}
+                    onClick={() => void chooseBackup()}
+                    className={btnGhost}
+                  >
+                    {restoreBusy ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Upload className="h-3 w-3" />
+                    )}
+                    Choose a backup
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2 rounded-sm border border-border bg-background px-3 py-2">
+                    {/* What is about to arrive, and what it displaces. Stated
+                        before the action, not reported after it. */}
+                    <p className="text-body text-foreground">
+                      This backup holds {restorePreview.manifest.counts.runs}{" "}
+                      {restorePreview.manifest.counts.runs === 1
+                        ? "analysis"
+                        : "analyses"}{" "}
+                      and {restorePreview.manifest.counts.projects}{" "}
+                      {restorePreview.manifest.counts.projects === 1
+                        ? "project"
+                        : "projects"}
+                      , written {restorePreview.manifest.created_at.slice(0, 10)}.
+                    </p>
+                    <p className="text-body text-muted-foreground">
+                      Restoring replaces the{" "}
+                      {restorePreview.current.runs}{" "}
+                      {restorePreview.current.runs === 1
+                        ? "analysis"
+                        : "analyses"}{" "}
+                      and {restorePreview.current.projects}{" "}
+                      {restorePreview.current.projects === 1
+                        ? "project"
+                        : "projects"}{" "}
+                      currently here. You will be signed out and will need to set
+                      a password again.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={restoreBusy}
+                        onClick={() => void runRestore()}
+                        className={btnPrimary}
+                      >
+                        {restoreBusy && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        Replace my data
+                      </button>
+                      <button
+                        type="button"
+                        disabled={restoreBusy}
+                        onClick={() => setRestorePreview(null)}
+                        className={btnGhost}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {restoreResult && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <p className="text-body text-foreground">{restoreResult}</p>
+                  </div>
+                )}
+                {restoreError && (
+                  <p className="mt-2 text-body text-destructive-quiet">
+                    {restoreError}
+                  </p>
+                )}
+              </SettingRow>
+
+              {/* Was a page of its own holding this one control. A single
+                  setting is not a page, and the theme is a property of the
+                  person signed in rather than of the installation -- which is
+                  the difference between this page and System. */}
+              <SettingRow
+                id="account.theme"
+                title="Color theme"
+                description="Controls the overall light/dark appearance of TERRA."
+                focused={focusedSetting === "account.theme"}
+                onFocus={() => setFocusedSetting("account.theme")}
+              >
+                <select
+                  className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                  value={theme}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setTheme(next)
+                    schedulePrefsSave({ theme: next })
+                  }}
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                  <option value="system">System</option>
+                </select>
+              </SettingRow>
+
+              <SettingRow
+                id="account.layout"
+                title="Map layout"
+                description="How the map and energy screens are arranged. The title bar switches between them too; this is where the choice is explained and where it is restored from on start."
+                focused={focusedSetting === "account.layout"}
+                onFocus={() => setFocusedSetting("account.layout")}
+              >
+                <div className="flex max-w-md flex-col gap-2">
+                  <select
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                    value={layoutMode}
+                    onChange={(e) =>
+                      schedulePrefsSave({
+                        layoutMode: e.target.value as LayoutMode,
+                      })
+                    }
+                  >
+                    <option value="docked">Sidebar and column</option>
+                    <option value="workspace">Dock</option>
+                  </select>
+                  <p className="text-meta leading-relaxed text-muted-foreground">
+                    {layoutMode === "workspace"
+                      ? "Controls sit in a bar at the foot of the map, with parameters in a drawer. The map takes the full width."
+                      : "A navigation column on the left and the product's controls in a panel beside it."}
+                  </p>
+                </div>
+              </SettingRow>
+
+              {/* Sign out belongs to the account, not to the bottom of a
+                  column. It sat in the aside footer, as far from the identity
+                  it ends as the layout allowed. */}
+              <SettingRow
+                id="account.signout"
+                title="Sign out"
+                description="Saved runs and projects stay on this machine and are here when you sign back in."
+                focused={focusedSetting === "account.signout"}
+                onFocus={() => setFocusedSetting("account.signout")}
+              >
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className={btnGhost}
+                >
+                  <LogOut className="h-3 w-3" />
+                  Sign out
+                </button>
+              </SettingRow>
+            </Section>
+          )}
+
+          {/* Not wrapped in a SettingRow. A row is a labelled field with a
+              description beside it, which is right for a name or a slider and
+              wrong for this: wrapped, the page showed its title twice and
+              indented the whole thing as though it were one control's value. */}
+          {activeSection === "system" && (
+            <Section>
+              <div className="pt-3">
+                <EnvironmentPanel />
+              </div>
+            </Section>
+          )}
+
+          {/*
+            Outside the section switch, so it closes the page rather than one
+            of its tabs -- and last, because an ask placed above the settings
+            someone came here to change is an ask that interrupts them.
+
+            Both links open in the system browser through BrowserOpenURL: this
+            is a WKWebView with no createWebViewWith delegate, so an anchor
+            with target="_blank" is silently ignored.
+          */}
+          <div
+            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <p className="min-w-0 flex-1 text-meta leading-relaxed text-muted-foreground">
+              TERRA is open source. If it is useful to you, a star helps other
+              people find it, and sponsoring pays for the time that goes into it.
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL(REPO_URL)}
+                className={btnGhost}
+              >
+                <Star className="h-3 w-3" />
+                Star on GitHub
+              </button>
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL(SPONSOR_URL)}
+                className={btnGhost}
+              >
+                <Heart className="h-3 w-3" />
+                Sponsor
+              </button>
+            </div>
+          </div>
+        </div>
+      </PageBody>
+
+      {/* Rendered only with a report in hand: openStorage measures first, so
+          the dialog never has to guard against data that has not arrived. */}
+      <AnimatePresence>
+        {storageOpen && storage && (
+          <StorageModal
+            report={storage}
+            busy={storageBusy}
+            note={storageNote}
+            problem={storageError}
+            onRefresh={() => void loadStorage()}
+            onPurge={() => void purgeOrphans()}
+            onClose={() => setStorageOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+    </PageShell>
+  )
+}
+
+/**
+ * One page of settings.
+ *
+ * It carries no heading and no anchor any more: one page is mounted at a time
+ * and the body titles it once, so a heading here would print the same word
+ * twice, and there is nothing left to scroll to.
+ */
+function Section({ children }: { children: React.ReactNode }) {
+  return <section className="flex flex-col">{children}</section>
+}
+
+function SettingRow({
+  id,
+  title,
+  description,
+  children,
+  focused,
+  onFocus,
+}: {
+  id: string
+  title: string
+  description: string
+  children: React.ReactNode
+  focused: boolean
+  onFocus: () => void
+}) {
+  return (
+    <div
+      data-setting={id}
+      className={cn(
+        "relative border-l-2 py-3.5 pl-4 pr-2 transition-colors",
+        focused
+          ? // The marker was the accent at 22 percent, which composites to
+            // rgb(95 54 38) and reads 1.31 to 1 against the row's own
+            // background -- the mark that says which setting is in hand was
+            // the one thing on the row nobody could see. At full strength it
+            // measures 3.93, clearing what WCAG 1.4.11 asks of a state
+            // indicator, and accent at full strength is what the system
+            // reserves for exactly this.
+            "border-primary bg-secondary"
+          : "border-transparent hover:bg-secondary/55"
+      )}
+      // Focus, not just mouse. React's onFocus follows focusin, so it fires
+      // when any control inside the row takes focus -- which is what the row
+      // is trying to report. Bound to onMouseDown alone it reported only
+      // pointer users, and every control underneath had to carry a duplicate
+      // handler to cover the keyboard; a control added without one simply
+      // moved focus into a row that never lit.
+      onFocus={onFocus}
+      onMouseDown={onFocus}
+    >
+      <div className="text-emphasis font-medium text-foreground">{title}</div>
+      <p className="mt-1 max-w-2xl text-body leading-relaxed text-muted-foreground">
+        {description}
+      </p>
+      <div className="mt-2.5">{children}</div>
     </div>
   )
 }

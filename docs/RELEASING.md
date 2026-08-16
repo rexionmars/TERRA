@@ -12,7 +12,7 @@ For this desktop app, treat as user-facing surface:
 
 - Documented workflows (AOI → Classify → Analysis → Compare)
 - Install flavors (LITE / FULL) and layout of release zips
-- Environment variables (`GEOSENSE_*`) and sidecar JSON contracts
+- Environment variables (`TERRA_*`) and sidecar JSON contracts
 - Documented model choices and runtime requirements
 
 Internal refactors, tests, and CI that do not change the above are not release-worthy by themselves.
@@ -45,7 +45,12 @@ JOSS acceptance / production-ready install story).
 1. `main` is green (CI) and contains only what you intend to ship.
 2. Decide PATCH / MINOR / MAJOR with the table above.
 3. Update release notes mentally: what should users download (LITE vs FULL)?
-4. Tag and push:
+4. Bump embedded `AppVersion` in [`version.go`](../version.go) to match the tag
+   (or pass `-ldflags "-X main.AppVersion=X.Y.Z"` in the release build), and add a
+   matching entry in [`frontend/src/lib/whatsNew.ts`](../frontend/src/lib/whatsNew.ts)
+   if the release should show a What’s New modal.
+5. Pick the release's still and code name — see below.
+6. Tag and push:
 
 ```bash
 git checkout main && git pull
@@ -53,8 +58,51 @@ git tag -a v0.3.0 -m "TERRA v0.3.0 — short reason"
 git push origin v0.3.0
 ```
 
-5. Confirm the Release workflow finished and assets appear on
+7. Confirm the Release workflow finished and assets appear on
    [Releases](https://github.com/rexionmars/TERRA/releases).
+
+## Code names and the splash still
+
+Each release has a code name, fixed for the version the way Sierra and Sonoma
+are. It is shown on the splash under the wordmark, beside the version number,
+and does not change from launch to launch.
+
+The stills carry names from the same set, and the release is named for one of
+them: that photograph is what the first launch after an update shows, before
+joining the rotation. The correspondence is deliberate but not a dependency —
+the release keeps its name whichever photograph the rotation lands on.
+
+Names come from one set: **what is observable from orbit**. `Meander`,
+`Terraces`, `Vortex`, `Windfarm`, `Ember`. The coherence is the point — a set
+is what makes the names read as deliberate rather than arbitrary — and it does
+not run out. Pick a name that fits the image, and an image that fits what the
+release is about: a version focused on solar and wind ships turbines at dusk.
+
+### Adding one
+
+Images are photographs from [Pexels](https://www.pexels.com), which needs no
+attribution. The manifest records the photographer and URL anyway: it is the
+only route back to the original if the file ever needs re-encoding.
+
+Downloads are full-resolution — 24 megapixels is normal — and the splash window
+is 420x280. Resize and convert before committing, or the binary grows by
+megabytes for an image shown for about a second:
+
+```bash
+sips -Z 1600 original.jpg --out /tmp/resized.jpg
+cwebp -q 82 /tmp/resized.jpg -o frontend/public/terra-splash-images/<name>.webp
+```
+
+1600px and q82 are what the existing stills use; keeping to them keeps the set
+consistent. Check the result by eye before committing — skies and open water
+are where WebP bands first, and every one of these is mostly sky.
+
+Then add an entry to `SPLASH_STILLS` in
+[`splashBackground.ts`](../frontend/src/lib/splashBackground.ts), point
+`FEATURED_STILL` at it, and set `RELEASE_NAME` in
+[`brand.ts`](../frontend/src/lib/brand.ts) to match. Nothing else needs
+editing: `index.html` receives both at build time, and a path with no file on
+disk fails the build.
 
 ## Current line
 

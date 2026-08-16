@@ -1,13 +1,14 @@
 import { ArrowLeft, ArrowLeftRight } from "lucide-react"
+import { PageBody, PageShell } from "@/components/ui/PageShell"
+import { btnGhost, btnGhostDense, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
+  Label,
 } from "recharts"
 import type {
   ClassStat,
@@ -15,6 +16,16 @@ import type {
   PhenologyMetrics,
   PredictResult,
 } from "@/lib/types"
+import { displayRunLabel } from "@/lib/aoiLabel"
+import {
+  gapLimitMs,
+  dateToMs,
+  insertTimeGaps,
+  timeAxisProps,
+  timeLabelFormatter,
+  timeTickFormatter,
+} from "@/lib/chartAxis"
+import { DomainShiftSection } from "@/components/DomainShiftSection"
 
 function modelLabel(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
@@ -24,7 +35,8 @@ function modelLabel(kind: string): string {
 }
 
 function runTitle(run: InferenceRun): string {
-  return run.label?.trim() || modelLabel(run.model_kind)
+  const t = displayRunLabel(run.label)
+  return t === "run-untitled" ? modelLabel(run.model_kind) : t
 }
 
 function extentsDiffer(a: PredictResult, b: PredictResult): boolean {
@@ -48,8 +60,8 @@ function polygonsDiffer(runA: InferenceRun, runB: InferenceRun): boolean {
 }
 
 export function mergeClassStats(
-  a: ClassStat[] | undefined,
-  b: ClassStat[] | undefined
+  a: ClassStat[] | null | undefined,
+  b: ClassStat[] | null | undefined
 ): Array<{
   class_id: number
   name: string
@@ -125,16 +137,16 @@ function RunSummaryCard({
       ? `${(result.mean_confidence * 100).toFixed(0)}%`
       : "—"
   return (
-    <div className="rounded-md border border-border bg-card/40 p-4">
+    <div className="rounded-sm border border-border bg-secondary/50 p-4">
       <div className="flex items-center gap-2">
-        <span className="telemetry rounded-sm bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">
+        <span className="telemetry shrink-0 rounded-sm bg-primary/20 px-1.5 py-0.5 text-meta text-primary">
           {slot}
         </span>
         <h2 className="truncate font-display text-sm font-semibold tracking-wide">
           {runTitle(run)}
         </h2>
       </div>
-      <p className="mt-1 text-[11px] text-muted-foreground">
+      <p className="mt-1 text-body text-muted-foreground">
         {modelLabel(run.model_kind)} · {run.period_start} → {run.period_end}
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2">
@@ -151,9 +163,9 @@ function RunSummaryCard({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-sm border border-border/60 bg-secondary/20 px-2 py-1.5">
+    <div className="rounded-sm border border-border bg-secondary flex min-h-[4.25rem] flex-col justify-center px-2.5 py-2">
       <div className="eyebrow">{label}</div>
-      <div className="telemetry mt-0.5 text-[12px] text-foreground">{value}</div>
+      <div className="telemetry mt-0.5 text-emphasis text-foreground">{value}</div>
     </div>
   )
 }
@@ -169,12 +181,12 @@ function PanelTile({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="eyebrow !text-foreground/80">{title}</p>
-      <div className="relative aspect-[4/3] overflow-hidden rounded-sm border border-border bg-secondary/30">
+      <p className="eyebrow !text-muted-foreground">{title}</p>
+      <div className="rounded-sm border border-border bg-background relative aspect-[4/3] overflow-hidden">
         {uri ? (
           <img src={uri} alt={title} className="h-full w-full object-contain" />
         ) : (
-          <div className="flex h-full items-center justify-center px-3 text-center text-[10px] text-muted-foreground">
+          <div className="flex h-full items-center justify-center px-3 text-center text-meta text-muted-foreground">
             {empty}
           </div>
         )}
@@ -201,12 +213,15 @@ function PhenologyCompare({
     { key: "amplitude", label: "Amp" },
   ]
   return (
-    <section className="rounded-md border border-border bg-card/40 p-5">
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
       <p className="eyebrow mb-3">Phenology metrics · A vs B</p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[28rem] text-left text-xs">
           <thead>
-            <tr className="border-b border-border/60 text-[10px] text-muted-foreground">
+            <tr
+              className="border-b text-meta text-muted-foreground"
+              style={{ borderColor: "var(--border)" }}
+            >
               <th className="py-1.5 pr-3 font-normal">Metric</th>
               <th className="py-1.5 pr-3 font-normal">A</th>
               <th className="py-1.5 font-normal">B</th>
@@ -214,7 +229,11 @@ function PhenologyCompare({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.key} className="border-b border-border/40">
+              <tr
+                key={r.key}
+                className="border-b"
+                style={{ borderColor: "var(--border)" }}
+              >
                 <td className="py-1.5 pr-3 text-muted-foreground">{r.label}</td>
                 <td className="telemetry py-1.5 pr-3">
                   {fmtMetric(
@@ -234,6 +253,104 @@ function PhenologyCompare({
         </table>
       </div>
     </section>
+  )
+}
+
+function NdviChart({
+  slot,
+  data,
+  stroke,
+  domain,
+  yDomain,
+}: {
+  slot: "A" | "B"
+  data: PredictResult["vi_series"]
+  stroke: string
+  /**
+   * The time span BOTH panels are drawn on.
+   *
+   * Each panel scaled to its own dates before, so two runs over different
+   * periods were drawn the same width and read as directly comparable. The
+   * whole point of this view is comparing them, and the axis was the one thing
+   * making that impossible: a run over three months and a run over a year
+   * looked like the same season.
+   */
+  domain: [number, number]
+  /** Shared for the same reason, so a difference in height is a difference. */
+  yDomain: [number, number]
+}) {
+  const points = (data ?? []).map((p) => ({
+    t: dateToMs(p.date),
+    ndvi_mean: p.ndvi_mean,
+  }))
+  // Per panel, from that run's own cadence: the two runs being compared may
+  // have been sampled differently, and one threshold for both would break the
+  // sparser series or join across a real absence in the denser one.
+  const rows = insertTimeGaps(points, gapLimitMs(points.map((r) => r.t)))
+  return (
+    <div>
+      <p className="mb-1 text-meta text-muted-foreground">{slot}</p>
+      <ResponsiveContainer width="100%" height={180}>
+        <LineChart data={rows} margin={{ top: 4, right: 10, left: 2, bottom: 18 }}>
+          <XAxis
+            {...timeAxisProps}
+            domain={domain}
+            allowDataOverflow
+            tickFormatter={timeTickFormatter(domain[1] - domain[0])}
+            stroke="var(--border)"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickMargin={6}
+            minTickGap={26}
+          >
+            <Label
+              value="Acquisition date"
+              position="insideBottom"
+              offset={-12}
+              style={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            />
+          </XAxis>
+          <YAxis
+            domain={yDomain}
+            stroke="var(--border)"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tickFormatter={(v: number) => v.toFixed(2)}
+            width={46}
+          >
+            <Label
+              value="NDVI (dimensionless)"
+              angle={-90}
+              position="insideLeft"
+              style={{
+                fontSize: 12,
+                fill: "var(--muted-foreground)",
+                textAnchor: "middle",
+              }}
+            />
+          </YAxis>
+          <Tooltip
+            labelFormatter={timeLabelFormatter}
+            formatter={(v: number) => v.toFixed(2)}
+            contentStyle={{
+              backgroundColor: "var(--popover)",
+              border: "1px solid var(--border)",
+              borderRadius: 5,
+              fontSize: 11,
+            }}
+          />
+          <Line
+            type="linear"
+            dataKey="ndvi_mean"
+            name="NDVI"
+            stroke={stroke}
+            strokeWidth={1.6}
+            dot={{ r: 1.6, strokeWidth: 0, fill: stroke }}
+            activeDot={{ r: 3 }}
+            connectNulls={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -259,6 +376,37 @@ export function CompareAnalyses({
   const merged = mergeClassStats(resultA.class_stats, resultB.class_stats)
   const hasVi =
     (resultA.vi_series?.length ?? 0) > 0 && (resultB.vi_series?.length ?? 0) > 0
+
+  /**
+   * One pair of axes for both panels.
+   *
+   * Each scaled to its own data before, which is the failure mode this whole
+   * screen exists to avoid: two runs over different periods drew the same
+   * width, so a three-month season and a full year looked alike, and a
+   * difference in curve height was as likely to be a difference in axis as a
+   * difference in vegetation.
+   */
+  const viTimes = [...(resultA.vi_series ?? []), ...(resultB.vi_series ?? [])]
+    .map((p) => dateToMs(p.date))
+    .filter((t) => Number.isFinite(t))
+  const viDomain: [number, number] = viTimes.length
+    ? [Math.min(...viTimes), Math.max(...viTimes)]
+    : [0, 1]
+
+  const viValues = [...(resultA.vi_series ?? []), ...(resultB.vi_series ?? [])]
+    .map((p) => p.ndvi_mean)
+    .filter((v) => Number.isFinite(v))
+  // Padded by a twentieth so the extremes are not drawn on the frame, and
+  // taken from the data rather than forced to 0..1: NDVI is defined on [-1, 1]
+  // and a fixed floor of -0.1 silently clipped water and cloud shadow.
+  const viYDomain: [number, number] = viValues.length
+    ? (() => {
+        const lo = Math.min(...viValues)
+        const hi = Math.max(...viValues)
+        const pad = Math.max(0.02, (hi - lo) / 20)
+        return [lo - pad, hi + pad]
+      })()
+    : [0, 1]
   const hasPheno =
     !!(resultA.phenology || resultB.phenology) &&
     ((resultA.n_dates ?? 0) > 0 ||
@@ -267,12 +415,11 @@ export function CompareAnalyses({
       !!resultB.overlay_uri)
 
   return (
-    <div className="app-no-drag flex h-full min-h-0 flex-col overflow-y-auto bg-background">
-      <div className="flex w-full flex-col gap-6 px-5 py-7 sm:px-6 lg:px-8 xl:px-10">
+    <PageShell className="flex-col">
+      <header className="shrink-0 px-4 pb-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="telemetry text-[10px] text-primary">COMPARE</p>
-            <h1 className="mt-1 font-display text-xl font-semibold tracking-wide xl:text-2xl">
+            <h1 className="font-display text-xl font-semibold tracking-wide xl:text-2xl">
               Compare analyses
             </h1>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -280,204 +427,143 @@ export function CompareAnalyses({
               saved runs.
             </p>
             {differentAoi && (
-              <p className="mt-2 text-[11px] text-amber-500/90">
+              <p className="mt-2 text-body text-amber-500/90">
                 Areas of interest differ — maps and stats may not be directly
                 comparable.
               </p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex h-8 items-center gap-1.5 rounded-sm border border-border px-3 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
+            <button type="button" onClick={onBack} className={btnGhost}>
               <ArrowLeft className="h-3 w-3" />
               Back to list
             </button>
-            <button
-              type="button"
-              onClick={onSwap}
-              className="flex h-8 items-center gap-1.5 rounded-sm border border-border px-3 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
+            <button type="button" onClick={onSwap} className={btnGhost}>
               <ArrowLeftRight className="h-3 w-3" />
               Swap A / B
             </button>
           </div>
         </div>
+      </header>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <RunSummaryCard slot="A" run={runA} result={resultA} />
-          <RunSummaryCard slot="B" run={runB} result={resultB} />
-        </div>
-
-        <section className="rounded-md border border-border bg-card/40 p-4">
-          <p className="eyebrow mb-3">Overlays · prediction & confidence</p>
-          <div className="grid grid-cols-4 gap-3">
-            <PanelTile
-              title={`Predicted · ${modelLabel(runA.model_kind)}`}
-              uri={resultA.overlay_uri}
-              empty="No prediction"
-            />
-            <PanelTile
-              title={`Predicted · ${modelLabel(runB.model_kind)}`}
-              uri={resultB.overlay_uri}
-              empty="No prediction"
-            />
-            <PanelTile
-              title="Confidence · A"
-              uri={resultA.confidence_uri}
-              empty="No confidence map"
-            />
-            <PanelTile
-              title="Confidence · B"
-              uri={resultB.confidence_uri}
-              empty="No confidence map"
-            />
+      <PageBody>
+        <div className="flex w-full flex-col gap-3 px-5 py-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <RunSummaryCard slot="A" run={runA} result={resultA} />
+            <RunSummaryCard slot="B" run={runB} result={resultB} />
           </div>
-        </section>
 
-        {merged.length > 0 && (
-          <section className="rounded-md border border-border bg-card/40 p-5">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-              <p className="eyebrow !text-foreground">Class distribution · A vs B</p>
-              <div className="flex gap-3 text-[10px] text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-4 rounded-full bg-primary/80" />
-                  A
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-4 rounded-full bg-sky-400/80" />
-                  B
-                </span>
-              </div>
+          <DomainShiftSection
+            resultA={resultA}
+            resultB={resultB}
+            labelA={runTitle(runA)}
+            labelB={runTitle(runB)}
+          />
+
+          <section className="rounded-sm border border-border bg-secondary/50 p-4">
+            <p className="eyebrow mb-3">Overlays · prediction & confidence</p>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <PanelTile
+                title={`Predicted · ${modelLabel(runA.model_kind)}`}
+                uri={resultA.overlay_uri}
+                empty="No prediction"
+              />
+              <PanelTile
+                title={`Predicted · ${modelLabel(runB.model_kind)}`}
+                uri={resultB.overlay_uri}
+                empty="No prediction"
+              />
+              <PanelTile
+                title="Confidence · A"
+                uri={resultA.confidence_uri}
+                empty="No confidence map"
+              />
+              <PanelTile
+                title="Confidence · B"
+                uri={resultB.confidence_uri}
+                empty="No confidence map"
+              />
             </div>
-            <ul className="flex flex-col gap-2.5">
-              {merged.map((row) => (
-                <li key={row.class_id} className="flex flex-col gap-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="size-2.5 shrink-0 rounded-[2px]"
-                      style={{ backgroundColor: row.color }}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{row.name}</span>
-                    <span className="telemetry shrink-0 text-muted-foreground">
-                      {row.pctA.toFixed(1)}% / {row.pctB.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                    <span className="relative h-2 overflow-hidden rounded-full bg-secondary">
-                      <span
-                        className="absolute inset-y-0 left-0 rounded-full bg-primary/80"
-                        style={{ width: `${Math.min(100, row.pctA)}%` }}
-                      />
-                    </span>
-                    <span className="relative h-2 overflow-hidden rounded-full bg-secondary">
-                      <span
-                        className="absolute inset-y-0 left-0 rounded-full bg-sky-400/80"
-                        style={{ width: `${Math.min(100, row.pctB)}%` }}
-                      />
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
           </section>
-        )}
 
-        {(hasPheno || hasVi) && (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-stretch">
-            {hasPheno && (
-              <PhenologyCompare a={resultA.phenology} b={resultB.phenology} />
-            )}
-            {hasVi && (
-              <section className="rounded-md border border-border bg-card/40 p-5">
-                <p className="eyebrow mb-3">NDVI mean · A vs B</p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="mb-1 text-[10px] text-muted-foreground">A</p>
-                    <ResponsiveContainer width="100%" height={160}>
-                      <LineChart
-                        data={resultA.vi_series}
-                        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="2 4" stroke="var(--hairline)" />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
-                          tickFormatter={(d: string) => d.slice(2, 7)}
-                          interval="preserveStartEnd"
-                          minTickGap={20}
-                        />
-                        <YAxis
-                          domain={[-0.1, 1]}
-                          tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "var(--popover)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 4,
-                            fontSize: 10,
-                          }}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 9 }} />
-                        <Line
-                          type="monotone"
-                          dataKey="ndvi_mean"
-                          name="NDVI"
-                          stroke="#c2703d"
-                          strokeWidth={1.6}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div>
-                    <p className="mb-1 text-[10px] text-muted-foreground">B</p>
-                    <ResponsiveContainer width="100%" height={160}>
-                      <LineChart
-                        data={resultB.vi_series}
-                        margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="2 4" stroke="var(--hairline)" />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
-                          tickFormatter={(d: string) => d.slice(2, 7)}
-                          interval="preserveStartEnd"
-                          minTickGap={20}
-                        />
-                        <YAxis
-                          domain={[-0.1, 1]}
-                          tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "var(--popover)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 4,
-                            fontSize: 10,
-                          }}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 9 }} />
-                        <Line
-                          type="monotone"
-                          dataKey="ndvi_mean"
-                          name="NDVI"
-                          stroke="#38bdf8"
-                          strokeWidth={1.6}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+          {merged.length > 0 && (
+            <section className="rounded-sm border border-border bg-secondary/50 p-4">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <p className="eyebrow !text-foreground">Class distribution · A vs B</p>
+                <div className="flex gap-3 text-meta text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-4 rounded-full bg-primary/80" />
+                    A
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-4 rounded-full bg-sky-400/80" />
+                    B
+                  </span>
                 </div>
-              </section>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+              </div>
+              <ul className="flex flex-col gap-2.5">
+                {merged.map((row) => (
+                  <li key={row.class_id} className="flex flex-col gap-1 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-2.5 shrink-0 rounded-[2px]"
+                        style={{ backgroundColor: row.color }}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                      <span className="telemetry shrink-0 text-muted-foreground">
+                        {row.pctA.toFixed(1)}% / {row.pctB.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                      <span className="rounded-sm border border-border bg-background relative h-2 overflow-hidden">
+                        <span
+                          className="absolute inset-y-0 left-0 rounded-sm bg-primary/80"
+                          style={{ width: `${Math.min(100, row.pctA)}%` }}
+                        />
+                      </span>
+                      <span className="rounded-sm border border-border bg-background relative h-2 overflow-hidden">
+                        <span
+                          className="absolute inset-y-0 left-0 rounded-sm bg-sky-400/80"
+                          style={{ width: `${Math.min(100, row.pctB)}%` }}
+                        />
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {(hasPheno || hasVi) && (
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-stretch">
+              {hasPheno && (
+                <PhenologyCompare a={resultA.phenology} b={resultB.phenology} />
+              )}
+              {hasVi && (
+                <section className="rounded-sm border border-border bg-secondary/50 p-4">
+                  <p className="eyebrow mb-3">NDVI mean · A vs B</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <NdviChart
+                      slot="A"
+                      data={resultA.vi_series}
+                      stroke="var(--series-ndvi)"
+                      domain={viDomain}
+                      yDomain={viYDomain}
+                    />
+                    <NdviChart
+                      slot="B"
+                      data={resultB.vi_series}
+                      stroke="var(--series-evi)"
+                      domain={viDomain}
+                      yDomain={viYDomain}
+                    />
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      </PageBody>
+    </PageShell>
   )
 }

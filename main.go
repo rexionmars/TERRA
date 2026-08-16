@@ -12,6 +12,20 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+/*
+The dependency manifest, compiled in.
+
+A packaged application has no requirements.txt: the packager copies sidecar/,
+areas/ and model/ and nothing else. Read from disk this would work in a
+checkout and be absent in every release -- which is the same shape as the bug
+that shipped a POWER cache needing a package nothing declared.
+
+Embedded, the manifest is exactly the one this binary was built against, and
+therefore the one whose pins match the model artifacts it ships beside.
+*/
+//go:embed requirements.txt
+var requirementsTxt string
+
 func main() {
 	app := NewApp()
 

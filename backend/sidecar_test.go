@@ -20,12 +20,12 @@ func repoRoot(t *testing.T) string {
 
 func TestNewRunnerListAreasAndModelDir(t *testing.T) {
 	root := repoRoot(t)
-	t.Setenv("GEOSENSE_APP_DIR", root)
-	t.Setenv("GEOSENSE_MODEL_DIR", "")
-	t.Setenv("GEOSENSE_PYTHON", "python3")
-	t.Setenv("GEOSENSE_ROOT", filepath.Dir(root))
+	t.Setenv("TERRA_APP_DIR", root)
+	t.Setenv("TERRA_MODEL_DIR", "")
+	t.Setenv("TERRA_PYTHON", "python3")
+	t.Setenv("TERRA_ROOT", filepath.Dir(root))
 
-	r, err := NewRunner(root)
+	r, err := NewRunner(root, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,13 +113,13 @@ func TestNewRunnerPrefersBundledPython(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Setenv("GEOSENSE_APP_DIR", root)
-	t.Setenv("GEOSENSE_PYTHON", "")
-	t.Setenv("GEOSENSE_MODEL_DIR", filepath.Join(root, "model"))
+	t.Setenv("TERRA_APP_DIR", root)
+	t.Setenv("TERRA_PYTHON", "")
+	t.Setenv("TERRA_MODEL_DIR", filepath.Join(root, "model"))
 	_ = os.MkdirAll(filepath.Join(root, "model"), 0o755)
 	_ = os.WriteFile(filepath.Join(root, "model", "rf_classifier.joblib"), []byte("x"), 0o644)
 
-	r, err := NewRunner(root)
+	r, err := NewRunner(root, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,9 +138,9 @@ func TestResolveAppDirResourcesLayout(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(res, "sidecar", "infer.py"), []byte("#\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("GEOSENSE_APP_DIR", res)
-	t.Setenv("GEOSENSE_PYTHON", "python3")
-	r, err := NewRunner("/nonexistent")
+	t.Setenv("TERRA_APP_DIR", res)
+	t.Setenv("TERRA_PYTHON", "python3")
+	r, err := NewRunner("/nonexistent", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,4 +148,3 @@ func TestResolveAppDirResourcesLayout(t *testing.T) {
 		t.Fatalf("sidecar=%s", r.sidecar)
 	}
 }
-

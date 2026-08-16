@@ -1,113 +1,193 @@
 # TERRA
 
 <p align="center">
-  <img src="docs/img/terra-opensource-project.png" alt="TERRA Open Source Project" width="280" />
+  <img src="docs/img/terra-opensource-project.png" alt="TERRA" width="280" />
 </p>
 
-Desktop application for land-cover classification from Sentinel-2 time series.
-Draw or import an area of interest, preview scenes, run a classifier, and inspect
-prediction overlays, confidence, phenology, and saved analyses — including
-side-by-side comparison of two runs.
+**TERRA** is a desktop app that runs **AOI-scale land-cover classification** on
+Sentinel-2 L2A time series. It is the **delivery layer** for methods developed
+and validated in research — not another generic STAC viewer.
 
-Imagery is read on demand from the Sentinel-2 L2A STAC catalog (Microsoft
-Planetary Computer) as Cloud-Optimized GeoTIFFs — only the polygon window and the
-required bands are fetched, so no full product download is required.
+Imagery comes from the Microsoft Planetary Computer STAC catalog as
+Cloud-Optimized GeoTIFFs (polygon window + bands only; no full-scene download).
 
-The spectral Random Forest path reproduces the method described in:
+## What this project claims
+
+| Claim | Where it lives |
+|-------|----------------|
+| Spectro-temporal **Random Forest** (≈80 features) aligned with a published protocol | Default model in-app; paper below |
+| Same AOI protocol for **Temporal Transformer** and **Prithvi-EO 2.0** heads | Optional models (`requirements-prithvi.txt`) |
+| Map UI for classify → confidence → phenology → MapBiomas LULC → **Compare** / **export** | This repository |
+| New methods (change detection, crop stress, class-41 decomposition, …) | Developed in research repos; land in TERRA after validation |
 
 > Melo, J. L. S., Magalhães, D. K., Kolodziej, J. E., Kuhn, E. V.
 > *Automatic Land Cover Classification with Sentinel-2 and MapBiomas Time
 > Series.* XLIV Brazilian Symposium on Telecommunications and Signal Processing
 > (SBrT 2026), Salvador, BA, Brazil.
 
+The public contribution is **reproducible AOI-scale inference** of that family
+of methods (plus documented extensions), not a new GIS platform.
+
 <p align="center">
-  <img src="docs/img/KML_ROI.jpeg" alt="TERRA map with a custom AOI over Campo Maior, Piauí" width="900" />
+  <img src="docs/img/new_version/terra_v2_RF_TT_comparison.jpeg" alt="RF vs Temporal Transformer on a study AOI" width="900" />
 </p>
 
-<p align="center"><em>Map workspace — AOI, period, model, and Classify</em></p>
+<p align="center"><em>Example: Random Forest vs Temporal Transformer on a study AOI (same Sentinel-2 stack)</em></p>
+
+## Methods in the app
+
+| Status | Capability |
+|--------|------------|
+| **In app** | Spectral RF; Temporal Transformer; Prithvi-EO 2.0 + RF heads; MapBiomas LULC context; VI / phenology; Projects; Overlay Tools; Compare; analysis **export** package |
+| **Published / reference** | SBrT 2026 spectro-temporal RF protocol |
+| **In research** | Change detection, flood / surface water, crop stress diagnostics, MapBiomas class-41 decomposition, topography-related workflows — see [Roadmap](docs/ROADMAP.md) |
+
+### Spectral Random Forest (default)
+
+- Features: spectro-temporal stack over the AOI (band statistics + temporal
+  descriptors; soybean retention settings from the reference pipeline).
+- Labels / legend used in shipped heads: MapBiomas-style classes
+  **{3, 21, 25, 39, 41}** (forest, mosaic, non-vegetated, soybean, other
+  temporary crops) as trained for the western Paraná study areas.
+- Embedded example polygons **A / B / C** match the reference farms.
+
+### Temporal Transformer / Prithvi
+
+- **TT:** series model on the reflectance cube (`tt_mapbiomas.pt`).
+- **Prithvi-EO 2.0 300M:** frozen embeddings + RF heads (`pixel` / `patch`);
+  needs torch / terratorch ([`requirements-prithvi.txt`](requirements-prithvi.txt)).
+- Retrain helpers: `sidecar/train_prithvi.py`.
+
+### MapBiomas LULC (descriptive)
+
+Independent of the crop classifier: composition, groups, diversity metrics, and
+optional pred-vs-ref on overlapping classes — via Brazil Collection COGs when
+the AOI intersects Brazil (`sidecar/lulc.py`).
+
+### Export package
+
+**Analysis → Export tables** writes a ZIP with `manifest.json`,
+`class_stats.csv`, VI / phenology CSVs, MapBiomas tables, AOI GeoJSON, and
+`rasters/classification.tif` when available — so a run can be re-analyzed
+outside the UI.
+
+## Limitations (read this)
+
+- **Fixed output legend.** Crop models emit the trained class set
+  `{3, 21, 25, 39, 41}`. They cannot predict pasture, savanna, or other MapBiomas
+  codes outside that head. AOIs in other biomes may look “confident” and still be
+  **semantically wrong** (domain shift). **Analysis → Compare** quantifies that
+  gap (KL on NDVI, CVA, RBF MMD, F1 / outside-legend rates) when both runs
+  carry a classify-time domain fingerprint — diagnosis only; adaptation training
+  stays in the research repo.
+- **MapBiomas ≠ field truth.** Agreement metrics are concordance with an annual
+  map, often time-offset from the Sentinel-2 series — not pixel-level crop labels.
+- **Class 41 is a residual bucket** (“other temporary crops”). High OA against
+  MapBiomas does not mean fine crop identity.
+- **FULL install** covers spectral RF; TT / Prithvi need extra Python deps.
+- TERRA is **not** Earth Engine / QGIS replacement; it targets farm- to
+  landscape-scale AOIs with a fixed research protocol.
+
+<p align="center">
+  <img src="docs/img/new_version/mapbiomas_for_AOI.jpeg" alt="MapBiomas reference context on study AOI" width="900" />
+</p>
+
+<p align="center"><em>MapBiomas reference context on a study AOI — use it as concordance, not ground truth</em></p>
 
 ## Statement of need
 
-Researchers and practitioners who study agricultural land cover often need
-**reproducible, AOI-scale classification** from Sentinel-2 without scripting a
-full Earth Engine or desktop GIS pipeline for every farm. Common gaps:
+AOI-scale agricultural land-cover work often stalls on:
 
-- Notebook-only workflows are hard to hand to collaborators who want a map UI.
-- Full scene downloads are heavy when only a small polygon matters.
-- Comparing models (classical RF vs transformers vs foundation-model embeddings)
-  usually means separate scripts and ad-hoc overlays.
+1. Notebook-only pipelines that collaborators cannot open on a map.
+2. Full-scene downloads when only a polygon matters.
+3. Comparing RF vs transformer vs foundation embeddings across ad-hoc scripts.
 
-**TERRA** targets remote-sensing and agronomy researchers (and students) who
-want a local desktop tool that: clips COGs on demand, runs published-style
-spectro-temporal Random Forest (and optional deep models), inspects confidence /
-phenology / MapBiomas context, and saves or compares runs — without a cloud
-account for the app itself.
+TERRA keeps the **method** (sidecar models + STAC/COG clip) and adds a local UI
+for classify, inspect, compare, and export — without an app cloud account.
+
+## Research vs this repository
+
+Methods are prototyped and validated in dedicated research work (papers,
+notebooks, private experiment repos). This GitHub project packages what is
+stable enough for interactive use. Longer manuals and reports are in preparation
+(Overleaf); until then use [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+
+- **Bug reports / UX / packaging:** [GitHub Issues](https://github.com/rexionmars/TERRA/issues)
+- **Method collaboration / research themes:**  
+  [joao_leonardi.melo@somosicev.com](mailto:joao_leonardi.melo@somosicev.com) ·
+  [opensource.leonardi@gmail.com](mailto:opensource.leonardi@gmail.com)
+
+## AI Agent Usage in this Software:
+
+I am not an experienced Full-Stack developer; my background is mainly in machine learning, deep learning, and remote sensing / Earth observation. Therefore, I used CursorAI to assist me with the development of this software.
+
+All field and academic research I conduct undergoes review by my professors (sometimes from more than two institutions). Depending on the scientific value of the content produced, we evaluate the possibility of publishing papers in conferences or journals. This research takes place in a private institutional repository. If you’d like to collaborate or discuss these topics, feel free to send me an email, and I’ll be happy to connect!
+
+## Quick start
+
+1. Prefer a **FULL** release zip (embeds Python), or Python 3.12 +
+   `pip install -r requirements.txt` for **LITE** — [Install](docs/INSTALL.md).
+2. Download from [releases](https://github.com/rexionmars/TERRA/releases) or run
+   `wails dev` from source.
+3. Open TERRA (`TERRA_PYTHON` only if LITE / custom interpreter).
+4. Project → AOI (example **A**, draw, or import) → date range → model
+   **spectral** → **Classify**.
+5. **Overlay Tools** (visibility, swipe, export) → **Analysis** (cover map, VI,
+   phenology, MapBiomas) → optional **Compare** of two runs.
+
+## UI overview
+
+- **Projects** — AOI label vs inference `run-*` names stay separate.
+- **Compositions** — RGB / indices for a chosen Sentinel-2 scene.
+- **Classify** — RF / Temporal Transformer / Prithvi; cloud filter; monthly
+  scene pick (lowest cloud) by default.
+- **Overlay Tools** — prediction, confidence, composition, opacity, swipe, export.
+- **Analysis / Compare** — class stats, VI, phenology, MapBiomas LULC, side-by-side runs.
+- **Settings** + **What’s New** after version bumps.
+
+<p align="center">
+  <img src="docs/img/new_version/terra_crop_classification.jpeg" alt="TERRA map workspace" width="900" />
+</p>
+
+<p align="center"><em>Map workspace — classify an AOI, then manage overlays in Overlay Tools</em></p>
+
+## Gallery
+
+| Projects | Classification |
+|:--------:|:--------------:|
+| ![Projects](docs/img/new_version/terra_project_overview.jpeg) | ![Classification](docs/img/new_version/terra_crop_classification.jpeg) |
+
+| Band compositions | Overlay Tools |
+|:-----------------:|:-------------:|
+| ![Compositions](docs/img/new_version/terra_compsition_management.jpeg) | ![Overlay preview](docs/img/new_version/terra_run_modal_overlay_preview.jpeg) |
+
+| Analysis | Settings |
+|:--------:|:--------:|
+| ![Analysis](docs/img/new_version/terra_run_overview.jpeg) | ![Settings](docs/img/new_version/terra_settings.jpeg) |
 
 ## Documentation
 
 | Doc | Contents |
 |-----|----------|
-| [User guide](docs/USER_GUIDE.md) | AOI → classify → Analysis → Compare |
-| [Install](docs/INSTALL.md) | LITE vs FULL releases, Python env, from-source |
-| [Releasing](docs/RELEASING.md) | SemVer tags, when to bump, when not to release |
-| [Roadmap](docs/ROADMAP.md) | Planned packaging and analysis features |
-| [Architecture](docs/ARCHITECTURE.md) | Wails shell, sidecar, STAC/COG design |
-| [API](docs/API.md) | Go bindings and sidecar JSON contracts |
+| [User guide](docs/USER_GUIDE.md) | AOI → Projects → classify → Overlay → Analysis → Compare |
+| [Install](docs/INSTALL.md) | LITE vs FULL, Python, from-source |
+| [Architecture](docs/ARCHITECTURE.md) | Wails shell, sidecar, STAC/COG |
+| [API](docs/API.md) | Go bindings and sidecar JSON |
+| [Roadmap](docs/ROADMAP.md) | Packaging and research themes |
+| [Releasing](docs/RELEASING.md) | SemVer |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Python, STAC, models, macOS |
 | [Contributing](CONTRIBUTING.md) | Issues, PRs, tests |
-| [Design](docs/DESIGN.md) | Visual identity tokens |
+| [Design](docs/DESIGN.md) | Visual tokens |
 | [JOSS paper draft](paper/paper.md) | Manuscript + BibTeX for Journal of Open Source Software |
-
-## Quick start
-
-1. Prefer a **FULL** release zip (embeds Python) — or install Python 3.12 +
-   `pip install -r requirements.txt` for **LITE** (see [Install](docs/INSTALL.md)).
-2. Download from [releases](https://github.com/rexionmars/TERRA/releases) **or** run `wails dev` from source.
-3. Open TERRA (set `GEOSENSE_PYTHON` only if using LITE / a custom interpreter).
-4. Select embedded area **A** (or draw an AOI), set a seasonal date range, model **spectral**.
-5. Click **Classify** and inspect overlays / class stats in Analysis.
-
-Full walkthrough: [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
-
-## Overview
-
-- Select any area: draw a polygon, search a location, or import a KML/GeoJSON
-  file. Three validated study areas from the reference work are included as
-  examples.
-- Choose an acquisition period and a maximum cloud cover. By default one scene
-  per month (lowest cloud cover) is selected; optionally preview the Sentinel-2
-  data cube before classifying.
-- Run **Random Forest** (spectro-temporal features), **Temporal Transformer**,
-  or **Prithvi-EO 2.0** embeddings (NASA/IBM), in map or temporal mode.
-- Inspect prediction and confidence overlays, MapBiomas reference layers, class
-  statistics, vegetation indices, and phenology.
-- Save analyses locally and **compare two runs** side by side (overlays, class
-  distribution, phenology / NDVI when available).
-
-## Gallery
-
-| MapBiomas reference | Random Forest | Temporal Transformer |
-|:-------------------:|:-------------:|:--------------------:|
-| ![MapBiomas for ROI](docs/img/mapbiomas_for_roi.jpeg) | ![RF prediction](docs/img/RF_prediction.jpeg) | ![TT prediction](docs/img/Temporal_transformers_prediction.jpeg) |
-
-<p align="center">
-  <img src="docs/img/comparasion_TT_RF.jpeg" alt="Compare analyses: Temporal Transformer vs Random Forest" width="900" />
-</p>
-
-<p align="center"><em>Compare mode — prediction and confidence for two saved analyses</em></p>
 
 ## Download
 
-Prebuilt desktop bundles for macOS, Windows, and Linux are attached to each
-[release](https://github.com/rexionmars/TERRA/releases). Two flavors:
-
 | Flavor | Example assets | Notes |
 |--------|----------------|-------|
-| **FULL** | `TERRA-macOS-arm64-full.zip`, `TERRA-*-amd64-full.zip` | Embeds Python 3.12 + spectral RF deps — unzip and run |
-| **LITE** | `TERRA-macOS-universal-lite.zip`, `TERRA-*-amd64-lite.zip` | Smaller; needs system Python + [`requirements.txt`](requirements.txt) |
+| **FULL** | `TERRA-macOS-arm64-full.zip`, `TERRA-*-amd64-full.zip` | Embeds Python 3.12 + spectral RF deps |
+| **LITE** | `TERRA-macOS-universal-lite.zip`, `TERRA-*-amd64-lite.zip` | Needs system Python + [`requirements.txt`](requirements.txt) |
 
-FULL covers **spectral** classification out of the box. Temporal Transformer /
-Prithvi still need torch (`requirements-prithvi.txt`). Details:
+TT / Prithvi: [`requirements-prithvi.txt`](requirements-prithvi.txt). Details in
 [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Architecture
@@ -116,34 +196,29 @@ Prithvi still need torch (`requirements-prithvi.txt`). Details:
 TERRA/
 ├── main.go / app.go     Wails window and frontend bindings
 ├── backend/             Sidecar runner, geocode, types, SQLite store
-├── sidecar/             Inference pipeline (STAC, features, models)
-├── model/               Trained classifier artifacts (.joblib / .pt)
+├── sidecar/             Inference (STAC, features, models, LULC, phenology)
+├── model/               Trained artifacts (.joblib / .pt)
 ├── areas/               Embedded example polygons (GeoJSON)
 ├── frontend/            React 19 + Vite 7 + Tailwind 4 + Leaflet
-└── docs/                User and developer documentation
+└── docs/
 ```
 
-Design rationale and diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-Binding and JSON contracts: [docs/API.md](docs/API.md).
-
-### Stack
-
-| Layer     | Technology |
-|-----------|------------|
-| Shell     | Wails v2 (Go) |
-| Frontend  | React 19, Vite 7, TypeScript 5.9, Tailwind CSS 4 |
-| Map       | Leaflet, react-leaflet 5, leaflet-draw |
-| Charts    | Recharts |
-| Inference | Python 3.12, scikit-learn, rasterio, pyproj, shapely, pystac-client, planetary-computer |
+| Layer | Technology |
+|-------|------------|
+| Shell | Wails v2 (Go) |
+| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS 4 |
+| Map | Leaflet, react-leaflet, leaflet-draw |
+| Charts | Recharts |
+| Inference | Python 3.12, scikit-learn, rasterio, pystac-client, planetary-computer |
 
 ## Requirements
 
-- **FULL release:** no system Python required for spectral RF
-- **LITE / from source:** Python 3.12 + [`requirements.txt`](requirements.txt)
+- **FULL:** no system Python for spectral RF
+- **LITE / source:** Python 3.12 + [`requirements.txt`](requirements.txt)
 - **Prithvi (optional):** [`requirements-prithvi.txt`](requirements-prithvi.txt)
 - **From source:** Go 1.23+, Node.js 18+, [Wails CLI](https://wails.io)
 
-Interpreter resolution: `GEOSENSE_PYTHON` → bundled `python/` (FULL) → `.venv` → `python3` on `PATH`.
+Interpreter: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` → `python3`.
 
 ## Development
 
@@ -157,13 +232,6 @@ wails dev
 wails build    # → build/bin/
 ```
 
-See [docs/INSTALL.md](docs/INSTALL.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Testing
-
-Automated offline tests (store, paths, VI/phenology/LULC helpers, RF smoke) run
-on every push and pull request to `main` via GitHub Actions.
-
 ```bash
 go test ./backend/...
 pip install -r requirements-dev.txt
@@ -172,35 +240,22 @@ pytest sidecar/tests -q
 
 ## Configuration
 
-| Variable             | Purpose |
-|----------------------|---------|
-| `GEOSENSE_PYTHON`    | Python interpreter for the sidecar |
-| `GEOSENSE_APP_DIR`   | Directory containing `sidecar/`, `areas/`, `model/` |
-| `GEOSENSE_MODEL_DIR` | Trained model directory (defaults to `model/`) |
-
-## Models
-
-| Model | Role |
-|-------|------|
-| **Spectral Random Forest** | Default; 80 spectro-temporal features; reproduces the SBrT reference method; temporal soybean retention |
-| **Temporal Transformer** | Series model over the Sentinel-2 stack (`tt_mapbiomas.pt`) |
-| **Prithvi-EO 2.0** | Frozen [Prithvi-EO 2.0 300M](https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M) embeddings + RF heads (`pixel` / `patch`); requires torch/terratorch |
-
-Artifacts live under `model/`. Use a scikit-learn version compatible with
-serialization (`requirements.txt` pins 1.8.x). Retrain Prithvi heads with
-`sidecar/train_prithvi.py`.
+| Variable | Purpose |
+|----------|---------|
+| `TERRA_PYTHON` | Python for the sidecar |
+| `TERRA_APP_DIR` | Directory with `sidecar/`, `areas/`, `model/` |
+| `TERRA_MODEL_DIR` | Model directory (default `model/`) |
 
 ## Data sources
 
-Sentinel-2 L2A from the
-[Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC
-catalog (anonymous signed URLs). Location search via
-[OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/). Basemap tiles
-include Esri World Imagery and EOX Sentinel-2 cloudless 2025.
+- Sentinel-2 L2A — [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC
+- MapBiomas Brazil COGs — land-cover context (when AOI ∩ Brazil)
+- Geocoding — [Nominatim](https://nominatim.openstreetmap.org/)
+- Basemaps — Esri World Imagery, EOX Sentinel-2 cloudless 2025
 
 ## License and community
 
-MIT. See [LICENSE](LICENSE).
+MIT — [LICENSE](LICENSE).
 
-Contributions, bug reports, and support requests: [CONTRIBUTING.md](CONTRIBUTING.md)
-and [GitHub Issues](https://github.com/rexionmars/TERRA/issues).
+Contributions: [CONTRIBUTING.md](CONTRIBUTING.md) ·
+[Issues](https://github.com/rexionmars/TERRA/issues).
