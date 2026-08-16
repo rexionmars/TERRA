@@ -275,6 +275,142 @@ func itoaAll(parts []int) []string {
 	return out
 }
 
+/*
+OptionalPackage is a dependency the application can run without.
+
+These are the ones deliberately outside requirements.txt: torch alone outweighs
+everything else the application ships, so making every install pay for it to
+serve the users who want the neural models would be the wrong default. They are
+installed on request instead.
+*/
+type OptionalPackage struct {
+	// What pip installs. May carry a version constraint.
+	Spec string `json:"spec"`
+	// The distribution name, for uninstalling and for matching the doctor's
+	// report -- "torch>=2.1" installs, but "torch" is what is removed.
+	Name string `json:"name"`
+	// What it unlocks, in the user's terms.
+	Enables string `json:"enables"`
+	// Roughly what the download costs, since these are large enough that the
+	// number changes whether someone starts it.
+	Size string `json:"size"`
+}
+
+// OptionalPackages are what Settings can add and remove.
+//
+// Kept here rather than read from requirements-prithvi.txt: that file exists
+// for a manual pip install and pulls requirements.txt with it, which is not
+// what adding one package to a working environment should do.
+var OptionalPackages = []OptionalPackage{
+	{
+		Spec:    "torch>=2.1",
+		Name:    "torch",
+		Enables: "Temporal Transformer and Prithvi-EO 2.0",
+		Size:    "about 2-3 GB",
+	},
+}
+
+/*
+InstallOptional adds one optional package to an existing environment.
+
+Reuses the build lock: pip writing into the same environment twice at once is
+how a half-installed package gets left behind, and the UI has one progress
+channel to report through either way.
+
+Refuses anything not on the list above. The name reaches this from the
+frontend, and an install command that accepts an arbitrary string is a way to
+run arbitrary pip.
+*/
+func (b *EnvBuilder) InstallOptional(
+	ctx context.Context,
+	python, name, sidecarDir string,
+	emit func(EnvSetupEvent),
+) error {
+	pkg, ok := findOptional(name)
+	if !ok {
+		return fmt.Errorf("%q is not an optional package this application manages", name)
+	}
+	return b.runPip(ctx, python, sidecarDir, emit,
+		fmt.Sprintf("installing %s (%s)", pkg.Name, pkg.Size),
+		"-m", "pip", "install", pkg.Spec)
+}
+
+// RemoveOptional uninstalls one optional package.
+//
+// Offered because these are large: someone who tried the neural models and went
+// back to the Random Forest should be able to reclaim the gigabytes without
+// rebuilding the environment from scratch.
+func (b *EnvBuilder) RemoveOptional(
+	ctx context.Context,
+	python, name, sidecarDir string,
+	emit func(EnvSetupEvent),
+) error {
+	pkg, ok := findOptional(name)
+	if !ok {
+		return fmt.Errorf("%q is not an optional package this application manages", name)
+	}
+	return b.runPip(ctx, python, sidecarDir, emit,
+		"removing "+pkg.Name,
+		"-m", "pip", "uninstall", "-y", pkg.Name)
+}
+
+func findOptional(name string) (OptionalPackage, bool) {
+	for _, p := range OptionalPackages {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return OptionalPackage{}, false
+}
+
+// runPip performs one pip operation under the build lock, reporting progress
+// and re-inspecting the environment afterwards so the screen reflects reality
+// rather than the assumption that pip did what it was asked.
+func (b *EnvBuilder) runPip(
+	ctx context.Context,
+	python, sidecarDir string,
+	emit func(EnvSetupEvent),
+	what string,
+	args ...string,
+) error {
+	b.mu.Lock()
+	if b.running {
+		b.mu.Unlock()
+		return fmt.Errorf("an environment operation is already running")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	b.cancel = cancel
+	b.running = true
+	b.mu.Unlock()
+
+	defer func() {
+		cancel()
+		b.mu.Lock()
+		b.running = false
+		b.cancel = nil
+		b.mu.Unlock()
+	}()
+
+	emit(EnvSetupEvent{Step: StepInstalling, Line: what})
+	if err := runStreaming(ctx, emit, StepInstalling, python, args...); err != nil {
+		emit(EnvSetupEvent{Step: StepFailed, Error: err.Error()})
+		return err
+	}
+
+	// What the doctor says now, not what pip's exit status implies.
+	emit(EnvSetupEvent{Step: StepVerifying, Line: "checking the environment"})
+	report := InspectPython(ctx, python, sidecarDir)
+	if report.Unreachable != "" {
+		err := fmt.Errorf("the environment could not be inspected afterwards: %s",
+			report.Unreachable)
+		emit(EnvSetupEvent{Step: StepFailed, Error: err.Error()})
+		return err
+	}
+
+	emit(EnvSetupEvent{Step: StepDone, Line: "done"})
+	return nil
+}
+
 // runStreaming runs a command and reports every line it writes, on either
 // stream, as it appears.
 //

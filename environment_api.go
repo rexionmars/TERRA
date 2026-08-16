@@ -330,6 +330,58 @@ func (a *App) BuildManagedEnvironment(basePython string) error {
 	return nil
 }
 
+/*
+ManageOptionalPackage installs or removes one optional dependency.
+
+Runs in the background on the same "env:setup" channel as a build, because it
+is the same operation from the user's side: pip working in their environment
+with output worth watching. torch is a multi-gigabyte download, so a
+synchronous call would freeze the window for the whole of it.
+
+`install` false removes it. These are large enough that reclaiming the space
+is a real request, and rebuilding the whole environment to drop one package
+would be a poor answer to it.
+*/
+func (a *App) ManageOptionalPackage(name string, install bool) error {
+	data := a.dataDir()
+	if data == "" {
+		return fmt.Errorf("the local store is not open")
+	}
+	sidecar := a.sidecarDir()
+	if sidecar == "" {
+		return fmt.Errorf("the sidecar directory is not resolved")
+	}
+	runner := a.currentRunner()
+	if runner == nil {
+		return fmt.Errorf("no interpreter is resolved")
+	}
+	if a.envBuilder.Running() {
+		return fmt.Errorf("an environment operation is already running")
+	}
+	python := runner.PythonPath()
+
+	ctx := a.ctx
+	go func() {
+		emit := func(ev backend.EnvSetupEvent) {
+			if ctx != nil {
+				wruntime.EventsEmit(ctx, "env:setup", ev)
+			}
+		}
+		if install {
+			_ = a.envBuilder.InstallOptional(context.Background(), python, name, sidecar, emit)
+			return
+		}
+		_ = a.envBuilder.RemoveOptional(context.Background(), python, name, sidecar, emit)
+	}()
+	return nil
+}
+
+// ListOptionalPackages reports what can be added, so the screen names the cost
+// and what each one unlocks rather than listing bare package names.
+func (a *App) ListOptionalPackages() []backend.OptionalPackage {
+	return backend.OptionalPackages
+}
+
 // CancelEnvironmentBuild stops a build in progress.
 func (a *App) CancelEnvironmentBuild() {
 	a.envBuilder.Cancel()

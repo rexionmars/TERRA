@@ -138,6 +138,10 @@ export function ListEmbeddedAreas() {
   return window['go']['main']['App']['ListEmbeddedAreas']();
 }
 
+export function ListOptionalPackages() {
+  return window['go']['main']['App']['ListOptionalPackages']();
+}
+
 export function ListProjectOverlays(arg1) {
   return window['go']['main']['App']['ListProjectOverlays'](arg1);
 }
@@ -168,6 +172,10 @@ export function Login(arg1, arg2) {
 
 export function Logout() {
   return window['go']['main']['App']['Logout']();
+}
+
+export function ManageOptionalPackage(arg1, arg2) {
+  return window['go']['main']['App']['ManageOptionalPackage'](arg1, arg2);
 }
 
 export function OpenExternal(arg1) {

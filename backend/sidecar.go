@@ -387,6 +387,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 
 	var wg sync.WaitGroup
 	var lastError string
+	var tail stderrTail
 
 	// Stream stderr: one JSON object per line ({progress,msg} or {error}).
 	wg.Add(1)
@@ -405,7 +406,10 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				// Non-JSON stderr (e.g. library warnings): forward as a message.
+				// Non-JSON stderr (e.g. library warnings, or a traceback when
+				// the process dies): forward it, and keep the last few so a
+				// crash can still say why.
+				tail.add(line)
 				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
@@ -437,10 +441,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 	waitErr := cmd.Wait()
 
 	if waitErr != nil {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar failed: %w", waitErr)
+		return nil, sidecarFailure(waitErr, lastError, &tail)
 	}
 
 	raw := strings.TrimSpace(out.String())
@@ -628,6 +629,7 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 
 	var wg sync.WaitGroup
 	var lastError string
+	var tail stderrTail
 
 	wg.Add(1)
 	go func() {
@@ -645,6 +647,8 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
+				// Kept, so a crash without a structured error can still say why.
+				tail.add(line)
 				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
@@ -674,10 +678,7 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 	wg.Wait()
 	waitErr := cmd.Wait()
 	if waitErr != nil {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar failed: %w", waitErr)
+		return nil, sidecarFailure(waitErr, lastError, &tail)
 	}
 
 	raw := strings.TrimSpace(out.String())
@@ -774,6 +775,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 
 	var wg sync.WaitGroup
 	var lastError string
+	var tail stderrTail
 
 	wg.Add(1)
 	go func() {
@@ -791,6 +793,8 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
+				// Kept, so a crash without a structured error can still say why.
+				tail.add(line)
 				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
@@ -820,10 +824,7 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 	wg.Wait()
 	waitErr := cmd.Wait()
 	if waitErr != nil {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar failed: %w", waitErr)
+		return nil, sidecarFailure(waitErr, lastError, &tail)
 	}
 
 	raw := strings.TrimSpace(out.String())
@@ -934,6 +935,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 
 	var wg sync.WaitGroup
 	var lastError string
+	var tail stderrTail
 
 	wg.Add(1)
 	go func() {
@@ -951,6 +953,8 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
+				// Kept, so a crash without a structured error can still say why.
+				tail.add(line)
 				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
@@ -980,10 +984,7 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 	wg.Wait()
 	waitErr := cmd.Wait()
 	if waitErr != nil {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar failed: %w", waitErr)
+		return nil, sidecarFailure(waitErr, lastError, &tail)
 	}
 
 	raw := strings.TrimSpace(out.String())
@@ -1022,6 +1023,57 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 		RasterTIF:  rasterTIF,
 		Meta:       wrapped.Meta,
 	}, nil
+}
+
+/*
+stderrTail keeps the last few non-JSON lines the sidecar wrote.
+
+The sidecar reports errors as {"error": ...} and the caller shows that. What it
+cannot report that way is a crash: an unguarded import or any other uncaught
+exception ends the process as a Python traceback on stderr, which parses as
+nothing and was forwarded as progress -- then replaced by "sidecar failed: exit
+status 1", a message that names neither the cause nor anywhere to look.
+
+The tail is what turns that back into a diagnosis. Bounded, because a traceback
+ends with the reason and the frames above it are noise.
+*/
+type stderrTail struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (t *stderrTail) add(line string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.lines = append(t.lines, line)
+	if len(t.lines) > 6 {
+		t.lines = t.lines[1:]
+	}
+}
+
+// reason renders the tail as one line, or empty when nothing was captured.
+func (t *stderrTail) reason() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.lines) == 0 {
+		return ""
+	}
+	return strings.Join(t.lines, " · ")
+}
+
+// sidecarFailure explains a non-zero exit as well as the evidence allows.
+//
+// The structured error first, since the sidecar says what it means when it can.
+// Then the tail, which is all that exists when the process died rather than
+// reported. The bare exit status only when there is neither.
+func sidecarFailure(waitErr error, lastError string, tail *stderrTail) error {
+	if lastError != "" {
+		return fmt.Errorf("%s", lastError)
+	}
+	if reason := tail.reason(); reason != "" {
+		return fmt.Errorf("the analysis process stopped: %s", reason)
+	}
+	return fmt.Errorf("sidecar failed: %w", waitErr)
 }
 
 // pngToDataURI reads a PNG file and returns a base64 data URI.
@@ -1188,6 +1240,7 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 
 	var wg sync.WaitGroup
 	var lastError string
+	var tail stderrTail
 
 	wg.Add(1)
 	go func() {
@@ -1205,6 +1258,8 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 				Error    string `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(line), &ev); err != nil {
+				// Kept, so a crash without a structured error can still say why.
+				tail.add(line)
 				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
 				continue
 			}
@@ -1233,10 +1288,7 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 
 	wg.Wait()
 	if waitErr := cmd.Wait(); waitErr != nil {
-		if lastError != "" {
-			return "", fmt.Errorf("%s", lastError)
-		}
-		return "", fmt.Errorf("sidecar failed: %w", waitErr)
+		return "", sidecarFailure(waitErr, lastError, &tail)
 	}
 
 	raw := strings.TrimSpace(out.String())

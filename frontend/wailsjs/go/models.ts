@@ -2945,6 +2945,24 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class OptionalPackage {
+	    spec: string;
+	    name: string;
+	    enables: string;
+	    size: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OptionalPackage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spec = source["spec"];
+	        this.name = source["name"];
+	        this.enables = source["enables"];
+	        this.size = source["size"];
+	    }
+	}
 	export class PhenologyMetrics {
 	    sos_doy?: number;
 	    pos_doy?: number;
