@@ -43,6 +43,16 @@ export interface PreferenceExtras {
   /** Last product version for which What’s New was shown (or silently seeded). */
   last_seen_version?: string
   /**
+   * Show the release notes at every start rather than once per version.
+   *
+   * `last_seen_version` answers "has this been announced yet", which is the
+   * right question for an announcement and the wrong one for a reference. A
+   * reader who consults the notes for what a release changed is asking a
+   * question that does not stop being asked once it has been answered, and the
+   * gate has no other way back: it is reached on start or not at all.
+   */
+  always_show_whats_new?: boolean
+  /**
    * Where the map was left. Restored on start so a session resumes at the last
    * place worked on rather than at the continental default.
    */
@@ -108,6 +118,19 @@ export function startSurfaceFromPrefs(
 ): StartSurface {
   const surface = parsePreferenceExtras(prefs?.extras_json).start_surface
   return surface === "studio" ? "studio" : "explorer"
+}
+
+/**
+ * Whether the release notes are shown at every start, defaulting by exception.
+ *
+ * Only an exact `true` turns it on, so an absent key, a value written by a
+ * newer build and a corrupted blob all resolve to the behaviour that shipped:
+ * shown once, when the version is newer than the one last seen.
+ */
+export function alwaysShowWhatsNewFromPrefs(
+  prefs: Preferences | null | undefined
+): boolean {
+  return parsePreferenceExtras(prefs?.extras_json).always_show_whats_new === true
 }
 
 export function mergePreferenceExtras(

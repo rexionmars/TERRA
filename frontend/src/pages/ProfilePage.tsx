@@ -40,6 +40,7 @@ import type {
   StartSurface,
 } from "@/lib/types"
 import {
+  alwaysShowWhatsNewFromPrefs,
   layoutModeFromPrefs,
   mergePreferenceExtras,
   startSurfaceFromPrefs,
@@ -202,6 +203,7 @@ export function ProfilePage({
       theme: string
       layoutMode?: LayoutMode
       startSurface?: StartSurface
+      alwaysShowWhatsNew?: boolean
     }) => {
       if (!user) return
       const payload: Preferences = {
@@ -212,6 +214,15 @@ export function ProfilePage({
         extras_json: mergePreferenceExtras(prefs?.extras_json, {
           ...(next.layoutMode ? { layout_mode: next.layoutMode } : {}),
           ...(next.startSurface ? { start_surface: next.startSurface } : {}),
+          /*
+            Tested against undefined, not for truth, unlike the two above.
+            Those carry strings whose absent value is falsy anyway; this one is
+            a boolean, and a truthiness test would drop `false` as though it
+            had never been set -- leaving the setting impossible to turn off.
+          */
+          ...(next.alwaysShowWhatsNew !== undefined
+            ? { always_show_whats_new: next.alwaysShowWhatsNew }
+            : {}),
         }),
       }
       await savePrefs(payload)
@@ -235,6 +246,7 @@ export function ProfilePage({
 
   const layoutMode = layoutModeFromPrefs(prefs)
   const startSurface = startSurfaceFromPrefs(prefs)
+  const alwaysShowWhatsNew = alwaysShowWhatsNewFromPrefs(prefs)
 
   /*
     Named from the navigation table so the button and the column agree on what
@@ -250,6 +262,7 @@ export function ProfilePage({
         theme: string
         layoutMode: LayoutMode
         startSurface: StartSurface
+        alwaysShowWhatsNew: boolean
       }>
     ) => {
       if (!prefsReady.current) return
@@ -933,6 +946,39 @@ export function ProfilePage({
                     {startSurface === "studio"
                       ? "The studio opens over the map, empty until a run is on it. Its run band draws an area and starts a run without leaving it."
                       : "The map opens first. The studio is a press away in the title bar, once there is an area or a run to put on it."}
+                  </p>
+                </div>
+              </SettingRow>
+
+              {/*
+                After the two that decide what a session opens WITH, because
+                this decides what it opens THROUGH -- the notes stand in front
+                of whichever surface those two chose.
+              */}
+              <SettingRow
+                id="account.whatsnew"
+                title="Release notes"
+                description="What's New reports what a version changed. It is shown once, when the product version is newer than the last one seen; kept always, it is shown at every start."
+                focused={focusedSetting === "account.whatsnew"}
+                onFocus={() => setFocusedSetting("account.whatsnew")}
+              >
+                <div className="flex max-w-md flex-col gap-2">
+                  <select
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                    value={alwaysShowWhatsNew ? "always" : "once"}
+                    onChange={(e) =>
+                      schedulePrefsSave({
+                        alwaysShowWhatsNew: e.target.value === "always",
+                      })
+                    }
+                  >
+                    <option value="once">Once per version</option>
+                    <option value="always">At every start</option>
+                  </select>
+                  <p className="text-meta leading-relaxed text-muted-foreground">
+                    {alwaysShowWhatsNew
+                      ? "Every start opens on the notes for this version, until this is set back. They are read from the first release rather than from the last one seen, so nothing is withheld for having been acknowledged once."
+                      : "A release announces itself once and then stays out of the way. Takes effect at the next start, which is the only moment the notes are reached."}
                   </p>
                 </div>
               </SettingRow>
