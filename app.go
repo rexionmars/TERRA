@@ -410,7 +410,7 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 		// Which catalogued area this run is OF. The polygon below says
 		// where it was made; the board needs the area to keep a drawing
 		// and its runs as one subject.
-		AoiID:          strings.TrimSpace(req.AoiID),
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -643,7 +643,7 @@ func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalys
 		// Which catalogued area this run is OF. The polygon below says
 		// where it was made; the board needs the area to keep a drawing
 		// and its runs as one subject.
-		AoiID:          strings.TrimSpace(req.AoiID),
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -745,7 +745,7 @@ func (a *App) persistSolarRaster(
 		Label:          rl,
 		ProjectID:      strings.TrimSpace(projectID),
 		// See the other run writers: which catalogued area this is OF.
-		AoiID:          strings.TrimSpace(aoiID),
+		AoiID: strings.TrimSpace(aoiID),
 	})
 }
 
@@ -849,7 +849,7 @@ func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend
 		// Which catalogued area this run is OF. The polygon below says
 		// where it was made; the board needs the area to keep a drawing
 		// and its runs as one subject.
-		AoiID:          strings.TrimSpace(req.AoiID),
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -944,7 +944,7 @@ func (a *App) persistWindRun(req backend.WindRequest, res *backend.WindAnalysis)
 		// Which catalogued area this run is OF. The polygon below says
 		// where it was made; the board needs the area to keep a drawing
 		// and its runs as one subject.
-		AoiID:          strings.TrimSpace(req.AoiID),
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -1368,7 +1368,7 @@ func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictRe
 		// Which catalogued area this run is OF. The polygon below says
 		// where it was made; the board needs the area to keep a drawing
 		// and its runs as one subject.
-		AoiID:          strings.TrimSpace(req.AoiID),
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 	if strings.TrimSpace(req.ProjectID) != "" {
 		st.TouchProject(req.ProjectID)

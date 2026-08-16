@@ -10,7 +10,7 @@ import "testing"
 //
 // The empty case is the one that has to keep working: every row written before
 // this column existed carries no link, and both readers select
-// COALESCE(aoi_id,'') so those rows resolve by geometry on the frontend instead
+// COALESCE(aoi_id,”) so those rows resolve by geometry on the frontend instead
 // of failing to load. A migration that started requiring a value, or a reader
 // that dropped the column, would fail here rather than surfacing as a board
 // that quietly draws every field twice again.
