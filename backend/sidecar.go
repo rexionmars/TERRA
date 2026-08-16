@@ -508,6 +508,8 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		ClassStats:        sres.ClassStats,
 		Temporal:          sres.Temporal,
 		VISeries:          sres.VISeries,
+		VISeriesCrop:      sres.VISeriesCrop,
+		CropPixelPct:      sres.CropPixelPct,
 		Phenology:         sres.Phenology,
 		PhenologyStates:   sres.PhenologyStates,
 		LULC:              convertLULC(sres.LULC),
@@ -1940,4 +1942,311 @@ func (w *WindAnalysis) NormalizeNilSlices() {
 	if w.Assumptions.ExcludedLosses == nil {
 		w.Assumptions.ExcludedLosses = []string{}
 	}
+}
+
+// The largest field the runner will carry back to the webview.
+//
+// The grid crosses as base64 inside a Wails return, so its cost is memory on
+// both sides plus the encode. 8 M cells is a 200x200x200 grid -- far beyond any
+// orchard module at a sane cell size, and already 32 MB before encoding. A
+// request that reaches this has a cell size mistake in it, and refusing says so
+// where an out-of-memory would not.
+const maxCanopyFieldCells = 8 << 20
+
+// A grown stand is large by nature -- twelve sorghum at day 60 is about 264,000
+// triangles, and 11 MB of glTF once fruit is dropped. This bound is not a
+// resolution decision like the field's cell count; it is the point past which
+// base64 through the webview bridge stops being reasonable, and refusing here
+// says so with the numbers rather than letting the surface hang on a big stand.
+const maxCanopyMeshBytes = 96 << 20
+
+/*
+BuildCanopyFromAOI reads an AOI's vegetation-index series as a canopy.
+
+The only canopy call that carries observation. Nothing binary crosses -- the
+reply is series and scalars -- so this is the plain runSidecarJSON shape with no
+work dir to read back, unlike the mesh.
+
+Slow when a location is given, because the first request for a POWER cell
+fetches it; the parquet cache makes every later one immediate. That is why the
+front end commits this behind a button rather than running it on a scrub.
+*/
+func (r *Runner) BuildCanopyFromAOI(ctx context.Context, req CanopyFromAOIRequest) (*CanopyFromAOI, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if len(req.VISeries) < 3 {
+		return nil, fmt.Errorf(
+			"a canopy needs a vegetation-index series; this run carries %d "+
+				"observation(s), and three is the minimum the phenology smoother "+
+				"can label", len(req.VISeries))
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-canopy-aoi-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":    "canopy_from_aoi",
+		"work_dir":  workDir,
+		"vi_series": req.VISeries,
+	}
+	if req.Species != "" {
+		payload["species"] = req.Species
+	}
+	if req.HourlyYears > 0 {
+		payload["hourly_years"] = req.HourlyYears
+	}
+	// Geometry and location by pointer, for the reason CanopyFieldRequest
+	// documents: zero is a value a caller can mean, and omitempty drops it.
+	for key, value := range map[string]*float64{
+		"inter_row": req.InterRow, "inter_plant": req.InterPlant,
+		"row_azimuth_deg": req.RowAzimuthDeg,
+		"lat":             req.Lat, "lon": req.Lon, "elevation": req.Elevation,
+	} {
+		if value != nil {
+			payload[key] = *value
+		}
+	}
+	if req.Seed != nil {
+		payload["seed"] = *req.Seed
+	}
+	// The classification's reading of what grows here. Omitted when empty
+	// rather than sent as an empty list, so the sidecar's own guard decides
+	// between "no classification" and "a classification that suggests nothing".
+	if len(req.ClassStats) > 0 {
+		payload["class_stats"] = req.ClassStats
+	}
+	if req.NSeeds > 0 {
+		payload["n_seeds"] = req.NSeeds
+	}
+	if req.SunWindowDays > 0 {
+		payload["sun_window_days"] = req.SunWindowDays
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		CanopyFromAOI *CanopyFromAOI `json:"canopy_from_aoi"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse canopy_from_aoi result: %w", err)
+	}
+	if wrapped.CanopyFromAOI == nil {
+		return nil, fmt.Errorf("sidecar returned empty canopy_from_aoi payload")
+	}
+	return wrapped.CanopyFromAOI, nil
+}
+
+/*
+BuildCanopyMesh grows a stand of plants and returns it as glTF.
+
+Separate from BuildCanopyField because it answers a different question. The
+field is a leaf-area density that a shader marches; this is the architecture
+that density was measured from, kept as triangles so it can be drawn. Growing
+costs seconds, so this runs on request rather than on every scrub.
+*/
+func (r *Runner) BuildCanopyMesh(ctx context.Context, req CanopyMeshRequest) (*CanopyMesh, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-canopy-mesh-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":   "canopy_mesh",
+		"work_dir": workDir,
+	}
+	if req.Species != "" {
+		payload["species"] = req.Species
+	}
+	if req.Days > 0 {
+		payload["days"] = req.Days
+	}
+	if req.Rows > 0 {
+		payload["rows"] = req.Rows
+	}
+	if req.PerRow > 0 {
+		payload["per_row"] = req.PerRow
+	}
+	// Spacing by pointer for the reason the field request documents: zero is a
+	// value a caller can mean, and omitempty on a float64 would drop it.
+	if req.InterRow != nil {
+		payload["inter_row"] = *req.InterRow
+	}
+	if req.InterPlant != nil {
+		payload["inter_plant"] = *req.InterPlant
+	}
+	if req.Seed != nil {
+		payload["seed"] = *req.Seed
+	}
+	if len(req.Organs) > 0 {
+		payload["organs"] = req.Organs
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// The path stays on this side: it names a file in a work dir this function
+	// removes on return, so it would be a dangling name to anyone else.
+	var wrapped struct {
+		CanopyMesh *struct {
+			CanopyMesh
+			Path string `json:"path"`
+		} `json:"canopy_mesh"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse canopy_mesh result: %w", err)
+	}
+	if wrapped.CanopyMesh == nil {
+		return nil, fmt.Errorf("sidecar returned empty canopy_mesh payload")
+	}
+
+	mesh := wrapped.CanopyMesh.CanopyMesh
+	if mesh.Bytes <= 0 {
+		return nil, fmt.Errorf("canopy mesh reports %d bytes", mesh.Bytes)
+	}
+	if mesh.Bytes > maxCanopyMeshBytes {
+		return nil, fmt.Errorf(
+			"the grown stand is %d MB of glTF, over the %d MB this carries to the view; "+
+				"grow fewer plants, fewer days, or drop an organ",
+			mesh.Bytes>>20, maxCanopyMeshBytes>>20)
+	}
+
+	glb, err := os.ReadFile(wrapped.CanopyMesh.Path)
+	if err != nil {
+		return nil, fmt.Errorf("canopy mesh file missing: %w", err)
+	}
+	// Guards a truncated write, the same and only thing the field's length
+	// check guards.
+	if len(glb) != mesh.Bytes {
+		return nil, fmt.Errorf("canopy mesh is %d bytes, expected %d", len(glb), mesh.Bytes)
+	}
+	// Read into memory because the work dir is removed on return; the caller
+	// holds these and serves them, rather than encoding them into a reply.
+	mesh.Data = glb
+	return &mesh, nil
+}
+
+/*
+BuildCanopyField returns the leaf-area-density field of one orchard module.
+
+The sidecar writes the grid as raw float32 into the work dir rather than into
+its JSON, because it is a texture on the other side and decimal text would cost
+several times the bytes. This reads it back before the work dir goes away and
+hands it over as base64.
+*/
+func (r *Runner) BuildCanopyField(ctx context.Context, req CanopyFieldRequest) (*CanopyField, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-canopy-field-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	payload := map[string]any{
+		"action":   "canopy_field",
+		"work_dir": workDir,
+	}
+	if req.Source != "" {
+		payload["source"] = req.Source
+	}
+	// Present means present, including zero. Filtering on `> 0` here would
+	// reintroduce the falsiness bug the request type documents.
+	for key, value := range map[string]*float64{
+		"spacing": req.Spacing, "lai": req.LAI, "cell": req.Cell,
+		"crown_a": req.CrownA, "crown_b": req.CrownB, "crown_z": req.CrownZ,
+		"height": req.Height, "row_width_frac": req.RowWidthFrac,
+		"base": req.Base,
+	} {
+		if value != nil {
+			payload[key] = *value
+		}
+	}
+	if req.Species != "" {
+		payload["species"] = req.Species
+	}
+	if req.Days > 0 {
+		payload["days"] = req.Days
+	}
+	if req.Seed != nil {
+		payload["seed"] = *req.Seed
+	}
+	if req.NReference > 0 {
+		payload["n_reference"] = req.NReference
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		CanopyField *CanopyField `json:"canopy_field"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse canopy_field result: %w", err)
+	}
+	if wrapped.CanopyField == nil {
+		return nil, fmt.Errorf("sidecar returned empty canopy_field payload")
+	}
+
+	field := wrapped.CanopyField
+	cells := field.Field.NXY * field.Field.NXY * field.Field.NZ
+	if cells <= 0 {
+		return nil, fmt.Errorf("canopy field reports %d cells", cells)
+	}
+	if cells > maxCanopyFieldCells {
+		return nil, fmt.Errorf(
+			"canopy field is %d cells (%dx%dx%d); the cell size is too small for a %.1f m module",
+			cells, field.Field.NXY, field.Field.NXY, field.Field.NZ, field.Field.Spacing)
+	}
+
+	gridBytes, err := os.ReadFile(filepath.Join(workDir, "canopy_field.f32"))
+	if err != nil {
+		return nil, fmt.Errorf("canopy field file missing: %w", err)
+	}
+	// Guards a truncated write, and only that. A transposition preserves the
+	// element count under any permutation of axes, so this length check cannot
+	// see one -- verified by transposing the write and watching every test on
+	// this side still pass. What does see it is frontend/scripts/
+	// check-canopy-shader.ts, which drives this same action and marches the
+	// bytes it produces against transmittances computed from the untransposed
+	// field: the same mutation fails 24 of its 24 comparisons. Order is checked
+	// where order is used.
+	if len(gridBytes) != cells*4 {
+		return nil, fmt.Errorf("canopy field is %d bytes, expected %d for %dx%dx%d float32",
+			len(gridBytes), cells*4, field.Field.NXY, field.Field.NXY, field.Field.NZ)
+	}
+	field.FieldBase64 = base64.StdEncoding.EncodeToString(gridBytes)
+	return field, nil
 }

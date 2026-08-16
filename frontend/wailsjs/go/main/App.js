@@ -38,6 +38,18 @@ export function AnalyzeWind(arg1) {
   return window['go']['main']['App']['AnalyzeWind'](arg1);
 }
 
+export function BuildCanopyField(arg1) {
+  return window['go']['main']['App']['BuildCanopyField'](arg1);
+}
+
+export function BuildCanopyFromAOI(arg1) {
+  return window['go']['main']['App']['BuildCanopyFromAOI'](arg1);
+}
+
+export function BuildCanopyMesh(arg1) {
+  return window['go']['main']['App']['BuildCanopyMesh'](arg1);
+}
+
 export function BuildManagedEnvironment(arg1) {
   return window['go']['main']['App']['BuildManagedEnvironment'](arg1);
 }

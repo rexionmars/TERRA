@@ -41,27 +41,81 @@ export const CURRENT_AREA = "current"
  * into the previous one's name and arrangement, which is how a run appeared
  * under a name its ground never had.
  *
- * Run first, deliberately. Keying by AOI would put two runs over the SAME
- * shape back into one slot, which is the same defect reached by re-running
- * instead of re-drawing.
+ * THE GROUND FIRST, WHICH IS A REVERSAL. This returned the run id first, on the
+ * argument that keying by area would put two runs over the same shape into one
+ * slot. The argument was right about the danger and wrong about where it lives:
+ * only the LIVE area is keyed this way, and a run the map has moved on from is
+ * still an area of its own under its own id, so two runs over one field remain
+ * two areas and can be compared. What keying by run bought instead was an
+ * identity that changed the instant a run was saved -- `aoi:x` while the area
+ * was being set up, `<runId>` once it had an answer -- which orphaned every
+ * per-area thing this module keeps and left the drawing to reappear beside its
+ * own run as a second, empty area over the same field. Two drawings and two
+ * runs made four areas, which is what a reader counted and reported.
  *
- * The sentinel keeps its two real jobs: an area with no run and no catalogued
- * AOI -- an example area, an adopted geometry, a studio opened on nothing --
- * and the rewrite `snapshotBoard` performs when a board is saved, which
- * becomes a no-op once the live area already carries its run id.
+ * The sentinel keeps its one real job: an area with no run and no catalogued
+ * AOI -- an example area, an adopted geometry, a studio opened on nothing.
+ * `snapshotBoard` is told which id the live area is carrying rather than
+ * assuming this one, since it is now rarely the answer.
  */
 export function liveAreaId(
   runId?: string | null,
-  aoiId?: string | null
+  aoiId?: string | null,
+  /**
+   * The catalogued area the SHOWN run is over, when it is known.
+   *
+   * Given rather than derived because only the caller can resolve it: the run
+   * record carries it, and a run just saved is not in the list yet.
+   */
+  runAoiId?: string | null
 ): string {
-  if (runId && runId !== CURRENT_AREA) return runId
+  /*
+    THE GROUND, NOT THE RUN, WHENEVER THE GROUND IS KNOWN.
+
+    This used to return the run id first, so the live area changed identity the
+    moment a run was saved: an area that was `aoi:x` while it was being set up
+    became `<runId>` once it had an answer. Everything this module keys by area
+    -- the name a reader typed, the layer order, where the area was dragged --
+    was left behind under the old id, and the drawing reappeared beside its own
+    run as a second, empty area over the same field.
+
+    A run over a catalogued area now answers with that area, so setting one up
+    and running it are one subject throughout. A run over an example area or an
+    imported shape still answers with its own id: there is no area to be.
+  */
+  if (runId && runId !== CURRENT_AREA) return runAoiId || runId
   if (aoiId) return aoiId
   return CURRENT_AREA
+}
+
+/**
+ * Whether the board has been changed since it was last saved or opened.
+ *
+ * ONLY THE ACTS A SAVE WOULD RECORD, which is why this is a flag set by the
+ * writers rather than a comparison against the last snapshot. The scene writes
+ * plane placements as it lays a board out, so a board freshly opened already
+ * differs from what was stored, and a diff would report every board dirty the
+ * moment it appeared.
+ *
+ * Read when a board is about to be replaced by another, which is the one
+ * gesture that throws this work away without asking.
+ */
+let dirty = false
+export function markBoardDirty(): void {
+  dirty = true
+}
+export function boardIsDirty(): boolean {
+  return dirty
+}
+/** Called when what is on disk is what is on screen: a save, or an open. */
+export function clearBoardDirty(): void {
+  dirty = false
 }
 
 /** Forget everything. For a board that should open empty. */
 export function clearBoardMemory(): void {
   kept.clear()
+  dirty = false
 }
 
 export function readBoardMemory<T>(key: string, fallback: T): T {
@@ -102,6 +156,51 @@ export function boardHoldsOtherAreas(): boolean {
   return Object.entries(added).some(
     ([areaId, ids]) => areaId !== CURRENT_AREA && ids.length > 0
   )
+}
+
+/**
+ * Rewrite every key that names one area so that it names another.
+ *
+ * THE OTHER HALF OF WHAT `snapshotBoard` DOES ON THE WAY OUT. A board is
+ * stored as runs, so the live area's keys are written under the run it will
+ * reopen as. Coming back, that run is usually loaded as an area of its own and
+ * the keys match -- but when the map is already showing that same ground, the
+ * live area carries the AREA's id (see `liveAreaId`) and the restored keys name
+ * a run instead. Nothing errors: the removals, the renames, the order and the
+ * placements simply do not apply, so planes taken off the board come back and
+ * the reader is told nothing.
+ *
+ * Applied to the store in place, because everything read after it is read from
+ * here. A no-op when the two ids are equal, which is the common case.
+ */
+export function renameBoardArea(from: string, to: string): void {
+  if (!from || !to || from === to) return
+  const r = renameArea(from, to)
+  const added = kept.get("added") as Record<string, string[]> | undefined
+  if (added) kept.set("added", r.map(added, r.byArea))
+  for (const key of ["removed", "flat"] as const) {
+    const set = kept.get(key) as ReadonlySet<string> | undefined
+    if (set) kept.set(key, new Set(r.list([...set], r.byScene)))
+  }
+  const order = kept.get("order") as Record<string, string[]> | undefined
+  if (order) kept.set("order", r.map(order, r.byArea))
+  const names = kept.get("names") as Record<string, string> | undefined
+  if (names) kept.set("names", r.map(names, r.byRow))
+  const extraState = kept.get("extraState") as
+    | Record<string, { opacity: number; visible: boolean }>
+    | undefined
+  if (extraState) kept.set("extraState", r.map(extraState, r.byScene))
+  for (const [key, rename] of [
+    ["places", r.byArea],
+    ["planePlaces", r.byScene],
+  ] as const) {
+    const o = kept.get(key) as Record<string, { x: number; z: number }>
+    if (!o) continue
+    const next = r.map(o, rename)
+    // The same object, because a ref elsewhere points at it -- see keptObject.
+    for (const k of Object.keys(o)) delete o[k]
+    Object.assign(o, next)
+  }
 }
 
 /**
@@ -191,9 +290,19 @@ function renameArea(from: string, to: string) {
  */
 export function snapshotBoard(
   areas: { runId: string; layerIds: string[] }[],
-  currentRunId?: string
+  currentRunId?: string,
+  /**
+   * The id the live area is carrying now, which is not always CURRENT_AREA.
+   *
+   * A board is stored as runs, so everything the live area holds has to be
+   * rewritten to the run it will reopen as. That area used to be keyed by the
+   * literal, then by the run id; it is now keyed by the ground it is over --
+   * see `liveAreaId` -- so the key to rewrite has to be given rather than
+   * assumed, or a reopened board loses the live area's names and placements.
+   */
+  liveId: string = CURRENT_AREA
 ): BoardSnapshot {
-  const r = renameArea(CURRENT_AREA, currentRunId ?? CURRENT_AREA)
+  const r = renameArea(liveId, currentRunId ?? liveId)
   return {
     runIds: areas.map((a) => a.runId),
     added: Object.fromEntries(areas.map((a) => [a.runId, [...a.layerIds]])),

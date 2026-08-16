@@ -41,6 +41,29 @@ func main() {
 		Frameless:        true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
+			/*
+				Large binaries are fetched over HTTP, not returned through a
+				bound method.
+
+				Everything a bound method returns is marshalled to JSON and
+				handed to the webview as a string, so a mesh has to be base64 to
+				survive the trip -- and a grown stand is megabytes. On WKWebView
+				that string is where "Maximum call stack size exceeded" came
+				from: it is thrown inside the bridge, before any of this
+				application's JavaScript runs, which is why it survived being
+				checked everywhere outside the webview. Shrinking the payload
+				moved the threshold and did not remove it.
+
+				MIDDLEWARE, NOT `Handler`. `Handler` is only reached when Assets
+				reports os.ErrNotExist, and this front end is a single-page app:
+				its dev server and its embedded build both answer an unknown
+				path with index.html rather than a miss. So a mesh request came
+				back as the application's own HTML, and the loader failed with
+				"JSON Parse error: Unrecognized token '<'" -- the '<' of
+				<!doctype html>. Middleware runs ahead of Assets, so the route
+				is decided here and everything else falls through untouched.
+			*/
+			Middleware: app.meshMiddleware,
 		},
 		OnStartup:  app.startup,
 		OnDomReady: app.domReady,

@@ -71,6 +71,7 @@ import {
   layoutModeFromPrefs,
   mergePreferenceExtras,
   parsePreferenceExtras,
+  startSurfaceFromPrefs,
 } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import {
@@ -618,6 +619,29 @@ function AppBody(props: {
    */
   const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
+
+  /*
+    THE SURFACE THE SESSION OPENS ON, asked for once and not again.
+
+    The same nonce a saved whiteboard uses, because it means the same thing: the
+    studio was asked for BY NAME rather than toggled over what happens to be on
+    screen. That distinction is what lets it open with an empty board -- the
+    toggle refuses that, and should, since a press with nothing to work on has
+    no result to show for itself.
+
+    Once per run of the application, guarded by a ref rather than by the
+    preference's value: prefs arrive after the shell is up and change again
+    whenever anything else is saved, and an effect keyed on them alone would
+    reopen the studio over a reader who had just closed it.
+  */
+  const startSurfaceAsked = useRef(false)
+  useEffect(() => {
+    if (!prefs || startSurfaceAsked.current) return
+    startSurfaceAsked.current = true
+    if (startSurfaceFromPrefs(prefs) === "studio") {
+      setOpenBoardNonce((n) => n + 1)
+    }
+  }, [prefs])
   /**
    * The title bar's host element for the map screen's whiteboard toggle.
    *
@@ -838,9 +862,26 @@ function AppBody(props: {
     setLayoutMode(stored)
   }, [prefs])
 
+  /*
+    `persist: false` applies a layout for this session without storing it.
+
+    The whiteboard forces Dock while it is up -- the two fight for the left
+    edge -- and puts the previous one back on close. That is an arrangement the
+    surface requires, not a choice the reader made, and writing it to
+    preferences turned "open the studio, quit" into a silent edit of the Map
+    layout setting. With a session that OPENS on the studio the edit would have
+    happened on every launch.
+
+    The ref is left alone in that case, on purpose: it records what this
+    component wrote, and the seeding effect follows any stored value that
+    differs from it. A forced mode written into the ref would make the next
+    preference refresh look like the reader's own change and flip the layout
+    out from under the board.
+  */
   const changeLayoutMode = useCallback(
-    (mode: LayoutMode) => {
+    (mode: LayoutMode, opts?: { persist?: boolean }) => {
       setLayoutMode(mode)
+      if (opts?.persist === false) return
       lastWrittenLayoutRef.current = mode
       if (!prefs) return
       // Silent: this fires on a toggle the user just watched happen, and a
@@ -1662,6 +1703,10 @@ function AppBody(props: {
         index: waterIndex,
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
@@ -1712,6 +1757,10 @@ function AppBody(props: {
       const req: SolarRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1761,6 +1810,10 @@ function AppBody(props: {
       const req: SolarTerrainRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1805,6 +1858,10 @@ function AppBody(props: {
       const req: SolarSitingRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1874,6 +1931,10 @@ function AppBody(props: {
       const req: EnergyModelRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -1966,6 +2027,10 @@ function AppBody(props: {
       const req: WindRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
+        // Which catalogued area this run is OF. Without it a drawing and
+        // the runs over it are separate subjects on the board, and the
+        // same ground is drawn once per drawing plus once per run.
+        aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
         area_id: useExample ? props.activeExample : "",
         polygon_geojson: useExample ? null : props.customPolygon,
@@ -2067,6 +2132,9 @@ function AppBody(props: {
       project_id: activeProjectId || undefined,
       label: aoiLabel,
       run_label: nameThisRun(aoiLabel),
+      // See the note on the other requests: the board needs which area
+      // this run is of, not only where it was made.
+      aoi_id: props.activeAoiId,
     }
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult
@@ -2904,6 +2972,17 @@ function AppBody(props: {
                   onAnalyzeLULC={handleAnalyzeLULC}
                   lulcRunning={props.lulcRunning}
                   openBoardNonce={openBoardNonce}
+                  /*
+                    The saved boards, and the way back into one.
+
+                    Offered inside the studio as well as in the project menu:
+                    the studio's own title block names the board that is loaded,
+                    and a name that cannot be changed from where it is shown is
+                    a readout pretending to be a control.
+                  */
+                  whiteboards={whiteboards}
+                  onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
+                  onWhiteboardsMenu={() => void refreshWhiteboards()}
                   onCloseResult={() => {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)

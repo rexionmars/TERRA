@@ -128,11 +128,87 @@ export function clampFraction(at: number): number {
   return Math.min(0.95, Math.max(0.05, at))
 }
 
-/** Ids that are unique within a session and readable in a debugger. */
+/**
+ * Ids that are unique within a session and readable in a debugger.
+ *
+ * A SESSION IS NOT THE LIFETIME OF AN ARRANGEMENT, which is what made this
+ * counter alone insufficient. The studio's tree is stored in preferences and
+ * restored on the next start, while this counter restarts at zero -- so the
+ * first split of a new run claimed `a1`, an id a tree restored from the last
+ * run was already using. Two nodes with one id is not a cosmetic clash:
+ * `moveSplit` maps every node whose id matches, so dragging one division moved
+ * the other as well, and a horizontal division appeared to resize the areas
+ * either side of a vertical one.
+ *
+ * Two defences, because they fail differently: `seedAreaIds` puts the counter
+ * past whatever a restored tree already holds, and `splitArea` refuses an id
+ * the tree it is splitting is using whatever the counter says.
+ */
 let nextId = 0
 export function makeAreaId(prefix = "a"): AreaId {
   nextId += 1
   return `${prefix}${nextId}`
+}
+
+/** Every id in the tree, splits and leaves alike. */
+export function areaIds<E extends string>(root: AreaNode<E>): Set<AreaId> {
+  const out = new Set<AreaId>()
+  const walk = (node: AreaNode<E>): void => {
+    out.add(node.id)
+    if (node.kind === "split") {
+      walk(node.a)
+      walk(node.b)
+    }
+  }
+  walk(root)
+  return out
+}
+
+/**
+ * Advance the counter past every generated id a tree already carries.
+ *
+ * Called wherever a stored arrangement is adopted. Only ids of the generator's
+ * own shape are read -- a preset's `a-viewport` names an area rather than
+ * counting one, and a tree of those leaves the counter where it was.
+ */
+export function seedAreaIds<E extends string>(root: AreaNode<E>): void {
+  for (const id of areaIds(root)) {
+    const n = /^[a-z]*(\d+)$/.exec(id)
+    if (n) nextId = Math.max(nextId, Number(n[1]))
+  }
+}
+
+/**
+ * The same tree with every id used once, and the counter put past all of them.
+ *
+ * For arrangements that arrive from storage. A tree written before ids were
+ * guarded can carry the same id twice, and every operation here matches by id:
+ * a duplicate makes one drag move two divisions and one retype change two
+ * areas. Repaired on the way in rather than tolerated, since nothing
+ * downstream can tell which of the two a gesture meant.
+ *
+ * The SECOND occurrence is the one renamed, so the first keeps whatever else
+ * is filed under its id. What the renamed area loses is its pane -- the modes
+ * record is keyed by area id -- which is the editor opening on its default
+ * pane once, against an arrangement that behaves.
+ */
+export function uniqueAreaIds<E extends string>(
+  root: AreaNode<E>,
+  mkId: () => AreaId = makeAreaId
+): AreaNode<E> {
+  seedAreaIds(root)
+  const seen = new Set<AreaId>()
+  const walk = (node: AreaNode<E>): AreaNode<E> => {
+    const id = seen.has(node.id) ? mkId() : node.id
+    seen.add(id)
+    if (node.kind === "leaf") return id === node.id ? node : { ...node, id }
+    const a = walk(node.a)
+    const b = walk(node.b)
+    return id === node.id && a === node.a && b === node.b
+      ? node
+      : { ...node, id, a, b }
+  }
+  return walk(root)
 }
 
 /**
@@ -148,15 +224,30 @@ export function splitArea<E extends string>(
   editor: E,
   mkId: () => AreaId = makeAreaId
 ): AreaNode<E> {
+  /*
+    An id the tree is not already using, whatever the counter believes.
+
+    The counter is per session and the tree can outlive one; see makeAreaId.
+    Asked of the tree rather than trusted from the generator, so a stored
+    arrangement, a hand-written preset and a session's own splits cannot
+    collide however they are mixed.
+  */
+  const taken = areaIds(root)
+  const fresh = (): AreaId => {
+    let id = mkId()
+    while (taken.has(id)) id = mkId()
+    taken.add(id)
+    return id
+  }
   return mapTree(root, (node) => {
     if (node.kind !== "leaf" || node.id !== leafId) return node
     return {
       kind: "split",
-      id: mkId(),
+      id: fresh(),
       dir,
       at: 0.5,
       a: node,
-      b: { kind: "leaf", id: mkId(), editor },
+      b: { kind: "leaf", id: fresh(), editor },
     }
   })
 }

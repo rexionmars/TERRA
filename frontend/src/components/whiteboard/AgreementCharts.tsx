@@ -559,9 +559,19 @@ export function BlockAgreementPair({
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className="eyebrow !text-[9px]">Agreement by block</p>
       <p className="text-[10px] leading-snug text-muted-foreground">
-        Each block is its own agreement against the reference. Spread says
-        whether the disagreement sits in one place or everywhere; blank blocks
-        held fewer than {grids[0].blocks.min_cells} reference cells.
+        {/*
+          Broken at the boundaries between the three claims rather than left to
+          wrap: on a wide board this ran as one line the full width of the
+          panel, which is a measure no caption is read at. Each line is now one
+          statement -- what a block is, what the spread answers, and what a
+          blank one means.
+        */}
+        Each block is its own agreement against the reference.
+        <br />
+        Spread says whether the disagreement sits in one place or everywhere.
+        <br />
+        Blank blocks held fewer than {grids[0].blocks.min_cells} reference
+        cells.
       </p>
       <div className="flex flex-row items-start gap-3">
         {grids.map((g) => {
@@ -722,9 +732,7 @@ export function ReferenceConfusionPair({
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className="eyebrow !text-[9px]">Confusion against reference</p>
       <p className="text-[10px] leading-snug text-muted-foreground">
-        Rows = MapBiomas reference, columns = the run. Each reference class is
-        its own share, so the two grids are comparable across areas of
-        different size; the diagonal is the producer&apos;s accuracy.
+        Rows = MapBiomas reference, columns = the run.
       </p>
       <div className="flex flex-row items-start gap-3">
         {grids.map((g) => (

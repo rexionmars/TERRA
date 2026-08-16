@@ -60,19 +60,25 @@ import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import { RunPicker } from "@/components/whiteboard/RunPicker"
 import {
   CURRENT_AREA,
+  boardIsDirty,
+  clearBoardDirty,
   liveAreaId,
   keptObject,
+  markBoardDirty,
   readBoardMemory,
+  renameBoardArea,
   snapshotBoard,
   writeBoardMemory,
 } from "@/components/whiteboard/boardMemory"
 import { useAuth } from "@/lib/auth"
+import { isSavedAoiId } from "@/lib/savedAois"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
 import {
   geometryAreaHectares,
   polygonOuterRing,
   resolveProjectGeometry,
+  sameGround,
 } from "@/lib/geometry"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { tableToCSV, type DataTable } from "@/lib/analysisTables"
@@ -82,7 +88,7 @@ import {
   compareOverallDeltaTable,
   compareShareDeltaTable,
 } from "@/lib/compareTables"
-import { saveWhiteboard } from "@/lib/whiteboards"
+import { saveWhiteboard, type Whiteboard } from "@/lib/whiteboards"
 import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
@@ -121,6 +127,7 @@ import {
   type StudioEditorMode,
 } from "@/components/whiteboard/StudioArea"
 import {
+  StudioMenuGroup,
   StudioMenuItem,
   StudioMenuRule,
   StudioPopover,
@@ -136,14 +143,18 @@ import {
   Box,
   Blend,
   BoxSelect,
+  ChevronDown,
   Eraser,
   EyeOff,
   Filter,
   GitCompareArrows,
   Image as ImageIcon,
   Layers,
+  LineChart as LineChartIcon,
   Layers2,
   Pentagon,
+  Sun,
+  TreePine,
   Waves,
   Link2,
   Paintbrush,
@@ -153,6 +164,12 @@ import {
 } from "lucide-react"
 import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
+import {
+  CanopyEditor,
+  type CanopyMode,
+} from "@/components/whiteboard/CanopyEditor"
+import { CanopyRunBar } from "@/components/whiteboard/CanopyRunBar"
+import { CanopyWorkflowProvider } from "@/components/whiteboard/canopyWorkflow"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import {
@@ -267,16 +284,35 @@ function sameStructure(a: CardGroup[], b: CardGroup[]): boolean {
  * remounts when another screen is visited, and the arrangement would be lost
  * by the same gesture in a longer form.
  */
-function useKept<T>(key: string, initial: T | (() => T)) {
+function useKept<T>(
+  key: string,
+  initial: T | (() => T),
+  /**
+   * Whether changing this is a change to the BOARD, as opposed to the studio.
+   *
+   * A saved board carries what is on it and how it is arranged; the workspace
+   * and its area tree are a preference and travel elsewhere. Only the first
+   * kind makes a board unsaved, and only that kind is worth stopping a reader
+   * over when they open another one.
+   */
+  partOfBoard = false
+) {
   const [value, setValue] = useState<T>(() =>
     readBoardMemory(
       key,
       typeof initial === "function" ? (initial as () => T)() : initial
     )
   )
+  const seeded = useRef(false)
   useEffect(() => {
     writeBoardMemory(key, value)
-  }, [key, value])
+    // The first write is the seed, not an edit.
+    if (!seeded.current) {
+      seeded.current = true
+      return
+    }
+    if (partOfBoard) markBoardDirty()
+  }, [key, value, partOfBoard])
   return [value, setValue] as const
 }
 
@@ -309,6 +345,9 @@ export function BoardSurface({
   smooth,
   onSmoothChange,
   title,
+  whiteboards = [],
+  onOpenWhiteboard,
+  onWhiteboardsMenu,
   onClose,
 }: {
   /**
@@ -384,6 +423,17 @@ export function BoardSurface({
   smooth: boolean
   onSmoothChange: (v: boolean) => void
   title: string
+  /**
+   * The saved boards, and the way into one.
+   *
+   * The studio's title block names the board that is loaded; without these it
+   * could only ever name it. Absent where the caller offers no catalog, in
+   * which case the block stays a readout.
+   */
+  whiteboards?: readonly Whiteboard[]
+  onOpenWhiteboard?: (board: Whiteboard) => void
+  /** Refreshes the list as the menu opens, so it is not a stale catalog. */
+  onWhiteboardsMenu?: () => void
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -406,7 +456,8 @@ export function BoardSurface({
    */
   const [names, setNames] = useKept<Readonly<Record<string, string>>>(
     "names",
-    {}
+    {},
+    true
   )
 
   /*
@@ -481,6 +532,26 @@ export function BoardSurface({
     areaModes[shiftModeKey(areaId)] === "cohort" ? "cohort" : "pair"
   const setShiftModeOf = (areaId: AreaId, m: DomainShiftMode) =>
     setAreaModes((prev) => ({ ...prev, [shiftModeKey(areaId)]: m }))
+
+  /*
+    Which question the AOI canopy area is asking.
+
+    Three panes rather than one scrolling body, for the reason the outliner has
+    three: the season is a curve, the light is a grid of scalars and the two
+    ages are a second curve on a different axis. Stacked, each gets a third of
+    the height and none can be read.
+
+    Per area like the others, so one can hold the season beside another holding
+    the light -- which is the comparison the reader actually wants, since the
+    light is what the season is FOR.
+  */
+  const canopyModeKey = (areaId: AreaId) => `${areaId}:canopy`
+  const canopyModeOf = (areaId: AreaId): CanopyMode => {
+    const m = areaModes[canopyModeKey(areaId)]
+    return m === "season" || m === "light" || m === "ages" ? m : "stand"
+  }
+  const setCanopyModeOf = (areaId: AreaId, m: CanopyMode) =>
+    setAreaModes((prev) => ({ ...prev, [canopyModeKey(areaId)]: m }))
 
   /*
     Which board area is the source of the star, per pane.
@@ -629,6 +700,21 @@ export function BoardSurface({
   const [savedName, setSavedName] = useKept<string | null>("savedName", null)
   const [naming, setNaming] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  /** Whether the title block's catalog is open. */
+  const [boardMenu, setBoardMenu] = useState(false)
+  /**
+   * A board chosen while this one has changes that were never saved.
+   *
+   * Opening one replaces everything the board is holding -- `restoreBoard`
+   * clears the store before it writes -- so a switch is where unsaved work
+   * goes silently. Held here until the reader has said what to do with it.
+   */
+  const [pendingOpen, setPendingOpen] = useState<Whiteboard | null>(null)
+  const openBoard = (board: Whiteboard) => {
+    if (board.id === savedId) return
+    if (boardIsDirty()) setPendingOpen(board)
+    else onOpenWhiteboard?.(board)
+  }
 
   /*
     Runs a whiteboard named that are not on the board yet.
@@ -642,6 +728,16 @@ export function BoardSurface({
     const pending = readBoardMemory<string[]>("pendingRunIds", [])
     if (!pending.length) return
     writeBoardMemory("pendingRunIds", [])
+    /*
+      The live area's keys, brought back to the id it carries here.
+
+      A board is stored as runs, so what the live area held was written under
+      the run it reopens as. If the map is on that same ground now, the live
+      area is the AREA (see `liveAreaId`) and those keys name a run instead --
+      and a raster taken off the board comes back, silently, because the key
+      that says it was removed no longer matches any area.
+    */
+    renameBoardArea(runId || CURRENT_AREA, live)
     void (async () => {
       for (const runId of pending) {
         const run = runs.find((r) => r.id === runId)
@@ -657,6 +753,25 @@ export function BoardSurface({
   const doSave = async (name: string) => {
     const trimmed = name.trim()
     if (!trimmed) return
+    /*
+      A BOARD WITH NOTHING ON IT IS NOT A SAVE, IT IS A DELETION.
+
+      Saving writes the membership whole, so a save made before a board has
+      finished fetching its runs replaces the list of what is on it with
+      nothing -- and reported success while doing it. Two boards in this
+      author's own store are at zero members for exactly that reason: opened,
+      saved a moment later, emptied. The save is refused while runs are still
+      arriving, and refused when there is nothing to record.
+    */
+    if (loadingRun) {
+      notifyError(
+        "Still opening this whiteboard",
+        new Error(
+          "its runs are still being fetched, and saving now would store the board without them"
+        )
+      )
+      return
+    }
     setSaving(true)
     try {
       /*
@@ -672,17 +787,35 @@ export function BoardSurface({
           runId: a.id === live ? runId : a.id,
           layerIds: a.layers.map((l) => l.id),
         }))
-        .filter((m) => m.runId && m.runId !== "current")
+        // A member is a RUN. The live area answers with the run it is showing;
+        // a catalogued drawing with nothing on it answers with its own id,
+        // which is an area and not a run, and would be stored as a member that
+        // reopens as nothing.
+        .filter(
+          (m) => m.runId && m.runId !== "current" && !isSavedAoiId(m.runId)
+        )
+      if (!members.length) {
+        notifyError(
+          "Nothing to save on this whiteboard",
+          new Error(
+            "a board is the runs arranged on it, and none of these areas is a saved run yet — run something, or add a run from the outliner, before saving"
+          )
+        )
+        return
+      }
       const board = await saveWhiteboard(
         trimmed,
         // The run the map's area belongs to, so its keys are rewritten to the
         // id that area will carry when the board is opened again.
-        snapshotBoard(members, runId),
+        snapshotBoard(members, runId, live),
         savedId ?? undefined
       )
       setSavedId(board.id)
       setSavedName(board.name)
       setNaming(null)
+      // What is on disk is what is on screen again, so a switch has nothing
+      // left to warn about.
+      clearBoardDirty()
       notifySuccess(`Whiteboard "${board.name}" saved.`)
     } catch (e) {
       notifyError("Could not save this whiteboard", e)
@@ -719,13 +852,56 @@ export function BoardSurface({
   }
 
   /*
+    WHICH CATALOGUED AREA EACH RUN IS OF.
+
+    A run records it since `InferenceRun.aoi_id`; a run written before that
+    column existed does not, and is matched by its polygon instead -- it was
+    sent the drawing's exact ring, so ring equality is the honest test and
+    `sameGround` says why it is not a spatial predicate.
+
+    Memoised because the fallback parses a polygon per run, and this is read
+    from three places in a render that runs on every drag of a division.
+  */
+  const aoiOfRun = useMemo(() => {
+    const out = new Map<string, string>()
+    for (const r of runs) {
+      const linked = (r.aoi_id ?? "").trim()
+      if (linked) {
+        out.set(r.id, linked)
+        continue
+      }
+      if (!savedAois.length || !r.polygon_geojson) continue
+      let geom: GeoJSONGeometry | null = null
+      try {
+        geom = JSON.parse(r.polygon_geojson) as GeoJSONGeometry
+      } catch {
+        continue
+      }
+      const match = savedAois.find((a) => sameGround(a.geometry, geom))
+      if (match) out.set(r.id, match.id)
+    }
+    return out
+  }, [runs, savedAois])
+
+  /*
     Which subject the map's area IS, rather than the slot it sits in.
 
     Every `CURRENT_AREA` below became this. The literal survives only where
     there is genuinely no subject -- no run and no catalogued AOI -- which is
     what `liveAreaId` falls back to.
+
+    The ground of the SHOWN run decides it, and the active drawing only stands
+    in where no run is shown. Read from the run's own record where the list
+    knows it: activating another area while a result is on screen must not
+    rename the result's own ground. A run the list has not caught up with --
+    one saved a moment ago -- was made over the area that is active now, which
+    is the only case where the two can disagree and the newer answer is right.
   */
-  const live = liveAreaId(runId, activeAoiId)
+  const live = liveAreaId(
+    runId,
+    activeAoiId,
+    runs.some((r) => r.id === runId) ? aoiOfRun.get(runId) : activeAoiId
+  )
 
   /*
     What the live area is CALLED, derived once.
@@ -884,7 +1060,8 @@ export function BoardSurface({
    */
   const [removed, setRemoved] = useKept<ReadonlySet<string>>(
     "removed",
-    () => new Set()
+    () => new Set(),
+    true
   )
   /** Scene ids added, per area, in the order they were added. */
   /*
@@ -903,7 +1080,8 @@ export function BoardSurface({
   */
   const [dismissedAreas, setDismissedAreas] = useKept<readonly string[]>(
     "dismissedAreas",
-    []
+    [],
+    true
   )
   const removeArea = (areaId: string) => {
     const area = areas.find((a) => a.id === areaId)
@@ -915,7 +1093,7 @@ export function BoardSurface({
 
   const [added, setAdded] = useKept<
     Readonly<Record<string, readonly string[]>>
-  >("added", {})
+  >("added", {}, true)
 
   /*
     HANDING THE OUTGOING RUN ITS OWN MEMBERSHIP.
@@ -947,6 +1125,31 @@ export function BoardSurface({
     if (!ids.length) return
     setAdded((prev) => (prev[previous]?.length ? prev : { ...prev, [previous]: ids }))
   }, [runId, retainedRuns, setAdded])
+  /*
+    THE LIVE AREA RE-RESOLVED, not replaced.
+
+    Its id answers with the ground when the ground is known, and the ground can
+    become known a moment after the board is up: the run record arrives, or a
+    catalogued drawing is matched by geometry. That is the same subject under a
+    better name, so what the board remembers about it moves with it -- without
+    this, removing a plane and then having the run list arrive would put the
+    plane back, since the key that recorded the removal named an id nothing is
+    called any more.
+
+    Only for the same subject. The live area also changes id when the map moves
+    to another field, and carrying one field's removals onto the next would be
+    the very defect `liveAreaId` was rewritten to end.
+  */
+  const previousLive = useRef(live)
+  useEffect(() => {
+    const before = previousLive.current
+    previousLive.current = live
+    if (before === live) return
+    if (before === (runId || CURRENT_AREA) || before === CURRENT_AREA) {
+      renameBoardArea(before, live)
+    }
+  }, [live, runId])
+
   /**
    * Opacity and visibility for rasters the board added.
    *
@@ -957,7 +1160,7 @@ export function BoardSurface({
    */
   const [extraState, setExtraState] = useKept<
     Readonly<Record<string, { opacity: number; visible: boolean }>>
-  >("extraState", {})
+  >("extraState", {}, true)
 
   /**
    * Layers dropped to the base of their stack.
@@ -966,7 +1169,11 @@ export function BoardSurface({
    * in this stack is a fact about looking at it here, and the map has no
    * stack to have an opinion about.
    */
-  const [flat, setFlat] = useKept<ReadonlySet<string>>("flat", () => new Set())
+  const [flat, setFlat] = useKept<ReadonlySet<string>>(
+    "flat",
+    () => new Set(),
+    true
+  )
 
   /**
    * A stack order the user has set, per area, bottom first.
@@ -984,7 +1191,8 @@ export function BoardSurface({
    */
   const [order, setOrder] = useKept<Readonly<Record<string, string[]>>>(
     "order",
-    {}
+    {},
+    true
   )
   const reorderArea = (areaId: string, topFirst: string[]) =>
     // Stored bottom first, which is how a stack is built and how layoutGroups
@@ -1109,6 +1317,24 @@ export function BoardSurface({
     return [...known, ...ls.filter((l) => !rank.has(l.id))]
   }
 
+  /*
+    THE GROUND ALREADY DRAWN BY A RUN, so it is not drawn a second time empty.
+
+    A catalogued drawing is offered as an area of its own -- that is how a
+    second draw stays visible and can be put back with Use -- but once a run
+    over that same ground is on the board, the drawing has nothing to add: the
+    run's plane IS that ground, and the outline beside it was the second area
+    per field the reader was counting. Two AOIs and two runs made four areas.
+
+    The empty outline is kept in the one case it says something: a drawing with
+    no run yet, which is where the next one will happen.
+  */
+  const groundOnBoard = new Set(
+    assetRuns
+      .map((r) => aoiOfRun.get(r.runId))
+      .filter((id): id is string => !!id)
+  )
+
   const areas = [
     {
       id: live,
@@ -1124,17 +1350,42 @@ export function BoardSurface({
         run that has been saved carries a name, so it is asked first; the map's
         label is what remains for an area not yet run.
       */
-      // A rename outranks the derivation; otherwise both trees say the same.
-      title: names[stackRow(live)] ?? liveTitle,
+      /*
+        A rename outranks the derivation; otherwise both trees say the same.
+
+        The DRAWING'S name where this area is one, and the run's only where it
+        is not. The scene tree lists ground and the data tree lists runs, so an
+        area that is a catalogued drawing reads "drawn 2" here and its run
+        reads "run-drawn-…" there -- one name per thing, instead of the same
+        field appearing under a drawing name, a run name and a placeholder.
+      */
+      title:
+        names[stackRow(live)] ??
+        savedAois.find((a) => a.id === live)?.name ??
+        liveTitle,
       layers: applyOrder(live, [
         ...layers.filter((l) => !removed.has(sceneKey(live, l.id))),
         ...extrasFor(live, 1000),
       ]),
     },
-    // Catalogued drawings that are not the active map AOI — so a second draw
-    // stays visible and can be put back with Use.
+    /*
+      Catalogued drawings, and only where something has been put on one.
+
+      They used to be areas whether or not they carried anything, so a reader
+      with five drawings opened any board and found five empty outlines over
+      it -- in the scene, in the tree and in the layout -- none of which was
+      part of that board: a drawing belongs to the catalog, and a board is the
+      runs arranged on it. The catalog has a pane of its own, and the Areas tab
+      lists every drawing with its footprint, its hectares and Use whether or
+      not it is on the board.
+
+      The live one keeps its outline. That is the ground the next run happens
+      on, which is the one drawing this surface is about.
+    */
     ...savedAois
-      .filter((a) => a.id !== live && a.id !== activeAoiId)
+      .filter(
+        (a) => a.id !== live && a.id !== activeAoiId && !groundOnBoard.has(a.id)
+      )
       .map((a) => ({
         id: a.id,
         title: names[stackRow(a.id)] ?? a.name,
@@ -1152,9 +1403,13 @@ export function BoardSurface({
       a.layers.length > 0 ||
       // The map's own area survives having nothing on it, so long as an area
       // has been drawn: it is the thing the work is about to be run on, and
-      // the board is where that work is started.
-      (a.id === live && !!aoiPolygon?.length) ||
-      savedAois.some((s) => s.id === a.id)
+      // the board is where that work is started. Unless a run of that same
+      // ground is already on the board, in which case the outline would stand
+      // empty beside the plane that is the same field.
+      (a.id === live && !!aoiPolygon?.length && !groundOnBoard.has(live)) ||
+      // Nothing else earns a place. A drawing with no raster on it is a
+      // catalog entry, and the Areas tab is where a catalog is read.
+      false
   )
     // Last, so a dismissal outranks every reason an area would otherwise stay.
     .filter((a) => !dismissedAreas.includes(a.id))
@@ -1487,6 +1742,34 @@ export function BoardSurface({
       catalogId,
     }
   })
+
+  /*
+    THE CATALOG, WHICH IS LONGER THAN THE BOARD.
+
+    A drawing stops being an area once it has nothing on it -- see the note in
+    `areas` -- and this pane is where it did not stop being anything. It lists
+    the ground a reader has drawn, on the board or not, which is what makes Use
+    a way back to a field rather than a way back to whatever happens to be
+    arranged right now.
+
+    Measured from the catalog's own geometry rather than from the ring the
+    board holds, because the board holds none for an area it is not drawing.
+  */
+  for (const a of savedAois) {
+    if (areaInfo.some((x) => x.id === a.id || x.catalogId === a.id)) continue
+    const ring = polygonOuterRing(a.geometry)
+    areaInfo.push({
+      id: a.id,
+      title: names[stackRow(a.id)] ?? a.name,
+      geometry: a.geometry,
+      hectares: geometryAreaHectares(a.geometry),
+      vertices: ring?.length ? ring.length - 1 : null,
+      layers: 0,
+      current: false,
+      saved: true,
+      catalogId: a.id,
+    })
+  }
 
   /*
     A retained run has to appear HERE too, not only in `assetRuns`.
@@ -2304,6 +2587,25 @@ export function BoardSurface({
   }, [selection, legendByArea, areas])
 
   /*
+    Every run on the board, and not only the ones a plane is selected on.
+
+    `selectedRuns` above is the right source for the table and the comparison,
+    which are views OF a selection. The canopy is not: its subject is a season,
+    and asking a reader to select a plane in the outliner before a picker will
+    list anything is a step with nothing behind it -- the first version did that
+    and the picker simply read as broken.
+  */
+  const boardRuns = useMemo(() => {
+    const out: Array<{ id: string; label: string; result: PredictResult }> = []
+    for (const a of areas) {
+      const result = legendByArea.get(a.id)?.result
+      if (!result) continue
+      out.push({ id: a.id, label: a.title ?? a.id, result })
+    }
+    return out
+  }, [areas, legendByArea])
+
+  /*
     THE HEADERS, one per editor.
 
     This is where the density comes from, and its absence is what made the
@@ -2362,6 +2664,14 @@ export function BoardSurface({
       // other where it was.
       select: () => setModeOf(areaId, id),
     })
+    const canopyHere = canopyModeOf(areaId)
+    const canopyPane = (id: CanopyMode, label: string, icon: LucideIcon) => ({
+      id,
+      label,
+      icon,
+      active: canopyHere === id,
+      select: () => setCanopyModeOf(areaId, id),
+    })
     const shiftHere = shiftModeOf(areaId)
     const shiftPane = (
       id: DomainShiftMode,
@@ -2391,6 +2701,19 @@ export function BoardSurface({
       domainShift: [
         shiftPane("pair", "Pair", GitCompareArrows),
         shiftPane("cohort", "Cohort", Waves),
+      ],
+      /*
+        Three questions about one season, and each wants the whole width. The
+        season is what the ground was; the light is what that canopy does with
+        the sun the cell received; the ages are whether the plant model applies
+        to this sowing at all -- which is the one that says whether to believe
+        the other two.
+      */
+      canopy: [
+        canopyPane("stand", "Stand", TreePine),
+        canopyPane("season", "Season", LineChartIcon),
+        canopyPane("light", "Light", Sun),
+        canopyPane("ages", "Ages", GitCompareArrows),
       ],
     }
   }
@@ -2857,6 +3180,20 @@ export function BoardSurface({
     ),
     table: <StudioTables runs={selectedRuns} />,
     /*
+      Four readings of one canopy, and the canopy is the workflow's rather than
+      the panel's: what is grown and which area is read are set once in the
+      canopy band, which is why this takes only which reading to show. Two
+      canopy areas are two questions about one stand -- a Stand beside its
+      season is the comparison the editor exists for -- so it is not unique,
+      and neither area carries a control the other could disagree with.
+    */
+    canopy: <CanopyEditor mode={canopyModeOf(areaId)} />,
+    /*
+      The simulation workflow's own band, the canopy's half of what the run
+      band is for the classification products.
+    */
+    canopyParams: <CanopyRunBar />,
+    /*
       No longer `sides ? ... : null`. An editor that renders nothing at all
       when it cannot answer is indistinguishable from one that is broken, and
       the domain-shift editor beside it has said what it needs all along.
@@ -3075,6 +3412,29 @@ export function BoardSurface({
       )}
 
       {/*
+        The other thing this studio asks before destroying, and it asks in the
+        same way for the reason ConfirmDelete's own docblock gives: a second
+        destructive act must not become a second way of asking. What is
+        destroyed here is not a run but the arrangement -- which planes were
+        taken off, what was renamed, what was reordered -- and it is gone the
+        moment another board is restored over it.
+      */}
+      {pendingOpen && (
+        <ConfirmDelete
+          eyebrow="UNSAVED CHANGES"
+          title={<>Open “{pendingOpen.name}”?</>}
+          subtitle={`This board has changes that were never saved${savedName ? ` to “${savedName}”` : ""} — planes taken off, renames, the order they sit in. Opening another one replaces them and they cannot be brought back. Cancel, press Save, and open it again to keep both.`}
+          confirmLabel="Discard and open"
+          onCancel={() => setPendingOpen(null)}
+          onConfirm={() => {
+            const board = pendingOpen
+            setPendingOpen(null)
+            onOpenWhiteboard?.(board)
+          }}
+        />
+      )}
+
+      {/*
         THE WORKSPACE TABS.
 
         Named arrangements, one per kind of work, switched here -- which is
@@ -3170,7 +3530,7 @@ export function BoardSurface({
                 sits on, which is how Blender's workspace tabs read as a row
                 of destinations rather than as four switches.
               */
-              "relative -mb-px h-full px-2.5 text-meta transition-colors",
+              "relative -mb-px flex h-full items-center gap-1.5 px-2.5 text-meta transition-colors",
               w.id === workspaceId
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -3185,6 +3545,13 @@ export function BoardSurface({
                 : undefined
             }
           >
+            {/*
+              The glyph of the editor the preset is built around, which the
+              type menu already uses for that editor. The name stays: a tab
+              strip of five glyphs would be five destinations a reader has to
+              learn before they can be chosen between.
+            */}
+            <w.icon className="size-3 shrink-0" strokeWidth={1.75} />
             {w.label}
           </button>
         ))}
@@ -3208,17 +3575,105 @@ export function BoardSurface({
             heading and not for a 28px strip: the two lines were clipped to
             about a line and a half and read as broken text. What a data-block
             shows is WHICH one is loaded; the rest is the title attribute.
+
+            AND IT IS A SELECTOR, which is the other half of what a data-block
+            is. It named the board that was loaded and offered no way to load
+            another: the catalog was in the project menu, on a screen the
+            studio covers. A name shown where it cannot be changed is a readout
+            wearing a control's clothes.
           */}
-          <span
-            className="flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta"
-            style={{ background: "rgb(var(--p-surface-raised))" }}
-            title={savedName ? `${savedName} — ${title}` : title}
+          <StudioPopover
+            open={boardMenu}
+            onOpenChange={(next) => {
+              // Refreshed as it opens: a board saved from another window, or
+              // one saved here a moment ago, should be in the list rather than
+              // in the list next time.
+              if (next) onWhiteboardsMenu?.()
+              setBoardMenu(next)
+            }}
+            surface={surfaceRef.current}
+            align="end"
+            widthRem={17}
+            trigger={(p) => (
+              <button
+                {...p}
+                ref={p.ref as React.Ref<HTMLButtonElement>}
+                type="button"
+                disabled={!onOpenWhiteboard}
+                className="app-no-drag flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta transition-colors hover:brightness-125 disabled:cursor-default"
+                style={{ background: "rgb(var(--p-surface-raised))" }}
+                title={
+                  onOpenWhiteboard
+                    ? `${savedName ?? title} — open another whiteboard`
+                    : savedName
+                      ? `${savedName} — ${title}`
+                      : title
+                }
+              >
+                <Layers
+                  className="size-3 shrink-0 text-muted-foreground"
+                  strokeWidth={1.75}
+                />
+                <span className="truncate text-foreground">
+                  {savedName ?? title}
+                </span>
+                {onOpenWhiteboard ? (
+                  <ChevronDown
+                    className="size-2.5 shrink-0 opacity-60"
+                    strokeWidth={2}
+                  />
+                ) : null}
+              </button>
+            )}
           >
-            <Layers className="size-3 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-            <span className="truncate text-foreground">
-              {savedName ?? title}
-            </span>
-          </span>
+            <StudioMenuGroup label="Whiteboards">
+              {whiteboards.length ? (
+                whiteboards.map((b) => (
+                  <StudioMenuItem
+                    key={b.id}
+                    icon={Layers}
+                    label={b.name}
+                    // How many runs are arranged on it, which is the only
+                    // thing about a board that says how much is there.
+                    note={String(b.member_count ?? 0)}
+                    checked={b.id === savedId}
+                    title={
+                      b.id === savedId
+                        ? "Already open"
+                        : `Open "${b.name}" — this arrangement is replaced by it`
+                    }
+                    onSelect={() => {
+                      setBoardMenu(false)
+                      openBoard(b)
+                    }}
+                  />
+                ))
+              ) : (
+                <StudioMenuItem
+                  icon={Save}
+                  label="No whiteboards saved yet"
+                  disabled
+                  title="Save this one under a name and it is listed here"
+                  onSelect={() => {}}
+                />
+              )}
+            </StudioMenuGroup>
+            <StudioMenuRule />
+            {/*
+              Renaming is a save under another name over the same board, which
+              is what the store already does with an id and a name. Offered
+              here rather than beside the button, because the name being
+              changed is the one this block shows.
+            */}
+            <StudioMenuItem
+              icon={Save}
+              label={savedName ? "Save under another name…" : "Save whiteboard…"}
+              onSelect={() => {
+                setBoardMenu(false)
+                setNaming(savedName ?? "")
+              }}
+            />
+          </StudioPopover>
           {/*
             Saving names the board. Unnamed it asks for one; named it writes over
             itself, because a second copy of the same work under the same name is
@@ -3230,11 +3685,13 @@ export function BoardSurface({
               onClick={() =>
                 savedName ? void doSave(savedName) : setNaming("")
               }
-              disabled={saving}
+              disabled={saving || loadingRun}
               title={
-                savedName
-                  ? `Save over "${savedName}"`
-                  : "Save this whiteboard under a name"
+                loadingRun
+                  ? "Still fetching this board's runs; saving now would store it without them"
+                  : savedName
+                    ? `Save over "${savedName}"`
+                    : "Save this whiteboard under a name"
               }
               className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -3333,6 +3790,16 @@ export function BoardSurface({
         each knew where they went is now one walk of a tree -- so which surface
         sits where is a choice the reader makes, which is the whole point.
       */}
+      {/*
+        THE SIMULATION WORKFLOW'S STATE, above every area that reads it.
+
+        The canopy band sets a stand and an area to read; the canopy panels
+        draw what came of it. Both are leaves of this tree, and neither is the
+        other's parent, so the state they share sits over the walk rather than
+        inside either -- the same relation the board's runs already have to the
+        viewport and the tables.
+      */}
+      <CanopyWorkflowProvider runs={boardRuns}>
       <StudioAreaTree
         tree={tree}
         viewport={surface}
@@ -3368,6 +3835,7 @@ export function BoardSurface({
           </StudioArea>
         )}
       />
+      </CanopyWorkflowProvider>
 
     </motion.div>
   )

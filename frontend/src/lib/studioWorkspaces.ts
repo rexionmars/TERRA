@@ -22,6 +22,9 @@
  * The fractions are chosen against the application's minimum window of
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
+import type { LucideIcon } from "lucide-react"
+import { Box, GitCompareArrows, Table2, TreePine, Waves } from "lucide-react"
+
 import type { AreaNode } from "@/lib/boardAreas"
 import type { EditorId } from "@/lib/studioEditors"
 
@@ -33,6 +36,17 @@ export interface StudioWorkspace {
   label: string
   /** One line, for the tab's title attribute. */
   hint: string
+  /**
+   * The tab's glyph, taken from the editor the arrangement is built around.
+   *
+   * Not a fifth vocabulary. Every one of these presets exists to give one
+   * reading the room it needs -- the comparison the lower half, the tables
+   * their width, the canopy the whole board -- and it is already listed in the
+   * type menu under that editor's own glyph. Wearing the same one makes the
+   * tab and the area it leads to legible as one subject, which is the argument
+   * `BoardRunBar` makes for reusing the board tree's glyphs on its tools.
+   */
+  icon: LucideIcon
   /** Built fresh per call: a shared tree would be mutated across workspaces. */
   build: () => StudioTree
 }
@@ -64,6 +78,7 @@ const col = (id: string, at: number, a: StudioTree, b: StudioTree): StudioTree =
 export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   {
     id: "layout",
+    icon: Box,
     label: "Layout",
     hint: "The general arrangement: the board, what is in it, and what is selected",
     /*
@@ -101,6 +116,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "compare",
+    icon: GitCompareArrows,
     label: "Compare",
     hint: "Two planes read against each other, without a dialog over the board",
     /*
@@ -129,6 +145,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "diagnose",
+    icon: Waves,
     label: "Diagnose",
     hint: "How far the domains are apart, and where the difference sits",
     /*
@@ -152,6 +169,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "data",
+    icon: Table2,
     label: "Data",
     hint: "The run's own tables, at the width a table needs",
     /*
@@ -171,6 +189,51 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         leaf("a-table", "table")
+      ),
+  },
+  {
+    id: "simulation",
+    icon: TreePine,
+    label: "Simulation",
+    hint: "An orchard module and the light that reaches through it",
+    /*
+      The canopy takes the width because the question is spatial: where the
+      light falls between the crowns is not readable in a column, and the
+      outliner beside it says which ground is on the board.
+
+      THE STRIP ALONG THE FOOT IS THE CANOPY'S OWN, not the classification's.
+      It was the run band, on the argument that the orchard is the same ground
+      a classification is about -- which is true and was not enough: the
+      canopy's own parameters then had nowhere to live but inside the panels,
+      so every canopy area carried the species, the sowing, an area picker and
+      a commit, and two areas asking two questions about ONE stand offered two
+      sets of controls over it. A workspace is an arrangement for a kind of
+      work; the band that belongs at the foot of this one is the band that sets
+      what is grown. Classifying is a gesture away, in Layout, where its band
+      has always been.
+
+      No viewport in this preset. Not to save the second WebGL context -- the
+      board's is never released on a workspace switch, so it is spent either
+      way -- but because a stack of rasters and a shaded orchard are two
+      answers to two different questions, and putting them side by side invites
+      reading one as an overlay of the other.
+
+      Fractions measured at the 1000x700 minimum, after the 28px workspace bar,
+      the 22px status bar and each area's own 26px header: the canopy body is
+      720x533 against a 288x224 floor, the outliner 280x533 against 176x128,
+      and the canopy band 1000x65 against 512x48.
+    */
+    build: () =>
+      col(
+        "w-sim-foot",
+        0.86,
+        row(
+          "w-sim-split",
+          0.72,
+          leaf("a-canopy", "canopy"),
+          leaf("a-outliner", "outliner")
+        ),
+        leaf("a-canopy-run", "canopyParams")
       ),
   },
 ]

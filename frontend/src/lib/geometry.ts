@@ -19,6 +19,34 @@ export function polygonOuterRing(geometry: GeoJSONGeometry): LonLat[] | null {
 }
 
 /**
+ * Whether two geometries describe the same ground.
+ *
+ * FOR RUNS WRITTEN BEFORE THEY RECORDED WHICH AREA THEY WERE OF. A run stores
+ * the polygon it was made over, so a run and the catalogued drawing behind it
+ * hold the same ring — the run was sent that exact geometry. Equality on the
+ * ring is therefore the honest test, and this is not a spatial predicate: two
+ * drawings of the same field by hand are different ground here, correctly, and
+ * anything that wanted overlap would have to measure it.
+ *
+ * The tolerance is a float round trip through JSON and nothing more. 1e-9
+ * degrees is about a tenth of a millimetre, far under the precision any of
+ * these coordinates carry.
+ */
+export function sameGround(
+  a: GeoJSONGeometry | null | undefined,
+  b: GeoJSONGeometry | null | undefined
+): boolean {
+  if (!a || !b) return false
+  const ra = polygonOuterRing(a)
+  const rb = polygonOuterRing(b)
+  if (!ra || !rb || ra.length !== rb.length) return false
+  return ra.every(
+    (p, i) =>
+      Math.abs(p[0] - rb[i][0]) < 1e-9 && Math.abs(p[1] - rb[i][1]) < 1e-9
+  )
+}
+
+/**
  * Arithmetic mean of a linear ring's vertices.
  *
  * GeoJSON linear rings repeat the first position as the last one (RFC 7946

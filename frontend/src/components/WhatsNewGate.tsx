@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { GetAppVersion } from "../../wailsjs/go/main/App"
 import { useAuth } from "@/lib/auth"
 import {
+  alwaysShowWhatsNewFromPrefs,
   mergePreferenceExtras,
   parsePreferenceExtras,
 } from "@/lib/preferenceExtras"
@@ -58,6 +59,26 @@ export function WhatsNewGate() {
         } catch {
           /* best-effort */
         }
+      }
+
+      /*
+        Asked for on every start, so the version is no longer what decides.
+
+        The catalog is read from zero rather than from `last_seen`: the notes
+        NEWER than a version already acknowledged are an empty list, which is
+        precisely the state this setting exists to escape. `last_seen` is still
+        written on continue, so turning the setting off later returns to the
+        once-per-version behaviour without announcing a release again.
+      */
+      if (alwaysShowWhatsNewFromPrefs(prefs)) {
+        const all = entriesSince("0.0.0", current)
+        if (all.length === 0) {
+          await persistSeen()
+          return
+        }
+        setCurrentVersion(current)
+        setEntries(all)
+        return
       }
 
       // Never seen (or first launch with this feature): baseline below any release notes.

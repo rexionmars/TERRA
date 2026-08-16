@@ -22,7 +22,9 @@ import {
   ListTree,
   PanelBottom,
   SlidersHorizontal,
+  Sprout,
   Table2,
+  TreePine,
   Waves,
 } from "lucide-react"
 
@@ -34,6 +36,8 @@ export type EditorId =
   | "domainShift"
   | "table"
   | "runParams"
+  | "canopy"
+  | "canopyParams"
 
 export interface StudioEditorMeta {
   id: EditorId
@@ -59,6 +63,17 @@ export interface StudioEditorMeta {
    * second one would need a second renderer. Nothing else here is exclusive.
    */
   unique?: boolean
+  /**
+   * Whether this editor builds a WebGL context of its own.
+   *
+   * Recorded because the webview caps live contexts and the studio's budget is
+   * not obvious from any one file. The viewport's context lives outside the
+   * area tree and is never disposed on a workspace switch, so it is always
+   * spent; an editor marked here spends a second one for as long as its area
+   * is on screen. Two is comfortable, and this is what makes the count
+   * countable rather than a thing to rediscover.
+   */
+  gl?: boolean
   /** One line in the type selector, saying what the editor is for. */
   hint: string
 }
@@ -71,6 +86,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 12,
     minRowRem: 8,
     unique: true,
+    gl: true,
     hint: "The rasters themselves, lifted off their coordinates",
   },
   {
@@ -136,6 +152,65 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 28,
     minRowRem: 3,
     hint: "Area, period and model for the next run",
+  },
+  {
+    id: "canopy",
+    label: "Canopy",
+    icon: TreePine,
+    /*
+      A volume ray-march has to be large enough to read a gap between two
+      crowns, and the shading a reader is looking for lives in the last third
+      of the depth. Below roughly this the crowns are a few pixels across and
+      the question the editor answers cannot be asked of it.
+    */
+    /*
+      Wider than the stand alone needed. This editor carries four readings now
+      -- the stand, the season an AOI implies, the light that canopy makes of
+      the sun, and whether the plant model applies to the sowing at all -- and
+      the three that are charts do not fit the 18rem a 3D view could live in.
+    */
+    minRem: 22,
+    minRowRem: 14,
+    /*
+      Only the stand pane builds a context, and it builds it on entering that
+      pane rather than on mounting the area. An area parked on Season spends
+      nothing, which is what makes four panes affordable in a budget of two.
+    */
+    gl: true,
+    /*
+      NOT unique. Two canopies is a comparison -- the same leaf area at two
+      spacings, or a young stand against a grown one -- and each builds its own
+      small scene, so the cost is one more context rather than a contested
+      singleton. The viewport is exclusive because there is one board; there is
+      no one stand.
+    */
+    // Was "An orchard module, shaded by marching its leaf-area density", which
+    // described the voxel view this editor replaced. A hint that outlives the
+    // thing it describes sends a reader to the wrong area.
+    hint: "A stand: specified and drawn, or the one an AOI's season implies",
+  },
+  {
+    id: "canopyParams",
+    label: "Canopy run",
+    icon: Sprout,
+    /*
+      The canopy's half of what `runParams` is for the classification products,
+      and the same floor for the same reason: the parameters scroll sideways
+      below it, which is what a band should do rather than reflow into a shape
+      a reader has to re-learn. Wider than the run band by two groups' worth --
+      it carries a sowing of four numbers where that one carries a period of
+      two.
+    */
+    minRem: 32,
+    minRowRem: 3,
+    /*
+      Unique. It is not a view of anything: it holds the species, the age, the
+      sowing and which analysed area is read, once for the board. A second one
+      would be a second set of controls over one stand, which is the exact
+      duplication that moving these out of the canopy panels removed.
+    */
+    unique: true,
+    hint: "Species, age and sowing for the stand, and which area is read",
   },
 ]
 

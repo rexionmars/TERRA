@@ -1,0 +1,21 @@
+# Optional extra for growing explicit 3D plant architecture (large download:
+# the wheel carries a compiled C++ core, ~85 MB).
+#
+# WHY IT IS A SEPARATE FILE. Without it the canopy still builds, from analytic
+# ellipsoid crowns, and every install can do that with nothing but numpy. This
+# buys the other source: plants grown organ by organ, voxelised into the same
+# field. The two are not interchangeable -- an ellipsoid preserving total leaf
+# area and crown envelope assimilates about 44% more than the architecture it
+# replaces, because Beer-Lambert is not linear in density and a medium with gaps
+# passes far more light than a uniform one of the same total area.
+#
+# THE NAME. The distribution is `pyhelios3d`; the module it installs is
+# `pyhelios`. Anything probing for availability must import the latter -- the
+# sidecar spent its life importing the former, so pip reported success and the
+# growth path still reported itself unavailable.
+#
+# Helios is used for architecture only. Its radiation plug-in is deliberately
+# untouched, so there is no GPU requirement on this path and the Metal kernel
+# fault on Apple Silicon is not on it either.
+-r requirements.txt
+pyhelios3d>=0.1.27

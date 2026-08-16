@@ -79,6 +79,19 @@ NEEDS = [
     # The heavy models. Deliberately absent from the bundled environment: torch
     # alone outweighs everything else the application ships.
     Need("torch", "torch", "Temporal Transformer and Prithvi", optional=True),
+    # Optional for the same reason as torch, and absent for one more: the wheel
+    # carries a compiled C++ core, so the sidecar's own modules deliberately do
+    # not import it -- helios_bridge takes the scene as a duck-typed object, and
+    # the canopy engines are numpy. Nothing degrades until someone asks to grow
+    # a plant, which is why this reports missing without making the environment
+    # unusable.
+    # The import name and the distribution name differ: `pip install pyhelios3d`
+    # provides the module `pyhelios`. Probing the distribution name reported the
+    # toolkit absent on machines where it was installed and working, which is
+    # exactly the misdiagnosis this file exists to prevent.
+    Need("pyhelios", "pyhelios3d", "growing a 3D crop", optional=True,
+         floor=(0, 1, 27),
+         why="plantarchitecture growth and the organ labels the bridge reads"),
 ]
 
 # The interpreter the trained artifacts and the wheels were built against.

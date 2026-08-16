@@ -1,10 +1,19 @@
 /**
  * The whiteboard's WebGL scene.
  *
- * THE ONLY MODULE IN THIS APPLICATION THAT IMPORTS `three`. Keeping it to one
- * file means the GL surface is one file to audit, and it is what lets the
- * button that opens the board stay out of the same module graph -- otherwise
- * opening the map screen would fetch half a megabyte to draw a 34 px button.
+ * ONE OF TWO MODULES IN THIS APPLICATION THAT IMPORT `three`; the other is
+ * canopyScene.ts. It said "the only one" until the canopy editor landed, and
+ * the two are separate on purpose rather than by omission: this file is a stack
+ * of textured planes with a picker, a gizmo and a fog, and that one is a box
+ * with a ray-march in it. What the rule protects is unchanged and still holds
+ * -- both stay behind the lazy import of BoardSurface, so the button that opens
+ * the board stays out of the same module graph and opening the map screen does
+ * not fetch half a megabyte to draw a 34 px button.
+ *
+ * The GL surface is therefore two files to audit, and they spend two contexts
+ * against the webview's cap. This one is never released on a workspace switch
+ * (see the host div in BoardSurface); the canopy's is created and destroyed
+ * with its area, which is why the cheaper scene is the transient one.
  *
  * Imperative rather than a React renderer. The scene graph is a handful of
  * planes and a grid, and the interaction that matters -- raycast, drag,

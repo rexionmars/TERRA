@@ -77,6 +77,651 @@ export namespace backend {
 		}
 	}
 	
+	export class CanopyAgainstUniform {
+	    cos_zenith: number;
+	    field: number;
+	    uniform: number;
+	    fapar: number;
+	    fapar_fixed_k: number;
+	    k_emergent?: number;
+	    fixed_k: number;
+	    fixed_k_error_pct?: number;
+	    ratio?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyAgainstUniform(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cos_zenith = source["cos_zenith"];
+	        this.field = source["field"];
+	        this.uniform = source["uniform"];
+	        this.fapar = source["fapar"];
+	        this.fapar_fixed_k = source["fapar_fixed_k"];
+	        this.k_emergent = source["k_emergent"];
+	        this.fixed_k = source["fixed_k"];
+	        this.fixed_k_error_pct = source["fixed_k_error_pct"];
+	        this.ratio = source["ratio"];
+	    }
+	}
+	export class CanopyAgeCheck {
+	    comparable: boolean;
+	    progress_helios?: number;
+	    progress_field?: number;
+	    delta_progress?: number;
+	    agrees?: boolean;
+	    why?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyAgeCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.comparable = source["comparable"];
+	        this.progress_helios = source["progress_helios"];
+	        this.progress_field = source["progress_field"];
+	        this.delta_progress = source["delta_progress"];
+	        this.agrees = source["agrees"];
+	        this.why = source["why"];
+	    }
+	}
+	export class CanopyCycle {
+	    start: string;
+	    end: string;
+	    greenup: string;
+	    n: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyCycle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.greenup = source["greenup"];
+	        this.n = source["n"];
+	    }
+	}
+	export class CanopyEnsemble {
+	    n: number;
+	    fapar_min: number;
+	    fapar_max: number;
+	    fapar_spread: number;
+	    cover_min: number;
+	    cover_max: number;
+	    seeds: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyEnsemble(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.n = source["n"];
+	        this.fapar_min = source["fapar_min"];
+	        this.fapar_max = source["fapar_max"];
+	        this.fapar_spread = source["fapar_spread"];
+	        this.cover_min = source["cover_min"];
+	        this.cover_max = source["cover_max"];
+	        this.seeds = source["seeds"];
+	    }
+	}
+	export class CanopyGrown {
+	    leaf_area: number;
+	    reported: number;
+	    relative_error: number;
+	    organs: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyGrown(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.leaf_area = source["leaf_area"];
+	        this.reported = source["reported"];
+	        this.relative_error = source["relative_error"];
+	        this.organs = source["organs"];
+	    }
+	}
+	export class CanopyReferenceSun {
+	    cos_zenith: number;
+	    azimuth: number;
+	    why: string;
+	    direction: number[];
+	    transmittance: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyReferenceSun(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cos_zenith = source["cos_zenith"];
+	        this.azimuth = source["azimuth"];
+	        this.why = source["why"];
+	        this.direction = source["direction"];
+	        this.transmittance = source["transmittance"];
+	    }
+	}
+	export class CanopyReference {
+	    points: number[][];
+	    step_frac: number;
+	    g_leaf: number;
+	    max_path: number;
+	    max_steps: number;
+	    tolerance: number;
+	    suns: CanopyReferenceSun[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyReference(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.points = source["points"];
+	        this.step_frac = source["step_frac"];
+	        this.g_leaf = source["g_leaf"];
+	        this.max_path = source["max_path"];
+	        this.max_steps = source["max_steps"];
+	        this.tolerance = source["tolerance"];
+	        this.suns = this.convertValues(source["suns"], CanopyReferenceSun);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CanopyFieldMeta {
+	    source: string;
+	    spacing: number;
+	    cell: number;
+	    z_top: number;
+	    n_xy: number;
+	    n_z: number;
+	    lai: number;
+	    leaf_area: number;
+	    occupancy: number;
+	    density_in_crown: number;
+	    bytes: number;
+	    crown_a?: number;
+	    crown_b?: number;
+	    crown_z?: number;
+	    leaves?: number;
+	    row_width?: number;
+	    row_width_frac?: number;
+	    height?: number;
+	    base?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFieldMeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.spacing = source["spacing"];
+	        this.cell = source["cell"];
+	        this.z_top = source["z_top"];
+	        this.n_xy = source["n_xy"];
+	        this.n_z = source["n_z"];
+	        this.lai = source["lai"];
+	        this.leaf_area = source["leaf_area"];
+	        this.occupancy = source["occupancy"];
+	        this.density_in_crown = source["density_in_crown"];
+	        this.bytes = source["bytes"];
+	        this.crown_a = source["crown_a"];
+	        this.crown_b = source["crown_b"];
+	        this.crown_z = source["crown_z"];
+	        this.leaves = source["leaves"];
+	        this.row_width = source["row_width"];
+	        this.row_width_frac = source["row_width_frac"];
+	        this.height = source["height"];
+	        this.base = source["base"];
+	    }
+	}
+	export class CanopyField {
+	    field: CanopyFieldMeta;
+	    field_base64: string;
+	    reference: CanopyReference;
+	    against_uniform: CanopyAgainstUniform[];
+	    grown?: CanopyGrown;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.field = this.convertValues(source["field"], CanopyFieldMeta);
+	        this.field_base64 = source["field_base64"];
+	        this.reference = this.convertValues(source["reference"], CanopyReference);
+	        this.against_uniform = this.convertValues(source["against_uniform"], CanopyAgainstUniform);
+	        this.grown = this.convertValues(source["grown"], CanopyGrown);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class CanopyFieldRequest {
+	    source?: string;
+	    spacing?: number;
+	    lai?: number;
+	    cell?: number;
+	    crown_a?: number;
+	    crown_b?: number;
+	    crown_z?: number;
+	    height?: number;
+	    row_width_frac?: number;
+	    base?: number;
+	    species?: string;
+	    days?: number;
+	    seed?: number;
+	    n_reference?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFieldRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.spacing = source["spacing"];
+	        this.lai = source["lai"];
+	        this.cell = source["cell"];
+	        this.crown_a = source["crown_a"];
+	        this.crown_b = source["crown_b"];
+	        this.crown_z = source["crown_z"];
+	        this.height = source["height"];
+	        this.row_width_frac = source["row_width_frac"];
+	        this.base = source["base"];
+	        this.species = source["species"];
+	        this.days = source["days"];
+	        this.seed = source["seed"];
+	        this.n_reference = source["n_reference"];
+	    }
+	}
+	export class SpeciesSuggestion {
+	    species?: string;
+	    class_id?: number;
+	    class_name?: string;
+	    confidence?: number;
+	    why?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpeciesSuggestion(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.class_id = source["class_id"];
+	        this.class_name = source["class_name"];
+	        this.confidence = source["confidence"];
+	        this.why = source["why"];
+	    }
+	}
+	export class CanopyLight {
+	    date?: string;
+	    day?: number;
+	    lai: number;
+	    fapar: number;
+	    transmittance: number;
+	    beam_transmittance: number;
+	    diffuse_transmittance?: number;
+	    diffuse_share: number;
+	    k_emergent?: number;
+	    fapar_fixed_k?: number;
+	    fixed_k?: number;
+	    fixed_k_error_pct?: number;
+	    beam_bins_marched?: number;
+	    row_azimuth_deg?: number;
+	    cover?: number;
+	    seed?: number;
+	    ensemble?: CanopyEnsemble;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyLight(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.day = source["day"];
+	        this.lai = source["lai"];
+	        this.fapar = source["fapar"];
+	        this.transmittance = source["transmittance"];
+	        this.beam_transmittance = source["beam_transmittance"];
+	        this.diffuse_transmittance = source["diffuse_transmittance"];
+	        this.diffuse_share = source["diffuse_share"];
+	        this.k_emergent = source["k_emergent"];
+	        this.fapar_fixed_k = source["fapar_fixed_k"];
+	        this.fixed_k = source["fixed_k"];
+	        this.fixed_k_error_pct = source["fixed_k_error_pct"];
+	        this.beam_bins_marched = source["beam_bins_marched"];
+	        this.row_azimuth_deg = source["row_azimuth_deg"];
+	        this.cover = source["cover"];
+	        this.seed = source["seed"];
+	        this.ensemble = this.convertValues(source["ensemble"], CanopyEnsemble);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SunHour {
+	    hour_utc: number;
+	    azimuth_deg: number;
+	    elevation_deg: number;
+	    dni: number;
+	    dhi: number;
+	    ghi: number;
+	    diffuse_share?: number;
+	    clearness?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SunHour(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hour_utc = source["hour_utc"];
+	        this.azimuth_deg = source["azimuth_deg"];
+	        this.elevation_deg = source["elevation_deg"];
+	        this.dni = source["dni"];
+	        this.dhi = source["dhi"];
+	        this.ghi = source["ghi"];
+	        this.diffuse_share = source["diffuse_share"];
+	        this.clearness = source["clearness"];
+	    }
+	}
+	export class SunDirection {
+	    azimuth_deg: number;
+	    elevation_deg: number;
+	    concentration: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SunDirection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.azimuth_deg = source["azimuth_deg"];
+	        this.elevation_deg = source["elevation_deg"];
+	        this.concentration = source["concentration"];
+	    }
+	}
+	export class PowerSeriesProvenance {
+	    source: string;
+	    fetched_utc?: string;
+	    product: string;
+	    cell_key: string;
+	    period: string;
+	    cache_file?: string;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PowerSeriesProvenance(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.fetched_utc = source["fetched_utc"];
+	        this.product = source["product"];
+	        this.cell_key = source["cell_key"];
+	        this.period = source["period"];
+	        this.cache_file = source["cache_file"];
+	        this.note = source["note"];
+	    }
+	}
+	export class CanopySun {
+	    source: string;
+	    cell?: number[];
+	    years?: number;
+	    beam_energy_total?: number;
+	    n_azimuth_bins?: number;
+	    n_elevation_bins?: number;
+	    diffuse_share?: number;
+	    window_days?: number;
+	    window_centre?: string;
+	    n_hours?: number;
+	    provenance?: PowerSeriesProvenance;
+	    direction?: SunDirection;
+	    clearness?: number;
+	    track_date?: string;
+	    track?: SunHour[];
+	    why?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopySun(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.cell = source["cell"];
+	        this.years = source["years"];
+	        this.beam_energy_total = source["beam_energy_total"];
+	        this.n_azimuth_bins = source["n_azimuth_bins"];
+	        this.n_elevation_bins = source["n_elevation_bins"];
+	        this.diffuse_share = source["diffuse_share"];
+	        this.window_days = source["window_days"];
+	        this.window_centre = source["window_centre"];
+	        this.n_hours = source["n_hours"];
+	        this.provenance = this.convertValues(source["provenance"], PowerSeriesProvenance);
+	        this.direction = this.convertValues(source["direction"], SunDirection);
+	        this.clearness = source["clearness"];
+	        this.track_date = source["track_date"];
+	        this.track = this.convertValues(source["track"], SunHour);
+	        this.why = source["why"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CanopyResolved {
+	    date: string;
+	    lai: number;
+	    state?: string;
+	    day?: number;
+	    day_at_least?: number;
+	    height_m?: number;
+	    leaf_area_m2?: number;
+	    plateau_day?: number;
+	    at_plateau?: boolean;
+	    declining?: boolean;
+	    days_since_greenup?: number;
+	    age_check: CanopyAgeCheck;
+	    why?: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyResolved(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.lai = source["lai"];
+	        this.state = source["state"];
+	        this.day = source["day"];
+	        this.day_at_least = source["day_at_least"];
+	        this.height_m = source["height_m"];
+	        this.leaf_area_m2 = source["leaf_area_m2"];
+	        this.plateau_day = source["plateau_day"];
+	        this.at_plateau = source["at_plateau"];
+	        this.declining = source["declining"];
+	        this.days_since_greenup = source["days_since_greenup"];
+	        this.age_check = this.convertValues(source["age_check"], CanopyAgeCheck);
+	        this.why = source["why"];
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CanopyLAISeries {
+	    ndvi: number[];
+	    lai: number[];
+	    peak_lai: number;
+	    n: number;
+	    n_saturated: number;
+	    saturation_lai: number;
+	    parameters: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyLAISeries(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ndvi = source["ndvi"];
+	        this.lai = source["lai"];
+	        this.peak_lai = source["peak_lai"];
+	        this.n = source["n"];
+	        this.n_saturated = source["n_saturated"];
+	        this.saturation_lai = source["saturation_lai"];
+	        this.parameters = source["parameters"];
+	    }
+	}
+	export class CanopyFromAOI {
+	    species: string;
+	    density: number;
+	    inter_row: number;
+	    inter_plant: number;
+	    reachable_lai: number;
+	    lai: CanopyLAISeries;
+	    states: string[];
+	    phenology: Record<string, number>;
+	    resolved: CanopyResolved[];
+	    n_usable: number;
+	    sun: CanopySun;
+	    light?: CanopyLight;
+	    cycles?: CanopyCycle[];
+	    species_suggestion?: SpeciesSuggestion;
+	    crop_fraction?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFromAOI(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.density = source["density"];
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.reachable_lai = source["reachable_lai"];
+	        this.lai = this.convertValues(source["lai"], CanopyLAISeries);
+	        this.states = source["states"];
+	        this.phenology = source["phenology"];
+	        this.resolved = this.convertValues(source["resolved"], CanopyResolved);
+	        this.n_usable = source["n_usable"];
+	        this.sun = this.convertValues(source["sun"], CanopySun);
+	        this.light = this.convertValues(source["light"], CanopyLight);
+	        this.cycles = this.convertValues(source["cycles"], CanopyCycle);
+	        this.species_suggestion = this.convertValues(source["species_suggestion"], SpeciesSuggestion);
+	        this.crop_fraction = source["crop_fraction"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ClassStat {
 	    class_id: number;
 	    name: string;
@@ -99,6 +744,140 @@ export namespace backend {
 	        this.area_ha = source["area_ha"];
 	    }
 	}
+	export class VIObservation {
+	    date: string;
+	    ndvi_mean: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new VIObservation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.ndvi_mean = source["ndvi_mean"];
+	    }
+	}
+	export class CanopyFromAOIRequest {
+	    species?: string;
+	    vi_series: VIObservation[];
+	    inter_row?: number;
+	    inter_plant?: number;
+	    row_azimuth_deg?: number;
+	    lat?: number;
+	    lon?: number;
+	    elevation?: number;
+	    hourly_years?: number;
+	    seed?: number;
+	    class_stats?: ClassStat[];
+	    n_seeds?: number;
+	    sun_window_days?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyFromAOIRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.vi_series = this.convertValues(source["vi_series"], VIObservation);
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.row_azimuth_deg = source["row_azimuth_deg"];
+	        this.lat = source["lat"];
+	        this.lon = source["lon"];
+	        this.elevation = source["elevation"];
+	        this.hourly_years = source["hourly_years"];
+	        this.seed = source["seed"];
+	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
+	        this.n_seeds = source["n_seeds"];
+	        this.sun_window_days = source["sun_window_days"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class CanopyMesh {
+	    url: string;
+	    bytes: number;
+	    species: string;
+	    days: number;
+	    plants: number;
+	    rows: number;
+	    per_row: number;
+	    inter_row: number;
+	    inter_plant: number;
+	    leaf_area: number;
+	    organs: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyMesh(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.bytes = source["bytes"];
+	        this.species = source["species"];
+	        this.days = source["days"];
+	        this.plants = source["plants"];
+	        this.rows = source["rows"];
+	        this.per_row = source["per_row"];
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.leaf_area = source["leaf_area"];
+	        this.organs = source["organs"];
+	    }
+	}
+	export class CanopyMeshRequest {
+	    species?: string;
+	    days?: number;
+	    rows?: number;
+	    per_row?: number;
+	    inter_row?: number;
+	    inter_plant?: number;
+	    seed?: number;
+	    organs?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CanopyMeshRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.species = source["species"];
+	        this.days = source["days"];
+	        this.rows = source["rows"];
+	        this.per_row = source["per_row"];
+	        this.inter_row = source["inter_row"];
+	        this.inter_plant = source["inter_plant"];
+	        this.seed = source["seed"];
+	        this.organs = source["organs"];
+	    }
+	}
+	
+	
+	
+	
+	
 	export class CompositeRequest {
 	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
@@ -1577,30 +2356,6 @@ export namespace backend {
 		    return a;
 		}
 	}
-	export class PowerSeriesProvenance {
-	    source: string;
-	    fetched_utc?: string;
-	    product: string;
-	    cell_key: string;
-	    period: string;
-	    cache_file?: string;
-	    note: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PowerSeriesProvenance(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.source = source["source"];
-	        this.fetched_utc = source["fetched_utc"];
-	        this.product = source["product"];
-	        this.cell_key = source["cell_key"];
-	        this.period = source["period"];
-	        this.cache_file = source["cache_file"];
-	        this.note = source["note"];
-	    }
-	}
 	export class PowerProvenance {
 	    daily?: PowerSeriesProvenance;
 	    hourly?: PowerSeriesProvenance;
@@ -2434,6 +3189,7 @@ export namespace backend {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EnergyModelRequest(source);
@@ -2468,6 +3224,7 @@ export namespace backend {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3023,6 +3780,7 @@ export namespace backend {
 	    project_id?: string;
 	    label?: string;
 	    run_label?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictRequest(source);
@@ -3043,6 +3801,7 @@ export namespace backend {
 	        this.project_id = source["project_id"];
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4055,6 +4814,8 @@ export namespace backend {
 	    class_stats: ClassStat[];
 	    temporal: TemporalPoint[];
 	    vi_series: VISeriesPoint[];
+	    vi_series_crop?: VISeriesPoint[];
+	    crop_pixel_pct?: number;
 	    phenology: PhenologyMetrics;
 	    phenology_states: PhenologyStatePoint[];
 	    lulc?: LULCAnalysis;
@@ -4087,6 +4848,8 @@ export namespace backend {
 	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
 	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
 	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
+	        this.vi_series_crop = this.convertValues(source["vi_series_crop"], VISeriesPoint);
+	        this.crop_pixel_pct = source["crop_pixel_pct"];
 	        this.phenology = this.convertValues(source["phenology"], PhenologyMetrics);
 	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
 	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
@@ -4164,6 +4927,7 @@ export namespace backend {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarRequest(source);
@@ -4180,6 +4944,7 @@ export namespace backend {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4213,6 +4978,7 @@ export namespace backend {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarSitingRequest(source);
@@ -4229,6 +4995,7 @@ export namespace backend {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4260,6 +5027,7 @@ export namespace backend {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarTerrainRequest(source);
@@ -4274,6 +5042,7 @@ export namespace backend {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4299,6 +5068,10 @@ export namespace backend {
 	
 	
 	
+	
+	
+	
+	
 	export class WaterRequest {
 	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
@@ -4310,6 +5083,7 @@ export namespace backend {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WaterRequest(source);
@@ -4327,6 +5101,7 @@ export namespace backend {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4367,6 +5142,7 @@ export namespace backend {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WindRequest(source);
@@ -4384,6 +5160,7 @@ export namespace backend {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4600,6 +5377,7 @@ export namespace store {
 	    label?: string;
 	    project_id?: string;
 	    kind?: string;
+	    aoi_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new InferenceRun(source);
@@ -4623,6 +5401,7 @@ export namespace store {
 	        this.label = source["label"];
 	        this.project_id = source["project_id"];
 	        this.kind = source["kind"];
+	        this.aoi_id = source["aoi_id"];
 	    }
 	}
 	export class Preferences {

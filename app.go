@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,7 +36,32 @@ type App struct {
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
+
+	/*
+		Grown meshes waiting to be fetched, keyed by the id in their URL.
+
+		A single slot was the first shape and it was wrong: the canopy editor is
+		deliberately not marked unique -- BoardSurface's own comment says two
+		areas holding it "describe two orchards, which is a comparison worth
+		having" -- and every instance grows once on mount. Two of them race, the
+		second build overwrites the id the first was handed, and the first area
+		fetches a URL that no longer matches and gets a 404 it cannot recover
+		from without pressing Grow again. The same race fires inside one area
+		whenever a regrow is issued while the previous body is still streaming.
+
+		Bounded because the entries are megabytes: the oldest is dropped once
+		more than a few are held, which is far more than the number of canopy
+		areas anyone opens and still cannot grow without limit.
+	*/
+	meshMu    sync.RWMutex
+	meshes    map[string][]byte
+	meshOrder []string
 }
+
+// How many grown meshes are kept fetchable at once. Each is single-digit
+// megabytes, and a fetch follows its build within a frame or two, so this only
+// has to cover concurrent areas and one regrow racing its own predecessor.
+const maxHeldMeshes = 4
 
 // NewApp creates a new App.
 func NewApp() *App {
@@ -380,6 +407,10 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 		NDates:         res.NDates,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -415,6 +446,128 @@ func (a *App) AnalyzeDomainShiftCohort(
 		return nil, errors.New("runner not initialized")
 	}
 	return runner.AnalyzeDomainShiftCohort(a.ctx, req)
+}
+
+// BuildCanopyField returns the leaf-area-density field of one orchard module,
+// together with the transmittances the GLSL march has to reproduce.
+//
+// Not persisted as a run: the field is a function of its parameters and costs
+// under a second to rebuild, so storing it would keep a copy that the next
+// change of spacing invalidates. The analyses that do get saved are the ones
+// carrying a satellite acquisition nobody can reproduce on demand.
+func (a *App) BuildCanopyField(req backend.CanopyFieldRequest) (*backend.CanopyField, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.BuildCanopyField(a.ctx, req)
+}
+
+// BuildCanopyFromAOI reads an AOI's own vegetation-index series as a canopy:
+// LAI by date, the Helios age that carries it, and -- given a location -- what
+// that canopy intercepts under the sun the cell actually received.
+//
+// Not persisted, for the reason the other two canopy calls give: it is a
+// function of a saved run plus a sowing, and both are already recorded.
+func (a *App) BuildCanopyFromAOI(req backend.CanopyFromAOIRequest) (*backend.CanopyFromAOI, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.BuildCanopyFromAOI(a.ctx, req)
+}
+
+// BuildCanopyMesh grows a stand of plants and returns it as glTF, for a reader
+// who wants to see the canopy rather than a density that stands for it.
+//
+// Not persisted, for the reason BuildCanopyField gives, and for one more: the
+// stand is deterministic in its seed, so the parameters are a smaller and more
+// durable record of it than the megabytes of triangles they produce.
+func (a *App) BuildCanopyMesh(req backend.CanopyMeshRequest) (*backend.CanopyMesh, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	mesh, err := runner.BuildCanopyMesh(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	/*
+		The bytes are held here and the reply carries a URL instead.
+
+		Returning them would put a base64 string of the whole mesh through the
+		Wails bridge, which marshals every bound result to JSON. On WKWebView
+		that is where "Maximum call stack size exceeded" is thrown -- inside the
+		bridge, before any application JavaScript runs, which is why it survived
+		being verified everywhere outside the webview.
+
+		The id changes per build so the webview cannot serve a previous stand
+		from cache, and each build is held under its own id rather than
+		replacing the last -- see the field's comment for the race that made a
+		single slot wrong.
+	*/
+	id := uuid.NewString()
+
+	a.meshMu.Lock()
+	if a.meshes == nil {
+		a.meshes = make(map[string][]byte)
+	}
+	a.meshes[id] = mesh.Data
+	a.meshOrder = append(a.meshOrder, id)
+	for len(a.meshOrder) > maxHeldMeshes {
+		delete(a.meshes, a.meshOrder[0])
+		a.meshOrder = a.meshOrder[1:]
+	}
+	a.meshMu.Unlock()
+
+	mesh.Data = nil
+	mesh.URL = meshURLPrefix + id
+	return mesh, nil
+}
+
+// The path the grown stand is served from. A prefix rather than a fixed name
+// because the id changes per build, which is what keeps the webview from
+// answering a fetch out of its cache with the previous canopy.
+const meshURLPrefix = "/canopy-mesh/"
+
+/*
+meshMiddleware serves the last grown stand as bytes.
+
+AssetServer middleware rather than its Handler, and the distinction is the whole
+reason this works: Handler is consulted only when Assets reports the file
+missing, and a single-page front end answers any unknown path with index.html
+instead. A mesh request therefore came back as HTML and the loader reported
+"Unrecognized token '<'". Middleware sits ahead of Assets, so this decides its
+own route and passes everything else through untouched.
+*/
+func (a *App) meshMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, meshURLPrefix) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, meshURLPrefix)
+
+		a.meshMu.RLock()
+		data, held := a.meshes[id]
+		a.meshMu.RUnlock()
+
+		// An id nobody is holding is one that has aged out, or one that was
+		// never issued. Either way this must answer rather than fall through:
+		// the asset server behind it replies to unknown paths with index.html,
+		// and a loader handed HTML reports "Unrecognized token '<'".
+		if id == "" || !held || len(data) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "model/gltf-binary")
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		// The id is unique per build, so the bytes behind a URL never change.
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
+	})
 }
 
 // persistSolarRun saves a solar resource run so it survives the session and is
@@ -487,6 +640,10 @@ func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalys
 		NDates:         res.Resource.NYears,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -501,7 +658,7 @@ func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.Sol
 		return nil, err
 	}
 	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
-		req.ProjectID, "solar_terrain", res.Season, res, res.OverlayURI, res.NDates())
+		req.ProjectID, req.AoiID, "solar_terrain", res.Season, res, res.OverlayURI, res.NDates())
 	return res, nil
 }
 
@@ -516,7 +673,7 @@ func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.Solar
 		return nil, err
 	}
 	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
-		req.ProjectID, "solar_siting", "siting", res, res.OverlayURI, 0)
+		req.ProjectID, req.AoiID, "solar_siting", "siting", res, res.OverlayURI, 0)
 	return res, nil
 }
 
@@ -524,7 +681,7 @@ func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.Solar
 // reopening the run puts the raster back rather than only its numbers.
 func (a *App) persistSolarRaster(
 	areaID string, poly *backend.GeoJSONGeometry,
-	label, runLabel, projectID, kindTag, variant string,
+	label, runLabel, projectID, aoiID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
 ) {
 	a.mu.RLock()
@@ -587,6 +744,8 @@ func (a *App) persistSolarRaster(
 		NDates:         nDates,
 		Label:          rl,
 		ProjectID:      strings.TrimSpace(projectID),
+		// See the other run writers: which catalogued area this is OF.
+		AoiID: strings.TrimSpace(aoiID),
 	})
 }
 
@@ -687,6 +846,10 @@ func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend
 		NDates:         res.NDates(),
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -778,6 +941,10 @@ func (a *App) persistWindRun(req backend.WindRequest, res *backend.WindAnalysis)
 		NDates:         res.NDates(),
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 }
 
@@ -1198,6 +1365,10 @@ func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictRe
 		NDates:         res.NDates,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(req.ProjectID),
+		// Which catalogued area this run is OF. The polygon below says
+		// where it was made; the board needs the area to keep a drawing
+		// and its runs as one subject.
+		AoiID: strings.TrimSpace(req.AoiID),
 	})
 	if strings.TrimSpace(req.ProjectID) != "" {
 		st.TouchProject(req.ProjectID)

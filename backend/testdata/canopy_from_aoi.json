@@ -1,0 +1,219 @@
+{
+ "canopy_from_aoi": {
+  "species": "soybean",
+  "density": 25.0,
+  "inter_row": 0.5,
+  "inter_plant": 0.08,
+  "reachable_lai": 46.779775619506836,
+  "species_suggestion": {
+   "class_id": 39,
+   "class_name": "Soybean",
+   "confidence": 0.502,
+   "species": "soybean",
+   "why": "Soybean cobre 50% da \u00e1rea"
+  },
+  "crop_fraction": 0.502,
+  "lai": {
+   "ndvi": [
+    0.1188,
+    0.1281,
+    0.1444
+   ],
+   "lai": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "peak_lai": 0.3801458032872659,
+   "n": 13,
+   "n_saturated": 0,
+   "saturation_lai": 4.0,
+   "parameters": {
+    "ndvi_soil": 0.15,
+    "ndvi_inf": 0.9,
+    "k": 0.65
+   }
+  },
+  "states": [
+   "greenup",
+   "greenup",
+   "greenup"
+  ],
+  "phenology": {
+   "sos_doy": 311.0,
+   "pos_doy": 48.0,
+   "eos_doy": 66.0,
+   "los_days": 120.0,
+   "peak": 0.314,
+   "base": 0.1267,
+   "amplitude": 0.1873
+  },
+  "resolved": [
+   {
+    "date": "2025-08-30",
+    "lai": 0.0,
+    "species": "soybean",
+    "density": 25.0,
+    "leaf_area_m2": 0.0,
+    "day": 5.0,
+    "height_m": 0.05399582162499428,
+    "plateau_day": 90,
+    "at_plateau": false,
+    "state": "greenup",
+    "cycle": 0,
+    "days_since_greenup": 0.0,
+    "declining": false,
+    "age_check": {
+     "comparable": true,
+     "progress_helios": 0.05555555555555555,
+     "progress_field": 0.0,
+     "delta_progress": 0.05555555555555555,
+     "agrees": true,
+     "why": "as duas progress\u00f5es andam juntas, ent\u00e3o a planta isolada descreve esta safra"
+    }
+   },
+   {
+    "date": "2025-09-24",
+    "lai": 0.0,
+    "species": "soybean",
+    "density": 25.0,
+    "leaf_area_m2": 0.0,
+    "day": 5.0,
+    "height_m": 0.05399582162499428,
+    "plateau_day": 90,
+    "at_plateau": false,
+    "state": "greenup",
+    "cycle": 0,
+    "days_since_greenup": 25.0,
+    "declining": false,
+    "age_check": {
+     "comparable": true,
+     "progress_helios": 0.05555555555555555,
+     "progress_field": 0.20833333333333334,
+     "delta_progress": -0.1527777777777778,
+     "agrees": true,
+     "why": "as duas progress\u00f5es andam juntas, ent\u00e3o a planta isolada descreve esta safra"
+    }
+   }
+  ],
+  "n_usable": 11,
+  "cycles": [
+   {
+    "start": "2025-08-30",
+    "end": "2026-03-16",
+    "greenup": "2025-08-30",
+    "n": 8
+   },
+   {
+    "start": "2026-06-12",
+    "end": "2026-08-08",
+    "greenup": "2026-06-12",
+    "n": 3
+   }
+  ],
+  "sun": {
+   "source": "power",
+   "cell": [
+    -4.5,
+    -42.5
+   ],
+   "years": 3,
+   "provenance": {
+    "source": "cache",
+    "fetched_utc": "2026-08-15T07:50:57+00:00",
+    "product": "hourly",
+    "cell_key": "-42.5_-4.5_r-42_-4",
+    "period": "20230101-20251231",
+    "cache_file": "hourly_-42.5_-4.5_r-42_-4_20230101_20251231_c1bb5a28edd1.parquet",
+    "note": "Read from the on-disk POWER cache, not fetched during this run. POWER reprocesses historical data, so a series fetched earlier can be a superseded revision of the record; the fetch timestamp above is when it was retrieved."
+   },
+   "beam_energy_total": 419504.0800000001,
+   "n_azimuth_bins": 16,
+   "n_elevation_bins": 90,
+   "diffuse_share": 0.4465633233917987,
+   "window_days": 21,
+   "window_centre": "2026-02-19",
+   "n_hours": 3096,
+   "direction": {
+    "azimuth_deg": 170.0240298795994,
+    "elevation_deg": 79.85471048017578,
+    "concentration": 0.7696570364354653
+   },
+   "clearness": 0.7430712848877914,
+   "track_date": "2025-02-19",
+   "track": [
+    {
+     "hour_utc": 9,
+     "azimuth_deg": 100.66431458652664,
+     "elevation_deg": 7.405860602335977,
+     "dni": 80.42,
+     "dhi": 49.22,
+     "ghi": 61.35,
+     "diffuse_share": 0.8022819885900571,
+     "clearness": 0.8895171813832101
+    },
+    {
+     "hour_utc": 10,
+     "azimuth_deg": 100.17593679895487,
+     "elevation_deg": 22.03885341570772,
+     "dni": 329.49,
+     "dhi": 125.28,
+     "ghi": 246.85,
+     "diffuse_share": 0.5075146850313956,
+     "clearness": 0.8140148392415498
+    },
+    {
+     "hour_utc": 11,
+     "azimuth_deg": 100.49272188893661,
+     "elevation_deg": 36.73669597451611,
+     "dni": 557.76,
+     "dhi": 149.33,
+     "ghi": 429.05,
+     "diffuse_share": 0.3480480130520919,
+     "clearness": 0.7785620962473687
+    },
+    {
+     "hour_utc": 12,
+     "azimuth_deg": 102.14420211997583,
+     "elevation_deg": 51.40061948532983,
+     "dni": 463.38,
+     "dhi": 245.77,
+     "ghi": 637.65,
+     "diffuse_share": 0.3854308790088607,
+     "clearness": 0.8332571055210715
+    }
+   ]
+  },
+  "light": {
+   "fapar": 0.21281280272419,
+   "transmittance": 0.78718719727581,
+   "beam_transmittance": 0.8011738723148598,
+   "diffuse_transmittance": 0.7698531742046425,
+   "diffuse_share": 0.4465633233917987,
+   "lai": 0.3042380265148256,
+   "k_emergent": 0.7865196857234273,
+   "beam_bins_marched": 58,
+   "row_azimuth_deg": 0.0,
+   "fapar_fixed_k": 0.19181688491793447,
+   "fixed_k": 0.7,
+   "fixed_k_error_pct": -9.865909164058472,
+   "cover": 0.625,
+   "seed": 9,
+   "ensemble": {
+    "n": 3,
+    "fapar_min": 0.2101440071276668,
+    "fapar_max": 0.26066016433552774,
+    "fapar_spread": 0.05051615720786096,
+    "cover_min": 0.625,
+    "cover_max": 0.8125,
+    "seeds": [
+     7,
+     9,
+     8
+    ]
+   },
+   "date": "2026-02-19",
+   "day": 12.192805214786357
+  }
+ }
+}

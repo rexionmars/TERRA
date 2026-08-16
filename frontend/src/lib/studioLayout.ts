@@ -22,7 +22,7 @@
  * argument boardMemory's own snapshot makes for itself -- and an unknown
  * editor id or a malformed node falls back to the preset rather than throwing.
  */
-import type { AreaNode } from "@/lib/boardAreas"
+import { uniqueAreaIds, type AreaNode } from "@/lib/boardAreas"
 import { STUDIO_EDITORS, type EditorId } from "@/lib/studioEditors"
 import { STUDIO_WORKSPACES, type StudioTree } from "@/lib/studioWorkspaces"
 
@@ -105,7 +105,14 @@ export function parseStudioLayout(value: unknown): StudioLayout {
       // would be carried forever and never opened.
       if (!KNOWN_WORKSPACES.has(id)) continue
       const parsed = parseStudioTree(tree)
-      if (parsed) trees[id] = parsed
+      /*
+        Ids made unique on the way in, and the session's generator advanced
+        past them. A stored arrangement outlives the counter that named its
+        areas, so `a1` from last run and `a1` from this one are one id to every
+        operation that matches by it -- which is how one division came to move
+        another. See makeAreaId.
+      */
+      if (parsed) trees[id] = uniqueAreaIds(parsed)
     }
     if (Object.keys(trees).length) out.trees = trees
   }
