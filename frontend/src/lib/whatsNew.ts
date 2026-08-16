@@ -8,12 +8,15 @@ export type WhatsNewEntry = {
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
     version: "0.3.0",
-    title: "Projects, analysis workspace & clearer naming",
+    title: "Ember — the studio, the crop in three dimensions, and energy",
     items: [
-      "Projects hub to group analyses, overlays, and AOIs",
-      "Dark Modern chrome across Analysis, Settings, and Compare",
-      "Run names use run-* prefixes; AOI and project names stay separate",
-      "Cover map title shows the project; AOI is labeled on its own row",
+      "TERRA Studio: split the screen into the panels a question needs, with more than one area on the same board",
+      "Crop simulation: leaf area read from the NDVI series, plant age from that, and the stand lit by the hourly sun of its own location",
+      "Energy: irradiation, its distribution over the terrain, where a plant can be sited, and what it would yield — plus wind screening",
+      "Where the classification is wrong: agreement with MapBiomas per class and per block, and domain-shift diagnosis between two runs",
+      "Surface water from spectral indices, with no trained model and no fixed legend",
+      "The Python environment is checked by import rather than by name, and built from the app when something is missing",
+      "The Method panel states what the chosen run will do before it runs, and the stages it went through after",
     ],
   },
 ]
