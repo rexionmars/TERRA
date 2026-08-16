@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use TERRA, please cite it as below."
+type: software
+title: "TERRA: Desktop land-cover classification from Sentinel-2 time series"
+version: 0.2.0
+date-released: "2026-07-01"
+url: "https://github.com/rexionmars/TERRA"
+repository-code: "https://github.com/rexionmars/TERRA"
+license: MIT
+authors:
+  - family-names: Melo
+    given-names: "João Leonardi da Silva"
+    orcid: "https://orcid.org/0009-0009-2715-3211"
+    email: joao_leonardi.melo@somosicev.com
+    affiliation: "iCEV Instituto de Ensino Superior, Teresina, PI, Brazil"
+keywords:
+  - remote sensing
+  - land cover
+  - Sentinel-2
+  - MapBiomas
+  - Random Forest
+  - desktop
+# After JOSS acceptance, set preferred-citation to the JOSS article + DOI.
+# Until then, cite this software record and/or the SBrT method paper below.
+references:
+  - type: conference-paper
+    authors:
+      - family-names: Melo
+        given-names: "João Leonardi da Silva"
+      - family-names: Magalhães
+        given-names: "Dimmy Karson Soares"
+      - family-names: Kolodziej
+        given-names: "Javier Ernesto"
+      - family-names: Kuhn
+        given-names: "Eduardo Vinícius"
+    title: "Automatic Land Cover Classification with Sentinel-2 and MapBiomas Time Series"
+    year: 2026
+    conference:
+      name: "XLIV Brazilian Symposium on Telecommunications and Signal Processing (SBrT 2026)"
+    address: "Salvador, BA, Brazil"

@@ -178,6 +178,7 @@ All field and academic research I conduct undergoes review by my professors (som
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Python, STAC, models, macOS |
 | [Contributing](CONTRIBUTING.md) | Issues, PRs, tests |
 | [Design](docs/DESIGN.md) | Visual tokens |
+| [JOSS paper draft](paper/paper.md) | Manuscript + BibTeX for Journal of Open Source Software |
 
 ## Download
 
