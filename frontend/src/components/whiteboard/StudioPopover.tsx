@@ -31,6 +31,7 @@ export function StudioPopover({
   /** Where the panel prefers to sit relative to the trigger. */
   align = "start",
   widthRem = 13.5,
+  role = "menu",
   children,
 }: {
   open: boolean
@@ -41,15 +42,41 @@ export function StudioPopover({
     ref: (el: HTMLElement | null) => void
     onClick: () => void
     "aria-expanded": boolean
-    "aria-haspopup": "menu"
+    "aria-haspopup": "menu" | "dialog"
   }) => React.ReactNode
   align?: "start" | "end"
   widthRem?: number
+  /**
+   * What the panel IS, for a reader who cannot see it.
+   *
+   * Menu is the right answer for every panel this opened for first -- rows of
+   * choices, arrowed through. A panel of prose announced as a menu sends a
+   * screen reader looking for items that are not there, so the one panel that
+   * is a reading rather than a choosing says so.
+   */
+  role?: "menu" | "dialog"
   children: React.ReactNode
 }) {
   const anchorRef = useRef<HTMLElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+
+  /*
+    The window where there is no studio to sit in.
+
+    Portalled to the body the panel is a sibling of the application root
+    rather than a child of the surface, so z-60 -- which only ever meant
+    "above the areas" -- is compared against the studio's own opaque z-500
+    and painted under it. Every other body portal in this application already
+    says so in its own way: DateField's calendar is fixed at 1200 from this
+    same band, the project menu at 5001, the modal shell at 2000. This is the
+    one that arrives here by falling back rather than by choosing to.
+
+    The arithmetic above needs no branch: when the surface IS the body its
+    rect is the viewport's, so the offsets are already viewport offsets and
+    only the positioning scheme and the layer change.
+  */
+  const detached = surface === document.body
 
   /*
     Measured after paint, before the browser shows it: the panel's own size
@@ -113,15 +140,18 @@ export function StudioPopover({
         },
         onClick: () => onOpenChange(!open),
         "aria-expanded": open,
-        "aria-haspopup": "menu",
+        "aria-haspopup": role,
       })}
       {open &&
         surface &&
         createPortal(
           <div
             ref={panelRef}
-            role="menu"
-            className="absolute z-[60] rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
+            role={role}
+            className={cn(
+              "rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]",
+              detached ? "fixed z-[1200]" : "absolute z-[60]"
+            )}
             style={{
               left: pos?.x ?? -9999,
               top: pos?.y ?? -9999,

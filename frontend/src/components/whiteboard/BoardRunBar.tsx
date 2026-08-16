@@ -47,9 +47,12 @@ import {
   type ClassifyMode,
 } from "@/lib/classifyOptions"
 import type { BoardToolId } from "@/lib/mapTools"
+import { methodBrief } from "@/lib/methodBrief"
+import type { RunLogEntry } from "@/lib/runLog"
 import type { ModelKind, SolarSeason } from "@/lib/types"
 import { SOLAR_SEASONS } from "@/lib/solarOptions"
 import { cn } from "@/lib/utils"
+import { MethodPanel } from "./MethodPanel"
 import { BandDivider as Divider, BandGroup as Group } from "./runBand"
 
 /*
@@ -205,9 +208,59 @@ export interface BoardRunBarProps {
   /** Land cover, which is a second action of the classification tool alone. */
   onAnalyzeLULC?: () => void
   lulcRunning?: boolean
+
+  /**
+   * What the run has said, for the method panel's second half.
+   *
+   * The band already receives `progressMsg`, which is the LATEST line; this is
+   * the stack of them. Passed in rather than accumulated here because the same
+   * log is drawn in the stats column, and two accumulations of one stream
+   * would be two accounts of one run.
+   */
+  runLog?: RunLogEntry[]
+  /**
+   * The studio surface the method panel is portalled into and clamped inside.
+   *
+   * Optional, and unset today. The band's one call site builds it as a node
+   * and hands it TO the studio, so it never sees BoardSurface's own
+   * surfaceRef and has no surface to give. Absent, the panel portals to the
+   * body and StudioPopover places it fixed above the studio rather than
+   * clamped inside it.
+   */
+  surface?: HTMLElement | null
 }
 export function BoardRunBar(props: BoardRunBarProps) {
   const busy = props.running
+
+  /*
+    What the chosen tool will actually do, resolved from the SAME props the
+    controls are bound to. Derived rather than held: a brief kept in state
+    would be one more thing that can disagree with the band it describes.
+
+    Withheld only where the tool is not yet chosen -- there is no run to
+    describe before there is a product.
+  */
+  const brief =
+    props.tool &&
+    methodBrief({
+      tool: props.tool,
+      modelKind: props.modelKind,
+      start: props.start,
+      end: props.end,
+      maxCloud: props.maxCloud,
+      monthlyBest: props.monthlyBest,
+      solar: props.solar && {
+        product: props.solar.product,
+        hourlyYears: props.solar.hourlyYears,
+        // The label rather than the id, since the panel is read and the id is
+        // stored. SOLAR_SEASONS is the one place that pairing lives.
+        season:
+          SOLAR_SEASONS.find((o) => o.id === props.solar?.season)?.label ??
+          props.solar.season,
+        slopeAcceptableDeg: props.solar.slopeAcceptableDeg,
+        slopeRestrictiveDeg: props.solar.slopeRestrictiveDeg,
+      },
+    })
 
   return (
     <div
@@ -529,6 +582,24 @@ export function BoardRunBar(props: BoardRunBarProps) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1 px-2.5">
+        {/*
+          Beside the action rather than among the parameters, and for the same
+          reason the action is here: the parameters scroll away on a narrow
+          window, and what a run DOES is the one reading that has to be
+          reachable from wherever the band has been scrolled to.
+
+          Not disabled while running -- that is when the trace inside it is
+          being written, and shutting the door on the log at the moment it
+          fills would be the opposite of the point.
+        */}
+        {brief && (
+          <MethodPanel
+            brief={brief}
+            runLog={props.runLog ?? []}
+            running={busy}
+            surface={props.surface}
+          />
+        )}
         {props.tool === "classify" && props.onAnalyzeLULC && (
           <button
             type="button"

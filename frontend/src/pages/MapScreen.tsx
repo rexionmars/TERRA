@@ -1001,6 +1001,12 @@ export function MapScreen(props: MapScreenProps) {
       onRun={boardRun.onRun}
       onAnalyzeLULC={props.onAnalyzeLULC}
       lulcRunning={props.lulcRunning}
+      /*
+        The same log the stats column draws, from the same resolved run. The
+        band's method panel reads it after the run as well as during, which is
+        when most of its questions are asked.
+      */
+      runLog={runLog}
       placement="area"
     />
   )
