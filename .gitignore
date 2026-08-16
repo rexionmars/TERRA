@@ -26,3 +26,8 @@ geosense-run-*/
 # Grown canopy meshes. The app always writes these into a temp work dir;
 # one lands here only when the sidecar action is run by hand without one.
 sidecar/*.glb
+
+# Agent permissions, which belong to a workstation rather than to the project.
+# Only the local file: .claude/ itself stays available for whatever the project
+# chooses to share, which is the split the harness assumes between the two.
+.claude/settings.local.json
