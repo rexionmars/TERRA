@@ -12,8 +12,13 @@ resource, and a canopy simulation grown from the crop that was classified.
 
 It runs locally as a desktop application, with no account and no server.
 Imagery is read on demand from the Microsoft Planetary Computer STAC catalog as
-Cloud-Optimized GeoTIFFs — the polygon window and the required bands only, so
-no full Sentinel-2 product is downloaded.
+Cloud-Optimized GeoTIFFs: the polygon window and the required bands only, so no
+full Sentinel-2 product is downloaded.
+
+The scope is deliberate. TERRA is built to support research and the detailed
+study of particular areas, at farm to landscape scale, under a fixed protocol.
+It is not a general-purpose GIS and does not set out to cover the ground that
+Earth Engine or QGIS already cover.
 
 The classifiers deliver methods developed and validated in research. The
 reference protocol is published:
@@ -27,7 +32,7 @@ reference protocol is published:
   <img src="docs/img/v3/terra-explorer-home.jpeg" alt="TERRA Explorer, with an AOI classified over the map" width="900" />
 </p>
 
-<p align="center"><em>Explorer — draw an area, drag the acquisition window on the track, classify, read the class shares</em></p>
+<p align="center"><em>Explorer: draw an area, drag the acquisition window on the track, classify, read the class shares</em></p>
 
 ## Two surfaces
 
@@ -35,25 +40,25 @@ Work starts in the **Explorer**: the map, an area drawn or imported over it, the
 acquisition window set on the track at the foot, and a run started.
 
 The **Studio** is where results are arranged. The screen divides into the panels
-a question needs — viewport, outliner, properties, comparison, domain shift,
-data table, run band, canopy — and more than one area fits on the same board,
+a question needs (viewport, outliner, properties, comparison, domain shift,
+data table, run band, canopy), and more than one area fits on the same board,
 so two farms or the same farm in two seasons sit side by side. Five
 arrangements ship ready: Layout, Compare, Diagnose, Data and Simulation. The
 arrangement survives a restart; a set of readings survives it only if the board
 is saved under a name.
 
 <p align="center">
-  <img src="docs/img/v3/terra-studio-main.jpeg" alt="Three classified areas arranged on one Studio board" width="900" />
+  <img src="docs/img/v3/terra-studio-main.jpeg" alt="Three classified areas in Cascavel, Parana, arranged on one Studio board" width="900" />
 </p>
 
-<p align="center"><em>Studio — three areas on one board, each with its own classification, statistics and agreement</em></p>
+<p align="center"><em>Studio: three areas in Cascavel, Paraná, on one board, each with its own classification, statistics and agreement</em></p>
 
 ## What it produces
 
 ### Land cover
 
 Three model paths over the same AOI protocol, all emitting the MapBiomas
-classes `{3, 21, 25, 39, 41}` — forest formation, agriculture-pasture mosaic,
+classes `{3, 21, 25, 39, 41}`: forest formation, agriculture-pasture mosaic,
 non-vegetated area, soybean, other temporary crops.
 
 | Model | What it reads | Artifact |
@@ -84,16 +89,16 @@ not adapt.
 
 ### Surface water
 
-Thresholded spectral indices — NDWI (McFeeters 1996), MNDWI (Xu 2006) and
-AWEI_nsh (Feyisa et al. 2014), with MNDWI as the default — and Otsu per date.
-There is no trained model and no fixed legend, so this product does not inherit
-the classifiers' domain limitation.
+Spectral indices thresholded by Otsu per date. Three are available: NDWI
+(McFeeters 1996), MNDWI (Xu 2006) and AWEI_nsh (Feyisa et al. 2014), with MNDWI
+as the default. There is no trained model and no fixed legend, so this product
+does not inherit the classifiers' domain limitation.
 
 Pixels wet in more than 70% of the dates they were observed are reported as
 persistent, and between 15% and 70% as ephemeral. The two are reported
 separately and never summed.
 
-### Energy
+### Energy[^energy-scope]
 
 Four solar products and one for wind, over the same area:
 
@@ -105,9 +110,16 @@ Four solar products and one for wind, over the same area:
 - what such a plant would yield, with each loss term declared;
 - a screening of the wind resource.
 
-Surface irradiance is not retrievable from Sentinel-2 — no broadband
-radiometer, a five-day revisit, a fixed overpass — so these products read a
-different family of source.
+Surface irradiance is not retrievable from Sentinel-2. There is no broadband
+radiometer, the revisit is five days and the overpass is fixed, so these
+products read a different family of source.
+
+[^energy-scope]: The energy products are secondary. Crop and land-cover
+    classification is what this project is built around, what the published
+    protocol covers, and what the validation work applies to. Solar and wind
+    were added because the same area and the same terrain data answer those
+    questions too, not because they carry equivalent methodological backing.
+    Treat their output as a screening step rather than as a siting study.
 
 ### Canopy simulation
 
@@ -127,7 +139,7 @@ beyond numpy.
   <img src="docs/img/v3/terra-studio-simulation.jpeg" alt="A soybean stand grown in three dimensions and lit by the local sun" width="900" />
 </p>
 
-<p align="center"><em>Simulation — a soybean stand at day 68, with the season's LAI, the age curve and the light budget beside it</em></p>
+<p align="center"><em>Simulation: a soybean stand at day 68, with the season's LAI, the age curve and the light budget beside it</em></p>
 
 ## Limitations
 
@@ -154,13 +166,11 @@ Read these before trusting an output.
   are not in it.
 - **A board's contents do not survive closing** unless the board is saved under
   a name. The arrangement survives either way.
-- TERRA is not a replacement for Earth Engine or QGIS. It targets farm- to
-  landscape-scale areas under a fixed research protocol.
 
 ## Quick start
 
 1. Download a **FULL** release zip, which embeds Python, or a **LITE** zip plus
-   Python 3.12 and `pip install -r requirements.txt` — see
+   Python 3.12 and `pip install -r requirements.txt`. See
    [Install](docs/INSTALL.md).
 2. Open TERRA. Set `TERRA_PYTHON` only for LITE or a custom interpreter.
 3. Draw an area on the map, or import one.
@@ -187,8 +197,8 @@ update.
 
 ## Research and this repository
 
-Methods are prototyped and validated in dedicated research work — papers,
-notebooks, and private experiment repositories — under literature review,
+Methods are prototyped and validated in dedicated research work (papers,
+notebooks, and private experiment repositories) under literature review,
 implementation and tests. This project packages what is stable enough for
 interactive use. Change detection, crop stress diagnostics, MapBiomas class-41
 decomposition and topography-related workflows are still in that stage; see the
@@ -201,7 +211,7 @@ decomposition and topography-related workflows are still in that stage; see the
 
 ### AI agent usage in this software
 
-I am not an experienced Full-Stack developer; my background is mainly in machine learning, deep learning, and remote sensing / Earth observation. Therefore, I used CursorAI to assist me with the development of this software.
+I am not an experienced Full-Stack developer; my background is mainly in machine learning, deep learning, and remote sensing / Earth observation. Therefore, I used AI coding assistants to help me build this software.
 
 All field and academic research I conduct undergoes review by my professors (sometimes from more than two institutions). Depending on the scientific value of the content produced, we evaluate the possibility of publishing papers in conferences or journals. This research takes place in a private institutional repository. If you'd like to collaborate or discuss these topics, feel free to send me an email, and I'll be happy to connect!
 
@@ -293,16 +303,18 @@ Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` 
 
 ## Data sources
 
-- Sentinel-2 L2A — [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC
-- MapBiomas Brazil COGs — land-cover reference, when the area intersects Brazil
-- [NASA POWER](https://power.larc.nasa.gov/) — hourly radiation and meteorology
-- Copernicus DEM GLO-30 — slope, aspect and horizon
-- Geocoding — [Nominatim](https://nominatim.openstreetmap.org/)
-- Basemaps — Esri World Imagery, EOX Sentinel-2 cloudless 2025
+| Source | Used for |
+|--------|----------|
+| [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC | Sentinel-2 L2A imagery |
+| MapBiomas Brazil COGs | Land-cover reference, when the area intersects Brazil |
+| [NASA POWER](https://power.larc.nasa.gov/) | Hourly radiation and meteorology |
+| Copernicus DEM GLO-30 | Slope, aspect and horizon |
+| [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding |
+| Esri World Imagery, EOX Sentinel-2 cloudless 2025 | Basemaps |
 
 ## License and community
 
-GNU General Public License v3.0 — [LICENSE](LICENSE). TERRA is copyleft: a
+GNU General Public License v3.0, in [LICENSE](LICENSE). TERRA is copyleft: a
 distributed work built on it carries the same terms.
 
 Contributions: [CONTRIBUTING.md](CONTRIBUTING.md) ·
