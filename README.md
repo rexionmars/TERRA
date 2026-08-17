@@ -1,7 +1,7 @@
 # TERRA
 
 <p align="center">
-  <img src="docs/img/terra-opensource-project.png" alt="TERRA" width="280" />
+  <img src="docs/img/v1/terra-opensource-project.png" alt="TERRA" width="280" />
 </p>
 
 **TERRA** is a desktop app that runs **AOI-scale land-cover classification** on
@@ -29,7 +29,7 @@ The public contribution is **reproducible AOI-scale inference** of that family
 of methods (plus documented extensions), not a new GIS platform.
 
 <p align="center">
-  <img src="docs/img/new_version/terra_v2_RF_TT_comparison.jpeg" alt="RF vs Temporal Transformer on a study AOI" width="900" />
+  <img src="docs/img/v2/terra_v2_RF_TT_comparison.jpeg" alt="RF vs Temporal Transformer on a study AOI" width="900" />
 </p>
 
 <p align="center"><em>Example: Random Forest vs Temporal Transformer on a study AOI (same Sentinel-2 stack)</em></p>
@@ -89,7 +89,7 @@ outside the UI.
   landscape-scale AOIs with a fixed research protocol.
 
 <p align="center">
-  <img src="docs/img/new_version/mapbiomas_for_AOI.jpeg" alt="MapBiomas reference context on study AOI" width="900" />
+  <img src="docs/img/v2/mapbiomas_for_AOI.jpeg" alt="MapBiomas reference context on study AOI" width="900" />
 </p>
 
 <p align="center"><em>MapBiomas reference context on a study AOI — use it as concordance, not ground truth</em></p>
@@ -146,24 +146,27 @@ All field and academic research I conduct undergoes review by my professors (som
 - **Settings** + **What’s New** after version bumps.
 
 <p align="center">
-  <img src="docs/img/new_version/terra_crop_classification.jpeg" alt="TERRA map workspace" width="900" />
+  <img src="docs/img/v3/terra-explorer-home.jpeg" alt="TERRA Explorer, with an AOI classified over the map" width="900" />
 </p>
 
-<p align="center"><em>Map workspace — classify an AOI, then manage overlays in Overlay Tools</em></p>
+<p align="center"><em>Explorer — draw an AOI, drag the acquisition window on the track, classify, read the class shares</em></p>
 
 ## Gallery
 
-| Projects | Classification |
-|:--------:|:--------------:|
-| ![Projects](docs/img/new_version/terra_project_overview.jpeg) | ![Classification](docs/img/new_version/terra_crop_classification.jpeg) |
+| Studio | Analysis |
+|:------:|:--------:|
+| ![Studio](docs/img/v3/terra-studio-main.jpeg) | ![Analysis](docs/img/v3/terra-explorer-analysis.jpeg) |
+| Areas arranged on one board, each with its own classification | Cover map: composition, land-use groups, agreement with MapBiomas |
 
-| Band compositions | Overlay Tools |
-|:-----------------:|:-------------:|
-| ![Compositions](docs/img/new_version/terra_compsition_management.jpeg) | ![Overlay preview](docs/img/new_version/terra_run_modal_overlay_preview.jpeg) |
+| Compare | Diagnose |
+|:-------:|:--------:|
+| ![Compare](docs/img/v3/terra-studio-compare.jpeg) | ![Diagnose](docs/img/v3/terra-studio-diagnose.jpeg) |
+| Confusion against the reference, accuracy delta, agreement by block | Domain shift between two runs: NDVI divergence, feature space, Pontius disagreement |
 
-| Analysis | Settings |
-|:--------:|:--------:|
-| ![Analysis](docs/img/new_version/terra_run_overview.jpeg) | ![Settings](docs/img/new_version/terra_settings.jpeg) |
+| Simulation | Data |
+|:----------:|:----:|
+| ![Simulation](docs/img/v3/terra-studio-simulation.jpeg) | ![Data](docs/img/v3/terra-studio-data.jpeg) |
+| The classified crop grown in 3D and lit by the hourly sun of its own location | Every table the run produced, readable and copyable |
 
 ## Documentation
 

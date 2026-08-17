@@ -1011,9 +1011,9 @@ def cached_power_series(cache_dir, product, lon, lat, start, end, params,
     A POWER series read from disk when one covering `params` is stored, fetched
     and stored otherwise, with the provenance of whichever path was taken.
 
-    The hourly request is the dominant cost of the whole analysis, about 23 s
-    for ten years (docs/SOLAR_HANDOFF.md section 6), and three actions ask for
-    the same series over the same cell. What determines a POWER response is the
+    The hourly request is the dominant cost of the whole analysis, measured at
+    about 23 s for ten years, and three actions ask for the same series over
+    the same cell. What determines a POWER response is the
     grid cell, the period and the parameter list, so those are the key; see
     power_cell_key for the cell.
 
