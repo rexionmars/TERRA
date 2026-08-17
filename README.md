@@ -199,10 +199,10 @@ update.
 
 Methods are prototyped and validated in dedicated research work (papers,
 notebooks, and private experiment repositories) under literature review,
-implementation and tests. This project packages what is stable enough for
-interactive use. Change detection, crop stress diagnostics, MapBiomas class-41
-decomposition and topography-related workflows are still in that stage; see the
-[Roadmap](docs/ROADMAP.md).
+implementation and tests, with academic supervision. This project packages what
+is stable enough for interactive use. Change detection, crop stress
+diagnostics, MapBiomas class-41 decomposition and topography-related workflows
+are still in that stage; see the [Roadmap](docs/ROADMAP.md).
 
 - Bug reports, UX and packaging: [GitHub Issues](https://github.com/rexionmars/TERRA/issues)
 - Method collaboration and research themes:
@@ -214,8 +214,6 @@ decomposition and topography-related workflows are still in that stage; see the
 I am not an experienced Full-Stack developer; my background is mainly in machine learning, deep learning, and remote sensing / Earth observation. Therefore, I used AI coding assistants to help me build this software.
 
 The parts of this repository do not all carry the same confidence, and it is worth saying which is which. Much of the frontend code may contain bugs or inconsistencies, since I do not know a great deal about the technologies in that specific area; I correct them over time, as they turn up. The sidecar is a different case: it is where the methods from the private research repository reach this public one, so I write and review it constantly, and the same holds for the Go backend.
-
-All field and academic research I conduct undergoes review by my professors (sometimes from more than two institutions). Depending on the scientific value of the content produced, we evaluate the possibility of publishing papers in conferences or journals. This research takes place in a private institutional repository. If you'd like to collaborate or discuss these topics, feel free to send me an email, and I'll be happy to connect!
 
 ## Download
 
