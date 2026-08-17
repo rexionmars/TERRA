@@ -31,3 +31,16 @@ sidecar/*.glb
 # Only the local file: .claude/ itself stays available for whatever the project
 # chooses to share, which is the split the harness assumes between the two.
 .claude/settings.local.json
+
+# Experiments. The scripts are versioned because they are the argument; what
+# they fetch and what they render at archival size is not, because git keeps
+# every byte forever and all of it regenerates by running them again.
+experiments/data
+# Rendered output, all of it regenerable and one TIFF of it 39 MB. The two
+# figures that need a public URL are copied into docs/img/spectral instead, so
+# nothing here is the only copy of anything.
+experiments/figures
+# Downloaded third-party material: the ESA response functions and an EcoSIS
+# package. Committing them would also redistribute someone else's data.
+experiments/s2_srf.xlsx
+experiments/ecosis_soybean.csv

@@ -331,6 +331,10 @@ def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
             'doy': date_obj.timetuple().tm_yday,
             'cloud_cover': cloud,
             'id': item.id,
+            # Which radiometric convention the DNs are in. See boa_add_offset:
+            # 04.00 and later carry BOA_ADD_OFFSET and earlier scenes do not,
+            # so the two cannot be converted by the same constant.
+            'processing_baseline': props.get('s2:processing_baseline'),
             'preview_uri': (
                 item.assets['rendered_preview'].href
                 if 'rendered_preview' in item.assets
@@ -407,6 +411,99 @@ def load_and_clip_band(product, band_name, polygon, resolution='10m'):
         product = {'path': product}
     source = resolve_band_source(product, band_name, resolution)
     return clip_band_from_source(source, polygon)
+
+
+QUANTIFICATION_VALUE = 10000.0
+BOA_ADD_OFFSET = -1000.0
+# Processing baseline 04.00, and the date it began producing. Either identifies
+# a product that carries the offset; the baseline is authoritative and the date
+# is the fallback for a catalogue that does not report one.
+BOA_OFFSET_FIRST_BASELINE = 4.0
+BOA_OFFSET_FIRST_DATE = datetime(2022, 1, 25)
+
+
+def boa_add_offset(product):
+    """
+    The radiometric offset this product's DNs carry, or zero.
+
+    Baseline 04.00 shifted the dynamic range by a constant so that reflectance
+    near zero would stop being clamped over dark surfaces, and recorded the
+    shift as BOA_ADD_OFFSET in the product metadata. Reflectance has been
+    (DN + offset) / QUANTIFICATION_VALUE ever since, and reading it as DN alone
+    overstates every band by 0.1.
+
+    Some catalogues harmonise this away and some do not. The Planetary
+    Computer, which this sidecar reads by default, does not: its items expose
+    no raster:bands scale or offset, so the correction belongs here.
+
+    Derived per product rather than hardcoded as a constant, because a scene
+    from before the switch carries no offset and subtracting one from it would
+    introduce the error this function exists to remove.
+    """
+    if not isinstance(product, dict):
+        return 0.0
+    baseline = product.get('processing_baseline')
+    if baseline:
+        try:
+            return (BOA_ADD_OFFSET
+                    if float(baseline) >= BOA_OFFSET_FIRST_BASELINE else 0.0)
+        except (TypeError, ValueError):
+            pass
+    acquired = product.get('date')
+    if isinstance(acquired, datetime):
+        return BOA_ADD_OFFSET if acquired >= BOA_OFFSET_FIRST_DATE else 0.0
+    # Neither field available: a local product with no metadata. Assume the
+    # pre-04.00 convention, which is what an archive predating the switch is.
+    return 0.0
+
+
+def to_reflectance(dn, product):
+    """
+    Surface reflectance from digital numbers, offset included.
+
+    Use this for every quantity that is REPORTED as reflectance or derived from
+    it: the vegetation indices, phenology, the water masks, the composites and
+    the canopy series. It is the physically correct conversion.
+
+    Do not use it to feed a trained model. See as_trained.
+    """
+    return (dn + boa_add_offset(product)) / QUANTIFICATION_VALUE
+
+
+def as_trained(dn):
+    """
+    The convention the shipped models were fitted under, which omits the offset.
+
+    A MODEL IS NOT A MEASUREMENT. The artifacts in model/ were fitted on inputs
+    built as DN / 10000 from 22 Sentinel-2 products acquired between 2024-05-04
+    and 2026-01-04 over tiles T21JZN and T22JBT. Every one of those postdates
+    baseline 04.00, so the training imagery carried the offset and the training
+    pipeline did not subtract it: the heads learned a feature space in which
+    every band sits 0.1 high, and they are self-consistent within it.
+
+    Nothing was mismatched before, therefore, and correcting inference alone is
+    what would create the mismatch. Measured over a Cascavel AOI, converting
+    these inputs with the offset moves 56.8 per cent of pixels and turns 70.8
+    per cent soybean into 62.0 per cent forest formation on cropland, which is
+    not an improvement in accuracy but a model answering a question it was
+    never asked.
+
+    So the seam is deliberate: everything the application reports as a physical
+    quantity uses to_reflectance, and the three model input paths use this. The
+    seam closes when the heads are refitted on offset-corrected inputs, at which
+    point this function is deleted rather than changed.
+    """
+    return dn / QUANTIFICATION_VALUE
+
+
+def load_reflectance_to_reference_grid(product, band_name, polygon, ref_profile,
+                                       resolution='10m'):
+    """`load_band_to_reference_grid` with the DN-to-reflectance step applied."""
+    return to_reflectance(
+        load_band_to_reference_grid(product, band_name, polygon, ref_profile,
+                                    resolution=resolution),
+        product,
+    )
 
 
 def load_band_to_reference_grid(product, band_name, polygon, ref_profile, resolution='10m'):
@@ -490,8 +587,9 @@ def build_feature_matrix(products, polygon, ref_prof, n_dates_model):
             green = load_band_to_reference_grid(product, 'B03', polygon, ref_prof)
             red = load_band_to_reference_grid(product, 'B04', polygon, ref_prof)
             nir = load_band_to_reference_grid(product, 'B08', polygon, ref_prof)
-            blue_r, green_r, red_r, nir_r = (blue / 10000.0, green / 10000.0,
-                                             red / 10000.0, nir / 10000.0)
+            blue_r, green_r, red_r, nir_r = (
+                as_trained(blue), as_trained(green),
+                as_trained(red), as_trained(nir))
             ndvi_list.append(calculate_ndvi(nir_r, red_r))
             evi_list.append(calculate_evi(nir_r, red_r, blue_r))
             savi_list.append(calculate_savi(nir_r, red_r))
@@ -650,10 +748,10 @@ def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None):
     best_rgb = None  # (red, green, blue, valid_mask)
     for product in products:
         try:
-            blue = load_band_to_reference_grid(product, "B02", polygon, ref_prof) / 10000.0
-            green = load_band_to_reference_grid(product, "B03", polygon, ref_prof) / 10000.0
-            red = load_band_to_reference_grid(product, "B04", polygon, ref_prof) / 10000.0
-            nir = load_band_to_reference_grid(product, "B08", polygon, ref_prof) / 10000.0
+            blue = load_reflectance_to_reference_grid(product, "B02", polygon, ref_prof)
+            green = load_reflectance_to_reference_grid(product, "B03", polygon, ref_prof)
+            red = load_reflectance_to_reference_grid(product, "B04", polygon, ref_prof)
+            nir = load_reflectance_to_reference_grid(product, "B08", polygon, ref_prof)
             ndvi = calculate_ndvi(nir, red)
             evi = calculate_evi(nir, red, blue)
             savi = calculate_savi(nir, red)
@@ -761,7 +859,7 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
                 arr = load_band_to_reference_grid(
                     product, name, polygon, ref_profile, resolution=res
                 )
-                bands.append(np.clip(arr / 10000.0, 0, 1).astype(np.float32))
+                bands.append(np.clip(as_trained(arr), 0, 1).astype(np.float32))
             frames.append(np.stack(bands, axis=0))
         except Exception as e:
             sys.stderr.write(json.dumps({"progress": -1, "msg": f"TT band error: {e}"}) + "\n")
@@ -914,7 +1012,7 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
     for name, res in [('B02', '10m'), ('B03', '10m'), ('B04', '10m'),
                       ('B8A', '20m'), ('B11', '20m'), ('B12', '20m')]:
         arr = load_band_to_reference_grid(target, name, polygon, ref_profile, resolution=res)
-        bands.append(np.clip(arr / 10000.0, 0, 1))
+        bands.append(np.clip(as_trained(arr), 0, 1))
     band_stack = np.stack(bands, axis=0).astype(np.float32)
 
     ref0 = bands[2]  # B04
@@ -2866,7 +2964,8 @@ def main():
                     res = comp.BAND_RESOLUTION.get(name, '10m')
                     bands[name] = load_band_to_reference_grid(
                         product, name, polygon, ref_profile, resolution=res
-                    ) / 10000.0
+                    )
+                    bands[name] = to_reflectance(bands[name], product)
             except Exception as e:
                 sys.stderr.write(json.dumps({
                     'progress': -1, 'msg': f'skipping {date_str}: {e}'
@@ -3029,8 +3128,11 @@ def main():
             fail(f'failed to load B04: {e}')
 
         def load_band(name: str):
+            """Reflectance, not DN. The offset belongs to the product, which
+            this closure holds, so the callers below cannot forget it."""
             res = comp.BAND_RESOLUTION.get(name, '10m')
-            return load_band_to_reference_grid(product, name, polygon, ref_prof, res)
+            return load_reflectance_to_reference_grid(product, name, polygon,
+                                                      ref_prof, res)
 
         mask = ref > 0
         overlay_png = work_dir / 'composite.png'
@@ -3050,9 +3152,9 @@ def main():
                     fail(f'unsupported band: {bname}')
             emit_progress(50, f'loading {bands[0]}/{bands[1]}/{bands[2]}')
             try:
-                r = load_band(bands[0]) / 10000.0
-                g = load_band(bands[1]) / 10000.0
-                b = load_band(bands[2]) / 10000.0
+                r = load_band(bands[0])
+                g = load_band(bands[1])
+                b = load_band(bands[2])
             except Exception as e:
                 fail(f'band load failed: {e}')
             mask = mask & (r > 0) & (g > 0) & (b > 0)
@@ -3065,24 +3167,24 @@ def main():
             emit_progress(50, f'computing {index_name}')
             try:
                 if index_name == 'ndvi':
-                    nir = load_band('B08') / 10000.0
-                    red = load_band('B04') / 10000.0
+                    nir = load_band('B08')
+                    red = load_band('B04')
                     idx = calculate_ndvi(nir, red)
                     mask = mask & (nir > 0) & (red > 0)
                 elif index_name == 'ndwi':
-                    green = load_band('B03') / 10000.0
-                    nir = load_band('B08') / 10000.0
+                    green = load_band('B03')
+                    nir = load_band('B08')
                     idx = comp.calculate_ndwi(green, nir)
                     mask = mask & (green > 0) & (nir > 0)
                 elif index_name == 'ndmi':
-                    nir = load_band('B08') / 10000.0
-                    swir = load_band('B11') / 10000.0
+                    nir = load_band('B08')
+                    swir = load_band('B11')
                     idx = comp.calculate_ndmi(nir, swir)
                     mask = mask & (nir > 0) & (swir > 0)
                 else:  # evi
-                    nir = load_band('B08') / 10000.0
-                    red = load_band('B04') / 10000.0
-                    blue = load_band('B02') / 10000.0
+                    nir = load_band('B08')
+                    red = load_band('B04')
+                    blue = load_band('B02')
                     idx = calculate_evi(nir, red, blue)
                     mask = mask & (nir > 0) & (red > 0) & (blue > 0)
             except Exception as e:
@@ -3247,8 +3349,8 @@ def main():
             dominant = None
             if soja_mask is not None:
                 try:
-                    red = load_band_to_reference_grid(target, 'B04', polygon, ref_profile) / 10000.0
-                    nir = load_band_to_reference_grid(target, 'B08', polygon, ref_profile) / 10000.0
+                    red = load_reflectance_to_reference_grid(target, 'B04', polygon, ref_profile)
+                    nir = load_reflectance_to_reference_grid(target, 'B08', polygon, ref_profile)
                     ndvi_map = calculate_ndvi(nir, red)
                     sv = ndvi_map[soja_mask & (ndvi_map != 0)]
                     soja_ndvi_mean = float(np.mean(sv)) if sv.size > 0 else None
