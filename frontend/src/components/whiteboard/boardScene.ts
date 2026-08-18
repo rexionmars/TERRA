@@ -743,11 +743,58 @@ export function createBoard(
   const probeDim = new Mesh(probeDimGeometry, probeDimMaterial)
   probeDim.visible = false
 
+  /*
+    The same place, marked on every other plane of the same area.
+
+    A board carries a classification beside the imagery it was made from, and
+    the question a reader has while pointing at a predicted pixel is what that
+    pixel LOOKS like -- which is on the other plane, and until now they had to
+    find it by eye. Every plane of one area is the same AOI on the same
+    reference grid, so the UV under the pointer is the same ground on all of
+    them.
+
+    A ring only: no crosshair and no dimming. Those say "the pointer is here",
+    and the pointer is not here -- this says "and here is the same place".
+
+    Pooled rather than created per move. A group can carry six planes and the
+    pointer moves on every frame; allocating a ring per frame is how a probe
+    turns into garbage collection.
+  */
+  const echoGeometry = new RingGeometry(0.88, 1.0, 48)
+  const echoMaterial = new MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.55,
+    side: DoubleSide,
+    depthTest: false,
+    depthWrite: false,
+  })
+  const echoPool: Mesh[] = []
+  const echoesInUse: Mesh[] = []
+
+  const takeEcho = (): Mesh => {
+    const spare = echoPool.pop()
+    if (spare) return spare
+    const mesh = new Mesh(echoGeometry, echoMaterial)
+    mesh.renderOrder = 10_000
+    return mesh
+  }
+
+  const releaseEchoes = () => {
+    for (const echo of echoesInUse) {
+      echo.parent?.remove(echo)
+      echo.visible = false
+      echoPool.push(echo)
+    }
+    echoesInUse.length = 0
+  }
+
   const hideProbeLens = () => {
     if (probeLens.parent) probeLens.parent.remove(probeLens)
     probeLens.visible = false
     if (probeDim.parent) probeDim.parent.remove(probeDim)
     probeDim.visible = false
+    releaseEchoes()
   }
 
   const placeProbeLens = (mesh: Mesh, u: number, v: number) => {
@@ -788,6 +835,32 @@ export function createBoard(
     */
     probeDim.renderOrder = mesh.renderOrder + 0.5
     probeDim.visible = true
+
+    /*
+      And the echoes, on the other planes of this area.
+
+      Matched on plane dimensions rather than assumed: a group can carry a
+      raster on another grid -- the MapBiomas reference is clipped natively and
+      does not share the run's extent -- and marking the same UV on it would
+      point at different ground with no way for a reader to know.
+    */
+    releaseEchoes()
+    // The map the scene already keeps, rather than a search by parent.
+    const group = groupOfMesh.get(mesh)
+    if (group) {
+      for (const other of group.meshes) {
+        if (!other || other === mesh || !other.visible) continue
+        const ow = (other.userData.planeWidth as number) || 0
+        const oh = (other.userData.planeHeight as number) || 0
+        if (Math.abs(ow - w) > 1e-3 || Math.abs(oh - h) > 1e-3) continue
+        const echo = takeEcho()
+        other.add(echo)
+        echo.position.set((u - 0.5) * ow, (v - 0.5) * oh, 0.012)
+        echo.scale.setScalar(r)
+        echo.visible = true
+        echoesInUse.push(echo)
+      }
+    }
   }
 
   const emitProbe = (
@@ -1257,7 +1330,9 @@ export function createBoard(
     crossGeo,
     probeCross.material as LineBasicMaterial,
     probeDimGeometry,
-    probeDimMaterial
+    probeDimMaterial,
+    echoGeometry,
+    echoMaterial
   )
   let raf = 0
   let disposed = false
