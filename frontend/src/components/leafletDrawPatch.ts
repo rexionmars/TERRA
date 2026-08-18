@@ -176,6 +176,10 @@ if (LDraw?.Polyline?.prototype) {
   const ensureRubberBand = (handler: RubberHandler) => {
     if (handler._rubberBand || !handler._map) return
     handler._rubberBand = L.polyline([], {
+      // Not the accent, and it does not follow the chassis: this line is drawn
+      // over imagery, so it answers to the terrain the way the AOI outlines in
+      // lib/aoiStyle.ts do. See docs/DESIGN.md, "Scientific ramps are out of
+      // scope".
       color: "#d8944a",
       weight: 2,
       opacity: 0.95,

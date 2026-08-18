@@ -16,75 +16,92 @@
 :root,
 :root[data-theme="dark"] {
   /*
-    Mars sand. The neutrals carry the hue rather than leaving it to the accent,
-    so the chassis reads warm without the accent having to be everywhere.
+    A cool chassis. The neutrals carry the accent's hue rather than leaving it
+    to the accent, so the surfaces read cool without the accent having to be
+    everywhere.
 
     Every value below is measured, not chosen by eye. The ratios in the comments
     are WCAG 2.x against the surfaces each token actually lands on, and
     frontend/src/lib/contrast.ts re-derives them from these channels so a future
     edit that breaks one fails a check rather than shipping.
+
+    The family replaces the Mars sand it used to be, rotated to the accent's
+    hue at CONSTANT luminance: contrast is a function of relative luminance
+    alone, so each neutral keeps the ratio it was measured at while the hue
+    moves. Every separation below is the one the sand family already cleared,
+    which is why the numbers barely differ from the ones they replace.
   */
   --p-ink: 23 23 23;
-  --p-surface: 38 32 28;
-  --p-surface-raised: 54 45 39;
+  --p-surface: 29 34 39;
+  --p-surface-raised: 41 48 56;
   /*
-    Surface separation is 1.11 and 1.20 -- low by construction, because the
+    Surface separation is 1.12 and 1.20 -- low by construction, because the
     family is dark. Adjacent surfaces are told apart by their border, not by
     luminance, which is why --p-line-strong exists and why it clears WCAG
-    1.4.11 against BOTH surfaces: 3.68 on surface and 3.08 on the raised one.
+    1.4.11 against BOTH surfaces: 3.66 on surface and 3.04 on the raised one.
     An earlier value cleared it against surface alone, which is exactly the
     case the check exists to catch.
   */
-  --p-line: 86 73 63;
-  --p-line-strong: 138 117 100;
-  --p-text: 226 220 212;
+  --p-line: 66 76 90;
+  --p-line-strong: 105 122 145;
+  --p-text: 216 221 229;
   /*
     Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
-    which is the raised one. This measures 5.20 there, 6.22 on surface and 6.93
+    which is the raised one. This measures 5.15 there, 6.18 on surface and 6.91
     on ink. Used only as a text colour, never as a background.
   */
-  --p-muted: 172 159 144;
+  --p-muted: 150 162 177;
   /*
     The accent is a fill, a focus ring and an active state.
 
-    Softened from 242 86 35, which read as a warning rather than as a control.
-    The lighter value measures BETTER against every surface -- 6.96 on ink,
-    6.24 on surface, 5.22 on the raised one, against 5.23/4.70/3.93 before --
-    so it now clears 4.5 as text too. --p-accent-quiet stays: it is what the
-    light theme's text uses, and one name for "the accent, readable" is worth
-    keeping on both.
+    #3376CE is the brand value. This theme lightens it by two levels per channel
+    to #3578CF, because the exact value measures 2.96 against the raised surface
+    where the boundary floor is 3.0. Darkening cannot recover it -- the raised
+    surface is darker still, so the ratio only falls further -- and the nudged
+    value measures 3.01. The two are not separable side by side.
 
-    What the change COSTS is the label on top of it. White on the old orange
-    measured 3.43, already under 4.5; on this one it is 2.58, under even 3.
-    --accent-foreground is the ink, at 6.96, and eight call sites that had
-    hardcoded `text-white` now use it.
+    A mid tone carries neither label cleanly: white measures 4.43 on this fill
+    and the near-black ink 4.05. No blue at this hue clears 4.5 in this theme,
+    because white would require a fill darker than the raised-surface boundary
+    allows. --accent-foreground is white, the better of the two, and the 0.07
+    shortfall against WCAG 1.4.3 is a stated exception rather than an oversight.
+    Text that has to READ as the accent uses --p-accent-quiet, which clears 4.5
+    on every surface: 6.25 on ink, 5.59 on surface, 4.65 on the raised one.
   */
-  --p-accent: 237 135 68;
-  --p-accent-quiet: 255 138 92;
-  --p-accent-dim: 74 38 22;
+  --p-accent: 53 120 207;
+  --p-accent-quiet: 106 155 219;
+  /*
+    The dim plate is one step darker than a constant-luminance rotation would
+    give. At the sand plate's own luminance the accent measured 3.00 on it,
+    which is the floor to the rounding and not past it; at this value it is
+    3.14, with the quiet variant at 4.86 and the boundary at 3.18.
+  */
+  --p-accent-dim: 22 45 74;
   --p-place: 120 138 148;
-  --p-haze: 196 128 84;
+  --p-haze: 104 146 203;
 }
 
 /*
   The light theme derives on its own path and inherits nothing from the block
-  above, so every ratio is measured here too. The accent is darkened rather than
-  reused: #F25623 on a light surface reads as a highlight, not as a control.
+  above, so every ratio is measured here too. Here the accent is the brand value
+  unchanged: #3376CE measures 4.34 on the light surface and 3.52 on the raised
+  one, so unlike the sand accent it needs no darkening for this ground, and the
+  white label on it clears 4.5 at 4.54.
 */
 :root[data-theme="light"] {
-  --p-ink: 245 240 233;
-  --p-surface: 252 249 243;
-  --p-surface-raised: 234 226 214;
-  --p-line: 190 175 156;
-  --p-line-strong: 138 118 98;
-  --p-text: 38 30 24;
-  --p-muted: 104 90 76;
-  /* Same rule as dark: a fill, not a text colour. 4.42 on the raised surface. */
-  --p-accent: 186 58 18;
-  --p-accent-quiet: 158 48 14;
-  --p-accent-dim: 240 214 198;
+  --p-ink: 236 241 247;
+  --p-surface: 247 250 253;
+  --p-surface-raised: 220 227 237;
+  --p-line: 165 179 196;
+  --p-line-strong: 105 123 147;
+  --p-text: 26 32 40;
+  --p-muted: 81 93 110;
+  /* Same rule as dark: a fill, not a text colour. 3.52 on the raised surface. */
+  --p-accent: 51 118 206;
+  --p-accent-quiet: 40 94 166;
+  --p-accent-dim: 204 220 242;
   --p-place: 90 110 122;
-  --p-haze: 196 150 118;
+  --p-haze: 131 161 202;
 }
 
 :root {
@@ -95,11 +112,17 @@
   --panel-solid: rgb(var(--p-ink));
   --card: rgb(var(--p-ink) / 0.45);
   --card-foreground: rgb(var(--p-text));
-  --popover: rgb(12 11 10);
+  --popover: rgb(10 11 13);
   --popover-foreground: rgb(var(--p-text));
 
   --primary: rgb(var(--p-accent));
-  --primary-foreground: rgb(var(--p-ink));
+  /*
+    White, in both themes, because the accent is now a mid tone. On the dark
+    theme's fill it measures 4.43 and on the light theme's 4.54; the near-black
+    ink it replaces measured 4.05 and 4.00. See --p-accent for why no value at
+    this hue clears 4.5 on both sides at once.
+  */
+  --primary-foreground: #ffffff;
 
   --secondary: rgb(var(--p-surface-raised) / 0.85);
   --secondary-foreground: rgb(var(--p-text));
@@ -107,7 +130,7 @@
   --muted-foreground: rgb(var(--p-muted));
 
   --accent: rgb(var(--p-accent));
-  --accent-foreground: rgb(var(--p-ink));
+  --accent-foreground: #ffffff;
   /* The accent where it has to be read rather than filled. See --p-accent. */
   --accent-quiet: rgb(var(--p-accent-quiet));
   --terra: rgb(var(--p-accent));
@@ -131,7 +154,18 @@
   --destructive: #a02c2c;
   --destructive-foreground: rgb(var(--p-text));
   --destructive-quiet: #e08a78;
-  --warning: rgb(var(--p-accent-quiet));
+  /*
+    An amber of its own, one value per theme, rather than the accent.
+
+    It used to be --p-accent-quiet, which worked while the accent was orange:
+    the warning mark and the informational one were the same hue by accident
+    and nobody could tell, because there was no other hue for them to be. With
+    a blue accent that inheritance would have drawn the warning toast in the
+    colour the interface uses for "this is the selected thing", which is the
+    one meaning it must not carry. Measured 7.97 / 7.13 / 5.93 dark and
+    5.21 / 5.65 / 4.58 light, so it clears the mark floor on every surface.
+  */
+  --warning: #d9a441;
   --success: #6f9c5a;
 
   /*
@@ -173,8 +207,8 @@
   /* Full accent, not a wash of it. At 0.55 the composited ring measured under
      the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
      contrast check verifies, because the check reads the token and the token
-     was not what got painted. At full strength the two agree: 6.96 on ink,
-     6.24 on the panel, 5.22 on a raised surface. */
+     was not what got painted. At full strength the two agree: 4.05 on ink,
+     3.62 on the panel, 3.01 on a raised surface. */
   --ring: rgb(var(--p-accent));
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -196,6 +230,7 @@
   --destructive: #b33a1a;
   --destructive-foreground: rgb(var(--p-surface));
   --destructive-quiet: #9e2b25;
+  --warning: #8a5a10;
   --success: #3f6b2c;
   /* Darkened for the light ground; same four floors, same search. */
   --series-ndvi: #4b9b55;
@@ -311,7 +346,7 @@
     follows the border radius and does not fight the shadow utilities a floating
     panel needs.
 
-    --ring is the full accent: 5.23 on ink, 4.70 on a panel, 3.93 on a raised
+    --ring is the full accent: 4.05 on ink, 3.62 on a panel, 3.01 on a raised
     surface, all clearing the 3.0 WCAG 1.4.11 asks of a focus indicator.
   */
   button:focus-visible,
@@ -540,10 +575,10 @@
   The nav item, the one shared treatment left from the workspace chrome.
 
   Everything else in this block -- .terra-workspace and the eight .ar-* rules --
-  was a VS Code Dark Modern port, including a blue selection, and it made the
-  application run two unrelated palettes: the map panels were warm and
-  tokenised while every full screen was cold and hardcoded. Retiring it is why
-  a re-theme now moves every screen.
+  was a VS Code Dark Modern port with its own hardcoded selection, and it made
+  the application run two unrelated palettes: the map panels were tokenised
+  while every full screen was hardcoded. Retiring it is why a re-theme now
+  moves every screen.
 
   Kept unlayered like the other component classes, and named for what it is
   rather than for where it came from.
@@ -557,10 +592,10 @@
 }
 
 /*
-  The active row. Accent at 45 percent composites to rgb(119 73 43), on which
-  the label measures 5.56 -- but --p-muted measures 2.93 there, which is why the
-  count beside the label follows the label up on this row rather than staying
-  the one unreadable thing on it.
+  The active row. Accent at 45 percent composites to rgb(36 67 106), on which
+  the label measures 7.38 -- but --p-muted measures 3.88 there, still short of
+  the 4.5 a text colour asks, which is why the count beside the label follows
+  the label up on this row rather than staying the one unreadable thing on it.
 */
 .nav-item.is-active {
   background: color-mix(in srgb, rgb(var(--p-accent)) 45%, transparent);
@@ -607,7 +642,7 @@
   }
 }
 
-/* Title bar bottom edge — terra gradient (haze → ochre → dust → fade) */
+/* Title bar bottom edge — terra gradient (haze → accent → line → fade) */
 .titlebar-terra::after {
   content: "";
   position: absolute;

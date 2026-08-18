@@ -2345,8 +2345,8 @@ export function BoardSurface({
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
         groups,
         background: tokenColor("--p-ink", "#171717"),
-        line: tokenColor("--p-line", "#404040"),
-        accent: tokenColor("--p-accent", "#ed8744"),
+        line: tokenColor("--p-line", "#424C5A"),
+        accent: tokenColor("--p-accent", "#3578CF"),
         // The separation in force at the moment of the build, so a plane lands
         // at its true height rather than at the base for a frame.
         gap: gapRef.current,

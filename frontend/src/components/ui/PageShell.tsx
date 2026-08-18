@@ -6,8 +6,7 @@
  * bordered surface with the system radius, entering on a spring. Everything
  * that fills the window instead -- settings, analysis, sign-in, projects and
  * the modals -- was `.terra-workspace`, a flat fill with hairlines ported from
- * an editor theme, and it inherited the sand palette without ever taking the
- * shape.
+ * an editor theme, and it inherited the palette without ever taking the shape.
  *
  * The difference was never a decision. A page has no raster underneath, so it
  * cannot borrow the reason the glass exists -- but the surface, the border, the
