@@ -94,18 +94,46 @@ const NM_DOMAIN = [400, 2300] as const
 
 export function SpectraEditor({
   runs,
+  rover,
 }: {
   /** The selected planes' runs, in selection order. */
   runs: Array<{ id: string; label: string; result: PredictResult }>
+  /**
+   * The class the rover is pointing at, and the plane it came from.
+   *
+   * Sweeping the raster with the rover lights that class's curve here, which
+   * is the reading the two editors were built to be used together for: the map
+   * says where a class is, this says what it reflects.
+   */
+  rover?: { areaId: string; classId: number } | null
 }) {
   const [runIdx, setRunIdx] = useState(0)
   const [hoverBand, setHoverBand] = useState<number | null>(null)
-  const [focusClass, setFocusClass] = useState<number | null>(null)
+  const [hoverClass, setHoverClass] = useState<number | null>(null)
   const { resolvedTheme } = useTheme()
   const theme: ThemeName = resolvedTheme === "light" ? "light" : "dark"
 
   const run = runs.length ? runs[Math.min(runIdx, runs.length - 1)] : undefined
   const spectra = run?.result.class_spectra ?? null
+
+  /*
+    Local hover wins, then the rover.
+
+    A reader whose pointer is inside this figure is asking about the entry
+    under it, and the rover is somewhere else on screen; taking it back the
+    moment they leave the legend is what makes the link feel like a link rather
+    than a fight over one highlight.
+
+    The rover only counts on the run it was taken over: the same class id in
+    another run is a different measurement.
+  */
+  const linked =
+    rover && run && rover.areaId === run.id ? rover.classId : null
+  const focusClass = hoverClass ?? linked
+  const linkedName =
+    linked === null
+      ? null
+      : (spectra?.points.find((p) => p.class_id === linked)?.name ?? null)
 
   /*
     The panel decides the size; the content decides the margins.
@@ -507,8 +535,8 @@ export function SpectraEditor({
                 <g
                   key={`legend-${s.classId}`}
                   transform={`translate(${s.legend.x},${figure.layout.legendTop + s.legend.row * ROW_PX.label + ROW_PX.label / 2})`}
-                  onMouseEnter={() => setFocusClass(s.classId)}
-                  onMouseLeave={() => setFocusClass(null)}
+                  onMouseEnter={() => setHoverClass(s.classId)}
+                  onMouseLeave={() => setHoverClass(null)}
                   style={{ cursor: "pointer" }}
                 >
                   <rect
@@ -596,8 +624,23 @@ export function SpectraEditor({
                 </>
               ) : (
                 <p className="text-meta text-muted-foreground">
-                  Point at a band for its values, or at a class in the legend
-                  for the 5th to 95th percentile spread of that class.
+                  {/*
+                    Which class is lit, and why, when the reader did not light
+                    it. A highlight with no stated cause reads as a defect.
+                  */}
+                  {hoverClass === null && linkedName ? (
+                    <>
+                      Following the rover ·{" "}
+                      <span className="text-foreground">{linkedName}</span>.
+                      Point at a band for its values.
+                    </>
+                  ) : (
+                    <>
+                      Point at a band for its values, or at a class in the
+                      legend for the 5th to 95th percentile spread of that
+                      class.
+                    </>
+                  )}
                 </p>
               )}
             </div>

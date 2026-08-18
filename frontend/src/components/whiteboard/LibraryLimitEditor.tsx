@@ -350,21 +350,42 @@ export function LibraryLimitEditor({
   runs,
   mode,
   surface,
+  rover,
 }: {
   runs: Array<{ id: string; label: string; result: PredictResult }>
   mode: LibraryLimitMode
   /** The studio surface a popover is portalled into and clamped inside. */
   surface: HTMLElement | null
+  /**
+   * The class the rover is pointing at, and the plane it came from.
+   *
+   * Pointing at a pixel names its class in the ranking and puts that class in
+   * the mechanism pane, which is the question a reader has at exactly that
+   * moment: this pixel is called Soybean, so how far is Soybean from the
+   * soybean reference, and why.
+   */
+  rover?: { areaId: string; classId: number } | null
 }) {
   const [runIdx, setRunIdx] = useState(0)
   const [notes, setNotes] = useState(false)
-  const [focus, setFocus] = useState<number | null>(null)
+  const [pick, setPick] = useState<number | null>(null)
   const [band, setBand] = useState<"ratio" | "shape">("ratio")
   const { resolvedTheme } = useTheme()
   const theme: ThemeName = resolvedTheme === "light" ? "light" : "dark"
 
   const run = runs.length ? runs[Math.min(runIdx, runs.length - 1)] : undefined
   const limit = run?.result.library_limit ?? null
+
+  /*
+    What the reader chose here wins, then the rover.
+
+    A class picked in the mechanism pane is a deliberate act and stays; the
+    rover is a sweep. The rover only counts on the run it was taken over,
+    because the same class id in another run is a different measurement.
+  */
+  const linked =
+    rover && run && rover.areaId === run.id ? rover.classId : null
+  const focus = pick ?? linked
 
   const colours = useMemo(() => {
     const ground = chartGround(theme)
@@ -496,7 +517,7 @@ export function LibraryLimitEditor({
                   classes={limit.classes}
                   colours={colours}
                   focus={focus}
-                  onFocus={setFocus}
+                  onFocus={setPick}
                 />
               </div>
             ) : (
@@ -518,7 +539,16 @@ export function LibraryLimitEditor({
                       <button
                         key={c.class_id}
                         type="button"
-                        onClick={() => setFocus(c.class_id)}
+                        /*
+                          A pin, released by pressing it again. Without that,
+                          one press stops the rover ever driving this pane
+                          again and there is nothing on screen saying why.
+                        */
+                        onClick={() =>
+                          setPick((prev) =>
+                            prev === c.class_id ? null : c.class_id
+                          )
+                        }
                         className={cn(
                           "flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-meta transition-colors",
                           shown.class_id === c.class_id
@@ -563,6 +593,7 @@ export function LibraryLimitEditor({
                   once rather than costing four lines of height on every look.
                 */}
                 <p className="telemetry shrink-0 text-meta text-muted-foreground">
+                  {pick === null && linked !== null ? "rover · " : ""}
                   {band === "ratio"
                     ? `${shown.name} · ${shown.angle_rad.toFixed(3)} rad from the reference`
                     : "solid: class · dashed: reference · both at unit length"}

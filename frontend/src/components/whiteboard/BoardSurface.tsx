@@ -2740,6 +2740,28 @@ export function BoardSurface({
     rather than one owner for the studio, which is what let two outliners
     disagree about their panes -- and what stopped them being able to.
   */
+  /*
+    What the rover is pointing at, for the figures that read one class.
+
+    NOT NEW STATE. The probe sample already carries the class under the
+    pointer and detailFocus already carries the plane it came from; this only
+    names the pair so the spectral and library editors can follow it. A second
+    piece of state would be a second answer to a question the board already
+    answers, and the two could disagree by a frame.
+
+    The area travels with it because the editors read a selection that may hold
+    more than one run: without it, pointing at a pixel of one run would light a
+    class in another run's figure, which is the same class id meaning a
+    different measurement.
+  */
+  const roverClass = useMemo(
+    () =>
+      brushOn && probeSample?.entry && detailFocus?.areaId
+        ? { areaId: detailFocus.areaId, classId: probeSample.entry.id }
+        : null,
+    [brushOn, probeSample, detailFocus?.areaId]
+  )
+
   const editorModesFor = (
     areaId: AreaId
   ): Partial<Record<EditorId, StudioEditorMode[]>> => {
@@ -3314,12 +3336,13 @@ export function BoardSurface({
         }
       />
     ),
-    spectra: <SpectraEditor runs={selectedRuns} />,
+    spectra: <SpectraEditor runs={selectedRuns} rover={roverClass} />,
     libraryLimit: (
       <LibraryLimitEditor
         runs={selectedRuns}
         mode={libraryModeOf(areaId)}
         surface={surfaceRef.current}
+        rover={roverClass}
       />
     ),
     table: <StudioTables runs={selectedRuns} />,
