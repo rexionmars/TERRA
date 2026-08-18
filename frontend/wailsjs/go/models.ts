@@ -877,6 +877,77 @@ export namespace backend {
 	
 	
 	
+	export class ClassSpectrumPoint {
+	    class_id: number;
+	    name: string;
+	    color: string;
+	    band: string;
+	    wavelength_nm: number;
+	    n_pixels: number;
+	    mean: number;
+	    sd: number;
+	    p05: number;
+	    p95: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ClassSpectrumPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class_id = source["class_id"];
+	        this.name = source["name"];
+	        this.color = source["color"];
+	        this.band = source["band"];
+	        this.wavelength_nm = source["wavelength_nm"];
+	        this.n_pixels = source["n_pixels"];
+	        this.mean = source["mean"];
+	        this.sd = source["sd"];
+	        this.p05 = source["p05"];
+	        this.p95 = source["p95"];
+	    }
+	}
+	export class ClassSpectra {
+	    scene_date: string;
+	    scene_id?: string;
+	    n_scenes: number;
+	    convention: string;
+	    bands: string[];
+	    points: ClassSpectrumPoint[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ClassSpectra(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scene_date = source["scene_date"];
+	        this.scene_id = source["scene_id"];
+	        this.n_scenes = source["n_scenes"];
+	        this.convention = source["convention"];
+	        this.bands = source["bands"];
+	        this.points = this.convertValues(source["points"], ClassSpectrumPoint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	export class CompositeRequest {
 	    area_id: string;
@@ -3702,6 +3773,162 @@ export namespace backend {
 		    return a;
 		}
 	}
+	export class LibraryBand {
+	    band: string;
+	    wavelength_nm: number;
+	    reflectance: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LibraryBand(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.band = source["band"];
+	        this.wavelength_nm = source["wavelength_nm"];
+	        this.reflectance = source["reflectance"];
+	    }
+	}
+	export class LibraryClassBand {
+	    band: string;
+	    wavelength_nm: number;
+	    canopy: number;
+	    leaf: number;
+	    ratio?: number;
+	    unit_canopy?: number;
+	    unit_leaf?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LibraryClassBand(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.band = source["band"];
+	        this.wavelength_nm = source["wavelength_nm"];
+	        this.canopy = source["canopy"];
+	        this.leaf = source["leaf"];
+	        this.ratio = source["ratio"];
+	        this.unit_canopy = source["unit_canopy"];
+	        this.unit_leaf = source["unit_leaf"];
+	    }
+	}
+	export class LibraryClass {
+	    class_id: number;
+	    name: string;
+	    color: string;
+	    angle_rad: number;
+	    bands: LibraryClassBand[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LibraryClass(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class_id = source["class_id"];
+	        this.name = source["name"];
+	        this.color = source["color"];
+	        this.angle_rad = source["angle_rad"];
+	        this.bands = this.convertValues(source["bands"], LibraryClassBand);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class LibraryReference {
+	    material: string;
+	    source: string;
+	    package_id: string;
+	    n_spectra: number;
+	    level: string;
+	    note: string;
+	    bands: LibraryBand[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LibraryReference(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.material = source["material"];
+	        this.source = source["source"];
+	        this.package_id = source["package_id"];
+	        this.n_spectra = source["n_spectra"];
+	        this.level = source["level"];
+	        this.note = source["note"];
+	        this.bands = this.convertValues(source["bands"], LibraryBand);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LibraryLimit {
+	    reference: LibraryReference;
+	    scene_date: string;
+	    classes: LibraryClass[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LibraryLimit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reference = this.convertValues(source["reference"], LibraryReference);
+	        this.scene_date = source["scene_date"];
+	        this.classes = this.convertValues(source["classes"], LibraryClass);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class OptionalPackage {
 	    spec: string;
 	    name: string;
@@ -4811,7 +5038,10 @@ export namespace backend {
 	    confidence_floor?: number;
 	    n_dates: number;
 	    date_range: string[];
+	    pixel_size_m?: number;
 	    class_stats: ClassStat[];
+	    class_spectra?: ClassSpectra;
+	    library_limit?: LibraryLimit;
 	    temporal: TemporalPoint[];
 	    vi_series: VISeriesPoint[];
 	    vi_series_crop?: VISeriesPoint[];
@@ -4845,7 +5075,10 @@ export namespace backend {
 	        this.confidence_floor = source["confidence_floor"];
 	        this.n_dates = source["n_dates"];
 	        this.date_range = source["date_range"];
+	        this.pixel_size_m = source["pixel_size_m"];
 	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
+	        this.class_spectra = this.convertValues(source["class_spectra"], ClassSpectra);
+	        this.library_limit = this.convertValues(source["library_limit"], LibraryLimit);
 	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
 	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
 	        this.vi_series_crop = this.convertValues(source["vi_series_crop"], VISeriesPoint);

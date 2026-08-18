@@ -18,6 +18,9 @@
 import type { LucideIcon } from "lucide-react"
 import {
   Box,
+  ChartSpline,
+  Crosshair,
+  LibraryBig,
   GitCompareArrows,
   ListTree,
   PanelBottom,
@@ -34,6 +37,9 @@ export type EditorId =
   | "properties"
   | "compare"
   | "domainShift"
+  | "spectra"
+  | "libraryLimit"
+  | "brush"
   | "table"
   | "runParams"
   | "canopy"
@@ -129,6 +135,55 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 28,
     minRowRem: 14,
     hint: "How far the target domain sits from the one the model was fitted on",
+  },
+  {
+    id: "spectra",
+    label: "Spectral response",
+    icon: ChartSpline,
+    /*
+      The same floor the domain-shift editor sets, for the same reason and over
+      related content: this is the other half of that diagnostic. Seven ticks
+      across the axis, and the two SWIR bands sit in the last third of it --
+      narrower than this the band labels collide and the reader loses which
+      sample is which, which is the whole content of the figure.
+    */
+    minRem: 24,
+    minRowRem: 14,
+    hint: "What each predicted class reflects, band by band, on one acquisition",
+  },
+  {
+    id: "libraryLimit",
+    label: "Library check",
+    icon: LibraryBig,
+    /*
+      Two panes rather than one body, so the floor is one figure and not three
+      stacked. Still the widest reading in the studio: the ranking's own label
+      gutter is a quarter of the width, because a class name is up to 26
+      characters and compressing it is how a figure stops naming its own rows.
+    */
+    minRem: 26,
+    minRowRem: 14,
+    hint: "Each class against a spectral library, and why a small angle is not an identification",
+  },
+  {
+    id: "brush",
+    label: "Rover",
+    icon: Crosshair,
+    /*
+      Narrower than the figures beside it: the readout is a class, a coordinate
+      and a small spectrum in a column, so it fits where a properties panel
+      fits. Taller than wide is the shape it wants, which is why the row floor
+      is the higher of the two numbers.
+    */
+    minRem: 14,
+    minRowRem: 12,
+    /*
+      Unique. There is one rover, one probe target and one sample; a second
+      area would be a second set of controls over the same one, which is the
+      duplication that moving the canopy's controls out of its panels removed.
+    */
+    unique: true,
+    hint: "Point at a predicted pixel: its class, where it is, and what it reflects",
   },
   {
     id: "table",

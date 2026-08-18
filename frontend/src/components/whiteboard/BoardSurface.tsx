@@ -148,6 +148,8 @@ import {
   EyeOff,
   Filter,
   GitCompareArrows,
+  Ruler,
+  Split,
   Image as ImageIcon,
   Layers,
   LineChart as LineChartIcon,
@@ -170,6 +172,12 @@ import {
 } from "@/components/whiteboard/CanopyEditor"
 import { CanopyRunBar } from "@/components/whiteboard/CanopyRunBar"
 import { CanopyWorkflowProvider } from "@/components/whiteboard/canopyWorkflow"
+import { BrushEditor } from "@/components/whiteboard/BrushEditor"
+import {
+  LibraryLimitEditor,
+  type LibraryLimitMode,
+} from "@/components/whiteboard/LibraryLimitEditor"
+import { SpectraEditor } from "@/components/whiteboard/SpectraEditor"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import {
@@ -314,6 +322,29 @@ function useKept<T>(
     if (partOfBoard) markBoardDirty()
   }, [key, value, partOfBoard])
   return [value, setValue] as const
+}
+
+/**
+ * Whether this plane is the only visible one on the whole board.
+ *
+ * ONE definition, read by the menu's label and by the action behind it. Two
+ * copies of this rule is how an entry comes to say "Show every plane" and then
+ * hide them, which is the class of defect this file has already had with a
+ * palette and with a set of table columns.
+ */
+function isSoloed(
+  areas: ReadonlyArray<{
+    id: string
+    layers: ReadonlyArray<{ id: string; visible: boolean }>
+  }>,
+  areaId: string,
+  layerId: string
+): boolean {
+  return areas.every((a) =>
+    a.layers.every(
+      (l) => (a.id === areaId && l.id === layerId) || !l.visible
+    )
+  )
 }
 
 export function BoardSurface({
@@ -552,6 +583,22 @@ export function BoardSurface({
   }
   const setCanopyModeOf = (areaId: AreaId, m: CanopyMode) =>
     setAreaModes((prev) => ({ ...prev, [canopyModeKey(areaId)]: m }))
+
+  /*
+    The library check's two readings, per area.
+
+    They answer different questions and neither contains the other. The
+    distance is a ranking over every class at once and is what a reader comes
+    for; why it survives is one class at a time, band by band, and is what
+    stops the ranking being read as an identification. Stacked in one body the
+    ranking pushed the mechanism below the fold, which is where an argument
+    goes to be skipped.
+  */
+  const libraryModeKey = (areaId: AreaId) => `${areaId}:libraryLimit`
+  const libraryModeOf = (areaId: AreaId): LibraryLimitMode =>
+    areaModes[libraryModeKey(areaId)] === "mechanism" ? "mechanism" : "distance"
+  const setLibraryModeOf = (areaId: AreaId, m: LibraryLimitMode) =>
+    setAreaModes((prev) => ({ ...prev, [libraryModeKey(areaId)]: m }))
 
   /*
     Which board area is the source of the star, per pane.
@@ -1448,6 +1495,30 @@ export function BoardSurface({
     onLayerChange(id, patch)
   }
 
+  /**
+   * Leave one plane visible, or bring the whole board back.
+   *
+   * A toggle rather than a one-way action. Hiding eleven planes to read one,
+   * then restoring them by hand, is eleven gestures to undo one -- and the
+   * outliner can only do this a row at a time, which is where the reader was
+   * doing it before.
+   *
+   * Restoring shows everything rather than what was visible before. Keeping a
+   * memory of the previous state would be right if solo were the only thing
+   * that changed visibility, and it is not: the outliner's eyes, the run's own
+   * switches and this menu all write the same flags, so a remembered set would
+   * be stale in every case but the one where nothing else was touched.
+   */
+  const soloLayer = (areaId: string, id: string) => {
+    const soloed = isSoloed(areas, areaId, id)
+    for (const a of areas) {
+      for (const l of a.layers) {
+        const keep = soloed || (a.id === areaId && l.id === id)
+        if (l.visible !== keep) changeLayer(a.id, l.id, { visible: keep })
+      }
+    }
+  }
+
   const addToScene = (areaId: string, id: string) => {
     // Putting a raster on a dismissed area is the reader asking for it back.
     setDismissedAreas((prev) => prev.filter((a) => a !== areaId))
@@ -2340,6 +2411,10 @@ export function BoardSurface({
             isBase: a.layers.findIndex((x) => x.id === id) === 0,
             flat: flatRef.current.has(sceneKey(groupId, id)),
             removable: true,
+            // Read at open time, so the entry names the direction it will go.
+            // The same predicate the action uses: two copies of this rule
+            // would let the label say one thing and the press do the other.
+            soloed: isSoloed(areasRef.current, groupId, id),
           })
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
@@ -2465,10 +2540,24 @@ export function BoardSurface({
   ])
 
   useEffect(() => {
-    // Lens diameter on the plane: S/M/L as fraction of the shorter side.
-    const frac = brushRadius === 0 ? 0.08 : brushRadius === 2 ? 0.14 : 0.22
-    boardRef.current?.setProbeLensScale(frac)
-  }, [brushRadius, groups])
+    /*
+      The lens is the disc that was read, not a decoration near the pointer.
+
+      It used to be a fraction of the plane's shorter side, hand-tuned per
+      radius, which disagreed with the sample by whatever the raster's aspect
+      ratio was and had no case for a radius the list did not yet offer -- so
+      adding the 30 m step drew it at the size of the 90 m one. The span in
+      texels over the raster's shorter side is the same disc the majority is
+      taken over.
+    */
+    const span = 2 * brushRadius + 1
+    const shorter = probeSample
+      ? Math.min(probeSample.mapWidth, probeSample.mapHeight)
+      : 0
+    boardRef.current?.setProbeLensScale(
+      shorter > 0 ? span / shorter : 0.02 * span
+    )
+  }, [brushRadius, groups, probeSample])
 
 
   /*
@@ -2651,6 +2740,28 @@ export function BoardSurface({
     rather than one owner for the studio, which is what let two outliners
     disagree about their panes -- and what stopped them being able to.
   */
+  /*
+    What the rover is pointing at, for the figures that read one class.
+
+    NOT NEW STATE. The probe sample already carries the class under the
+    pointer and detailFocus already carries the plane it came from; this only
+    names the pair so the spectral and library editors can follow it. A second
+    piece of state would be a second answer to a question the board already
+    answers, and the two could disagree by a frame.
+
+    The area travels with it because the editors read a selection that may hold
+    more than one run: without it, pointing at a pixel of one run would light a
+    class in another run's figure, which is the same class id meaning a
+    different measurement.
+  */
+  const roverClass = useMemo(
+    () =>
+      brushOn && probeSample?.entry && detailFocus?.areaId
+        ? { areaId: detailFocus.areaId, classId: probeSample.entry.id }
+        : null,
+    [brushOn, probeSample, detailFocus?.areaId]
+  )
+
   const editorModesFor = (
     areaId: AreaId
   ): Partial<Record<EditorId, StudioEditorMode[]>> => {
@@ -2684,6 +2795,18 @@ export function BoardSurface({
       active: shiftHere === id,
       select: () => setShiftModeOf(areaId, id),
     })
+    const libraryHere = libraryModeOf(areaId)
+    const libraryPane = (
+      id: LibraryLimitMode,
+      label: string,
+      icon: LucideIcon
+    ) => ({
+      id,
+      label,
+      icon,
+      active: libraryHere === id,
+      select: () => setLibraryModeOf(areaId, id),
+    })
     return {
       outliner: [
         pane("scene", "Scene", Layers),
@@ -2701,6 +2824,16 @@ export function BoardSurface({
       domainShift: [
         shiftPane("pair", "Pair", GitCompareArrows),
         shiftPane("cohort", "Cohort", Waves),
+      ],
+      /*
+        The result, then the reason. Distance is the ranking a reader comes
+        for; mechanism is the band-by-band ratio that stops the ranking being
+        read as an identification, and it is one class at a time rather than
+        five, so it cannot share a body with the ranking.
+      */
+      libraryLimit: [
+        libraryPane("distance", "Distance", Ruler),
+        libraryPane("mechanism", "Why it survives", Split),
       ],
       /*
         Three questions about one season, and each wants the whole width. The
@@ -3176,6 +3309,40 @@ export function BoardSurface({
             ?.layers.find((l) => l.id === "prediction")
           if (layer) setSelection([layerRow(boardAreaId, layer.id)])
         }}
+      />
+    ),
+    /*
+      A view of the selection, like the table beside it: which run is read
+      follows the selected planes rather than the board.
+    */
+    /*
+      The rover reads the plane the selection points at, which is the same
+      plane detailFocus already walks the selection for -- so it is handed the
+      board's own sample rather than taking a second one.
+    */
+    brush: (
+      <BrushEditor
+        on={brushOn}
+        onOnChange={setBrushOn}
+        radius={brushRadius}
+        onRadiusChange={setBrushRadius}
+        result={detailPrediction}
+        sample={probeSample}
+        uv={probeUv}
+        blockedBy={
+          predictionPicks.length >= 2
+            ? "Two predictions are selected, so the board is comparing them and there is no single plane to read. Select one."
+            : null
+        }
+      />
+    ),
+    spectra: <SpectraEditor runs={selectedRuns} rover={roverClass} />,
+    libraryLimit: (
+      <LibraryLimitEditor
+        runs={selectedRuns}
+        mode={libraryModeOf(areaId)}
+        surface={surfaceRef.current}
+        rover={roverClass}
       />
     ),
     table: <StudioTables runs={selectedRuns} />,
@@ -3776,6 +3943,11 @@ export function BoardSurface({
           changeLayer(planeMenu.areaId, planeMenu.layerId, {
             visible: !planeMenu.visible,
           })
+        }
+        onSolo={() => planeMenu && soloLayer(planeMenu.areaId, planeMenu.layerId)}
+        onFit={() =>
+          planeMenu &&
+          boardRef.current?.focusPlane(planeMenu.areaId, planeMenu.layerId)
         }
         onRemove={() =>
           planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)

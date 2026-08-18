@@ -59,6 +59,92 @@ export interface ClassStat {
   area_ha: number
 }
 
+/** One band of a reference spectrum from a spectral library. */
+export interface LibraryBand {
+  band: string
+  wavelength_nm: number
+  reflectance: number
+}
+
+/**
+ * The material a comparison is made against.
+ *
+ * `level` decides how the result may be read. A leaf-level reference against a
+ * canopy pixel cannot identify a material however small the angle, because the
+ * two are not measurements of the same thing.
+ */
+export interface LibraryReference {
+  material: string
+  source: string
+  package_id: string
+  n_spectra: number
+  level: string
+  note: string
+  bands: LibraryBand[]
+}
+
+export interface LibraryClassBand {
+  band: string
+  wavelength_nm: number
+  canopy: number
+  leaf: number
+  /** Canopy over leaf. Constant would be brightness, which the angle ignores. */
+  ratio: number | null
+  unit_canopy: number | null
+  unit_leaf: number | null
+}
+
+export interface LibraryClass {
+  class_id: number
+  name: string
+  color: string
+  angle_rad: number
+  bands: LibraryClassBand[]
+}
+
+/**
+ * The cross-reference against a spectral library, and its limit.
+ *
+ * Classes are ordered by angle, closest first, and the ordering is the point:
+ * the class named Soybean is not the one closest to the soybean reference. A
+ * small angle here means CONSISTENCY and never identification.
+ */
+export interface LibraryLimit {
+  reference: LibraryReference
+  scene_date: string
+  classes: LibraryClass[]
+}
+
+/** One band, for one predicted class, on one acquisition. */
+export interface ClassSpectrumPoint {
+  class_id: number
+  name: string
+  color: string
+  band: string
+  wavelength_nm: number
+  n_pixels: number
+  mean: number
+  sd: number
+  p05: number
+  p95: number
+}
+
+/**
+ * The measured spectral response per predicted class.
+ *
+ * `scene_date` is not provenance trim. The classification spans the period and
+ * the reflectance is one acquisition, so a reader who takes the curve for a
+ * seasonal mean is reading something this payload does not contain.
+ */
+export interface ClassSpectra {
+  scene_date: string
+  scene_id?: string
+  n_scenes: number
+  convention: string
+  bands: string[]
+  points: ClassSpectrumPoint[]
+}
+
 export interface TemporalPoint {
   date: string
   n_dates_stack: number
@@ -272,7 +358,19 @@ export interface PredictResult {
   // nil. Declared nullable so each read has to be guarded; taken as guaranteed,
   // one of them blanked the whole application.
   date_range: string[] | null
+  /**
+   * The side of one predicted pixel on the ground, in metres, off the grid the
+   * run was made on. Absent on runs saved before it was carried.
+   */
+  pixel_size_m?: number
   class_stats: ClassStat[] | null
+  /**
+   * Absent on older runs, on the non-spectral model paths, and when the scene
+   * behind the classification could not be re-read for its bands.
+   */
+  class_spectra?: ClassSpectra | null
+  /** The same spectra measured against a spectral library. */
+  library_limit?: LibraryLimit | null
   temporal: TemporalPoint[] | null
   vi_series: VISeriesPoint[] | null
   phenology: PhenologyMetrics

@@ -20,11 +20,13 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@reference/*": ["../sidecar/reference/*"]
     }
   },
   "include": [
-    "src"
+    "src",
+    "../sidecar/reference/*.json"
   ],
   "references": [
     {

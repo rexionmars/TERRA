@@ -87,6 +87,24 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      /*
+        The spectral reference, read from where the sidecar keeps it.
+
+        ONE file, not two. The sidecar needs the seven convolved band values to
+        compute an angle and the interface needs the hyperspectral curve and
+        the response functions to show what those seven are a summary of. A
+        copy under src/ would be a second reference that could disagree with
+        the one the numbers were computed from, which is the failure this
+        repository has already had with a palette and a set of table columns.
+      */
+      '@reference': path.resolve(__dirname, '../sidecar/reference'),
+    },
+  },
+  server: {
+    fs: {
+      // The alias above points outside the project root, which the dev server
+      // refuses to serve without being told.
+      allow: [path.resolve(__dirname, '..')],
     },
   },
   build: {

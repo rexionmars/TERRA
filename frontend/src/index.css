@@ -980,6 +980,19 @@
   WCAG 1.4.3 asks for. On the title bar's own plate that problem does not arise.
 */
 
+/*
+  The bar's 8 px are reserved whether or not it is showing.
+
+  Without this, a panel whose content is close to its own height flaps: the bar
+  appears, the content narrows by 8 px, a figure laid out from that width gets
+  shorter, the content no longer overflows, the bar goes away, and the cycle
+  starts again. The figures in the studio derive their height from their width,
+  which is what made this reachable.
+*/
+.panel-scroll {
+  scrollbar-gutter: stable;
+}
+
 .panel-scroll::-webkit-scrollbar {
   width: 8px;
   /*

@@ -320,11 +320,11 @@ export function CanopyAOIPanes({
       {error ? (
         <div
           className="m-2 flex items-start gap-2 rounded px-2 py-1.5 text-[11px]"
-          style={{ background: "var(--p-surface-raised)", color: "var(--p-text)" }}
+          style={{ background: "rgb(var(--p-surface-raised))", color: "var(--foreground)" }}
         >
           <AlertTriangle
             className="mt-px h-3 w-3 shrink-0"
-            style={{ color: "var(--p-warning)" }}
+            style={{ color: "var(--warning)" }}
           />
           <span className="leading-snug">{error}</span>
         </div>
@@ -372,7 +372,7 @@ function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="flex h-full items-center justify-center p-4 text-center text-[11px]"
-      style={{ color: "var(--p-text-muted)" }}
+      style={{ color: "var(--muted-foreground)" }}
     >
       <span className="max-w-[26rem] leading-relaxed">{children}</span>
     </div>
@@ -413,7 +413,7 @@ function Caveats({ data }: { data: AOICanopy }) {
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2 pb-1 pt-1 text-[11px]" style={{ color: "var(--p-warning)" }}>
+    <div className="px-2 pb-1 pt-1 text-[11px]" style={{ color: "var(--warning)" }}>
       {children}
     </div>
   )
@@ -517,7 +517,7 @@ function LightPane({ data }: { data: AOICanopy }) {
                      sub={`τ ${light.beam_transmittance.toFixed(3)}`} />
       </div>
       {data.sun.cell ? (
-        <p className="px-1 text-[10px]" style={{ color: "var(--p-text-muted)" }}>
+        <p className="px-1 text-[10px]" style={{ color: "var(--muted-foreground)" }}>
           NASA POWER cell {data.sun.cell[0].toFixed(1)}, {data.sun.cell[1].toFixed(1)}
           {data.sun.years ? ` over ${data.sun.years} years` : ""}. The record is
           a 1-degree cell, so an AOI smaller than that is lit by its region's

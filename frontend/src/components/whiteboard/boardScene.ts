@@ -52,8 +52,10 @@ import {
   Raycaster,
   RingGeometry,
   Scene,
+  ShaderMaterial,
   Sphere,
   SRGBColorSpace,
+  Texture,
   TextureLoader,
   Vector2,
   Vector3,
@@ -239,6 +241,19 @@ export interface BoardHandle {
    * Independent of the class-majority pixel radius the React side uses.
    */
   setProbeLensScale: (fraction: number) => void
+  /**
+   * Put the camera on one plane, filling the viewport with it.
+   *
+   * Separate from the entry framing, which fits the whole stack: a reader who
+   * has just asked for one plane wants that plane, and the stack's own sphere
+   * is as much larger than it as the board is deep. The direction the camera
+   * comes from is kept, so the gesture is a zoom rather than a jump to a view
+   * the reader did not choose.
+   *
+   * Returns false when the plane is not on the board, so the caller can say so
+   * rather than appearing to do nothing.
+   */
+  focusPlane: (groupId: string, layerId: string) => boolean
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -661,9 +676,151 @@ export function createBoard(
   )
   probeLens.add(probeDisc, probeRing, probeCross)
 
+  /*
+    Everything the rover is NOT reading, dimmed.
+
+    A ring of dark geometry cannot do this: a ring has no outer edge that
+    follows the plane, so it would darken the space around the raster and the
+    neighbouring areas with it. A quad the size of the plane, with the hole cut
+    per fragment, is bounded by the plane by construction.
+
+    Distances are taken in the plane's own units rather than in UV, so the hole
+    is a circle on a raster of any aspect ratio -- in UV it would be an ellipse
+    wherever the raster is not square, which every AOI here is not.
+  */
+  const probeDimGeometry = new PlaneGeometry(1, 1)
+  const probeDimMaterial = new ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    side: DoubleSide,
+    uniforms: {
+      uCentre: { value: new Vector2(0.5, 0.5) },
+      uSize: { value: new Vector2(1, 1) },
+      uRadius: { value: 0.1 },
+      uOpacity: { value: 0.55 },
+      /*
+        The raster's own texture, read for its ALPHA only.
+
+        Without it the quad darkened the whole plane rectangle, and a plane is
+        a rectangle while an AOI is not: every raster here carries transparent
+        corners where the polygon does not reach. Dimming those painted a black
+        wedge at each corner and a black band along every edge -- the plane's
+        boundary drawn in shadow, which is not a boundary the data has.
+      */
+      uMap: { value: null as Texture | null },
+      uHasMap: { value: 0 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec2 uCentre;
+      uniform vec2 uSize;
+      uniform float uRadius;
+      uniform float uOpacity;
+      uniform sampler2D uMap;
+      uniform float uHasMap;
+      varying vec2 vUv;
+      void main() {
+        float d = length((vUv - uCentre) * uSize);
+        /*
+          A hard edge. A soft one read as a blur on the raster rather than as
+          the boundary of the lens, and it does not need to carry the boundary
+          anyway: the white ring sits exactly at this radius and covers it.
+        */
+        float outside = step(uRadius, d);
+        // Only where the raster is opaque. See uMap.
+        float alpha = uHasMap > 0.5 ? texture2D(uMap, vUv).a : 1.0;
+        gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity * outside * alpha);
+      }
+    `,
+  })
+  const probeDim = new Mesh(probeDimGeometry, probeDimMaterial)
+  probeDim.visible = false
+
+  /*
+    The same place, marked on every other plane of the same area.
+
+    A board carries a classification beside the imagery it was made from, and
+    the question a reader has while pointing at a predicted pixel is what that
+    pixel LOOKS like -- which is on the other plane, and until now they had to
+    find it by eye. Every plane of one area is the same AOI on the same
+    reference grid, so the UV under the pointer is the same ground on all of
+    them.
+
+    The same treatment as the plane being read: the ring, and everything
+    outside it dimmed. A ring alone was the first attempt and it is lost on a
+    true-colour raster, which is busy exactly where a field boundary is -- the
+    mark has to remove the surroundings, not just outline the spot.
+
+    No crosshair, though. That one says "the pointer is here", and the pointer
+    is not here; this says "and here is the same place".
+
+    Pooled rather than created per move. A group can carry six planes and the
+    pointer moves on every frame; allocating a ring per frame is how a probe
+    turns into garbage collection.
+  */
+  const echoGeometry = new RingGeometry(0.88, 1.0, 48)
+  const echoMaterial = new MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.55,
+    side: DoubleSide,
+    depthTest: false,
+    depthWrite: false,
+  })
+
+  interface Echo {
+    ring: Mesh
+    dim: Mesh
+    material: ShaderMaterial
+  }
+  const echoPool: Echo[] = []
+  const echoesInUse: Echo[] = []
+
+  const takeEcho = (): Echo => {
+    const spare = echoPool.pop()
+    if (spare) return spare
+    /*
+      One material per echo, because only the texture differs.
+
+      The hole is at the same UV and the same radius on every plane -- they are
+      matched on being the same size, which is what makes the mark meaningful --
+      so every uniform but uMap is shared. three caches the compiled program by
+      shader source, so the clones cost uniforms and not a compile each.
+    */
+    const material = probeDimMaterial.clone()
+    const dim = new Mesh(probeDimGeometry, material)
+    const ring = new Mesh(echoGeometry, echoMaterial)
+    ring.renderOrder = 10_000
+    return { ring, dim, material }
+  }
+
+  const releaseEchoes = () => {
+    for (const echo of echoesInUse) {
+      echo.ring.parent?.remove(echo.ring)
+      echo.dim.parent?.remove(echo.dim)
+      echo.ring.visible = false
+      echo.dim.visible = false
+      // The texture is the host plane's, not this echo's, so it is dropped
+      // rather than left holding a plane that may be removed from the board.
+      echo.material.uniforms.uMap.value = null
+      echoPool.push(echo)
+    }
+    echoesInUse.length = 0
+  }
+
   const hideProbeLens = () => {
     if (probeLens.parent) probeLens.parent.remove(probeLens)
     probeLens.visible = false
+    if (probeDim.parent) probeDim.parent.remove(probeDim)
+    probeDim.visible = false
+    releaseEchoes()
   }
 
   const placeProbeLens = (mesh: Mesh, u: number, v: number) => {
@@ -678,6 +835,72 @@ export function createBoard(
     probeLens.position.set((u - 0.5) * w, (v - 0.5) * h, 0.012)
     probeLens.scale.setScalar(r)
     probeLens.visible = true
+
+    if (probeDim.parent !== mesh) {
+      probeDim.parent?.remove(probeDim)
+      mesh.add(probeDim)
+    }
+    probeDim.scale.set(w, h, 1)
+    probeDim.position.set(0, 0, 0.011)
+    probeDimMaterial.uniforms.uCentre.value.set(u, v)
+    probeDimMaterial.uniforms.uSize.value.set(w, h)
+    probeDimMaterial.uniforms.uRadius.value = r
+    // The plane's own texture, so the dim stops where the raster does.
+    const planeMap =
+      (mesh.material as MeshBasicMaterial | undefined)?.map ?? null
+    probeDimMaterial.uniforms.uMap.value = planeMap
+    probeDimMaterial.uniforms.uHasMap.value = planeMap ? 1 : 0
+    /*
+      Just after its own plane, not on top of the board.
+
+      Nothing here writes depth, so renderOrder alone decides the transparent
+      pass, and every plane carries a global index. At a fixed high order the
+      dim painted over the planes ABOVE the one being read -- brushing the
+      bottom of a stack shaded the whole stack. Half a step past its host puts
+      it over its own raster and under everything stacked on it.
+    */
+    probeDim.renderOrder = mesh.renderOrder + 0.5
+    probeDim.visible = true
+
+    /*
+      And the echoes, on the other planes of this area.
+
+      Matched on plane dimensions rather than assumed: a group can carry a
+      raster on another grid -- the MapBiomas reference is clipped natively and
+      does not share the run's extent -- and marking the same UV on it would
+      point at different ground with no way for a reader to know.
+    */
+    releaseEchoes()
+    // The map the scene already keeps, rather than a search by parent.
+    const group = groupOfMesh.get(mesh)
+    if (group) {
+      for (const other of group.meshes) {
+        if (!other || other === mesh || !other.visible) continue
+        const ow = (other.userData.planeWidth as number) || 0
+        const oh = (other.userData.planeHeight as number) || 0
+        if (Math.abs(ow - w) > 1e-3 || Math.abs(oh - h) > 1e-3) continue
+        const echo = takeEcho()
+        const otherMap =
+          (other.material as MeshBasicMaterial | undefined)?.map ?? null
+
+        other.add(echo.dim)
+        echo.dim.scale.set(ow, oh, 1)
+        echo.dim.position.set(0, 0, 0.011)
+        echo.dim.renderOrder = other.renderOrder + 0.5
+        echo.material.uniforms.uCentre.value.set(u, v)
+        echo.material.uniforms.uSize.value.set(ow, oh)
+        echo.material.uniforms.uRadius.value = r
+        echo.material.uniforms.uMap.value = otherMap
+        echo.material.uniforms.uHasMap.value = otherMap ? 1 : 0
+        echo.dim.visible = true
+
+        other.add(echo.ring)
+        echo.ring.position.set((u - 0.5) * ow, (v - 0.5) * oh, 0.012)
+        echo.ring.scale.setScalar(r)
+        echo.ring.visible = true
+        echoesInUse.push(echo)
+      }
+    }
   }
 
   const emitProbe = (
@@ -1145,7 +1368,11 @@ export function createBoard(
     probeDisc.geometry,
     probeDisc.material as MeshBasicMaterial,
     crossGeo,
-    probeCross.material as LineBasicMaterial
+    probeCross.material as LineBasicMaterial,
+    probeDimGeometry,
+    probeDimMaterial,
+    echoGeometry,
+    echoMaterial
   )
   let raf = 0
   let disposed = false
@@ -1919,6 +2146,50 @@ export function createBoard(
         render()
       }
     },
+    focusPlane(groupId, layerId) {
+      const rt = runtimes.find((r) => r.id === groupId)
+      const index = rt?.indexById.get(layerId)
+      const mesh = index === undefined ? null : (rt?.meshes[index] ?? null)
+      if (!mesh) return false
+
+      /*
+        The plane's bounding SPHERE, as the entry framing uses for the stack,
+        and for the same reason: a rectangle's projected size changes as it
+        turns, so fitting the rectangle would either crop when the board is
+        orbited or leave a margin that grows with the angle.
+      */
+      const box = new Box3().setFromObject(mesh)
+      const sphere = box.getBoundingSphere(new Sphere())
+      if (!(sphere.radius > 0)) return false
+
+      const vFov = (FOV * Math.PI) / 180
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
+      const distance =
+        (sphere.radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.12
+
+      // The direction the reader is already looking from, kept.
+      const direction = camera.position
+        .clone()
+        .sub(controls.target)
+        .normalize()
+      if (!Number.isFinite(direction.lengthSq()) || direction.lengthSq() === 0) {
+        direction.set(0, 1, 1).normalize()
+      }
+      controls.target.copy(sphere.center)
+      camera.position.copy(sphere.center).addScaledVector(direction, distance)
+      /*
+        The clamps come from the stack and would fight a plane smaller than it:
+        minDistance was set from the stack's radius, which can exceed the
+        distance one plane needs, and the controls would push the camera back
+        out on the next update.
+      */
+      controls.minDistance = Math.min(controls.minDistance, distance * 0.35)
+      controls.maxDistance = Math.max(controls.maxDistance, distance * 1.5)
+      controls.update()
+      updateFog()
+      render()
+      return true
+    },
     setProbeLensScale(fraction) {
       const next = Math.min(0.35, Math.max(0.05, fraction))
       if (Math.abs(next - probeLensFrac) < 1e-4) return
@@ -1999,7 +2270,16 @@ export function createBoard(
     },
     dispose() {
       disposed = true
+      // Returns every echo to the pool first, so the loop below sees them all.
       hideProbeLens()
+      /*
+        The echo materials are clones made on demand, so they are not in
+        `disposables` -- that list is built when the scene is, and these do not
+        exist yet. One per plane the rover has ever crossed in one area, held
+        for the life of the scene and freed here.
+      */
+      for (const echo of echoPool) echo.material.dispose()
+      echoPool.length = 0
       if (raf) cancelAnimationFrame(raf)
       observer.disconnect()
       controls.removeEventListener("change", render)
