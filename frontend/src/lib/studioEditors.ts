@@ -19,6 +19,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   Box,
   ChartSpline,
+  Crosshair,
   GitCompareArrows,
   ListTree,
   PanelBottom,
@@ -36,6 +37,7 @@ export type EditorId =
   | "compare"
   | "domainShift"
   | "spectra"
+  | "brush"
   | "table"
   | "runParams"
   | "canopy"
@@ -146,6 +148,26 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 24,
     minRowRem: 14,
     hint: "What each predicted class reflects, band by band, on one acquisition",
+  },
+  {
+    id: "brush",
+    label: "Rover",
+    icon: Crosshair,
+    /*
+      Narrower than the figures beside it: the readout is a class, a coordinate
+      and a small spectrum in a column, so it fits where a properties panel
+      fits. Taller than wide is the shape it wants, which is why the row floor
+      is the higher of the two numbers.
+    */
+    minRem: 14,
+    minRowRem: 12,
+    /*
+      Unique. There is one rover, one probe target and one sample; a second
+      area would be a second set of controls over the same one, which is the
+      duplication that moving the canopy's controls out of its panels removed.
+    */
+    unique: true,
+    hint: "Point at a predicted pixel: its class, where it is, and what it reflects",
   },
   {
     id: "table",

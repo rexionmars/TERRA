@@ -170,6 +170,7 @@ import {
 } from "@/components/whiteboard/CanopyEditor"
 import { CanopyRunBar } from "@/components/whiteboard/CanopyRunBar"
 import { CanopyWorkflowProvider } from "@/components/whiteboard/canopyWorkflow"
+import { BrushEditor } from "@/components/whiteboard/BrushEditor"
 import { SpectraEditor } from "@/components/whiteboard/SpectraEditor"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
@@ -3197,6 +3198,27 @@ export function BoardSurface({
       A view of the selection, like the table beside it: which run is read
       follows the selected planes rather than the board.
     */
+    /*
+      The rover reads the plane the selection points at, which is the same
+      plane detailFocus already walks the selection for -- so it is handed the
+      board's own sample rather than taking a second one.
+    */
+    brush: (
+      <BrushEditor
+        on={brushOn}
+        onOnChange={setBrushOn}
+        radius={brushRadius}
+        onRadiusChange={setBrushRadius}
+        result={detailPrediction}
+        sample={probeSample}
+        uv={probeUv}
+        blockedBy={
+          predictionPicks.length >= 2
+            ? "Two predictions are selected, so the board is comparing them and there is no single plane to read. Select one."
+            : null
+        }
+      />
+    ),
     spectra: <SpectraEditor runs={selectedRuns} />,
     table: <StudioTables runs={selectedRuns} />,
     /*
