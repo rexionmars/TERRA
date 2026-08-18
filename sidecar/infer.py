@@ -961,6 +961,100 @@ def write_classification_tif(classification_map, ref_profile, out_path):
         dst.write(classification_map.astype(np.int16), 1)
 
 
+# The seven bands the application reads, and their central wavelengths.
+# Values from the Sentinel-2A spectral response functions (ESA, S2-SRF v3.1);
+# the two SWIR bands and B8A are 20 m products resampled onto the 10 m grid.
+TERRA_BANDS = (('B02', '10m'), ('B03', '10m'), ('B04', '10m'), ('B08', '10m'),
+               ('B8A', '20m'), ('B11', '20m'), ('B12', '20m'))
+BAND_WAVELENGTH_NM = {
+    'B02': 492.4, 'B03': 559.8, 'B04': 664.6, 'B08': 832.8,
+    'B8A': 864.7, 'B11': 1613.7, 'B12': 2202.4,
+}
+# Below this a class mean is a handful of pixels rather than a spectrum. The
+# class is dropped from the figure instead of drawn at an unstated precision.
+SPECTRUM_MIN_PIXELS = 30
+
+
+def class_spectra(products, polygon, ref_profile, classification_map,
+                  min_pixels=SPECTRUM_MIN_PIXELS):
+    """
+    Mean surface reflectance per band, per predicted class, on one acquisition.
+
+    What the domain-shift diagnostics beside it cannot say. MMD, KL and the
+    change-vector magnitude report THAT a distribution moved; a per-class
+    spectrum reports which band moved and in which direction.
+
+    ONE acquisition, not the series. The classification is temporal -- 80
+    features over up to 22 dates -- but reflectance is not, and averaging seven
+    bands across a season would mix phenological stages into a single curve
+    that describes no date. The scene at the middle of the period is used, the
+    same one the reference implementation in experiments/ measures, and it is
+    named in the payload so the figure is not read as a seasonal mean.
+
+    to_reflectance, not as_trained: this is REPORTED as a physical quantity, so
+    it carries the baseline 04.00 offset. The classifier that produced
+    classification_map consumed the uncorrected convention it was fitted under,
+    which is the seam documented on as_trained -- the labels come from one
+    space, the reflectance reported for them from the other.
+
+    Returns None when nothing can be measured, rather than an empty shell.
+    """
+    if not products or classification_map is None:
+        return None
+    valid = classification_map >= 0
+    if not valid.any():
+        return None
+
+    scene = products[len(products) // 2]
+    bands = {}
+    for name, resolution in TERRA_BANDS:
+        try:
+            bands[name] = load_reflectance_to_reference_grid(
+                scene, name, polygon, ref_profile, resolution=resolution)
+        except Exception as e:
+            sys.stderr.write(json.dumps({
+                'progress': -1, 'msg': f'spectrum band {name} skipped: {e}'
+            }) + '\n')
+            sys.stderr.flush()
+    if not bands:
+        return None
+
+    points = []
+    for cls_id in sorted({int(c) for c in np.unique(classification_map[valid])}):
+        selected = valid & (classification_map == cls_id)
+        for name, _ in TERRA_BANDS:
+            band = bands.get(name)
+            if band is None:
+                continue
+            pixels = band[selected & np.isfinite(band)]
+            if pixels.size < min_pixels:
+                continue
+            points.append({
+                'class_id': cls_id,
+                'name': MAPBIOMAS_LEGEND.get(cls_id, f'Class {cls_id}'),
+                'color': MAPBIOMAS_COLORS.get(cls_id, '#cccccc'),
+                'band': name,
+                'wavelength_nm': BAND_WAVELENGTH_NM[name],
+                'n_pixels': int(pixels.size),
+                'mean': float(round(float(np.mean(pixels)), 6)),
+                'sd': float(round(float(np.std(pixels)), 6)),
+                'p05': float(round(float(np.percentile(pixels, 5)), 6)),
+                'p95': float(round(float(np.percentile(pixels, 95)), 6)),
+            })
+    if not points:
+        return None
+    return {
+        'scene_date': scene['date'].strftime('%Y-%m-%d'),
+        'scene_id': str(scene.get('id', '')),
+        'n_scenes': len(products),
+        # Named rather than assumed. The indices reported elsewhere in this run
+        # come from the model's own convention; these do not.
+        'convention': 'BOA reflectance, baseline 04.00 offset applied',
+        'bands': [name for name, _ in TERRA_BANDS if name in bands],
+        'points': points,
+    }
+
+
 def class_statistics(classification_map):
     """Build per-class statistics (pixels, pct, area_ha) at 10 m resolution."""
     valid = classification_map[classification_map >= 0]
@@ -3442,6 +3536,17 @@ def main():
         }) + '\n')
         sys.stderr.flush()
 
+    emit_progress(91, 'measuring spectral response per class')
+    spectra = None
+    try:
+        spectra = class_spectra(products, polygon, ref_profile,
+                                classification_map)
+    except Exception as e:
+        sys.stderr.write(json.dumps({
+            'progress': -1, 'msg': f'class spectra skipped: {e}'
+        }) + '\n')
+        sys.stderr.flush()
+
     emit_progress(92, 'writing overlay and GeoTIFF')
     overlay_png = work_dir / 'overlay.png'
     raster_tif = work_dir / 'classification_map.tif'
@@ -3550,6 +3655,9 @@ def main():
             products[-1]['date'].strftime('%Y-%m-%d'),
         ],
         'class_stats': class_statistics(classification_map),
+        # Seven bands on one acquisition, per predicted class. None when the
+        # scene could not be read; see class_spectra for why it is one date.
+        'class_spectra': spectra,
         'temporal': temporal,
         'vi_series': vi_series,
         # The same dates averaged over crop pixels only. Empty when the AOI

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import joblib
@@ -250,3 +251,98 @@ def test_the_cached_power_series_is_reused_across_the_cell_not_the_centroid():
                 ["ALLSKY_SFC_SW_DWN"], fetch,
             )
         assert calls == [1]
+
+
+def _spectra_products(dn_by_band, n=3, shape=(4, 4)):
+    """
+    Products a month apart, all post-baseline-04.00, and a loader that answers
+    in DN so the reflectance conversion under test is the real one.
+    """
+    return [
+        {
+            "id": f"S2_TEST_{i}",
+            "date": datetime(2025, 5 + i, 4),
+            "processing_baseline": "05.11",
+        }
+        for i in range(n)
+    ], (
+        lambda product, band, polygon, ref_profile, resolution="10m":
+            np.full(shape, float(dn_by_band[band]), dtype=np.float64)
+    )
+
+
+def test_class_spectra_reports_the_corrected_convention_not_the_trained_one(
+    monkeypatch,
+):
+    """
+    A spectrum is a reported quantity, so it carries the baseline 04.00 offset.
+
+    The distinction is the whole point of the seam on as_trained: at DN 1400
+    the trained convention reads 0.140 and the physical one 0.040, and a figure
+    labelled "reflectance" that shows the first is off by the offset in every
+    band.
+    """
+    dn = {b: 1400 for b in infer.BAND_WAVELENGTH_NM}
+    products, loader = _spectra_products(dn)
+    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+    cmap = np.full((4, 4), 39, dtype=np.int32)
+
+    payload = infer.class_spectra(products, None, None, cmap, min_pixels=1)
+
+    assert payload is not None
+    means = {p["band"]: p["mean"] for p in payload["points"]}
+    assert set(means) == set(infer.BAND_WAVELENGTH_NM)
+    for band, mean in means.items():
+        assert abs(mean - 0.04) < 1e-9, band
+    assert "offset applied" in payload["convention"]
+
+
+def test_class_spectra_names_the_one_acquisition_it_measured(monkeypatch):
+    """
+    The classification spans the period; the spectrum does not. Which scene it
+    came from has to travel with it, or the curve reads as a seasonal mean.
+    """
+    dn = {b: 1200 for b in infer.BAND_WAVELENGTH_NM}
+    products, loader = _spectra_products(dn, n=5)
+    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+
+    payload = infer.class_spectra(
+        products, None, None, np.full((4, 4), 3, dtype=np.int32), min_pixels=1
+    )
+
+    middle = products[len(products) // 2]
+    assert payload["scene_date"] == middle["date"].strftime("%Y-%m-%d")
+    assert payload["scene_id"] == middle["id"]
+    assert payload["n_scenes"] == 5
+
+
+def test_class_spectra_drops_a_class_too_small_to_average(monkeypatch):
+    """
+    Under the floor the mean is a handful of pixels. Dropping the class states
+    less than drawing it at a precision the sample does not carry.
+    """
+    dn = {b: 1500 for b in infer.BAND_WAVELENGTH_NM}
+    products, loader = _spectra_products(dn, shape=(10, 10))
+    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+    cmap = np.full((10, 10), 39, dtype=np.int32)
+    cmap[0, :3] = 21  # three pixels, under the floor
+
+    payload = infer.class_spectra(products, None, None, cmap, min_pixels=30)
+
+    ids = {p["class_id"] for p in payload["points"]}
+    assert ids == {39}
+
+
+def test_class_spectra_is_absent_rather_than_empty_when_nothing_is_classified(
+    monkeypatch,
+):
+    dn = {b: 1500 for b in infer.BAND_WAVELENGTH_NM}
+    products, loader = _spectra_products(dn)
+    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+
+    assert infer.class_spectra(
+        products, None, None, np.full((4, 4), -1, dtype=np.int32)
+    ) is None
+    assert infer.class_spectra(
+        [], None, None, np.full((4, 4), 39, dtype=np.int32)
+    ) is None
