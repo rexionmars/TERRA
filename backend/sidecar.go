@@ -508,6 +508,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		PixelSizeM:        sres.PixelSizeM,
 		ClassStats:        sres.ClassStats,
 		ClassSpectra:      sres.ClassSpectra,
+		LibraryLimit:      sres.LibraryLimit,
 		Temporal:          sres.Temporal,
 		VISeries:          sres.VISeries,
 		VISeriesCrop:      sres.VISeriesCrop,

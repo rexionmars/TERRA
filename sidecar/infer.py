@@ -1079,6 +1079,132 @@ def class_spectra(products, polygon, ref_profile, classification_map,
     }
 
 
+REFERENCE_DIR = Path(__file__).resolve().parent / 'reference'
+SOYBEAN_REFERENCE = REFERENCE_DIR / 'soybean_leaf_reference.json'
+
+
+def spectral_angle(a, b):
+    """
+    The angle between two spectra, in radians. Spectral Angle Mapper.
+
+    Scale-invariant, which is the whole reason it is the standard comparison: a
+    material in shade differs from the same material in sun by a multiplier,
+    and the angle ignores exactly that. What it cannot ignore is a change of
+    SHAPE, which is what the leaf-to-canopy difference turns out to be.
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
+    if denom <= 0:
+        return float('nan')
+    return float(np.arccos(np.clip(float(np.dot(a, b)) / denom, -1.0, 1.0)))
+
+
+def library_limit(spectra):
+    """
+    Each predicted class against a leaf-level library spectrum, and the limit
+    that comparison runs into.
+
+    WHAT THIS IS FOR. A reader looking at a class called Soybean wants to know
+    whether the pixels under it reflect like soybean. This computes the angle
+    to a reference built from 1131 soybean leaf spectra, and reports the answer
+    the measurement actually gives -- which is that Soybean is NOT the closest
+    class to the soybean reference.
+
+    That is not a classification error. A library spectrum is leaf level and a
+    Sentinel-2 pixel is canopy: soil through the gaps and shadow between rows.
+    The ratio between the two is reported per band because it is the mechanism:
+    it is not constant, so the difference is not brightness. If it were, the
+    angle would be zero, since the angle is scale-invariant. Soil raises the
+    red while gaps and shadow lower the NIR, in opposite directions, and the
+    shape itself is distorted.
+
+    So a small angle here means CONSISTENCY, not identification, and nothing
+    downstream may label it otherwise.
+
+    The reference is vendored rather than fetched: it is 7 numbers derived from
+    a 28 MB package by experiments/spectral_response_and_offset.py, convolved
+    onto the ESA response functions. Fetching 28 MB at classify time to arrive
+    at 7 numbers would be a network dependency for a constant.
+    """
+    if not spectra or not spectra.get('points'):
+        return None
+    try:
+        reference = json.loads(SOYBEAN_REFERENCE.read_text())['reference']
+    except Exception as e:
+        sys.stderr.write(json.dumps({
+            'progress': -1, 'msg': f'library reference unavailable: {e}'
+        }) + '\n')
+        sys.stderr.flush()
+        return None
+
+    leaf = {b['band']: float(b['reflectance']) for b in reference['bands']}
+    bands = [b for b, _ in TERRA_BANDS if b in leaf]
+
+    by_class = {}
+    for p in spectra['points']:
+        by_class.setdefault(p['class_id'], {})[p['band']] = p
+
+    out = []
+    for class_id in sorted(by_class):
+        points = by_class[class_id]
+        # A class the scene could not measure in every band has no vector to
+        # compare; a partial one would be an angle in a different space.
+        if any(b not in points for b in bands):
+            continue
+        canopy = np.array([points[b]['mean'] for b in bands], dtype=float)
+        reference_vector = np.array([leaf[b] for b in bands], dtype=float)
+        canopy_norm = float(np.linalg.norm(canopy))
+        reference_norm = float(np.linalg.norm(reference_vector))
+        first = points[bands[0]]
+        out.append({
+            'class_id': class_id,
+            'name': first['name'],
+            'color': first['color'],
+            'angle_rad': round(spectral_angle(canopy, reference_vector), 6),
+            'bands': [
+                {
+                    'band': b,
+                    'wavelength_nm': points[b]['wavelength_nm'],
+                    'canopy': round(float(canopy[i]), 6),
+                    'leaf': round(float(reference_vector[i]), 6),
+                    # Canopy over leaf. Constant would mean brightness alone.
+                    'ratio': (
+                        round(float(canopy[i] / reference_vector[i]), 4)
+                        if reference_vector[i] > 0 else None
+                    ),
+                    # The unit vectors are what the angle actually compares,
+                    # so a reader can see the difference the angle sees.
+                    'unit_canopy': (
+                        round(float(canopy[i] / canopy_norm), 6)
+                        if canopy_norm > 0 else None
+                    ),
+                    'unit_leaf': (
+                        round(float(reference_vector[i] / reference_norm), 6)
+                        if reference_norm > 0 else None
+                    ),
+                }
+                for i, b in enumerate(bands)
+            ],
+        })
+    if not out:
+        return None
+    out.sort(key=lambda c: c['angle_rad'])
+    return {
+        'reference': {
+            'material': reference['material'],
+            'source': reference['source'],
+            'package_id': reference['package_id'],
+            'n_spectra': reference['n_spectra'],
+            'level': reference['level'],
+            'note': reference['note'],
+            'bands': reference['bands'],
+        },
+        'scene_date': spectra.get('scene_date', ''),
+        'classes': out,
+    }
+
+
 def class_statistics(classification_map):
     """Build per-class statistics (pixels, pct, area_ha) at 10 m resolution."""
     valid = classification_map[classification_map >= 0]
@@ -3571,6 +3697,16 @@ def main():
         }) + '\n')
         sys.stderr.flush()
 
+    limit = None
+    if spectra is not None:
+        try:
+            limit = library_limit(spectra)
+        except Exception as e:
+            sys.stderr.write(json.dumps({
+                'progress': -1, 'msg': f'library comparison skipped: {e}'
+            }) + '\n')
+            sys.stderr.flush()
+
     emit_progress(92, 'writing overlay and GeoTIFF')
     overlay_png = work_dir / 'overlay.png'
     raster_tif = work_dir / 'classification_map.tif'
@@ -3685,6 +3821,8 @@ def main():
         # Seven bands on one acquisition, per predicted class. None when the
         # scene could not be read; see class_spectra for why it is one date.
         'class_spectra': spectra,
+        # Each class against a leaf-level library, and the limit that runs into.
+        'library_limit': limit,
         'temporal': temporal,
         'vi_series': vi_series,
         # The same dates averaged over crop pixels only. Empty when the AOI

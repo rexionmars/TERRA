@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -387,3 +388,77 @@ def test_reference_pixel_size_converts_a_geographic_grid():
     metres = infer.reference_pixel_size_m(profile)
     # 1e-4 degrees of longitude at the equator, where cos is 1.
     assert abs(metres - 11.132) < 1e-6
+
+
+def test_spectral_angle_ignores_brightness_but_not_shape():
+    """
+    The property the whole library comparison rests on.
+
+    A material in shade is the same material scaled, and the angle must return
+    zero for that or the comparison would be measuring illumination. A material
+    whose shape differs must not return zero, or it could not measure anything.
+    """
+    leaf = [0.06, 0.13, 0.05, 0.47, 0.47, 0.32, 0.19]
+    assert infer.spectral_angle(leaf, leaf) == pytest.approx(0.0, abs=1e-9)
+    shaded = [v * 0.4 for v in leaf]
+    assert infer.spectral_angle(leaf, shaded) == pytest.approx(0.0, abs=1e-9)
+    # Red up and NIR down, which is what soil and row shadow do to a canopy.
+    distorted = list(leaf)
+    distorted[2] *= 1.7
+    distorted[3] *= 0.49
+    assert infer.spectral_angle(leaf, distorted) > 0.1
+
+
+def test_library_limit_measures_the_leaf_to_canopy_distortion(tmp_path):
+    """
+    The reported ratio is canopy over leaf, per band, and the angle is taken on
+    the same seven bands the reference carries.
+    """
+    reference = json.loads(infer.SOYBEAN_REFERENCE.read_text())["reference"]
+    leaf = {b["band"]: b["reflectance"] for b in reference["bands"]}
+    bands = [b for b, _ in infer.TERRA_BANDS]
+
+    # A class that IS the reference, scaled: same shape, so angle zero.
+    spectra = {
+        "scene_date": "2025-09-26",
+        "points": [
+            {
+                "class_id": 39, "name": "Soybean", "color": "#f5b3c8",
+                "band": b, "wavelength_nm": infer.BAND_WAVELENGTH_NM[b],
+                "n_pixels": 1000, "mean": leaf[b] * 0.5,
+                "sd": 0.0, "p05": 0.0, "p95": 0.0,
+            }
+            for b in bands
+        ],
+    }
+    payload = infer.library_limit(spectra)
+
+    assert payload is not None
+    assert payload["reference"]["n_spectra"] == 1131
+    assert payload["reference"]["level"] == "leaf"
+    cls = payload["classes"][0]
+    assert cls["angle_rad"] == pytest.approx(0.0, abs=1e-6)
+    for band in cls["bands"]:
+        assert band["ratio"] == pytest.approx(0.5, abs=1e-3)
+
+
+def test_library_limit_skips_a_class_missing_a_band():
+    """
+    A partial vector is an angle in a different space, not a smaller one, so
+    the class is dropped rather than compared on whatever bands it has.
+    """
+    reference = json.loads(infer.SOYBEAN_REFERENCE.read_text())["reference"]
+    leaf = {b["band"]: b["reflectance"] for b in reference["bands"]}
+    bands = [b for b, _ in infer.TERRA_BANDS][:-1]  # B12 absent
+    spectra = {
+        "points": [
+            {
+                "class_id": 3, "name": "Forest Formation", "color": "#006400",
+                "band": b, "wavelength_nm": infer.BAND_WAVELENGTH_NM[b],
+                "n_pixels": 500, "mean": leaf[b],
+                "sd": 0.0, "p05": 0.0, "p95": 0.0,
+            }
+            for b in bands
+        ],
+    }
+    assert infer.library_limit(spectra) is None

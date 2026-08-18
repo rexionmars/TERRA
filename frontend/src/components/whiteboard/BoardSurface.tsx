@@ -171,6 +171,7 @@ import {
 import { CanopyRunBar } from "@/components/whiteboard/CanopyRunBar"
 import { CanopyWorkflowProvider } from "@/components/whiteboard/canopyWorkflow"
 import { BrushEditor } from "@/components/whiteboard/BrushEditor"
+import { LibraryLimitEditor } from "@/components/whiteboard/LibraryLimitEditor"
 import { SpectraEditor } from "@/components/whiteboard/SpectraEditor"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
@@ -3271,6 +3272,7 @@ export function BoardSurface({
       />
     ),
     spectra: <SpectraEditor runs={selectedRuns} />,
+    libraryLimit: <LibraryLimitEditor runs={selectedRuns} />,
     table: <StudioTables runs={selectedRuns} />,
     /*
       Four readings of one canopy, and the canopy is the workflow's rather than

@@ -95,6 +95,66 @@ type ClassStat struct {
 	AreaHa  float64 `json:"area_ha"`
 }
 
+// LibraryBand is one band of a reference spectrum from a spectral library.
+type LibraryBand struct {
+	Band         string  `json:"band"`
+	WavelengthNM float64 `json:"wavelength_nm"`
+	Reflectance  float64 `json:"reflectance"`
+}
+
+// LibraryReference names the material a comparison is made against.
+//
+// Level is the field that decides how the result may be read. A leaf-level
+// reference against a canopy pixel cannot identify a material, however small
+// the angle, because the two are not measurements of the same thing.
+type LibraryReference struct {
+	Material  string        `json:"material"`
+	Source    string        `json:"source"`
+	PackageID string        `json:"package_id"`
+	NSpectra  int           `json:"n_spectra"`
+	Level     string        `json:"level"`
+	Note      string        `json:"note"`
+	Bands     []LibraryBand `json:"bands"`
+}
+
+// LibraryClassBand is one band of one class, beside the reference.
+type LibraryClassBand struct {
+	Band         string  `json:"band"`
+	WavelengthNM float64 `json:"wavelength_nm"`
+	Canopy       float64 `json:"canopy"`
+	Leaf         float64 `json:"leaf"`
+	// Canopy over leaf. A CONSTANT ratio would be brightness alone, which the
+	// angle ignores; it is the variation that makes the difference structural.
+	Ratio *float64 `json:"ratio"`
+	// The unit vectors the angle actually compares.
+	UnitCanopy *float64 `json:"unit_canopy"`
+	UnitLeaf   *float64 `json:"unit_leaf"`
+}
+
+// LibraryClass is one predicted class measured against the reference.
+type LibraryClass struct {
+	ClassID  int                `json:"class_id"`
+	Name     string             `json:"name"`
+	Color    string             `json:"color"`
+	AngleRad float64            `json:"angle_rad"`
+	Bands    []LibraryClassBand `json:"bands"`
+}
+
+// LibraryLimit is the cross-reference against a spectral library, and the
+// limit that comparison runs into.
+//
+// Classes are ordered by angle, closest first, and the ordering is the point:
+// on the data this was built against the class named Soybean is not the one
+// closest to the soybean reference. That is not a classification error. The
+// library is leaf level and the pixel is canopy, with soil through the gaps
+// and shadow between rows, so a small angle here means CONSISTENCY and never
+// identification. Nothing that renders this may label it otherwise.
+type LibraryLimit struct {
+	Reference LibraryReference `json:"reference"`
+	SceneDate string           `json:"scene_date"`
+	Classes   []LibraryClass   `json:"classes"`
+}
+
 // ClassSpectrumPoint is one band, for one predicted class, on one acquisition.
 type ClassSpectrumPoint struct {
 	ClassID      int     `json:"class_id"`
@@ -417,6 +477,7 @@ type sidecarResult struct {
 	PixelSizeM        float64               `json:"pixel_size_m,omitempty"`
 	ClassStats        []ClassStat           `json:"class_stats"`
 	ClassSpectra      *ClassSpectra         `json:"class_spectra,omitempty"`
+	LibraryLimit      *LibraryLimit         `json:"library_limit,omitempty"`
 	Temporal          []TemporalPoint       `json:"temporal"`
 	VISeries          []VISeriesPoint       `json:"vi_series"`
 	VISeriesCrop      []VISeriesPoint       `json:"vi_series_crop"`
@@ -480,7 +541,10 @@ type PredictResult struct {
 	ClassStats []ClassStat `json:"class_stats"`
 	// Absent on older runs, on the non-spectral model paths and whenever the
 	// scene behind the classification could not be re-read for its bands.
-	ClassSpectra *ClassSpectra   `json:"class_spectra,omitempty"`
+	ClassSpectra *ClassSpectra `json:"class_spectra,omitempty"`
+	// The same spectra measured against a spectral library. Absent wherever
+	// ClassSpectra is, and on runs saved before the comparison existed.
+	LibraryLimit *LibraryLimit   `json:"library_limit,omitempty"`
 	Temporal     []TemporalPoint `json:"temporal"`
 	VISeries     []VISeriesPoint `json:"vi_series"`
 	// The same dates averaged over CROP PIXELS ONLY, alongside the AOI-wide

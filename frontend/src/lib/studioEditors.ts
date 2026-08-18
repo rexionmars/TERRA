@@ -20,6 +20,7 @@ import {
   Box,
   ChartSpline,
   Crosshair,
+  LibraryBig,
   GitCompareArrows,
   ListTree,
   PanelBottom,
@@ -37,6 +38,7 @@ export type EditorId =
   | "compare"
   | "domainShift"
   | "spectra"
+  | "libraryLimit"
   | "brush"
   | "table"
   | "runParams"
@@ -148,6 +150,20 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 24,
     minRowRem: 14,
     hint: "What each predicted class reflects, band by band, on one acquisition",
+  },
+  {
+    id: "libraryLimit",
+    label: "Library check",
+    icon: LibraryBig,
+    /*
+      Three stacked panels, each the full width: a ranking with class names on
+      the left, and two band figures with seven labelled ticks. The ranking's
+      label gutter alone is a quarter of the width, so this is the widest
+      reading in the studio and says so rather than compressing the names.
+    */
+    minRem: 26,
+    minRowRem: 18,
+    hint: "Each class against a spectral library, and why a small angle is not an identification",
   },
   {
     id: "brush",
