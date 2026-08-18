@@ -52,8 +52,20 @@ export const FIGURE = {
   /** viewBox width. Also the minimum width the figure may be drawn at. */
   width: 700,
   height: 340,
-  margin: { top: 10, right: 156, bottom: 46, left: 52 },
+  /*
+    The right margin is a gutter, not a legend well.
+
+    It was 156 units, reserved for a legend standing beside the plot, and that
+    cost a fifth of the drawing width to five short strings -- on a figure whose
+    x axis already has most of its samples crowded into its first third. A
+    legend below the plot takes the height it needs, which is two rows, and
+    gives the axis back the width.
+  */
+  margin: { top: 10, right: 14, bottom: 46, left: 52 },
 } as const
+
+/** A legend row's height and the gap under the figure, in figure units. */
+export const LEGEND = { row: 15, gap: 6 } as const
 
 export const PLOT = {
   x0: FIGURE.margin.left,

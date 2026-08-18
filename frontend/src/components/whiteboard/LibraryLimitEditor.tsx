@@ -28,6 +28,9 @@
  */
 import { useMemo, useState } from "react"
 import { useTheme } from "next-themes"
+import { Info } from "lucide-react"
+
+import { StudioPopover } from "@/components/whiteboard/StudioPopover"
 
 import type { LibraryClass, PredictResult } from "@/lib/types"
 import type { ThemeName } from "@/lib/contrast"
@@ -292,11 +295,15 @@ export type LibraryLimitMode = "distance" | "mechanism"
 export function LibraryLimitEditor({
   runs,
   mode,
+  surface,
 }: {
   runs: Array<{ id: string; label: string; result: PredictResult }>
   mode: LibraryLimitMode
+  /** The studio surface a popover is portalled into and clamped inside. */
+  surface: HTMLElement | null
 }) {
   const [runIdx, setRunIdx] = useState(0)
+  const [notes, setNotes] = useState(false)
   const [focus, setFocus] = useState<number | null>(null)
   const [band, setBand] = useState<"ratio" | "shape">("ratio")
   const { resolvedTheme } = useTheme()
@@ -345,10 +352,74 @@ export function LibraryLimitEditor({
             </button>
           ))}
         {limit && (
-          <span className="telemetry ml-auto truncate text-meta text-muted-foreground">
-            {limit.reference.material} · {limit.reference.n_spectra} spectra ·{" "}
-            {limit.reference.source} · {limit.reference.level} level
-          </span>
+          <>
+            <span className="telemetry ml-auto truncate text-meta text-muted-foreground">
+              {limit.reference.material} · {limit.reference.n_spectra} spectra ·{" "}
+              {limit.reference.source} · {limit.reference.level} level
+            </span>
+            {/*
+              The caveat and the provenance, behind a button.
+
+              Under the figures they were four lines of prose against three of
+              chart, and prose that long beneath a figure is read once and
+              scrolled past afterwards -- while the space it costs is paid on
+              every look. What it says has not been softened: what a small
+              angle does and does not mean is the reason this editor exists,
+              and it is the first thing in the panel.
+
+              StudioPopover with role="dialog", which that module already
+              distinguishes from a menu: a panel of prose announced as a menu
+              sends a screen reader looking for items that are not there.
+            */}
+            <StudioPopover
+              open={notes}
+              onOpenChange={setNotes}
+              surface={surface}
+              align="end"
+              widthRem={22}
+              role="dialog"
+              trigger={(props) => (
+                <button
+                  {...props}
+                  type="button"
+                  title="What this comparison can and cannot settle"
+                  className={cn(
+                    "shrink-0 rounded-sm p-0.5 transition-colors",
+                    notes
+                      ? "bg-accent-dim text-foreground"
+                      : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                  )}
+                >
+                  <Info className="size-3.5" strokeWidth={1.75} />
+                </button>
+              )}
+            >
+              <div className="flex flex-col gap-2 p-2 text-meta leading-snug">
+                <p className="eyebrow !text-[9px]">
+                  What a small angle means
+                </p>
+                <p className="text-muted-foreground">
+                  It means the class is CONSISTENT with the reference, not that
+                  the material is identified. The reference is{" "}
+                  {limit.reference.level} level and a pixel is canopy, so the
+                  two are not measurements of the same thing.
+                </p>
+                <p className="eyebrow !text-[9px]">Why the difference survives</p>
+                <p className="text-muted-foreground">
+                  Soil raises the red while gaps and shadow lower the NIR, in
+                  opposite directions. A constant ratio would be brightness
+                  alone and the angle would return zero; the shape is distorted
+                  instead, and normalisation cannot remove it.
+                </p>
+                <p className="eyebrow !text-[9px]">The reference</p>
+                <p className="text-muted-foreground">
+                  {limit.reference.note} Package {limit.reference.package_id},
+                  convolved onto the ESA Sentinel-2A response functions.
+                  Measured on the {limit.scene_date} acquisition.
+                </p>
+              </div>
+            </StudioPopover>
+          </>
         )}
       </div>
 
@@ -368,18 +439,6 @@ export function LibraryLimitEditor({
                   focus={focus}
                   onFocus={setFocus}
                 />
-                {/*
-                  Stated on the figure, not left to the reader, and not left to
-                  the other pane either: a reader who never opens the mechanism
-                  still has to be told what the ranking does not mean.
-                */}
-                <p className="text-meta text-muted-foreground">
-                  A small angle means the class is CONSISTENT with the
-                  reference, not that the material is identified. The reference
-                  is {limit.reference.level} level and a pixel is canopy, so the
-                  two are not measurements of the same thing. Why the difference
-                  survives is the other pane.
-                </p>
               </div>
             ) : (
               <div>
@@ -433,19 +492,19 @@ export function LibraryLimitEditor({
                   stroke={colours.get(shown.class_id) ?? "#888888"}
                   mode={band}
                 />
-                <p className="text-meta text-muted-foreground">
+                {/*
+                  One line, and only what the figure cannot state itself. The
+                  argument behind it is under the info button, where it is read
+                  once rather than costing four lines of height on every look.
+                */}
+                <p className="telemetry text-meta text-muted-foreground">
                   {band === "ratio"
-                    ? `Soil raises the red while gaps and shadow lower the NIR, in opposite directions. A constant ratio would be brightness alone and the angle would return zero; the shape is distorted instead, and normalisation cannot remove it. ${shown.name} sits ${shown.angle_rad.toFixed(3)} rad from the reference.`
-                    : "Solid is the class, dashed the reference, both scaled to unit length. This is the pair the angle is taken between, so any separation visible here is separation the angle reports."}
+                    ? `${shown.name} · ${shown.angle_rad.toFixed(3)} rad from the reference`
+                    : "solid: class · dashed: reference · both at unit length"}
                 </p>
               </div>
             )}
 
-            <p className="text-[9px] leading-snug text-muted-foreground">
-              {limit.reference.note} Package {limit.reference.package_id},
-              convolved onto the ESA Sentinel-2A response functions. Measured on
-              the {limit.scene_date} acquisition.
-            </p>
           </div>
         )}
       </div>

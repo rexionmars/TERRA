@@ -26,6 +26,7 @@ import type { ThemeName } from "@/lib/contrast"
 import { chartGround, legibleOn, seriesDash } from "@/lib/seriesColor"
 import {
   FIGURE,
+  LEGEND,
   PLOT,
   STROKE,
   TYPE,
@@ -42,6 +43,37 @@ interface Series {
   stroke: string
   dash: string | undefined
   points: ClassSpectrumPoint[]
+  /** Where the legend puts it, once the row it fits on is known. */
+  legend: { x: number; row: number }
+}
+
+/**
+ * The legend's rows, packed left to right under the plot.
+ *
+ * The width of an entry is estimated from its glyph count rather than measured.
+ * Measuring means laying the text out and reading it back, a second pass over
+ * the DOM for a number that only has to be close enough to decide where a row
+ * breaks; estimating high breaks a row early, which costs a row and nothing
+ * else.
+ */
+function layOutLegend(names: string[]): { x: number; row: number }[] {
+  const SAMPLE = 16
+  const GAP = 5
+  const PAD = 16
+  const width = (n: string) => SAMPLE + GAP + n.length * 5.2 + PAD
+  const out: { x: number; row: number }[] = []
+  let x = PLOT.x0
+  let row = 0
+  for (const name of names) {
+    const w = width(name)
+    if (x > PLOT.x0 && x + w > PLOT.x1) {
+      row += 1
+      x = PLOT.x0
+    }
+    out.push({ x, row })
+    x += w
+  }
+  return out
 }
 
 /** The axis the sensor defines, not the one the data happens to occupy. */
@@ -73,12 +105,15 @@ export function SpectraEditor({
       if (list) list.push(p)
       else byClass.set(p.class_id, [p])
     }
-    const series: Series[] = [...byClass.entries()].map(([classId, ps], i) => ({
+    const entries = [...byClass.entries()]
+    const placed = layOutLegend(entries.map(([, ps]) => ps[0].name))
+    const series: Series[] = entries.map(([classId, ps], i) => ({
       classId,
       name: ps[0].name,
       stroke: legibleOn(ps[0].color, ground),
       dash: seriesDash(i),
       points: [...ps].sort((a, b) => a.wavelength_nm - b.wavelength_nm),
+      legend: placed[i],
     }))
 
     const bands = [...new Set(points.map((p) => p.wavelength_nm))]
@@ -126,6 +161,15 @@ export function SpectraEditor({
         return { left: x(prev), right: x(next) }
       }),
       minPixels: Math.min(...points.map((p) => p.n_pixels)),
+      /*
+        The canvas grows downward for the legend; PLOT does not move, so this
+        figure and the library editor's band panels keep the same axis and a
+        band lands at the same x in both.
+      */
+      height:
+        FIGURE.height +
+        LEGEND.gap +
+        (Math.max(...series.map((s) => s.legend.row)) + 1) * LEGEND.row,
     }
   }, [spectra, theme])
 
@@ -194,7 +238,7 @@ export function SpectraEditor({
           */
           <div style={{ minWidth: FIGURE.width }}>
             <svg
-              viewBox={`0 0 ${FIGURE.width} ${FIGURE.height}`}
+              viewBox={`0 0 ${FIGURE.width} ${figure.height}`}
               style={figureStyle()}
               role="img"
               aria-label={`Mean surface reflectance per band for ${figure.series.length} predicted classes on ${spectra.scene_date}`}
@@ -362,23 +406,30 @@ export function SpectraEditor({
 
               {/*
                 The legend is also the control: pointing at a class is how its
-                dispersion is asked for. On the right rather than above, because
-                the class names run to 26 characters and a row of five would set
-                the figure's width instead of the data doing it.
+                dispersion is asked for.
+
+                BELOW the plot, not beside it. Beside it, five names up to 26
+                characters long set the figure's width instead of the data
+                doing it -- a fifth of the drawing surface spent on five short
+                strings, on an axis whose samples are already crowded into its
+                first third. Below, they cost the two rows they wrap onto, and
+                each name is written in full rather than truncated to fit a
+                column.
               */}
-              {figure.series.map((s, i) => (
+              {figure.series.map((s) => (
                 <g
                   key={`legend-${s.classId}`}
-                  transform={`translate(${PLOT.x1 + 12},${PLOT.y0 + 8 + i * 16})`}
+                  transform={`translate(${s.legend.x},${FIGURE.height + LEGEND.gap + s.legend.row * LEGEND.row + LEGEND.row / 2})`}
                   onMouseEnter={() => setFocusClass(s.classId)}
                   onMouseLeave={() => setFocusClass(null)}
                   style={{ cursor: "pointer" }}
                 >
                   <rect
                     x={-4}
-                    y={-9}
-                    width={FIGURE.margin.right - 8}
-                    height={16}
+                    y={-LEGEND.row / 2}
+                    width={16 + 5 + s.name.length * 5.2 + 8}
+                    height={LEGEND.row}
+                    rx={2}
                     fill={focusClass === s.classId ? "var(--accent-dim)" : "transparent"}
                   />
                   <line
@@ -397,7 +448,7 @@ export function SpectraEditor({
                     fill="var(--foreground)"
                     dominantBaseline="middle"
                   >
-                    {s.name.length > 24 ? `${s.name.slice(0, 23)}…` : s.name}
+                    {s.name}
                   </text>
                 </g>
               ))}

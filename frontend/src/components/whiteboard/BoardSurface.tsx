@@ -3316,7 +3316,11 @@ export function BoardSurface({
     ),
     spectra: <SpectraEditor runs={selectedRuns} />,
     libraryLimit: (
-      <LibraryLimitEditor runs={selectedRuns} mode={libraryModeOf(areaId)} />
+      <LibraryLimitEditor
+        runs={selectedRuns}
+        mode={libraryModeOf(areaId)}
+        surface={surfaceRef.current}
+      />
     ),
     table: <StudioTables runs={selectedRuns} />,
     /*
