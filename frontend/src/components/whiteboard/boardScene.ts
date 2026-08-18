@@ -55,6 +55,7 @@ import {
   ShaderMaterial,
   Sphere,
   SRGBColorSpace,
+  Texture,
   TextureLoader,
   Vector2,
   Vector3,
@@ -698,6 +699,17 @@ export function createBoard(
       uSize: { value: new Vector2(1, 1) },
       uRadius: { value: 0.1 },
       uOpacity: { value: 0.55 },
+      /*
+        The raster's own texture, read for its ALPHA only.
+
+        Without it the quad darkened the whole plane rectangle, and a plane is
+        a rectangle while an AOI is not: every raster here carries transparent
+        corners where the polygon does not reach. Dimming those painted a black
+        wedge at each corner and a black band along every edge -- the plane's
+        boundary drawn in shadow, which is not a boundary the data has.
+      */
+      uMap: { value: null as Texture | null },
+      uHasMap: { value: 0 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -711,20 +723,25 @@ export function createBoard(
       uniform vec2 uSize;
       uniform float uRadius;
       uniform float uOpacity;
+      uniform sampler2D uMap;
+      uniform float uHasMap;
       varying vec2 vUv;
       void main() {
         float d = length((vUv - uCentre) * uSize);
-        // A soft edge over a fifth of the radius, so the boundary of the lens
-        // is not read as a feature of the raster.
-        float outside = smoothstep(uRadius, uRadius * 1.2, d);
-        gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity * outside);
+        /*
+          A hard edge. A soft one read as a blur on the raster rather than as
+          the boundary of the lens, and it does not need to carry the boundary
+          anyway: the white ring sits exactly at this radius and covers it.
+        */
+        float outside = step(uRadius, d);
+        // Only where the raster is opaque. See uMap.
+        float alpha = uHasMap > 0.5 ? texture2D(uMap, vUv).a : 1.0;
+        gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity * outside * alpha);
       }
     `,
   })
   const probeDim = new Mesh(probeDimGeometry, probeDimMaterial)
   probeDim.visible = false
-  // Under the lens, over the raster.
-  probeDim.renderOrder = 9_999
 
   const hideProbeLens = () => {
     if (probeLens.parent) probeLens.parent.remove(probeLens)
@@ -755,6 +772,21 @@ export function createBoard(
     probeDimMaterial.uniforms.uCentre.value.set(u, v)
     probeDimMaterial.uniforms.uSize.value.set(w, h)
     probeDimMaterial.uniforms.uRadius.value = r
+    // The plane's own texture, so the dim stops where the raster does.
+    const planeMap =
+      (mesh.material as MeshBasicMaterial | undefined)?.map ?? null
+    probeDimMaterial.uniforms.uMap.value = planeMap
+    probeDimMaterial.uniforms.uHasMap.value = planeMap ? 1 : 0
+    /*
+      Just after its own plane, not on top of the board.
+
+      Nothing here writes depth, so renderOrder alone decides the transparent
+      pass, and every plane carries a global index. At a fixed high order the
+      dim painted over the planes ABOVE the one being read -- brushing the
+      bottom of a stack shaded the whole stack. Half a step past its host puts
+      it over its own raster and under everything stacked on it.
+    */
+    probeDim.renderOrder = mesh.renderOrder + 0.5
     probeDim.visible = true
   }
 
