@@ -39,34 +39,36 @@ export function contrast(a: Channels, b: Channels): number {
 export const TOKENS = {
   dark: {
     ink: [23, 23, 23],
-    surface: [38, 32, 28],
-    surfaceRaised: [54, 45, 39],
-    line: [86, 73, 63],
-    lineStrong: [138, 117, 100],
-    text: [226, 220, 212],
-    muted: [172, 159, 144],
-    accent: [237, 135, 68],
-    accentQuiet: [255, 138, 92],
-    accentDim: [74, 38, 22],
+    surface: [29, 34, 39],
+    surfaceRaised: [41, 48, 56],
+    line: [66, 76, 90],
+    lineStrong: [105, 122, 145],
+    text: [216, 221, 229],
+    muted: [150, 162, 177],
+    accent: [53, 120, 207],
+    accentQuiet: [106, 155, 219],
+    accentDim: [22, 45, 74],
     destructive: [160, 44, 44],
     success: [111, 156, 90],
-    destructiveForeground: [226, 220, 212],
+    warning: [217, 164, 65],
+    destructiveForeground: [216, 221, 229],
     destructiveQuiet: [224, 138, 120],
   },
   light: {
-    ink: [245, 240, 233],
-    surface: [252, 249, 243],
-    surfaceRaised: [234, 226, 214],
-    line: [190, 175, 156],
-    lineStrong: [138, 118, 98],
-    text: [38, 30, 24],
-    muted: [104, 90, 76],
-    accent: [186, 58, 18],
-    accentQuiet: [158, 48, 14],
-    accentDim: [240, 214, 198],
+    ink: [236, 241, 247],
+    surface: [247, 250, 253],
+    surfaceRaised: [220, 227, 237],
+    line: [165, 179, 196],
+    lineStrong: [105, 123, 147],
+    text: [26, 32, 40],
+    muted: [81, 93, 110],
+    accent: [51, 118, 206],
+    accentQuiet: [40, 94, 166],
+    accentDim: [204, 220, 242],
     destructive: [179, 58, 26],
     success: [63, 107, 44],
-    destructiveForeground: [252, 249, 243],
+    warning: [138, 90, 16],
+    destructiveForeground: [247, 250, 253],
     destructiveQuiet: [158, 43, 37],
   },
 } as const satisfies Record<string, Record<string, Channels>>
@@ -88,10 +90,18 @@ export interface ContrastRule {
  * Every pair the interface paints, and the floor each has to clear.
  *
  * `accent` is checked at 3.0, not 4.5, and only as a fill, a focus ring and an
- * active state. It measures 3.93 on the raised surface, so it is not a text
+ * active state. It measures 3.01 on the raised surface, so it is not a text
  * colour; text that has to read as the accent uses `accentQuiet`. Listing it
  * here at 4.5 would either fail honestly or push the palette away from the
- * brand orange, and neither is what the token is for.
+ * brand value, and neither is what the token is for.
+ *
+ * The label ON the accent fill is not listed either, and that one is a stated
+ * exception rather than a category difference: white measures 4.43 on the dark
+ * theme's fill and 4.54 on the light theme's, so the dark side sits 0.07 under
+ * WCAG 1.4.3. No colour at this hue clears both floors at once -- white would
+ * need a fill darker than the 3.0 boundary against the raised surface permits.
+ * A rule here would fail on a trade that was made deliberately; see the comment
+ * on --p-accent in index.css.
  */
 export const RULES: readonly ContrastRule[] = [
   {
@@ -155,15 +165,28 @@ export const RULES: readonly ContrastRule[] = [
    * fail, and nothing caught it, because nothing was looking.
    *
    * 3.0 rather than 4.5: these are meaningful graphics under WCAG 1.4.11, not
-   * text. Success stays green rather than joining the sand family, because
-   * green and orange are the only thing separating a success toast from a
-   * warning one once both are marks of the same shape.
+   * text. Success stays green rather than joining the accent family, because
+   * hue is the only thing separating a success toast from a warning one once
+   * both are marks of the same shape -- and --warning is the accent, so the
+   * green has to stay off it.
    */
   {
     fg: "success",
     on: ["ink", "surface", "surfaceRaised"],
     min: 3.0,
     why: "the success mark on a toast, which is a graphic rather than text",
+  },
+  /*
+   * Warning joins the list because it stopped deriving from a checked token.
+   * It used to be --p-accent-quiet and inherited that token's 4.5 floor for
+   * free; it is now an amber of its own, and an unchecked literal is exactly
+   * what the destructive pair was when it shipped failing.
+   */
+  {
+    fg: "warning",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 3.0,
+    why: "the warning mark on a toast, which no longer follows the accent because the accent is blue",
   },
 ]
 

@@ -51,6 +51,7 @@ const CSS_HEX: Record<string, string> = {
   destructive: "--destructive",
   destructiveQuiet: "--destructive-quiet",
   success: "--success",
+  warning: "--warning",
 }
 
 function hexChannels(hex: string): Channels {

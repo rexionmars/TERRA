@@ -146,8 +146,8 @@ export function RunButton({
       // The one filled button that cannot take a primitive verbatim: its label
       // states what the product returns and wraps to two lines, so min-h-9 with
       // its own leading is load-bearing and any fixed height truncates it. The
-      // rest of the primitive is here in full -- the fill, the near-black label,
-      // one disabled convention and the focus ring.
+      // rest of the primitive is here in full -- the fill, the white label, one
+      // disabled convention and the focus ring.
       className={cn(
         "flex min-h-9 w-full items-center justify-center gap-1.5 rounded-sm bg-primary px-3 py-2",
         "text-center text-emphasis font-semibold leading-snug text-primary-foreground",

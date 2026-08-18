@@ -1,8 +1,13 @@
 # TERRA design system
 
-Mars sand: warm near-black surfaces where the neutrals carry the hue rather than
-leaving it to the accent, one terracotta accent, monospace telemetry, and a
-density chosen on purpose.
+Cool near-black surfaces where the neutrals carry the accent's hue rather than
+leaving it to the accent, one blue accent, monospace telemetry, and a density
+chosen on purpose.
+
+The family replaces the Mars sand it began as. The rotation was done at constant
+luminance -- WCAG contrast is a function of relative luminance alone, so every
+neutral kept the ratio it had been measured at while its hue moved to the
+accent's 214 degrees.
 
 The implementation is the source of truth. This file describes it; where the two
 disagree, the code is right and this file is stale.
@@ -44,32 +49,40 @@ from `--p-*` in a plain `:root` block, and `@theme inline` maps those to
 | Token | RGB | Hex | Role |
 | --- | --- | --- | --- |
 | `--p-ink` | `23 23 23` | `#171717` | App background |
-| `--p-surface` | `38 32 28` | `#26201C` | Panel |
-| `--p-surface-raised` | `54 45 39` | `#362D27` | Card, field |
-| `--p-line` | `86 73 63` | `#56493F` | Divider |
-| `--p-line-strong` | `138 117 100` | `#8A7564` | Component boundary |
-| `--p-text` | `226 220 212` | `#E2DCD4` | Text |
-| `--p-muted` | `172 159 144` | `#AC9F90` | Secondary text |
-| `--p-accent` | `242 86 35` | `#F25623` | Fill, focus, active state |
-| `--p-accent-quiet` | `255 138 92` | `#FF8A5C` | The accent **as text** |
+| `--p-surface` | `29 34 39` | `#1D2227` | Panel |
+| `--p-surface-raised` | `41 48 56` | `#293038` | Card, field |
+| `--p-line` | `66 76 90` | `#424C5A` | Divider |
+| `--p-line-strong` | `105 122 145` | `#697A91` | Component boundary |
+| `--p-text` | `216 221 229` | `#D8DDE5` | Text |
+| `--p-muted` | `150 162 177` | `#96A2B1` | Secondary text |
+| `--p-accent` | `53 120 207` | `#3578CF` | Fill, focus, active state |
+| `--p-accent-quiet` | `106 155 219` | `#6A9BDB` | The accent **as text** |
+| `--p-accent-dim` | `22 45 74` | `#162D4A` | The plate a chosen value lights on |
+
+The brand value is `#3376CE`. This theme lightens it by two levels per channel,
+because the exact value measures **2.96** against the raised surface where the
+boundary floor is 3.0, and darkening only lowers it further. The nudged value
+measures 3.01.
 
 ### Light
 
 The light theme derives on its own path and inherits nothing from the dark
-block, so every ratio is measured there too. The accent is darkened rather than
-reused: `#F25623` on a light surface reads as a highlight, not as a control.
+block, so every ratio is measured there too. Here the accent is the brand value
+unchanged: `#3376CE` measures 4.34 on the light surface and 3.52 on the raised
+one, so it needs no darkening for this ground.
 
 | Token | RGB | Hex |
 | --- | --- | --- |
-| `--p-ink` | `245 240 233` | `#F5F0E9` |
-| `--p-surface` | `252 249 243` | `#FCF9F3` |
-| `--p-surface-raised` | `234 226 214` | `#EAE2D6` |
-| `--p-line` | `190 175 156` | `#BEAF9C` |
-| `--p-line-strong` | `138 118 98` | `#8A7662` |
-| `--p-text` | `38 30 24` | `#261E18` |
-| `--p-muted` | `104 90 76` | `#685A4C` |
-| `--p-accent` | `186 58 18` | `#BA3A12` |
-| `--p-accent-quiet` | `158 48 14` | `#9E300E` |
+| `--p-ink` | `236 241 247` | `#ECF1F7` |
+| `--p-surface` | `247 250 253` | `#F7FAFD` |
+| `--p-surface-raised` | `220 227 237` | `#DCE3ED` |
+| `--p-line` | `165 179 196` | `#A5B3C4` |
+| `--p-line-strong` | `105 123 147` | `#697B93` |
+| `--p-text` | `26 32 40` | `#1A2028` |
+| `--p-muted` | `81 93 110` | `#515D6E` |
+| `--p-accent` | `51 118 206` | `#3376CE` |
+| `--p-accent-quiet` | `40 94 166` | `#285EA6` |
+| `--p-accent-dim` | `204 220 242` | `#CCDCF2` |
 
 ---
 
@@ -77,20 +90,25 @@ reused: `#F25623` on a light surface reads as a highlight, not as a control.
 
 These are not style preferences. Each one is a ratio that fails.
 
-**1. The accent is not a text colour.** Full accent measures **3.93** on the
+**1. The accent is not a text colour.** Full accent measures **3.01** on the
 raised surface, below the 4.5 WCAG 1.4.3 asks. It is a fill, a focus ring and an
 active state. Text that has to read as the accent uses `--p-accent-quiet`, which
-clears 4.5 on every surface (7.72 / 6.92 / 5.79 dark).
+clears 4.5 on every surface (6.25 / 5.59 / 4.65 dark).
 
-**2. A filled accent button takes near-black.** `--primary-foreground` is the
-ink: **5.23** dark, 5.00 light. White on the same fill is 3.43 and fails. For the
-same reason no filled button carries a whole-element hover fade —
-`hover:opacity-90` drops the label to 4.45 dark and 4.29 light.
+**2. A filled accent button takes white, and does not fully clear the floor.**
+`--primary-foreground` is white: **4.43** dark, 4.54 light. The near-black ink it
+replaced measures 4.05 and 4.00, so white is the better of the two and the dark
+theme still sits 0.07 under 4.5. That shortfall is a stated exception, not an
+oversight: no colour at this hue clears both floors at once, because a fill dark
+enough to carry white at 4.5 is too dark to clear 3.0 against the raised surface
+behind it. It is the one pair `contrast.ts` deliberately does not encode as a
+rule. For a separate reason no filled button carries a whole-element hover fade —
+`hover:opacity-90` drops the label further still.
 
-**3. Adjacent surfaces need a border.** Surface separation is 1.11 and 1.20, low
+**3. Adjacent surfaces need a border.** Surface separation is 1.12 and 1.20, low
 by construction because the family is dark. Two panels are told apart by their
 border, not by luminance, which is why `--p-line-strong` exists and why it has to
-clear 3.0 against *both* surfaces: 3.68 on surface, 3.08 on the raised one. An
+clear 3.0 against *both* surfaces: 3.66 on surface, 3.04 on the raised one. An
 earlier value cleared it against surface alone.
 
 ### Destructive splits the same way
@@ -109,13 +127,26 @@ The foreground being a different token per theme is why the contrast check
 resolves it rather than assuming one: a rule that assumed `--p-text` passed in
 dark and failed in light by 2.76.
 
+### Warning stopped following the accent
+
+`--warning` was `--p-accent-quiet`, which held while the accent was orange: the
+warning mark and the accent were the same hue by accident, and no other hue
+competed for the meaning. A blue accent would have drawn the warning toast in
+the colour the interface uses for the selected thing, so warning is now an amber
+of its own per theme — `#D9A441` dark, `#8A5A10` light — and it joins the check,
+because a literal that derives from nothing is unchecked by default.
+
+Three call sites ask for `var(--p-warning)`, which is not a declared token and
+resolves to nothing; they inherit their parent's colour and always have. Fixing
+them is a separate change, since it turns text amber that has never been amber.
+
 ### Focus
 
 `--ring` is the **full** accent, not a wash of it. At 0.55 alpha the composited
-ring measured 2.04 against a filled button and 2.44 against the surface behind
-it — under the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure
-the check reported, because the check read the token and the token was not what
-got painted.
+ring fell under the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the
+figure the check reported, because the check read the token and the token was
+not what got painted. At full strength the two agree: 4.05 on ink, 3.62 on a
+panel, 3.01 on a raised surface.
 
 Every control gets a ring from one rule in `@layer base` covering `button`,
 `summary` and the `button`, `slider` and `tab` roles. It uses `outline` rather
@@ -136,9 +167,11 @@ The same holds for the AOI outline colours in `frontend/src/lib/aoiStyle.ts`:
 they are drawn over satellite imagery and chosen to contrast with terrain, not
 with the interface.
 
-**The map area stays out of the warm drift.** The chassis is Mars sand; the
-viewport and any chrome touching a raster stay low-chroma, or the frame competes
-with the data for the reading.
+**The map area stays out of the chassis hue.** The viewport and any chrome
+touching a raster stay low-chroma and answer to the terrain, or the frame
+competes with the data for the reading. The rubber band leaflet-draw paints
+while a polygon is being drawn is part of that: it stays `#d8944a` over imagery
+rather than following the accent to blue.
 
 ---
 
