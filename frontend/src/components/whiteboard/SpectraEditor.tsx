@@ -24,7 +24,16 @@ import { useTheme } from "next-themes"
 import type { ClassSpectrumPoint, PredictResult } from "@/lib/types"
 import type { ThemeName } from "@/lib/contrast"
 import { chartGround, legibleOn, seriesDash } from "@/lib/seriesColor"
-import { FIGURE, PLOT, STROKE, TYPE, linearScale, niceTicks, staggerRows } from "@/lib/figure"
+import {
+  FIGURE,
+  PLOT,
+  STROKE,
+  TYPE,
+  figureStyle,
+  linearScale,
+  niceTicks,
+  staggerRows,
+} from "@/lib/figure"
 import { cn } from "@/lib/utils"
 
 interface Series {
@@ -186,7 +195,7 @@ export function SpectraEditor({
           <div style={{ minWidth: FIGURE.width }}>
             <svg
               viewBox={`0 0 ${FIGURE.width} ${FIGURE.height}`}
-              style={{ width: "100%", height: "auto", fontFamily: "var(--font-sans)" }}
+              style={figureStyle()}
               role="img"
               aria-label={`Mean surface reflectance per band for ${figure.series.length} predicted classes on ${spectra.scene_date}`}
             >

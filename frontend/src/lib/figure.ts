@@ -32,6 +32,14 @@
  * fit is what puts a 5 px glyph on screen, and the studio already refuses that
  * trade in `StudioArea`: an area under its editor's floor says so rather than
  * drawing something that cannot be read.
+ *
+ * ABOVE IT THE FIGURE DOES NOT GROW EITHER, which is the half this file was
+ * missing. Proportions were fixed and absolute size was not, so a figure in a
+ * wide area was drawn at whatever multiple of its reference size that area
+ * happened to be -- and two figures side by side in areas of different widths
+ * were two different sizes, which is the drift the fixed viewBox exists to
+ * remove. Past the reference width a figure gains no legibility, only scale.
+ * `figureStyle` caps it there.
  */
 import { ticks } from "d3-array"
 import { scaleLinear, type ScaleLinear } from "d3-scale"
@@ -134,4 +142,20 @@ export function staggerRows(
     lastRight[row] = x + labelWidth / 2
     return row
   })
+}
+
+/**
+ * How a figure is placed: at its reference size, never larger, never squeezed.
+ *
+ * `width` overrides the reference for a panel with a viewBox of its own; the
+ * cap is always that panel's own width, so every figure in the studio renders
+ * one unit to one pixel whatever the area around it is doing.
+ */
+export function figureStyle(width: number = FIGURE.width) {
+  return {
+    width: "100%",
+    maxWidth: width,
+    height: "auto",
+    fontFamily: "var(--font-sans)",
+  } as const
 }

@@ -25,12 +25,32 @@ import { useTheme } from "next-themes"
 import type { LibraryClass, PredictResult } from "@/lib/types"
 import type { ThemeName } from "@/lib/contrast"
 import { chartGround, legibleOn } from "@/lib/seriesColor"
-import { TYPE, linearScale, niceTicks } from "@/lib/figure"
+import {
+  FIGURE,
+  PLOT,
+  STROKE,
+  TYPE,
+  figureStyle,
+  linearScale,
+  niceTicks,
+} from "@/lib/figure"
 import { cn } from "@/lib/utils"
 
-/** Each panel draws into its own box; the ratios between them are fixed. */
-const RANK = { w: 700, h: 150, pad: { top: 8, right: 12, bottom: 30, left: 176 } }
-const BAND = { w: 700, h: 210, pad: { top: 10, right: 12, bottom: 34, left: 52 } }
+/*
+  The band panels borrow the spectral editor's geometry rather than choosing
+  their own.
+
+  They draw the SAME seven bands, so a band has to land at the same x in both
+  or a reader comparing the two figures is comparing two axes. Sharing FIGURE
+  and PLOT also shares the plot's proportions: the first version was 700 by 210
+  against the spectral figure's 700 by 340, and the same seven points spread
+  across a panel two thirds as tall read as a zoomed-in version of the other.
+
+  The ranking is not a band figure and keeps a box of its own -- its x axis is
+  an angle and its rows are classes -- but at the same width, so the two stack
+  without a step.
+*/
+const RANK = { w: FIGURE.width, h: 150, pad: { top: 8, right: 12, bottom: 30, left: 176 } }
 
 function AngleRanking({
   classes,
@@ -50,7 +70,7 @@ function AngleRanking({
   return (
     <svg
       viewBox={`0 0 ${RANK.w} ${RANK.h}`}
-      style={{ width: "100%", height: "auto", fontFamily: "var(--font-sans)" }}
+      style={figureStyle(RANK.w)}
       role="img"
       aria-label="Spectral angle from each predicted class to the library reference"
     >
@@ -148,7 +168,7 @@ function BandPanel({
   mode: "ratio" | "shape"
 }) {
   const bands = cls.bands
-  const x = linearScale([400, 2300], [BAND.pad.left, BAND.w - BAND.pad.right])
+  const x = linearScale([400, 2300], [PLOT.x0, PLOT.x1])
 
   const values =
     mode === "ratio"
@@ -158,12 +178,12 @@ function BandPanel({
     mode === "shape" ? bands.map((b) => b.unit_leaf ?? 0) : null
   const lo = Math.min(0, ...values, ...(other ?? []))
   const hi = Math.max(...values, ...(other ?? []))
-  const y = linearScale([lo, hi * 1.06], [BAND.h - BAND.pad.bottom, BAND.pad.top])
+  const y = linearScale([lo, hi * 1.06], [PLOT.y1, PLOT.y0])
 
   return (
     <svg
-      viewBox={`0 0 ${BAND.w} ${BAND.h}`}
-      style={{ width: "100%", height: "auto", fontFamily: "var(--font-sans)" }}
+      viewBox={`0 0 ${FIGURE.width} ${FIGURE.height}`}
+      style={figureStyle()}
       role="img"
       aria-label={
         mode === "ratio"
@@ -174,8 +194,8 @@ function BandPanel({
       {niceTicks(lo, hi * 1.06, 4).map((t) => (
         <g key={t}>
           <line
-            x1={BAND.pad.left}
-            x2={BAND.w - BAND.pad.right}
+            x1={PLOT.x0}
+            x2={PLOT.x1}
             y1={y(t)}
             y2={y(t)}
             stroke="var(--hairline)"
@@ -183,7 +203,7 @@ function BandPanel({
             strokeDasharray="2 5"
           />
           <text
-            x={BAND.pad.left - 6}
+            x={PLOT.x0 - 6}
             y={y(t)}
             fontSize={TYPE.meta}
             fill="var(--muted-foreground)"
@@ -201,8 +221,8 @@ function BandPanel({
       */}
       {mode === "ratio" && lo < 1 && hi > 1 && (
         <line
-          x1={BAND.pad.left}
-          x2={BAND.w - BAND.pad.right}
+          x1={PLOT.x0}
+          x2={PLOT.x1}
           y1={y(1)}
           y2={y(1)}
           stroke="var(--accent-quiet)"
@@ -210,17 +230,17 @@ function BandPanel({
         />
       )}
       <path
-        d={`M${BAND.pad.left},${BAND.pad.top} L${BAND.pad.left},${BAND.h - BAND.pad.bottom} L${BAND.w - BAND.pad.right},${BAND.h - BAND.pad.bottom}`}
+        d={`M${PLOT.x0},${PLOT.y0} L${PLOT.x0},${PLOT.y1} L${PLOT.x1},${PLOT.y1}`}
         fill="none"
         stroke="var(--border)"
-        strokeWidth={1}
+        strokeWidth={STROKE.axis}
       />
       {other && (
         <polyline
           points={bands.map((b, i) => `${x(b.wavelength_nm)},${y(other[i])}`).join(" ")}
           fill="none"
           stroke="var(--muted-foreground)"
-          strokeWidth={1.6}
+          strokeWidth={STROKE.series}
           strokeDasharray="5 3"
         />
       )}
@@ -228,14 +248,14 @@ function BandPanel({
         points={bands.map((b, i) => `${x(b.wavelength_nm)},${y(values[i])}`).join(" ")}
         fill="none"
         stroke={stroke}
-        strokeWidth={2}
+        strokeWidth={STROKE.series}
       />
       {bands.map((b, i) => (
         <g key={b.band}>
           <circle cx={x(b.wavelength_nm)} cy={y(values[i])} r={2.2} fill={stroke} />
           <text
             x={x(b.wavelength_nm)}
-            y={BAND.h - BAND.pad.bottom + 13}
+            y={PLOT.y1 + 15}
             fontSize={TYPE.meta}
             fill="var(--muted-foreground)"
             textAnchor="middle"
@@ -245,8 +265,8 @@ function BandPanel({
         </g>
       ))}
       <text
-        x={(BAND.pad.left + BAND.w - BAND.pad.right) / 2}
-        y={BAND.h - 5}
+        x={(PLOT.x0 + PLOT.x1) / 2}
+        y={FIGURE.height - 6}
         fontSize={TYPE.body}
         fill="var(--muted-foreground)"
         textAnchor="middle"
