@@ -1,6 +1,13 @@
 /**
  * Each predicted class against a spectral library, and the limit that runs into.
  *
+ * TWO READINGS, one per pane, chosen in the area header beside the editor's
+ * own name. `distance` is the ranking over every class at once and is what a
+ * reader comes for; `mechanism` is one class band by band and is what stops
+ * the ranking being read as an identification. Stacked in one body the ranking
+ * pushed the mechanism below the fold, which is where an argument goes to be
+ * skipped.
+ *
  * THE READING THIS EXISTS TO PREVENT. A reader who sees a class called Soybean
  * and a soybean reference in the same interface will conclude, if nothing stops
  * them, that a small angle between the two identifies the material. It does
@@ -279,14 +286,19 @@ function BandPanel({
   )
 }
 
+/** Which reading the area is showing. Declared here, held per area. */
+export type LibraryLimitMode = "distance" | "mechanism"
+
 export function LibraryLimitEditor({
   runs,
+  mode,
 }: {
   runs: Array<{ id: string; label: string; result: PredictResult }>
+  mode: LibraryLimitMode
 }) {
   const [runIdx, setRunIdx] = useState(0)
   const [focus, setFocus] = useState<number | null>(null)
-  const [mode, setMode] = useState<"ratio" | "shape">("ratio")
+  const [band, setBand] = useState<"ratio" | "shape">("ratio")
   const { resolvedTheme } = useTheme()
   const theme: ThemeName = resolvedTheme === "light" ? "light" : "dark"
 
@@ -348,62 +360,86 @@ export function LibraryLimitEditor({
           </p>
         ) : (
           <div style={{ minWidth: RANK.w }} className="flex flex-col gap-3">
-            <div>
-              <p className="eyebrow mb-1">Distance to the reference</p>
-              <AngleRanking
-                classes={limit.classes}
-                colours={colours}
-                focus={focus}
-                onFocus={setFocus}
-              />
-              {/*
-                Stated on the figure, not left to the reader. Without it the
-                ranking reads as an identification that happens to disagree
-                with the classifier.
-              */}
-              <p className="text-meta text-muted-foreground">
-                A small angle means the class is CONSISTENT with the reference,
-                not that the material is identified. The reference is{" "}
-                {limit.reference.level} level and a pixel is canopy, so the two
-                are not measurements of the same thing.
-              </p>
-            </div>
-
-            <div>
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <p className="eyebrow">
-                  {mode === "ratio" ? "Why it survives" : "What the angle sees"} ·{" "}
-                  {shown.name}
+            {mode === "distance" ? (
+              <div>
+                <AngleRanking
+                  classes={limit.classes}
+                  colours={colours}
+                  focus={focus}
+                  onFocus={setFocus}
+                />
+                {/*
+                  Stated on the figure, not left to the reader, and not left to
+                  the other pane either: a reader who never opens the mechanism
+                  still has to be told what the ranking does not mean.
+                */}
+                <p className="text-meta text-muted-foreground">
+                  A small angle means the class is CONSISTENT with the
+                  reference, not that the material is identified. The reference
+                  is {limit.reference.level} level and a pixel is canopy, so the
+                  two are not measurements of the same thing. Why the difference
+                  survives is the other pane.
                 </p>
-                <div className="flex gap-0.5">
-                  {(["ratio", "shape"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMode(m)}
-                      className={cn(
-                        "rounded-sm px-1.5 py-0.5 text-meta transition-colors",
-                        mode === m
-                          ? "bg-surface-raised text-foreground"
-                          : "text-muted-foreground hover:bg-surface-raised/40"
-                      )}
-                    >
-                      {m === "ratio" ? "Canopy / leaf" : "Normalised"}
-                    </button>
-                  ))}
-                </div>
               </div>
-              <BandPanel
-                cls={shown}
-                stroke={colours.get(shown.class_id) ?? "#888888"}
-                mode={mode}
-              />
-              <p className="text-meta text-muted-foreground">
-                {mode === "ratio"
-                  ? "Soil raises the red while gaps and shadow lower the NIR, in opposite directions. A constant ratio would be brightness alone and the angle would return zero; the shape is distorted instead, and normalisation cannot remove it."
-                  : "Solid is the class, dashed the reference, both scaled to unit length. This is the pair the angle is taken between, so any separation visible here is separation the angle reports."}
-              </p>
-            </div>
+            ) : (
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  {/*
+                    Which class, chosen here rather than in the header: the
+                    header names the pane, and the class is the pane's subject
+                    rather than a second mode of it.
+                  */}
+                  <div className="flex flex-wrap gap-0.5">
+                    {limit.classes.map((c) => (
+                      <button
+                        key={c.class_id}
+                        type="button"
+                        onClick={() => setFocus(c.class_id)}
+                        className={cn(
+                          "flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-meta transition-colors",
+                          shown.class_id === c.class_id
+                            ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
+                            : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                        )}
+                      >
+                        <span
+                          className="size-2 shrink-0 rounded-[2px]"
+                          style={{ backgroundColor: colours.get(c.class_id) }}
+                        />
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex shrink-0 gap-0.5">
+                    {(["ratio", "shape"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setBand(m)}
+                        className={cn(
+                          "rounded-sm px-1.5 py-0.5 text-meta transition-colors",
+                          band === m
+                            ? "bg-surface-raised text-foreground"
+                            : "text-muted-foreground hover:bg-surface-raised/40"
+                        )}
+                      >
+                        {m === "ratio" ? "Canopy / leaf" : "Normalised"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <BandPanel
+                  cls={shown}
+                  stroke={colours.get(shown.class_id) ?? "#888888"}
+                  mode={band}
+                />
+                <p className="text-meta text-muted-foreground">
+                  {band === "ratio"
+                    ? `Soil raises the red while gaps and shadow lower the NIR, in opposite directions. A constant ratio would be brightness alone and the angle would return zero; the shape is distorted instead, and normalisation cannot remove it. ${shown.name} sits ${shown.angle_rad.toFixed(3)} rad from the reference.`
+                    : "Solid is the class, dashed the reference, both scaled to unit length. This is the pair the angle is taken between, so any separation visible here is separation the angle reports."}
+                </p>
+              </div>
+            )}
 
             <p className="text-[9px] leading-snug text-muted-foreground">
               {limit.reference.note} Package {limit.reference.package_id},

@@ -156,13 +156,13 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     label: "Library check",
     icon: LibraryBig,
     /*
-      Three stacked panels, each the full width: a ranking with class names on
-      the left, and two band figures with seven labelled ticks. The ranking's
-      label gutter alone is a quarter of the width, so this is the widest
-      reading in the studio and says so rather than compressing the names.
+      Two panes rather than one body, so the floor is one figure and not three
+      stacked. Still the widest reading in the studio: the ranking's own label
+      gutter is a quarter of the width, because a class name is up to 26
+      characters and compressing it is how a figure stops naming its own rows.
     */
     minRem: 26,
-    minRowRem: 18,
+    minRowRem: 14,
     hint: "Each class against a spectral library, and why a small angle is not an identification",
   },
   {

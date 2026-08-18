@@ -148,6 +148,8 @@ import {
   EyeOff,
   Filter,
   GitCompareArrows,
+  Ruler,
+  Split,
   Image as ImageIcon,
   Layers,
   LineChart as LineChartIcon,
@@ -171,7 +173,10 @@ import {
 import { CanopyRunBar } from "@/components/whiteboard/CanopyRunBar"
 import { CanopyWorkflowProvider } from "@/components/whiteboard/canopyWorkflow"
 import { BrushEditor } from "@/components/whiteboard/BrushEditor"
-import { LibraryLimitEditor } from "@/components/whiteboard/LibraryLimitEditor"
+import {
+  LibraryLimitEditor,
+  type LibraryLimitMode,
+} from "@/components/whiteboard/LibraryLimitEditor"
 import { SpectraEditor } from "@/components/whiteboard/SpectraEditor"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
@@ -578,6 +583,22 @@ export function BoardSurface({
   }
   const setCanopyModeOf = (areaId: AreaId, m: CanopyMode) =>
     setAreaModes((prev) => ({ ...prev, [canopyModeKey(areaId)]: m }))
+
+  /*
+    The library check's two readings, per area.
+
+    They answer different questions and neither contains the other. The
+    distance is a ranking over every class at once and is what a reader comes
+    for; why it survives is one class at a time, band by band, and is what
+    stops the ranking being read as an identification. Stacked in one body the
+    ranking pushed the mechanism below the fold, which is where an argument
+    goes to be skipped.
+  */
+  const libraryModeKey = (areaId: AreaId) => `${areaId}:libraryLimit`
+  const libraryModeOf = (areaId: AreaId): LibraryLimitMode =>
+    areaModes[libraryModeKey(areaId)] === "mechanism" ? "mechanism" : "distance"
+  const setLibraryModeOf = (areaId: AreaId, m: LibraryLimitMode) =>
+    setAreaModes((prev) => ({ ...prev, [libraryModeKey(areaId)]: m }))
 
   /*
     Which board area is the source of the star, per pane.
@@ -2752,6 +2773,18 @@ export function BoardSurface({
       active: shiftHere === id,
       select: () => setShiftModeOf(areaId, id),
     })
+    const libraryHere = libraryModeOf(areaId)
+    const libraryPane = (
+      id: LibraryLimitMode,
+      label: string,
+      icon: LucideIcon
+    ) => ({
+      id,
+      label,
+      icon,
+      active: libraryHere === id,
+      select: () => setLibraryModeOf(areaId, id),
+    })
     return {
       outliner: [
         pane("scene", "Scene", Layers),
@@ -2769,6 +2802,16 @@ export function BoardSurface({
       domainShift: [
         shiftPane("pair", "Pair", GitCompareArrows),
         shiftPane("cohort", "Cohort", Waves),
+      ],
+      /*
+        The result, then the reason. Distance is the ranking a reader comes
+        for; mechanism is the band-by-band ratio that stops the ranking being
+        read as an identification, and it is one class at a time rather than
+        five, so it cannot share a body with the ranking.
+      */
+      libraryLimit: [
+        libraryPane("distance", "Distance", Ruler),
+        libraryPane("mechanism", "Why it survives", Split),
       ],
       /*
         Three questions about one season, and each wants the whole width. The
@@ -3272,7 +3315,9 @@ export function BoardSurface({
       />
     ),
     spectra: <SpectraEditor runs={selectedRuns} />,
-    libraryLimit: <LibraryLimitEditor runs={selectedRuns} />,
+    libraryLimit: (
+      <LibraryLimitEditor runs={selectedRuns} mode={libraryModeOf(areaId)} />
+    ),
     table: <StudioTables runs={selectedRuns} />,
     /*
       Four readings of one canopy, and the canopy is the workflow's rather than
