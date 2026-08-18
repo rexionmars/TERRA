@@ -908,6 +908,30 @@ def reproject_mapbiomas_to_grid(mapbiomas_path, ref_profile, ref_band_data):
 
 # --- Georeferencing --------------------------------------------------------
 
+def reference_pixel_size_m(profile):
+    """
+    The side of one pixel of the reference grid, in metres.
+
+    Read off the grid rather than assumed. Every consumer that turns a pixel
+    count into an area needs this number, and the two that already do --
+    class_statistics for hectares and the brush probe in the studio -- each
+    carried their own copy of the literal 10.
+
+    NOT solar.pixel_size_m, which converts DEGREES to metres for a geographic
+    DEM and would multiply this grid by 111320. The reference grid comes from a
+    Sentinel-2 COG in UTM, so its transform is already in metres; the
+    geographic branch below exists for a local product that is not, and is an
+    approximation at the grid's own latitude in the way that one is.
+    """
+    transform = profile['transform']
+    side = abs(float(transform.a))
+    crs = profile.get('crs')
+    if crs is not None and getattr(crs, 'is_geographic', False):
+        lat = float(transform.f) + 0.5 * float(transform.e) * profile['height']
+        return side * 111_320.0 * float(np.cos(np.radians(lat)))
+    return side
+
+
 def get_map_extent(profile):
     """Compute the EPSG:4326 lat/lon extent from a raster profile (from notebooks)."""
     t = profile['transform']
@@ -3636,6 +3660,8 @@ def main():
 
     lon_min, lon_max, lat_min, lat_max = get_map_extent(ref_profile)
 
+    pixel_size_m = reference_pixel_size_m(ref_profile)
+
     result = {
         'extent': {
             'lon_min': float(lon_min), 'lon_max': float(lon_max),
@@ -3654,6 +3680,7 @@ def main():
             products[0]['date'].strftime('%Y-%m-%d'),
             products[-1]['date'].strftime('%Y-%m-%d'),
         ],
+        'pixel_size_m': round(pixel_size_m, 3),
         'class_stats': class_statistics(classification_map),
         # Seven bands on one acquisition, per predicted class. None when the
         # scene could not be read; see class_spectra for why it is one date.

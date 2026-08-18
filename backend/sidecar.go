@@ -505,6 +505,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		ConfidenceFloor:   sres.ConfidenceFloor,
 		NDates:            sres.NDates,
 		DateRange:         sres.DateRange,
+		PixelSizeM:        sres.PixelSizeM,
 		ClassStats:        sres.ClassStats,
 		ClassSpectra:      sres.ClassSpectra,
 		Temporal:          sres.Temporal,

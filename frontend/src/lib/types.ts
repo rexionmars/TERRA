@@ -302,6 +302,11 @@ export interface PredictResult {
   // nil. Declared nullable so each read has to be guarded; taken as guaranteed,
   // one of them blanked the whole application.
   date_range: string[] | null
+  /**
+   * The side of one predicted pixel on the ground, in metres, off the grid the
+   * run was made on. Absent on runs saved before it was carried.
+   */
+  pixel_size_m?: number
   class_stats: ClassStat[] | null
   /**
    * Absent on older runs, on the non-spectral model paths, and when the scene

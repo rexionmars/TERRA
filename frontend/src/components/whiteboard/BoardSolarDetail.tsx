@@ -29,6 +29,7 @@ import {
 import { PlotSwipeView } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import type { BrushRadiusPx, ClassMapCompare, ClassProbeSample } from "@/lib/boardProbe"
+import { FALLBACK_PIXEL_SIZE_M, brushFootprint } from "@/lib/boardProbe"
 import type {
   ClassStat,
   ModelKind,
@@ -311,6 +312,7 @@ function PredictionBody({
   onBrushOnChange,
   brushRadius,
   onBrushRadiusChange,
+  pixelSizeM,
   probe,
   probeIdle,
   compact = false,
@@ -323,6 +325,8 @@ function PredictionBody({
   onBrushOnChange?: (on: boolean) => void
   brushRadius: BrushRadiusPx
   onBrushRadiusChange: (r: BrushRadiusPx) => void
+  /** The run's own grid, so the brush states ground and not texels. */
+  pixelSizeM: number
   probe: ClassProbeSample | null
   probeIdle: boolean
   /** Foot band: land-cover shares live in the sidebar — omit the class list. */
@@ -391,14 +395,19 @@ function PredictionBody({
     >
       <div className="flex items-center justify-between gap-2">
         <p className="eyebrow !text-[9px]">Brush rover</p>
+        {/*
+          Sized in metres, because the question is about ground.
+
+          S, M and L named nothing a reader could act on, and the tooltips
+          behind them were wrong in the same direction: the radius is a disc in
+          texels, dx^2 + dy^2 <= r^2, so radius 2 spans five pixels and covers
+          thirteen -- the tooltip said three. The span in metres comes off the
+          run's own grid, so a run on a grid that is not 10 m says so.
+        */}
         <div className="flex gap-0.5">
-          {(
-            [
-              [0, "S"],
-              [2, "M"],
-              [4, "L"],
-            ] as const
-          ).map(([r, label]) => (
+          {([0, 1, 2, 4] as const).map((r) => {
+            const fp = brushFootprint(r, pixelSizeM)
+            return (
             <button
               key={r}
               type="button"
@@ -411,15 +420,14 @@ function PredictionBody({
               )}
               title={
                 r === 0
-                  ? "Small lens · 1 px sample"
-                  : r === 2
-                    ? "Medium lens · 3 px majority"
-                    : "Large lens · 5 px majority"
+                  ? `One predicted pixel · ${fp.spanM} m · ${fp.areaHa.toFixed(2)} ha`
+                  : `Majority over ${fp.texels} pixels · ${fp.spanM} m across · ${fp.areaHa.toFixed(2)} ha`
               }
             >
-              {label}
+              {fp.spanM} m
             </button>
-          ))}
+            )
+          })}
         </div>
       </div>
       {probe?.entry ? (
@@ -432,13 +440,31 @@ function PredictionBody({
             <p className="truncate text-meta text-foreground">
               {probe.entry.name}
             </p>
+            {/*
+              Two lines, because one was two statements wearing one.
+
+              This read `1234.5 ha · 45.2%`, which is the class's share of the
+              WHOLE AOI, printed directly under a sample covering 0.13 of a
+              hectare -- and it replaced the neighbour count, so at any radius
+              above zero the reader lost the one number that says how firm the
+              sample is. What the brush covered and what the class covers are
+              different quantities and now say which they are.
+            */}
             <p className="telemetry text-[9px] text-muted-foreground">
-              {probeStat
-                ? `${probeStat.area_ha.toFixed(1)} ha · ${probeStat.pct.toFixed(1)}%`
-                : probe.examined > 1
-                  ? `${probe.votes}/${probe.examined} neighbours`
-                  : "under rover"}
+              {(() => {
+                const fp = brushFootprint(brushRadius, pixelSizeM)
+                const here =
+                  probe.examined > 1
+                    ? `${fp.spanM} m · ${probe.votes}/${probe.examined} px agree`
+                    : `${fp.spanM} m · one pixel`
+                return here
+              })()}
             </p>
+            {probeStat && (
+              <p className="telemetry text-[9px] text-muted-foreground">
+                class is {probeStat.pct.toFixed(1)}% of the AOI
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -899,6 +925,7 @@ export function BoardSolarDetail({
   onToggleCollapsed,
   brushRadius = 2,
   onBrushRadiusChange,
+  pixelSizeM = FALLBACK_PIXEL_SIZE_M,
   probe = null,
   probeIdle = true,
   compareSides = null,
@@ -924,6 +951,8 @@ export function BoardSolarDetail({
   onToggleCollapsed?: () => void
   brushRadius?: BrushRadiusPx
   onBrushRadiusChange?: (r: BrushRadiusPx) => void
+  /** Absent on runs saved before the grid was carried; 10 m is assumed then. */
+  pixelSizeM?: number
   probe?: ClassProbeSample | null
   /** True when brush is on but the pointer is not over the plane. */
   probeIdle?: boolean
@@ -967,6 +996,8 @@ export function BoardSolarDetail({
       onBrushOnChange={onBrushOnChange}
       brushRadius={brushRadius}
       onBrushRadiusChange={(r) => onBrushRadiusChange?.(r)}
+      // The run in hand decides the grid, not the caller's default.
+      pixelSizeM={prediction.pixel_size_m || pixelSizeM}
       probe={probe}
       probeIdle={probeIdle}
       compact={placement !== "sidebar"}

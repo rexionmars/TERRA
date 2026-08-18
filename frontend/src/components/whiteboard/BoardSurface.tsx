@@ -2466,10 +2466,24 @@ export function BoardSurface({
   ])
 
   useEffect(() => {
-    // Lens diameter on the plane: S/M/L as fraction of the shorter side.
-    const frac = brushRadius === 0 ? 0.08 : brushRadius === 2 ? 0.14 : 0.22
-    boardRef.current?.setProbeLensScale(frac)
-  }, [brushRadius, groups])
+    /*
+      The lens is the disc that was read, not a decoration near the pointer.
+
+      It used to be a fraction of the plane's shorter side, hand-tuned per
+      radius, which disagreed with the sample by whatever the raster's aspect
+      ratio was and had no case for a radius the list did not yet offer -- so
+      adding the 30 m step drew it at the size of the 90 m one. The span in
+      texels over the raster's shorter side is the same disc the majority is
+      taken over.
+    */
+    const span = 2 * brushRadius + 1
+    const shorter = probeSample
+      ? Math.min(probeSample.mapWidth, probeSample.mapHeight)
+      : 0
+    boardRef.current?.setProbeLensScale(
+      shorter > 0 ? span / shorter : 0.02 * span
+    )
+  }, [brushRadius, groups, probeSample])
 
 
   /*

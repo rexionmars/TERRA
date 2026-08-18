@@ -414,6 +414,7 @@ type sidecarResult struct {
 	ConfidenceFloor   float64               `json:"confidence_floor,omitempty"`
 	NDates            int                   `json:"n_dates"`
 	DateRange         []string              `json:"date_range"`
+	PixelSizeM        float64               `json:"pixel_size_m,omitempty"`
 	ClassStats        []ClassStat           `json:"class_stats"`
 	ClassSpectra      *ClassSpectra         `json:"class_spectra,omitempty"`
 	Temporal          []TemporalPoint       `json:"temporal"`
@@ -468,10 +469,15 @@ type PredictResult struct {
 	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
 	// approaches zero. Without it the figure reads on a 0-100 scale it does
 	// not occupy. Zero when the class count was unavailable.
-	ConfidenceFloor float64     `json:"confidence_floor,omitempty"`
-	NDates          int         `json:"n_dates"`
-	DateRange       []string    `json:"date_range"`
-	ClassStats      []ClassStat `json:"class_stats"`
+	ConfidenceFloor float64  `json:"confidence_floor,omitempty"`
+	NDates          int      `json:"n_dates"`
+	DateRange       []string `json:"date_range"`
+	// The side of one predicted pixel on the ground, in metres, off the grid
+	// the run was made on rather than assumed. Zero on runs saved before it was
+	// carried, where a reader falls back on the 10 m the Sentinel-2 grid gives
+	// and which is what it has been in practice.
+	PixelSizeM float64     `json:"pixel_size_m,omitempty"`
+	ClassStats []ClassStat `json:"class_stats"`
 	// Absent on older runs, on the non-spectral model paths and whenever the
 	// scene behind the classification could not be re-read for its bands.
 	ClassSpectra *ClassSpectra   `json:"class_spectra,omitempty"`

@@ -4882,6 +4882,7 @@ export namespace backend {
 	    confidence_floor?: number;
 	    n_dates: number;
 	    date_range: string[];
+	    pixel_size_m?: number;
 	    class_stats: ClassStat[];
 	    class_spectra?: ClassSpectra;
 	    temporal: TemporalPoint[];
@@ -4917,6 +4918,7 @@ export namespace backend {
 	        this.confidence_floor = source["confidence_floor"];
 	        this.n_dates = source["n_dates"];
 	        this.date_range = source["date_range"];
+	        this.pixel_size_m = source["pixel_size_m"];
 	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
 	        this.class_spectra = this.convertValues(source["class_spectra"], ClassSpectra);
 	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);

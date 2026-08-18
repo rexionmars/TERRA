@@ -346,3 +346,44 @@ def test_class_spectra_is_absent_rather_than_empty_when_nothing_is_classified(
     assert infer.class_spectra(
         [], None, None, np.full((4, 4), 39, dtype=np.int32)
     ) is None
+
+
+class _Transform:
+    """The affine fields infer.py reads, without pulling in rasterio."""
+
+    def __init__(self, a, e, f):
+        self.a, self.e, self.f = a, e, f
+
+
+class _Crs:
+    def __init__(self, geographic):
+        self.is_geographic = geographic
+
+
+def test_reference_pixel_size_reads_a_projected_grid_directly():
+    """
+    A Sentinel-2 COG is in UTM, so the transform is already metres and the
+    pixel side is the transform. This is the case every classification takes.
+    """
+    profile = {
+        "transform": _Transform(a=10.0, e=-10.0, f=7_300_000.0),
+        "crs": _Crs(False),
+        "height": 446,
+    }
+    assert infer.reference_pixel_size_m(profile) == 10.0
+
+
+def test_reference_pixel_size_converts_a_geographic_grid():
+    """
+    And does not treat degrees as metres. Reading 0.0001 degrees as 0.0001 m
+    would report a pixel a tenth of a millimetre across, which is the failure
+    mode of reusing solar.pixel_size_m in the other direction.
+    """
+    profile = {
+        "transform": _Transform(a=1e-4, e=-1e-4, f=0.0),
+        "crs": _Crs(True),
+        "height": 100,
+    }
+    metres = infer.reference_pixel_size_m(profile)
+    # 1e-4 degrees of longitude at the equator, where cos is 1.
+    assert abs(metres - 11.132) < 1e-6
