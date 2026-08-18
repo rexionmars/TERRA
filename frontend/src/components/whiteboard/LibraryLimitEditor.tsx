@@ -43,8 +43,9 @@ import {
   linearScale,
   measureText,
   niceTicks,
+  plotHeightFor,
 } from "@/lib/figure"
-import { useFigureSize } from "@/lib/useFigureSize"
+import { useFigureBox, useFigureWidth } from "@/lib/useFigureSize"
 import { cn } from "@/lib/utils"
 
 /*
@@ -72,7 +73,7 @@ function AngleRanking({
   onFocus: (id: number | null) => void
 }) {
   const host = useRef<HTMLDivElement | null>(null)
-  const size = useFigureSize(host, { width: 640, height: 0 })
+  const width = useFigureWidth(host)
   const max = Math.max(...classes.map((c) => c.angle_rad))
   const ticks = niceTicks(0, max * 1.08, 5)
   /*
@@ -89,11 +90,11 @@ function AngleRanking({
   const height =
     classes.length * RANK_ROW + ROW_PX.label + ROW_PX.title + ROW_PX.gap
   const layout = {
-    width: size.width,
+    width: width,
     height,
     plot: {
       x0: gutter,
-      x1: Math.max(gutter + 1, size.width - 42),
+      x1: Math.max(gutter + 1, width - 42),
       y0: ROW_PX.gap,
       y1: classes.length * RANK_ROW + ROW_PX.gap,
     },
@@ -205,8 +206,15 @@ function BandPanel({
   stroke: string
   mode: "ratio" | "shape"
 }) {
+  /*
+    A box sized by the pane, not by this figure.
+
+    The host is a flex child with min-h-0 and the svg is absolute inside it, so
+    the figure is out of flow and cannot push the container it is measured
+    from. That is what lets the height be read as well as the width.
+  */
   const host = useRef<HTMLDivElement | null>(null)
-  const size = useFigureSize(host, { width: 640, height: 260 })
+  const box = useFigureBox(host)
   const bands = cls.bands
 
   const values =
@@ -219,8 +227,8 @@ function BandPanel({
   const hi = Math.max(...values, ...(other ?? []))
   const ticks = niceTicks(lo, hi * 1.06, 4)
   const layout = layoutFigure({
-    width: size.width,
-    height: size.height,
+    width: box.width,
+    plotHeight: plotHeightFor(box.height),
     yLabels: ticks.map((t) => t.toFixed(2)),
     lastXLabel: bands[bands.length - 1]?.band ?? "",
   })
@@ -228,12 +236,17 @@ function BandPanel({
   const y = linearScale([lo, hi * 1.06], [layout.plot.y1, layout.plot.y0])
 
   return (
-    <div ref={host} className="w-full" style={{ minHeight: 200 }}>
+    <div ref={host} className="relative min-h-0 w-full flex-1" style={{ minHeight: 200 }}>
     <svg
       width={layout.width}
       height={layout.height}
       viewBox={`0 0 ${layout.width} ${layout.height}`}
-      style={{ display: "block", fontFamily: "var(--font-sans)" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "block",
+        fontFamily: "var(--font-sans)",
+      }}
       role="img"
       aria-label={
         mode === "ratio"
@@ -471,9 +484,14 @@ export function LibraryLimitEditor({
             response, which runs saved before that measurement do not have.
           </p>
         ) : (
-          <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex h-full min-w-0 flex-col gap-3">
             {mode === "distance" ? (
-              <div>
+              /*
+                The ranking asks for the height its rows need and does not
+                stretch: twelve classes in a short pane must scroll rather than
+                be squeezed into twelve unreadable rows.
+              */
+              <div className="shrink-0">
                 <AngleRanking
                   classes={limit.classes}
                   colours={colours}
@@ -482,8 +500,14 @@ export function LibraryLimitEditor({
                 />
               </div>
             ) : (
-              <div>
-                <div className="mb-1 flex items-center justify-between gap-2">
+              /*
+                The mechanism pane fills what is left, both ways: the class
+                buttons and the caption take what they need and the figure
+                takes the rest, so a taller pane is a taller plot rather than
+                the same plot with space under it.
+              */
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="mb-1 flex shrink-0 items-center justify-between gap-2">
                   {/*
                     Which class, chosen here rather than in the header: the
                     header names the pane, and the class is the pane's subject
@@ -538,7 +562,7 @@ export function LibraryLimitEditor({
                   argument behind it is under the info button, where it is read
                   once rather than costing four lines of height on every look.
                 */}
-                <p className="telemetry text-meta text-muted-foreground">
+                <p className="telemetry shrink-0 text-meta text-muted-foreground">
                   {band === "ratio"
                     ? `${shown.name} · ${shown.angle_rad.toFixed(3)} rad from the reference`
                     : "solid: class · dashed: reference · both at unit length"}

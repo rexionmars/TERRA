@@ -204,9 +204,22 @@ export function measureText(text: string, fontPx: number, family?: string): numb
 }
 
 export interface FigureRequest {
-  /** The panel's inner width and height, in CSS pixels. */
+  /** The panel's inner width, in CSS pixels. */
   width: number
-  height: number
+  /**
+   * How tall the PLOT should be. The figure's total height is this plus the
+   * margins, which is why it is the plot and not the figure. Use
+   * `plotHeightFor` to turn a measured box height into this.
+   *
+   * A FIGURE MUST NOT BE GIVEN THE HEIGHT OF THE BOX IT SITS IN. The first
+   * version took both dimensions from a ResizeObserver on the element the
+   * figure fills, so the height it produced became the height that was next
+   * measured -- a loop with nothing damping it, and the spectral figure grew
+   * without bound. Height is derived from width here, so the same width always
+   * gives the same figure and there is no path back from the output to the
+   * input.
+   */
+  plotHeight?: number
   /** Every y tick label that will be drawn, so the gutter can hold the widest. */
   yLabels: string[]
   /** Rows of x tick labels, after any staggering. */
@@ -240,13 +253,24 @@ const ROW = { label: 14, title: 16, tick: 4, gap: 4 }
 export function layoutFigure(request: FigureRequest): FigureLayout {
   const {
     width,
-    height,
     yLabels,
     xLabelRows = 1,
     legendRows = 0,
     xTitle = true,
     yTitle = true,
     lastXLabel = "",
+    /*
+      Given by a caller that has a box of its own, derived from the width by a
+      caller that does not.
+
+      The fallback ratio is what a plot of a spectrum wants -- wide enough for
+      seven samples over 1900 nm, tall enough to separate five curves -- with
+      clamps so a very wide panel does not produce a figure taller than the
+      panel. A caller passing this in has measured a box the figure cannot
+      itself resize; see useFigureBox for why that distinction is the whole
+      difference between responsive and runaway.
+    */
+    plotHeight = Math.max(150, Math.min(340, Math.round(width * 0.44))),
   } = request
 
   const widestY = yLabels.reduce(
@@ -264,6 +288,7 @@ export function layoutFigure(request: FigureRequest): FigureLayout {
     (xTitle ? ROW.title : 0) +
     (legendRows > 0 ? ROW.gap + legendRows * ROW.label : 0)
 
+  const height = top + plotHeight + bottom
   return {
     width,
     height,
@@ -271,7 +296,7 @@ export function layoutFigure(request: FigureRequest): FigureLayout {
       x0: left,
       x1: Math.max(left + 1, width - right),
       y0: top,
-      y1: Math.max(top + 1, height - bottom),
+      y1: top + plotHeight,
     },
     legendTop: height - legendRows * ROW.label,
   }
@@ -279,3 +304,26 @@ export function layoutFigure(request: FigureRequest): FigureLayout {
 
 /** The row height a legend and an axis label occupy, for callers placing them. */
 export const ROW_PX = ROW
+
+/**
+ * The plot height that fills a box of this height, given what the margins will
+ * take.
+ *
+ * Floored rather than allowed to collapse: below about 150 px five curves and
+ * five tick labels stop being separable, and a figure drawn in 40 px is worse
+ * than one that overflows a short panel and scrolls -- which is the trade the
+ * studio already makes for an area under its editor's floor.
+ */
+export function plotHeightFor(
+  boxHeight: number,
+  { xLabelRows = 1, legendRows = 0, xTitle = true } = {}
+): number {
+  const chrome =
+    ROW.gap +
+    TYPE.meta / 2 +
+    ROW.tick +
+    xLabelRows * ROW.label +
+    (xTitle ? ROW.title : 0) +
+    (legendRows > 0 ? ROW.gap + legendRows * ROW.label : 0)
+  return Math.max(150, Math.round(boxHeight - chrome))
+}

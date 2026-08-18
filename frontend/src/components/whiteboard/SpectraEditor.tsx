@@ -29,12 +29,13 @@ import {
   STROKE,
   TYPE,
   layoutFigure,
+  plotHeightFor,
   linearScale,
   measureText,
   niceTicks,
   staggerRows,
 } from "@/lib/figure"
-import { useFigureSize } from "@/lib/useFigureSize"
+import { useFigureBox } from "@/lib/useFigureSize"
 import { cn } from "@/lib/utils"
 
 interface Series {
@@ -114,7 +115,7 @@ export function SpectraEditor({
     rows the band labels and the legend need, and the plot is what is left.
   */
   const host = useRef<HTMLDivElement | null>(null)
-  const size = useFigureSize(host)
+  const box = useFigureBox(host)
 
   const figure = useMemo(() => {
     const ground = chartGround(theme)
@@ -160,8 +161,7 @@ export function SpectraEditor({
       the count, the second against the plot the layout then produced.
     */
     const probe = layoutFigure({
-      width: size.width,
-      height: size.height,
+      width: box.width,
       yLabels,
       lastXLabel: bands[bands.length - 1]?.band ?? "",
     })
@@ -182,8 +182,11 @@ export function SpectraEditor({
       ) + 1
 
     const layout = layoutFigure({
-      width: size.width,
-      height: size.height,
+      width: box.width,
+      plotHeight: plotHeightFor(box.height, {
+        xLabelRows: labelRows,
+        legendRows,
+      }),
       yLabels,
       xLabelRows: labelRows,
       legendRows,
@@ -230,7 +233,7 @@ export function SpectraEditor({
       }),
       minPixels: Math.min(...points.map((p) => p.n_pixels)),
     }
-  }, [spectra, theme, size.width, size.height])
+  }, [spectra, theme, box.width, box.height])
 
   if (!runs.length) {
     return (
@@ -297,16 +300,28 @@ export function SpectraEditor({
           </p>
         ) : (
           /*
-            The figure does not scale below its reference width; the area
-            scrolls instead. Fitting it to a narrower panel is what puts a 5 px
-            glyph on screen, and this studio already refuses that trade.
+            A column: the figure takes what is left after the readout and the
+            caption, and its own box is a flex child holding an absolutely
+            positioned svg -- out of flow, so the figure cannot push the box it
+            is measured from. Below 240 px the column overflows and the panel
+            scrolls, rather than drawing five curves in forty pixels.
           */
-          <div ref={host} className="w-full" style={{ minHeight: 220 }}>
+          <div className="flex h-full min-h-0 flex-col gap-2">
+          <div
+            ref={host}
+            className="relative min-h-0 w-full flex-1"
+            style={{ minHeight: 240 }}
+          >
             <svg
               width={figure.layout.width}
               height={figure.layout.height}
               viewBox={`0 0 ${figure.layout.width} ${figure.layout.height}`}
-              style={{ display: "block", fontFamily: "var(--font-sans)" }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "block",
+                fontFamily: "var(--font-sans)",
+              }}
               role="img"
               aria-label={`Mean surface reflectance per band for ${figure.series.length} predicted classes on ${spectra.scene_date}`}
             >
@@ -539,6 +554,7 @@ export function SpectraEditor({
                 />
               ))}
             </svg>
+            </div>
 
             {/*
               A readout, not a tooltip. It sits in one place and occludes
@@ -547,7 +563,7 @@ export function SpectraEditor({
               the reader is reading it.
             */}
             <div
-              className="mt-1 rounded-sm border p-1.5"
+              className="shrink-0 rounded-sm border p-1.5"
               style={{ borderColor: "rgb(var(--p-line) / 0.22)", minHeight: 58 }}
             >
               {hovered ? (
@@ -592,7 +608,7 @@ export function SpectraEditor({
               it was assigned to, and the spectrum cannot be read as evidence
               that the assignment was right.
             */}
-            <p className="mt-2 text-meta text-muted-foreground">
+            <p className="shrink-0 text-meta text-muted-foreground">
               Class means over predicted pixels, so this describes what the
               classifier grouped together rather than whether the grouping is
               correct. Smallest class n = {figure.minPixels.toLocaleString()}{" "}
