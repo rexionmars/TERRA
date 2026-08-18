@@ -98,7 +98,7 @@ function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="flex h-full items-center justify-center p-4 text-center text-[11px]"
-      style={{ color: "var(--p-text-muted)" }}
+      style={{ color: "var(--muted-foreground)" }}
     >
       <span className="max-w-[26rem] leading-relaxed">{children}</span>
     </div>
@@ -241,8 +241,8 @@ function StandPanel() {
         <div
           className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded px-2 py-1 text-[11px]"
           style={{
-            background: "var(--p-surface-raised)",
-            color: "var(--p-text-muted)",
+            background: "rgb(var(--p-surface-raised))",
+            color: "var(--muted-foreground)",
           }}
         >
           <Loader2 className="h-3 w-3 animate-spin" />
@@ -252,11 +252,11 @@ function StandPanel() {
       {error ? (
         <div
           className="absolute inset-x-3 bottom-3 flex items-start gap-2 rounded px-2 py-1.5 text-[11px]"
-          style={{ background: "var(--p-surface-raised)", color: "var(--p-text)" }}
+          style={{ background: "rgb(var(--p-surface-raised))", color: "var(--foreground)" }}
         >
           <AlertTriangle
             className="mt-px h-3 w-3 shrink-0"
-            style={{ color: "var(--p-warning)" }}
+            style={{ color: "var(--warning)" }}
           />
           <span className="leading-snug">{error}</span>
         </div>
