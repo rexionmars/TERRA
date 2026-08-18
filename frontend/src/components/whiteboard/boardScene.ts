@@ -753,8 +753,13 @@ export function createBoard(
     reference grid, so the UV under the pointer is the same ground on all of
     them.
 
-    A ring only: no crosshair and no dimming. Those say "the pointer is here",
-    and the pointer is not here -- this says "and here is the same place".
+    The same treatment as the plane being read: the ring, and everything
+    outside it dimmed. A ring alone was the first attempt and it is lost on a
+    true-colour raster, which is busy exactly where a field boundary is -- the
+    mark has to remove the surroundings, not just outline the spot.
+
+    No crosshair, though. That one says "the pointer is here", and the pointer
+    is not here; this says "and here is the same place".
 
     Pooled rather than created per move. A group can carry six planes and the
     pointer moves on every frame; allocating a ring per frame is how a probe
@@ -769,21 +774,42 @@ export function createBoard(
     depthTest: false,
     depthWrite: false,
   })
-  const echoPool: Mesh[] = []
-  const echoesInUse: Mesh[] = []
 
-  const takeEcho = (): Mesh => {
+  interface Echo {
+    ring: Mesh
+    dim: Mesh
+    material: ShaderMaterial
+  }
+  const echoPool: Echo[] = []
+  const echoesInUse: Echo[] = []
+
+  const takeEcho = (): Echo => {
     const spare = echoPool.pop()
     if (spare) return spare
-    const mesh = new Mesh(echoGeometry, echoMaterial)
-    mesh.renderOrder = 10_000
-    return mesh
+    /*
+      One material per echo, because only the texture differs.
+
+      The hole is at the same UV and the same radius on every plane -- they are
+      matched on being the same size, which is what makes the mark meaningful --
+      so every uniform but uMap is shared. three caches the compiled program by
+      shader source, so the clones cost uniforms and not a compile each.
+    */
+    const material = probeDimMaterial.clone()
+    const dim = new Mesh(probeDimGeometry, material)
+    const ring = new Mesh(echoGeometry, echoMaterial)
+    ring.renderOrder = 10_000
+    return { ring, dim, material }
   }
 
   const releaseEchoes = () => {
     for (const echo of echoesInUse) {
-      echo.parent?.remove(echo)
-      echo.visible = false
+      echo.ring.parent?.remove(echo.ring)
+      echo.dim.parent?.remove(echo.dim)
+      echo.ring.visible = false
+      echo.dim.visible = false
+      // The texture is the host plane's, not this echo's, so it is dropped
+      // rather than left holding a plane that may be removed from the board.
+      echo.material.uniforms.uMap.value = null
       echoPool.push(echo)
     }
     echoesInUse.length = 0
@@ -854,10 +880,24 @@ export function createBoard(
         const oh = (other.userData.planeHeight as number) || 0
         if (Math.abs(ow - w) > 1e-3 || Math.abs(oh - h) > 1e-3) continue
         const echo = takeEcho()
-        other.add(echo)
-        echo.position.set((u - 0.5) * ow, (v - 0.5) * oh, 0.012)
-        echo.scale.setScalar(r)
-        echo.visible = true
+        const otherMap =
+          (other.material as MeshBasicMaterial | undefined)?.map ?? null
+
+        other.add(echo.dim)
+        echo.dim.scale.set(ow, oh, 1)
+        echo.dim.position.set(0, 0, 0.011)
+        echo.dim.renderOrder = other.renderOrder + 0.5
+        echo.material.uniforms.uCentre.value.set(u, v)
+        echo.material.uniforms.uSize.value.set(ow, oh)
+        echo.material.uniforms.uRadius.value = r
+        echo.material.uniforms.uMap.value = otherMap
+        echo.material.uniforms.uHasMap.value = otherMap ? 1 : 0
+        echo.dim.visible = true
+
+        other.add(echo.ring)
+        echo.ring.position.set((u - 0.5) * ow, (v - 0.5) * oh, 0.012)
+        echo.ring.scale.setScalar(r)
+        echo.ring.visible = true
         echoesInUse.push(echo)
       }
     }
@@ -2230,7 +2270,16 @@ export function createBoard(
     },
     dispose() {
       disposed = true
+      // Returns every echo to the pool first, so the loop below sees them all.
       hideProbeLens()
+      /*
+        The echo materials are clones made on demand, so they are not in
+        `disposables` -- that list is built when the scene is, and these do not
+        exist yet. One per plane the rover has ever crossed in one area, held
+        for the life of the scene and freed here.
+      */
+      for (const echo of echoPool) echo.material.dispose()
+      echoPool.length = 0
       if (raf) cancelAnimationFrame(raf)
       observer.disconnect()
       controls.removeEventListener("change", render)
