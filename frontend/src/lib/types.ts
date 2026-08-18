@@ -59,6 +59,36 @@ export interface ClassStat {
   area_ha: number
 }
 
+/** One band, for one predicted class, on one acquisition. */
+export interface ClassSpectrumPoint {
+  class_id: number
+  name: string
+  color: string
+  band: string
+  wavelength_nm: number
+  n_pixels: number
+  mean: number
+  sd: number
+  p05: number
+  p95: number
+}
+
+/**
+ * The measured spectral response per predicted class.
+ *
+ * `scene_date` is not provenance trim. The classification spans the period and
+ * the reflectance is one acquisition, so a reader who takes the curve for a
+ * seasonal mean is reading something this payload does not contain.
+ */
+export interface ClassSpectra {
+  scene_date: string
+  scene_id?: string
+  n_scenes: number
+  convention: string
+  bands: string[]
+  points: ClassSpectrumPoint[]
+}
+
 export interface TemporalPoint {
   date: string
   n_dates_stack: number
@@ -273,6 +303,11 @@ export interface PredictResult {
   // one of them blanked the whole application.
   date_range: string[] | null
   class_stats: ClassStat[] | null
+  /**
+   * Absent on older runs, on the non-spectral model paths, and when the scene
+   * behind the classification could not be re-read for its bands.
+   */
+  class_spectra?: ClassSpectra | null
   temporal: TemporalPoint[] | null
   vi_series: VISeriesPoint[] | null
   phenology: PhenologyMetrics

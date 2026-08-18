@@ -877,6 +877,77 @@ export namespace backend {
 	
 	
 	
+	export class ClassSpectrumPoint {
+	    class_id: number;
+	    name: string;
+	    color: string;
+	    band: string;
+	    wavelength_nm: number;
+	    n_pixels: number;
+	    mean: number;
+	    sd: number;
+	    p05: number;
+	    p95: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ClassSpectrumPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class_id = source["class_id"];
+	        this.name = source["name"];
+	        this.color = source["color"];
+	        this.band = source["band"];
+	        this.wavelength_nm = source["wavelength_nm"];
+	        this.n_pixels = source["n_pixels"];
+	        this.mean = source["mean"];
+	        this.sd = source["sd"];
+	        this.p05 = source["p05"];
+	        this.p95 = source["p95"];
+	    }
+	}
+	export class ClassSpectra {
+	    scene_date: string;
+	    scene_id?: string;
+	    n_scenes: number;
+	    convention: string;
+	    bands: string[];
+	    points: ClassSpectrumPoint[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ClassSpectra(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scene_date = source["scene_date"];
+	        this.scene_id = source["scene_id"];
+	        this.n_scenes = source["n_scenes"];
+	        this.convention = source["convention"];
+	        this.bands = source["bands"];
+	        this.points = this.convertValues(source["points"], ClassSpectrumPoint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	export class CompositeRequest {
 	    area_id: string;
@@ -4812,6 +4883,7 @@ export namespace backend {
 	    n_dates: number;
 	    date_range: string[];
 	    class_stats: ClassStat[];
+	    class_spectra?: ClassSpectra;
 	    temporal: TemporalPoint[];
 	    vi_series: VISeriesPoint[];
 	    vi_series_crop?: VISeriesPoint[];
@@ -4846,6 +4918,7 @@ export namespace backend {
 	        this.n_dates = source["n_dates"];
 	        this.date_range = source["date_range"];
 	        this.class_stats = this.convertValues(source["class_stats"], ClassStat);
+	        this.class_spectra = this.convertValues(source["class_spectra"], ClassSpectra);
 	        this.temporal = this.convertValues(source["temporal"], TemporalPoint);
 	        this.vi_series = this.convertValues(source["vi_series"], VISeriesPoint);
 	        this.vi_series_crop = this.convertValues(source["vi_series_crop"], VISeriesPoint);

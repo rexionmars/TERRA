@@ -95,6 +95,42 @@ type ClassStat struct {
 	AreaHa  float64 `json:"area_ha"`
 }
 
+// ClassSpectrumPoint is one band, for one predicted class, on one acquisition.
+type ClassSpectrumPoint struct {
+	ClassID      int     `json:"class_id"`
+	Name         string  `json:"name"`
+	Color        string  `json:"color"`
+	Band         string  `json:"band"`
+	WavelengthNM float64 `json:"wavelength_nm"`
+	NPixels      int     `json:"n_pixels"`
+	Mean         float64 `json:"mean"`
+	SD           float64 `json:"sd"`
+	P05          float64 `json:"p05"`
+	P95          float64 `json:"p95"`
+}
+
+// ClassSpectra is the measured spectral response per predicted class.
+//
+// It answers the question the domain-shift diagnostics leave open: those report
+// that a distribution moved, this reports which band moved and in which
+// direction.
+//
+// SceneDate is load-bearing rather than provenance trim. The classification
+// spans the whole period; the reflectance is one acquisition, because averaging
+// seven bands across a season describes no date. A reader who takes the curve
+// for a seasonal mean is reading something the payload does not contain.
+//
+// Convention names the reflectance convention in words, because this run also
+// reports quantities the model consumed under the other one.
+type ClassSpectra struct {
+	SceneDate  string               `json:"scene_date"`
+	SceneID    string               `json:"scene_id,omitempty"`
+	NScenes    int                  `json:"n_scenes"`
+	Convention string               `json:"convention"`
+	Bands      []string             `json:"bands"`
+	Points     []ClassSpectrumPoint `json:"points"`
+}
+
 // TemporalPoint is one cumulative-stack step from temporal mode.
 type TemporalPoint struct {
 	Date             string   `json:"date"`
@@ -379,6 +415,7 @@ type sidecarResult struct {
 	NDates            int                   `json:"n_dates"`
 	DateRange         []string              `json:"date_range"`
 	ClassStats        []ClassStat           `json:"class_stats"`
+	ClassSpectra      *ClassSpectra         `json:"class_spectra,omitempty"`
 	Temporal          []TemporalPoint       `json:"temporal"`
 	VISeries          []VISeriesPoint       `json:"vi_series"`
 	VISeriesCrop      []VISeriesPoint       `json:"vi_series_crop"`
@@ -431,12 +468,15 @@ type PredictResult struct {
 	// max(predict_proba), so with K classes it lives on [1/K, 1] and never
 	// approaches zero. Without it the figure reads on a 0-100 scale it does
 	// not occupy. Zero when the class count was unavailable.
-	ConfidenceFloor float64         `json:"confidence_floor,omitempty"`
-	NDates          int             `json:"n_dates"`
-	DateRange       []string        `json:"date_range"`
-	ClassStats      []ClassStat     `json:"class_stats"`
-	Temporal        []TemporalPoint `json:"temporal"`
-	VISeries        []VISeriesPoint `json:"vi_series"`
+	ConfidenceFloor float64     `json:"confidence_floor,omitempty"`
+	NDates          int         `json:"n_dates"`
+	DateRange       []string    `json:"date_range"`
+	ClassStats      []ClassStat `json:"class_stats"`
+	// Absent on older runs, on the non-spectral model paths and whenever the
+	// scene behind the classification could not be re-read for its bands.
+	ClassSpectra *ClassSpectra   `json:"class_spectra,omitempty"`
+	Temporal     []TemporalPoint `json:"temporal"`
+	VISeries     []VISeriesPoint `json:"vi_series"`
 	// The same dates averaged over CROP PIXELS ONLY, alongside the AOI-wide
 	// series rather than replacing it: the series above is what every export
 	// and figure already carries, and narrowing it in place would move numbers

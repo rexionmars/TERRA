@@ -506,6 +506,7 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		NDates:            sres.NDates,
 		DateRange:         sres.DateRange,
 		ClassStats:        sres.ClassStats,
+		ClassSpectra:      sres.ClassSpectra,
 		Temporal:          sres.Temporal,
 		VISeries:          sres.VISeries,
 		VISeriesCrop:      sres.VISeriesCrop,
