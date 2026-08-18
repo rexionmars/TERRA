@@ -18,6 +18,7 @@
 import type { LucideIcon } from "lucide-react"
 import {
   Box,
+  ChartSpline,
   GitCompareArrows,
   ListTree,
   PanelBottom,
@@ -34,6 +35,7 @@ export type EditorId =
   | "properties"
   | "compare"
   | "domainShift"
+  | "spectra"
   | "table"
   | "runParams"
   | "canopy"
@@ -129,6 +131,21 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 28,
     minRowRem: 14,
     hint: "How far the target domain sits from the one the model was fitted on",
+  },
+  {
+    id: "spectra",
+    label: "Spectral response",
+    icon: ChartSpline,
+    /*
+      The same floor the domain-shift editor sets, for the same reason and over
+      related content: this is the other half of that diagnostic. Seven ticks
+      across the axis, and the two SWIR bands sit in the last third of it --
+      narrower than this the band labels collide and the reader loses which
+      sample is which, which is the whole content of the figure.
+    */
+    minRem: 24,
+    minRowRem: 14,
+    hint: "What each predicted class reflects, band by band, on one acquisition",
   },
   {
     id: "table",
