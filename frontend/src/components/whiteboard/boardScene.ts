@@ -52,6 +52,7 @@ import {
   Raycaster,
   RingGeometry,
   Scene,
+  ShaderMaterial,
   Sphere,
   SRGBColorSpace,
   TextureLoader,
@@ -239,6 +240,19 @@ export interface BoardHandle {
    * Independent of the class-majority pixel radius the React side uses.
    */
   setProbeLensScale: (fraction: number) => void
+  /**
+   * Put the camera on one plane, filling the viewport with it.
+   *
+   * Separate from the entry framing, which fits the whole stack: a reader who
+   * has just asked for one plane wants that plane, and the stack's own sphere
+   * is as much larger than it as the board is deep. The direction the camera
+   * comes from is kept, so the gesture is a zoom rather than a jump to a view
+   * the reader did not choose.
+   *
+   * Returns false when the plane is not on the board, so the caller can say so
+   * rather than appearing to do nothing.
+   */
+  focusPlane: (groupId: string, layerId: string) => boolean
   /** Release the GL context and every resource attached to it. */
   dispose: () => void
 }
@@ -661,9 +675,62 @@ export function createBoard(
   )
   probeLens.add(probeDisc, probeRing, probeCross)
 
+  /*
+    Everything the rover is NOT reading, dimmed.
+
+    A ring of dark geometry cannot do this: a ring has no outer edge that
+    follows the plane, so it would darken the space around the raster and the
+    neighbouring areas with it. A quad the size of the plane, with the hole cut
+    per fragment, is bounded by the plane by construction.
+
+    Distances are taken in the plane's own units rather than in UV, so the hole
+    is a circle on a raster of any aspect ratio -- in UV it would be an ellipse
+    wherever the raster is not square, which every AOI here is not.
+  */
+  const probeDimGeometry = new PlaneGeometry(1, 1)
+  const probeDimMaterial = new ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    side: DoubleSide,
+    uniforms: {
+      uCentre: { value: new Vector2(0.5, 0.5) },
+      uSize: { value: new Vector2(1, 1) },
+      uRadius: { value: 0.1 },
+      uOpacity: { value: 0.55 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec2 uCentre;
+      uniform vec2 uSize;
+      uniform float uRadius;
+      uniform float uOpacity;
+      varying vec2 vUv;
+      void main() {
+        float d = length((vUv - uCentre) * uSize);
+        // A soft edge over a fifth of the radius, so the boundary of the lens
+        // is not read as a feature of the raster.
+        float outside = smoothstep(uRadius, uRadius * 1.2, d);
+        gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity * outside);
+      }
+    `,
+  })
+  const probeDim = new Mesh(probeDimGeometry, probeDimMaterial)
+  probeDim.visible = false
+  // Under the lens, over the raster.
+  probeDim.renderOrder = 9_999
+
   const hideProbeLens = () => {
     if (probeLens.parent) probeLens.parent.remove(probeLens)
     probeLens.visible = false
+    if (probeDim.parent) probeDim.parent.remove(probeDim)
+    probeDim.visible = false
   }
 
   const placeProbeLens = (mesh: Mesh, u: number, v: number) => {
@@ -678,6 +745,17 @@ export function createBoard(
     probeLens.position.set((u - 0.5) * w, (v - 0.5) * h, 0.012)
     probeLens.scale.setScalar(r)
     probeLens.visible = true
+
+    if (probeDim.parent !== mesh) {
+      probeDim.parent?.remove(probeDim)
+      mesh.add(probeDim)
+    }
+    probeDim.scale.set(w, h, 1)
+    probeDim.position.set(0, 0, 0.011)
+    probeDimMaterial.uniforms.uCentre.value.set(u, v)
+    probeDimMaterial.uniforms.uSize.value.set(w, h)
+    probeDimMaterial.uniforms.uRadius.value = r
+    probeDim.visible = true
   }
 
   const emitProbe = (
@@ -1145,7 +1223,9 @@ export function createBoard(
     probeDisc.geometry,
     probeDisc.material as MeshBasicMaterial,
     crossGeo,
-    probeCross.material as LineBasicMaterial
+    probeCross.material as LineBasicMaterial,
+    probeDimGeometry,
+    probeDimMaterial
   )
   let raf = 0
   let disposed = false
@@ -1918,6 +1998,50 @@ export function createBoard(
         emitProbe(null)
         render()
       }
+    },
+    focusPlane(groupId, layerId) {
+      const rt = runtimes.find((r) => r.id === groupId)
+      const index = rt?.indexById.get(layerId)
+      const mesh = index === undefined ? null : (rt?.meshes[index] ?? null)
+      if (!mesh) return false
+
+      /*
+        The plane's bounding SPHERE, as the entry framing uses for the stack,
+        and for the same reason: a rectangle's projected size changes as it
+        turns, so fitting the rectangle would either crop when the board is
+        orbited or leave a margin that grows with the angle.
+      */
+      const box = new Box3().setFromObject(mesh)
+      const sphere = box.getBoundingSphere(new Sphere())
+      if (!(sphere.radius > 0)) return false
+
+      const vFov = (FOV * Math.PI) / 180
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect)
+      const distance =
+        (sphere.radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.12
+
+      // The direction the reader is already looking from, kept.
+      const direction = camera.position
+        .clone()
+        .sub(controls.target)
+        .normalize()
+      if (!Number.isFinite(direction.lengthSq()) || direction.lengthSq() === 0) {
+        direction.set(0, 1, 1).normalize()
+      }
+      controls.target.copy(sphere.center)
+      camera.position.copy(sphere.center).addScaledVector(direction, distance)
+      /*
+        The clamps come from the stack and would fight a plane smaller than it:
+        minDistance was set from the stack's radius, which can exceed the
+        distance one plane needs, and the controls would push the camera back
+        out on the next update.
+      */
+      controls.minDistance = Math.min(controls.minDistance, distance * 0.35)
+      controls.maxDistance = Math.max(controls.maxDistance, distance * 1.5)
+      controls.update()
+      updateFog()
+      render()
+      return true
     },
     setProbeLensScale(fraction) {
       const next = Math.min(0.35, Math.max(0.05, fraction))

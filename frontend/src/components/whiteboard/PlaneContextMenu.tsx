@@ -22,7 +22,14 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { AlignVerticalJustifyEnd, Eye, EyeOff, Trash2 } from "lucide-react"
+import {
+  AlignVerticalJustifyEnd,
+  Eye,
+  EyeOff,
+  Layers,
+  Maximize,
+  Trash2,
+} from "lucide-react"
 import { StudioMenuItem, StudioMenuRule } from "@/components/whiteboard/StudioPopover"
 
 export interface PlaneContextTarget {
@@ -36,6 +43,14 @@ export interface PlaneContextTarget {
   isBase: boolean
   flat: boolean
   removable: boolean
+  /**
+   * Whether every other plane on the board is already hidden.
+   *
+   * Solo is a toggle rather than a one-way action: hiding eleven planes to
+   * look at one, and then restoring them by hand, is eleven gestures to undo
+   * one. The label says which way the entry goes.
+   */
+  soloed: boolean
 }
 
 export function PlaneContextMenu({
@@ -44,6 +59,8 @@ export function PlaneContextMenu({
   onClose,
   onToggleFlat,
   onToggleVisible,
+  onSolo,
+  onFit,
   onRemove,
 }: {
   target: PlaneContextTarget | null
@@ -52,6 +69,10 @@ export function PlaneContextMenu({
   onClose: () => void
   onToggleFlat: () => void
   onToggleVisible: () => void
+  /** Hide every other plane on the board, or bring them all back. */
+  onSolo: () => void
+  /** Put the camera on this plane. */
+  onFit: () => void
   onRemove: () => void
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -143,6 +164,37 @@ export function PlaneContextMenu({
         label={target.visible ? "Hide this plane" : "Show this plane"}
         onSelect={() => {
           onToggleVisible()
+          onClose()
+        }}
+      />
+      {/*
+        Solo, which the outliner can only do a row at a time. A board of four
+        areas carries a dozen planes, and reading one against the ground meant
+        eleven presses in a tree.
+      */}
+      <StudioMenuItem
+        icon={Layers}
+        label={target.soloed ? "Show every plane" : "Hide every other plane"}
+        title={
+          target.soloed
+            ? "Bring the rest of the board back"
+            : "Leave this one visible and hide the rest"
+        }
+        onSelect={() => {
+          onSolo()
+          onClose()
+        }}
+      />
+      {/*
+        Zoom to fit, on the plane rather than on the stack. The viewport header
+        frames everything; this frames what the reader pointed at, from the
+        direction they are already looking.
+      */}
+      <StudioMenuItem
+        icon={Maximize}
+        label="Zoom to fit this plane"
+        onSelect={() => {
+          onFit()
           onClose()
         }}
       />

@@ -318,6 +318,29 @@ function useKept<T>(
   return [value, setValue] as const
 }
 
+/**
+ * Whether this plane is the only visible one on the whole board.
+ *
+ * ONE definition, read by the menu's label and by the action behind it. Two
+ * copies of this rule is how an entry comes to say "Show every plane" and then
+ * hide them, which is the class of defect this file has already had with a
+ * palette and with a set of table columns.
+ */
+function isSoloed(
+  areas: ReadonlyArray<{
+    id: string
+    layers: ReadonlyArray<{ id: string; visible: boolean }>
+  }>,
+  areaId: string,
+  layerId: string
+): boolean {
+  return areas.every((a) =>
+    a.layers.every(
+      (l) => (a.id === areaId && l.id === layerId) || !l.visible
+    )
+  )
+}
+
 export function BoardSurface({
   layers,
   retainedRuns = [],
@@ -1450,6 +1473,30 @@ export function BoardSurface({
     onLayerChange(id, patch)
   }
 
+  /**
+   * Leave one plane visible, or bring the whole board back.
+   *
+   * A toggle rather than a one-way action. Hiding eleven planes to read one,
+   * then restoring them by hand, is eleven gestures to undo one -- and the
+   * outliner can only do this a row at a time, which is where the reader was
+   * doing it before.
+   *
+   * Restoring shows everything rather than what was visible before. Keeping a
+   * memory of the previous state would be right if solo were the only thing
+   * that changed visibility, and it is not: the outliner's eyes, the run's own
+   * switches and this menu all write the same flags, so a remembered set would
+   * be stale in every case but the one where nothing else was touched.
+   */
+  const soloLayer = (areaId: string, id: string) => {
+    const soloed = isSoloed(areas, areaId, id)
+    for (const a of areas) {
+      for (const l of a.layers) {
+        const keep = soloed || (a.id === areaId && l.id === id)
+        if (l.visible !== keep) changeLayer(a.id, l.id, { visible: keep })
+      }
+    }
+  }
+
   const addToScene = (areaId: string, id: string) => {
     // Putting a raster on a dismissed area is the reader asking for it back.
     setDismissedAreas((prev) => prev.filter((a) => a !== areaId))
@@ -2342,6 +2389,10 @@ export function BoardSurface({
             isBase: a.layers.findIndex((x) => x.id === id) === 0,
             flat: flatRef.current.has(sceneKey(groupId, id)),
             removable: true,
+            // Read at open time, so the entry names the direction it will go.
+            // The same predicate the action uses: two copies of this rule
+            // would let the label say one thing and the press do the other.
+            soloed: isSoloed(areasRef.current, groupId, id),
           })
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
@@ -3818,6 +3869,11 @@ export function BoardSurface({
           changeLayer(planeMenu.areaId, planeMenu.layerId, {
             visible: !planeMenu.visible,
           })
+        }
+        onSolo={() => planeMenu && soloLayer(planeMenu.areaId, planeMenu.layerId)}
+        onFit={() =>
+          planeMenu &&
+          boardRef.current?.focusPlane(planeMenu.areaId, planeMenu.layerId)
         }
         onRemove={() =>
           planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)
