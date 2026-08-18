@@ -18,23 +18,23 @@
  * CHOOSER, NOT A SECOND SOURCE. Which run is read follows `StudioTables`: the
  * runs behind the selected planes, in selection order, deduplicated by area.
  */
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useTheme } from "next-themes"
 
 import type { ClassSpectrumPoint, PredictResult } from "@/lib/types"
 import type { ThemeName } from "@/lib/contrast"
 import { chartGround, legibleOn, seriesDash } from "@/lib/seriesColor"
 import {
-  FIGURE,
-  LEGEND,
-  PLOT,
+  ROW_PX,
   STROKE,
   TYPE,
-  figureStyle,
+  layoutFigure,
   linearScale,
+  measureText,
   niceTicks,
   staggerRows,
 } from "@/lib/figure"
+import { useFigureSize } from "@/lib/useFigureSize"
 import { cn } from "@/lib/utils"
 
 interface Series {
@@ -47,28 +47,40 @@ interface Series {
   legend: { x: number; row: number }
 }
 
+const LEGEND_SAMPLE = 16
+const LEGEND_GAP = 5
+const LEGEND_PAD = 16
+
+/** What one legend entry occupies, measured rather than counted in glyphs. */
+function legendEntryWidth(name: string): number {
+  return (
+    LEGEND_SAMPLE + LEGEND_GAP + measureText(name, TYPE.meta) + LEGEND_PAD
+  )
+}
+
 /**
- * The legend's rows, packed left to right under the plot.
+ * The legend's rows, packed left to right into the width there is.
  *
- * The width of an entry is estimated from its glyph count rather than measured.
- * Measuring means laying the text out and reading it back, a second pass over
- * the DOM for a number that only has to be close enough to decide where a row
- * breaks; estimating high breaks a row early, which costs a row and nothing
- * else.
+ * Called twice per layout, which is the price of a chicken and egg: the number
+ * of rows decides how much height the plot gives up, and the width the rows
+ * pack into is the plot's. The first call runs against the full panel width to
+ * learn the row count, the second against the plot the layout then produced.
+ * Two passes over five short strings is nothing, and it is what removes the
+ * hand-set legend well entirely.
  */
-function layOutLegend(names: string[]): { x: number; row: number }[] {
-  const SAMPLE = 16
-  const GAP = 5
-  const PAD = 16
-  const width = (n: string) => SAMPLE + GAP + n.length * 5.2 + PAD
+function layOutLegend(
+  names: string[],
+  x0: number,
+  x1: number
+): { x: number; row: number }[] {
   const out: { x: number; row: number }[] = []
-  let x = PLOT.x0
+  let x = x0
   let row = 0
   for (const name of names) {
-    const w = width(name)
-    if (x > PLOT.x0 && x + w > PLOT.x1) {
+    const w = legendEntryWidth(name)
+    if (x > x0 && x + w > x1) {
       row += 1
-      x = PLOT.x0
+      x = x0
     }
     out.push({ x, row })
     x += w
@@ -94,6 +106,16 @@ export function SpectraEditor({
   const run = runs.length ? runs[Math.min(runIdx, runs.length - 1)] : undefined
   const spectra = run?.result.class_spectra ?? null
 
+  /*
+    The panel decides the size; the content decides the margins.
+
+    Nothing below is a constant that a longer class name or an extra tick can
+    falsify: the y gutter is the widest tick label, the foot is however many
+    rows the band labels and the legend need, and the plot is what is left.
+  */
+  const host = useRef<HTMLDivElement | null>(null)
+  const size = useFigureSize(host)
+
   const figure = useMemo(() => {
     const ground = chartGround(theme)
     const points: ClassSpectrumPoint[] = spectra?.points ?? []
@@ -106,15 +128,7 @@ export function SpectraEditor({
       else byClass.set(p.class_id, [p])
     }
     const entries = [...byClass.entries()]
-    const placed = layOutLegend(entries.map(([, ps]) => ps[0].name))
-    const series: Series[] = entries.map(([classId, ps], i) => ({
-      classId,
-      name: ps[0].name,
-      stroke: legibleOn(ps[0].color, ground),
-      dash: seriesDash(i),
-      points: [...ps].sort((a, b) => a.wavelength_nm - b.wavelength_nm),
-      legend: placed[i],
-    }))
+    const names = entries.map(([, ps]) => ps[0].name)
 
     const bands = [...new Set(points.map((p) => p.wavelength_nm))]
       .sort((a, b) => a - b)
@@ -136,8 +150,58 @@ export function SpectraEditor({
     */
     const yMax = Math.max(...points.map((p) => p.p95))
     const yMin = Math.min(0, ...points.map((p) => p.p05))
-    const x = linearScale(NM_DOMAIN, [PLOT.x0, PLOT.x1])
-    const y = linearScale([yMin, yMax], [PLOT.y1, PLOT.y0])
+    const yTicks = niceTicks(yMin, yMax, 5)
+    const yLabels = yTicks.map((t) => t.toFixed(2))
+
+    /*
+      Two passes, for a dependency that runs both ways: the legend's row count
+      decides how much height the plot gives up, and the width those rows pack
+      into is the plot's own. The first pass runs against the panel to learn
+      the count, the second against the plot the layout then produced.
+    */
+    const probe = layoutFigure({
+      width: size.width,
+      height: size.height,
+      yLabels,
+      lastXLabel: bands[bands.length - 1]?.band ?? "",
+    })
+    const legendRows =
+      Math.max(
+        ...layOutLegend(names, probe.plot.x0, probe.plot.x1).map((l) => l.row)
+      ) + 1
+
+    // The band labels stagger onto a second row where two sit too close, so
+    // the foot has to know before the plot's height is decided.
+    const provisional = linearScale(NM_DOMAIN, [probe.plot.x0, probe.plot.x1])
+    const labelRows =
+      Math.max(
+        ...staggerRows(
+          bands.map((b) => provisional(b.nm)),
+          Math.max(...bands.map((b) => measureText(b.band, TYPE.meta))) + 6
+        )
+      ) + 1
+
+    const layout = layoutFigure({
+      width: size.width,
+      height: size.height,
+      yLabels,
+      xLabelRows: labelRows,
+      legendRows,
+      lastXLabel: bands[bands.length - 1]?.band ?? "",
+    })
+    const plot = layout.plot
+
+    const x = linearScale(NM_DOMAIN, [plot.x0, plot.x1])
+    const y = linearScale([yMin, yMax], [plot.y1, plot.y0])
+    const placed = layOutLegend(names, plot.x0, plot.x1)
+    const series: Series[] = entries.map(([classId, ps], i) => ({
+      classId,
+      name: ps[0].name,
+      stroke: legibleOn(ps[0].color, ground),
+      dash: seriesDash(i),
+      points: [...ps].sort((a, b) => a.wavelength_nm - b.wavelength_nm),
+      legend: placed[i],
+    }))
 
     const at = new Map<string, ClassSpectrumPoint>()
     for (const p of points) at.set(`${p.wavelength_nm}|${p.class_id}`, p)
@@ -148,7 +212,11 @@ export function SpectraEditor({
       x,
       y,
       at,
-      yTicks: niceTicks(yMin, yMax, 5),
+      layout,
+      plot,
+      labelRows,
+      legendRows,
+      yTicks,
       // Drawn only when the data crosses it: on an all-positive spectrum the
       // axis already starts there and a second line would say nothing.
       zeroLine: yMin < 0 ? y(0) : null,
@@ -161,17 +229,8 @@ export function SpectraEditor({
         return { left: x(prev), right: x(next) }
       }),
       minPixels: Math.min(...points.map((p) => p.n_pixels)),
-      /*
-        The canvas grows downward for the legend; PLOT does not move, so this
-        figure and the library editor's band panels keep the same axis and a
-        band lands at the same x in both.
-      */
-      height:
-        FIGURE.height +
-        LEGEND.gap +
-        (Math.max(...series.map((s) => s.legend.row)) + 1) * LEGEND.row,
     }
-  }, [spectra, theme])
+  }, [spectra, theme, size.width, size.height])
 
   if (!runs.length) {
     return (
@@ -182,8 +241,14 @@ export function SpectraEditor({
     )
   }
 
-  // 22 units: three or four glyphs at TYPE.meta, plus a gap.
-  const rows = staggerRows(figure?.bands.map((b) => figure.x(b.nm)) ?? [], 22)
+  // Measured, not counted in glyphs: a label's width is what decides whether
+  // the next one has room beside it.
+  const rows = figure
+    ? staggerRows(
+        figure.bands.map((b) => figure.x(b.nm)),
+        Math.max(...figure.bands.map((b) => measureText(b.band, TYPE.meta))) + 6
+      )
+    : []
   const hovered = hoverBand !== null ? figure?.bands[hoverBand] : undefined
 
   return (
@@ -236,10 +301,12 @@ export function SpectraEditor({
             scrolls instead. Fitting it to a narrower panel is what puts a 5 px
             glyph on screen, and this studio already refuses that trade.
           */
-          <div style={{ minWidth: FIGURE.width }}>
+          <div ref={host} className="w-full" style={{ minHeight: 220 }}>
             <svg
-              viewBox={`0 0 ${FIGURE.width} ${figure.height}`}
-              style={figureStyle()}
+              width={figure.layout.width}
+              height={figure.layout.height}
+              viewBox={`0 0 ${figure.layout.width} ${figure.layout.height}`}
+              style={{ display: "block", fontFamily: "var(--font-sans)" }}
               role="img"
               aria-label={`Mean surface reflectance per band for ${figure.series.length} predicted classes on ${spectra.scene_date}`}
             >
@@ -281,8 +348,8 @@ export function SpectraEditor({
                   key={`rule-${b.band}`}
                   x1={figure.x(b.nm)}
                   x2={figure.x(b.nm)}
-                  y1={PLOT.y0}
-                  y2={PLOT.y1}
+                  y1={figure.plot.y0}
+                  y2={figure.plot.y1}
                   stroke={i === hoverBand ? "var(--accent-quiet)" : "var(--hairline)"}
                   strokeWidth={i === hoverBand ? STROKE.axis : STROKE.rule}
                   strokeDasharray={i === hoverBand ? undefined : "2 4"}
@@ -296,8 +363,8 @@ export function SpectraEditor({
               */}
               {figure.zeroLine !== null && (
                 <line
-                  x1={PLOT.x0}
-                  x2={PLOT.x1}
+                  x1={figure.plot.x0}
+                  x2={figure.plot.x1}
                   y1={figure.zeroLine}
                   y2={figure.zeroLine}
                   stroke="var(--border)"
@@ -307,7 +374,7 @@ export function SpectraEditor({
 
               {/* Two axis lines, no frame: theme_classic, as the R figure. */}
               <path
-                d={`M${PLOT.x0},${PLOT.y0} L${PLOT.x0},${PLOT.y1} L${PLOT.x1},${PLOT.y1}`}
+                d={`M${figure.plot.x0},${figure.plot.y0} L${figure.plot.x0},${figure.plot.y1} L${figure.plot.x1},${figure.plot.y1}`}
                 fill="none"
                 stroke="var(--border)"
                 strokeWidth={STROKE.axis}
@@ -316,15 +383,15 @@ export function SpectraEditor({
               {figure.yTicks.map((t) => (
                 <g key={`y-${t}`}>
                   <line
-                    x1={PLOT.x0 - 4}
-                    x2={PLOT.x0}
+                    x1={figure.plot.x0 - 4}
+                    x2={figure.plot.x0}
                     y1={figure.y(t)}
                     y2={figure.y(t)}
                     stroke="var(--border)"
                     strokeWidth={STROKE.axis}
                   />
                   <text
-                    x={PLOT.x0 - 7}
+                    x={figure.plot.x0 - 7}
                     y={figure.y(t)}
                     fontSize={TYPE.meta}
                     fill="var(--muted-foreground)"
@@ -336,7 +403,7 @@ export function SpectraEditor({
                 </g>
               ))}
               <text
-                transform={`translate(${TYPE.body + 2},${(PLOT.y0 + PLOT.y1) / 2}) rotate(-90)`}
+                transform={`translate(${TYPE.body + 2},${(figure.plot.y0 + figure.plot.y1) / 2}) rotate(-90)`}
                 fontSize={TYPE.body}
                 fill="var(--muted-foreground)"
                 textAnchor="middle"
@@ -350,14 +417,14 @@ export function SpectraEditor({
                   <line
                     x1={figure.x(b.nm)}
                     x2={figure.x(b.nm)}
-                    y1={PLOT.y1}
-                    y2={PLOT.y1 + 4 + rows[i] * 12}
+                    y1={figure.plot.y1}
+                    y2={figure.plot.y1 + 4 + rows[i] * 12}
                     stroke="var(--border)"
                     strokeWidth={STROKE.axis}
                   />
                   <text
                     x={figure.x(b.nm)}
-                    y={PLOT.y1 + 15 + rows[i] * 12}
+                    y={figure.plot.y1 + 15 + rows[i] * 12}
                     fontSize={TYPE.meta}
                     fill={i === hoverBand ? "var(--foreground)" : "var(--muted-foreground)"}
                     textAnchor="middle"
@@ -367,8 +434,13 @@ export function SpectraEditor({
                 </g>
               ))}
               <text
-                x={(PLOT.x0 + PLOT.x1) / 2}
-                y={FIGURE.height - 6}
+                x={(figure.plot.x0 + figure.plot.x1) / 2}
+                y={
+                  figure.plot.y1 +
+                  ROW_PX.tick +
+                  figure.labelRows * ROW_PX.label +
+                  TYPE.body
+                }
                 fontSize={TYPE.body}
                 fill="var(--muted-foreground)"
                 textAnchor="middle"
@@ -419,16 +491,16 @@ export function SpectraEditor({
               {figure.series.map((s) => (
                 <g
                   key={`legend-${s.classId}`}
-                  transform={`translate(${s.legend.x},${FIGURE.height + LEGEND.gap + s.legend.row * LEGEND.row + LEGEND.row / 2})`}
+                  transform={`translate(${s.legend.x},${figure.layout.legendTop + s.legend.row * ROW_PX.label + ROW_PX.label / 2})`}
                   onMouseEnter={() => setFocusClass(s.classId)}
                   onMouseLeave={() => setFocusClass(null)}
                   style={{ cursor: "pointer" }}
                 >
                   <rect
                     x={-4}
-                    y={-LEGEND.row / 2}
-                    width={16 + 5 + s.name.length * 5.2 + 8}
-                    height={LEGEND.row}
+                    y={-ROW_PX.label / 2}
+                    width={legendEntryWidth(s.name) - 8}
+                    height={ROW_PX.label}
                     rx={2}
                     fill={focusClass === s.classId ? "var(--accent-dim)" : "transparent"}
                   />
@@ -458,9 +530,9 @@ export function SpectraEditor({
                 <rect
                   key={`hit-${i}`}
                   x={c.left}
-                  y={PLOT.y0}
+                  y={figure.plot.y0}
                   width={Math.max(0, c.right - c.left)}
-                  height={PLOT.y1 - PLOT.y0}
+                  height={figure.plot.y1 - figure.plot.y0}
                   fill="transparent"
                   onMouseEnter={() => setHoverBand(i)}
                   onMouseLeave={() => setHoverBand(null)}

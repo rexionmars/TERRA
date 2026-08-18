@@ -23,7 +23,7 @@ import type { BrushRadiusPx, ClassProbeSample } from "@/lib/boardProbe"
 import { FALLBACK_PIXEL_SIZE_M, brushFootprint, uvToTexel } from "@/lib/boardProbe"
 import type { ThemeName } from "@/lib/contrast"
 import { chartGround, legibleOn } from "@/lib/seriesColor"
-import { figureStyle, linearScale } from "@/lib/figure"
+import { linearScale } from "@/lib/figure"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 
@@ -92,7 +92,9 @@ function Spectrum({
   return (
     <svg
       viewBox={`0 0 ${SPARK.w} ${SPARK.h}`}
-      style={figureStyle(SPARK.w)}
+      // The one figure here that stays fixed: it is an inline sparkline in a
+      // column of text, so it takes the column's measure and not a panel's.
+      style={{ width: "100%", maxWidth: SPARK.w, height: "auto", fontFamily: "var(--font-sans)" }}
       role="img"
       aria-label="Mean reflectance of the sampled class, by band"
     >

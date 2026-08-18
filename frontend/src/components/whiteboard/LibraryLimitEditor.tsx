@@ -26,7 +26,7 @@
  *
  * So the word "identified" appears nowhere here, and must not be added.
  */
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useTheme } from "next-themes"
 import { Info } from "lucide-react"
 
@@ -36,31 +36,29 @@ import type { LibraryClass, PredictResult } from "@/lib/types"
 import type { ThemeName } from "@/lib/contrast"
 import { chartGround, legibleOn } from "@/lib/seriesColor"
 import {
-  FIGURE,
-  PLOT,
+  ROW_PX,
   STROKE,
   TYPE,
-  figureStyle,
+  layoutFigure,
   linearScale,
+  measureText,
   niceTicks,
 } from "@/lib/figure"
+import { useFigureSize } from "@/lib/useFigureSize"
 import { cn } from "@/lib/utils"
 
 /*
-  The band panels borrow the spectral editor's geometry rather than choosing
-  their own.
+  Both panels lay themselves out from the panel they are given and from the
+  text they will draw, through the same `layoutFigure` the spectral editor
+  uses. Neither carries a margin written by hand: the ranking's label gutter is
+  the widest class name, and the band panel's is its widest tick.
 
-  They draw the SAME seven bands, so a band has to land at the same x in both
-  or a reader comparing the two figures is comparing two axes. Sharing FIGURE
-  and PLOT also shares the plot's proportions: the first version was 700 by 210
-  against the spectral figure's 700 by 340, and the same seven points spread
-  across a panel two thirds as tall read as a zoomed-in version of the other.
-
-  The ranking is not a band figure and keeps a box of its own -- its x axis is
-  an angle and its rows are classes -- but at the same width, so the two stack
-  without a step.
+  They also draw the SAME seven bands as the spectral editor, so the band panel
+  shares that figure's x domain and a band lands at the same fraction of the
+  plot in both -- which is as far as sharing can go now that the plot is the
+  panel's size rather than a constant.
 */
-const RANK = { w: FIGURE.width, h: 150, pad: { top: 8, right: 12, bottom: 30, left: 176 } }
+const RANK_ROW = 22
 
 function AngleRanking({
   classes,
@@ -73,31 +71,60 @@ function AngleRanking({
   focus: number | null
   onFocus: (id: number | null) => void
 }) {
+  const host = useRef<HTMLDivElement | null>(null)
+  const size = useFigureSize(host, { width: 640, height: 0 })
   const max = Math.max(...classes.map((c) => c.angle_rad))
-  const x = linearScale([0, max * 1.08], [RANK.pad.left, RANK.w - RANK.pad.right])
-  const row = (RANK.h - RANK.pad.top - RANK.pad.bottom) / classes.length
+  const ticks = niceTicks(0, max * 1.08, 5)
+  /*
+    The gutter is the widest class name, so a legend of long names widens it
+    and a legend of short ones gives the bars the room back. It was 176 units
+    written down, which was right for the five classes that happened to be
+    there.
+  */
+  const gutter =
+    Math.max(...classes.map((c) => measureText(c.name, TYPE.meta))) + 10
+  // The ranking asks for the height its rows need rather than taking what it
+  // is given: rows of a fixed height are what makes five classes readable and
+  // twelve scrollable, instead of twelve rows squeezed into one panel.
+  const height =
+    classes.length * RANK_ROW + ROW_PX.label + ROW_PX.title + ROW_PX.gap
+  const layout = {
+    width: size.width,
+    height,
+    plot: {
+      x0: gutter,
+      x1: Math.max(gutter + 1, size.width - 42),
+      y0: ROW_PX.gap,
+      y1: classes.length * RANK_ROW + ROW_PX.gap,
+    },
+  }
+  const x = linearScale([0, max * 1.08], [layout.plot.x0, layout.plot.x1])
+  const row = RANK_ROW
 
   return (
+    <div ref={host} className="w-full">
     <svg
-      viewBox={`0 0 ${RANK.w} ${RANK.h}`}
-      style={figureStyle(RANK.w)}
+      width={layout.width}
+      height={layout.height}
+      viewBox={`0 0 ${layout.width} ${layout.height}`}
+      style={{ display: "block", fontFamily: "var(--font-sans)" }}
       role="img"
       aria-label="Spectral angle from each predicted class to the library reference"
     >
-      {niceTicks(0, max * 1.08, 5).map((t) => (
+      {ticks.map((t) => (
         <g key={t}>
           <line
             x1={x(t)}
             x2={x(t)}
-            y1={RANK.pad.top}
-            y2={RANK.h - RANK.pad.bottom}
+            y1={layout.plot.y0}
+            y2={layout.plot.y1}
             stroke="var(--hairline)"
             strokeWidth={0.75}
             strokeDasharray="2 4"
           />
           <text
             x={x(t)}
-            y={RANK.h - RANK.pad.bottom + 12}
+            y={layout.plot.y1 + 12}
             fontSize={TYPE.meta}
             fill="var(--muted-foreground)"
             textAnchor="middle"
@@ -107,8 +134,8 @@ function AngleRanking({
         </g>
       ))}
       <text
-        x={(RANK.pad.left + RANK.w - RANK.pad.right) / 2}
-        y={RANK.h - 4}
+        x={(layout.plot.x0 + layout.plot.x1) / 2}
+        y={layout.height - 4}
         fontSize={TYPE.body}
         fill="var(--muted-foreground)"
         textAnchor="middle"
@@ -116,7 +143,7 @@ function AngleRanking({
         Spectral angle to the reference (radians) — smaller is more consistent
       </text>
       {classes.map((c, i) => {
-        const y = RANK.pad.top + i * row + row / 2
+        const y = layout.plot.y0 + i * row + row / 2
         const stroke = colours.get(c.class_id) ?? "#888888"
         const dim = focus !== null && focus !== c.class_id
         return (
@@ -130,12 +157,12 @@ function AngleRanking({
             <rect
               x={0}
               y={y - row / 2}
-              width={RANK.w}
+              width={layout.width}
               height={row}
               fill={focus === c.class_id ? "var(--accent-dim)" : "transparent"}
             />
             <text
-              x={RANK.pad.left - 8}
+              x={layout.plot.x0 - 8}
               y={y}
               fontSize={TYPE.meta}
               fill="var(--foreground)"
@@ -145,9 +172,9 @@ function AngleRanking({
               {c.name}
             </text>
             <rect
-              x={RANK.pad.left}
+              x={layout.plot.x0}
               y={y - row * 0.22}
-              width={Math.max(0, x(c.angle_rad) - RANK.pad.left)}
+              width={Math.max(0, x(c.angle_rad) - layout.plot.x0)}
               height={row * 0.44}
               fill={stroke}
             />
@@ -165,6 +192,7 @@ function AngleRanking({
         )
       })}
     </svg>
+    </div>
   )
 }
 
@@ -177,8 +205,9 @@ function BandPanel({
   stroke: string
   mode: "ratio" | "shape"
 }) {
+  const host = useRef<HTMLDivElement | null>(null)
+  const size = useFigureSize(host, { width: 640, height: 260 })
   const bands = cls.bands
-  const x = linearScale([400, 2300], [PLOT.x0, PLOT.x1])
 
   const values =
     mode === "ratio"
@@ -188,12 +217,23 @@ function BandPanel({
     mode === "shape" ? bands.map((b) => b.unit_leaf ?? 0) : null
   const lo = Math.min(0, ...values, ...(other ?? []))
   const hi = Math.max(...values, ...(other ?? []))
-  const y = linearScale([lo, hi * 1.06], [PLOT.y1, PLOT.y0])
+  const ticks = niceTicks(lo, hi * 1.06, 4)
+  const layout = layoutFigure({
+    width: size.width,
+    height: size.height,
+    yLabels: ticks.map((t) => t.toFixed(2)),
+    lastXLabel: bands[bands.length - 1]?.band ?? "",
+  })
+  const x = linearScale([400, 2300], [layout.plot.x0, layout.plot.x1])
+  const y = linearScale([lo, hi * 1.06], [layout.plot.y1, layout.plot.y0])
 
   return (
+    <div ref={host} className="w-full" style={{ minHeight: 200 }}>
     <svg
-      viewBox={`0 0 ${FIGURE.width} ${FIGURE.height}`}
-      style={figureStyle()}
+      width={layout.width}
+      height={layout.height}
+      viewBox={`0 0 ${layout.width} ${layout.height}`}
+      style={{ display: "block", fontFamily: "var(--font-sans)" }}
       role="img"
       aria-label={
         mode === "ratio"
@@ -201,11 +241,11 @@ function BandPanel({
           : "Unit-normalised spectra, which is what the angle compares"
       }
     >
-      {niceTicks(lo, hi * 1.06, 4).map((t) => (
+      {ticks.map((t) => (
         <g key={t}>
           <line
-            x1={PLOT.x0}
-            x2={PLOT.x1}
+            x1={layout.plot.x0}
+            x2={layout.plot.x1}
             y1={y(t)}
             y2={y(t)}
             stroke="var(--hairline)"
@@ -213,7 +253,7 @@ function BandPanel({
             strokeDasharray="2 5"
           />
           <text
-            x={PLOT.x0 - 6}
+            x={layout.plot.x0 - 6}
             y={y(t)}
             fontSize={TYPE.meta}
             fill="var(--muted-foreground)"
@@ -231,8 +271,8 @@ function BandPanel({
       */}
       {mode === "ratio" && lo < 1 && hi > 1 && (
         <line
-          x1={PLOT.x0}
-          x2={PLOT.x1}
+          x1={layout.plot.x0}
+          x2={layout.plot.x1}
           y1={y(1)}
           y2={y(1)}
           stroke="var(--accent-quiet)"
@@ -240,7 +280,7 @@ function BandPanel({
         />
       )}
       <path
-        d={`M${PLOT.x0},${PLOT.y0} L${PLOT.x0},${PLOT.y1} L${PLOT.x1},${PLOT.y1}`}
+        d={`M${layout.plot.x0},${layout.plot.y0} L${layout.plot.x0},${layout.plot.y1} L${layout.plot.x1},${layout.plot.y1}`}
         fill="none"
         stroke="var(--border)"
         strokeWidth={STROKE.axis}
@@ -265,7 +305,7 @@ function BandPanel({
           <circle cx={x(b.wavelength_nm)} cy={y(values[i])} r={2.2} fill={stroke} />
           <text
             x={x(b.wavelength_nm)}
-            y={PLOT.y1 + 15}
+            y={layout.plot.y1 + ROW_PX.tick + TYPE.meta}
             fontSize={TYPE.meta}
             fill="var(--muted-foreground)"
             textAnchor="middle"
@@ -275,8 +315,8 @@ function BandPanel({
         </g>
       ))}
       <text
-        x={(PLOT.x0 + PLOT.x1) / 2}
-        y={FIGURE.height - 6}
+        x={(layout.plot.x0 + layout.plot.x1) / 2}
+        y={layout.height - 4}
         fontSize={TYPE.body}
         fill="var(--muted-foreground)"
         textAnchor="middle"
@@ -286,6 +326,7 @@ function BandPanel({
           : "Unit-normalised: the two vectors the angle is taken between"}
       </text>
     </svg>
+    </div>
   )
 }
 
@@ -430,7 +471,7 @@ export function LibraryLimitEditor({
             response, which runs saved before that measurement do not have.
           </p>
         ) : (
-          <div style={{ minWidth: RANK.w }} className="flex flex-col gap-3">
+          <div className="flex min-w-0 flex-col gap-3">
             {mode === "distance" ? (
               <div>
                 <AngleRanking

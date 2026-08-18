@@ -1,4 +1,46 @@
 /**
+ * A figure laid out from the panel it is in and the text it will draw.
+ *
+ * THE DEFECT THIS STARTED FROM. Every chart drew into `ResponsiveContainer`,
+ * which stretches the plot and leaves the type alone: at 400 px an 11 px tick
+ * was large against the panel, at 1200 px it was small. The figure had no
+ * proportions of its own -- it had whatever the panel imposed, and they changed
+ * while the reader watched.
+ *
+ * THE FIRST ANSWER, AND WHY IT WAS HALF OF ONE. A fixed viewBox scaled as a
+ * unit fixes the proportions, and that much was right. What it left behind was
+ * every margin as a constant written by hand -- 52 for the y labels, 46 for
+ * the axis title, a legend well of 156 -- so each change of content meant
+ * finding those numbers and tuning them again, and a figure in a wide panel
+ * was simply drawn larger than the same figure in a narrow one.
+ *
+ * WHAT A PLOTTING LIBRARY ACTUALLY DOES. ggplot measures its tick labels and
+ * derives the gutter from them; matplotlib's tight_layout is the same idea. The
+ * margin is a CONSEQUENCE of the text, and writing it down is writing down an
+ * answer the text can change out from under.
+ *
+ * SO, THE MODEL HERE:
+ *
+ *   one unit is one CSS pixel, always. The figure is drawn AT the panel's size
+ *   rather than scaled into it, which is what keeps a 10 px label 10 px in a
+ *   400 px panel and in a 1400 px one.
+ *
+ *   every margin is computed. `layoutFigure` is given the strings that will
+ *   occupy each edge and returns where the plot goes. Nothing in a caller is a
+ *   position that a longer class name or an extra tick can falsify.
+ *
+ *   the type scale is the interface's own, from index.css. A figure with a
+ *   scale of its own would be a second vocabulary on one page.
+ *
+ * What is deliberately NOT here is a paper figure. `plot_spectral.R` draws into
+ * 183 by 120 millimetres at 5.8 pt, and that does not survive a screen: 5.8 pt
+ * is 7.7 px at the figure's own print size, under the 9 px floor this interface
+ * holds to in 21 places. Print gets away with it because 600 dpi at reading
+ * distance is not a webview. The discipline is borrowed; the measurements are
+ * not.
+ */
+
+/**
  * A figure with fixed proportions, in its own coordinate system.
  *
  * THE DEFECT THIS REMOVES. Every chart in the application draws into
@@ -43,36 +85,6 @@
  */
 import { ticks } from "d3-array"
 import { scaleLinear, type ScaleLinear } from "d3-scale"
-
-/**
- * The reference geometry. One unit is one CSS pixel when the figure is drawn at
- * REFERENCE_PX wide; above that it scales up and the proportions hold.
- */
-export const FIGURE = {
-  /** viewBox width. Also the minimum width the figure may be drawn at. */
-  width: 700,
-  height: 340,
-  /*
-    The right margin is a gutter, not a legend well.
-
-    It was 156 units, reserved for a legend standing beside the plot, and that
-    cost a fifth of the drawing width to five short strings -- on a figure whose
-    x axis already has most of its samples crowded into its first third. A
-    legend below the plot takes the height it needs, which is two rows, and
-    gives the axis back the width.
-  */
-  margin: { top: 10, right: 14, bottom: 46, left: 52 },
-} as const
-
-/** A legend row's height and the gap under the figure, in figure units. */
-export const LEGEND = { row: 15, gap: 6 } as const
-
-export const PLOT = {
-  x0: FIGURE.margin.left,
-  x1: FIGURE.width - FIGURE.margin.right,
-  y0: FIGURE.margin.top,
-  y1: FIGURE.height - FIGURE.margin.bottom,
-} as const
 
 /**
  * Type, in figure units, mirroring the interface's own scale in index.css.
@@ -156,18 +168,114 @@ export function staggerRows(
   })
 }
 
+let measuringContext: CanvasRenderingContext2D | null = null
+
 /**
- * How a figure is placed: at its reference size, never larger, never squeezed.
+ * The width a string will occupy, measured rather than estimated.
  *
- * `width` overrides the reference for a panel with a viewBox of its own; the
- * cap is always that panel's own width, so every figure in the studio renders
- * one unit to one pixel whatever the area around it is doing.
+ * Canvas measureText uses the same font machinery the SVG text will, so this
+ * is the width that will be drawn, not a guess from the glyph count. Earlier
+ * versions of this file guessed at 5.2 px a glyph, which is wrong by a third
+ * either way between an "i" and a "W" -- and a legend row breaks on exactly
+ * that difference.
  */
-export function figureStyle(width: number = FIGURE.width) {
-  return {
-    width: "100%",
-    maxWidth: width,
-    height: "auto",
-    fontFamily: "var(--font-sans)",
-  } as const
+export function measureText(text: string, fontPx: number, family?: string): number {
+  /*
+    Falls back to a glyph count where there is no DOM, rather than throwing.
+
+    The estimate is poor -- it is the 5.2 px a glyph this file used to use, and
+    wrong by a third either way between an "i" and a "W" -- but a figure laid
+    out badly is a figure, and a layout function that throws takes the whole
+    editor down. Anything rendering outside a browser gets the estimate.
+  */
+  if (typeof document === "undefined") return text.length * fontPx * 0.55
+  if (!measuringContext) {
+    measuringContext = document.createElement("canvas").getContext("2d")
+  }
+  if (!measuringContext) return text.length * fontPx * 0.55
+  const resolved =
+    family ??
+    (typeof getComputedStyle === "function"
+      ? getComputedStyle(document.body).getPropertyValue("--font-sans") ||
+        "sans-serif"
+      : "sans-serif")
+  measuringContext.font = `${fontPx}px ${resolved}`
+  return measuringContext.measureText(text).width
 }
+
+export interface FigureRequest {
+  /** The panel's inner width and height, in CSS pixels. */
+  width: number
+  height: number
+  /** Every y tick label that will be drawn, so the gutter can hold the widest. */
+  yLabels: string[]
+  /** Rows of x tick labels, after any staggering. */
+  xLabelRows?: number
+  /** Rows the legend wraps onto, if the figure carries one. */
+  legendRows?: number
+  /** Whether each axis carries a title under or beside its labels. */
+  xTitle?: boolean
+  yTitle?: boolean
+  /** The widest x tick label, so the last one does not clip the right edge. */
+  lastXLabel?: string
+}
+
+export interface FigureLayout {
+  width: number
+  height: number
+  plot: { x0: number; x1: number; y0: number; y1: number }
+  /** Where the legend's first row sits, below everything else. */
+  legendTop: number
+}
+
+/** Vertical rhythm, in pixels: one row of labels, and the gaps around them. */
+const ROW = { label: 14, title: 16, tick: 4, gap: 4 }
+
+/**
+ * Where the plot goes inside a panel of this size, given this text.
+ *
+ * The caller passes what it will draw; nothing here is a constant that a
+ * change of content can falsify.
+ */
+export function layoutFigure(request: FigureRequest): FigureLayout {
+  const {
+    width,
+    height,
+    yLabels,
+    xLabelRows = 1,
+    legendRows = 0,
+    xTitle = true,
+    yTitle = true,
+    lastXLabel = "",
+  } = request
+
+  const widestY = yLabels.reduce(
+    (w, label) => Math.max(w, measureText(label, TYPE.meta)),
+    0
+  )
+  const left =
+    (yTitle ? ROW.title : 0) + widestY + ROW.tick + ROW.gap
+  // Half the last label overhangs its tick, so the gutter holds that half.
+  const right = Math.max(8, measureText(lastXLabel, TYPE.meta) / 2 + 4)
+  const top = ROW.gap + TYPE.meta / 2
+  const bottom =
+    ROW.tick +
+    xLabelRows * ROW.label +
+    (xTitle ? ROW.title : 0) +
+    (legendRows > 0 ? ROW.gap + legendRows * ROW.label : 0)
+
+  return {
+    width,
+    height,
+    plot: {
+      x0: left,
+      x1: Math.max(left + 1, width - right),
+      y0: top,
+      y1: Math.max(top + 1, height - bottom),
+    },
+    legendTop: height - legendRows * ROW.label,
+  }
+}
+
+/** The row height a legend and an axis label occupy, for callers placing them. */
+export const ROW_PX = ROW
