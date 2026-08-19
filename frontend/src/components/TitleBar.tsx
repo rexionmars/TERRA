@@ -7,6 +7,7 @@ import {
   UserRound,
   X,
 } from "lucide-react"
+import { BRAND_TAGLINE } from "@/lib/brand"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import type { ReactNode } from "react"
 import {
@@ -107,25 +108,6 @@ export function Credit({ part }: { part: CreditPart }) {
   )
 }
 
-/**
- * The line beside the wordmark.
- *
- * It used to name what each screen worked from -- "land cover · sentinel-2" on
- * the map, "solar and wind · nasa power" on energy -- and that table existed
- * to fix a real defect: the map's literal was pinned for every screen, so a
- * reader in energy read Sentinel-2 for a whole session while neither the solar
- * nor the wind products touch it.
- *
- * A SIGNATURE IS NOT THAT CLAIM. This says who the application is for, not
- * which data the surface in front of the reader is made of, so it is true on
- * every screen for the same reason the old literal was false on most of them.
- * What a screen works from is said by the screen.
- *
- * The studio names the mode instead, because there the line does carry state:
- * it is how a reader knows which of the two surfaces they are looking at.
- */
-const BRAND_TAGLINE = "for explorers"
-
 function fmtCoord(v: number, pos: string, neg: string): string {
   const dir = v >= 0 ? pos : neg
   return `${Math.abs(v).toFixed(4)}°${dir}`
@@ -177,15 +159,21 @@ export function TitleBar({
           <span className="font-display text-sm font-semibold tracking-[0.14em]">
             TERRA
           </span>
-          {/* One name either way: the mode in the studio, the signature out. */}
-          <span
-            className={cn(
-              "eyebrow hidden sm:inline",
-              boardOpen && "!text-foreground"
-            )}
-          >
-            {boardOpen ? "studio" : BRAND_TAGLINE}
-          </span>
+          {/*
+            One signature, on every screen, from the module that owns it.
+
+            There were three taglines: this file carried "for explorers", the
+            splash and index.html carried "earth observation · energy" out of
+            lib/brand.ts, and this line swapped itself for "studio" when the
+            studio was up. So the application answered "what is this?" with a
+            different sentence depending on where you looked.
+
+            The swap went with them. It existed to tell a reader which of two
+            surfaces they were on, and there are not two surfaces -- the studio
+            opens OVER the map and is plainly on screen when it is. A signature
+            that changes with state is not a signature.
+          */}
+          <span className="eyebrow hidden sm:inline">{BRAND_TAGLINE}</span>
         </div>
         {/*
           Inside the brand block, not after a divider. A rule between the

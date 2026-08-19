@@ -622,12 +622,19 @@ export type LeftDockTabsMode = "retracted_only" | "always"
 export type LayoutMode = "docked" | "workspace"
 
 /**
- * Which surface the application opens on (stored in extras_json.start_surface).
+ * Whether a session opens with the studio already up
+ * (stored in extras_json.start_surface).
  *
- * The two are not layouts of one screen but two ways of working the same
- * ground: the explorer is the map with its tools around it, where an area is
- * drawn and a run is started; the studio is the area tree over it, where what
- * has been run is arranged, compared and read.
+ * IT IS A BOOLEAN WEARING TWO NAMES. The studio opens over the map and closes
+ * back onto it -- the title bar toggles it at any moment -- so this decides
+ * whether it is up at the start and nothing else. It was once described as
+ * choosing between two surfaces, and describing it that way is what taught
+ * readers there were two applications.
+ *
+ * The stored strings stay as they are. They are a preference people already
+ * have, and rewriting the values to match a better name would silently reset
+ * every one of them; `store.go` makes the same argument for the database file
+ * that kept its old name through the application's rename.
  *
  * A preference and not a restored state. The studio's open flag is deliberately
  * local to the map screen -- see the note on `board` in MapScreen, which argues
