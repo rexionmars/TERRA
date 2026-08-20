@@ -42,8 +42,6 @@ import { modelLabel } from "@/lib/runAssets"
 /** Same width as BoardSidebar — one number said on both edges. */
 
 export type BoardDetailFocus = "terrain" | "siting" | "prediction"
-/** @deprecated Prefer BoardDetailFocus; kept for call sites that only mean solar. */
-export type BoardSolarFocus = "terrain" | "siting"
 
 function TerrainBody({
   terrain,

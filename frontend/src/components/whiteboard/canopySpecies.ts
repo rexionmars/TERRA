@@ -19,5 +19,3 @@ export const SPECIES = [
   "almond", "apple", "apple_fruitingwall", "olive", "pistachio", "walnut",
   "easternredbud", "bougainvillea",
 ] as const
-
-export type CanopySpecies = (typeof SPECIES)[number]

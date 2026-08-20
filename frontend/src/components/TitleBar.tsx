@@ -137,7 +137,7 @@ export function TitleBar({
 
   return (
     <header className={cn(
-        "titlebar-terra app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pr-2 backdrop-blur-md",
+        "app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pr-2 backdrop-blur-md",
         // The window's traffic lights own the first 4.5rem in both states.
         "pl-[4.5rem]"
       )}>

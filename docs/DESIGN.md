@@ -1,13 +1,12 @@
 # TERRA design system
 
-Cool near-black surfaces where the neutrals carry the accent's hue rather than
-leaving it to the accent, one blue accent, monospace telemetry, and a density
-chosen on purpose.
+Neutral near-black surfaces with the hue left to the accent, monospace
+telemetry, and a density chosen on purpose.
 
-The family replaces the Mars sand it began as. The rotation was done at constant
-luminance -- WCAG contrast is a function of relative luminance alone, so every
-neutral kept the ratio it had been measured at while its hue moved to the
-accent's 214 degrees.
+Two families preceded this one and both put the hue in the surfaces: Mars sand
+under an orange accent, then cool greys under a blue one. This puts none there,
+which makes the accent the only colour on screen that is not data -- and lets
+the accent change again without the chassis being rebuilt.
 
 The implementation is the source of truth. This file describes it; where the two
 disagree, the code is right and this file is stale.
@@ -48,41 +47,42 @@ from `--p-*` in a plain `:root` block, and `@theme inline` maps those to
 
 | Token | RGB | Hex | Role |
 | --- | --- | --- | --- |
-| `--p-ink` | `23 23 23` | `#171717` | App background |
-| `--p-surface` | `29 34 39` | `#1D2227` | Panel |
-| `--p-surface-raised` | `41 48 56` | `#293038` | Card, field |
-| `--p-line` | `66 76 90` | `#424C5A` | Divider |
-| `--p-line-strong` | `105 122 145` | `#697A91` | Component boundary |
-| `--p-text` | `216 221 229` | `#D8DDE5` | Text |
-| `--p-muted` | `150 162 177` | `#96A2B1` | Secondary text |
-| `--p-accent` | `53 120 207` | `#3578CF` | Fill, focus, active state |
-| `--p-accent-quiet` | `106 155 219` | `#6A9BDB` | The accent **as text** |
-| `--p-accent-dim` | `22 45 74` | `#162D4A` | The plate a chosen value lights on |
+| `--p-ink` | `26 26 26` | `#1A1A1A` | App background |
+| `--p-surface` | `37 37 37` | `#252525` | Panel |
+| `--p-surface-raised` | `53 53 53` | `#353535` | Card, field |
+| `--p-line` | `75 75 75` | `#4B4B4B` | Divider |
+| `--p-line-strong` | `126 126 126` | `#7E7E7E` | Component boundary |
+| `--p-text` | `221 221 221` | `#DDDDDD` | Text |
+| `--p-muted` | `161 161 161` | `#A1A1A1` | Secondary text |
+| `--p-accent` | `237 135 68` | `#ED8744` | Fill, focus, active state |
+| `--p-accent-quiet` | `236 128 57` | `#EC8039` | The accent **as text** |
+| `--p-accent-dim` | `75 37 11` | `#4B250B` | The plate a chosen value lights on |
 
-The brand value is `#3376CE`. This theme lightens it by two levels per channel,
-because the exact value measures **2.96** against the raised surface where the
-boundary floor is 3.0, and darkening only lowers it further. The nudged value
-measures 3.01.
+`--p-line-strong` is 126 and not the 120 the surfaces suggest. At 120 it
+measured **2.78** against the raised surface, under the 3.0 floor: lifting a
+surface does not lift the boundary that separates it, and this is the case the
+check exists to catch.
 
 ### Light
 
 The light theme derives on its own path and inherits nothing from the dark
-block, so every ratio is measured there too. Here the accent is the brand value
-unchanged: `#3376CE` measures 4.34 on the light surface and 3.52 on the raised
-one, so it needs no darkening for this ground.
+block, so every ratio is measured there too. Neutral for the same reason, at the
+luminances the sand family was measured at. The accent is darkened rather than
+reused: `#ED8744` on a light surface reads as a highlight and carries no label
+at all.
 
 | Token | RGB | Hex |
 | --- | --- | --- |
-| `--p-ink` | `236 241 247` | `#ECF1F7` |
-| `--p-surface` | `247 250 253` | `#F7FAFD` |
-| `--p-surface-raised` | `220 227 237` | `#DCE3ED` |
-| `--p-line` | `165 179 196` | `#A5B3C4` |
-| `--p-line-strong` | `105 123 147` | `#697B93` |
-| `--p-text` | `26 32 40` | `#1A2028` |
-| `--p-muted` | `81 93 110` | `#515D6E` |
-| `--p-accent` | `51 118 206` | `#3376CE` |
-| `--p-accent-quiet` | `40 94 166` | `#285EA6` |
-| `--p-accent-dim` | `204 220 242` | `#CCDCF2` |
+| `--p-ink` | `241 241 241` | `#F1F1F1` |
+| `--p-surface` | `249 249 249` | `#F9F9F9` |
+| `--p-surface-raised` | `227 227 227` | `#E3E3E3` |
+| `--p-line` | `177 177 177` | `#B1B1B1` |
+| `--p-line-strong` | `121 121 121` | `#797979` |
+| `--p-text` | `31 31 31` | `#1F1F1F` |
+| `--p-muted` | `92 92 92` | `#5C5C5C` |
+| `--p-accent` | `186 58 18` | `#BA3A12` |
+| `--p-accent-quiet` | `158 48 14` | `#9E300E` |
+| `--p-accent-dim` | `240 214 198` | `#F0D6C6` |
 
 ---
 
@@ -90,26 +90,24 @@ one, so it needs no darkening for this ground.
 
 These are not style preferences. Each one is a ratio that fails.
 
-**1. The accent is not a text colour.** Full accent measures **3.01** on the
-raised surface, below the 4.5 WCAG 1.4.3 asks. It is a fill, a focus ring and an
-active state. Text that has to read as the accent uses `--p-accent-quiet`, which
-clears 4.5 on every surface (6.25 / 5.59 / 4.65 dark).
+**1. The accent is not a text colour.** It happens to measure 4.76 on the raised
+surface, which is a property of this accent being a light one rather than a rule
+the token holds — the blue before it measured 3.01 there. It is a fill, a focus
+ring and an active state, and text that has to read as the accent uses
+`--p-accent-quiet` either way, which clears 4.5 on every surface
+(6.39 / 5.63 / 4.51 dark).
 
-**2. A filled accent button takes white, and does not fully clear the floor.**
-`--primary-foreground` is white: **4.43** dark, 4.54 light. The near-black ink it
-replaced measures 4.05 and 4.00, so white is the better of the two and the dark
-theme still sits 0.07 under 4.5. That shortfall is a stated exception, not an
-oversight: no colour at this hue clears both floors at once, because a fill dark
-enough to carry white at 4.5 is too dark to clear 3.0 against the raised surface
-behind it. It is the one pair `contrast.ts` deliberately does not encode as a
-rule. For a separate reason no filled button carries a whole-element hover fade —
-`hover:opacity-90` drops the label further still.
+**2. A filled accent button takes the ink.** `--primary-foreground` is
+`--p-ink`, near-black in the dark theme and near-white in the light one: **6.75**
+dark, 5.02 light. White on the dark fill is 2.58. The label is a consequence of
+the fill and not a constant — under the blue accent, which was a mid tone, it was
+white at 4.43 and that was a stated exception. There is no exception now.
 
-**3. Adjacent surfaces need a border.** Surface separation is 1.12 and 1.20, low
+**3. Adjacent surfaces need a border.** Surface separation is 1.14 and 1.25, low
 by construction because the family is dark. Two panels are told apart by their
 border, not by luminance, which is why `--p-line-strong` exists and why it has to
-clear 3.0 against *both* surfaces: 3.66 on surface, 3.04 on the raised one. An
-earlier value cleared it against surface alone.
+clear 3.0 against *both* surfaces: 3.78 on surface, 3.02 on the raised one. At
+120 the raised surface measured 2.78, which is what raised it to 126.
 
 ### Destructive splits the same way
 
@@ -129,24 +127,23 @@ dark and failed in light by 2.76.
 
 ### Warning stopped following the accent
 
-`--warning` was `--p-accent-quiet`, which held while the accent was orange: the
-warning mark and the accent were the same hue by accident, and no other hue
-competed for the meaning. A blue accent would have drawn the warning toast in
-the colour the interface uses for the selected thing, so warning is now an amber
-of its own per theme — `#D9A441` dark, `#8A5A10` light — and it joins the check,
-because a literal that derives from nothing is unchecked by default.
+`--warning` was `--p-accent-quiet`. That held only while the accent was orange —
+the warning mark and the accent were the same hue by accident, and no other hue
+competed for the meaning — and it broke the moment the accent moved, which is
+the whole argument for not deriving a status colour from a brand one. It is an
+amber of its own per theme now, `#D9A441` dark and `#8A5A10` light, and it joins
+the check, because a literal that derives from nothing is unchecked by default.
 
-Three call sites ask for `var(--p-warning)`, which is not a declared token and
-resolves to nothing; they inherit their parent's colour and always have. Fixing
-them is a separate change, since it turns text amber that has never been amber.
+It stays independent now that the accent is orange again, which is when the
+separation is hardest to see and most worth keeping.
 
 ### Focus
 
 `--ring` is the **full** accent, not a wash of it. At 0.55 alpha the composited
 ring fell under the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the
 figure the check reported, because the check read the token and the token was
-not what got painted. At full strength the two agree: 4.05 on ink, 3.62 on a
-panel, 3.01 on a raised surface.
+not what got painted. At full strength the two agree: 6.75 on ink, 5.95 on a
+panel, 4.76 on a raised surface.
 
 Every control gets a ring from one rule in `@layer base` covering `button`,
 `summary` and the `button`, `slider` and `tab` roles. It uses `outline` rather

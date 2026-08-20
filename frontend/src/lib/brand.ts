@@ -13,18 +13,23 @@
  * opening TERRA to assess a photovoltaic site saw a subtitle that named neither
  * energy nor anything adjacent to it.
  *
- * It names the two halves rather than listing the products, because the list is
- * the part that keeps changing -- it has grown four times already, and a
- * subtitle that enumerates is a subtitle that goes stale. The title bar carries
- * a signature rather than a description of the screen; this is the one line
- * shown before any screen exists.
+ * WHY IT NO LONGER NAMES ENERGY EITHER. It read "earth observation · energy"
+ * for a while, which named the two halves rather than listing the products --
+ * and naming halves is the same habit as listing products, one level up. Two
+ * nouns joined by a separator is a claim that the application is two things,
+ * and it is one: everything here observes the earth, including the solar and
+ * wind products, which read hourly reanalysis of it.
+ *
+ * A subtitle that enumerates goes stale, and this one had already grown once.
+ * The shorter line cannot: it says what the application does rather than which
+ * departments it has.
  *
  * Defined here because it appears in two places that cannot import from each
  * other: the React splash, and the static markup in index.html that paints
  * before any bundle loads. The HTML copy is substituted at build time from this
  * value -- the same treatment the splash image list needed, for the same reason.
  */
-export const BRAND_TAGLINE = "earth observation · energy"
+export const BRAND_TAGLINE = "earth observation"
 
 /**
  * The name of this release.

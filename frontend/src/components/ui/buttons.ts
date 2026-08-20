@@ -46,9 +46,6 @@ export const btnPrimary =
 export const btnPrimaryCommit =
   `inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-emphasis font-semibold text-primary-foreground ${DISABLED} ${FOCUS}`
 
-export const btnDestructive =
-  `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm bg-destructive px-3 text-body font-semibold text-destructive-foreground ${DISABLED} ${FOCUS}`
-
 export const btnGhost =
   `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-line/40 bg-ink/45 px-3 text-body text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground ${DISABLED} ${FOCUS}`
 
