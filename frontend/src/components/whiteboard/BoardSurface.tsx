@@ -771,6 +771,27 @@ export function BoardSurface({
     LoadAnalysis already lives. The list is consumed rather than read, so a
     board reopened twice does not queue the same runs twice.
   */
+  /*
+    The workspace a caller asked this opening to land on.
+
+    Consumed rather than read, exactly as `pendingRunIds` is, and for the same
+    reason: a preset asked for once must not be re-imposed every time the board
+    reopens, or a reader who retyped an area would lose it on their next glance
+    at the map.
+
+    Separate from the run list because the two are independent -- opening a
+    saved board sends runs and no workspace, since that board carries its own
+    arrangement, and a caller may one day want the reverse.
+  */
+  useEffect(() => {
+    const wanted = readBoardMemory<string>("pendingWorkspace", "")
+    if (!wanted) return
+    writeBoardMemory("pendingWorkspace", "")
+    setWorkspaceId(wanted)
+    // Once, on mount, for the reason the run list below is taken once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const pending = readBoardMemory<string[]>("pendingRunIds", [])
     if (!pending.length) return
