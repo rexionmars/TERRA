@@ -15,7 +15,7 @@ export function SkyViewFigures({ sky }: { sky: SolarSkyView }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="eyebrow !text-[9px]">Sky view</p>
+        <p className="eyebrow !text-micro">Sky view</p>
         <Chip tone={sky.applied ? "accent" : "muted"}>
           {sky.applied ? "Applied" : "Not applied"}
         </Chip>
@@ -57,17 +57,21 @@ export function CoverChipList({
   if (!codes.length) return null
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="eyebrow !text-[9px]">{label}</p>
+      <p className="eyebrow !text-micro">{label}</p>
       <ul className="flex flex-wrap gap-1">
         {codes.map((id) => (
           <li key={id}>
+            {/* The code is data, not decoration. At /70 over an already
+                muted token it measured 3.85 at its very best and 1.89 over a
+                bright map, so the number identifying the class was the least
+                readable thing in the chip. An opacity modifier on a muted
+                token has no valid range here. */}
             <span
-              className="telemetry inline-flex items-center gap-1 rounded-[2px] border px-1.5 py-0.5 text-[9px] text-muted-foreground"
-              style={{ borderColor: "var(--border)" }}
+              className="telemetry inline-flex items-center gap-1 rounded-[2px] border px-1.5 py-0.5 text-micro text-muted-foreground"
               title={`MapBiomas ${id}`}
             >
-              <span className="text-foreground/80">{mapbiomasCoverName(id)}</span>
-              <span className="text-muted-foreground/70">{id}</span>
+              <span className="text-foreground">{mapbiomasCoverName(id)}</span>
+              <span>{id}</span>
             </span>
           </li>
         ))}

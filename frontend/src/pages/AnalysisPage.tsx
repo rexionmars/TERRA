@@ -33,15 +33,10 @@ import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import type {
   Area,
-  EnergyModelAnalysis,
-  EnergyCapacityDensity,
-  EnergyPlantClass,
   InferenceRun,
   PredictResult,
   Project,
   ProjectOverlay,
-  WindAnalysis,
-  PowerProvenance,
 } from "@/lib/types"
 import {
   CreateProject,
@@ -80,13 +75,6 @@ import {
   rampStop,
   WaterFigure,
 } from "@/components/analysisPrimitives"
-import { EnergyModelSection } from "@/components/EnergyModelSection"
-import {
-  SolarResourceSection,
-  SolarSitingSection,
-  SolarTerrainSection,
-} from "@/components/SolarSections"
-import { WindScreening } from "@/components/WindScreening"
 import {
   classifiedAreaHa,
   dominantClass,
@@ -1693,31 +1681,11 @@ export function AnalysisPage({
           ) : null}
 
           {/*
-            Solar resource. Needs no scene, so it can be the only product a run
-            carries. Every figure is shown with the assumption behind it.
+            Solar, the energy model and wind used to be read here, and are now
+            read on the energy screen -- beside the parameters that produced
+            them, which is the comparison somebody tuning a run actually makes.
+            See components/energy/EnergyReadingColumn.tsx.
           */}
-          {result.solar && <SolarResourceSection solar={result.solar} />}
-
-          {result.solar_terrain && (
-            <SolarTerrainSection terrain={result.solar_terrain} />
-          )}
-
-          {result.solar_siting && (
-            <SolarSitingSection siting={result.solar_siting} />
-          )}
-
-          {/*
-            The photovoltaic energy model, then the wind screening. The wind
-            block is its own section and carries its own qualifier: it is gross
-            of every plant loss and has no external benchmark, while the
-            photovoltaic figures above are computed at a ratio bracketed by the
-            Global Solar Atlas, so the two are never drawn in one comparison.
-          */}
-          {result.energy_model && (
-            <EnergyModelSection energy={result.energy_model} />
-          )}
-
-          {result.wind && <WindScreening wind={result.wind} />}
 
           {/*
             Surface water over the period. Fractions are a percentage of the
@@ -2168,10 +2136,21 @@ function SavedRunsPanel({
             const windWindow =
               r.kind === "wind" ? windRecordWindow(r.summary) : ""
             return (
+              /*
+                A column, not a row with the actions beside the content.
+
+                Side by side, the two buttons took about 7rem off a card that is
+                a quarter of the list's width, and every identifying thing in it
+                was truncated to make room: a label read "ru...", a solar result
+                read "1495 kWh/m2/yr · t...". The card is where a run is
+                recognised and managed now that reading it happens elsewhere, so
+                the content gets the full measure and the actions get their own
+                line under a rule.
+              */
               <li
                 key={r.id}
                 className={cn(
-                  "flex items-center justify-between gap-3 rounded-sm border px-3 py-2.5 text-xs",
+                  "flex flex-col gap-2 rounded-sm border px-3 py-2.5 text-xs",
                   selected ? "border-primary bg-secondary" : "border-border bg-secondary/50"
                 )}
               >
@@ -2183,8 +2162,10 @@ function SavedRunsPanel({
                     onChange={() => onToggleSelect(r.id)}
                     className="mt-0.5 accent-primary"
                   />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    {/* Wraps, so a long name pushes the scene count onto the
+                        next line instead of squeezing itself into an ellipsis. */}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       {slot && (
                         <span className="telemetry shrink-0 rounded-sm bg-primary/20 px-1 text-micro text-primary">
                           {slot}
@@ -2197,7 +2178,12 @@ function SavedRunsPanel({
                       <span className="telemetry shrink-0 rounded-sm border border-border px-1 text-micro uppercase text-muted-foreground">
                         {runKindLabel(r.kind)}
                       </span>
-                      <span className="truncate font-medium text-foreground">
+                      {/*
+                        Wraps rather than truncates. This is the run's name --
+                        the one thing that tells two runs of one project apart --
+                        and "ru..." tells them apart from nothing.
+                      */}
+                      <span className="min-w-0 break-words font-medium text-foreground">
                         {displayRunLabel(r.label)}
                       </span>
                       <span className="telemetry shrink-0 text-muted-foreground">
@@ -2216,14 +2202,14 @@ function SavedRunsPanel({
                     {r.kind === "solar" ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.solar }} />
-                        <span className="truncate text-foreground">
+                        <span className="min-w-0 text-foreground">
                           {solarSummaryLine(r.summary)}
                         </span>
                       </div>
                     ) : r.kind === "water" ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.water }} />
-                        <span className="truncate text-foreground">
+                        <span className="min-w-0 text-foreground">
                           {waterSummaryLine(r.summary)}
                         </span>
                       </div>
@@ -2233,7 +2219,7 @@ function SavedRunsPanel({
                           {/* Not the water blue: two products keyed on
                               different reanalyses should not read as one. */}
                           <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.wind }} />
-                          <span className="truncate text-foreground">
+                          <span className="min-w-0 text-foreground">
                             {windSummaryLine(r.summary)}
                           </span>
                         </div>
@@ -2251,7 +2237,7 @@ function SavedRunsPanel({
                           className="size-2.5 shrink-0 rounded-[2px]"
                           style={{ backgroundColor: dominant.color }}
                         />
-                        <span className="truncate text-foreground">
+                        <span className="min-w-0 text-foreground">
                           {dominant.name}
                           {typeof dominant.pct === "number"
                             ? ` ${dominant.pct.toFixed(1)}%`
@@ -2324,7 +2310,14 @@ function SavedRunsPanel({
                     )}
                   </div>
                 </label>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex items-center gap-1 border-t border-border/60 pt-2">
+                  {/*
+                    Named for where it goes, because it no longer goes to one
+                    place. A solar or wind run is read on the energy screen now;
+                    a classification is restored onto the map. "Open" said
+                    neither, and a button that lands somewhere unannounced reads
+                    as a navigation the reader did not ask for.
+                  */}
                   <button
                     type="button"
                     disabled={loading}
@@ -2332,15 +2325,17 @@ function SavedRunsPanel({
                     className={btnGhost}
                   >
                     <FolderOpen className="h-3 w-3" />
-                    Open
+                    {r.kind === "solar" || r.kind === "wind"
+                      ? "Open in Energy"
+                      : "Open on the map"}
                   </button>
                   {onDelete && (
                     <button
                       type="button"
                       disabled={loading}
                       onClick={() => onDelete(r)}
-                      className={cn(btnGhost, "px-2 hover:border-destructive-quiet/50 hover:text-destructive-quiet")}
-                      title="Delete analysis"
+                      className={cn(btnGhost, "ml-auto px-2 hover:border-destructive-quiet/50 hover:text-destructive-quiet")}
+                      title="Delete this run"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
