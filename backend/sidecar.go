@@ -369,87 +369,9 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		return nil, fmt.Errorf("failed to encode request: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, r.pythonPath, r.sidecar)
-	cmd.Stdin = strings.NewReader(string(reqBytes))
-
-	stdout, err := cmd.StdoutPipe()
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
 	if err != nil {
 		return nil, err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start sidecar: %w", err)
-	}
-
-	var wg sync.WaitGroup
-	var lastError string
-	var tail stderrTail
-
-	// Stream stderr: one JSON object per line ({progress,msg} or {error}).
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stderr)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
-			var ev struct {
-				Progress *int   `json:"progress"`
-				Msg      string `json:"msg"`
-				Error    string `json:"error"`
-			}
-			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				// Non-JSON stderr (e.g. library warnings, or a traceback when
-				// the process dies): forward it, and keep the last few so a
-				// crash can still say why.
-				tail.add(line)
-				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
-				continue
-			}
-			if ev.Error != "" {
-				lastError = ev.Error
-				continue
-			}
-			p := -1
-			if ev.Progress != nil {
-				p = *ev.Progress
-			}
-			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
-		}
-	}()
-
-	// Read stdout (single JSON result).
-	var out strings.Builder
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stdout)
-		scanner.Buffer(make([]byte, 0, 1024*1024), 16*1024*1024)
-		for scanner.Scan() {
-			out.WriteString(scanner.Text())
-		}
-	}()
-
-	wg.Wait()
-	waitErr := cmd.Wait()
-
-	if waitErr != nil {
-		return nil, sidecarFailure(waitErr, lastError, &tail)
-	}
-
-	raw := strings.TrimSpace(out.String())
-	if raw == "" {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar produced no output")
 	}
 
 	var sres sidecarResult
@@ -616,82 +538,9 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 		return nil, fmt.Errorf("failed to encode request: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, r.pythonPath, r.sidecar)
-	cmd.Stdin = strings.NewReader(string(reqBytes))
-
-	stdout, err := cmd.StdoutPipe()
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
 	if err != nil {
 		return nil, err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start sidecar: %w", err)
-	}
-
-	var wg sync.WaitGroup
-	var lastError string
-	var tail stderrTail
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stderr)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
-			var ev struct {
-				Progress *int   `json:"progress"`
-				Msg      string `json:"msg"`
-				Error    string `json:"error"`
-			}
-			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				// Kept, so a crash without a structured error can still say why.
-				tail.add(line)
-				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
-				continue
-			}
-			if ev.Error != "" {
-				lastError = ev.Error
-				continue
-			}
-			p := -1
-			if ev.Progress != nil {
-				p = *ev.Progress
-			}
-			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
-		}
-	}()
-
-	var out strings.Builder
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stdout)
-		scanner.Buffer(make([]byte, 0, 1024*1024), 16*1024*1024)
-		for scanner.Scan() {
-			out.WriteString(scanner.Text())
-		}
-	}()
-
-	wg.Wait()
-	waitErr := cmd.Wait()
-	if waitErr != nil {
-		return nil, sidecarFailure(waitErr, lastError, &tail)
-	}
-
-	raw := strings.TrimSpace(out.String())
-	if raw == "" {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar produced no output")
 	}
 
 	var wrapped struct {
@@ -762,82 +611,9 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 		return nil, fmt.Errorf("failed to encode request: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, r.pythonPath, r.sidecar)
-	cmd.Stdin = strings.NewReader(string(reqBytes))
-
-	stdout, err := cmd.StdoutPipe()
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
 	if err != nil {
 		return nil, err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start sidecar: %w", err)
-	}
-
-	var wg sync.WaitGroup
-	var lastError string
-	var tail stderrTail
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stderr)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
-			var ev struct {
-				Progress *int   `json:"progress"`
-				Msg      string `json:"msg"`
-				Error    string `json:"error"`
-			}
-			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				// Kept, so a crash without a structured error can still say why.
-				tail.add(line)
-				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
-				continue
-			}
-			if ev.Error != "" {
-				lastError = ev.Error
-				continue
-			}
-			p := -1
-			if ev.Progress != nil {
-				p = *ev.Progress
-			}
-			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
-		}
-	}()
-
-	var out strings.Builder
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stdout)
-		scanner.Buffer(make([]byte, 0, 1024*1024), 16*1024*1024)
-		for scanner.Scan() {
-			out.WriteString(scanner.Text())
-		}
-	}()
-
-	wg.Wait()
-	waitErr := cmd.Wait()
-	if waitErr != nil {
-		return nil, sidecarFailure(waitErr, lastError, &tail)
-	}
-
-	raw := strings.TrimSpace(out.String())
-	if raw == "" {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar produced no output")
 	}
 
 	var result DataCubeResult
@@ -922,82 +698,9 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 		return nil, fmt.Errorf("failed to encode request: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, r.pythonPath, r.sidecar)
-	cmd.Stdin = strings.NewReader(string(reqBytes))
-
-	stdout, err := cmd.StdoutPipe()
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
 	if err != nil {
 		return nil, err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start sidecar: %w", err)
-	}
-
-	var wg sync.WaitGroup
-	var lastError string
-	var tail stderrTail
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stderr)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
-			var ev struct {
-				Progress *int   `json:"progress"`
-				Msg      string `json:"msg"`
-				Error    string `json:"error"`
-			}
-			if err := json.Unmarshal([]byte(line), &ev); err != nil {
-				// Kept, so a crash without a structured error can still say why.
-				tail.add(line)
-				emitProgress(ctx, "predict:progress", ProgressEvent{Progress: -1, Msg: line})
-				continue
-			}
-			if ev.Error != "" {
-				lastError = ev.Error
-				continue
-			}
-			p := -1
-			if ev.Progress != nil {
-				p = *ev.Progress
-			}
-			emitProgress(ctx, "predict:progress", ProgressEvent{Progress: p, Msg: ev.Msg})
-		}
-	}()
-
-	var out strings.Builder
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		scanner := bufio.NewScanner(stdout)
-		scanner.Buffer(make([]byte, 0, 1024*1024), 16*1024*1024)
-		for scanner.Scan() {
-			out.WriteString(scanner.Text())
-		}
-	}()
-
-	wg.Wait()
-	waitErr := cmd.Wait()
-	if waitErr != nil {
-		return nil, sidecarFailure(waitErr, lastError, &tail)
-	}
-
-	raw := strings.TrimSpace(out.String())
-	if raw == "" {
-		if lastError != "" {
-			return nil, fmt.Errorf("%s", lastError)
-		}
-		return nil, fmt.Errorf("sidecar produced no output")
 	}
 
 	var wrapped struct {
@@ -1224,9 +927,22 @@ func convertWater(raw *waterSidecarPayload) *WaterAnalysis {
 	return out
 }
 
-// runSidecarJSON runs the sidecar with a marshalled request, relaying progress
-// events to the UI, and returns its stdout payload. Shared by the actions whose
-// only difference is the request and the shape they unmarshal.
+/*
+runSidecarJSON runs the sidecar with a marshalled request, relays its progress
+events to the UI, and returns the stdout payload.
+
+Every action reaches the sidecar through here. Four of them -- predict, lulc,
+list_datacube, render_composite -- used to carry their own copy of this loop,
+identical by intention rather than by anything holding them so: the 1 MB stderr
+line limit, the "predict:progress" event name, and the stderrTail that turns a
+bare exit status back into a reason each had to be edited in five places. A copy
+missed in such an edit says nothing until the action carrying it is the one that
+fails, which is the moment the diagnosis is needed.
+
+What differs between the actions is the request and the shape of the reply, so
+both stay with the caller: this takes marshalled bytes and hands back the raw
+payload for the caller to unmarshal into whatever it expects.
+*/
 func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, error) {
 	cmd := exec.CommandContext(ctx, r.pythonPath, r.sidecar)
 	cmd.Stdin = strings.NewReader(string(reqBytes))
