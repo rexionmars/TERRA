@@ -251,7 +251,7 @@ can be installed from Settings › System into the environment already in use.
 ```
 TERRA/
 ├── main.go / app.go     Wails window and frontend bindings
-├── backend/             Sidecar runner, geocode, types, SQLite store
+├── internal/            Sidecar runner and types, python env, export, geocode, store
 ├── sidecar/             Inference: STAC, features, models, LULC, phenology,
 │                        water, solar, wind, canopy
 ├── model/               Trained artifacts (.joblib / .pt)
@@ -285,7 +285,7 @@ wails build    # → build/bin/
 ```
 
 ```bash
-go test ./backend/...
+go test ./...
 pip install -r requirements-dev.txt
 pytest sidecar/tests -q
 ```
