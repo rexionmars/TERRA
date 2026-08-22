@@ -256,7 +256,100 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+/*
+schemaVersion is the shape this build expects, recorded in the database file as
+PRAGMA user_version.
+
+Raise it by one for each step added to migrate, and gate that step on the value
+below it. The number says how far migrate has taken a database; it does not by
+itself say which columns a table has, and addColumns explains why those two are
+not the same question here.
+*/
+const schemaVersion = 2
+
+// userVersion reads the version SQLite keeps in the database header.
+func (s *Store) userVersion() (int, error) {
+	var v int
+	if err := s.db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
+		return 0, fmt.Errorf("read user_version: %w", err)
+	}
+	return v, nil
+}
+
+/*
+setUserVersion records how far the steps in migrate have been applied.
+
+Formatted into the statement because PRAGMA accepts no bound parameters. The
+value is a constant declared in this file and never arrives from outside, so
+there is nothing here to inject.
+*/
+func (s *Store) setUserVersion(v int) error {
+	if _, err := s.db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, v)); err != nil {
+		return fmt.Errorf("set user_version = %d: %w", v, err)
+	}
+	return nil
+}
+
+// columnAdd is one additive column: where it belongs, and the statement that
+// puts it there.
+type columnAdd struct {
+	table  string
+	column string
+	stmt   string
+}
+
+/*
+addColumns applies ADD COLUMN statements, skipping those whose column the table
+already declares, and returning the error from any that should have succeeded.
+
+The table is asked rather than the version trusted, because on every database
+already in the field the two disagree. Idempotence used to come from discarding
+the error -- `_, _ = s.db.Exec(stmt)` -- so those files carry every column these
+steps add and still report user_version = 0. Driven by the version alone, the
+first ALTER against one of them returns "duplicate column name" and Open fails:
+the user's work intact on disk, behind a store that will not open it.
+
+Reading the shape also leaves the version free to record what has been
+considered rather than to stand as the only evidence of what exists, and leaves
+a real failure -- a locked file, a missing table, a full disk -- to propagate
+instead of being read as "already applied", which is what the discarded error
+made indistinguishable.
+
+Decided per column, not per step: a step interrupted partway leaves some of its
+columns added and the rest not, and a step is re-entered whole.
+*/
+func (s *Store) addColumns(adds []columnAdd) error {
+	for _, a := range adds {
+		var n int
+		if err := s.db.QueryRow(
+			`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`,
+			a.table, a.column,
+		).Scan(&n); err != nil {
+			return fmt.Errorf("inspect %s: %w", a.table, err)
+		}
+		if n > 0 {
+			continue
+		}
+		if _, err := s.db.Exec(a.stmt); err != nil {
+			return fmt.Errorf("add %s.%s: %w", a.table, a.column, err)
+		}
+	}
+	return nil
+}
+
+/*
+migrate brings the database up to schemaVersion.
+
+The CREATE TABLE IF NOT EXISTS blocks run every time. Each states what it wants
+and can be applied to any database, so a file that predates a whole table gains
+it whatever its version says. Only the statements that cannot be repeated --
+the ADD COLUMNs -- are gated on the version, and those check the table first.
+*/
 func (s *Store) migrate() error {
+	at, err := s.userVersion()
+	if err != nil {
+		return err
+	}
 	schema := `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -297,21 +390,29 @@ CREATE INDEX IF NOT EXISTS idx_runs_user_created ON inference_runs(user_id, crea
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
-	// Additive columns for full analysis persistence (ignore if already present).
-	for _, stmt := range []string{
-		`ALTER TABLE inference_runs ADD COLUMN result_json TEXT NOT NULL DEFAULT '{}'`,
-		`ALTER TABLE inference_runs ADD COLUMN assets_relpath TEXT`,
-		`ALTER TABLE inference_runs ADD COLUMN label TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE inference_runs ADD COLUMN project_id TEXT`,
-		// Distinguishes a classification from a descriptive product such as
-		// surface water, which has no model and no trained legend. Existing
-		// rows predate water and are all classifications.
-		`ALTER TABLE inference_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'classification'`,
-		// The catalogued area a run belongs to. Existing rows carry no link and
-		// resolve by geometry instead; see InferenceRun.AoiID.
-		`ALTER TABLE inference_runs ADD COLUMN aoi_id TEXT NOT NULL DEFAULT ''`,
-	} {
-		_, _ = s.db.Exec(stmt)
+	// Additive columns for full analysis persistence.
+	if at < 1 {
+		if err := s.addColumns([]columnAdd{
+			{"inference_runs", "result_json",
+				`ALTER TABLE inference_runs ADD COLUMN result_json TEXT NOT NULL DEFAULT '{}'`},
+			{"inference_runs", "assets_relpath",
+				`ALTER TABLE inference_runs ADD COLUMN assets_relpath TEXT`},
+			{"inference_runs", "label",
+				`ALTER TABLE inference_runs ADD COLUMN label TEXT NOT NULL DEFAULT ''`},
+			{"inference_runs", "project_id",
+				`ALTER TABLE inference_runs ADD COLUMN project_id TEXT`},
+			// Distinguishes a classification from a descriptive product such as
+			// surface water, which has no model and no trained legend. Existing
+			// rows predate water and are all classifications.
+			{"inference_runs", "kind",
+				`ALTER TABLE inference_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'classification'`},
+			// The catalogued area a run belongs to. Existing rows carry no link and
+			// resolve by geometry instead; see InferenceRun.AoiID.
+			{"inference_runs", "aoi_id",
+				`ALTER TABLE inference_runs ADD COLUMN aoi_id TEXT NOT NULL DEFAULT ''`},
+		}); err != nil {
+			return fmt.Errorf("migrate runs: %w", err)
+		}
 	}
 	projectSchema := `
 CREATE TABLE IF NOT EXISTS projects (
@@ -357,14 +458,34 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 		before this column exists are in the same position, and readers fall
 		back to comparing the recorded extent against the current area.
 	*/
-	for _, stmt := range []string{
-		`ALTER TABLE project_overlays ADD COLUMN run_id TEXT`,
-		`CREATE INDEX IF NOT EXISTS idx_project_overlays_run ON project_overlays(run_id)`,
-	} {
-		_, _ = s.db.Exec(stmt)
+	if at < 2 {
+		if err := s.addColumns([]columnAdd{
+			{"project_overlays", "run_id",
+				`ALTER TABLE project_overlays ADD COLUMN run_id TEXT`},
+		}); err != nil {
+			return fmt.Errorf("migrate overlay run link: %w", err)
+		}
+		if _, err := s.db.Exec(
+			`CREATE INDEX IF NOT EXISTS idx_project_overlays_run ON project_overlays(run_id)`,
+		); err != nil {
+			return fmt.Errorf("migrate overlay run index: %w", err)
+		}
 	}
 	if _, err := s.db.Exec(whiteboardSchema); err != nil {
 		return fmt.Errorf("migrate whiteboards: %w", err)
+	}
+	/*
+		Written last, so a failure anywhere above leaves the version where it
+		was and the next Open retries the same steps.
+
+		Only ever raised. A file opened by a newer build carries that build's
+		number and the steps that go with it; writing this build's number over
+		it would erase the record of work this build knows nothing about.
+	*/
+	if at < schemaVersion {
+		if err := s.setUserVersion(schemaVersion); err != nil {
+			return err
+		}
 	}
 	if err := s.ensureLocalUser(); err != nil {
 		return err
