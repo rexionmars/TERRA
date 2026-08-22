@@ -1,6 +1,11 @@
 // Types mirroring the Go backend structs (backend/types.go). The Wails bridge
 // also generates models under wailsjs/go/models.ts after `wails dev`; these
 // local definitions keep the frontend readable and self-contained.
+//
+// Being a hand copy, this file can drift from the structs it mirrors without
+// anything failing. scripts/check-types.ts compares the JSON field names of
+// every struct that has a same-named interface here and exits non-zero when
+// the two sets differ; it says in its own header what it does not compare.
 
 import type { PaletteName } from "./palettes"
 
@@ -373,6 +378,20 @@ export interface PredictResult {
   library_limit?: LibraryLimit | null
   temporal: TemporalPoint[] | null
   vi_series: VISeriesPoint[] | null
+  /**
+   * The same dates averaged over CROP PIXELS ONLY, beside the AOI-wide series
+   * rather than in place of it.
+   *
+   * The two can differ in length -- a date whose crop pixels were entirely
+   * cloud-obscured leaves this series and stays in the other -- so they must be
+   * read by date and never zipped by index. Absent when the AOI carries no
+   * cropland, which is a statement and not a failure. Anything inverting an
+   * index to leaf area should prefer this one: an area mean over mixed cover is
+   * not the crop's index.
+   */
+  vi_series_crop?: VISeriesPoint[]
+  /** The crop share of the AOI, in percent; the denominator for the series above. */
+  crop_pixel_pct?: number
   phenology: PhenologyMetrics
   phenology_states: PhenologyStatePoint[] | null
   lulc?: LULCAnalysis | null
@@ -1067,6 +1086,13 @@ export interface SolarSitingRequest {
   polygon_geojson: GeoJSONGeometry | null
   slope_acceptable_deg: number
   slope_restrictive_deg: number
+  /**
+   * Land-cover codes treated as excluded and as cropland. Omitted applies the
+   * sidecar's defaults, and the response repeats whichever codes were used in
+   * SolarSitingAnalysis.thresholds.
+   */
+  excluded_cover?: number[]
+  cropland_cover?: number[]
   /** The catalogued AOI this run is of, so the board can link the two. */
   aoi_id?: string
 }
