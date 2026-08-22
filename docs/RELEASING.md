@@ -68,15 +68,21 @@ are. It is shown on the splash under the wordmark, beside the version number,
 and does not change from launch to launch.
 
 The stills carry names from the same set, and the release is named for one of
-them: that photograph is what the first launch after an update shows, before
-joining the rotation. The correspondence is deliberate but not a dependency —
-the release keeps its name whichever photograph the rotation lands on.
+them. The manifest currently holds a single still, `Amazon`, so the splash is
+fixed and the release is named for the only photograph there is. Add a second
+entry and the rotation resumes on its own: the featured still is what the first
+launch after an update shows and what every second launch after it shows, and
+the walk covers the rest. The correspondence is deliberate but not a dependency
+— the release keeps its name whichever photograph the rotation lands on.
 
-Names come from one set: **what is observable from orbit**. `Meander`,
-`Terraces`, `Vortex`, `Windfarm`, `Ember`. The coherence is the point — a set
-is what makes the names read as deliberate rather than arbitrary — and it does
-not run out. Pick a name that fits the image, and an image that fits what the
-release is about: a version focused on solar and wind ships turbines at dusk.
+Names come from one set: **what is observable from orbit**. `Amazon`, and
+before it `Meander`, `Terraces`, `Vortex`, `Windfarm`, `Ember`, `Soybean` —
+those six are in the history of `splashBackground.ts` with their sources, and
+their files are still in `frontend/public/terra-splash-images`. The coherence is the point — a
+set is what makes the names read as deliberate rather than arbitrary — and it
+does not run out. Pick a name that fits the image, and an image that fits what
+the release is about: a version focused on solar and wind ships turbines at
+dusk.
 
 ### Adding one
 

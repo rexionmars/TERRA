@@ -19,8 +19,10 @@ type SplashScreenProps = {
  * Compact boot UI for the small splash window, before the main shell.
  *
  * A full-bleed aerial still with a slow pan, the brand centred, and the boot
- * log's last line along the bottom. The still rotates per launch rather than
- * during one: the window is up for about a second.
+ * log's last line along the bottom. One still per launch and never a change
+ * during one: the window is up for about a second. The manifest currently
+ * holds a single still, so every launch is that one; the claim below is what
+ * walks the manifest whenever it holds more.
  */
 export function SplashScreen({ exiting = false }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])

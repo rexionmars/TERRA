@@ -47,4 +47,4 @@ export const BRAND_TAGLINE = "earth observation"
  *
  * Bump it with AppVersion in version.go -- see docs/RELEASING.md.
  */
-export const RELEASE_NAME = "Ember"
+export const RELEASE_NAME = "Amazon"
