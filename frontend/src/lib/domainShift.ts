@@ -5,7 +5,7 @@ import {
   AnalyzeDomainShift,
   AnalyzeDomainShiftCohort,
 } from "../../wailsjs/go/main/App"
-import { backend } from "../../wailsjs/go/models"
+import { analysis } from "../../wailsjs/go/models"
 import type {
   DomainFingerprint,
   DomainShiftCohort,
@@ -125,7 +125,7 @@ export async function cohortDomainShift(
     the Go tags rather than cast past them.
   */
   const cohort = await AnalyzeDomainShiftCohort(
-    backend.DomainShiftCohortRequest.createFrom({
+    analysis.DomainShiftCohortRequest.createFrom({
       source: {
         id: source.id,
         label: source.label,

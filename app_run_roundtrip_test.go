@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"testing"
 
-	"geosense-infer/backend"
-	"geosense-infer/backend/store"
+	"geosense-infer/internal/analysis"
+	"geosense-infer/internal/store"
 )
 
 // newTestApp builds an App backed by a store in a temporary home, which is what
@@ -72,12 +72,12 @@ func loadFixture(t *testing.T, name, key string, dst any) {
 func TestEnergyModelRunRoundTrip(t *testing.T) {
 	a := newTestApp(t)
 
-	var res backend.EnergyModelAnalysis
+	var res analysis.EnergyModelAnalysis
 	loadFixture(t, "energy_model_b.json", "energy_model", &res)
 	res.NormalizeNilSlices()
 	assertEnergyFixtureBinds(t, &res)
 
-	a.persistEnergyModelRun(backend.EnergyModelRequest{
+	a.persistEnergyModelRun(analysis.EnergyModelRequest{
 		AreaID: "B", Label: "Propriedade B", ProjectID: "",
 	}, &res)
 
@@ -169,7 +169,7 @@ func TestEnergyModelRunRoundTrip(t *testing.T) {
 func TestEnergyModelRunLegacyProductTagOpens(t *testing.T) {
 	a := newTestApp(t)
 
-	var res backend.EnergyModelAnalysis
+	var res analysis.EnergyModelAnalysis
 	loadFixture(t, "energy_model_b.json", "energy_model", &res)
 	res.NormalizeNilSlices()
 
@@ -225,12 +225,12 @@ func TestEnergyModelRunLegacyProductTagOpens(t *testing.T) {
 func TestWindRunRoundTrip(t *testing.T) {
 	a := newTestApp(t)
 
-	var res backend.WindAnalysis
+	var res analysis.WindAnalysis
 	loadFixture(t, "wind_b.json", "wind", &res)
 	res.NormalizeNilSlices()
 	assertWindFixtureBinds(t, &res)
 
-	a.persistWindRun(backend.WindRequest{
+	a.persistWindRun(analysis.WindRequest{
 		AreaID: "B", Label: "Propriedade B",
 	}, &res)
 
@@ -362,7 +362,7 @@ func withinTolerance(got, want, tol float64) bool {
 // of the reference script because the action evaluates solar position at the
 // grid cell the request rounds to, which is the behaviour of solar_resource
 // beside it.
-func assertEnergyFixtureBinds(t *testing.T, e *backend.EnergyModelAnalysis) {
+func assertEnergyFixtureBinds(t *testing.T, e *analysis.EnergyModelAnalysis) {
 	t.Helper()
 	for _, c := range []struct {
 		name string
@@ -418,7 +418,7 @@ func assertEnergyFixtureBinds(t *testing.T, e *backend.EnergyModelAnalysis) {
 // assertWindFixtureBinds pins the recorded wind payload to the figures the
 // critique independently re-ran for the Propriedade B reanalysis cell, for the
 // reason given on assertEnergyFixtureBinds.
-func assertWindFixtureBinds(t *testing.T, w *backend.WindAnalysis) {
+func assertWindFixtureBinds(t *testing.T, w *analysis.WindAnalysis) {
 	t.Helper()
 	for _, c := range []struct {
 		name string
@@ -503,7 +503,7 @@ func TestLoadAnalysisStampsTheRunItReturns(t *testing.T) {
 
 	// Built here rather than loaded: the point is a result with NO run id, and
 	// a fixture that happened to gain one would silently stop testing it.
-	res := backend.PredictResult{NDates: 3}
+	res := analysis.PredictResult{NDates: 3}
 	body, err := json.Marshal(res)
 	if err != nil {
 		t.Fatal(err)
@@ -526,7 +526,7 @@ func TestLoadAnalysisStampsTheRunItReturns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var raw backend.PredictResult
+	var raw analysis.PredictResult
 	if err := json.Unmarshal([]byte(stored.ResultJSON), &raw); err != nil {
 		t.Fatal(err)
 	}

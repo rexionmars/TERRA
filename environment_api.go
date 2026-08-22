@@ -6,7 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"geosense-infer/backend"
+	"geosense-infer/internal/analysis"
+	"geosense-infer/internal/pyenv"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -53,11 +54,11 @@ type ResolvedPath struct {
 // EnvironmentState is everything the setup screen needs in one call.
 type EnvironmentState struct {
 	// The interpreter in use right now, inspected.
-	Active *backend.EnvReport `json:"active"`
+	Active *pyenv.EnvReport `json:"active"`
 	// Everything else found on this machine, uninspected: inspecting each one
 	// imports rasterio and torch and costs seconds apiece, so the screen lists
 	// them and inspects on selection.
-	Candidates []backend.PythonCandidate `json:"candidates"`
+	Candidates []pyenv.PythonCandidate `json:"candidates"`
 	// Where a managed environment would be, or is.
 	ManagedDir string `json:"managed_dir"`
 	// True when the active interpreter is the one this application built, and
@@ -86,9 +87,7 @@ func (a *App) sidecarDir() string {
 }
 
 func (a *App) dataDir() string {
-	a.mu.RLock()
-	st := a.store
-	a.mu.RUnlock()
+	st := a.currentStore()
 	if st == nil {
 		return ""
 	}
@@ -102,14 +101,14 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 	if data == "" {
 		return nil, fmt.Errorf("the local store is not open")
 	}
-	managed := backend.ManagedEnvDir(data)
-	cfg := backend.LoadAppConfig(data)
+	managed := pyenv.ManagedEnvDir(data)
+	cfg := pyenv.LoadAppConfig(data)
 
 	state := &EnvironmentState{
 		ManagedDir:  managed,
 		EnvOverride: envOverride(),
 		Building:    a.envBuilder.Running(),
-		ConfigPath:  backend.ConfigPath(data),
+		ConfigPath:  pyenv.ConfigPath(data),
 	}
 
 	// Read once. Four separate reads could see two different runners if a build
@@ -119,7 +118,7 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 	sidecar := a.sidecarDir()
 	if runner != nil && sidecar != "" {
 		python := runner.PythonPath()
-		active := backend.InspectPython(a.ctx, python, sidecar)
+		active := pyenv.InspectPython(a.ctx, python, sidecar)
 		active.Origin = originOf(python, managed, cfg)
 		state.Active = active
 		state.ManagedActive = python == venvInterpreter(managed)
@@ -131,7 +130,7 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 	if runner != nil {
 		appDir = filepath.Dir(sidecar)
 	}
-	state.Candidates = backend.DiscoverPythons(appDir, managed, "")
+	state.Candidates = pyenv.DiscoverPythons(appDir, managed, "")
 	return state, nil
 }
 
@@ -148,7 +147,7 @@ Exists is checked rather than assumed. resolveAppDir and the model fallback both
 end in a path that may not be there, and neither reports it: the failure arrives
 later, as "model directory not found", from the middle of a run.
 */
-func resolvedPaths(runner *backend.Runner, dataDir string) []ResolvedPath {
+func resolvedPaths(runner *analysis.Runner, dataDir string) []ResolvedPath {
 	// Set by Go regardless of the runner, so they are reported even when the
 	// runner failed to build -- which is exactly when someone is looking.
 	paths := []ResolvedPath{{
@@ -242,12 +241,12 @@ func withExistence(paths []ResolvedPath) []ResolvedPath {
 // InspectPython inspects one candidate, for the screen to call when the user
 // selects it. Separate from the listing because this is the slow part: it
 // imports every dependency in that interpreter.
-func (a *App) InspectPython(path string) (*backend.EnvReport, error) {
+func (a *App) InspectPython(path string) (*pyenv.EnvReport, error) {
 	sidecar := a.sidecarDir()
 	if sidecar == "" {
 		return nil, fmt.Errorf("the sidecar directory is not resolved")
 	}
-	return backend.InspectPython(a.ctx, path, sidecar), nil
+	return pyenv.InspectPython(a.ctx, path, sidecar), nil
 }
 
 // UseInterpreter records a choice and rebuilds the runner around it.
@@ -256,12 +255,12 @@ func (a *App) InspectPython(path string) (*backend.EnvReport, error) {
 // problem the user can see with a problem they cannot: the screen would close,
 // the application would look configured, and the failure would move back to
 // the middle of an analysis, which is where this whole feature came from.
-func (a *App) UseInterpreter(path string) (*backend.EnvReport, error) {
+func (a *App) UseInterpreter(path string) (*pyenv.EnvReport, error) {
 	sidecar := a.sidecarDir()
 	if sidecar == "" {
 		return nil, fmt.Errorf("the sidecar directory is not resolved")
 	}
-	report := backend.InspectPython(a.ctx, path, sidecar)
+	report := pyenv.InspectPython(a.ctx, path, sidecar)
 	if report.Unreachable != "" {
 		return report, fmt.Errorf("%s", report.Unreachable)
 	}
@@ -270,10 +269,10 @@ func (a *App) UseInterpreter(path string) (*backend.EnvReport, error) {
 	}
 
 	data := a.dataDir()
-	cfg := backend.LoadAppConfig(data)
+	cfg := pyenv.LoadAppConfig(data)
 	cfg.PythonPath = path
-	cfg.Managed = path == venvInterpreter(backend.ManagedEnvDir(data))
-	if err := backend.SaveAppConfig(data, cfg); err != nil {
+	cfg.Managed = path == venvInterpreter(pyenv.ManagedEnvDir(data))
+	if err := pyenv.SaveAppConfig(data, cfg); err != nil {
 		return report, err
 	}
 	return report, a.rebuildRunner(cfg.PythonPath)
@@ -298,34 +297,35 @@ func (a *App) BuildManagedEnvironment(basePython string) error {
 		return fmt.Errorf("an environment build is already running")
 	}
 
-	managed := backend.ManagedEnvDir(data)
+	managed := pyenv.ManagedEnvDir(data)
 	ctx := a.ctx
+	runCtx := buildContext(ctx)
 	go func() {
-		emit := func(ev backend.EnvSetupEvent) {
+		emit := func(ev pyenv.EnvSetupEvent) {
 			if ctx != nil {
 				wruntime.EventsEmit(ctx, "env:setup", ev)
 			}
 		}
 		py, err := a.envBuilder.Build(
-			context.Background(), basePython, managed, requirementsTxt, sidecar, emit,
+			runCtx, basePython, managed, requirementsTxt, sidecar, emit,
 		)
 		if err != nil {
 			return // Build already emitted the failure.
 		}
-		cfg := backend.LoadAppConfig(data)
+		cfg := pyenv.LoadAppConfig(data)
 		cfg.PythonPath = py
 		cfg.Managed = true
-		if err := backend.SaveAppConfig(data, cfg); err != nil {
-			emit(backend.EnvSetupEvent{Step: backend.StepFailed,
+		if err := pyenv.SaveAppConfig(data, cfg); err != nil {
+			emit(pyenv.EnvSetupEvent{Step: pyenv.StepFailed,
 				Error: "the environment was built but the choice could not be saved: " + err.Error()})
 			return
 		}
 		if err := a.rebuildRunner(py); err != nil {
-			emit(backend.EnvSetupEvent{Step: backend.StepFailed,
+			emit(pyenv.EnvSetupEvent{Step: pyenv.StepFailed,
 				Error: "the environment was built but could not be adopted: " + err.Error()})
 			return
 		}
-		emit(backend.EnvSetupEvent{Step: backend.StepDone, Line: "in use"})
+		emit(pyenv.EnvSetupEvent{Step: pyenv.StepDone, Line: "in use"})
 	}()
 	return nil
 }
@@ -361,25 +361,51 @@ func (a *App) ManageOptionalPackage(name string, install bool) error {
 	python := runner.PythonPath()
 
 	ctx := a.ctx
+	runCtx := buildContext(ctx)
 	go func() {
-		emit := func(ev backend.EnvSetupEvent) {
+		emit := func(ev pyenv.EnvSetupEvent) {
 			if ctx != nil {
 				wruntime.EventsEmit(ctx, "env:setup", ev)
 			}
 		}
 		if install {
-			_ = a.envBuilder.InstallOptional(context.Background(), python, name, sidecar, emit)
+			_ = a.envBuilder.InstallOptional(runCtx, python, name, sidecar, emit)
 			return
 		}
-		_ = a.envBuilder.RemoveOptional(context.Background(), python, name, sidecar, emit)
+		_ = a.envBuilder.RemoveOptional(runCtx, python, name, sidecar, emit)
 	}()
 	return nil
 }
 
+/*
+buildContext is the context a pip run is bound to, derived from the
+application's.
+
+These three runs used context.Background() while a.ctx sat in scope beside
+them, captured for event emission. The child pip process therefore outlived
+the window: closing the application left it installing into the managed
+environment directory with no surface reporting it and nothing able to stop
+it, and a relaunch would find a half-populated environment that InspectPython
+had no reason to distrust.
+
+The two contexts stay separate rather than collapsing into one. emit needs the
+Wails context specifically, because that is what EventsEmit resolves the event
+bus from, and it must stay nil-checked -- a build can be requested before
+startup has handed one over. A run has no such option: exec.CommandContext
+panics on a nil context, so the fallback here is Background, which is the
+behaviour these calls already had.
+*/
+func buildContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
 // ListOptionalPackages reports what can be added, so the screen names the cost
 // and what each one unlocks rather than listing bare package names.
-func (a *App) ListOptionalPackages() []backend.OptionalPackage {
-	return backend.OptionalPackages
+func (a *App) ListOptionalPackages() []pyenv.OptionalPackage {
+	return pyenv.OptionalPackages
 }
 
 // CancelEnvironmentBuild stops a build in progress.
@@ -394,7 +420,7 @@ func (a *App) rebuildRunner(python string) error {
 	if a.currentRunner() != nil {
 		appDir = filepath.Dir(a.sidecarDir())
 	}
-	runner, err := backend.NewRunner(appDir, python)
+	runner, err := analysis.NewRunner(appDir, python)
 	if err != nil {
 		return err
 	}
@@ -410,7 +436,7 @@ func (a *App) rebuildRunner(python string) error {
 // than one that explains why.
 func envOverride() string { return os.Getenv("TERRA_PYTHON") }
 
-func venvInterpreter(dir string) string { return backend.VenvInterpreter(dir) }
+func venvInterpreter(dir string) string { return pyenv.VenvInterpreter(dir) }
 
 // originOf names where an interpreter came from, in the user's terms.
 //
@@ -420,11 +446,11 @@ func venvInterpreter(dir string) string { return backend.VenvInterpreter(dir) }
 // the user their selection is still in force while quietly running something
 // else. It says the selection was dropped, which is the only version of events
 // that explains what they are looking at.
-func originOf(path, managedDir string, cfg backend.AppConfig) string {
+func originOf(path, managedDir string, cfg pyenv.AppConfig) string {
 	switch {
 	case os.Getenv("TERRA_PYTHON") != "":
 		return "TERRA_PYTHON"
-	case path == backend.VenvInterpreter(managedDir):
+	case path == pyenv.VenvInterpreter(managedDir):
 		return "managed"
 	case cfg.PythonPath != "" && path == cfg.PythonPath:
 		return "chosen"

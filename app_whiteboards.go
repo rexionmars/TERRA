@@ -13,48 +13,53 @@ running application.
 import (
 	"fmt"
 
-	"geosense-infer/backend/store"
+	"geosense-infer/internal/store"
 )
 
 // SaveWhiteboard creates or replaces a named board arrangement.
 func (a *App) SaveWhiteboard(c store.Whiteboard) (*store.Whiteboard, error) {
-	if a.store == nil {
+	st := a.currentStore()
+	if st == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}
 	c.UserID = a.effectiveUserID()
-	return a.store.SaveWhiteboard(c)
+	return st.SaveWhiteboard(c)
 }
 
 // ListWhiteboards returns the user's arrangements, most recent first, with a
 // member count rather than the members themselves.
 func (a *App) ListWhiteboards() ([]store.Whiteboard, error) {
-	if a.store == nil {
+	st := a.currentStore()
+	if st == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}
-	return a.store.ListWhiteboards(a.effectiveUserID())
+	return st.ListWhiteboards(a.effectiveUserID())
 }
 
 // GetWhiteboard returns one arrangement with its members in board order.
 func (a *App) GetWhiteboard(whiteboardID string) (*store.Whiteboard, error) {
-	if a.store == nil {
+	st := a.currentStore()
+	if st == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}
-	return a.store.GetWhiteboard(a.effectiveUserID(), whiteboardID)
+	return st.GetWhiteboard(a.effectiveUserID(), whiteboardID)
 }
 
 // RenameWhiteboard changes the name without touching the members.
 func (a *App) RenameWhiteboard(whiteboardID, name string) error {
-	if a.store == nil {
+	st := a.currentStore()
+	if st == nil {
 		return fmt.Errorf("store unavailable")
 	}
-	return a.store.RenameWhiteboard(a.effectiveUserID(), whiteboardID, name)
+	return st.RenameWhiteboard(a.effectiveUserID(), whiteboardID, name)
 }
 
 // DeleteWhiteboard removes an arrangement and its members. The runs it named
 // are untouched: a whiteboard holds no rasters of its own.
 func (a *App) DeleteWhiteboard(whiteboardID string) error {
-	if a.store == nil {
+	st := a.currentStore()
+	if st == nil {
 		return fmt.Errorf("store unavailable")
 	}
-	return a.store.DeleteWhiteboard(a.effectiveUserID(), whiteboardID)
+	return st.DeleteWhiteboard(a.effectiveUserID(), whiteboardID)
 }

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"geosense-infer/backend/store"
+	"geosense-infer/internal/store"
 
 	"github.com/google/uuid"
 )
@@ -25,10 +25,11 @@ func (a *App) effectiveUserID() string {
 
 // CreateProject creates a named project for the current user (or local guest).
 func (a *App) CreateProject(name, notes string) (*store.Project, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	return a.store.CreateProject(store.Project{
+	return st.CreateProject(store.Project{
 		UserID: a.effectiveUserID(),
 		Name:   name,
 		Notes:  notes,
@@ -37,50 +38,56 @@ func (a *App) CreateProject(name, notes string) (*store.Project, error) {
 
 // UpdateProject updates project metadata and/or AOI.
 func (a *App) UpdateProject(p store.Project) (*store.Project, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	return a.store.UpdateProject(a.effectiveUserID(), p)
+	return st.UpdateProject(a.effectiveUserID(), p)
 }
 
 // DeleteProject deletes a project, detaches runs, and removes overlay files.
 func (a *App) DeleteProject(projectID string) error {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return err
 	}
-	return a.store.DeleteProject(a.effectiveUserID(), projectID)
+	return st.DeleteProject(a.effectiveUserID(), projectID)
 }
 
 // ListProjects returns projects for the current user.
 func (a *App) ListProjects() ([]store.Project, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	return a.store.ListProjects(a.effectiveUserID())
+	return st.ListProjects(a.effectiveUserID())
 }
 
 // GetProject returns one project.
 func (a *App) GetProject(projectID string) (*store.Project, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	return a.store.GetProject(a.effectiveUserID(), projectID)
+	return st.GetProject(a.effectiveUserID(), projectID)
 }
 
 // ListProjectRuns lists runs in a project; empty projectID lists unassigned runs.
 func (a *App) ListProjectRuns(projectID string, limit int) ([]store.InferenceRun, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	return a.store.ListRunsByProject(a.effectiveUserID(), projectID, limit)
+	return st.ListRunsByProject(a.effectiveUserID(), projectID, limit)
 }
 
 // SetRunProject assigns a run to a project (empty projectID clears).
 func (a *App) SetRunProject(runID, projectID string) error {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return err
 	}
-	return a.store.SetRunProject(a.effectiveUserID(), runID, projectID)
+	return st.SetRunProject(a.effectiveUserID(), runID, projectID)
 }
 
 // SaveProjectOverlayRequest persists a composition (or similar) into a project.
@@ -103,7 +110,8 @@ type SaveProjectOverlayRequest struct {
 
 // SaveProjectOverlay copies overlay assets into the project folder and inserts a row.
 func (a *App) SaveProjectOverlay(req SaveProjectOverlayRequest) (*store.ProjectOverlay, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	userID := a.effectiveUserID()
@@ -111,28 +119,39 @@ func (a *App) SaveProjectOverlay(req SaveProjectOverlayRequest) (*store.ProjectO
 	if projectID == "" {
 		return nil, errors.New("project_id required")
 	}
-	if err := a.store.EnsureProjectOwned(userID, projectID); err != nil {
+	if err := st.EnsureProjectOwned(userID, projectID); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.OverlayURI) == "" {
 		return nil, errors.New("overlay_uri required")
 	}
+	// A canvas export, so it is a data URI and nothing else.
+	//
+	// store.WriteDataURIFile treats any string without the prefix as a
+	// filesystem path and reads it, which raster_tif needs -- that one is a
+	// GeoTIFF the sidecar wrote and named. This value is not: it arrives from
+	// the WebView, so without this line "/etc/passwd" is copied into the
+	// project's overlay folder and handed straight back by
+	// hydrateProjectOverlay, base64-encoded, as the overlay's own image.
+	if !strings.HasPrefix(req.OverlayURI, "data:") {
+		return nil, errors.New("overlay_uri must be a data URI")
+	}
 
 	overlayID := uuid.NewString()
-	dir := a.store.ProjectOverlaysDir(projectID)
+	dir := st.ProjectOverlaysDir(projectID)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
 	pngName := overlayID + ".png"
 	pngRel := store.ProjectOverlayRel(projectID, pngName)
-	if err := store.WriteDataURIFile(req.OverlayURI, filepath.Join(a.store.DataDir(), pngRel)); err != nil {
+	if err := store.WriteDataURIFile(req.OverlayURI, filepath.Join(st.DataDir(), pngRel)); err != nil {
 		return nil, fmt.Errorf("save overlay png: %w", err)
 	}
 	tifRel := ""
 	if strings.TrimSpace(req.RasterTIF) != "" {
 		tifName := overlayID + ".tif"
 		tifRel = store.ProjectOverlayRel(projectID, tifName)
-		if err := store.WriteDataURIFile(req.RasterTIF, filepath.Join(a.store.DataDir(), tifRel)); err != nil {
+		if err := store.WriteDataURIFile(req.RasterTIF, filepath.Join(st.DataDir(), tifRel)); err != nil {
 			tifRel = ""
 		}
 	}
@@ -148,7 +167,7 @@ func (a *App) SaveProjectOverlay(req SaveProjectOverlayRequest) (*store.ProjectO
 	if title == "" {
 		title = "Composition"
 	}
-	row, err := a.store.AddProjectOverlay(userID, store.ProjectOverlay{
+	row, err := st.AddProjectOverlay(userID, store.ProjectOverlay{
 		ID:         overlayID,
 		ProjectID:  projectID,
 		RunID:      strings.TrimSpace(req.RunID),
@@ -161,53 +180,62 @@ func (a *App) SaveProjectOverlay(req SaveProjectOverlayRequest) (*store.ProjectO
 	if err != nil {
 		return nil, err
 	}
-	return a.hydrateProjectOverlay(row), nil
+	return hydrateProjectOverlay(st, row), nil
 }
 
 // ListProjectOverlays returns overlays with hydrated preview URIs.
 func (a *App) ListProjectOverlays(projectID string) ([]store.ProjectOverlay, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	rows, err := a.store.ListProjectOverlays(a.effectiveUserID(), projectID)
+	rows, err := st.ListProjectOverlays(a.effectiveUserID(), projectID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]store.ProjectOverlay, 0, len(rows))
 	for i := range rows {
-		out = append(out, *a.hydrateProjectOverlay(&rows[i]))
+		out = append(out, *hydrateProjectOverlay(st, &rows[i]))
 	}
 	return out, nil
 }
 
 // DeleteProjectOverlay removes one overlay from a project.
 func (a *App) DeleteProjectOverlay(overlayID string) error {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return err
 	}
-	return a.store.DeleteProjectOverlay(a.effectiveUserID(), overlayID)
+	return st.DeleteProjectOverlay(a.effectiveUserID(), overlayID)
 }
 
 // DeleteAnalysis deletes a saved inference run and its files.
 func (a *App) DeleteAnalysis(runID string) error {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return err
 	}
-	return a.store.DeleteRun(a.effectiveUserID(), runID)
+	return st.DeleteRun(a.effectiveUserID(), runID)
 }
 
-func (a *App) hydrateProjectOverlay(o *store.ProjectOverlay) *store.ProjectOverlay {
+// hydrateProjectOverlay fills in the preview URI and raster path a row only
+// records the location of.
+//
+// The store is a parameter rather than read off the App: the caller already
+// holds the one it checked, and reading the field again here would be a second
+// read that a restore can turn into nil between the two.
+func hydrateProjectOverlay(st *store.Store, o *store.ProjectOverlay) *store.ProjectOverlay {
 	if o == nil {
 		return nil
 	}
 	out := *o
 	if o.PNGRelPath != "" {
-		if uri, err := store.ReadFileDataURI(a.store.AbsDataPath(o.PNGRelPath), "image/png"); err == nil {
+		if uri, err := store.ReadFileDataURI(st.AbsDataPath(o.PNGRelPath), "image/png"); err == nil {
 			out.OverlayURI = uri
 		}
 	}
 	if o.TIFRelPath != "" {
-		abs := a.store.AbsDataPath(o.TIFRelPath)
+		abs := st.AbsDataPath(o.TIFRelPath)
 		if _, err := os.Stat(abs); err == nil {
 			out.RasterTIF = abs
 		}
@@ -220,11 +248,12 @@ func (a *App) hydrateProjectOverlay(o *store.ProjectOverlay) *store.ProjectOverl
 
 // UpdateProjectAOI is a convenience wrapper for binding the current map AOI.
 func (a *App) UpdateProjectAOI(projectID, areaID, polygonGeoJSON, label string) (*store.Project, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	userID := a.effectiveUserID()
-	p, err := a.store.GetProject(userID, projectID)
+	p, err := st.GetProject(userID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -235,12 +264,13 @@ func (a *App) UpdateProjectAOI(projectID, areaID, polygonGeoJSON, label string) 
 	if p.PolygonGeoJSON != "" && !json.Valid([]byte(p.PolygonGeoJSON)) {
 		return nil, errors.New("invalid polygon_geojson")
 	}
-	return a.store.UpdateProject(userID, *p)
+	return st.UpdateProject(userID, *p)
 }
 
 // UpdateProjectRunLabels renames all inference runs attached to a project.
 func (a *App) UpdateProjectRunLabels(projectID, label string) (int64, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return 0, err
 	}
 	projectID = strings.TrimSpace(projectID)
@@ -250,8 +280,8 @@ func (a *App) UpdateProjectRunLabels(projectID, label string) (int64, error) {
 	}
 	userID := a.effectiveUserID()
 	// Ensure the project belongs to this user.
-	if _, err := a.store.GetProject(userID, projectID); err != nil {
+	if _, err := st.GetProject(userID, projectID); err != nil {
 		return 0, err
 	}
-	return a.store.UpdateProjectRunLabels(userID, projectID, label)
+	return st.UpdateProjectRunLabels(userID, projectID, label)
 }
