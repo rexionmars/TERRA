@@ -53,9 +53,18 @@
  * for nine blocks across four products; this reading is one run of six blocks,
  * and an index band over six entries would spend a row of the column on a
  * question a reader of six blocks does not have.
+ *
+ * THE BLOCKS OPEN AND CLOSE, AND FOUR OF THE SIX START CLOSED. Six blocks all
+ * open is most of a screen of evidence standing in front of the one thing the
+ * product is read on. The index the paragraph above rejects would have helped a
+ * reader travel that length; closing what they are not reading removes the
+ * length instead, which is the better answer to the same complaint. Which
+ * blocks open is argued at Block, and it is the caller's call there rather than
+ * a default, so a seventh block cannot be added without deciding whether it is
+ * the answer or the evidence for it.
  */
-import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { useId, useState } from "react"
+import { ChevronDown, Trash2 } from "lucide-react"
 
 import { Chip, Stat, WaterFigure } from "@/components/analysisPrimitives"
 import { PanelShell } from "@/components/ui/PanelShell"
@@ -143,7 +152,7 @@ export function FloodReadingColumn({
       </div>
 
       <div className="panel-scroll relative -mx-4 -mb-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
-        <Block title="Agreement over the AOI">
+        <Block title="Agreement over the AOI" defaultOpen={true}>
           <MapLayerControl
             drawn={!!flood.agreement_uri}
             threshold={flood.reference_threshold_m}
@@ -183,7 +192,7 @@ export function FloodReadingColumn({
           </p>
         </Block>
 
-        <Block title="Computed window">
+        <Block title="Computed window" defaultOpen={false}>
           <Stat
             label="Grid"
             value={`${flood.grid.width} x ${flood.grid.height} cells`}
@@ -229,7 +238,7 @@ export function FloodReadingColumn({
           </p>
         </Block>
 
-        <Block title={`Products at HAND <= ${flood.reference_threshold_m} m`}>
+        <Block title={`Products at HAND <= ${flood.reference_threshold_m} m`} defaultOpen={true}>
           <ul className="flex flex-col gap-2">
             {flood.products.map((p) => (
               <li key={p.id} className="flex flex-col gap-0.5">
@@ -257,7 +266,7 @@ export function FloodReadingColumn({
           </ul>
         </Block>
 
-        <Block title="Envelope by threshold">
+        <Block title="Envelope by threshold" defaultOpen={false}>
           <ul className="flex flex-col gap-1.5">
             {flood.envelope.map((row) => {
               const reference = row.threshold_m === flood.reference_threshold_m
@@ -303,7 +312,7 @@ export function FloodReadingColumn({
 
         <PairBlock flood={flood} />
 
-        <Block title="Assumptions">
+        <Block title="Assumptions" defaultOpen={false}>
           {/* First, because it says which ground every area above is of, and
               an area quoted without it is a figure a reader attributes to the
               wrong extent. */}
@@ -336,17 +345,58 @@ export function FloodReadingColumn({
   )
 }
 
+/*
+One block of the reading, openable and closable.
+
+The column carries six of these and every one of them opened at once. Read top
+to bottom that is the agreement raster, the window it was computed over, the
+per-product areas, the pairwise table, the envelope sweep and the assumptions --
+most of a screen of evidence in front of the one thing the product is read on.
+
+So the two blocks that ARE the reading open by default and the four that support
+it start closed. Which is which is the caller's decision, not this component's:
+`defaultOpen` is required rather than defaulted, so adding a block forces the
+question of whether it is the answer or the evidence for it.
+
+The whole header is the control, not a chevron beside it. A 14 px target for
+something a reader toggles while comparing two rows is a target they miss.
+
+State is per mount and deliberately not persisted. A reader who closes the
+assumptions is closing them for this reading; a preference that outlived the
+run would hide provenance from the next one, which is the opposite of what this
+column is for.
+*/
 function Block({
   title,
+  defaultOpen,
   children,
 }: {
   title: string
+  defaultOpen: boolean
   children: React.ReactNode
 }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const panelId = useId()
+
   return (
     <section className="flex flex-col gap-2">
-      <span className="eyebrow !text-foreground">{title}</span>
-      {children}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        title={open ? `Collapse ${title}` : `Expand ${title}`}
+        className="app-no-drag -mx-1 flex items-center justify-between gap-2 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-surface-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="eyebrow !text-foreground">{title}</span>
+        <ChevronDown
+          className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${
+            open ? "" : "-rotate-90"
+          }`}
+          aria-hidden
+        />
+      </button>
+      {open && <div id={panelId}>{children}</div>}
     </section>
   )
 }
@@ -529,7 +579,7 @@ function PairBlock({ flood }: { flood: FloodAnalysis }) {
   const rows = flood.pairs.filter((p) => p.threshold_m === at)
 
   return (
-    <Block title="Pairwise agreement">
+    <Block title="Pairwise agreement" defaultOpen={false}>
       {thresholds.length > 1 && (
         <div
           role="group"
