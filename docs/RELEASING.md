@@ -46,9 +46,24 @@ JOSS acceptance / production-ready install story).
 2. Decide PATCH / MINOR / MAJOR with the table above.
 3. Update release notes mentally: what should users download (LITE vs FULL)?
 4. Bump embedded `AppVersion` in [`version.go`](../version.go) to match the tag
-   (or pass `-ldflags "-X main.AppVersion=X.Y.Z"` in the release build), and add a
-   matching entry in [`frontend/src/lib/whatsNew.ts`](../frontend/src/lib/whatsNew.ts)
-   if the release should show a What’s New modal.
+   (or pass `-ldflags "-X main.AppVersion=X.Y.Z"` in the release build). That file
+   is the **authority**; three other places carry the same number and must follow
+   it:
+
+   | Place | What it feeds |
+   |---|---|
+   | [`wails.json`](../wails.json) `info.productVersion` | `CFBundleShortVersionString` in the packaged bundle, and the Windows file version |
+   | [`CITATION.cff`](../CITATION.cff) `version:` | How the software is cited |
+   | [`frontend/src/lib/whatsNew.ts`](../frontend/src/lib/whatsNew.ts) newest entry | The What’s New modal |
+
+   Run `npm run check:version` in `frontend/` and it names any that disagree. CI
+   runs it too, so a mismatch fails the pull request rather than shipping. Add
+   the What’s New entry only if the release should show the modal; the guard
+   checks the newest entry's version, not that one was added.
+
+   Not part of this: `splashBackground.ts` `since:` records the release a still
+   was **added** in and stays where it is, and `frontend/package.json` is pinned
+   at `0.0.0` because nothing reads it.
 5. Pick the release's still and code name — see below.
 6. Tag and push:
 
