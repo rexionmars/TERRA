@@ -2851,10 +2851,33 @@ function AppBody(props: {
               key="app-nav"
               hasAnalysis={!!props.result || runs.length > 0}
               onAnalysisClick={() => {
-                // Tested on the payload the page is actually showing, not on the
-                // classification: a water or solar run has no classification and
-                // would otherwise leave the list unreachable.
-                if (screen === "analysis" && resultWithWater) backToAnalysesList()
+                /*
+                  The hub, from wherever the click came from.
+
+                  This was guarded on `screen === "analysis"`, which assumed
+                  that arriving at the analysis screen from anywhere else
+                  would land on the hub. It does not. That screen picks
+                  between the hub and the detail view by whether a result
+                  exists, so a run still loaded from an earlier visit -- a
+                  LULC or solar payload opened from the hub and read on the
+                  energy screen -- captured the destination and drew its own
+                  detail page instead. For solar and wind that page is now
+                  empty, their sections having moved to the energy screen, so
+                  the button appeared to lead nowhere.
+
+                  Tested on the payload the page is actually showing, not on
+                  the classification: a water or solar run has no
+                  classification and would otherwise leave the list
+                  unreachable.
+
+                  Clearing costs nothing unrecoverable. retainRun holds the
+                  outgoing classification for the board, and the run itself is
+                  in the store, reachable from the hub this button opens. It
+                  is what the detail header's own "Saved analyses" already
+                  does -- two controls for one destination, and only one of
+                  them arrived.
+                */
+                if (resultWithWater) backToAnalysesList()
                 else goAnalysis()
               }}
               leftPanel={leftPanel}
