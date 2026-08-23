@@ -837,7 +837,7 @@ export function BoardSurface({
     */
     if (loadingRun) {
       notifyError(
-        "Still opening this whiteboard",
+        "Still opening this studio",
         new Error(
           "its runs are still being fetched, and saving now would store the board without them"
         )
@@ -868,7 +868,7 @@ export function BoardSurface({
         )
       if (!members.length) {
         notifyError(
-          "Nothing to save on this whiteboard",
+          "Nothing to save in this studio",
           new Error(
             "a board is the runs arranged on it, and none of these areas is a saved run yet — run something, or add a run from the outliner, before saving"
           )
@@ -888,9 +888,9 @@ export function BoardSurface({
       // What is on disk is what is on screen again, so a switch has nothing
       // left to warn about.
       clearBoardDirty()
-      notifySuccess(`Whiteboard "${board.name}" saved.`)
+      notifySuccess(`Studio "${board.name}" saved.`)
     } catch (e) {
-      notifyError("Could not save this whiteboard", e)
+      notifyError("Could not save this studio", e)
     } finally {
       setSaving(false)
     }
@@ -3672,7 +3672,7 @@ export function BoardSurface({
         >
           <StudioMenuItem
             icon={Save}
-            label={savedName ? `Save over "${savedName}"` : "Save whiteboard"}
+            label={savedName ? `Save over "${savedName}"` : "Save studio"}
             disabled={saving}
             onSelect={() => {
               savedName ? void doSave(savedName) : setNaming("")
@@ -3796,7 +3796,7 @@ export function BoardSurface({
                 style={{ background: "rgb(var(--p-surface-raised))" }}
                 title={
                   onOpenWhiteboard
-                    ? `${savedName ?? title} — open another whiteboard`
+                    ? `${savedName ?? title} — open another studio`
                     : savedName
                       ? `${savedName} — ${title}`
                       : title
@@ -3818,7 +3818,7 @@ export function BoardSurface({
               </button>
             )}
           >
-            <StudioMenuGroup label="Whiteboards">
+            <StudioMenuGroup label="Studios">
               {whiteboards.length ? (
                 whiteboards.map((b) => (
                   <StudioMenuItem
@@ -3843,7 +3843,7 @@ export function BoardSurface({
               ) : (
                 <StudioMenuItem
                   icon={Save}
-                  label="No whiteboards saved yet"
+                  label="No studios saved yet"
                   disabled
                   title="Save this one under a name and it is listed here"
                   onSelect={() => {}}
@@ -3859,7 +3859,7 @@ export function BoardSurface({
             */}
             <StudioMenuItem
               icon={Save}
-              label={savedName ? "Save under another name…" : "Save whiteboard…"}
+              label={savedName ? "Save under another name…" : "Save studio…"}
               onSelect={() => {
                 setBoardMenu(false)
                 setNaming(savedName ?? "")
@@ -3883,7 +3883,7 @@ export function BoardSurface({
                   ? "Still fetching this board's runs; saving now would store it without them"
                   : savedName
                     ? `Save over "${savedName}"`
-                    : "Save this whiteboard under a name"
+                    : "Save this studio under a name"
               }
               className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -3894,7 +3894,7 @@ export function BoardSurface({
             <input
               autoFocus
               value={naming}
-              placeholder="Name this whiteboard"
+              placeholder="Name this studio"
               onChange={(e) => setNaming(e.target.value)}
               onBlur={() => setNaming(null)}
               onKeyDown={(e) => {
