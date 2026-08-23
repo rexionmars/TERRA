@@ -331,16 +331,79 @@ func (a *App) AnalyzeWater(req backend.WaterRequest) (*backend.WaterAnalysis, er
 	return res, nil
 }
 
-// persistWaterRun saves a surface-water run so it survives the session and is
-// listed, opened and exported like a classification. Best effort: failing to
-// record a run must not discard the result the user is looking at.
-func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalysis) {
+/*
+savedRun is what one product contributes to a run row: the parts the writer
+below cannot know.
+
+Six products persist a run, and apart from these fields the path is one
+sequence written six times. That is how it drifted: the "run-" prefix, the
+trimmed project id and the AoiID column each had to be added in every copy,
+and the thumbnail column the classification path fills never reached any of
+the others.
+*/
+type savedRun struct {
+	// The discriminator every reader branches on, and what produced the
+	// numbers -- for the descriptive products a data source, not a model.
+	kind      string
+	modelKind string
+
+	// Where the run was made. The polygon wins; the area id is recorded as a
+	// reference when the request named a catalogued area instead of drawing
+	// a shape.
+	areaID  string
+	polygon *backend.GeoJSONGeometry
+
+	// What the run is called. aoiLabel names the ground and arrives already
+	// resolved, because the summary the caller built carries the same string;
+	// runLabel is what the frontend asked for, and is minted from aoiLabel
+	// when it asked for nothing.
+	aoiLabel string
+	runLabel string
+
+	projectID string
+	// Which catalogued area this run is OF. The polygon says where it was
+	// made; the board needs the area to keep a drawing and its runs as one
+	// subject.
+	aoiID string
+
+	periodStart string
+	periodEnd   string
+	nDates      int
+
+	// The figures the saved-run list prints. This is the part that is really
+	// different between products, which is why it is built at the call site.
+	summary map[string]any
+
+	/*
+		result yields the payload to store, given the run's asset directory
+		and that directory's path relative to the data dir.
+
+		A function rather than a value because the assets have to be written
+		out, and their data URIs cleared from the copy being stored, before
+		there is anything to marshal: a result JSON still carrying its base64
+		would put a second copy of every overlay inside the database.
+	*/
+	result func(assetsDir, assetsRel string) any
+
+	// The file in that directory the run list paints its thumbnail from, for
+	// the products that write one.
+	overlayFile string
+}
+
+/*
+saveRun writes one run row and returns its id, empty when nothing was written.
+
+Best effort from end to end: failing to record a run must not discard the
+result the user is looking at, so every error along the way is dropped rather
+than reported.
+*/
+func (a *App) saveRun(run savedRun) string {
 	a.mu.RLock()
 	user := a.currentUser
 	st := a.store
 	a.mu.RUnlock()
-	if st == nil || res == nil {
-		return
+	if st == nil {
+		return ""
 	}
 	userID := store.LocalUserID
 	if user != nil {
@@ -351,66 +414,110 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 	assetsRel := filepath.Join("runs", runID)
 	assetsDir := st.RunsDir(runID)
 	_ = os.MkdirAll(assetsDir, 0o700)
-	_ = store.WriteDataURIFile(res.OccurrenceURI, filepath.Join(assetsDir, "water_occurrence.png"))
-
-	// Store without the bulky data URI; the asset is restored on load.
-	stored := *res
-	stored.OccurrenceURI = ""
-	resultBytes, _ := json.Marshal(stored)
+	resultBytes, _ := json.Marshal(run.result(assetsDir, assetsRel))
+	summaryBytes, _ := json.Marshal(run.summary)
 
 	poly := ""
-	if req.PolygonGeoJSON != nil {
-		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
+	if run.polygon != nil {
+		if b, err := json.Marshal(run.polygon); err == nil {
 			poly = string(b)
 		}
-	} else if req.AreaID != "" {
-		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
+	} else if run.areaID != "" {
+		poly = fmt.Sprintf(`{"area_id":%q}`, run.areaID)
 	}
 
-	label := strings.TrimSpace(req.Label)
-	if label == "" {
-		label = "Custom AOI"
-	}
-	runLabel := strings.TrimSpace(req.RunLabel)
+	runLabel := strings.TrimSpace(run.runLabel)
 	if runLabel == "" {
-		runLabel = makeRunLabel(label)
+		runLabel = makeRunLabel(run.aoiLabel)
 	}
+	// What makeRunLabel mints is prefixed already; a label that came in from
+	// the frontend need not be, and readers group runs on that prefix.
 	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
 		runLabel = "run-" + runLabel
 	}
 
-	summary, _ := json.Marshal(map[string]any{
-		"water_index":             res.Index,
-		"n_dates":                 res.NDates,
-		"date_range":              res.DateRange,
-		"peak_date":               res.PeakDate,
-		"peak_water_fraction_pct": res.PeakWaterPct,
-		"ephemeral_area_ha":       res.EphemeralAreaHa,
-		"persistent_area_ha":      res.PersistentAreaHa,
-		"aoi_area_ha":             res.AOIAreaHa,
-		"aoi_label":               label,
-	})
+	overlayRel := ""
+	if run.overlayFile != "" {
+		overlayRel = filepath.Join(assetsRel, run.overlayFile)
+	}
 
 	_, _ = st.SaveRun(store.InferenceRun{
-		ID:     runID,
-		UserID: userID,
-		Kind:   store.RunKindWater,
-		// No model produced this: the index name carries the method instead.
-		ModelKind:      res.Index,
-		PeriodStart:    req.Start,
-		PeriodEnd:      req.End,
+		ID:             runID,
+		UserID:         userID,
+		Kind:           run.kind,
+		ModelKind:      run.modelKind,
+		PeriodStart:    run.periodStart,
+		PeriodEnd:      run.periodEnd,
 		PolygonGeoJSON: poly,
 		Status:         "ok",
-		SummaryJSON:    string(summary),
+		SummaryJSON:    string(summaryBytes),
 		ResultJSON:     string(resultBytes),
+		OverlayRelPath: overlayRel,
 		AssetsRelPath:  assetsRel,
-		NDates:         res.NDates,
+		NDates:         run.nDates,
 		Label:          runLabel,
-		ProjectID:      strings.TrimSpace(req.ProjectID),
-		// Which catalogued area this run is OF. The polygon below says
-		// where it was made; the board needs the area to keep a drawing
-		// and its runs as one subject.
-		AoiID: strings.TrimSpace(req.AoiID),
+		ProjectID:      strings.TrimSpace(run.projectID),
+		AoiID:          strings.TrimSpace(run.aoiID),
+	})
+	return runID
+}
+
+/*
+aoiLabel is what a run calls the ground it covers, taken from the first
+candidate the request actually filled in.
+
+Resolved in one place because the label reaches two: the run's own name and its
+summary. Resolved twice it can differ between them, and a run named for one
+area whose summary names another reads as two runs.
+*/
+func aoiLabel(candidates ...string) string {
+	for _, c := range candidates {
+		if s := strings.TrimSpace(c); s != "" {
+			return s
+		}
+	}
+	return "Custom AOI"
+}
+
+// persistWaterRun saves a surface-water run so it survives the session and is
+// listed, opened and exported like a classification.
+func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalysis) {
+	if res == nil {
+		return
+	}
+	label := aoiLabel(req.Label)
+	a.saveRun(savedRun{
+		kind: store.RunKindWater,
+		// No model produced this: the index name carries the method instead.
+		modelKind:   res.Index,
+		areaID:      req.AreaID,
+		polygon:     req.PolygonGeoJSON,
+		aoiLabel:    label,
+		runLabel:    req.RunLabel,
+		projectID:   req.ProjectID,
+		aoiID:       req.AoiID,
+		periodStart: req.Start,
+		periodEnd:   req.End,
+		nDates:      res.NDates,
+		summary: map[string]any{
+			"water_index":             res.Index,
+			"n_dates":                 res.NDates,
+			"date_range":              res.DateRange,
+			"peak_date":               res.PeakDate,
+			"peak_water_fraction_pct": res.PeakWaterPct,
+			"ephemeral_area_ha":       res.EphemeralAreaHa,
+			"persistent_area_ha":      res.PersistentAreaHa,
+			"aoi_area_ha":             res.AOIAreaHa,
+			"aoi_label":               label,
+		},
+		result: func(assetsDir, _ string) any {
+			_ = store.WriteDataURIFile(
+				res.OccurrenceURI, filepath.Join(assetsDir, "water_occurrence.png"))
+			// Store without the bulky data URI; the asset is restored on load.
+			stored := *res
+			stored.OccurrenceURI = ""
+			return stored
+		},
 	})
 }
 
@@ -571,79 +678,34 @@ func (a *App) meshMiddleware(next http.Handler) http.Handler {
 }
 
 // persistSolarRun saves a solar resource run so it survives the session and is
-// listed, opened and exported like the other analyses. Best effort: failing to
-// record a run must not discard the result the user is looking at.
+// listed, opened and exported like the other analyses.
 func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalysis) {
-	a.mu.RLock()
-	user := a.currentUser
-	st := a.store
-	a.mu.RUnlock()
-	if st == nil || res == nil {
+	if res == nil {
 		return
 	}
-	userID := store.LocalUserID
-	if user != nil {
-		userID = user.ID
-	}
-
-	runID := uuid.NewString()
-	assetsRel := filepath.Join("runs", runID)
-	_ = os.MkdirAll(st.RunsDir(runID), 0o700)
-
-	resultBytes, _ := json.Marshal(res)
-
-	poly := ""
-	if req.PolygonGeoJSON != nil {
-		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
-			poly = string(b)
-		}
-	} else if req.AreaID != "" {
-		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
-	}
-
-	label := strings.TrimSpace(req.Label)
-	if label == "" {
-		label = "Custom AOI"
-	}
-	runLabel := strings.TrimSpace(req.RunLabel)
-	if runLabel == "" {
-		runLabel = makeRunLabel(label)
-	}
-	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
-		runLabel = "run-" + runLabel
-	}
-
-	summary, _ := json.Marshal(map[string]any{
-		"ghi_annual_kwh_m2":       res.Resource.GHIAnnualKWhM2,
-		"optimal_tilt_deg":        res.Geometry.OptimalTiltDeg,
-		"specific_yield":          res.PV.SpecificYieldKWhKWpYear,
-		"performance_ratio":       res.PV.PerformanceRatio,
-		"performance_ratio_model": res.PV.PerformanceRatioModelled,
-		"n_years":                 res.Resource.NYears,
-		"aoi_label":               label,
-		"grid_note":               res.GridNote,
-	})
-
-	_, _ = st.SaveRun(store.InferenceRun{
-		ID:     runID,
-		UserID: userID,
-		Kind:   store.RunKindSolar,
+	label := aoiLabel(req.Label)
+	a.saveRun(savedRun{
+		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
-		ModelKind:      "NASA POWER",
-		PeriodStart:    "",
-		PeriodEnd:      "",
-		PolygonGeoJSON: poly,
-		Status:         "ok",
-		SummaryJSON:    string(summary),
-		ResultJSON:     string(resultBytes),
-		AssetsRelPath:  assetsRel,
-		NDates:         res.Resource.NYears,
-		Label:          runLabel,
-		ProjectID:      strings.TrimSpace(req.ProjectID),
-		// Which catalogued area this run is OF. The polygon below says
-		// where it was made; the board needs the area to keep a drawing
-		// and its runs as one subject.
-		AoiID: strings.TrimSpace(req.AoiID),
+		modelKind: "NASA POWER",
+		areaID:    req.AreaID,
+		polygon:   req.PolygonGeoJSON,
+		aoiLabel:  label,
+		runLabel:  req.RunLabel,
+		projectID: req.ProjectID,
+		aoiID:     req.AoiID,
+		nDates:    res.Resource.NYears,
+		summary: map[string]any{
+			"ghi_annual_kwh_m2":       res.Resource.GHIAnnualKWhM2,
+			"optimal_tilt_deg":        res.Geometry.OptimalTiltDeg,
+			"specific_yield":          res.PV.SpecificYieldKWhKWpYear,
+			"performance_ratio":       res.PV.PerformanceRatio,
+			"performance_ratio_model": res.PV.PerformanceRatioModelled,
+			"n_years":                 res.Resource.NYears,
+			"aoi_label":               label,
+			"grid_note":               res.GridNote,
+		},
+		result: func(string, string) any { return res },
 	})
 }
 
@@ -684,68 +746,29 @@ func (a *App) persistSolarRaster(
 	label, runLabel, projectID, aoiID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
 ) {
-	a.mu.RLock()
-	user := a.currentUser
-	st := a.store
-	a.mu.RUnlock()
-	if st == nil || payload == nil {
+	if payload == nil {
 		return
 	}
-	userID := store.LocalUserID
-	if user != nil {
-		userID = user.ID
-	}
-
-	runID := uuid.NewString()
-	assetsRel := filepath.Join("runs", runID)
-	assetsDir := st.RunsDir(runID)
-	_ = os.MkdirAll(assetsDir, 0o700)
-	_ = store.WriteDataURIFile(overlayURI, filepath.Join(assetsDir, kindTag+".png"))
-
-	resultBytes, _ := json.Marshal(payload)
-
-	polyJSON := ""
-	if poly != nil {
-		if b, err := json.Marshal(poly); err == nil {
-			polyJSON = string(b)
-		}
-	} else if areaID != "" {
-		polyJSON = fmt.Sprintf(`{"area_id":%q}`, areaID)
-	}
-
-	l := strings.TrimSpace(label)
-	if l == "" {
-		l = "Custom AOI"
-	}
-	rl := strings.TrimSpace(runLabel)
-	if rl == "" {
-		rl = makeRunLabel(l)
-	}
-	if !strings.HasPrefix(strings.ToLower(rl), "run-") {
-		rl = "run-" + rl
-	}
-
-	summary, _ := json.Marshal(map[string]any{
-		"solar_product": kindTag,
-		"variant":       variant,
-		"aoi_label":     l,
-	})
-
-	_, _ = st.SaveRun(store.InferenceRun{
-		ID:             runID,
-		UserID:         userID,
-		Kind:           store.RunKindSolar,
-		ModelKind:      "NASA POWER",
-		PolygonGeoJSON: polyJSON,
-		Status:         "ok",
-		SummaryJSON:    string(summary),
-		ResultJSON:     string(resultBytes),
-		AssetsRelPath:  assetsRel,
-		NDates:         nDates,
-		Label:          rl,
-		ProjectID:      strings.TrimSpace(projectID),
-		// See the other run writers: which catalogued area this is OF.
-		AoiID: strings.TrimSpace(aoiID),
+	l := aoiLabel(label)
+	a.saveRun(savedRun{
+		kind:      store.RunKindSolar,
+		modelKind: "NASA POWER",
+		areaID:    areaID,
+		polygon:   poly,
+		aoiLabel:  l,
+		runLabel:  runLabel,
+		projectID: projectID,
+		aoiID:     aoiID,
+		nDates:    nDates,
+		summary: map[string]any{
+			"solar_product": kindTag,
+			"variant":       variant,
+			"aoi_label":     l,
+		},
+		result: func(assetsDir, _ string) any {
+			_ = store.WriteDataURIFile(overlayURI, filepath.Join(assetsDir, kindTag+".png"))
+			return payload
+		},
 	})
 }
 
@@ -764,92 +787,50 @@ func (a *App) AnalyzeEnergyModel(req backend.EnergyModelRequest) (*backend.Energ
 }
 
 // persistEnergyModelRun saves an energy model run so it survives the session
-// and is listed, opened and exported like the other analyses. Best effort:
-// failing to record a run must not discard the result the user is looking at.
+// and is listed, opened and exported like the other analyses.
 //
 // Filed under RunKindSolar with solar_product "energy_model", which is the
 // discriminator the solar products already use. It is a solar product: same
 // radiation chain, same grid, same optimum.
 func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend.EnergyModelAnalysis) {
-	a.mu.RLock()
-	user := a.currentUser
-	st := a.store
-	a.mu.RUnlock()
-	if st == nil || res == nil {
+	if res == nil {
 		return
 	}
-	userID := store.LocalUserID
-	if user != nil {
-		userID = user.ID
-	}
-
-	runID := uuid.NewString()
-	assetsRel := filepath.Join("runs", runID)
-	_ = os.MkdirAll(st.RunsDir(runID), 0o700)
-
-	resultBytes, _ := json.Marshal(res)
-
-	poly := ""
-	if req.PolygonGeoJSON != nil {
-		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
-			poly = string(b)
-		}
-	} else if req.AreaID != "" {
-		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
-	}
-
-	label := strings.TrimSpace(req.Label)
-	if label == "" {
-		label = "Custom AOI"
-	}
-	runLabel := strings.TrimSpace(req.RunLabel)
-	if runLabel == "" {
-		runLabel = makeRunLabel(label)
-	}
-	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
-		runLabel = "run-" + runLabel
-	}
-
-	// ghi_annual_kwh_m2, optimal_tilt_deg and specific_yield are the keys the
-	// saved-run list already reads for a solar row, so the row says something
-	// without a client change. Everything else states the basis, because a
-	// yield without its performance ratio and reporting basis is not a figure.
-	summary, _ := json.Marshal(map[string]any{
-		"solar_product":            "energy_model",
-		"variant":                  res.ReportingBasis,
-		"ghi_annual_kwh_m2":        res.LossWaterfall.Base.GHIClimatologyKWhM2Year,
-		"optimal_tilt_deg":         res.Geometry.OptimalTiltDeg,
-		"specific_yield":           res.LossWaterfall.Delivered.AppliedKWhKWpYear,
-		"performance_ratio":        res.PerformanceRatio.Applied,
-		"performance_ratio_source": res.PerformanceRatio.AppliedSource,
-		"performance_ratio_model":  res.PerformanceRatio.Modelled,
-		"reporting_basis":          res.ReportingBasis,
-		"capacity_density_basis":   res.CapacityDensity.Basis,
-		"suitable_area_ha":         res.Plant.Suitable.AreaHa,
-		"suitable_capacity_dc_mw":  res.Plant.Suitable.CapacityDCMW,
-		"n_years":                  res.HourlyYears,
-		"aoi_label":                label,
-		"grid_note":                res.GridNote,
-	})
-
-	_, _ = st.SaveRun(store.InferenceRun{
-		ID:     runID,
-		UserID: userID,
-		Kind:   store.RunKindSolar,
+	label := aoiLabel(req.Label)
+	a.saveRun(savedRun{
+		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
-		ModelKind:      "NASA POWER",
-		PolygonGeoJSON: poly,
-		Status:         "ok",
-		SummaryJSON:    string(summary),
-		ResultJSON:     string(resultBytes),
-		AssetsRelPath:  assetsRel,
-		NDates:         res.NDates(),
-		Label:          runLabel,
-		ProjectID:      strings.TrimSpace(req.ProjectID),
-		// Which catalogued area this run is OF. The polygon below says
-		// where it was made; the board needs the area to keep a drawing
-		// and its runs as one subject.
-		AoiID: strings.TrimSpace(req.AoiID),
+		modelKind: "NASA POWER",
+		areaID:    req.AreaID,
+		polygon:   req.PolygonGeoJSON,
+		aoiLabel:  label,
+		runLabel:  req.RunLabel,
+		projectID: req.ProjectID,
+		aoiID:     req.AoiID,
+		nDates:    res.NDates(),
+		// ghi_annual_kwh_m2, optimal_tilt_deg and specific_yield are the keys
+		// the saved-run list already reads for a solar row, so the row says
+		// something without a client change. Everything else states the basis,
+		// because a yield without its performance ratio and reporting basis is
+		// not a figure.
+		summary: map[string]any{
+			"solar_product":            "energy_model",
+			"variant":                  res.ReportingBasis,
+			"ghi_annual_kwh_m2":        res.LossWaterfall.Base.GHIClimatologyKWhM2Year,
+			"optimal_tilt_deg":         res.Geometry.OptimalTiltDeg,
+			"specific_yield":           res.LossWaterfall.Delivered.AppliedKWhKWpYear,
+			"performance_ratio":        res.PerformanceRatio.Applied,
+			"performance_ratio_source": res.PerformanceRatio.AppliedSource,
+			"performance_ratio_model":  res.PerformanceRatio.Modelled,
+			"reporting_basis":          res.ReportingBasis,
+			"capacity_density_basis":   res.CapacityDensity.Basis,
+			"suitable_area_ha":         res.Plant.Suitable.AreaHa,
+			"suitable_capacity_dc_mw":  res.Plant.Suitable.CapacityDCMW,
+			"n_years":                  res.HourlyYears,
+			"aoi_label":                label,
+			"grid_note":                res.GridNote,
+		},
+		result: func(string, string) any { return res },
 	})
 }
 
@@ -867,84 +848,41 @@ func (a *App) AnalyzeWind(req backend.WindRequest) (*backend.WindAnalysis, error
 	return res, nil
 }
 
-// persistWindRun saves a wind screening run under its own kind. Best effort:
-// failing to record a run must not discard the result the user is looking at.
+// persistWindRun saves a wind screening run under its own kind.
 func (a *App) persistWindRun(req backend.WindRequest, res *backend.WindAnalysis) {
-	a.mu.RLock()
-	user := a.currentUser
-	st := a.store
-	a.mu.RUnlock()
-	if st == nil || res == nil {
+	if res == nil {
 		return
 	}
-	userID := store.LocalUserID
-	if user != nil {
-		userID = user.ID
-	}
-
-	runID := uuid.NewString()
-	assetsRel := filepath.Join("runs", runID)
-	_ = os.MkdirAll(st.RunsDir(runID), 0o700)
-
-	resultBytes, _ := json.Marshal(res)
-
-	poly := ""
-	if req.PolygonGeoJSON != nil {
-		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
-			poly = string(b)
-		}
-	} else if req.AreaID != "" {
-		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
-	}
-
-	label := strings.TrimSpace(req.Label)
-	if label == "" {
-		label = "Custom AOI"
-	}
-	runLabel := strings.TrimSpace(req.RunLabel)
-	if runLabel == "" {
-		runLabel = makeRunLabel(label)
-	}
-	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
-		runLabel = "run-" + runLabel
-	}
-
-	// The qualifier and the check outcome travel with the capacity factor. A
-	// gross, unvalidated figure listed beside a benchmarked photovoltaic one
-	// reads as the same kind of number unless the row says otherwise.
-	summary, _ := json.Marshal(map[string]any{
-		"wind_hub_height_m":              res.HubHeightM,
-		"wind_mean_speed_50m_ms":         res.Measured.MeanSpeed50mMS,
-		"wind_hub_mean_speed_ms":         res.Hub.MeanSpeedMS,
-		"wind_gross_capacity_factor_pct": res.Hub.GrossCapacityFactorPct,
-		"wind_annual_energy_mwh":         res.Hub.GrossAnnualEnergyMWhPerTurbine,
-		"wind_turbine":                   res.Turbine.Name,
-		"wind_all_checks_passed":         res.DataQuality.AllChecksPassed,
-		"wind_flag_count":                len(res.DataQuality.Flags),
-		"record_window":                  res.RecordWindow,
-		"qualifier":                      res.Qualifier,
-		"aoi_label":                      label,
-		"grid_note":                      res.GridNote,
-	})
-
-	_, _ = st.SaveRun(store.InferenceRun{
-		ID:     runID,
-		UserID: userID,
-		Kind:   store.RunKindWind,
+	label := aoiLabel(req.Label)
+	a.saveRun(savedRun{
+		kind: store.RunKindWind,
 		// No model produced this; the source is the product that did.
-		ModelKind:      "NASA POWER MERRA-2",
-		PolygonGeoJSON: poly,
-		Status:         "ok",
-		SummaryJSON:    string(summary),
-		ResultJSON:     string(resultBytes),
-		AssetsRelPath:  assetsRel,
-		NDates:         res.NDates(),
-		Label:          runLabel,
-		ProjectID:      strings.TrimSpace(req.ProjectID),
-		// Which catalogued area this run is OF. The polygon below says
-		// where it was made; the board needs the area to keep a drawing
-		// and its runs as one subject.
-		AoiID: strings.TrimSpace(req.AoiID),
+		modelKind: "NASA POWER MERRA-2",
+		areaID:    req.AreaID,
+		polygon:   req.PolygonGeoJSON,
+		aoiLabel:  label,
+		runLabel:  req.RunLabel,
+		projectID: req.ProjectID,
+		aoiID:     req.AoiID,
+		nDates:    res.NDates(),
+		// The qualifier and the check outcome travel with the capacity factor.
+		// A gross, unvalidated figure listed beside a benchmarked photovoltaic
+		// one reads as the same kind of number unless the row says otherwise.
+		summary: map[string]any{
+			"wind_hub_height_m":              res.HubHeightM,
+			"wind_mean_speed_50m_ms":         res.Measured.MeanSpeed50mMS,
+			"wind_hub_mean_speed_ms":         res.Hub.MeanSpeedMS,
+			"wind_gross_capacity_factor_pct": res.Hub.GrossCapacityFactorPct,
+			"wind_annual_energy_mwh":         res.Hub.GrossAnnualEnergyMWhPerTurbine,
+			"wind_turbine":                   res.Turbine.Name,
+			"wind_all_checks_passed":         res.DataQuality.AllChecksPassed,
+			"wind_flag_count":                len(res.DataQuality.Flags),
+			"record_window":                  res.RecordWindow,
+			"qualifier":                      res.Qualifier,
+			"aoi_label":                      label,
+			"grid_note":                      res.GridNote,
+		},
+		result: func(string, string) any { return res },
 	})
 }
 
@@ -1263,115 +1201,81 @@ func (a *App) persistRunIfLoggedIn(req backend.PredictRequest, res *backend.Pred
 }
 
 func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictResult) string {
-	a.mu.RLock()
-	user := a.currentUser
-	st := a.store
-	a.mu.RUnlock()
-	if st == nil || res == nil {
+	if res == nil {
 		return ""
 	}
-	userID := store.LocalUserID
-	if user != nil {
-		userID = user.ID
-	}
+	label := aoiLabel(req.Label, req.AreaID)
+	runID := a.saveRun(savedRun{
+		kind:        store.RunKindClassification,
+		modelKind:   req.ModelKind,
+		areaID:      req.AreaID,
+		polygon:     req.PolygonGeoJSON,
+		aoiLabel:    label,
+		runLabel:    req.RunLabel,
+		projectID:   req.ProjectID,
+		aoiID:       req.AoiID,
+		periodStart: req.Start,
+		periodEnd:   req.End,
+		nDates:      res.NDates,
+		summary: map[string]any{
+			"class_stats":     res.ClassStats,
+			"date_range":      res.DateRange,
+			"n_dates":         res.NDates,
+			"mean_confidence": res.MeanConfidence,
+			"area_id":         req.AreaID,
+			"aoi_label":       label,
+			"has_reference":   res.ReferenceURI != "",
+			"has_ndvi_mean":   res.NDVIMeanURI != "",
+			"has_true_color":  res.TrueColorURI != "",
+		},
+		// The only path that writes more than one asset, and the reason the
+		// stored payload is produced here rather than handed over: the raster
+		// records where it landed, and the five images have to be gone from
+		// the copy that reaches the database.
+		result: func(assetsDir, assetsRel string) any {
+			_ = store.WriteDataURIFile(res.OverlayURI, filepath.Join(assetsDir, "overlay.png"))
+			_ = store.WriteDataURIFile(res.ConfidenceURI, filepath.Join(assetsDir, "confidence.png"))
+			_ = store.WriteDataURIFile(res.NDVIMeanURI, filepath.Join(assetsDir, "ndvi_mean.png"))
+			_ = store.WriteDataURIFile(res.TrueColorURI, filepath.Join(assetsDir, "true_color.png"))
+			_ = store.WriteDataURIFile(res.ReferenceURI, filepath.Join(assetsDir, "reference.png"))
+			if res.LULC != nil && res.LULC.MapURI != "" {
+				_ = store.WriteDataURIFile(res.LULC.MapURI, filepath.Join(assetsDir, "lulc_map.png"))
+			}
+			rasterRel := ""
+			if strings.TrimSpace(res.RasterTIF) != "" {
+				dest := filepath.Join(assetsDir, "classification.tif")
+				if err := store.WriteDataURIFile(res.RasterTIF, dest); err == nil {
+					rasterRel = filepath.Join(assetsRel, "classification.tif")
+				}
+			}
 
-	runID := uuid.NewString()
-	assetsRel := filepath.Join("runs", runID)
-	assetsDir := st.RunsDir(runID)
-	_ = os.MkdirAll(assetsDir, 0o700)
-
-	_ = store.WriteDataURIFile(res.OverlayURI, filepath.Join(assetsDir, "overlay.png"))
-	_ = store.WriteDataURIFile(res.ConfidenceURI, filepath.Join(assetsDir, "confidence.png"))
-	_ = store.WriteDataURIFile(res.NDVIMeanURI, filepath.Join(assetsDir, "ndvi_mean.png"))
-	_ = store.WriteDataURIFile(res.TrueColorURI, filepath.Join(assetsDir, "true_color.png"))
-	_ = store.WriteDataURIFile(res.ReferenceURI, filepath.Join(assetsDir, "reference.png"))
-	if res.LULC != nil && res.LULC.MapURI != "" {
-		_ = store.WriteDataURIFile(res.LULC.MapURI, filepath.Join(assetsDir, "lulc_map.png"))
-	}
-	rasterRel := ""
-	if strings.TrimSpace(res.RasterTIF) != "" {
-		dest := filepath.Join(assetsDir, "classification.tif")
-		if err := store.WriteDataURIFile(res.RasterTIF, dest); err == nil {
-			rasterRel = filepath.Join(assetsRel, "classification.tif")
-		}
-	}
-
-	// Persist result without bulky data URIs; assets restored on load.
-	stored := *res
-	stored.OverlayURI = ""
-	stored.ConfidenceURI = ""
-	stored.NDVIMeanURI = ""
-	stored.TrueColorURI = ""
-	stored.ReferenceURI = ""
-	if stored.LULC != nil {
-		lulcCopy := *stored.LULC
-		lulcCopy.MapURI = ""
-		lulcCopy.MapPNG = ""
-		stored.LULC = &lulcCopy
-	}
-	if rasterRel != "" {
-		stored.RasterTIF = rasterRel
-	} else {
-		stored.RasterTIF = ""
-	}
-	resultBytes, _ := json.Marshal(stored)
-
-	poly := ""
-	if req.PolygonGeoJSON != nil {
-		if b, err := json.Marshal(req.PolygonGeoJSON); err == nil {
-			poly = string(b)
-		}
-	} else if req.AreaID != "" {
-		poly = fmt.Sprintf(`{"area_id":%q}`, req.AreaID)
-	}
-	aoiLabel := strings.TrimSpace(req.Label)
-	if aoiLabel == "" {
-		aoiLabel = strings.TrimSpace(req.AreaID)
-	}
-	if aoiLabel == "" {
-		aoiLabel = "Custom AOI"
-	}
-	runLabel := strings.TrimSpace(req.RunLabel)
-	if runLabel == "" {
-		runLabel = makeRunLabel(aoiLabel)
-	}
-	if !strings.HasPrefix(strings.ToLower(runLabel), "run-") {
-		runLabel = "run-" + runLabel
-	}
-	summary, _ := json.Marshal(map[string]any{
-		"class_stats":     res.ClassStats,
-		"date_range":      res.DateRange,
-		"n_dates":         res.NDates,
-		"mean_confidence": res.MeanConfidence,
-		"area_id":         req.AreaID,
-		"aoi_label":       aoiLabel,
-		"has_reference":   res.ReferenceURI != "",
-		"has_ndvi_mean":   res.NDVIMeanURI != "",
-		"has_true_color":  res.TrueColorURI != "",
+			// Persist result without bulky data URIs; assets restored on load.
+			stored := *res
+			stored.OverlayURI = ""
+			stored.ConfidenceURI = ""
+			stored.NDVIMeanURI = ""
+			stored.TrueColorURI = ""
+			stored.ReferenceURI = ""
+			if stored.LULC != nil {
+				lulcCopy := *stored.LULC
+				lulcCopy.MapURI = ""
+				lulcCopy.MapPNG = ""
+				stored.LULC = &lulcCopy
+			}
+			// Empty when the raster was absent or could not be written, so the
+			// stored path never points at a file that is not there.
+			stored.RasterTIF = rasterRel
+			return stored
+		},
+		overlayFile: "overlay.png",
 	})
-
-	_, _ = st.SaveRun(store.InferenceRun{
-		ID:             runID,
-		UserID:         userID,
-		ModelKind:      req.ModelKind,
-		PeriodStart:    req.Start,
-		PeriodEnd:      req.End,
-		PolygonGeoJSON: poly,
-		Status:         "ok",
-		SummaryJSON:    string(summary),
-		ResultJSON:     string(resultBytes),
-		OverlayRelPath: filepath.Join(assetsRel, "overlay.png"),
-		AssetsRelPath:  assetsRel,
-		NDates:         res.NDates,
-		Label:          runLabel,
-		ProjectID:      strings.TrimSpace(req.ProjectID),
-		// Which catalogued area this run is OF. The polygon below says
-		// where it was made; the board needs the area to keep a drawing
-		// and its runs as one subject.
-		AoiID: strings.TrimSpace(req.AoiID),
-	})
-	if strings.TrimSpace(req.ProjectID) != "" {
-		st.TouchProject(req.ProjectID)
+	if runID != "" && strings.TrimSpace(req.ProjectID) != "" {
+		a.mu.RLock()
+		st := a.store
+		a.mu.RUnlock()
+		if st != nil {
+			st.TouchProject(req.ProjectID)
+		}
 	}
 	return runID
 }

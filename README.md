@@ -29,29 +29,34 @@ reference protocol is published:
 > (SBrT 2026), Salvador, BA, Brazil.
 
 <p align="center">
-  <img src="docs/img/v3/terra-explorer-home.jpeg" alt="TERRA Explorer, with an AOI classified over the map" width="900" />
+  <img src="docs/img/v3/terra-explorer-home.jpeg" alt="TERRA, with an AOI classified over the map" width="900" />
 </p>
 
-<p align="center"><em>Explorer: draw an area, drag the acquisition window on the track, classify, read the class shares</em></p>
+<p align="center"><em>Draw an area, drag the acquisition window on the track, classify, read the class shares</em></p>
 
-## Two surfaces
+## The map, and the studio over it
 
-Work starts in the **Explorer**: the map, an area drawn or imported over it, the
-acquisition window set on the track at the foot, and a run started.
+Work starts on the map: an area drawn or imported, the acquisition window set
+on the track at the foot, and a run started.
 
-The **Studio** is where results are arranged. The screen divides into the panels
-a question needs (viewport, outliner, properties, comparison, domain shift,
-data table, run band, canopy), and more than one area fits on the same board,
-so two farms or the same farm in two seasons sit side by side. Five
-arrangements ship ready: Layout, Compare, Diagnose, Data and Simulation. The
-arrangement survives a restart; a set of readings survives it only if the board
-is saved under a name.
+The **studio** opens over that map, and closes back onto it. It is where
+results are arranged: the screen divides into the panels a question needs
+(viewport, outliner, properties, comparison, domain shift, spectral response,
+library check, rover, data table, run band, canopy), and more than one area
+fits on the same board, so two farms or the same farm in two seasons sit side
+by side. Five arrangements ship ready: Layout, Compare, Diagnose, Data and
+Simulation. The arrangement survives a restart; a set of readings survives it
+only if the board is saved under a name.
+
+It exists because a map cannot do this. A map puts things where they are, so
+two areas hundreds of kilometres apart cannot be set beside each other on one.
+Everything else the studio offers follows from that one constraint.
 
 <p align="center">
   <img src="docs/img/v3/terra-studio-main.jpeg" alt="Three classified areas in Cascavel, Parana, arranged on one Studio board" width="900" />
 </p>
 
-<p align="center"><em>Studio: three areas in Cascavel, Paraná, on one board, each with its own classification, statistics and agreement</em></p>
+<p align="center"><em>The studio: three areas in Cascavel, Paraná, on one board, each with its own classification, statistics and agreement</em></p>
 
 ## What it produces
 
@@ -175,8 +180,8 @@ Read these before trusting an output.
 2. Open TERRA. Set `TERRA_PYTHON` only for LITE or a custom interpreter.
 3. Draw an area on the map, or import one.
 4. Set the acquisition window on the track, pick a model, press **Classify**.
-5. Read the result on the map, or open the **Studio** to arrange it beside
-   another run.
+5. Read the result on the map, or open the **studio** from the title bar to
+   arrange it beside another run.
 
 If the interpreter cannot import what the sidecar needs, TERRA says which
 package is missing and what it stops working, and offers to build its own

@@ -85,13 +85,6 @@ export function parsePreferenceExtras(
   }
 }
 
-export function leftDockTabsModeFromPrefs(
-  prefs: Preferences | null | undefined
-): LeftDockTabsMode {
-  const mode = parsePreferenceExtras(prefs?.extras_json).left_dock_tabs
-  return mode === "always" ? "always" : "retracted_only"
-}
-
 /**
  * The stored layout, defaulting by exception.
  *

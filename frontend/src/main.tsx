@@ -4,6 +4,7 @@ import { Toaster } from "sonner"
 import "./components/leafletDrawPatch"
 import "./index.css"
 import App from "./App"
+import { AppErrorFallback, ErrorBoundary } from "./components/ErrorBoundary"
 
 function dismissSplash(opts: { minMs?: number } = {}): void {
   const minMs = opts.minMs ?? 180
@@ -41,7 +42,23 @@ root.render(
     enableSystem
     storageKey="geosense-theme"
   >
-    <App />
+    {/*
+      THE OUTERMOST RING, inside the provider rather than around it.
+
+      The fallback paints in the palette tokens, and which set of them applies
+      is decided by the data-theme attribute next-themes writes from an effect.
+      Placed around the provider, a component that throws during the FIRST
+      render unmounts it before that effect has run, and the one screen a reader
+      sees after a crash is the only screen in the application that ignored
+      their choice of theme.
+
+      Nothing narrower can stand in for it. A throw anywhere below unmounts
+      every part of the tree, and an error nobody foresaw is not obliged to
+      happen where a smaller ring was put.
+    */}
+    <ErrorBoundary fallback={(state) => <AppErrorFallback {...state} />}>
+      <App />
+    </ErrorBoundary>
     <Toaster
       theme="system"
       position="bottom-right"

@@ -674,6 +674,33 @@ function AppBody(props: {
     void refreshWhiteboards()
   }, [refreshWhiteboards])
 
+  /**
+   * Put these runs on the board and show it.
+   *
+   * NAMED RATHER THAN NEW. This is exactly what opening a saved whiteboard has
+   * always done, and it was written inline inside that one handler: hand the
+   * run ids to the board's own memory, go to the map the board sits over, and
+   * bump the nonce that opens it. Every surface that wants to send a reader to
+   * the studio needs the same three steps, and a second copy of them would be
+   * a second answer to one question.
+   *
+   * The nonce rather than a boolean, for the reason `openBoardNonce` was a
+   * nonce to begin with: opening the same thing twice in a row has to work, and
+   * a flag that is already true does nothing the second time.
+   *
+   * The ids are CONSUMED by the board on mount, not read -- see the effect in
+   * BoardSurface -- so sending the same run twice does not queue it twice.
+   */
+  const openInStudio = useCallback(
+    (runIds: readonly string[], workspace?: string) => {
+      writeBoardMemory("pendingRunIds", [...runIds])
+      if (workspace) writeBoardMemory("pendingWorkspace", workspace)
+      goMap()
+      setOpenBoardNonce((n) => n + 1)
+    },
+    [goMap]
+  )
+
   const handleOpenWhiteboard = useCallback(
     async (board: Whiteboard) => {
       try {
@@ -695,7 +722,6 @@ function AppBody(props: {
         const wanted = opened.snapshot.runIds.filter(
           (id) => !opened.missingRunIds.includes(id)
         )
-        writeBoardMemory("pendingRunIds", wanted)
         writeBoardMemory("savedId", board.id)
         writeBoardMemory("savedName", board.name)
         if (opened.missingRunIds.length) {
@@ -703,13 +729,17 @@ function AppBody(props: {
             `${opened.missingRunIds.length} run(s) on this whiteboard no longer exist.`
           )
         }
-        goMap()
-        setOpenBoardNonce((n) => n + 1)
+        /*
+          No workspace: a saved board carries its own arrangement, which
+          `restoreBoard` has just put back. Asking for one here would replace
+          what the reader saved with a preset.
+        */
+        openInStudio(wanted)
       } catch (e) {
         notifyError("Could not open this whiteboard", e)
       }
     },
-    [goMap]
+    [openInStudio]
   )
 
   /**

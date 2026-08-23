@@ -32,6 +32,10 @@ import {
   type PredictionCompareSide,
 } from "@/components/whiteboard/BoardSolarDetail"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
+import {
+  ErrorBoundary,
+  PanelErrorFallback,
+} from "@/components/ErrorBoundary"
 import { ConfusionMatrix } from "@/components/whiteboard/AgreementCharts"
 import {
   CompareSlots,
@@ -110,7 +114,7 @@ import {
   splitArea,
   type AreaId,
 } from "@/lib/boardAreas"
-import { STUDIO_EDITORS, type EditorId } from "@/lib/studioEditors"
+import { STUDIO_EDITORS, studioEditor, type EditorId } from "@/lib/studioEditors"
 import type { LucideIcon } from "lucide-react"
 import {
   DEFAULT_WORKSPACE,
@@ -771,6 +775,27 @@ export function BoardSurface({
     LoadAnalysis already lives. The list is consumed rather than read, so a
     board reopened twice does not queue the same runs twice.
   */
+  /*
+    The workspace a caller asked this opening to land on.
+
+    Consumed rather than read, exactly as `pendingRunIds` is, and for the same
+    reason: a preset asked for once must not be re-imposed every time the board
+    reopens, or a reader who retyped an area would lose it on their next glance
+    at the map.
+
+    Separate from the run list because the two are independent -- opening a
+    saved board sends runs and no workspace, since that board carries its own
+    arrangement, and a caller may one day want the reverse.
+  */
+  useEffect(() => {
+    const wanted = readBoardMemory<string>("pendingWorkspace", "")
+    if (!wanted) return
+    writeBoardMemory("pendingWorkspace", "")
+    setWorkspaceId(wanted)
+    // Once, on mount, for the reason the run list below is taken once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const pending = readBoardMemory<string[]>("pendingRunIds", [])
     if (!pending.length) return
@@ -4003,7 +4028,41 @@ export function BoardSurface({
               }
             }}
           >
-            {renderEditor(id)[editor] ?? null}
+            {/*
+              A THROWN PANEL COSTS ITS OWN AREA AND NOTHING ELSE.
+
+              This is the only seam every panel passes through. An area holds
+              whichever editor the tree names, so there is no per-panel
+              component to guard instead -- the panels are values one walk of
+              the tree produces, and this is where the walk hands one over.
+
+              Placed inside the area rather than around it so the header
+              survives: retype and close live there, and a fallback that took
+              the header with it would leave the reader an area they could not
+              change out of.
+
+              A BUILDER, not a node, and the distinction is the whole point.
+              `renderEditor` assembles every editor's props for this area and
+              is called BY the tree walk, above this boundary -- so a throw
+              while building them would land where nothing is catching and take
+              the board down with it. Handed over as a function, that work runs
+              inside the boundary's own subtree.
+
+              Keyed by editor because retyping the area is a different panel: a
+              fallback that outlived the editor that threw would report the
+              wrong one as broken and never clear.
+            */}
+            <ErrorBoundary
+              key={editor}
+              fallback={(state) => (
+                <PanelErrorFallback
+                  {...state}
+                  panel={studioEditor(editor).label}
+                />
+              )}
+            >
+              {() => renderEditor(id)[editor] ?? null}
+            </ErrorBoundary>
           </StudioArea>
         )}
       />

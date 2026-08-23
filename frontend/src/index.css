@@ -16,92 +16,88 @@
 :root,
 :root[data-theme="dark"] {
   /*
-    A cool chassis. The neutrals carry the accent's hue rather than leaving it
-    to the accent, so the surfaces read cool without the accent having to be
-    everywhere.
+    A neutral chassis, with the hue left to the accent.
+
+    Two families preceded it and both put the hue in the surfaces: Mars sand
+    under an orange accent, then cool greys under a blue one. This puts none
+    there. The accent is then the only colour on screen that is not data, which
+    is a stronger position than it held when every surface leaned with it -- and
+    it is what lets the accent change again without the chassis being rebuilt.
 
     Every value below is measured, not chosen by eye. The ratios in the comments
     are WCAG 2.x against the surfaces each token actually lands on, and
     frontend/src/lib/contrast.ts re-derives them from these channels so a future
     edit that breaks one fails a check rather than shipping.
 
-    The family replaces the Mars sand it used to be, rotated to the accent's
-    hue at CONSTANT luminance: contrast is a function of relative luminance
-    alone, so each neutral keeps the ratio it was measured at while the hue
-    moves. Every separation below is the one the sand family already cleared,
-    which is why the numbers barely differ from the ones they replace.
+    The surfaces sit higher than either predecessor -- ink 26 against 23, the
+    raised surface 53 against 41 -- which is what moved --p-line-strong. Lifting
+    a surface does not lift the boundary that separates it.
   */
-  --p-ink: 23 23 23;
-  --p-surface: 29 34 39;
-  --p-surface-raised: 41 48 56;
+  --p-ink: 26 26 26;
+  --p-surface: 37 37 37;
+  --p-surface-raised: 53 53 53;
   /*
-    Surface separation is 1.12 and 1.20 -- low by construction, because the
-    family is dark. Adjacent surfaces are told apart by their border, not by
-    luminance, which is why --p-line-strong exists and why it clears WCAG
-    1.4.11 against BOTH surfaces: 3.66 on surface and 3.04 on the raised one.
-    An earlier value cleared it against surface alone, which is exactly the
-    case the check exists to catch.
+    Surface separation is 1.14 and 1.25, and --p-line-strong is what actually
+    tells two panels apart, which is why it clears WCAG 1.4.11 against BOTH
+    surfaces: 3.78 on surface and 3.02 on the raised one.
+
+    126, not the 120 the picker proposed. At 120 the raised surface measured
+    2.78 -- the exact case this check exists to catch, and reachable because
+    lifting the surfaces moves the boundary's job without moving the boundary.
   */
-  --p-line: 66 76 90;
-  --p-line-strong: 105 122 145;
-  --p-text: 216 221 229;
+  --p-line: 75 75 75;
+  --p-line-strong: 126 126 126;
+  --p-text: 221 221 221;
   /*
     Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
-    which is the raised one. This measures 5.15 there, 6.18 on surface and 6.91
+    which is the raised one. This measures 4.75 there, 5.93 on surface and 6.74
     on ink. Used only as a text colour, never as a background.
   */
-  --p-muted: 150 162 177;
+  --p-muted: 161 161 161;
   /*
     The accent is a fill, a focus ring and an active state.
 
-    #3376CE is the brand value. This theme lightens it by two levels per channel
-    to #3578CF, because the exact value measures 2.96 against the raised surface
-    where the boundary floor is 3.0. Darkening cannot recover it -- the raised
-    surface is darker still, so the ratio only falls further -- and the nudged
-    value measures 3.01. The two are not separable side by side.
+    Neutral greys under it, deliberately: the chassis carried the accent's hue
+    while the accent was blue, and does not now. So the accent is the only hue
+    on screen that is not data, which is a stronger position than it had when
+    every surface leaned the same way.
 
-    A mid tone carries neither label cleanly: white measures 4.43 on this fill
-    and the near-black ink 4.05. No blue at this hue clears 4.5 in this theme,
-    because white would require a fill darker than the raised-surface boundary
-    allows. --accent-foreground is white, the better of the two, and the 0.07
-    shortfall against WCAG 1.4.3 is a stated exception rather than an oversight.
-    Text that has to READ as the accent uses --p-accent-quiet, which clears 4.5
-    on every surface: 6.25 on ink, 5.59 on surface, 4.65 on the raised one.
+    A LIGHT FILL TAKES THE NEAR-BLACK LABEL. Ink measures 6.75 on it and white
+    2.58, which is the reverse of the blue that preceded it -- that one was a
+    mid tone and took white at 4.43. --accent-foreground follows the accent
+    rather than staying where the blue left it.
   */
-  --p-accent: 53 120 207;
-  --p-accent-quiet: 106 155 219;
-  /*
-    The dim plate is one step darker than a constant-luminance rotation would
-    give. At the sand plate's own luminance the accent measured 3.00 on it,
-    which is the floor to the rounding and not past it; at this value it is
-    3.14, with the quiet variant at 4.86 and the boundary at 3.18.
-  */
-  --p-accent-dim: 22 45 74;
+  --p-accent: 237 135 68;
+  --p-accent-quiet: 236 128 57;
+  --p-accent-dim: 75 37 11;
   --p-place: 120 138 148;
-  --p-haze: 104 146 203;
+  --p-haze: 144 144 144;
 }
 
 /*
   The light theme derives on its own path and inherits nothing from the block
-  above, so every ratio is measured here too. Here the accent is the brand value
-  unchanged: #3376CE measures 4.34 on the light surface and 3.52 on the raised
-  one, so unlike the sand accent it needs no darkening for this ground, and the
-  white label on it clears 4.5 at 4.54.
+  above, so every ratio is measured here too. Neutral for the same reason, at
+  the luminances the sand family was measured at.
+
+  The accent is darkened rather than reused: the dark theme's #ED8744 on a light
+  surface reads as a highlight and not as a control, and it carries no label at
+  all there. This one measures 4.42 on the raised surface and takes the light
+  ink at 5.02.
 */
 :root[data-theme="light"] {
-  --p-ink: 236 241 247;
-  --p-surface: 247 250 253;
-  --p-surface-raised: 220 227 237;
-  --p-line: 165 179 196;
-  --p-line-strong: 105 123 147;
-  --p-text: 26 32 40;
-  --p-muted: 81 93 110;
-  /* Same rule as dark: a fill, not a text colour. 3.52 on the raised surface. */
-  --p-accent: 51 118 206;
-  --p-accent-quiet: 40 94 166;
-  --p-accent-dim: 204 220 242;
+  --p-ink: 241 241 241;
+  --p-surface: 249 249 249;
+  --p-surface-raised: 227 227 227;
+  --p-line: 177 177 177;
+  --p-line-strong: 121 121 121;
+  --p-text: 31 31 31;
+  --p-muted: 92 92 92;
+  /* Same rule as dark: a fill, not a text colour. 4.42 on the raised surface. */
+  --p-accent: 186 58 18;
+  --p-accent-quiet: 158 48 14;
+  --p-accent-dim: 240 214 198;
   --p-place: 90 110 122;
-  --p-haze: 131 161 202;
+  --p-haze: 176 176 176;
 }
 
 :root {
@@ -112,17 +108,20 @@
   --panel-solid: rgb(var(--p-ink));
   --card: rgb(var(--p-ink) / 0.45);
   --card-foreground: rgb(var(--p-text));
-  --popover: rgb(10 11 13);
+  --popover: rgb(12 12 12);
   --popover-foreground: rgb(var(--p-text));
 
   --primary: rgb(var(--p-accent));
   /*
-    White, in both themes, because the accent is now a mid tone. On the dark
-    theme's fill it measures 4.43 and on the light theme's 4.54; the near-black
-    ink it replaces measured 4.05 and 4.00. See --p-accent for why no value at
-    this hue clears 4.5 on both sides at once.
+    The ink, which is near-black in the dark theme and near-white in the light
+    one, so the label is the opposite end of whichever family is on screen.
+
+    It was white for a while, because the blue accent was a mid tone and white
+    was the better of two failing options at 4.43. This accent is light: ink
+    measures 6.75 on it and white 2.58. A fill's label is a consequence of the
+    fill, not a constant.
   */
-  --primary-foreground: #ffffff;
+  --primary-foreground: rgb(var(--p-ink));
 
   --secondary: rgb(var(--p-surface-raised) / 0.85);
   --secondary-foreground: rgb(var(--p-text));
@@ -130,7 +129,7 @@
   --muted-foreground: rgb(var(--p-muted));
 
   --accent: rgb(var(--p-accent));
-  --accent-foreground: #ffffff;
+  --accent-foreground: rgb(var(--p-ink));
   /* The accent where it has to be read rather than filled. See --p-accent. */
   --accent-quiet: rgb(var(--p-accent-quiet));
   --terra: rgb(var(--p-accent));
@@ -207,8 +206,8 @@
   /* Full accent, not a wash of it. At 0.55 the composited ring measured under
      the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
      contrast check verifies, because the check reads the token and the token
-     was not what got painted. At full strength the two agree: 4.05 on ink,
-     3.62 on the panel, 3.01 on a raised surface. */
+     was not what got painted. At full strength the two agree: 6.75 on ink,
+     5.95 on the panel, 4.76 on a raised surface. */
   --ring: rgb(var(--p-accent));
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -346,7 +345,7 @@
     follows the border radius and does not fight the shadow utilities a floating
     panel needs.
 
-    --ring is the full accent: 4.05 on ink, 3.62 on a panel, 3.01 on a raised
+    --ring is the full accent: 6.75 on ink, 5.95 on a panel, 4.76 on a raised
     surface, all clearing the 3.0 WCAG 1.4.11 asks of a focus indicator.
   */
   button:focus-visible,
@@ -592,10 +591,10 @@
 }
 
 /*
-  The active row. Accent at 45 percent composites to rgb(36 67 106), on which
-  the label measures 7.38 -- but --p-muted measures 3.88 there, still short of
-  the 4.5 a text colour asks, which is why the count beside the label follows
-  the label up on this row rather than staying the one unreadable thing on it.
+  The active row. Accent at 45 percent composites to rgb(121 75 45), on which
+  the label measures 5.41 -- but --p-muted measures 2.84 there, short of the 4.5
+  a text colour asks, which is why the count beside the label follows the label
+  up on this row rather than staying the one unreadable thing on it.
 */
 .nav-item.is-active {
   background: color-mix(in srgb, rgb(var(--p-accent)) 45%, transparent);
@@ -640,26 +639,6 @@
   .header-label {
     display: inline;
   }
-}
-
-/* Title bar bottom edge — terra gradient (haze → accent → line → fade) */
-.titlebar-terra::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgb(var(--p-haze) / 0.35) 12%,
-    rgb(var(--p-accent) / 0.75) 42%,
-    rgb(var(--p-line-strong) / 0.55) 68%,
-    rgb(var(--p-haze) / 0.25) 88%,
-    transparent 100%
-  );
 }
 
 .status-pill {
@@ -841,16 +820,6 @@
 .overlay-thumb-crisp {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-}
-
-/* Left dock — vertical named tabs for Classify / Compositions */
-.left-dock-tab-label {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  white-space: nowrap;
-  letter-spacing: 0.04em;
-  line-height: 1.1;
-  user-select: none;
 }
 
 /*

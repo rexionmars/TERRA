@@ -3,8 +3,13 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, whatever it targets. The filter here was
+  # `branches: [main]`, which selects on the BASE branch, so a pull request
+  # opened against another branch ran nothing at all and reported "no checks"
+  # -- which reads on the page as a clean result rather than as an absent one.
+  # Work stacked in a series, each branch based on the one below it, was
+  # therefore unchecked everywhere except at the bottom of the stack.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -19,7 +24,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          # Read from go.mod rather than restated here. Pinned to "1.23" this
+          # step silently downloaded the toolchain go.mod actually asks for on
+          # every run, so the version named in CI was never the version tested.
+          go-version-file: go.mod
           cache: true
 
       - name: Set up Node
@@ -38,6 +46,26 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # The three checks below run before the build because each finishes in
+      # under a second while the build takes several, and because a drifted
+      # contract should be reported by name rather than as a bundling failure.
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test
+
+      # Compares the JSON field names in backend/types.go against the
+      # interfaces src/lib/types.ts mirrors by hand. Nothing compared them
+      # before, so a field renamed in Go type-checked clean on this side.
+      - name: Check the Go/TypeScript type contract
+        working-directory: frontend
+        run: npm run check:types
+
+      # Existed in package.json but was never run here, which is how a
+      # hand-copied palette drifted on every stop while nothing failed.
+      - name: Check the palette against index.css
+        working-directory: frontend
+        run: npm run check:contrast
+
       - name: Type-check and build frontend
         working-directory: frontend
         run: npm run build
@@ -45,8 +73,12 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      # ./... rather than ./backend/...: the tests in package main --
+      # app_run_roundtrip_test.go, environment_api_test.go and
+      # meshhandler_test.go -- were written, passed locally, and never ran
+      # here, because the narrower pattern excluded the package they live in.
       - name: Go test
-        run: go test ./backend/...
+        run: go test ./...
 
       # Ubuntu 24.04 ships webkit2gtk 4.1 only; target it via the build tag.
       - name: Go build
@@ -63,7 +95,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          # Keyed on the lock, not on requirements-dev.txt. The floors in that
+          # file do not move when the resolution does, so a cache keyed on it
+          # would restore stale wheels after every re-lock.
+          cache-dependency-path: requirements-dev.lock.txt
 
       - name: Install GDAL system libs
         run: |
@@ -71,7 +106,11 @@ jobs:
           sudo apt-get install -y gdal-bin libgdal-dev
 
       - name: Install Python test deps
-        run: pip install -r requirements-dev.txt
+        # From the lock rather than the floors, so two runs install the same
+        # set. --require-hashes is redundant while every entry carries hashes;
+        # it is passed so that a future hashless regeneration fails loudly
+        # instead of quietly installing unverified artifacts.
+        run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Byte-compile sidecar
         run: python -m py_compile sidecar/*.py

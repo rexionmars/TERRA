@@ -151,27 +151,6 @@ export const StudioHeaderPopoverButton = ({
   </button>
 )
 
-/**
- * Two controls in one outline.
- *
- * Blender's snapping, proportional editing and shading are each a switch and a
- * menu sharing a border, which is how a header spends one control's width on
- * two decisions. The children are laid out with a hairline between them.
- */
-export function StudioHeaderPair({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className={cn(
-        "flex shrink-0 items-center gap-px overflow-hidden rounded-sm",
-        HEADER_CONTROL
-      )}
-      style={{ background: "rgb(var(--p-line) / 0.22)" }}
-    >
-      {children}
-    </span>
-  )
-}
-
 /** The vertical hairline Blender puts between groups in a header. */
 export function StudioHeaderRule() {
   return (

@@ -147,11 +147,6 @@ export function predictionSource(
   return null
 }
 
-/** Just the drawn ones, for a surface that only paints. */
-export function visibleRasterLayers(i: VisibleLayerInput): RasterLayer[] {
-  return rasterLayers(i).filter((l) => l.visible)
-}
-
 /**
  * Every raster this run could draw, bottom of the stack first.
  *

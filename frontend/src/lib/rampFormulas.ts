@@ -42,17 +42,6 @@ export function confidenceRGB(conf: number): [number, number, number] {
   ]
 }
 
-/**
- * Confidence also fades with its own value: alpha is `conf * 200`.
- *
- * Reported so the legend can say it. A pale patch on that plane is low
- * confidence twice over -- colder AND more transparent -- and a reader who
- * takes the fade for the basemap showing through has misread the raster.
- */
-export function confidenceAlpha(conf: number): number {
-  return Math.floor(clip01(conf) * 200)
-}
-
 /** Temporal-mean NDVI, pale yellow to dark green. */
 export function ndviMeanRGB(v: number): [number, number, number] {
   const t = clip01(v)

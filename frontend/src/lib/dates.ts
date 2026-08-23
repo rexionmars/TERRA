@@ -9,11 +9,6 @@
 
 export const DAY_MS = 86_400_000
 
-/** Today as a UTC day number, which is what the period track works in. */
-export function todayDay(): number {
-  return Math.floor(Date.now() / DAY_MS)
-}
-
 /**
  * Today as YYYY-MM-DD, for the `max` of a date field.
  *

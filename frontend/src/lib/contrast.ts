@@ -38,37 +38,37 @@ export function contrast(a: Channels, b: Channels): number {
 /** The channel values in index.css, per theme. Edited together with it. */
 export const TOKENS = {
   dark: {
-    ink: [23, 23, 23],
-    surface: [29, 34, 39],
-    surfaceRaised: [41, 48, 56],
-    line: [66, 76, 90],
-    lineStrong: [105, 122, 145],
-    text: [216, 221, 229],
-    muted: [150, 162, 177],
-    accent: [53, 120, 207],
-    accentQuiet: [106, 155, 219],
-    accentDim: [22, 45, 74],
+    ink: [26, 26, 26],
+    surface: [37, 37, 37],
+    surfaceRaised: [53, 53, 53],
+    line: [75, 75, 75],
+    lineStrong: [126, 126, 126],
+    text: [221, 221, 221],
+    muted: [161, 161, 161],
+    accent: [237, 135, 68],
+    accentQuiet: [236, 128, 57],
+    accentDim: [75, 37, 11],
     destructive: [160, 44, 44],
     success: [111, 156, 90],
     warning: [217, 164, 65],
-    destructiveForeground: [216, 221, 229],
+    destructiveForeground: [221, 221, 221],
     destructiveQuiet: [224, 138, 120],
   },
   light: {
-    ink: [236, 241, 247],
-    surface: [247, 250, 253],
-    surfaceRaised: [220, 227, 237],
-    line: [165, 179, 196],
-    lineStrong: [105, 123, 147],
-    text: [26, 32, 40],
-    muted: [81, 93, 110],
-    accent: [51, 118, 206],
-    accentQuiet: [40, 94, 166],
-    accentDim: [204, 220, 242],
+    ink: [241, 241, 241],
+    surface: [249, 249, 249],
+    surfaceRaised: [227, 227, 227],
+    line: [177, 177, 177],
+    lineStrong: [121, 121, 121],
+    text: [31, 31, 31],
+    muted: [92, 92, 92],
+    accent: [186, 58, 18],
+    accentQuiet: [158, 48, 14],
+    accentDim: [240, 214, 198],
     destructive: [179, 58, 26],
     success: [63, 107, 44],
     warning: [138, 90, 16],
-    destructiveForeground: [247, 250, 253],
+    destructiveForeground: [249, 249, 249],
     destructiveQuiet: [158, 43, 37],
   },
 } as const satisfies Record<string, Record<string, Channels>>
@@ -90,18 +90,21 @@ export interface ContrastRule {
  * Every pair the interface paints, and the floor each has to clear.
  *
  * `accent` is checked at 3.0, not 4.5, and only as a fill, a focus ring and an
- * active state. It measures 3.01 on the raised surface, so it is not a text
- * colour; text that has to read as the accent uses `accentQuiet`. Listing it
- * here at 4.5 would either fail honestly or push the palette away from the
- * brand value, and neither is what the token is for.
+ * active state. The present accent happens to measure 4.76 on the raised
+ * surface, which is a property of this accent being a light one and not a rule
+ * the token holds -- the blue before it measured 3.01 there. The floor stays at
+ * 3.0 because the next accent may be a mid tone again, and text that has to
+ * READ as the accent uses `accentQuiet` either way. Listing it at 4.5 would
+ * either fail honestly or push the palette away from the brand value, and
+ * neither is what the token is for.
  *
- * The label ON the accent fill is not listed either, and that one is a stated
- * exception rather than a category difference: white measures 4.43 on the dark
- * theme's fill and 4.54 on the light theme's, so the dark side sits 0.07 under
- * WCAG 1.4.3. No colour at this hue clears both floors at once -- white would
- * need a fill darker than the 3.0 boundary against the raised surface permits.
- * A rule here would fail on a trade that was made deliberately; see the comment
- * on --p-accent in index.css.
+ * The label ON the accent fill is not listed either, and it is worth saying why
+ * the omission survived a change that removed its original reason. Under the
+ * blue it was a stated exception: that accent was a mid tone, white measured
+ * 4.43 on it and nothing at that hue cleared both floors. Under this one the
+ * ink measures 6.75 and there is no exception left. The pair stays unlisted
+ * because --accent-foreground resolves to --p-ink and the rule would restate
+ * `text on ink`, not because the trade is still open.
  */
 export const RULES: readonly ContrastRule[] = [
   {
@@ -139,7 +142,7 @@ export const RULES: readonly ContrastRule[] = [
     fg: "lineStrong",
     on: ["ink", "surface", "surfaceRaised", "accentDim"],
     min: 3.0,
-    why: "component boundary, WCAG 1.4.11; the surfaces are 1.11 and 1.20 apart, so the border is what separates them",
+    why: "component boundary, WCAG 1.4.11; the surfaces are 1.14 and 1.25 apart, so the border is what separates them",
   },
   /*
    * Destructive splits the same way the accent does, and was checked neither
@@ -165,10 +168,8 @@ export const RULES: readonly ContrastRule[] = [
    * fail, and nothing caught it, because nothing was looking.
    *
    * 3.0 rather than 4.5: these are meaningful graphics under WCAG 1.4.11, not
-   * text. Success stays green rather than joining the accent family, because
-   * hue is the only thing separating a success toast from a warning one once
-   * both are marks of the same shape -- and --warning is the accent, so the
-   * green has to stay off it.
+   * text. Success stays green because hue is the only thing separating a
+   * success toast from a warning one once both are marks of the same shape.
    */
   {
     fg: "success",
@@ -181,12 +182,16 @@ export const RULES: readonly ContrastRule[] = [
    * It used to be --p-accent-quiet and inherited that token's 4.5 floor for
    * free; it is now an amber of its own, and an unchecked literal is exactly
    * what the destructive pair was when it shipped failing.
+   *
+   * It stays independent now that the accent is orange again, which is when
+   * the separation is hardest to see and most worth keeping: a warning that
+   * follows the accent says nothing the accent does not already say.
    */
   {
     fg: "warning",
     on: ["ink", "surface", "surfaceRaised"],
     min: 3.0,
-    why: "the warning mark on a toast, which no longer follows the accent because the accent is blue",
+    why: "the warning mark on a toast, which is an amber of its own rather than whatever the accent happens to be",
   },
 ]
 

@@ -1094,10 +1094,28 @@ def spectral_angle(a, b):
     """
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
-    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
-    if denom <= 0:
+    na = float(np.linalg.norm(a))
+    nb = float(np.linalg.norm(b))
+    if na <= 0 or nb <= 0:
         return float('nan')
-    return float(np.arccos(np.clip(float(np.dot(a, b)) / denom, -1.0, 1.0)))
+
+    # The half-angle form, not arccos of the cosine.
+    #
+    # arccos has an infinite derivative at 1, which is exactly where the
+    # scale-invariance this function promises puts every shaded-material
+    # comparison. A rounding error of eps in the cosine emerges as sqrt(2*eps)
+    # in the angle, so the 2.2e-16 that dot() leaves on one platform and not on
+    # another became 2.1e-8 radians -- a spectrum reported as not quite
+    # identical to itself, on Linux but not on macOS.
+    #
+    # 2*atan2(|u - v|, |u + v|) over the unit vectors is conditioned evenly
+    # across the whole range: it returns 0 for parallel and pi for antiparallel
+    # without the clip that was hiding the loss. Checked against the previous
+    # form on non-degenerate pairs, the two agree to 3.3e-16.
+    u = a / na
+    v = b / nb
+    return float(2.0 * np.arctan2(
+        float(np.linalg.norm(u - v)), float(np.linalg.norm(u + v))))
 
 
 def library_limit(spectra):
@@ -1551,1114 +1569,1397 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     }
 
 
-def main():
+# --- Action handlers -------------------------------------------------------
+#
+# One function per action the request can name, each taking the parsed request
+# and the resolved work directory and writing its own response to stdout. The
+# pair is passed to every handler whether or not it reads both, so the table at
+# the foot of this section can call any of them the same way.
+#
+# The imports inside these functions are deliberate and stay where they are.
+# Helios arrives through pyhelios3d and PyTorch through torch, neither of which
+# requirements.txt installs; the rest cost import time no other action pays.
+# Hoisting one to module scope would make the sidecar refuse to start at all --
+# `ping` included, which is the call that reports what an interpreter has.
+
+# Lightweight health check used by the desktop boot footer.
+def action_ping(req, work_dir):
+    sys.stdout.write(json.dumps({
+        'ok': True,
+        'python': sys.version.split()[0],
+        'sidecar': 'infer.py',
+    }))
+    sys.stdout.flush()
+
+
+# Standalone MapBiomas land-cover / land-use analysis (no Sentinel / model).
+def action_lulc(req, work_dir):
+    emit_progress(10, 'resolving MapBiomas for AOI')
     try:
-        req = json.load(sys.stdin)
+        import lulc as lulc_mod
+        lulc = lulc_mod.analyze_from_request(req)
     except Exception as e:
-        fail(f'invalid request JSON: {e}')
+        fail(f'LULC analysis failed: {e}')
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'lulc': lulc}))
+    sys.stdout.flush()
 
-    action = req.get('action', 'predict')
-    work_dir = Path(req.get('work_dir', '.'))
-    work_dir.mkdir(parents=True, exist_ok=True)
 
-    # Lightweight health check used by the desktop boot footer.
-    if action == 'ping':
-        sys.stdout.write(json.dumps({
-            'ok': True,
-            'python': sys.version.split()[0],
-            'sidecar': 'infer.py',
-        }))
-        sys.stdout.flush()
-        return
+# Domain-shift diagnosis from two cached fingerprints (no STAC re-fetch).
+def action_domain_shift(req, work_dir):
+    emit_progress(20, 'comparing domain fingerprints')
+    try:
+        import domain_shift as ds_mod
+        fp_a = req.get('fingerprint_a')
+        fp_b = req.get('fingerprint_b')
+        if not isinstance(fp_a, dict) or not isinstance(fp_b, dict):
+            fail('domain_shift requires fingerprint_a and fingerprint_b')
+        report = ds_mod.compare_fingerprints(
+            fp_a,
+            fp_b,
+            agreement_a=req.get('agreement_a'),
+            agreement_b=req.get('agreement_b'),
+            include_tsne=bool(req.get('include_tsne', False)),
+        )
+    except Exception as e:
+        fail(f'domain_shift failed: {e}')
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'domain_shift': report}))
+    sys.stdout.flush()
 
-    # Standalone MapBiomas land-cover / land-use analysis (no Sentinel / model).
-    if action == 'lulc':
-        emit_progress(10, 'resolving MapBiomas for AOI')
+
+# One source against N targets, in one process. See compare_cohort for why
+# this is not N invocations of the action above.
+def action_domain_shift_cohort(req, work_dir):
+    emit_progress(10, 'comparing domain fingerprints')
+    try:
+        import domain_shift as ds_mod
+        source = req.get('source')
+        targets = req.get('targets')
+        if not isinstance(source, dict):
+            fail('domain_shift_cohort requires a source')
+        if not isinstance(targets, list) or not targets:
+            fail('domain_shift_cohort requires at least one target')
+        report = ds_mod.compare_cohort(source, targets)
+    except Exception as e:
+        fail(f'domain_shift_cohort failed: {e}')
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'domain_shift_cohort': report}))
+    sys.stdout.flush()
+
+
+# The leaf-area-density field of one periodic orchard module, plus the
+# transmittances a second implementation of the march has to reproduce.
+#
+# The grid leaves as a binary file rather than inside the JSON: a 27x27x16
+# field is 47 kB of float32 and several times that as decimal text, and the
+# consumer uploads it to a texture, where it wants to be bytes anyway.
+def action_canopy_field(req, work_dir):
+    emit_progress(5, 'building the canopy field')
+    source = req.get('source', 'ellipsoid')
+    grow_meta = None
+
+    # Helios is only ever asked for architecture. Its ImportError is caught
+    # apart from every other failure, because "you do not have this package"
+    # and "this package misbehaved" call for different things from the
+    # reader, and an uncaught one would reach the user as `exit status 1`.
+    if source == 'helios':
         try:
-            import lulc as lulc_mod
-            lulc = lulc_mod.analyze_from_request(req)
-        except Exception as e:
-            fail(f'LULC analysis failed: {e}')
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({'lulc': lulc}))
-        sys.stdout.flush()
-        return
-
-    # Domain-shift diagnosis from two cached fingerprints (no STAC re-fetch).
-    if action == 'domain_shift':
-        emit_progress(20, 'comparing domain fingerprints')
-        try:
-            import domain_shift as ds_mod
-            fp_a = req.get('fingerprint_a')
-            fp_b = req.get('fingerprint_b')
-            if not isinstance(fp_a, dict) or not isinstance(fp_b, dict):
-                fail('domain_shift requires fingerprint_a and fingerprint_b')
-            report = ds_mod.compare_fingerprints(
-                fp_a,
-                fp_b,
-                agreement_a=req.get('agreement_a'),
-                agreement_b=req.get('agreement_b'),
-                include_tsne=bool(req.get('include_tsne', False)),
-            )
-        except Exception as e:
-            fail(f'domain_shift failed: {e}')
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({'domain_shift': report}))
-        sys.stdout.flush()
-        return
-
-    # One source against N targets, in one process. See compare_cohort for why
-    # this is not N invocations of the action above.
-    if action == 'domain_shift_cohort':
-        emit_progress(10, 'comparing domain fingerprints')
-        try:
-            import domain_shift as ds_mod
-            source = req.get('source')
-            targets = req.get('targets')
-            if not isinstance(source, dict):
-                fail('domain_shift_cohort requires a source')
-            if not isinstance(targets, list) or not targets:
-                fail('domain_shift_cohort requires at least one target')
-            report = ds_mod.compare_cohort(source, targets)
-        except Exception as e:
-            fail(f'domain_shift_cohort failed: {e}')
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({'domain_shift_cohort': report}))
-        sys.stdout.flush()
-        return
-
-    # The leaf-area-density field of one periodic orchard module, plus the
-    # transmittances a second implementation of the march has to reproduce.
-    #
-    # The grid leaves as a binary file rather than inside the JSON: a 27x27x16
-    # field is 47 kB of float32 and several times that as decimal text, and the
-    # consumer uploads it to a texture, where it wants to be bytes anyway.
-    if action == 'canopy_field':
-        emit_progress(5, 'building the canopy field')
-        source = req.get('source', 'ellipsoid')
-        grow_meta = None
-
-        # Helios is only ever asked for architecture. Its ImportError is caught
-        # apart from every other failure, because "you do not have this package"
-        # and "this package misbehaved" call for different things from the
-        # reader, and an uncaught one would reach the user as `exit status 1`.
-        if source == 'helios':
-            try:
-                # helios_grow itself imports without the toolkit, so a species
-                # list can be offered on a machine that cannot grow anything;
-                # the ImportError arrives from grow(). Catching it here rather
-                # than around the import is what keeps the message specific.
-                import helios_grow
-                grown = helios_grow.grow(
-                    species=req.get('species', 'almond'),
-                    days=int(req.get('days', 120)),
-                    seed=req.get('seed'))
-            except ImportError as e:
-                fail('Growing a 3D crop needs the pyhelios3d package, which '
-                     'installs as the module `pyhelios`. This interpreter does '
-                     'not have it: run `pip install pyhelios3d` there, or '
-                     'choose another Python in Settings > System. Canopies '
-                     f'from ellipsoid crowns need nothing extra. ({e})')
-            except Exception as e:
-                fail(f'growing the plant failed: {e}')
-            try:
-                emit_progress(35, f'extracting {grown.species} at day {grown.days}')
-                pos, area, grow_meta = helios_grow.leaf_cloud(grown)
-            except Exception as e:
-                fail(f'extracting the grown scene failed: {e}')
-            req = dict(req, source='leaves',
-                       leaf_positions=pos.tolist(), leaf_areas=area.tolist())
-
-        try:
-            import canopy_field as cfield
-            grid, payload = cfield.build(
-                req, progress=lambda p, m: emit_progress(p, m))
-        except Exception as e:
-            fail(f'canopy_field failed: {e}')
-
-        try:
-            import numpy as _np
-            field_path = work_dir / 'canopy_field.f32'
-            _np.ascontiguousarray(grid, dtype=_np.float32).tofile(str(field_path))
-        except Exception as e:
-            fail(f'writing the canopy field failed: {e}')
-
-        payload['field']['path'] = str(field_path)
-        payload['field']['bytes'] = int(grid.size * 4)
-        if grow_meta is not None:
-            payload['grown'] = grow_meta
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({'canopy_field': payload}))
-        sys.stdout.flush()
-        return
-
-    # A stand of plants as geometry, for a reader who wants to see the canopy.
-    #
-    # This is not the canopy field with a nicer surface on it. The field is a
-    # leaf-area density on a voxel grid: there is no leaf in it, and no
-    # rendering of it can show one, because the architecture was integrated away
-    # when it was built. This action keeps the architecture -- Helios grows the
-    # stand, the bridge pulls the triangles out by organ, and the mesh goes to
-    # the webview as glTF for three.js to draw.
-    #
-    # THE MESH IS LARGE AND THAT IS THE POINT. Twelve sorghum at day 60 is about
-    # 264,000 triangles. Fruit alone is a third of that -- a sorghum panicle,
-    # which nobody asked to see in a canopy -- so `organs` selects, defaulting
-    # to the vegetative structure. Growing is ~2 s for twenty plants, and the
-    # mesh is written once per request rather than per frame.
-    if action == 'canopy_mesh':
-        emit_progress(5, 'growing the stand')
-        try:
+            # helios_grow itself imports without the toolkit, so a species
+            # list can be offered on a machine that cannot grow anything;
+            # the ImportError arrives from grow(). Catching it here rather
+            # than around the import is what keeps the message specific.
             import helios_grow
-            grown = helios_grow.grow_canopy(
-                species=req.get('species', 'sorghum'),
-                days=int(req.get('days', 60)),
-                rows=int(req.get('rows', 4)),
-                per_row=int(req.get('per_row', 5)),
-                inter_row=float(req.get('inter_row', 0.8)),
-                inter_plant=float(req.get('inter_plant', 0.2)),
+            grown = helios_grow.grow(
+                species=req.get('species', 'almond'),
+                days=int(req.get('days', 120)),
                 seed=req.get('seed'))
         except ImportError as e:
-            fail('Growing a 3D canopy needs the pyhelios3d package, which '
-                 'installs as the module `pyhelios`. This interpreter does not '
-                 'have it: run `pip install -r requirements-helios.txt` there, '
-                 f'or choose another Python in Settings > System. ({e})')
+            fail('Growing a 3D crop needs the pyhelios3d package, which '
+                 'installs as the module `pyhelios`. This interpreter does '
+                 'not have it: run `pip install pyhelios3d` there, or '
+                 'choose another Python in Settings > System. Canopies '
+                 f'from ellipsoid crowns need nothing extra. ({e})')
         except Exception as e:
-            fail(f'growing the stand failed: {e}')
-
-        emit_progress(45, 'extracting the scene')
+            fail(f'growing the plant failed: {e}')
         try:
-            import helios_bridge
-            organs = req.get('organs') or ['leaf', 'petiole', 'other']
-            scene = helios_bridge.extract(
-                grown.ctx, organ_uuids=helios_grow.organ_uuids(grown))
-            present = [o for o in organs if o in scene and len(scene[o]['tris'])]
-            if not present:
-                fail(f'the grown scene has none of the organs {organs}; it has '
-                     f'{sorted(scene)}')
-        except SystemExit:
-            raise
+            emit_progress(35, f'extracting {grown.species} at day {grown.days}')
+            pos, area, grow_meta = helios_grow.leaf_cloud(grown)
         except Exception as e:
             fail(f'extracting the grown scene failed: {e}')
+        req = dict(req, source='leaves',
+                   leaf_positions=pos.tolist(), leaf_areas=area.tolist())
 
-        emit_progress(75, 'writing the mesh')
+    try:
+        import canopy_field as cfield
+        grid, payload = cfield.build(
+            req, progress=lambda p, m: emit_progress(p, m))
+    except Exception as e:
+        fail(f'canopy_field failed: {e}')
+
+    try:
+        import numpy as _np
+        field_path = work_dir / 'canopy_field.f32'
+        _np.ascontiguousarray(grid, dtype=_np.float32).tofile(str(field_path))
+    except Exception as e:
+        fail(f'writing the canopy field failed: {e}')
+
+    payload['field']['path'] = str(field_path)
+    payload['field']['bytes'] = int(grid.size * 4)
+    if grow_meta is not None:
+        payload['grown'] = grow_meta
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'canopy_field': payload}))
+    sys.stdout.flush()
+
+
+# A stand of plants as geometry, for a reader who wants to see the canopy.
+#
+# This is not the canopy field with a nicer surface on it. The field is a
+# leaf-area density on a voxel grid: there is no leaf in it, and no
+# rendering of it can show one, because the architecture was integrated away
+# when it was built. This action keeps the architecture -- Helios grows the
+# stand, the bridge pulls the triangles out by organ, and the mesh goes to
+# the webview as glTF for three.js to draw.
+#
+# THE MESH IS LARGE AND THAT IS THE POINT. Twelve sorghum at day 60 is about
+# 264,000 triangles. Fruit alone is a third of that -- a sorghum panicle,
+# which nobody asked to see in a canopy -- so `organs` selects, defaulting
+# to the vegetative structure. Growing is ~2 s for twenty plants, and the
+# mesh is written once per request rather than per frame.
+def action_canopy_mesh(req, work_dir):
+    emit_progress(5, 'growing the stand')
+    try:
+        import helios_grow
+        grown = helios_grow.grow_canopy(
+            species=req.get('species', 'sorghum'),
+            days=int(req.get('days', 60)),
+            rows=int(req.get('rows', 4)),
+            per_row=int(req.get('per_row', 5)),
+            inter_row=float(req.get('inter_row', 0.8)),
+            inter_plant=float(req.get('inter_plant', 0.2)),
+            seed=req.get('seed'))
+    except ImportError as e:
+        fail('Growing a 3D canopy needs the pyhelios3d package, which '
+             'installs as the module `pyhelios`. This interpreter does not '
+             'have it: run `pip install -r requirements-helios.txt` there, '
+             f'or choose another Python in Settings > System. ({e})')
+    except Exception as e:
+        fail(f'growing the stand failed: {e}')
+
+    emit_progress(45, 'extracting the scene')
+    try:
+        import helios_bridge
+        organs = req.get('organs') or ['leaf', 'petiole', 'other']
+        scene = helios_bridge.extract(
+            grown.ctx, organ_uuids=helios_grow.organ_uuids(grown))
+        present = [o for o in organs if o in scene and len(scene[o]['tris'])]
+        if not present:
+            fail(f'the grown scene has none of the organs {organs}; it has '
+                 f'{sorted(scene)}')
+    except SystemExit:
+        raise
+    except Exception as e:
+        fail(f'extracting the grown scene failed: {e}')
+
+    emit_progress(75, 'writing the mesh')
+    try:
+        # GLB rather than glTF: a .gltf carries its buffer as a base64 data
+        # URI, and the Go side base64s the file again to cross the webview
+        # bridge, so 21 MB of geometry arrives as a 37 MB string and the
+        # parser inside the webview exhausts its stack -- reported as
+        # "Maximum call stack size exceeded", which names nothing. GLB keeps
+        # the buffer binary, so there is one encoding on the path instead of
+        # two, and write_glb indexes the vertices on the way out.
+        mesh_path = work_dir / 'canopy_mesh.glb'
+        helios_bridge.write_glb(scene, str(mesh_path), organs=present)
+    except Exception as e:
+        fail(f'writing the mesh failed: {e}')
+
+    # The leaf area Helios reports for the stand, so a reader can tell this
+    # is the same canopy the field would have been built from.
+    pids = grown.plant_id if isinstance(grown.plant_id, list) else [grown.plant_id]
+    payload = {
+        'path': str(mesh_path),
+        'bytes': int(mesh_path.stat().st_size),
+        'species': grown.species,
+        'days': grown.days,
+        'plants': len(pids),
+        'rows': int(req.get('rows', 4)),
+        'per_row': int(req.get('per_row', 5)),
+        'inter_row': float(req.get('inter_row', 0.8)),
+        'inter_plant': float(req.get('inter_plant', 0.2)),
+        'leaf_area': float(sum(grown.pa.getPlantLeafArea(p) for p in pids)),
+        'organs': {o: int(len(scene[o]['tris'])) for o in present},
+    }
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'canopy_mesh': payload}))
+    sys.stdout.flush()
+
+
+# The AOI's own NDVI series, read as a canopy.
+# #
+#
+# WHAT IT CONNECTS. Everything above this line either observes the ground or
+# simulates a plant, and nothing crossed between them: the canopy actions take
+# a species and an age from the reader, while lai_ndvi.py -- written to be
+# exactly this bridge -- was imported by nothing but its own tests. This walks
+# the AOI's vegetation-index series into leaf area index, asks the ladder which
+# Helios age produces it, and reports what the answer is worth.
+#
+# TWO ANCHORS FOR THE AGE, AND BOTH ARE REPORTED. Leaf area gives one: the age
+# whose plant carries the observed LAI. Phenology gives another, independent
+# of it: days since green-up in the series itself. Where the isolated-plant
+# model describes the field the two agree. Where they do not, the disagreement
+# is the finding -- Helios grows a plant with no neighbours (measured: soybean
+# at 60 days is 1.402 m2 alone and 1.371 m2 inside a 24-plant stand, a ratio of
+# 0.98), so in a dense sowing it reaches a given leaf area far too early. This
+# action does not choose between them, because choosing would hide the one
+# thing a reader needs in order to trust or distrust the geometry.
+#
+# THE SUN IS THE AOI'S OWN, when a location is given. canopy_field's six
+# REFERENCE_SUNS exist to cross-validate a shader and are not solar geometry;
+# solar.prepare_hourly turns the POWER record for this cell into real (azimuth,
+# elevation) with the beam energy that arrived at each, and the march is
+# weighted by that instead of by six arbitrary directions. Without a location
+# the reference suns still answer, and the payload says which was used.
+#
+# NO GEOMETRY CROSSES HERE. This returns series and scalars; the mesh is
+# canopy_mesh's job, and a reader who wants to see the stand asks for it with
+# the age this action resolved.
+#
+def action_canopy_from_aoi(req, work_dir):
+    emit_progress(5, 'reading the vegetation index series')
+
+    series = req.get('vi_series') or []
+    # The classification already knows what grows here, so the species is a
+    # consequence of the data rather than a field the reader fills from a
+    # default that has nothing to do with the AOI. It suggests and refuses:
+    # cane, coffee and eucalyptus have no plant in the library, and the
+    # catch-all crop classes do not identify one.
+    suggestion = None
+    if req.get('class_stats'):
         try:
-            # GLB rather than glTF: a .gltf carries its buffer as a base64 data
-            # URI, and the Go side base64s the file again to cross the webview
-            # bridge, so 21 MB of geometry arrives as a 37 MB string and the
-            # parser inside the webview exhausts its stack -- reported as
-            # "Maximum call stack size exceeded", which names nothing. GLB keeps
-            # the buffer binary, so there is one encoding on the path instead of
-            # two, and write_glb indexes the vertices on the way out.
-            mesh_path = work_dir / 'canopy_mesh.glb'
-            helios_bridge.write_glb(scene, str(mesh_path), organs=present)
+            import crop_species
+            suggestion = crop_species.suggest(req['class_stats'])
         except Exception as e:
-            fail(f'writing the mesh failed: {e}')
+            suggestion = {'species': None, 'why': f'suggestion failed: {e}'}
+    if len(series) < 3:
+        fail('a canopy needs a vegetation-index series; this run carries '
+             f'{len(series)} observation(s), and three is the minimum the '
+             'phenology smoother can label')
 
-        # The leaf area Helios reports for the stand, so a reader can tell this
-        # is the same canopy the field would have been built from.
-        pids = grown.plant_id if isinstance(grown.plant_id, list) else [grown.plant_id]
-        payload = {
-            'path': str(mesh_path),
-            'bytes': int(mesh_path.stat().st_size),
-            'species': grown.species,
-            'days': grown.days,
-            'plants': len(pids),
-            'rows': int(req.get('rows', 4)),
-            'per_row': int(req.get('per_row', 5)),
-            'inter_row': float(req.get('inter_row', 0.8)),
-            'inter_plant': float(req.get('inter_plant', 0.2)),
-            'leaf_area': float(sum(grown.pa.getPlantLeafArea(p) for p in pids)),
-            'organs': {o: int(len(scene[o]['tris'])) for o in present},
-        }
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({'canopy_mesh': payload}))
-        sys.stdout.flush()
-        return
+    dates = [str(p.get('date', '')) for p in series]
+    ndvi = [float(p.get('ndvi_mean', 'nan')) for p in series]
+    # An explicit species wins: the suggestion is the classification's
+    # reading, and a reader who overrides it means to.
+    species_name = req.get('species') or (
+        (suggestion or {}).get('species') or 'sorghum')
 
-    # The AOI's own NDVI series, read as a canopy.
-    # #
+    # Density from the sowing the reader set, which is how every other
+    # canopy action states it. The ladder is per plant, so this is what
+    # turns it into an LAI.
+    inter_row = float(req.get('inter_row', 0.8))
+    inter_plant = float(req.get('inter_plant', 0.25))
+    if inter_row <= 0 or inter_plant <= 0:
+        fail('row and plant spacing must both be positive')
+    density = 1.0 / (inter_row * inter_plant)
+
+    try:
+        import lai_ndvi
+        import lai_to_age
+        import phenology as phen
+    except ImportError as e:
+        fail(f'the canopy bridge is unavailable: {e}')
+
+    # Ordinal days for the smoother, which is by DATE and not by position:
+    # a cloud-screened series is irregular, and a window counted in samples
+    # averages across whatever survived.
+    import datetime as _dt
+    try:
+        ordinals = [
+            _dt.date.fromisoformat(d[:10]).toordinal() if d else None
+            for d in dates
+        ]
+    except ValueError as e:
+        fail(f'a date in the series is not ISO-8601: {e}')
+    if any(o is None for o in ordinals):
+        fail('every observation needs a date for the smoother to use')
+
+    emit_progress(20, 'inverting NDVI to leaf area index')
+    try:
+        inverted = lai_ndvi.invert_series(ndvi, days=ordinals)
+    except Exception as e:
+        fail(f'the NDVI inversion failed: {e}')
+
+    emit_progress(35, 'labelling phenological states')
+    state_ids = phen.assign_states_from_ndvi(np.asarray(ndvi, dtype=float))
+    state_slugs = {
+        phen.STATE_SOIL: 'soil', phen.STATE_GREENUP: 'greenup',
+        phen.STATE_MATURE: 'mature', phen.STATE_SENESCENCE: 'senescence',
+        phen.STATE_FALLOW: 'fallow',
+    }
+    states = [state_slugs.get(int(s), 'soil') for s in state_ids]
+
+    # THE INDEPENDENT AGE, COUNTED FROM ITS OWN CYCLE'S GREEN-UP.
     #
-    # WHAT IT CONNECTS. Everything above this line either observes the ground or
-    # simulates a plant, and nothing crossed between them: the canopy actions take
-    # a species and an age from the reader, while lai_ndvi.py -- written to be
-    # exactly this bridge -- was imported by nothing but its own tests. This walks
-    # the AOI's vegetation-index series into leaf area index, asks the ladder which
-    # Helios age produces it, and reports what the answer is worth.
+    # A year of Brazilian cropland holds more than one cycle -- a summer
+    # crop and a safrinha, or a crop followed by a cover -- and taking the
+    # first green-up of the whole series dates every later cycle from the
+    # start of the file. Measured on a real AOI: the July and August 2026
+    # observations were handed 344 days of age because the series begins
+    # green in August 2025, when their own cycle had started weeks earlier.
+    cycle_ids = phen.cycle_of(state_ids)
+    cycle_list = phen.cycles(state_ids)
+    greenup_by_cycle = {
+        k: ordinals[c['greenup']] for k, c in enumerate(cycle_list)
+    }
+
+    emit_progress(50, 'matching leaf area to an age')
+    try:
+        resolved = lai_to_age.resolve_series(
+            inverted['lai'], density, species_name,
+            states=states, dates=dates)
+    except lai_to_age.LadderError as e:
+        fail(str(e))
+
+    # THE LADDER IS A GROWTH CURVE AND A SEASON IS NOT.
     #
-    # TWO ANCHORS FOR THE AGE, AND BOTH ARE REPORTED. Leaf area gives one: the age
-    # whose plant carries the observed LAI. Phenology gives another, independent
-    # of it: days since green-up in the series itself. Where the isolated-plant
-    # model describes the field the two agree. Where they do not, the disagreement
-    # is the finding -- Helios grows a plant with no neighbours (measured: soybean
-    # at 60 days is 1.402 m2 alone and 1.371 m2 inside a 24-plant stand, a ratio of
-    # 0.98), so in a dense sowing it reaches a given leaf area far too early. This
-    # action does not choose between them, because choosing would hide the one
-    # thing a reader needs in order to trust or distrust the geometry.
+    # Helios plants only grow: leaf area rises with age and never falls, so
+    # the ladder has no age for a canopy that is shedding. Past the peak the
+    # inversion still answers -- a declining LAI matches a young plant -- but
+    # the answer means "a plant carrying this much leaf", not "a canopy of
+    # this age", and the two stop being the same thing.
     #
-    # THE SUN IS THE AOI'S OWN, when a location is given. canopy_field's six
-    # REFERENCE_SUNS exist to cross-validate a shader and are not solar geometry;
-    # solar.prepare_hourly turns the POWER record for this cell into real (azimuth,
-    # elevation) with the beam energy that arrived at each, and the march is
-    # weighted by that instead of by six arbitrary directions. Without a location
-    # the reference suns still answer, and the payload says which was used.
-    #
-    # NO GEOMETRY CROSSES HERE. This returns series and scalars; the mesh is
-    # canopy_mesh's job, and a reader who wants to see the stand asks for it with
-    # the age this action resolved.
-    #
-    if action == 'canopy_from_aoi':
-        emit_progress(5, 'reading the vegetation index series')
-
-        series = req.get('vi_series') or []
-        # The classification already knows what grows here, so the species is a
-        # consequence of the data rather than a field the reader fills from a
-        # default that has nothing to do with the AOI. It suggests and refuses:
-        # cane, coffee and eucalyptus have no plant in the library, and the
-        # catch-all crop classes do not identify one.
-        suggestion = None
-        if req.get('class_stats'):
-            try:
-                import crop_species
-                suggestion = crop_species.suggest(req['class_stats'])
-            except Exception as e:
-                suggestion = {'species': None, 'why': f'suggestion failed: {e}'}
-        if len(series) < 3:
-            fail('a canopy needs a vegetation-index series; this run carries '
-                 f'{len(series)} observation(s), and three is the minimum the '
-                 'phenology smoother can label')
-
-        dates = [str(p.get('date', '')) for p in series]
-        ndvi = [float(p.get('ndvi_mean', 'nan')) for p in series]
-        # An explicit species wins: the suggestion is the classification's
-        # reading, and a reader who overrides it means to.
-        species_name = req.get('species') or (
-            (suggestion or {}).get('species') or 'sorghum')
-
-        # Density from the sowing the reader set, which is how every other
-        # canopy action states it. The ladder is per plant, so this is what
-        # turns it into an LAI.
-        inter_row = float(req.get('inter_row', 0.8))
-        inter_plant = float(req.get('inter_plant', 0.25))
-        if inter_row <= 0 or inter_plant <= 0:
-            fail('row and plant spacing must both be positive')
-        density = 1.0 / (inter_row * inter_plant)
-
-        try:
-            import lai_ndvi
-            import lai_to_age
-            import phenology as phen
-        except ImportError as e:
-            fail(f'the canopy bridge is unavailable: {e}')
-
-        # Ordinal days for the smoother, which is by DATE and not by position:
-        # a cloud-screened series is irregular, and a window counted in samples
-        # averages across whatever survived.
-        import datetime as _dt
-        try:
-            ordinals = [
-                _dt.date.fromisoformat(d[:10]).toordinal() if d else None
-                for d in dates
-            ]
-        except ValueError as e:
-            fail(f'a date in the series is not ISO-8601: {e}')
-        if any(o is None for o in ordinals):
-            fail('every observation needs a date for the smoother to use')
-
-        emit_progress(20, 'inverting NDVI to leaf area index')
-        try:
-            inverted = lai_ndvi.invert_series(ndvi, days=ordinals)
-        except Exception as e:
-            fail(f'the NDVI inversion failed: {e}')
-
-        emit_progress(35, 'labelling phenological states')
-        state_ids = phen.assign_states_from_ndvi(np.asarray(ndvi, dtype=float))
-        state_slugs = {
-            phen.STATE_SOIL: 'soil', phen.STATE_GREENUP: 'greenup',
-            phen.STATE_MATURE: 'mature', phen.STATE_SENESCENCE: 'senescence',
-            phen.STATE_FALLOW: 'fallow',
-        }
-        states = [state_slugs.get(int(s), 'soil') for s in state_ids]
-
-        # THE INDEPENDENT AGE, COUNTED FROM ITS OWN CYCLE'S GREEN-UP.
-        #
-        # A year of Brazilian cropland holds more than one cycle -- a summer
-        # crop and a safrinha, or a crop followed by a cover -- and taking the
-        # first green-up of the whole series dates every later cycle from the
-        # start of the file. Measured on a real AOI: the July and August 2026
-        # observations were handed 344 days of age because the series begins
-        # green in August 2025, when their own cycle had started weeks earlier.
-        cycle_ids = phen.cycle_of(state_ids)
-        cycle_list = phen.cycles(state_ids)
-        greenup_by_cycle = {
-            k: ordinals[c['greenup']] for k, c in enumerate(cycle_list)
-        }
-
-        emit_progress(50, 'matching leaf area to an age')
-        try:
-            resolved = lai_to_age.resolve_series(
-                inverted['lai'], density, species_name,
-                states=states, dates=dates)
-        except lai_to_age.LadderError as e:
-            fail(str(e))
-
-        # THE LADDER IS A GROWTH CURVE AND A SEASON IS NOT.
-        #
-        # Helios plants only grow: leaf area rises with age and never falls, so
-        # the ladder has no age for a canopy that is shedding. Past the peak the
-        # inversion still answers -- a declining LAI matches a young plant -- but
-        # the answer means "a plant carrying this much leaf", not "a canopy of
-        # this age", and the two stop being the same thing.
-        #
-        # Left uncompared, that shows up as a disagreement growing to a hundred
-        # days by the end of the season, which reads as the competition defect
-        # and is not it. So the peak splits the series: before it the two ages
-        # are measuring the same thing and their difference is informative;
-        # after it the row says it is declining and offers no age comparison.
-        lai_values = list(inverted['lai'])
-        peak_index = int(np.nanargmax(lai_values)) if lai_values else 0
-        # A duração da estação, para normalizar o progresso do campo contra o
-        # do Helios. Do próprio NDVI, que é onde ela é observável.
-        season_days = float(phen.phenology_metrics(ndvi, dates).get('los_days') or 0.0)
-        for i, (row, o) in enumerate(zip(resolved, ordinals)):
-            k = int(cycle_ids[i])
-            start = greenup_by_cycle.get(k)
-            since = None if start is None else float(o - start)
-            row['cycle'] = k if k >= 0 else None
-            row['days_since_greenup'] = since
-            row['declining'] = i > peak_index
-            if row['declining']:
-                row['age_check'] = {
-                    'comparable': False,
-                    'why': ('a série já passou do pico e está perdendo folha; a '
-                            'escada só cresce, então a idade que ela devolve é a '
-                            'de uma planta com esta área foliar, não a deste '
-                            'dossel'),
-                }
-            else:
-                row['age_check'] = lai_to_age.disagreement(
-                    row.get('day'), row.get('plateau_day'), since, season_days)
-
-        usable = [r for r in resolved if r.get('day') is not None]
-        payload = {
-            'species': species_name,
-            'density': density,
-            'inter_row': inter_row,
-            'inter_plant': inter_plant,
-            'reachable_lai': lai_to_age.reachable_lai(species_name, density),
-            'species_suggestion': suggestion,
-            # HOW MUCH OF THIS AOI IS THE CROP, because the series is an area
-            # mean and a mean over mixed cover is not the crop's index.
-            #
-            # Measured on the soybean AOI this was built against: the peak
-            # reads 0.314 with a standard deviation of 0.190, which for a
-            # roughly even two-population mix puts the crop pixels near 0.50
-            # and everything else near 0.12. So the LAI below is an area mean
-            # and understates the crop by about that much. Reading the series
-            # over crop pixels only is the fix, and it belongs upstream in the
-            # index extraction rather than here.
-            'crop_fraction': (
-                None if not suggestion else suggestion.get('confidence')),
-            'lai': inverted,
-            'states': states,
-            'phenology': phen.phenology_metrics(ndvi, dates),
-            'resolved': resolved,
-            'n_usable': len(usable),
-            # The cycles the season was split into. More than one means the
-            # window covers more than one crop, and every age below is measured
-            # from its own cycle rather than from the start of the record.
-            'cycles': [
-                {
-                    'start': dates[c['start']],
-                    'end': dates[c['end']],
-                    'greenup': dates[c['greenup']],
-                    'n': c['end'] - c['start'] + 1,
-                }
-                for c in cycle_list
-            ],
-            'sun': {'source': 'reference'},
-        }
-
-        # WHICH DATE THE CANOPY IS BUILT FOR, decided here rather than inside
-        # the sun block because the sun now depends on it.
-        #
-        # The densest canopy the ladder can actually build, which is where the
-        # architecture matters: at low LAI every geometry transmits alike and
-        # the answer says nothing.
-        #
-        # Not the peak of the series, which is the obvious choice and is wrong
-        # often enough to matter -- a season that reaches the species' ceiling
-        # has its peak AT the plateau, where the ladder returns no age at all,
-        # and the naive `max` then silently fell through to the first usable
-        # row: LAI 0.10 lit instead of 3.75.
-        lit_row = max(usable, key=lambda r: r['lai'], default=None)
-
-        # The AOI's own sun, when there is a point to ask POWER about.
-        lat, lon = req.get('lat'), req.get('lon')
-        if lat is not None and lon is not None:
-            emit_progress(70, 'reading the solar record for this cell')
-            try:
-                import solar as solar_mod
-                cell_lon, cell_lat = solar_mod.grid_key(float(lon), float(lat))
-                last_year = _dt.date.today().year - 1
-                years = int(req.get('hourly_years', 3))
-                start = f'{last_year - years + 1}0101'
-                end = f'{last_year}1231'
-                hourly, provenance = cached_power_series(
-                    power_cache_dir(req),
-                    'hourly', cell_lon, cell_lat, start, end,
-                    solar_mod.HOURLY_PARAMS,
-                    lambda progress: solar_mod.fetch(
-                        'hourly', cell_lon, cell_lat, start, end,
-                        progress=progress),
-                )
-                df, solpos = solar_mod.prepare_hourly(
-                    hourly, cell_lat, cell_lon, float(req.get('elevation', 0.0)))
-
-                # THE SEASON, WHICH IS THE LARGEST THING THIS BLOCK DECIDES.
-                #
-                # The record fetched above is three whole years, and averaging
-                # all of it gives the sun of no particular time. This canopy is
-                # dated -- it is one Sentinel-2 observation -- and season is the
-                # bigger term by far: measured on this app's own cached POWER
-                # records, faPAR varies 0.068 across months at one site against
-                # 0.016 across the entire latitude range of Brazil.
-                #
-                # Until this window existed the panel printed "faPAR under the
-                # real sun, on <date>" beside a sky averaged over every other
-                # month of three years, which is a caption contradicting its own
-                # number. Narrowing costs nothing: the parquet is already local
-                # and the other years still contribute through the day-of-year
-                # window, so a February canopy is lit by three Februaries.
-                window_days = int(req.get('sun_window_days', 21))
-                season = solar_mod.doy_window_mask(
-                    df.index, (lit_row or {}).get('date'), window_days)
-                if season is not None and bool(season.any()):
-                    df, solpos = df[season], solpos[season]
-                else:
-                    window_days = None
-                energy, el_edges = solar_mod.beam_energy_histogram(df, solpos)
-                # The diffuse share of what arrives, from the record rather than
-                # assumed: a canopy lit by the beam alone is lit by a fraction
-                # of a clear day and by almost nothing under cloud.
-                ghi_sum = float(np.nansum(df['ghi'].to_numpy()))
-                dhi_sum = float(np.nansum(df['dhi'].to_numpy()))
-                dhi_share = (dhi_sum / ghi_sum) if ghi_sum > 0 else 0.0
-                # One real day of the window rather than an hour-of-day mean.
-                # Near the equator -- where these AOIs are -- the noon sun
-                # passes within ten degrees of the zenith, azimuth swings tens
-                # of degrees in half an hour there, and averaging it produces a
-                # direction no sun ever occupied.
-                track_day = solar_mod.representative_day(df)
-                track = solar_mod.sun_track(df, solpos, track_day)
-                payload['sun'] = {
-                    'source': 'power',
-                    'cell': [cell_lat, cell_lon],
-                    'years': years,
-                    'provenance': provenance,
-                    'beam_energy_total': float(np.sum(energy)),
-                    'n_azimuth_bins': int(energy.shape[0]),
-                    'n_elevation_bins': int(energy.shape[1]),
-                    'diffuse_share': dhi_share,
-                    # Which sky this is, so the reader is not left inferring it
-                    # from a caption. `window_days` None means the whole record
-                    # answered, which happens when no date resolved to an age.
-                    'window_days': window_days,
-                    'window_centre': (lit_row or {}).get('date') if window_days else None,
-                    'n_hours': int(len(df)),
-                    # THE SUN AS SOMETHING THAT CAN BE DRAWN, not only summed.
-                    #
-                    # Everything above describes the sky as totals and bin
-                    # counts, which a march consumes and a viewer cannot. A
-                    # scene handed those has no choice but to invent a light,
-                    # and the picture then shows a sun that had nothing to do
-                    # with the number beside it.
-                    #
-                    # `direction` is the beam-energy-weighted mean, so a scene
-                    # lit from it is lit by the same sun the faPAR came from.
-                    # `track` is one real day, hour by hour, for a viewer that
-                    # wants to move the sun rather than fix it.
-                    'direction': solar_mod.mean_beam_direction(df, solpos),
-                    'clearness': solar_mod.clearness(df),
-                    'track_date': (
-                        str(track_day) if track_day is not None else None),
-                    'track': track,
-                }
-
-                # Light the canopy the series resolved, under that sun.
-                #
-                # MORE THAN ONE PLANT, BECAUSE ONE PLANT IS NOT AN ANSWER.
-                # helios_grow draws a plant stochastically, and the draw is not
-                # a rounding detail: measured here on soybean at 55 days with
-                # everything else held -- same species, same age, same sowing,
-                # leaf area rescaled to an identical LAI so only the shape can
-                # differ -- five seeds spanned faPAR 0.703 to 0.799. That 0.096
-                # is larger than the whole seasonal term the window above was
-                # added to capture, and three times a 20% error in the LAI this
-                # action works so hard to invert.
-                #
-                # Until this loop existed the action grew seed 7 and printed
-                # `fapar.toFixed(3)`, so it reported three decimals of a number
-                # whose own spread lands in the second. The band is the honest
-                # form of the same computation, and no new data buys it: it is
-                # the model's own variance, and it can only be sampled.
-                #
-                # Cost is why the default is three and not thirty. The march is
-                # ~11 s and dominates; growing a plant is 0.24 s.
-                if lit_row is not None:
-                    try:
-                        import canopy_field as cfield
-                        import helios_grow as hgrow
-                        row_az = float(req.get('row_azimuth_deg', 0.0))
-                        base_seed = int(req.get('seed', 7))
-                        n_seeds = max(1, min(int(req.get('n_seeds', 3)), 12))
-                        # One periodic module carrying one plant, so the LAI the
-                        # march integrates is the sowing's and not the plant's.
-                        module = float(np.sqrt(inter_row * inter_plant))
-                        cell = module / max(int(round(module / 0.05)), 4)
-
-                        runs = []
-                        for i in range(n_seeds):
-                            emit_progress(
-                                80 + int(15 * i / n_seeds),
-                                f'lighting canopy {i + 1} of {n_seeds}')
-                            grown = hgrow.grow(species=species_name,
-                                               days=int(round(lit_row['day'])),
-                                               seed=base_seed + i)
-                            pos, leaf_area, _m = hgrow.leaf_cloud(grown)
-                            pos = np.asarray(pos, float).copy()
-                            pos[:, 0] = np.mod(pos[:, 0] + module / 2, module)
-                            pos[:, 1] = np.mod(pos[:, 1] + module / 2, module)
-                            grid, fmeta = cfield.leaf_cloud_field(
-                                pos, leaf_area, spacing=module, cell=cell)
-                            one = cfield.light_under_sun(
-                                cfield.canopy_of(grid, fmeta), energy, el_edges,
-                                dhi_share=dhi_share, row_azimuth_deg=row_az)
-                            # THE FRACTION OF GROUND UNDER LEAF, which is the
-                            # one geometric number that tracks the answer.
-                            # Measured here at fixed LAI: sweeping the canopy's
-                            # horizontal extent moves faPAR 0.19 to 0.88 and
-                            # faPAR follows cover almost proportionally, while
-                            # sweeping its HEIGHT over a factor of 2.4 moves it
-                            # 0.020. Reported so a reader with an observed cover
-                            # -- which a nadir view gives cheaply, and which no
-                            # 3D reconstruction is needed for -- can check the
-                            # simulated canopy against the field's.
-                            one['cover'] = float(
-                                (grid.sum(axis=2) > 0).mean())
-                            one['seed'] = base_seed + i
-                            runs.append(one)
-
-                        # The median run carries the headline, so the reported
-                        # figures stay a self-consistent single canopy rather
-                        # than a mean of quantities that do not average.
-                        runs.sort(key=lambda r: r.get('fapar', 0.0))
-                        lit = dict(runs[len(runs) // 2])
-                        fapars = [float(r['fapar']) for r in runs]
-                        covers = [float(r['cover']) for r in runs]
-                        lit['ensemble'] = {
-                            'n': len(runs),
-                            'fapar_min': min(fapars),
-                            'fapar_max': max(fapars),
-                            'fapar_spread': max(fapars) - min(fapars),
-                            'cover_min': min(covers),
-                            'cover_max': max(covers),
-                            'seeds': [int(r['seed']) for r in runs],
-                        }
-                        lit['date'] = lit_row.get('date')
-                        lit['day'] = lit_row.get('day')
-                        payload['light'] = lit
-                    except Exception as e:
-                        payload['light'] = {'error': str(e)}
-            except Exception as e:
-                # A canopy answer is still worth having without the sun record,
-                # so this degrades rather than fails, and says which it did.
-                payload['sun'] = {'source': 'reference', 'why': str(e)}
-
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({'canopy_from_aoi': payload}))
-        sys.stdout.flush()
-        return
-
-    # Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
-    if action == 'list_datacube':
-        start = req.get('start')
-        end = req.get('end')
-        max_cloud = float(req.get('max_cloud', 100.0))
-        monthly_best = bool(req.get('monthly_best', True))
-        tiles = req.get('tiles') or None
-        if not start or not end:
-            fail('list_datacube requires start and end dates (YYYY-MM-DD)')
-        if req.get('polygon_geojson'):
-            polygon = polygon_from_geojson(req['polygon_geojson'])
-        elif req.get('kml_path'):
-            area = parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
-            if area is None:
-                fail('polygon not found in KML')
-            polygon = area['polygon']
+    # Left uncompared, that shows up as a disagreement growing to a hundred
+    # days by the end of the season, which reads as the competition defect
+    # and is not it. So the peak splits the series: before it the two ages
+    # are measuring the same thing and their difference is informative;
+    # after it the row says it is declining and offers no age comparison.
+    lai_values = list(inverted['lai'])
+    peak_index = int(np.nanargmax(lai_values)) if lai_values else 0
+    # A duração da estação, para normalizar o progresso do campo contra o
+    # do Helios. Do próprio NDVI, que é onde ela é observável.
+    season_days = float(phen.phenology_metrics(ndvi, dates).get('los_days') or 0.0)
+    for i, (row, o) in enumerate(zip(resolved, ordinals)):
+        k = int(cycle_ids[i])
+        start = greenup_by_cycle.get(k)
+        since = None if start is None else float(o - start)
+        row['cycle'] = k if k >= 0 else None
+        row['days_since_greenup'] = since
+        row['declining'] = i > peak_index
+        if row['declining']:
+            row['age_check'] = {
+                'comparable': False,
+                'why': ('a série já passou do pico e está perdendo folha; a '
+                        'escada só cresce, então a idade que ela devolve é a '
+                        'de uma planta com esta área foliar, não a deste '
+                        'dossel'),
+            }
         else:
-            fail('no polygon provided (polygon_geojson or kml_path required)')
-        emit_progress(20, 'querying STAC catalog (Planetary Computer)')
+            row['age_check'] = lai_to_age.disagreement(
+                row.get('day'), row.get('plateau_day'), since, season_days)
+
+    usable = [r for r in resolved if r.get('day') is not None]
+    payload = {
+        'species': species_name,
+        'density': density,
+        'inter_row': inter_row,
+        'inter_plant': inter_plant,
+        'reachable_lai': lai_to_age.reachable_lai(species_name, density),
+        'species_suggestion': suggestion,
+        # HOW MUCH OF THIS AOI IS THE CROP, because the series is an area
+        # mean and a mean over mixed cover is not the crop's index.
+        #
+        # Measured on the soybean AOI this was built against: the peak
+        # reads 0.314 with a standard deviation of 0.190, which for a
+        # roughly even two-population mix puts the crop pixels near 0.50
+        # and everything else near 0.12. So the LAI below is an area mean
+        # and understates the crop by about that much. Reading the series
+        # over crop pixels only is the fix, and it belongs upstream in the
+        # index extraction rather than here.
+        'crop_fraction': (
+            None if not suggestion else suggestion.get('confidence')),
+        'lai': inverted,
+        'states': states,
+        'phenology': phen.phenology_metrics(ndvi, dates),
+        'resolved': resolved,
+        'n_usable': len(usable),
+        # The cycles the season was split into. More than one means the
+        # window covers more than one crop, and every age below is measured
+        # from its own cycle rather than from the start of the record.
+        'cycles': [
+            {
+                'start': dates[c['start']],
+                'end': dates[c['end']],
+                'greenup': dates[c['greenup']],
+                'n': c['end'] - c['start'] + 1,
+            }
+            for c in cycle_list
+        ],
+        'sun': {'source': 'reference'},
+    }
+
+    # WHICH DATE THE CANOPY IS BUILT FOR, decided here rather than inside
+    # the sun block because the sun now depends on it.
+    #
+    # The densest canopy the ladder can actually build, which is where the
+    # architecture matters: at low LAI every geometry transmits alike and
+    # the answer says nothing.
+    #
+    # Not the peak of the series, which is the obvious choice and is wrong
+    # often enough to matter -- a season that reaches the species' ceiling
+    # has its peak AT the plateau, where the ladder returns no age at all,
+    # and the naive `max` then silently fell through to the first usable
+    # row: LAI 0.10 lit instead of 3.75.
+    lit_row = max(usable, key=lambda r: r['lai'], default=None)
+
+    # The AOI's own sun, when there is a point to ask POWER about.
+    lat, lon = req.get('lat'), req.get('lon')
+    if lat is not None and lon is not None:
+        emit_progress(70, 'reading the solar record for this cell')
         try:
-            products = list_stac_products(
-                polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
-                monthly_best=monthly_best,
-            )
-        except Exception as e:
-            fail(f'STAC query failed: {e}')
-        scenes = []
-        for p in products:
-            scenes.append({
-                'id': p.get('id') or '',
-                'date': p['date'].strftime('%Y-%m-%d'),
-                'cloud_cover': round(float(p.get('cloud_cover', 0.0)), 2),
-                'tile': p.get('tile') or '',
-                'satellite': p.get('satellite') or 'S2',
-                'preview_uri': p.get('preview_uri') or '',
-            })
-        date_range = []
-        if scenes:
-            date_range = [scenes[0]['date'], scenes[-1]['date']]
-        emit_progress(100, f'{len(scenes)} scenes')
-        sys.stdout.write(json.dumps({
-            'n_scenes': len(scenes),
-            'scenes': scenes,
-            'date_range': date_range,
-            'monthly_best': monthly_best,
-            'max_cloud': max_cloud,
-        }))
-        sys.stdout.flush()
-        return
-
-    # Solar resource and photovoltaic yield at the AOI centroid (no imagery).
-    if action == 'solar_resource':
-        import solar as solar_mod
-        from datetime import date as _date
-
-        if not req.get('polygon_geojson'):
-            fail('no polygon provided (polygon_geojson required)')
-        polygon = polygon_from_geojson(req['polygon_geojson'])
-        centroid = polygon.centroid
-        lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
-
-        clim_years = request_positive(req, 'climatology_years', 30, int)
-        hourly_years = request_positive(req, 'hourly_years', 10, int)
-        # Zero is due north here, which is both the default and a value the
-        # caller can mean, so absence is what selects the default.
-        azimuth = request_number(req, 'surface_azimuth', 0.0)
-        pr_override = req.get('performance_ratio')
-
-        # POWER publishes through the previous full year.
-        last_year = _date.today().year - 1
-        clim_start = f'{last_year - clim_years + 1}0101'
-        clim_end = f'{last_year}1231'
-        hourly_start = f'{last_year - hourly_years + 1}0101'
-        hourly_end = f'{last_year}1231'
-
-        cache = power_cache_dir(req)
-        emit_progress(5, f'NASA POWER daily, {clim_years} years')
-        try:
-            daily, daily_provenance = cached_power_series(
-                cache, 'daily', lon, lat, clim_start, clim_end,
-                solar_mod.DAILY_PARAMS,
-                lambda progress: solar_mod.fetch(
-                    'daily', lon, lat, clim_start, clim_end, progress=progress
-                ),
-                progress=lambda i, n, y: emit_progress(
-                    5 + int(35 * (i + 1) / n), f'daily {y}'
-                ),
-            )
-        except Exception as e:
-            fail(f'NASA POWER daily request failed: {e}')
-
-        annual = solar_mod.annual_totals(daily)
-        if annual.empty:
-            fail('NASA POWER returned no complete year for this point')
-        slope, pvalue = solar_mod.linear_trend(annual)
-        resource = {
-            'ghi_annual_kwh_m2': round(float(annual.mean()), 1),
-            'ghi_std': round(float(annual.std(ddof=1)), 1) if annual.size > 1 else 0.0,
-            'ghi_cv_pct': (
-                round(float(100.0 * annual.std(ddof=1) / annual.mean()), 2)
-                if annual.size > 1 and annual.mean() else 0.0
-            ),
-            'ghi_p10': round(float(np.percentile(annual.values, 10)), 1),
-            'ghi_p90': round(float(np.percentile(annual.values, 90)), 1),
-            'n_years': int(annual.size),
-            'trend_per_year': round(slope, 3),
-            'trend_p_value': round(pvalue, 4),
-            'clear_sky_index': solar_mod.clear_sky_index(daily),
-            'monthly': solar_mod.monthly_climatology(daily),
-        }
-
-        emit_progress(42, f'NASA POWER hourly, {hourly_years} years')
-        try:
-            hourly, hourly_provenance = cached_power_series(
-                cache, 'hourly', lon, lat, hourly_start, hourly_end,
+            import solar as solar_mod
+            cell_lon, cell_lat = solar_mod.grid_key(float(lon), float(lat))
+            last_year = _dt.date.today().year - 1
+            years = int(req.get('hourly_years', 3))
+            start = f'{last_year - years + 1}0101'
+            end = f'{last_year}1231'
+            hourly, provenance = cached_power_series(
+                power_cache_dir(req),
+                'hourly', cell_lon, cell_lat, start, end,
                 solar_mod.HOURLY_PARAMS,
                 lambda progress: solar_mod.fetch(
-                    'hourly', lon, lat, hourly_start, hourly_end,
-                    progress=progress,
-                ),
-                progress=lambda i, n, y: emit_progress(
-                    42 + int(38 * (i + 1) / n), f'hourly {y}'
-                ),
+                    'hourly', cell_lon, cell_lat, start, end,
+                    progress=progress),
             )
-        except Exception as e:
-            fail(f'NASA POWER hourly request failed: {e}')
+            df, solpos = solar_mod.prepare_hourly(
+                hourly, cell_lat, cell_lon, float(req.get('elevation', 0.0)))
 
-        df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
-        if df.empty:
-            fail('NASA POWER returned no usable hourly record for this point')
-        n_years = max(len(set(df.index.year)), 1)
-
-        emit_progress(84, 'optimum tilt')
-        sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
-        best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
-        horizontal = next(
-            (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
-            best['poa_kwh_m2_year'],
-        )
-        tolerance = []
-        for dev in (5.0, 10.0, 15.0):
-            near = [
-                r for r in sweep
-                if abs(abs(r['tilt_deg'] - best['tilt_deg']) - dev) < 0.26
-            ]
-            if near:
-                worst = min(near, key=lambda r: r['poa_kwh_m2_year'])
-                loss = 100.0 * (1.0 - worst['poa_kwh_m2_year'] / best['poa_kwh_m2_year'])
-                tolerance.append({
-                    'deviation_deg': dev, 'loss_pct': round(float(loss), 2)
-                })
-
-        emit_progress(92, 'photovoltaic yield')
-        poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
-        p_ac = solar_mod.pv_yield(poa, df, solpos, best['tilt_deg'], azimuth)
-        pr_modelled = solar_mod.modelled_performance_ratio(p_ac, poa['poa_global'])
-        pr_applied = (
-            float(pr_override)
-            if isinstance(pr_override, (int, float))
-            else solar_mod.REFERENCE_PERFORMANCE_RATIO
-        )
-        pr_source = 'user' if isinstance(pr_override, (int, float)) else 'reference'
-        poa_year = float(poa['poa_global'].sum()) / 1000.0 / n_years
-        # Specific yield is POA times the performance ratio by construction, so
-        # applying a reference ratio is exact rather than a correction factor.
-        yield_year = poa_year * pr_applied
-
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({
-            'solar': {
-                'lon': lon, 'lat': lat,
-                'resource': resource,
-                'geometry': {
-                    'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
-                    'optimal_poa_kwh_m2_year': round(float(best['poa_kwh_m2_year']), 1),
-                    'surface_azimuth_deg': azimuth,
-                    'gain_over_horizontal_pct': (
-                        round(float(100.0 * (best['poa_kwh_m2_year'] / horizontal - 1.0)), 2)
-                        if horizontal else 0.0
-                    ),
-                    'tilt_tolerance': tolerance,
-                },
-                'pv': {
-                    'specific_yield_kwh_kwp_year': round(float(yield_year), 1),
-                    'performance_ratio': round(float(pr_applied), 4),
-                    'performance_ratio_source': pr_source,
-                    'performance_ratio_modelled': round(float(pr_modelled), 4),
-                    'capacity_factor_pct': round(float(100.0 * yield_year / 8760.0), 2),
-                    'hourly_years': int(n_years),
-                },
-                'grid_note': solar_mod.GRID_NOTE,
-                # Which POWER series this run read and when it was
-                # fetched. Without it a cached run and a fetched run
-                # are indistinguishable to the caller, and POWER
-                # reprocesses historical data.
-                'power_provenance': {
-                    'daily': daily_provenance,
-                    'hourly': hourly_provenance,
-                },
+            # THE SEASON, WHICH IS THE LARGEST THING THIS BLOCK DECIDES.
+            #
+            # The record fetched above is three whole years, and averaging
+            # all of it gives the sun of no particular time. This canopy is
+            # dated -- it is one Sentinel-2 observation -- and season is the
+            # bigger term by far: measured on this app's own cached POWER
+            # records, faPAR varies 0.068 across months at one site against
+            # 0.016 across the entire latitude range of Brazil.
+            #
+            # Until this window existed the panel printed "faPAR under the
+            # real sun, on <date>" beside a sky averaged over every other
+            # month of three years, which is a caption contradicting its own
+            # number. Narrowing costs nothing: the parquet is already local
+            # and the other years still contribute through the day-of-year
+            # window, so a February canopy is lit by three Februaries.
+            window_days = int(req.get('sun_window_days', 21))
+            season = solar_mod.doy_window_mask(
+                df.index, (lit_row or {}).get('date'), window_days)
+            if season is not None and bool(season.any()):
+                df, solpos = df[season], solpos[season]
+            else:
+                window_days = None
+            energy, el_edges = solar_mod.beam_energy_histogram(df, solpos)
+            # The diffuse share of what arrives, from the record rather than
+            # assumed: a canopy lit by the beam alone is lit by a fraction
+            # of a clear day and by almost nothing under cloud.
+            ghi_sum = float(np.nansum(df['ghi'].to_numpy()))
+            dhi_sum = float(np.nansum(df['dhi'].to_numpy()))
+            dhi_share = (dhi_sum / ghi_sum) if ghi_sum > 0 else 0.0
+            # One real day of the window rather than an hour-of-day mean.
+            # Near the equator -- where these AOIs are -- the noon sun
+            # passes within ten degrees of the zenith, azimuth swings tens
+            # of degrees in half an hour there, and averaging it produces a
+            # direction no sun ever occupied.
+            track_day = solar_mod.representative_day(df)
+            track = solar_mod.sun_track(df, solpos, track_day)
+            payload['sun'] = {
+                'source': 'power',
+                'cell': [cell_lat, cell_lon],
+                'years': years,
+                'provenance': provenance,
+                'beam_energy_total': float(np.sum(energy)),
+                'n_azimuth_bins': int(energy.shape[0]),
+                'n_elevation_bins': int(energy.shape[1]),
+                'diffuse_share': dhi_share,
+                # Which sky this is, so the reader is not left inferring it
+                # from a caption. `window_days` None means the whole record
+                # answered, which happens when no date resolved to an age.
+                'window_days': window_days,
+                'window_centre': (lit_row or {}).get('date') if window_days else None,
+                'n_hours': int(len(df)),
+                # THE SUN AS SOMETHING THAT CAN BE DRAWN, not only summed.
+                #
+                # Everything above describes the sky as totals and bin
+                # counts, which a march consumes and a viewer cannot. A
+                # scene handed those has no choice but to invent a light,
+                # and the picture then shows a sun that had nothing to do
+                # with the number beside it.
+                #
+                # `direction` is the beam-energy-weighted mean, so a scene
+                # lit from it is lit by the same sun the faPAR came from.
+                # `track` is one real day, hour by hour, for a viewer that
+                # wants to move the sun rather than fix it.
+                'direction': solar_mod.mean_beam_direction(df, solpos),
+                'clearness': solar_mod.clearness(df),
+                'track_date': (
+                    str(track_day) if track_day is not None else None),
+                'track': track,
             }
-        }))
-        sys.stdout.flush()
-        return
 
-    # Terrain-resolved plane-of-array irradiation over the AOI.
-    if action == 'solar_terrain':
-        import solar as solar_mod
-        import composite as comp
-        import rasterio
-        from rasterio.warp import reproject as rio_reproject, Resampling as RioResampling
-        from datetime import date as _date
+            # Light the canopy the series resolved, under that sun.
+            #
+            # MORE THAN ONE PLANT, BECAUSE ONE PLANT IS NOT AN ANSWER.
+            # helios_grow draws a plant stochastically, and the draw is not
+            # a rounding detail: measured here on soybean at 55 days with
+            # everything else held -- same species, same age, same sowing,
+            # leaf area rescaled to an identical LAI so only the shape can
+            # differ -- five seeds spanned faPAR 0.703 to 0.799. That 0.096
+            # is larger than the whole seasonal term the window above was
+            # added to capture, and three times a 20% error in the LAI this
+            # action works so hard to invert.
+            #
+            # Until this loop existed the action grew seed 7 and printed
+            # `fapar.toFixed(3)`, so it reported three decimals of a number
+            # whose own spread lands in the second. The band is the honest
+            # form of the same computation, and no new data buys it: it is
+            # the model's own variance, and it can only be sampled.
+            #
+            # Cost is why the default is three and not thirty. The march is
+            # ~11 s and dominates; growing a plant is 0.24 s.
+            if lit_row is not None:
+                try:
+                    import canopy_field as cfield
+                    import helios_grow as hgrow
+                    row_az = float(req.get('row_azimuth_deg', 0.0))
+                    base_seed = int(req.get('seed', 7))
+                    n_seeds = max(1, min(int(req.get('n_seeds', 3)), 12))
+                    # One periodic module carrying one plant, so the LAI the
+                    # march integrates is the sowing's and not the plant's.
+                    module = float(np.sqrt(inter_row * inter_plant))
+                    cell = module / max(int(round(module / 0.05)), 4)
 
-        configure_gdal_for_cog()
-        if not req.get('polygon_geojson'):
-            fail('no polygon provided (polygon_geojson required)')
+                    runs = []
+                    for i in range(n_seeds):
+                        emit_progress(
+                            80 + int(15 * i / n_seeds),
+                            f'lighting canopy {i + 1} of {n_seeds}')
+                        grown = hgrow.grow(species=species_name,
+                                           days=int(round(lit_row['day'])),
+                                           seed=base_seed + i)
+                        pos, leaf_area, _m = hgrow.leaf_cloud(grown)
+                        pos = np.asarray(pos, float).copy()
+                        pos[:, 0] = np.mod(pos[:, 0] + module / 2, module)
+                        pos[:, 1] = np.mod(pos[:, 1] + module / 2, module)
+                        grid, fmeta = cfield.leaf_cloud_field(
+                            pos, leaf_area, spacing=module, cell=cell)
+                        one = cfield.light_under_sun(
+                            cfield.canopy_of(grid, fmeta), energy, el_edges,
+                            dhi_share=dhi_share, row_azimuth_deg=row_az)
+                        # THE FRACTION OF GROUND UNDER LEAF, which is the
+                        # one geometric number that tracks the answer.
+                        # Measured here at fixed LAI: sweeping the canopy's
+                        # horizontal extent moves faPAR 0.19 to 0.88 and
+                        # faPAR follows cover almost proportionally, while
+                        # sweeping its HEIGHT over a factor of 2.4 moves it
+                        # 0.020. Reported so a reader with an observed cover
+                        # -- which a nadir view gives cheaply, and which no
+                        # 3D reconstruction is needed for -- can check the
+                        # simulated canopy against the field's.
+                        one['cover'] = float(
+                            (grid.sum(axis=2) > 0).mean())
+                        one['seed'] = base_seed + i
+                        runs.append(one)
+
+                    # The median run carries the headline, so the reported
+                    # figures stay a self-consistent single canopy rather
+                    # than a mean of quantities that do not average.
+                    runs.sort(key=lambda r: r.get('fapar', 0.0))
+                    lit = dict(runs[len(runs) // 2])
+                    fapars = [float(r['fapar']) for r in runs]
+                    covers = [float(r['cover']) for r in runs]
+                    lit['ensemble'] = {
+                        'n': len(runs),
+                        'fapar_min': min(fapars),
+                        'fapar_max': max(fapars),
+                        'fapar_spread': max(fapars) - min(fapars),
+                        'cover_min': min(covers),
+                        'cover_max': max(covers),
+                        'seeds': [int(r['seed']) for r in runs],
+                    }
+                    lit['date'] = lit_row.get('date')
+                    lit['day'] = lit_row.get('day')
+                    payload['light'] = lit
+                except Exception as e:
+                    payload['light'] = {'error': str(e)}
+        except Exception as e:
+            # A canopy answer is still worth having without the sun record,
+            # so this degrades rather than fails, and says which it did.
+            payload['sun'] = {'source': 'reference', 'why': str(e)}
+
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'canopy_from_aoi': payload}))
+    sys.stdout.flush()
+
+
+# Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
+def action_list_datacube(req, work_dir):
+    start = req.get('start')
+    end = req.get('end')
+    max_cloud = float(req.get('max_cloud', 100.0))
+    monthly_best = bool(req.get('monthly_best', True))
+    tiles = req.get('tiles') or None
+    if not start or not end:
+        fail('list_datacube requires start and end dates (YYYY-MM-DD)')
+    if req.get('polygon_geojson'):
         polygon = polygon_from_geojson(req['polygon_geojson'])
-        centroid = polygon.centroid
-        lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
-        hourly_years = request_positive(req, 'hourly_years', 10, int)
-        last_year = _date.today().year - 1
-
-        emit_progress(5, 'fetching Copernicus DEM GLO-30')
-        try:
-            # Buffered, so terrain just outside the AOI can still cast onto
-            # pixels inside it. Everything downstream is cropped back to the AOI
-            # window before it is published.
-            dem_path = solar_mod.fetch_dem(
-                polygon, Path(work_dir) / 'dem.tif',
-                buffer_m=solar_mod.HORIZON_MAX_DIST_M,
-            )
-        except Exception as e:
-            fail(f'DEM fetch failed: {e}')
-
-        with rasterio.open(dem_path) as src:
-            elevation = src.read(1).astype(float)
-            buf_transform = src.transform
-            dem_crs = src.crs
-            buf_profile = src.profile.copy()
-            aoi_window = rasterio.windows.from_bounds(
-                *polygon.bounds, transform=buf_transform
-            ).round_offsets().round_lengths().intersection(
-                rasterio.windows.Window(0, 0, src.width, src.height)
-            )
-
-        dx_m, dy_m = solar_mod.pixel_size_m(buf_transform, lat)
-        emit_progress(20, 'slope, aspect and horizon')
-        slope, aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
-        horizon, _ = solar_mod.horizon_angles(elevation, dx_m, dy_m)
-
-        # Crop back: the buffer exists so the horizon sees beyond the boundary,
-        # not so the result reports on land the user did not ask about.
-        r0 = int(aoi_window.row_off)
-        c0 = int(aoi_window.col_off)
-        r1 = r0 + int(aoi_window.height)
-        c1 = c0 + int(aoi_window.width)
-        if r1 <= r0 or c1 <= c0:
-            fail('the DEM window does not overlap the AOI')
-        _crop = lambda a: a[r0:r1, c0:c1]
-        elevation = _crop(elevation)
-        slope, aspect = _crop(slope), _crop(aspect)
-        horizon = horizon[r0:r1, c0:c1, :]
-        dem_transform = rasterio.windows.transform(aoi_window, buf_transform)
-        dem_profile = buf_profile.copy()
-        dem_profile.update(height=slope.shape[0], width=slope.shape[1],
-                           transform=dem_transform)
-
-        hourly_start = f'{last_year - hourly_years + 1}0101'
-        hourly_end = f'{last_year}1231'
-        emit_progress(28, f'NASA POWER hourly, {hourly_years} years')
-        try:
-            hourly, hourly_provenance = cached_power_series(
-                power_cache_dir(req), 'hourly', lon, lat,
-                hourly_start, hourly_end, solar_mod.HOURLY_PARAMS,
-                lambda progress: solar_mod.fetch(
-                    'hourly', lon, lat, hourly_start, hourly_end,
-                    progress=progress,
-                ),
-                progress=lambda i, n, y: emit_progress(
-                    28 + int(45 * (i + 1) / n), f'hourly {y}'
-                ),
-            )
-        except Exception as e:
-            fail(f'NASA POWER hourly request failed: {e}')
-
-        df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, float(np.nanmean(elevation)))
-        if df.empty:
-            fail('NASA POWER returned no usable hourly record for this point')
-        n_years = max(len(set(df.index.year)), 1)
-
-        season = (req.get('season') or 'annual').lower()
-        if season not in solar_mod.SEASONS and season not in ('anisotropy', 'shading'):
-            fail(f'unknown season: {season}')
-
-        beam_share = solar_mod.beam_fraction(df)
-
-        # Whether the terrain encloses the site enough for the diffuse loss to
-        # be a figure rather than noise. Read off the horizon already traced, so
-        # the test costs nothing; below the threshold the sky view factor is a
-        # rounding term and applying it would spend the arithmetic on noise.
-        enclosure = solar_mod.horizon_enclosure(horizon)
-        svf_loss = (
-            solar_mod.diffuse_loss_fraction(horizon)
-            if enclosure['encloses'] else None
+    elif req.get('kml_path'):
+        area = parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
+        if area is None:
+            fail('polygon not found in KML')
+        polygon = area['polygon']
+    else:
+        fail('no polygon provided (polygon_geojson or kml_path required)')
+    emit_progress(20, 'querying STAC catalog (Planetary Computer)')
+    try:
+        products = list_stac_products(
+            polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
+            monthly_best=monthly_best,
         )
+    except Exception as e:
+        fail(f'STAC query failed: {e}')
+    scenes = []
+    for p in products:
+        scenes.append({
+            'id': p.get('id') or '',
+            'date': p['date'].strftime('%Y-%m-%d'),
+            'cloud_cover': round(float(p.get('cloud_cover', 0.0)), 2),
+            'tile': p.get('tile') or '',
+            'satellite': p.get('satellite') or 'S2',
+            'preview_uri': p.get('preview_uri') or '',
+        })
+    date_range = []
+    if scenes:
+        date_range = [scenes[0]['date'], scenes[-1]['date']]
+    emit_progress(100, f'{len(scenes)} scenes')
+    sys.stdout.write(json.dumps({
+        'n_scenes': len(scenes),
+        'scenes': scenes,
+        'date_range': date_range,
+        'monthly_best': monthly_best,
+        'max_cloud': max_cloud,
+    }))
+    sys.stdout.flush()
 
-        def _poa_for(name):
-            """Plane-of-array total for a season, attenuated by terrain shading.
 
-            Two losses, on two bases. The horizon blocks beam energy below it,
-            which is scaled by the beam share before it is applied; and it hides
-            part of the sky dome, which removes diffuse energy in proportion to
-            the sky view factor. The beam term is the expensive one to compute
-            and the small one to collect -- on flat ground both vanish, but in
-            enclosed terrain the diffuse term is the larger by two orders of
-            magnitude, and the horizon that answers the first already answers
-            the second.
+# Solar resource and photovoltaic yield at the AOI centroid (no imagery).
+def action_solar_resource(req, work_dir):
+    import solar as solar_mod
+    from datetime import date as _date
 
-            The published shading layer stays the unscaled beam fraction, which
-            is what the research figures report.
-            """
-            m = solar_mod.season_mask(df.index, name)
-            sub, sp = df[m], solpos[m]
-            if sub.empty:
-                fail(f'no hourly record inside the {name} window')
-            yrs = solar_mod.season_years(df.index, name)
-            tbl = solar_mod.build_poa_lookup(sub, sp, max(yrs, 1e-6))
-            raw = solar_mod.interpolate_poa(slope, aspect, tbl)
-            hist, edges = solar_mod.beam_energy_histogram(sub, sp)
-            loss = solar_mod.shading_loss_fraction(horizon, hist, edges)
-            attenuated = raw * (1.0 - loss * beam_share)
-            if svf_loss is not None:
-                attenuated = attenuated * (1.0 - svf_loss * (1.0 - beam_share))
-            return attenuated, loss
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+    centroid = polygon.centroid
+    lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
 
-        emit_progress(76, 'plane-of-array lookup')
-        companion = None
-        shading_loss = None
-        if season == 'anisotropy':
-            # Winter over summer in one layer: the seasonal contrast is what
-            # the annual map averages away, and a ratio carries it per pixel.
-            emit_progress(78, 'lookup [winter]')
-            winter, _ = _poa_for('winter')
-            emit_progress(85, 'lookup [summer]')
-            summer, shading_loss = _poa_for('summer')
-            with np.errstate(divide='ignore', invalid='ignore'):
-                poa = np.where(summer > 0, winter / summer, np.nan)
-            unit = 'winter / summer'
-        elif season == 'shading':
-            emit_progress(80, 'horizon shading over the year')
-            _, shading_loss = _poa_for('annual')
-            poa = shading_loss
-            unit = 'fraction of beam blocked'
-        elif season in solar_mod.SEASON_PAIR:
-            # The companion season is computed only so both land on one colour
-            # domain. Their spatial spread differs by about a factor of ten, and
-            # normalising each to its own range draws them at equal contrast.
-            emit_progress(78, f'lookup [{season}]')
-            poa, shading_loss = _poa_for(season)
-            other = solar_mod.SEASON_PAIR[season]
-            emit_progress(85, f'lookup [{other}], shared colour scale')
-            companion, _ = _poa_for(other)
-            unit = 'kWh/m2 per season'
-        else:
-            emit_progress(80, f'lookup [{season}]')
-            poa, shading_loss = _poa_for(season)
-            unit = 'kWh/m2 per season' if season != 'annual' else 'kWh/m2/year'
-        emit_progress(92, 'interpolating onto the terrain')
+    clim_years = request_positive(req, 'climatology_years', 30, int)
+    hourly_years = request_positive(req, 'hourly_years', 10, int)
+    # Zero is due north here, which is both the default and a value the
+    # caller can mean, so absence is what selects the default.
+    azimuth = request_number(req, 'surface_azimuth', 0.0)
+    pr_override = req.get('performance_ratio')
 
-        # Only pixels inside the AOI carry a result.
-        from rasterio.features import geometry_mask
-        inside = ~geometry_mask(
-            [polygon.__geo_interface__], out_shape=poa.shape,
-            transform=dem_transform, invert=False
-        )
-        valid = inside & np.isfinite(poa)
-        if not valid.any():
-            fail('the DEM window does not overlap the AOI')
+    # POWER publishes through the previous full year.
+    last_year = _date.today().year - 1
+    clim_start = f'{last_year - clim_years + 1}0101'
+    clim_end = f'{last_year}1231'
+    hourly_start = f'{last_year - hourly_years + 1}0101'
+    hourly_end = f'{last_year}1231'
 
-        scale = solar_mod.render_scale(season, poa, valid, companion, valid)
-        png = Path(work_dir) / 'solar_poa.png'
-        comp.write_rgba_png(
-            solar_mod.terrain_rgba(
-                poa, valid, scale['min'], scale['max'], scale['palette']
+    cache = power_cache_dir(req)
+    emit_progress(5, f'NASA POWER daily, {clim_years} years')
+    try:
+        daily, daily_provenance = cached_power_series(
+            cache, 'daily', lon, lat, clim_start, clim_end,
+            solar_mod.DAILY_PARAMS,
+            lambda progress: solar_mod.fetch(
+                'daily', lon, lat, clim_start, clim_end, progress=progress
             ),
-            png,
+            progress=lambda i, n, y: emit_progress(
+                5 + int(35 * (i + 1) / n), f'daily {y}'
+            ),
         )
+    except Exception as e:
+        fail(f'NASA POWER daily request failed: {e}')
 
-        tif = Path(work_dir) / 'solar_poa.tif'
-        prof = dem_profile.copy()
-        prof.update(dtype='float32', count=1, compress='lzw', nodata=float('nan'))
-        with rasterio.open(tif, 'w', **prof) as dst:
-            dst.write(np.where(valid, poa, np.nan).astype('float32'), 1)
+    annual = solar_mod.annual_totals(daily)
+    if annual.empty:
+        fail('NASA POWER returned no complete year for this point')
+    slope, pvalue = solar_mod.linear_trend(annual)
+    resource = {
+        'ghi_annual_kwh_m2': round(float(annual.mean()), 1),
+        'ghi_std': round(float(annual.std(ddof=1)), 1) if annual.size > 1 else 0.0,
+        'ghi_cv_pct': (
+            round(float(100.0 * annual.std(ddof=1) / annual.mean()), 2)
+            if annual.size > 1 and annual.mean() else 0.0
+        ),
+        'ghi_p10': round(float(np.percentile(annual.values, 10)), 1),
+        'ghi_p90': round(float(np.percentile(annual.values, 90)), 1),
+        'n_years': int(annual.size),
+        'trend_per_year': round(slope, 3),
+        'trend_p_value': round(pvalue, 4),
+        'clear_sky_index': solar_mod.clear_sky_index(daily),
+        'monthly': solar_mod.monthly_climatology(daily),
+    }
 
-        vals = poa[valid]
-        lon_min, lon_max, lat_min, lat_max = get_map_extent(
-            {'transform': dem_transform, 'crs': dem_crs,
-             'height': poa.shape[0], 'width': poa.shape[1]}
+    emit_progress(42, f'NASA POWER hourly, {hourly_years} years')
+    try:
+        hourly, hourly_provenance = cached_power_series(
+            cache, 'hourly', lon, lat, hourly_start, hourly_end,
+            solar_mod.HOURLY_PARAMS,
+            lambda progress: solar_mod.fetch(
+                'hourly', lon, lat, hourly_start, hourly_end,
+                progress=progress,
+            ),
+            progress=lambda i, n, y: emit_progress(
+                42 + int(38 * (i + 1) / n), f'hourly {y}'
+            ),
         )
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({
-            'solar_terrain': {
-                'poa_min': round(float(np.min(vals)), 1),
-                'poa_max': round(float(np.max(vals)), 1),
-                'poa_mean': round(float(np.mean(vals)), 1),
-                'poa_std_pct': round(float(100.0 * np.std(vals) / np.mean(vals)), 2),
-                'slope_mean_deg': round(float(np.nanmean(slope[valid])), 2),
-                'slope_max_deg': round(float(np.nanmax(slope[valid])), 2),
-                'pixels': int(valid.sum()),
+    except Exception as e:
+        fail(f'NASA POWER hourly request failed: {e}')
+
+    df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
+    if df.empty:
+        fail('NASA POWER returned no usable hourly record for this point')
+    n_years = max(len(set(df.index.year)), 1)
+
+    emit_progress(84, 'optimum tilt')
+    sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
+    best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
+    horizontal = next(
+        (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
+        best['poa_kwh_m2_year'],
+    )
+    tolerance = []
+    for dev in (5.0, 10.0, 15.0):
+        near = [
+            r for r in sweep
+            if abs(abs(r['tilt_deg'] - best['tilt_deg']) - dev) < 0.26
+        ]
+        if near:
+            worst = min(near, key=lambda r: r['poa_kwh_m2_year'])
+            loss = 100.0 * (1.0 - worst['poa_kwh_m2_year'] / best['poa_kwh_m2_year'])
+            tolerance.append({
+                'deviation_deg': dev, 'loss_pct': round(float(loss), 2)
+            })
+
+    emit_progress(92, 'photovoltaic yield')
+    poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
+    p_ac = solar_mod.pv_yield(poa, df, solpos, best['tilt_deg'], azimuth)
+    pr_modelled = solar_mod.modelled_performance_ratio(p_ac, poa['poa_global'])
+    pr_applied = (
+        float(pr_override)
+        if isinstance(pr_override, (int, float))
+        else solar_mod.REFERENCE_PERFORMANCE_RATIO
+    )
+    pr_source = 'user' if isinstance(pr_override, (int, float)) else 'reference'
+    poa_year = float(poa['poa_global'].sum()) / 1000.0 / n_years
+    # Specific yield is POA times the performance ratio by construction, so
+    # applying a reference ratio is exact rather than a correction factor.
+    yield_year = poa_year * pr_applied
+
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({
+        'solar': {
+            'lon': lon, 'lat': lat,
+            'resource': resource,
+            'geometry': {
+                'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
+                'optimal_poa_kwh_m2_year': round(float(best['poa_kwh_m2_year']), 1),
+                'surface_azimuth_deg': azimuth,
+                'gain_over_horizontal_pct': (
+                    round(float(100.0 * (best['poa_kwh_m2_year'] / horizontal - 1.0)), 2)
+                    if horizontal else 0.0
+                ),
+                'tilt_tolerance': tolerance,
+            },
+            'pv': {
+                'specific_yield_kwh_kwp_year': round(float(yield_year), 1),
+                'performance_ratio': round(float(pr_applied), 4),
+                'performance_ratio_source': pr_source,
+                'performance_ratio_modelled': round(float(pr_modelled), 4),
+                'capacity_factor_pct': round(float(100.0 * yield_year / 8760.0), 2),
                 'hourly_years': int(n_years),
-                'season': season,
-                'unit': unit,
-                # The colour domain the overlay was drawn on. Without it a
-                # client can only guess, and two layers drawn on different
-                # domains would be compared as if they shared one.
-                'scale': {
-                    'palette': scale['palette'],
-                    'min': round(float(scale['min']), 4),
-                    'max': round(float(scale['max']), 4),
-                    'reference': scale['reference'],
-                    'basis': scale['basis'],
-                    'shared_with': scale['shared_with'],
-                    'decimals': int(scale['decimals']),
-                },
-                'shading_mean_pct': (
-                    round(float(100.0 * np.nanmean(shading_loss[valid])), 3)
-                    if shading_loss is not None else None
-                ),
-                'shading_max_pct': (
-                    round(float(100.0 * np.nanmax(shading_loss[valid])), 3)
-                    if shading_loss is not None else None
-                ),
-                'horizon_max_dist_m': float(solar_mod.HORIZON_MAX_DIST_M),
-                'beam_fraction': round(float(beam_share), 4),
-                # The sky view factor and the threshold it was judged against.
-                # Reported whether or not it was applied: "not applied" and
-                # "applied at zero" are different statements about the terrain.
-                'sky_view': {
-                    'applied': bool(svf_loss is not None),
-                    'mean_horizon_deg': enclosure['mean_horizon_deg'],
-                    'max_horizon_deg': enclosure['max_horizon_deg'],
-                    'threshold_deg': enclosure['threshold_deg'],
-                    'diffuse_loss_mean_pct': (
-                        round(float(100.0 * np.nanmean(svf_loss[valid])), 3)
-                        if svf_loss is not None else None
-                    ),
-                    'diffuse_loss_max_pct': (
-                        round(float(100.0 * np.nanmax(svf_loss[valid])), 3)
-                        if svf_loss is not None else None
-                    ),
-                },
-                'dem_source': 'Copernicus DEM GLO-30',
-                # Whether the POWER series behind this layer was fetched or
-                # read from the on-disk cache, and when it was fetched.
-                'power_provenance': {'hourly': hourly_provenance},
-                'overlay_png': str(png),
-                'raster_tif': str(tif),
-                'extent': {
-                    'lon_min': lon_min, 'lat_min': lat_min,
-                    'lon_max': lon_max, 'lat_max': lat_max,
-                },
-            }
-        }))
-        sys.stdout.flush()
-        return
+            },
+            'grid_note': solar_mod.GRID_NOTE,
+            # Which POWER series this run read and when it was
+            # fetched. Without it a cached run and a fetched run
+            # are indistinguishable to the caller, and POWER
+            # reprocesses historical data.
+            'power_provenance': {
+                'daily': daily_provenance,
+                'hourly': hourly_provenance,
+            },
+        }
+    }))
+    sys.stdout.flush()
 
-    # Photovoltaic siting from slope limits and land-cover eligibility.
-    if action == 'solar_siting':
-        import solar as solar_mod
-        import composite as comp
+
+# Terrain-resolved plane-of-array irradiation over the AOI.
+def action_solar_terrain(req, work_dir):
+    import solar as solar_mod
+    import composite as comp
+    import rasterio
+    from rasterio.warp import reproject as rio_reproject, Resampling as RioResampling
+    from datetime import date as _date
+
+    configure_gdal_for_cog()
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+    centroid = polygon.centroid
+    lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+    hourly_years = request_positive(req, 'hourly_years', 10, int)
+    last_year = _date.today().year - 1
+
+    emit_progress(5, 'fetching Copernicus DEM GLO-30')
+    try:
+        # Buffered, so terrain just outside the AOI can still cast onto
+        # pixels inside it. Everything downstream is cropped back to the AOI
+        # window before it is published.
+        dem_path = solar_mod.fetch_dem(
+            polygon, Path(work_dir) / 'dem.tif',
+            buffer_m=solar_mod.HORIZON_MAX_DIST_M,
+        )
+    except Exception as e:
+        fail(f'DEM fetch failed: {e}')
+
+    with rasterio.open(dem_path) as src:
+        elevation = src.read(1).astype(float)
+        buf_transform = src.transform
+        dem_crs = src.crs
+        buf_profile = src.profile.copy()
+        aoi_window = rasterio.windows.from_bounds(
+            *polygon.bounds, transform=buf_transform
+        ).round_offsets().round_lengths().intersection(
+            rasterio.windows.Window(0, 0, src.width, src.height)
+        )
+
+    dx_m, dy_m = solar_mod.pixel_size_m(buf_transform, lat)
+    emit_progress(20, 'slope, aspect and horizon')
+    slope, aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
+    horizon, _ = solar_mod.horizon_angles(elevation, dx_m, dy_m)
+
+    # Crop back: the buffer exists so the horizon sees beyond the boundary,
+    # not so the result reports on land the user did not ask about.
+    r0 = int(aoi_window.row_off)
+    c0 = int(aoi_window.col_off)
+    r1 = r0 + int(aoi_window.height)
+    c1 = c0 + int(aoi_window.width)
+    if r1 <= r0 or c1 <= c0:
+        fail('the DEM window does not overlap the AOI')
+    _crop = lambda a: a[r0:r1, c0:c1]
+    elevation = _crop(elevation)
+    slope, aspect = _crop(slope), _crop(aspect)
+    horizon = horizon[r0:r1, c0:c1, :]
+    dem_transform = rasterio.windows.transform(aoi_window, buf_transform)
+    dem_profile = buf_profile.copy()
+    dem_profile.update(height=slope.shape[0], width=slope.shape[1],
+                       transform=dem_transform)
+
+    hourly_start = f'{last_year - hourly_years + 1}0101'
+    hourly_end = f'{last_year}1231'
+    emit_progress(28, f'NASA POWER hourly, {hourly_years} years')
+    try:
+        hourly, hourly_provenance = cached_power_series(
+            power_cache_dir(req), 'hourly', lon, lat,
+            hourly_start, hourly_end, solar_mod.HOURLY_PARAMS,
+            lambda progress: solar_mod.fetch(
+                'hourly', lon, lat, hourly_start, hourly_end,
+                progress=progress,
+            ),
+            progress=lambda i, n, y: emit_progress(
+                28 + int(45 * (i + 1) / n), f'hourly {y}'
+            ),
+        )
+    except Exception as e:
+        fail(f'NASA POWER hourly request failed: {e}')
+
+    df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, float(np.nanmean(elevation)))
+    if df.empty:
+        fail('NASA POWER returned no usable hourly record for this point')
+    n_years = max(len(set(df.index.year)), 1)
+
+    season = (req.get('season') or 'annual').lower()
+    if season not in solar_mod.SEASONS and season not in ('anisotropy', 'shading'):
+        fail(f'unknown season: {season}')
+
+    beam_share = solar_mod.beam_fraction(df)
+
+    # Whether the terrain encloses the site enough for the diffuse loss to
+    # be a figure rather than noise. Read off the horizon already traced, so
+    # the test costs nothing; below the threshold the sky view factor is a
+    # rounding term and applying it would spend the arithmetic on noise.
+    enclosure = solar_mod.horizon_enclosure(horizon)
+    svf_loss = (
+        solar_mod.diffuse_loss_fraction(horizon)
+        if enclosure['encloses'] else None
+    )
+
+    def _poa_for(name):
+        """Plane-of-array total for a season, attenuated by terrain shading.
+
+        Two losses, on two bases. The horizon blocks beam energy below it,
+        which is scaled by the beam share before it is applied; and it hides
+        part of the sky dome, which removes diffuse energy in proportion to
+        the sky view factor. The beam term is the expensive one to compute
+        and the small one to collect -- on flat ground both vanish, but in
+        enclosed terrain the diffuse term is the larger by two orders of
+        magnitude, and the horizon that answers the first already answers
+        the second.
+
+        The published shading layer stays the unscaled beam fraction, which
+        is what the research figures report.
+        """
+        m = solar_mod.season_mask(df.index, name)
+        sub, sp = df[m], solpos[m]
+        if sub.empty:
+            fail(f'no hourly record inside the {name} window')
+        yrs = solar_mod.season_years(df.index, name)
+        tbl = solar_mod.build_poa_lookup(sub, sp, max(yrs, 1e-6))
+        raw = solar_mod.interpolate_poa(slope, aspect, tbl)
+        hist, edges = solar_mod.beam_energy_histogram(sub, sp)
+        loss = solar_mod.shading_loss_fraction(horizon, hist, edges)
+        attenuated = raw * (1.0 - loss * beam_share)
+        if svf_loss is not None:
+            attenuated = attenuated * (1.0 - svf_loss * (1.0 - beam_share))
+        return attenuated, loss
+
+    emit_progress(76, 'plane-of-array lookup')
+    companion = None
+    shading_loss = None
+    if season == 'anisotropy':
+        # Winter over summer in one layer: the seasonal contrast is what
+        # the annual map averages away, and a ratio carries it per pixel.
+        emit_progress(78, 'lookup [winter]')
+        winter, _ = _poa_for('winter')
+        emit_progress(85, 'lookup [summer]')
+        summer, shading_loss = _poa_for('summer')
+        with np.errstate(divide='ignore', invalid='ignore'):
+            poa = np.where(summer > 0, winter / summer, np.nan)
+        unit = 'winter / summer'
+    elif season == 'shading':
+        emit_progress(80, 'horizon shading over the year')
+        _, shading_loss = _poa_for('annual')
+        poa = shading_loss
+        unit = 'fraction of beam blocked'
+    elif season in solar_mod.SEASON_PAIR:
+        # The companion season is computed only so both land on one colour
+        # domain. Their spatial spread differs by about a factor of ten, and
+        # normalising each to its own range draws them at equal contrast.
+        emit_progress(78, f'lookup [{season}]')
+        poa, shading_loss = _poa_for(season)
+        other = solar_mod.SEASON_PAIR[season]
+        emit_progress(85, f'lookup [{other}], shared colour scale')
+        companion, _ = _poa_for(other)
+        unit = 'kWh/m2 per season'
+    else:
+        emit_progress(80, f'lookup [{season}]')
+        poa, shading_loss = _poa_for(season)
+        unit = 'kWh/m2 per season' if season != 'annual' else 'kWh/m2/year'
+    emit_progress(92, 'interpolating onto the terrain')
+
+    # Only pixels inside the AOI carry a result.
+    from rasterio.features import geometry_mask
+    inside = ~geometry_mask(
+        [polygon.__geo_interface__], out_shape=poa.shape,
+        transform=dem_transform, invert=False
+    )
+    valid = inside & np.isfinite(poa)
+    if not valid.any():
+        fail('the DEM window does not overlap the AOI')
+
+    scale = solar_mod.render_scale(season, poa, valid, companion, valid)
+    png = Path(work_dir) / 'solar_poa.png'
+    comp.write_rgba_png(
+        solar_mod.terrain_rgba(
+            poa, valid, scale['min'], scale['max'], scale['palette']
+        ),
+        png,
+    )
+
+    tif = Path(work_dir) / 'solar_poa.tif'
+    prof = dem_profile.copy()
+    prof.update(dtype='float32', count=1, compress='lzw', nodata=float('nan'))
+    with rasterio.open(tif, 'w', **prof) as dst:
+        dst.write(np.where(valid, poa, np.nan).astype('float32'), 1)
+
+    vals = poa[valid]
+    lon_min, lon_max, lat_min, lat_max = get_map_extent(
+        {'transform': dem_transform, 'crs': dem_crs,
+         'height': poa.shape[0], 'width': poa.shape[1]}
+    )
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({
+        'solar_terrain': {
+            'poa_min': round(float(np.min(vals)), 1),
+            'poa_max': round(float(np.max(vals)), 1),
+            'poa_mean': round(float(np.mean(vals)), 1),
+            'poa_std_pct': round(float(100.0 * np.std(vals) / np.mean(vals)), 2),
+            'slope_mean_deg': round(float(np.nanmean(slope[valid])), 2),
+            'slope_max_deg': round(float(np.nanmax(slope[valid])), 2),
+            'pixels': int(valid.sum()),
+            'hourly_years': int(n_years),
+            'season': season,
+            'unit': unit,
+            # The colour domain the overlay was drawn on. Without it a
+            # client can only guess, and two layers drawn on different
+            # domains would be compared as if they shared one.
+            'scale': {
+                'palette': scale['palette'],
+                'min': round(float(scale['min']), 4),
+                'max': round(float(scale['max']), 4),
+                'reference': scale['reference'],
+                'basis': scale['basis'],
+                'shared_with': scale['shared_with'],
+                'decimals': int(scale['decimals']),
+            },
+            'shading_mean_pct': (
+                round(float(100.0 * np.nanmean(shading_loss[valid])), 3)
+                if shading_loss is not None else None
+            ),
+            'shading_max_pct': (
+                round(float(100.0 * np.nanmax(shading_loss[valid])), 3)
+                if shading_loss is not None else None
+            ),
+            'horizon_max_dist_m': float(solar_mod.HORIZON_MAX_DIST_M),
+            'beam_fraction': round(float(beam_share), 4),
+            # The sky view factor and the threshold it was judged against.
+            # Reported whether or not it was applied: "not applied" and
+            # "applied at zero" are different statements about the terrain.
+            'sky_view': {
+                'applied': bool(svf_loss is not None),
+                'mean_horizon_deg': enclosure['mean_horizon_deg'],
+                'max_horizon_deg': enclosure['max_horizon_deg'],
+                'threshold_deg': enclosure['threshold_deg'],
+                'diffuse_loss_mean_pct': (
+                    round(float(100.0 * np.nanmean(svf_loss[valid])), 3)
+                    if svf_loss is not None else None
+                ),
+                'diffuse_loss_max_pct': (
+                    round(float(100.0 * np.nanmax(svf_loss[valid])), 3)
+                    if svf_loss is not None else None
+                ),
+            },
+            'dem_source': 'Copernicus DEM GLO-30',
+            # Whether the POWER series behind this layer was fetched or
+            # read from the on-disk cache, and when it was fetched.
+            'power_provenance': {'hourly': hourly_provenance},
+            'overlay_png': str(png),
+            'raster_tif': str(tif),
+            'extent': {
+                'lon_min': lon_min, 'lat_min': lat_min,
+                'lon_max': lon_max, 'lat_max': lat_max,
+            },
+        }
+    }))
+    sys.stdout.flush()
+
+
+# Photovoltaic siting from slope limits and land-cover eligibility.
+def action_solar_siting(req, work_dir):
+    import solar as solar_mod
+    import composite as comp
+    import rasterio
+
+    configure_gdal_for_cog()
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+
+    # Conventions, not verified legal restrictions. Echoed in the response.
+    # Zero degrees is a limit the caller can mean: it accepts only ground
+    # the DEM reports as flat. Absence selects the convention, not falsiness.
+    slope_acceptable = request_number(
+        req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
+    )
+    slope_restrictive = request_number(
+        req, 'slope_restrictive_deg', solar_mod.SLOPE_RESTRICTIVE_DEG
+    )
+    excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
+    cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
+
+    siting_pct = {'dem': 10, 'slope': 35, 'cover': 55, 'classes': 80}
+    sited = compute_siting(
+        polygon, work_dir, slope_acceptable, slope_restrictive,
+        excluded, cropland, mapbiomas_path=req.get('mapbiomas_path'),
+        progress=lambda st, msg: emit_progress(siting_pct[st], msg),
+    )
+    suit = sited['suitability']
+    slope = sited['slope']
+    stats = sited['classes']
+    px_area_ha = sited['pixel_area_ha']
+    dem_transform = sited['dem_transform']
+    dem_crs = sited['dem_crs']
+    dem_profile = sited['dem_profile']
+
+    png = Path(work_dir) / 'solar_siting.png'
+    comp.write_rgba_png(solar_mod.suitability_rgba(suit), png)
+    tif = Path(work_dir) / 'solar_siting.tif'
+    prof = dem_profile.copy()
+    prof.update(dtype='int16', count=1, compress='lzw', nodata=-1)
+    with rasterio.open(tif, 'w', **prof) as dst:
+        dst.write(suit.astype('int16'), 1)
+
+    lon_min, lon_max, lat_min, lat_max = get_map_extent(
+        {'transform': dem_transform, 'crs': dem_crs,
+         'height': slope.shape[0], 'width': slope.shape[1]}
+    )
+    by_code = {r['code']: r for r in stats}
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({
+        'solar_siting': {
+            'classes': stats,
+            # Reported apart, never summed: a pixel that is geometrically
+            # fine but currently produces soybean carries a trade-off.
+            'suitable_no_conflict_ha': by_code[4]['area_ha'],
+            'suitable_cropland_ha': by_code[3]['area_ha'],
+            'pixel_area_ha': round(float(px_area_ha), 5),
+            'thresholds': sited['thresholds'],
+            'dem_source': 'Copernicus DEM GLO-30',
+            'overlay_png': str(png),
+            'raster_tif': str(tif),
+            'extent': {
+                'lon_min': lon_min, 'lat_min': lat_min,
+                'lon_max': lon_max, 'lat_max': lat_max,
+            },
+        }
+    }))
+    sys.stdout.flush()
+
+
+# Loss waterfall, tracking comparison, generation profile and plant energy.
+# Runs on the same POWER series as solar_resource, read from the cache when
+# that action has already been run for this cell.
+def action_energy_model(req, work_dir):
+    import solar as solar_mod
+    import energy as energy_mod
+    from datetime import date as _date
+
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+    centroid = polygon.centroid
+    lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+
+    clim_years = request_positive(req, 'climatology_years', 30, int)
+    hourly_years = request_positive(req, 'hourly_years', 10, int)
+    azimuth = request_number(req, 'surface_azimuth', 0.0)
+    pr_override = req.get('performance_ratio')
+    reporting_basis = (req.get('reporting_basis') or 'year_one').lower()
+    if reporting_basis not in energy_mod.REPORTING_BASES:
+        fail(f'unknown reporting basis: {reporting_basis}')
+    try:
+        module_type, gamma_pdc = energy_mod.resolve_module_type(
+            req.get(energy_mod.MODULE_TYPE_REQUEST_FIELD)
+        )
+    except ValueError as e:
+        fail(str(e))
+    # Zero per year is a value, not an omission: it states that the caller
+    # is modelling no degradation. Read through request_number it survives;
+    # under the previous `or` default it became 0.5 %/yr and multiplied
+    # every lifetime-mean figure by 0.9422 instead of 1.0.
+    degradation_rate = request_positive(
+        req, 'degradation_rate_per_year',
+        energy_mod.DEGRADATION_RATE_PER_YEAR, allow_zero=True,
+    )
+    analysis_period = request_positive(
+        req, 'analysis_period_years',
+        energy_mod.ANALYSIS_PERIOD_YEARS, int,
+    )
+    gcr_fixed = request_positive(req, 'gcr_fixed', energy_mod.GCR_FIXED)
+    gcr_tracker = request_positive(
+        req, 'gcr_tracker', energy_mod.GCR_TRACKER
+    )
+    # Zero degrees is a tracker locked flat, which is a configuration a
+    # caller can ask for, so it is admitted rather than replaced by 60.
+    tracker_max_angle = request_positive(
+        req, 'tracker_max_angle_deg', energy_mod.TRACKER_MAX_ANGLE_DEG,
+        allow_zero=True,
+    )
+    density_basis = (
+        req.get('capacity_density_basis')
+        or energy_mod.DEFAULT_CAPACITY_DENSITY_BASIS
+    )
+    if density_basis not in energy_mod.CAPACITY_DENSITY_BASES:
+        fail(f'unknown capacity density basis: {density_basis}')
+    # Zero buildable share is a site with nothing buildable on it, which is
+    # a statement, not an omission.
+    buildable_fraction = request_positive(
+        req, 'buildable_fraction', energy_mod.BUILDABLE_FRACTION,
+        allow_zero=True,
+    )
+    utc_offset = request_number(req, 'utc_offset_hours', None)
+    # Zero is total horizon obstruction. It is admitted for the same reason
+    # and, like every other value of this field, it is a fraction of BEAM
+    # irradiance and is converted by the beam share before it is applied.
+    shading_derate = request_positive(
+        req, 'shading_derate', 1.0, allow_zero=True
+    )
+    shading_applied = bool(req.get('shading_applied', False))
+
+    # POWER publishes through the previous full year.
+    last_year = _date.today().year - 1
+    clim_start = f'{last_year - clim_years + 1}0101'
+    clim_end = f'{last_year}1231'
+    hourly_start = f'{last_year - hourly_years + 1}0101'
+    hourly_end = f'{last_year}1231'
+    clim_window = f'{last_year - clim_years + 1}-{last_year} daily'
+    hourly_window = f'{last_year - hourly_years + 1}-{last_year} hourly'
+
+    cache = power_cache_dir(req)
+    emit_progress(4, f'NASA POWER daily, {clim_years} years')
+    try:
+        daily, daily_provenance = cached_power_series(
+            cache, 'daily', lon, lat, clim_start, clim_end,
+            solar_mod.DAILY_PARAMS,
+            lambda progress: solar_mod.fetch(
+                'daily', lon, lat, clim_start, clim_end, progress=progress
+            ),
+            progress=lambda i, n, y: emit_progress(
+                4 + int(26 * (i + 1) / n), f'daily {y}'
+            ),
+        )
+    except Exception as e:
+        fail(f'NASA POWER daily request failed: {e}')
+
+    annual = solar_mod.annual_totals(daily)
+    if annual.empty:
+        fail('NASA POWER returned no complete year for this point')
+
+    emit_progress(32, f'NASA POWER hourly, {hourly_years} years')
+    try:
+        hourly, hourly_provenance = cached_power_series(
+            cache, 'hourly', lon, lat, hourly_start, hourly_end,
+            solar_mod.HOURLY_PARAMS,
+            lambda progress: solar_mod.fetch(
+                'hourly', lon, lat, hourly_start, hourly_end,
+                progress=progress,
+            ),
+            progress=lambda i, n, y: emit_progress(
+                32 + int(30 * (i + 1) / n), f'hourly {y}'
+            ),
+        )
+    except Exception as e:
+        fail(f'NASA POWER hourly request failed: {e}')
+
+    # Elevation 0.0 as solar_resource does, so the two actions run on one
+    # chain and cannot report different plane-of-array totals for one AOI.
+    df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
+    if df.empty:
+        fail('NASA POWER returned no usable hourly record for this point')
+    n_years = max(len(set(df.index.year)), 1)
+
+    emit_progress(66, 'optimum tilt')
+    sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
+    best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
+    horizontal = next(
+        (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
+        best['poa_kwh_m2_year'],
+    )
+    poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
+    # The selected module type re-evaluates the two coefficient-dependent
+    # steps of the chain, so every product below runs on the type the
+    # response reports rather than on the module default.
+    frame = energy_mod.apply_module_type(
+        solar_mod.pv_yield_frame(poa, df, solpos, best['tilt_deg'], azimuth),
+        gamma_pdc,
+    )
+
+    emit_progress(70, 'performance ratio')
+    try:
+        ratio = energy_mod.resolve_performance_ratio(
+            frame, n_years,
+            override=(
+                float(pr_override)
+                if isinstance(pr_override, (int, float)) else None
+            ),
+            declared_loss_pct=req.get('declared_loss_pct') or None,
+            optional_loss_pct=req.get('optional_loss_pct') or None,
+            reporting_basis=reporting_basis,
+            degradation_rate_per_year=degradation_rate,
+            analysis_period_years=analysis_period,
+        )
+    except Exception as e:
+        fail(f'performance ratio could not be resolved: {e}')
+    poa_year = float(ratio['factors']['energy_poa_kwh_m2_year'])
+    ghi_hourly = float(df['ghi'].sum()) / 1000.0 / n_years
+
+    emit_progress(74, 'loss waterfall')
+    try:
+        waterfall = energy_mod.loss_waterfall(
+            frame, ghi_hourly, float(horizontal), n_years, ratio,
+            hourly_window=hourly_window,
+            ghi_climatology_kwh_m2_year=float(annual.mean()),
+            climatology_window=clim_window,
+            gamma_pdc=gamma_pdc,
+        )
+    except Exception as e:
+        fail(f'loss waterfall failed: {e}')
+
+    emit_progress(78, 'single-axis tracking comparison')
+    try:
+        tracking = energy_mod.tracking_comparison(
+            df, solpos, n_years, poa, best['tilt_deg'], azimuth, ratio,
+            gcr_fixed=gcr_fixed, gcr_tracker=gcr_tracker,
+            max_angle_deg=tracker_max_angle,
+            gamma_pdc=gamma_pdc,
+        )
+    except Exception as e:
+        fail(f'tracking comparison failed: {e}')
+
+    emit_progress(86, 'generation profile')
+    try:
+        profile = energy_mod.generation_profile(
+            frame, n_years, utc_offset_hours=utc_offset
+        )
+    except Exception as e:
+        fail(f'generation profile failed: {e}')
+
+    density = energy_mod.resolve_capacity_density(
+        density_basis, buildable_fraction=buildable_fraction
+    )
+
+    # Three ways to reach the suitable area, in order of what the caller
+    # already holds. Reading back a siting raster is preferred over the
+    # class list alone because the raster also answers whether the area is
+    # one block or many, which the capacity figure has to be read against.
+    suitability = None
+    pixel_area_ha = req.get('pixel_area_ha')
+    # A classification the caller supplies carries limits this action never
+    # saw, so the response says so rather than reporting no limits at all.
+    thresholds = req.get('siting_thresholds') or {
+        'note': (
+            'The siting classification was supplied by the caller. The '
+            'slope limits and land-cover lists behind these areas are not '
+            'recorded in this response.'
+        ),
+    }
+    class_areas = None
+    siting_tif = req.get('siting_raster_tif')
+    siting_classes = req.get('siting_classes')
+    if siting_tif and Path(siting_tif).exists():
         import rasterio
-
+        emit_progress(88, 'reading the siting raster')
+        with rasterio.open(siting_tif) as src:
+            suitability = src.read(1)
+            dx_m, dy_m = solar_mod.pixel_size_m(src.transform, centroid.y)
+        pixel_area_ha = (dx_m * dy_m) / 10_000.0
+        class_areas = solar_mod.suitability_stats(suitability, pixel_area_ha)
+    elif siting_classes:
+        class_areas = siting_classes
+    else:
         configure_gdal_for_cog()
-        if not req.get('polygon_geojson'):
-            fail('no polygon provided (polygon_geojson required)')
-        polygon = polygon_from_geojson(req['polygon_geojson'])
-
-        # Conventions, not verified legal restrictions. Echoed in the response.
-        # Zero degrees is a limit the caller can mean: it accepts only ground
-        # the DEM reports as flat. Absence selects the convention, not falsiness.
         slope_acceptable = request_number(
             req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
         )
@@ -2667,796 +2968,519 @@ def main():
         )
         excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
         cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
-
-        siting_pct = {'dem': 10, 'slope': 35, 'cover': 55, 'classes': 80}
+        siting_pct = {'dem': 88, 'slope': 91, 'cover': 93, 'classes': 96}
         sited = compute_siting(
             polygon, work_dir, slope_acceptable, slope_restrictive,
             excluded, cropland, mapbiomas_path=req.get('mapbiomas_path'),
             progress=lambda st, msg: emit_progress(siting_pct[st], msg),
         )
-        suit = sited['suitability']
-        slope = sited['slope']
-        stats = sited['classes']
-        px_area_ha = sited['pixel_area_ha']
-        dem_transform = sited['dem_transform']
-        dem_crs = sited['dem_crs']
-        dem_profile = sited['dem_profile']
+        suitability = sited['suitability']
+        pixel_area_ha = sited['pixel_area_ha']
+        class_areas = sited['classes']
+        thresholds = sited['thresholds']
 
-        png = Path(work_dir) / 'solar_siting.png'
-        comp.write_rgba_png(solar_mod.suitability_rgba(suit), png)
-        tif = Path(work_dir) / 'solar_siting.tif'
-        prof = dem_profile.copy()
-        prof.update(dtype='int16', count=1, compress='lzw', nodata=-1)
-        with rasterio.open(tif, 'w', **prof) as dst:
-            dst.write(suit.astype('int16'), 1)
-
-        lon_min, lon_max, lat_min, lat_max = get_map_extent(
-            {'transform': dem_transform, 'crs': dem_crs,
-             'height': slope.shape[0], 'width': slope.shape[1]}
-        )
-        by_code = {r['code']: r for r in stats}
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({
-            'solar_siting': {
-                'classes': stats,
-                # Reported apart, never summed: a pixel that is geometrically
-                # fine but currently produces soybean carries a trade-off.
-                'suitable_no_conflict_ha': by_code[4]['area_ha'],
-                'suitable_cropland_ha': by_code[3]['area_ha'],
-                'pixel_area_ha': round(float(px_area_ha), 5),
-                'thresholds': sited['thresholds'],
-                'dem_source': 'Copernicus DEM GLO-30',
-                'overlay_png': str(png),
-                'raster_tif': str(tif),
-                'extent': {
-                    'lon_min': lon_min, 'lat_min': lat_min,
-                    'lon_max': lon_max, 'lat_max': lat_max,
-                },
-            }
-        }))
-        sys.stdout.flush()
-        return
-
-    # Loss waterfall, tracking comparison, generation profile and plant energy.
-    # Runs on the same POWER series as solar_resource, read from the cache when
-    # that action has already been run for this cell.
-    if action == 'energy_model':
-        import solar as solar_mod
-        import energy as energy_mod
-        from datetime import date as _date
-
-        if not req.get('polygon_geojson'):
-            fail('no polygon provided (polygon_geojson required)')
-        polygon = polygon_from_geojson(req['polygon_geojson'])
-        centroid = polygon.centroid
-        lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
-
-        clim_years = request_positive(req, 'climatology_years', 30, int)
-        hourly_years = request_positive(req, 'hourly_years', 10, int)
-        azimuth = request_number(req, 'surface_azimuth', 0.0)
-        pr_override = req.get('performance_ratio')
-        reporting_basis = (req.get('reporting_basis') or 'year_one').lower()
-        if reporting_basis not in energy_mod.REPORTING_BASES:
-            fail(f'unknown reporting basis: {reporting_basis}')
-        try:
-            module_type, gamma_pdc = energy_mod.resolve_module_type(
-                req.get(energy_mod.MODULE_TYPE_REQUEST_FIELD)
-            )
-        except ValueError as e:
-            fail(str(e))
-        # Zero per year is a value, not an omission: it states that the caller
-        # is modelling no degradation. Read through request_number it survives;
-        # under the previous `or` default it became 0.5 %/yr and multiplied
-        # every lifetime-mean figure by 0.9422 instead of 1.0.
-        degradation_rate = request_positive(
-            req, 'degradation_rate_per_year',
-            energy_mod.DEGRADATION_RATE_PER_YEAR, allow_zero=True,
-        )
-        analysis_period = request_positive(
-            req, 'analysis_period_years',
-            energy_mod.ANALYSIS_PERIOD_YEARS, int,
-        )
-        gcr_fixed = request_positive(req, 'gcr_fixed', energy_mod.GCR_FIXED)
-        gcr_tracker = request_positive(
-            req, 'gcr_tracker', energy_mod.GCR_TRACKER
-        )
-        # Zero degrees is a tracker locked flat, which is a configuration a
-        # caller can ask for, so it is admitted rather than replaced by 60.
-        tracker_max_angle = request_positive(
-            req, 'tracker_max_angle_deg', energy_mod.TRACKER_MAX_ANGLE_DEG,
-            allow_zero=True,
-        )
-        density_basis = (
-            req.get('capacity_density_basis')
-            or energy_mod.DEFAULT_CAPACITY_DENSITY_BASIS
-        )
-        if density_basis not in energy_mod.CAPACITY_DENSITY_BASES:
-            fail(f'unknown capacity density basis: {density_basis}')
-        # Zero buildable share is a site with nothing buildable on it, which is
-        # a statement, not an omission.
-        buildable_fraction = request_positive(
-            req, 'buildable_fraction', energy_mod.BUILDABLE_FRACTION,
-            allow_zero=True,
-        )
-        utc_offset = request_number(req, 'utc_offset_hours', None)
-        # Zero is total horizon obstruction. It is admitted for the same reason
-        # and, like every other value of this field, it is a fraction of BEAM
-        # irradiance and is converted by the beam share before it is applied.
-        shading_derate = request_positive(
-            req, 'shading_derate', 1.0, allow_zero=True
-        )
-        shading_applied = bool(req.get('shading_applied', False))
-
-        # POWER publishes through the previous full year.
-        last_year = _date.today().year - 1
-        clim_start = f'{last_year - clim_years + 1}0101'
-        clim_end = f'{last_year}1231'
-        hourly_start = f'{last_year - hourly_years + 1}0101'
-        hourly_end = f'{last_year}1231'
-        clim_window = f'{last_year - clim_years + 1}-{last_year} daily'
-        hourly_window = f'{last_year - hourly_years + 1}-{last_year} hourly'
-
-        cache = power_cache_dir(req)
-        emit_progress(4, f'NASA POWER daily, {clim_years} years')
-        try:
-            daily, daily_provenance = cached_power_series(
-                cache, 'daily', lon, lat, clim_start, clim_end,
-                solar_mod.DAILY_PARAMS,
-                lambda progress: solar_mod.fetch(
-                    'daily', lon, lat, clim_start, clim_end, progress=progress
-                ),
-                progress=lambda i, n, y: emit_progress(
-                    4 + int(26 * (i + 1) / n), f'daily {y}'
-                ),
-            )
-        except Exception as e:
-            fail(f'NASA POWER daily request failed: {e}')
-
-        annual = solar_mod.annual_totals(daily)
-        if annual.empty:
-            fail('NASA POWER returned no complete year for this point')
-
-        emit_progress(32, f'NASA POWER hourly, {hourly_years} years')
-        try:
-            hourly, hourly_provenance = cached_power_series(
-                cache, 'hourly', lon, lat, hourly_start, hourly_end,
-                solar_mod.HOURLY_PARAMS,
-                lambda progress: solar_mod.fetch(
-                    'hourly', lon, lat, hourly_start, hourly_end,
-                    progress=progress,
-                ),
-                progress=lambda i, n, y: emit_progress(
-                    32 + int(30 * (i + 1) / n), f'hourly {y}'
-                ),
-            )
-        except Exception as e:
-            fail(f'NASA POWER hourly request failed: {e}')
-
-        # Elevation 0.0 as solar_resource does, so the two actions run on one
-        # chain and cannot report different plane-of-array totals for one AOI.
-        df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
-        if df.empty:
-            fail('NASA POWER returned no usable hourly record for this point')
-        n_years = max(len(set(df.index.year)), 1)
-
-        emit_progress(66, 'optimum tilt')
-        sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
-        best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
-        horizontal = next(
-            (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
-            best['poa_kwh_m2_year'],
-        )
-        poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
-        # The selected module type re-evaluates the two coefficient-dependent
-        # steps of the chain, so every product below runs on the type the
-        # response reports rather than on the module default.
-        frame = energy_mod.apply_module_type(
-            solar_mod.pv_yield_frame(poa, df, solpos, best['tilt_deg'], azimuth),
-            gamma_pdc,
-        )
-
-        emit_progress(70, 'performance ratio')
-        try:
-            ratio = energy_mod.resolve_performance_ratio(
-                frame, n_years,
-                override=(
-                    float(pr_override)
-                    if isinstance(pr_override, (int, float)) else None
-                ),
-                declared_loss_pct=req.get('declared_loss_pct') or None,
-                optional_loss_pct=req.get('optional_loss_pct') or None,
-                reporting_basis=reporting_basis,
-                degradation_rate_per_year=degradation_rate,
-                analysis_period_years=analysis_period,
-            )
-        except Exception as e:
-            fail(f'performance ratio could not be resolved: {e}')
-        poa_year = float(ratio['factors']['energy_poa_kwh_m2_year'])
-        ghi_hourly = float(df['ghi'].sum()) / 1000.0 / n_years
-
-        emit_progress(74, 'loss waterfall')
-        try:
-            waterfall = energy_mod.loss_waterfall(
-                frame, ghi_hourly, float(horizontal), n_years, ratio,
-                hourly_window=hourly_window,
-                ghi_climatology_kwh_m2_year=float(annual.mean()),
-                climatology_window=clim_window,
-                gamma_pdc=gamma_pdc,
-            )
-        except Exception as e:
-            fail(f'loss waterfall failed: {e}')
-
-        emit_progress(78, 'single-axis tracking comparison')
-        try:
-            tracking = energy_mod.tracking_comparison(
-                df, solpos, n_years, poa, best['tilt_deg'], azimuth, ratio,
-                gcr_fixed=gcr_fixed, gcr_tracker=gcr_tracker,
-                max_angle_deg=tracker_max_angle,
-                gamma_pdc=gamma_pdc,
-            )
-        except Exception as e:
-            fail(f'tracking comparison failed: {e}')
-
-        emit_progress(86, 'generation profile')
-        try:
-            profile = energy_mod.generation_profile(
-                frame, n_years, utc_offset_hours=utc_offset
-            )
-        except Exception as e:
-            fail(f'generation profile failed: {e}')
-
-        density = energy_mod.resolve_capacity_density(
-            density_basis, buildable_fraction=buildable_fraction
-        )
-
-        # Three ways to reach the suitable area, in order of what the caller
-        # already holds. Reading back a siting raster is preferred over the
-        # class list alone because the raster also answers whether the area is
-        # one block or many, which the capacity figure has to be read against.
-        suitability = None
-        pixel_area_ha = req.get('pixel_area_ha')
-        # A classification the caller supplies carries limits this action never
-        # saw, so the response says so rather than reporting no limits at all.
-        thresholds = req.get('siting_thresholds') or {
-            'note': (
-                'The siting classification was supplied by the caller. The '
-                'slope limits and land-cover lists behind these areas are not '
-                'recorded in this response.'
+    emit_progress(97, 'plant energy over the suitable area')
+    try:
+        plant = energy_mod.plant_energy(
+            class_areas, annual, poa_year, ratio,
+            density=density,
+            shading_derate=shading_derate,
+            shading_applied=shading_applied,
+            # The derate the caller sends is the terrain product's mean
+            # horizon loss, which is a fraction of BEAM irradiance. The
+            # beam share of this site's own hourly series converts it to a
+            # fraction of the plane-of-array total; without it the loss
+            # would be applied on the wrong base and every capacity-class
+            # energy figure would be low by the diffuse share of it.
+            beam_share=float(solar_mod.beam_fraction(df)),
+            suitability=suitability,
+            pixel_area_ha=(
+                None if pixel_area_ha is None else float(pixel_area_ha)
             ),
-        }
-        class_areas = None
-        siting_tif = req.get('siting_raster_tif')
-        siting_classes = req.get('siting_classes')
-        if siting_tif and Path(siting_tif).exists():
-            import rasterio
-            emit_progress(88, 'reading the siting raster')
-            with rasterio.open(siting_tif) as src:
-                suitability = src.read(1)
-                dx_m, dy_m = solar_mod.pixel_size_m(src.transform, centroid.y)
-            pixel_area_ha = (dx_m * dy_m) / 10_000.0
-            class_areas = solar_mod.suitability_stats(suitability, pixel_area_ha)
-        elif siting_classes:
-            class_areas = siting_classes
-        else:
-            configure_gdal_for_cog()
-            slope_acceptable = request_number(
-                req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
-            )
-            slope_restrictive = request_number(
-                req, 'slope_restrictive_deg', solar_mod.SLOPE_RESTRICTIVE_DEG
-            )
-            excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
-            cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
-            siting_pct = {'dem': 88, 'slope': 91, 'cover': 93, 'classes': 96}
-            sited = compute_siting(
-                polygon, work_dir, slope_acceptable, slope_restrictive,
-                excluded, cropland, mapbiomas_path=req.get('mapbiomas_path'),
-                progress=lambda st, msg: emit_progress(siting_pct[st], msg),
-            )
-            suitability = sited['suitability']
-            pixel_area_ha = sited['pixel_area_ha']
-            class_areas = sited['classes']
-            thresholds = sited['thresholds']
-
-        emit_progress(97, 'plant energy over the suitable area')
-        try:
-            plant = energy_mod.plant_energy(
-                class_areas, annual, poa_year, ratio,
-                density=density,
-                shading_derate=shading_derate,
-                shading_applied=shading_applied,
-                # The derate the caller sends is the terrain product's mean
-                # horizon loss, which is a fraction of BEAM irradiance. The
-                # beam share of this site's own hourly series converts it to a
-                # fraction of the plane-of-array total; without it the loss
-                # would be applied on the wrong base and every capacity-class
-                # energy figure would be low by the diffuse share of it.
-                beam_share=float(solar_mod.beam_fraction(df)),
-                suitability=suitability,
-                pixel_area_ha=(
-                    None if pixel_area_ha is None else float(pixel_area_ha)
-                ),
-                thresholds=thresholds,
-            )
-        except Exception as e:
-            fail(f'plant energy failed: {e}')
-
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({
-            'energy_model': {
-                'lon': lon, 'lat': lat,
-                'hourly_years': int(n_years),
-                'climatology_years': int(annual.size),
-                'hourly_window': hourly_window,
-                'climatology_window': clim_window,
-                'geometry': {
-                    'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
-                    'surface_azimuth_deg': azimuth,
-                    'poa_kwh_m2_year': round(poa_year, 4),
-                    'poa_horizontal_kwh_m2_year': round(float(horizontal), 4),
-                    'ghi_hourly_kwh_m2_year': round(ghi_hourly, 4),
-                },
-                'performance_ratio': ratio,
-                'module_type': energy_mod.module_type_assumption(gamma_pdc),
-                'loss_waterfall': waterfall,
-                'tracking': tracking,
-                'generation_profile': profile,
-                'capacity_density': density,
-                'plant': plant,
-                'reporting_basis': reporting_basis,
-                'grid_note': solar_mod.GRID_NOTE,
-                # Which POWER series this run read and when it was
-                # fetched. Without it a cached run and a fetched run
-                # are indistinguishable to the caller, and POWER
-                # reprocesses historical data.
-                'power_provenance': {
-                    'daily': daily_provenance,
-                    'hourly': hourly_provenance,
-                },
-                # Repeated at the top level so a reader who sees only one
-                # figure still sees the assumption that produced it.
-                'assumptions': {
-                    'performance_ratio_applied': float(ratio['applied']),
-                    'performance_ratio_source': ratio['applied_source'],
-                    'performance_ratio_modelled': round(float(ratio['modelled']), 6),
-                    'performance_ratio_derived': round(float(ratio['derived']), 6),
-                    'reporting_basis': reporting_basis,
-                    'degradation_factor': float(ratio['degradation_factor']),
-                    'degradation_rate_per_year': float(degradation_rate),
-                    'analysis_period_years': int(analysis_period),
-                    'module_type': module_type,
-                    'gamma_pdc_per_c': float(gamma_pdc),
-                    'transposition_model': solar_mod.TRANSPOSITION_MODEL,
-                    'albedo': float(solar_mod.ALBEDO),
-                    'gcr_fixed': gcr_fixed,
-                    'gcr_tracker': gcr_tracker,
-                    'capacity_density_basis': density_basis,
-                    'capacity_density_mw_dc_per_ha': round(
-                        float(density['value_mw_dc_per_ha']), 6),
-                    'shading_applied': shading_applied,
-                    'shading_derate': shading_derate,
-                    'note': (
-                        'Every energy figure in this response was computed at '
-                        'the applied performance ratio and the reporting basis '
-                        'stated here. A figure copied out of this response '
-                        'without them is not interpretable.'
-                    ),
-                },
-            }
-        }))
-        sys.stdout.flush()
-        return
-
-    # Wind resource screening at the AOI centroid, from POWER hourly MERRA-2.
-    if action == 'wind_resource':
-        import wind as wind_mod
-        from datetime import date as _date
-
-        if not req.get('polygon_geojson'):
-            fail('no polygon provided (polygon_geojson required)')
-        polygon = polygon_from_geojson(req['polygon_geojson'])
-        centroid = polygon.centroid
-        # The MERRA-2 cell centre, not the centroid: the request resolves to a
-        # cell and the response has to say which cell it describes.
-        lon, lat = wind_mod.grid_key(centroid.x, centroid.y)
-
-        record_years = request_positive(
-            req, 'record_years', wind_mod.RECORD_YEARS, int
+            thresholds=thresholds,
         )
-        hub_height_m = request_positive(
-            req, 'hub_height_m', wind_mod.HUB_HEIGHT_M
-        )
-        # Zero is a caller stating that no hour counts as calm, and zero is a
-        # caller stating that the record maximum needs no floor. Both are
-        # values; only absence selects the wind module's convention.
-        calm_threshold = request_positive(
-            req, 'calm_threshold_ms', wind_mod.CALM_THRESHOLD_MS,
-            allow_zero=True,
-        )
-        record_max_floor = request_positive(
-            req, 'record_max_floor_ms', wind_mod.RECORD_MAX_FLOOR_MS,
-            allow_zero=True,
-        )
-        band = req.get('roughness_band_m') or wind_mod.ROUGHNESS_BAND_M
-        try:
-            roughness_band = (float(band[0]), float(band[1]))
-        except (TypeError, IndexError, ValueError):
-            fail('roughness_band_m must be two roughness lengths in metres')
+    except Exception as e:
+        fail(f'plant energy failed: {e}')
 
-        last_year = _date.today().year - 1
-        start, end = wind_mod.record_period(last_year, record_years)
-        record_window = f'{start[:4]}-{end[:4]} hourly'
-
-        emit_progress(5, f'NASA POWER hourly wind, {record_years} years')
-        try:
-            df, hourly_provenance = cached_power_series(
-                power_cache_dir(req), 'hourly', lon, lat, start, end,
-                wind_mod.HOURLY_PARAMS,
-                lambda progress: wind_mod.fetch(
-                    lon, lat, start, end, progress=progress
-                ),
-                progress=lambda i, n, y: emit_progress(
-                    5 + int(80 * (i + 1) / n), f'hourly {y}'
-                ),
-            )
-        except Exception as e:
-            fail(f'NASA POWER hourly request failed: {e}')
-        if df.empty:
-            fail('NASA POWER returned no hourly record for this point')
-
-        emit_progress(90, 'shear, Weibull fit and turbine power')
-        try:
-            assessment = wind_mod.assess(
-                df, lon, lat,
-                hub_height_m=hub_height_m,
-                calm_threshold_ms=calm_threshold,
-                record_max_floor_ms=record_max_floor,
-                roughness_band_m=roughness_band,
-            )
-        except Exception as e:
-            fail(f'wind assessment failed: {e}')
-
-        assessment.update({
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({
+        'energy_model': {
             'lon': lon, 'lat': lat,
-            'record_window': record_window,
-            'hub_height_m': hub_height_m,
-            # Whether the POWER record behind this assessment was fetched or
-            # read from the on-disk cache, and when it was fetched.
-            'power_provenance': {'hourly': hourly_provenance},
+            'hourly_years': int(n_years),
+            'climatology_years': int(annual.size),
+            'hourly_window': hourly_window,
+            'climatology_window': clim_window,
+            'geometry': {
+                'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
+                'surface_azimuth_deg': azimuth,
+                'poa_kwh_m2_year': round(poa_year, 4),
+                'poa_horizontal_kwh_m2_year': round(float(horizontal), 4),
+                'ghi_hourly_kwh_m2_year': round(ghi_hourly, 4),
+            },
+            'performance_ratio': ratio,
+            'module_type': energy_mod.module_type_assumption(gamma_pdc),
+            'loss_waterfall': waterfall,
+            'tracking': tracking,
+            'generation_profile': profile,
+            'capacity_density': density,
+            'plant': plant,
+            'reporting_basis': reporting_basis,
+            'grid_note': solar_mod.GRID_NOTE,
+            # Which POWER series this run read and when it was
+            # fetched. Without it a cached run and a fetched run
+            # are indistinguishable to the caller, and POWER
+            # reprocesses historical data.
+            'power_provenance': {
+                'daily': daily_provenance,
+                'hourly': hourly_provenance,
+            },
+            # Repeated at the top level so a reader who sees only one
+            # figure still sees the assumption that produced it.
             'assumptions': {
-                'hub_height_m': hub_height_m,
-                'hub_height_source': (
-                    'Hub height of the IEA-3.4-130 reference turbine, applied '
-                    'as a project convention. No turbine has been selected for '
-                    'this site.'
-                ),
-                'record_years': record_years,
-                'record_window': record_window,
-                'shear_exponent': assessment['measured']['shear_exponent'],
-                'shear_exponent_source': (
-                    'Power law between the 10 m and 50 m long-term means of '
-                    'this record. Everything above 50 m is extrapolated.'
-                ),
-                'roughness_band_m': list(roughness_band),
-                'calm_threshold_ms': calm_threshold,
-                'record_max_floor_ms': record_max_floor,
-                'qualifier': wind_mod.RESULT_QUALIFIER,
-                'excluded_losses': list(wind_mod.EXCLUDED_LOSSES),
-                'comparison_note': (
-                    'The gross capacity factor here and the photovoltaic '
-                    'capacity factor from solar_resource are not comparable. '
-                    'The photovoltaic figure is computed at a performance '
-                    'ratio benchmarked against the Global Solar Atlas; this '
-                    'one carries no external validation and no plant losses.'
+                'performance_ratio_applied': float(ratio['applied']),
+                'performance_ratio_source': ratio['applied_source'],
+                'performance_ratio_modelled': round(float(ratio['modelled']), 6),
+                'performance_ratio_derived': round(float(ratio['derived']), 6),
+                'reporting_basis': reporting_basis,
+                'degradation_factor': float(ratio['degradation_factor']),
+                'degradation_rate_per_year': float(degradation_rate),
+                'analysis_period_years': int(analysis_period),
+                'module_type': module_type,
+                'gamma_pdc_per_c': float(gamma_pdc),
+                'transposition_model': solar_mod.TRANSPOSITION_MODEL,
+                'albedo': float(solar_mod.ALBEDO),
+                'gcr_fixed': gcr_fixed,
+                'gcr_tracker': gcr_tracker,
+                'capacity_density_basis': density_basis,
+                'capacity_density_mw_dc_per_ha': round(
+                    float(density['value_mw_dc_per_ha']), 6),
+                'shading_applied': shading_applied,
+                'shading_derate': shading_derate,
+                'note': (
+                    'Every energy figure in this response was computed at '
+                    'the applied performance ratio and the reporting basis '
+                    'stated here. A figure copied out of this response '
+                    'without them is not interpretable.'
                 ),
             },
+        }
+    }))
+    sys.stdout.flush()
+
+
+# Wind resource screening at the AOI centroid, from POWER hourly MERRA-2.
+def action_wind_resource(req, work_dir):
+    import wind as wind_mod
+    from datetime import date as _date
+
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+    centroid = polygon.centroid
+    # The MERRA-2 cell centre, not the centroid: the request resolves to a
+    # cell and the response has to say which cell it describes.
+    lon, lat = wind_mod.grid_key(centroid.x, centroid.y)
+
+    record_years = request_positive(
+        req, 'record_years', wind_mod.RECORD_YEARS, int
+    )
+    hub_height_m = request_positive(
+        req, 'hub_height_m', wind_mod.HUB_HEIGHT_M
+    )
+    # Zero is a caller stating that no hour counts as calm, and zero is a
+    # caller stating that the record maximum needs no floor. Both are
+    # values; only absence selects the wind module's convention.
+    calm_threshold = request_positive(
+        req, 'calm_threshold_ms', wind_mod.CALM_THRESHOLD_MS,
+        allow_zero=True,
+    )
+    record_max_floor = request_positive(
+        req, 'record_max_floor_ms', wind_mod.RECORD_MAX_FLOOR_MS,
+        allow_zero=True,
+    )
+    band = req.get('roughness_band_m') or wind_mod.ROUGHNESS_BAND_M
+    try:
+        roughness_band = (float(band[0]), float(band[1]))
+    except (TypeError, IndexError, ValueError):
+        fail('roughness_band_m must be two roughness lengths in metres')
+
+    last_year = _date.today().year - 1
+    start, end = wind_mod.record_period(last_year, record_years)
+    record_window = f'{start[:4]}-{end[:4]} hourly'
+
+    emit_progress(5, f'NASA POWER hourly wind, {record_years} years')
+    try:
+        df, hourly_provenance = cached_power_series(
+            power_cache_dir(req), 'hourly', lon, lat, start, end,
+            wind_mod.HOURLY_PARAMS,
+            lambda progress: wind_mod.fetch(
+                lon, lat, start, end, progress=progress
+            ),
+            progress=lambda i, n, y: emit_progress(
+                5 + int(80 * (i + 1) / n), f'hourly {y}'
+            ),
+        )
+    except Exception as e:
+        fail(f'NASA POWER hourly request failed: {e}')
+    if df.empty:
+        fail('NASA POWER returned no hourly record for this point')
+
+    emit_progress(90, 'shear, Weibull fit and turbine power')
+    try:
+        assessment = wind_mod.assess(
+            df, lon, lat,
+            hub_height_m=hub_height_m,
+            calm_threshold_ms=calm_threshold,
+            record_max_floor_ms=record_max_floor,
+            roughness_band_m=roughness_band,
+        )
+    except Exception as e:
+        fail(f'wind assessment failed: {e}')
+
+    assessment.update({
+        'lon': lon, 'lat': lat,
+        'record_window': record_window,
+        'hub_height_m': hub_height_m,
+        # Whether the POWER record behind this assessment was fetched or
+        # read from the on-disk cache, and when it was fetched.
+        'power_provenance': {'hourly': hourly_provenance},
+        'assumptions': {
+            'hub_height_m': hub_height_m,
+            'hub_height_source': (
+                'Hub height of the IEA-3.4-130 reference turbine, applied '
+                'as a project convention. No turbine has been selected for '
+                'this site.'
+            ),
+            'record_years': record_years,
+            'record_window': record_window,
+            'shear_exponent': assessment['measured']['shear_exponent'],
+            'shear_exponent_source': (
+                'Power law between the 10 m and 50 m long-term means of '
+                'this record. Everything above 50 m is extrapolated.'
+            ),
+            'roughness_band_m': list(roughness_band),
+            'calm_threshold_ms': calm_threshold,
+            'record_max_floor_ms': record_max_floor,
+            'qualifier': wind_mod.RESULT_QUALIFIER,
+            'excluded_losses': list(wind_mod.EXCLUDED_LOSSES),
+            'comparison_note': (
+                'The gross capacity factor here and the photovoltaic '
+                'capacity factor from solar_resource are not comparable. '
+                'The photovoltaic figure is computed at a performance '
+                'ratio benchmarked against the Global Solar Atlas; this '
+                'one carries no external validation and no plant losses.'
+            ),
+        },
+    })
+
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'wind': assessment}))
+    sys.stdout.flush()
+
+
+# Surface water / flood mapping from spectral water indices (no model).
+def action_water(req, work_dir):
+    import water as water_mod
+    import composite as comp
+
+    configure_gdal_for_cog()
+    start = req.get('start')
+    end = req.get('end')
+    max_cloud = float(req.get('max_cloud', 100.0))
+    monthly_best = bool(req.get('monthly_best', True))
+    tiles = req.get('tiles') or None
+    index_name = (req.get('index') or water_mod.PRIMARY_INDEX).upper()
+    if index_name not in water_mod.INDEX_NAMES:
+        fail(f'unknown water index: {index_name}')
+    if not start or not end:
+        fail('water requires start and end dates (YYYY-MM-DD)')
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+
+    emit_progress(10, 'querying STAC catalog (Planetary Computer)')
+    try:
+        products = list_stac_products(
+            polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
+            monthly_best=monthly_best,
+        )
+    except Exception as e:
+        fail(f'STAC query failed: {e}')
+    if not products:
+        fail('no scenes found for this period and cloud filter')
+
+    # The reference grid comes from B04 at 10 m, as in the predict path.
+    ref_band, ref_profile = load_and_clip_band(products[0], 'B04', polygon)
+    aoi_valid = ref_band > 0
+    needed = water_mod.INDEX_BANDS[index_name]
+
+    series = []
+    masks = []
+    observed = []
+    frames = []
+    n = len(products)
+    for idx, product in enumerate(products):
+        pct = 15 + int(70 * (idx + 1) / n)
+        date_str = product['date'].strftime('%Y-%m-%d')
+        emit_progress(pct, f'water index {idx + 1}/{n} ({date_str})')
+        try:
+            bands = {}
+            for name in ('B03', 'B8A', 'B11', 'B12'):
+                res = comp.BAND_RESOLUTION.get(name, '10m')
+                bands[name] = load_band_to_reference_grid(
+                    product, name, polygon, ref_profile, resolution=res
+                )
+                bands[name] = to_reflectance(bands[name], product)
+        except Exception as e:
+            sys.stderr.write(json.dumps({
+                'progress': -1, 'msg': f'skipping {date_str}: {e}'
+            }) + '\n')
+            sys.stderr.flush()
+            continue
+
+        date_valid = water_mod.per_date_valid_mask(aoi_valid, bands, index_name)
+        if not date_valid.any():
+            continue
+        indices = water_mod.compute_water_indices(
+            bands['B03'], bands['B8A'], bands['B11'], bands['B12']
+        )
+        frame = indices[index_name]
+        vals = frame[date_valid]
+        thr_otsu, clipped, degenerate = water_mod.otsu_threshold_for_date(vals)
+        thr_fixed = water_mod.DEFAULT_THRESHOLD
+
+        mask_fixed = water_mod.water_mask_for_date(frame, date_valid, thr_fixed)
+        mask_otsu = water_mod.water_mask_for_date(frame, date_valid, thr_otsu)
+
+        masks.append(mask_fixed)
+        observed.append(date_valid)
+        frames.append(frame)
+        series.append({
+            'date': date_str,
+            'scene_id': product.get('id') or '',
+            'cloud_cover': round(float(product.get('cloud_cover', 0.0)), 2),
+            'observed_pixels': int(date_valid.sum()),
+            'threshold_fixed': thr_fixed,
+            'threshold_otsu': thr_otsu,
+            'threshold_clipped': bool(clipped),
+            'threshold_degenerate': bool(degenerate),
+            'water_fraction_pct': round(
+                water_mod.water_fraction_pct(mask_fixed, date_valid), 4
+            ),
+            'water_fraction_otsu_pct': round(
+                water_mod.water_fraction_pct(mask_otsu, date_valid), 4
+            ),
+            'water_pixels': int(mask_fixed.sum()),
+            'area_ha': round(float(int(mask_fixed.sum()) * 0.01), 4),
         })
 
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({'wind': assessment}))
-        sys.stdout.flush()
-        return
+    if not series:
+        fail('no scene produced a usable observation over the AOI')
 
-    # Surface water / flood mapping from spectral water indices (no model).
-    if action == 'water':
-        import water as water_mod
-        import composite as comp
+    emit_progress(88, 'building occurrence map')
+    occ = water_mod.occurrence_map(masks, observed)
+    bands_occ = water_mod.classify_occurrence(occ)
+    observed_cube = np.stack(observed, axis=0)
+    anomaly = water_mod.max_minus_median_index(np.stack(frames, axis=0), observed_cube)
 
-        configure_gdal_for_cog()
-        start = req.get('start')
-        end = req.get('end')
-        max_cloud = float(req.get('max_cloud', 100.0))
-        monthly_best = bool(req.get('monthly_best', True))
-        tiles = req.get('tiles') or None
-        index_name = (req.get('index') or water_mod.PRIMARY_INDEX).upper()
-        if index_name not in water_mod.INDEX_NAMES:
-            fail(f'unknown water index: {index_name}')
-        if not start or not end:
-            fail('water requires start and end dates (YYYY-MM-DD)')
-        if not req.get('polygon_geojson'):
-            fail('no polygon provided (polygon_geojson required)')
+    px_ha = 0.01
+    peak = max(series, key=lambda r: r['water_fraction_pct'])
+
+    occ_png = Path(work_dir) / 'water_occurrence.png'
+    comp.write_rgba_png(water_mod.occurrence_to_rgba(occ), occ_png)
+
+    lon_min, lon_max, lat_min, lat_max = get_map_extent(ref_profile)
+    emit_progress(100, f'{len(series)} dates')
+    sys.stdout.write(json.dumps({
+        'water': {
+            'index': index_name,
+            'threshold_method': 'fixed',
+            'threshold_fixed': water_mod.DEFAULT_THRESHOLD,
+            'otsu_clip': [water_mod.OTSU_CLIP_LOW, water_mod.OTSU_CLIP_HIGH],
+            'n_dates': len(series),
+            'date_range': [series[0]['date'], series[-1]['date']],
+            'aoi_pixels': int(aoi_valid.sum()),
+            'aoi_area_ha': round(float(int(aoi_valid.sum()) * px_ha), 4),
+            'series': series,
+            'peak_date': peak['date'],
+            'peak_water_fraction_pct': peak['water_fraction_pct'],
+            'ephemeral_pixels': int(bands_occ['ephemeral'].sum()),
+            'ephemeral_area_ha': round(
+                float(int(bands_occ['ephemeral'].sum()) * px_ha), 4
+            ),
+            'persistent_pixels': int(bands_occ['persistent'].sum()),
+            'persistent_area_ha': round(
+                float(int(bands_occ['persistent'].sum()) * px_ha), 4
+            ),
+            'mean_anomaly': float(np.nanmean(anomaly)) if np.isfinite(anomaly).any() else 0.0,
+            'occurrence_png': str(occ_png),
+            'extent': {
+                'lon_min': lon_min, 'lat_min': lat_min,
+                'lon_max': lon_max, 'lat_max': lat_max,
+            },
+        }
+    }))
+    sys.stdout.flush()
+
+
+# RGB / false-color composite or spectral index for one STAC scene.
+def action_render_composite(req, work_dir):
+    import composite as comp
+
+    configure_gdal_for_cog()
+    start = req.get('start')
+    end = req.get('end')
+    max_cloud = float(req.get('max_cloud', 100.0))
+    monthly_best = bool(req.get('monthly_best', True))
+    tiles = req.get('tiles') or None
+    scene_id = (req.get('scene_id') or '').strip()
+    kind = (req.get('kind') or 'rgb').strip().lower()
+    stretch = req.get('stretch_pct') or [2, 98]
+    try:
+        stretch_lo = float(stretch[0])
+        stretch_hi = float(stretch[1])
+    except Exception:
+        stretch_lo, stretch_hi = 2.0, 98.0
+
+    if not scene_id:
+        fail('render_composite requires scene_id')
+    if not start or not end:
+        fail('render_composite requires start and end dates (YYYY-MM-DD)')
+    if req.get('polygon_geojson'):
         polygon = polygon_from_geojson(req['polygon_geojson'])
+    elif req.get('kml_path'):
+        area = parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
+        if area is None:
+            fail('polygon not found in KML')
+        polygon = area['polygon']
+    else:
+        fail('no polygon provided (polygon_geojson or kml_path required)')
 
-        emit_progress(10, 'querying STAC catalog (Planetary Computer)')
+    emit_progress(10, 'querying STAC for scene')
+    try:
+        products = list_stac_products(
+            polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
+            monthly_best=False,  # need full list to match scene_id
+        )
+    except Exception as e:
+        fail(f'STAC query failed: {e}')
+
+    product = None
+    for p in products:
+        if (p.get('id') or '') == scene_id:
+            product = p
+            break
+    if product is None:
+        # Fall back: monthly_best list may have dropped the scene; retry without cloud filter widen
         try:
             products = list_stac_products(
-                polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
-                monthly_best=monthly_best,
+                polygon, start, end, tile_list=tiles, max_cloud=100.0,
+                monthly_best=False,
             )
         except Exception as e:
             fail(f'STAC query failed: {e}')
-        if not products:
-            fail('no scenes found for this period and cloud filter')
-
-        # The reference grid comes from B04 at 10 m, as in the predict path.
-        ref_band, ref_profile = load_and_clip_band(products[0], 'B04', polygon)
-        aoi_valid = ref_band > 0
-        needed = water_mod.INDEX_BANDS[index_name]
-
-        series = []
-        masks = []
-        observed = []
-        frames = []
-        n = len(products)
-        for idx, product in enumerate(products):
-            pct = 15 + int(70 * (idx + 1) / n)
-            date_str = product['date'].strftime('%Y-%m-%d')
-            emit_progress(pct, f'water index {idx + 1}/{n} ({date_str})')
-            try:
-                bands = {}
-                for name in ('B03', 'B8A', 'B11', 'B12'):
-                    res = comp.BAND_RESOLUTION.get(name, '10m')
-                    bands[name] = load_band_to_reference_grid(
-                        product, name, polygon, ref_profile, resolution=res
-                    )
-                    bands[name] = to_reflectance(bands[name], product)
-            except Exception as e:
-                sys.stderr.write(json.dumps({
-                    'progress': -1, 'msg': f'skipping {date_str}: {e}'
-                }) + '\n')
-                sys.stderr.flush()
-                continue
-
-            date_valid = water_mod.per_date_valid_mask(aoi_valid, bands, index_name)
-            if not date_valid.any():
-                continue
-            indices = water_mod.compute_water_indices(
-                bands['B03'], bands['B8A'], bands['B11'], bands['B12']
-            )
-            frame = indices[index_name]
-            vals = frame[date_valid]
-            thr_otsu, clipped, degenerate = water_mod.otsu_threshold_for_date(vals)
-            thr_fixed = water_mod.DEFAULT_THRESHOLD
-
-            mask_fixed = water_mod.water_mask_for_date(frame, date_valid, thr_fixed)
-            mask_otsu = water_mod.water_mask_for_date(frame, date_valid, thr_otsu)
-
-            masks.append(mask_fixed)
-            observed.append(date_valid)
-            frames.append(frame)
-            series.append({
-                'date': date_str,
-                'scene_id': product.get('id') or '',
-                'cloud_cover': round(float(product.get('cloud_cover', 0.0)), 2),
-                'observed_pixels': int(date_valid.sum()),
-                'threshold_fixed': thr_fixed,
-                'threshold_otsu': thr_otsu,
-                'threshold_clipped': bool(clipped),
-                'threshold_degenerate': bool(degenerate),
-                'water_fraction_pct': round(
-                    water_mod.water_fraction_pct(mask_fixed, date_valid), 4
-                ),
-                'water_fraction_otsu_pct': round(
-                    water_mod.water_fraction_pct(mask_otsu, date_valid), 4
-                ),
-                'water_pixels': int(mask_fixed.sum()),
-                'area_ha': round(float(int(mask_fixed.sum()) * 0.01), 4),
-            })
-
-        if not series:
-            fail('no scene produced a usable observation over the AOI')
-
-        emit_progress(88, 'building occurrence map')
-        occ = water_mod.occurrence_map(masks, observed)
-        bands_occ = water_mod.classify_occurrence(occ)
-        observed_cube = np.stack(observed, axis=0)
-        anomaly = water_mod.max_minus_median_index(np.stack(frames, axis=0), observed_cube)
-
-        px_ha = 0.01
-        peak = max(series, key=lambda r: r['water_fraction_pct'])
-
-        occ_png = Path(work_dir) / 'water_occurrence.png'
-        comp.write_rgba_png(water_mod.occurrence_to_rgba(occ), occ_png)
-
-        lon_min, lon_max, lat_min, lat_max = get_map_extent(ref_profile)
-        emit_progress(100, f'{len(series)} dates')
-        sys.stdout.write(json.dumps({
-            'water': {
-                'index': index_name,
-                'threshold_method': 'fixed',
-                'threshold_fixed': water_mod.DEFAULT_THRESHOLD,
-                'otsu_clip': [water_mod.OTSU_CLIP_LOW, water_mod.OTSU_CLIP_HIGH],
-                'n_dates': len(series),
-                'date_range': [series[0]['date'], series[-1]['date']],
-                'aoi_pixels': int(aoi_valid.sum()),
-                'aoi_area_ha': round(float(int(aoi_valid.sum()) * px_ha), 4),
-                'series': series,
-                'peak_date': peak['date'],
-                'peak_water_fraction_pct': peak['water_fraction_pct'],
-                'ephemeral_pixels': int(bands_occ['ephemeral'].sum()),
-                'ephemeral_area_ha': round(
-                    float(int(bands_occ['ephemeral'].sum()) * px_ha), 4
-                ),
-                'persistent_pixels': int(bands_occ['persistent'].sum()),
-                'persistent_area_ha': round(
-                    float(int(bands_occ['persistent'].sum()) * px_ha), 4
-                ),
-                'mean_anomaly': float(np.nanmean(anomaly)) if np.isfinite(anomaly).any() else 0.0,
-                'occurrence_png': str(occ_png),
-                'extent': {
-                    'lon_min': lon_min, 'lat_min': lat_min,
-                    'lon_max': lon_max, 'lat_max': lat_max,
-                },
-            }
-        }))
-        sys.stdout.flush()
-        return
-
-    # RGB / false-color composite or spectral index for one STAC scene.
-    if action == 'render_composite':
-        import composite as comp
-
-        configure_gdal_for_cog()
-        start = req.get('start')
-        end = req.get('end')
-        max_cloud = float(req.get('max_cloud', 100.0))
-        monthly_best = bool(req.get('monthly_best', True))
-        tiles = req.get('tiles') or None
-        scene_id = (req.get('scene_id') or '').strip()
-        kind = (req.get('kind') or 'rgb').strip().lower()
-        stretch = req.get('stretch_pct') or [2, 98]
-        try:
-            stretch_lo = float(stretch[0])
-            stretch_hi = float(stretch[1])
-        except Exception:
-            stretch_lo, stretch_hi = 2.0, 98.0
-
-        if not scene_id:
-            fail('render_composite requires scene_id')
-        if not start or not end:
-            fail('render_composite requires start and end dates (YYYY-MM-DD)')
-        if req.get('polygon_geojson'):
-            polygon = polygon_from_geojson(req['polygon_geojson'])
-        elif req.get('kml_path'):
-            area = parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
-            if area is None:
-                fail('polygon not found in KML')
-            polygon = area['polygon']
-        else:
-            fail('no polygon provided (polygon_geojson or kml_path required)')
-
-        emit_progress(10, 'querying STAC for scene')
-        try:
-            products = list_stac_products(
-                polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
-                monthly_best=False,  # need full list to match scene_id
-            )
-        except Exception as e:
-            fail(f'STAC query failed: {e}')
-
-        product = None
         for p in products:
             if (p.get('id') or '') == scene_id:
                 product = p
                 break
-        if product is None:
-            # Fall back: monthly_best list may have dropped the scene; retry without cloud filter widen
-            try:
-                products = list_stac_products(
-                    polygon, start, end, tile_list=tiles, max_cloud=100.0,
-                    monthly_best=False,
-                )
-            except Exception as e:
-                fail(f'STAC query failed: {e}')
-            for p in products:
-                if (p.get('id') or '') == scene_id:
-                    product = p
-                    break
-        if product is None:
-            fail(f'scene not found: {scene_id}')
+    if product is None:
+        fail(f'scene not found: {scene_id}')
 
-        emit_progress(30, 'loading reference band B04')
+    emit_progress(30, 'loading reference band B04')
+    try:
+        ref, ref_prof = load_and_clip_band(product, 'B04', polygon, '10m')
+    except Exception as e:
+        fail(f'failed to load B04: {e}')
+
+    def load_band(name: str):
+        """Reflectance, not DN. The offset belongs to the product, which
+        this closure holds, so the callers below cannot forget it."""
+        res = comp.BAND_RESOLUTION.get(name, '10m')
+        return load_reflectance_to_reference_grid(product, name, polygon,
+                                                  ref_prof, res)
+
+    mask = ref > 0
+    overlay_png = work_dir / 'composite.png'
+    meta = {
+        'kind': kind,
+        'scene_id': scene_id,
+        'date': product['date'].strftime('%Y-%m-%d') if hasattr(product.get('date'), 'strftime') else str(product.get('date', '')),
+        'stretch_pct': [stretch_lo, stretch_hi],
+    }
+
+    if kind == 'rgb':
+        bands = req.get('bands') or list(comp.RGB_PRESETS['true_color'])
+        if len(bands) != 3:
+            fail('rgb kind requires bands: [R, G, B]')
+        for bname in bands:
+            if bname not in comp.ALLOWED_BANDS:
+                fail(f'unsupported band: {bname}')
+        emit_progress(50, f'loading {bands[0]}/{bands[1]}/{bands[2]}')
         try:
-            ref, ref_prof = load_and_clip_band(product, 'B04', polygon, '10m')
+            r = load_band(bands[0])
+            g = load_band(bands[1])
+            b = load_band(bands[2])
         except Exception as e:
-            fail(f'failed to load B04: {e}')
-
-        def load_band(name: str):
-            """Reflectance, not DN. The offset belongs to the product, which
-            this closure holds, so the callers below cannot forget it."""
-            res = comp.BAND_RESOLUTION.get(name, '10m')
-            return load_reflectance_to_reference_grid(product, name, polygon,
-                                                      ref_prof, res)
-
-        mask = ref > 0
-        overlay_png = work_dir / 'composite.png'
-        meta = {
-            'kind': kind,
-            'scene_id': scene_id,
-            'date': product['date'].strftime('%Y-%m-%d') if hasattr(product.get('date'), 'strftime') else str(product.get('date', '')),
-            'stretch_pct': [stretch_lo, stretch_hi],
-        }
-
-        if kind == 'rgb':
-            bands = req.get('bands') or list(comp.RGB_PRESETS['true_color'])
-            if len(bands) != 3:
-                fail('rgb kind requires bands: [R, G, B]')
-            for bname in bands:
-                if bname not in comp.ALLOWED_BANDS:
-                    fail(f'unsupported band: {bname}')
-            emit_progress(50, f'loading {bands[0]}/{bands[1]}/{bands[2]}')
-            try:
-                r = load_band(bands[0])
-                g = load_band(bands[1])
-                b = load_band(bands[2])
-            except Exception as e:
-                fail(f'band load failed: {e}')
-            mask = mask & (r > 0) & (g > 0) & (b > 0)
-            rgba = comp.rgb_to_rgba(r, g, b, mask, stretch_lo, stretch_hi)
-            meta['bands'] = bands
-        elif kind == 'index':
-            index_name = (req.get('index') or 'ndvi').strip().lower()
-            if index_name not in comp.ALLOWED_INDICES:
-                fail(f'unsupported index: {index_name}')
-            emit_progress(50, f'computing {index_name}')
-            try:
-                if index_name == 'ndvi':
-                    nir = load_band('B08')
-                    red = load_band('B04')
-                    idx = calculate_ndvi(nir, red)
-                    mask = mask & (nir > 0) & (red > 0)
-                elif index_name == 'ndwi':
-                    green = load_band('B03')
-                    nir = load_band('B08')
-                    idx = comp.calculate_ndwi(green, nir)
-                    mask = mask & (green > 0) & (nir > 0)
-                elif index_name == 'ndmi':
-                    nir = load_band('B08')
-                    swir = load_band('B11')
-                    idx = comp.calculate_ndmi(nir, swir)
-                    mask = mask & (nir > 0) & (swir > 0)
-                else:  # evi
-                    nir = load_band('B08')
-                    red = load_band('B04')
-                    blue = load_band('B02')
-                    idx = calculate_evi(nir, red, blue)
-                    mask = mask & (nir > 0) & (red > 0) & (blue > 0)
-            except Exception as e:
-                fail(f'index bands failed: {e}')
-            rgba = comp.index_to_rgba(idx, mask, index_name, stretch_lo, stretch_hi)
-            meta['index'] = index_name
-        else:
-            fail(f'unknown kind: {kind}')
-
-        emit_progress(85, 'writing PNG')
-        comp.write_rgba_png(rgba, overlay_png)
-        raster_tif = work_dir / 'composite.tif'
-        emit_progress(92, 'writing GeoTIFF')
+            fail(f'band load failed: {e}')
+        mask = mask & (r > 0) & (g > 0) & (b > 0)
+        rgba = comp.rgb_to_rgba(r, g, b, mask, stretch_lo, stretch_hi)
+        meta['bands'] = bands
+    elif kind == 'index':
+        index_name = (req.get('index') or 'ndvi').strip().lower()
+        if index_name not in comp.ALLOWED_INDICES:
+            fail(f'unsupported index: {index_name}')
+        emit_progress(50, f'computing {index_name}')
         try:
-            comp.write_rgba_geotiff(rgba, ref_prof, raster_tif)
+            if index_name == 'ndvi':
+                nir = load_band('B08')
+                red = load_band('B04')
+                idx = calculate_ndvi(nir, red)
+                mask = mask & (nir > 0) & (red > 0)
+            elif index_name == 'ndwi':
+                green = load_band('B03')
+                nir = load_band('B08')
+                idx = comp.calculate_ndwi(green, nir)
+                mask = mask & (green > 0) & (nir > 0)
+            elif index_name == 'ndmi':
+                nir = load_band('B08')
+                swir = load_band('B11')
+                idx = comp.calculate_ndmi(nir, swir)
+                mask = mask & (nir > 0) & (swir > 0)
+            else:  # evi
+                nir = load_band('B08')
+                red = load_band('B04')
+                blue = load_band('B02')
+                idx = calculate_evi(nir, red, blue)
+                mask = mask & (nir > 0) & (red > 0) & (blue > 0)
         except Exception as e:
-            fail(f'composite GeoTIFF failed: {e}')
-        extent = comp.extent_from_profile(ref_prof)
-        emit_progress(100, 'done')
-        sys.stdout.write(json.dumps({
-            'extent': extent,
-            'overlay_png': str(overlay_png),
-            'raster_tif': str(raster_tif),
-            'meta': meta,
-        }))
-        sys.stdout.flush()
-        return
+            fail(f'index bands failed: {e}')
+        rgba = comp.index_to_rgba(idx, mask, index_name, stretch_lo, stretch_hi)
+        meta['index'] = index_name
+    else:
+        fail(f'unknown kind: {kind}')
 
+    emit_progress(85, 'writing PNG')
+    comp.write_rgba_png(rgba, overlay_png)
+    raster_tif = work_dir / 'composite.tif'
+    emit_progress(92, 'writing GeoTIFF')
+    try:
+        comp.write_rgba_geotiff(rgba, ref_prof, raster_tif)
+    except Exception as e:
+        fail(f'composite GeoTIFF failed: {e}')
+    extent = comp.extent_from_profile(ref_prof)
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({
+        'extent': extent,
+        'overlay_png': str(overlay_png),
+        'raster_tif': str(raster_tif),
+        'meta': meta,
+    }))
+    sys.stdout.flush()
+
+
+# Land-cover classification over a Sentinel-2 time series: the action the
+# sidecar was written for, and the one an omitted `action` field asks for.
+def action_predict(req, work_dir):
     model_dir = Path(req.get('model_dir', ''))
     source = req.get('source', 'stac')  # 'stac' (cloud COG) or 'local' (.SAFE)
     sentinel_dir = Path(req.get('sentinel_dir', '')) if req.get('sentinel_dir') else None
@@ -3841,6 +3865,49 @@ def main():
     emit_progress(100, 'done')
     sys.stdout.write(json.dumps(result))
     sys.stdout.flush()
+
+
+# The action a request can name, and the function that answers it.
+#
+# A table rather than the run of `if action == ...: ... return` branches this
+# replaces. That run held every handler in one namespace at one indentation
+# level, where a name bound by one branch stayed visible to the next and only
+# the `return` at the foot of each kept it from running on into the prediction
+# path. It also puts the set of actions on one screen, which is the set
+# backend/sidecar.go is written against.
+ACTIONS = {
+    'ping': action_ping,
+    'lulc': action_lulc,
+    'domain_shift': action_domain_shift,
+    'domain_shift_cohort': action_domain_shift_cohort,
+    'canopy_field': action_canopy_field,
+    'canopy_mesh': action_canopy_mesh,
+    'canopy_from_aoi': action_canopy_from_aoi,
+    'list_datacube': action_list_datacube,
+    'solar_resource': action_solar_resource,
+    'solar_terrain': action_solar_terrain,
+    'solar_siting': action_solar_siting,
+    'energy_model': action_energy_model,
+    'wind_resource': action_wind_resource,
+    'water': action_water,
+    'render_composite': action_render_composite,
+    'predict': action_predict,
+}
+
+
+def main():
+    try:
+        req = json.load(sys.stdin)
+    except Exception as e:
+        fail(f'invalid request JSON: {e}')
+
+    action = req.get('action', 'predict')
+    work_dir = Path(req.get('work_dir', '.'))
+    work_dir.mkdir(parents=True, exist_ok=True)
+    # An unknown action runs the prediction path. That is what the branch chain
+    # did by falling through to it, and what a request that names no action at
+    # all asks for.
+    ACTIONS.get(action, action_predict)(req, work_dir)
 
 
 if __name__ == '__main__':

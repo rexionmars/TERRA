@@ -919,13 +919,25 @@ export function ProfilePage({
 
               {/*
                 Beside the layout, because the two are read together: one is
-                how a screen is arranged, the other is which screen the
-                application opens on.
+                how a screen is arranged, the other is what is on screen when
+                the application opens.
+
+                THIS ROW USED TO ASSERT A CHOICE THAT DOES NOT EXIST. It
+                offered "TERRA Explorer" and "TERRA Studio" as two products to
+                pick between, and there is one: the studio opens OVER the map
+                and closes back onto it, which is why the title bar can toggle
+                it at any moment. Asking a reader to choose between two names
+                is what taught them there were two applications.
+
+                The stored value still reads "explorer" or "studio". It is a
+                preference somebody already has, and rewriting the key to match
+                a better label would silently reset it -- the same reason the
+                data directory kept its file name through the rename.
               */}
               <SettingRow
                 id="account.start"
-                title="Opening surface"
-                description="Which surface a session starts on. The explorer is the map with its tools around it, where an area is drawn and a run is started; the studio is the area tree over it, where what has been run is arranged and read. The title bar switches between them at any time."
+                title="Open the studio at start"
+                description="The studio is the panel tree that opens over the map, where runs are arranged and read. It can be opened and closed from the title bar at any time; this decides whether it is already up when a session begins."
                 focused={focusedSetting === "account.start"}
                 onFocus={() => setFocusedSetting("account.start")}
               >
@@ -939,13 +951,13 @@ export function ProfilePage({
                       })
                     }
                   >
-                    <option value="explorer">TERRA Explorer</option>
-                    <option value="studio">TERRA Studio</option>
+                    <option value="explorer">No, start on the map</option>
+                    <option value="studio">Yes, open it with the map</option>
                   </select>
                   <p className="text-meta leading-relaxed text-muted-foreground">
                     {startSurface === "studio"
-                      ? "The studio opens over the map, empty until a run is on it. Its run band draws an area and starts a run without leaving it."
-                      : "The map opens first. The studio is a press away in the title bar, once there is an area or a run to put on it."}
+                      ? "The studio comes up over the map, empty until a run is on it. Its run band draws an area and starts a run without leaving it."
+                      : "The map is what you see first. The studio is a press away in the title bar, once there is an area or a run to put on it."}
                   </p>
                 </div>
               </SettingRow>

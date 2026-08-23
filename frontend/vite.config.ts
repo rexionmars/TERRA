@@ -1,4 +1,9 @@
-import { defineConfig, type Plugin } from 'vite'
+// defineConfig comes from vitest/config, which is vite's own function with the
+// `test` key below added to its type. Imported from vite, that key fails tsc,
+// and the usual way out of that error is the second config file the comment on
+// `test` explains this repository does not want.
+import { defineConfig } from 'vitest/config'
+import { type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import fs from 'fs'
@@ -106,6 +111,29 @@ export default defineConfig({
       // refuses to serve without being told.
       allow: [path.resolve(__dirname, '..')],
     },
+  },
+  /*
+    Vitest reads this file rather than a vitest.config.ts of its own. That
+    second file would have to restate the two aliases above to resolve
+    anything, and one of them is @reference -- which exists because a
+    reference spectrum kept in two places is a reference that can disagree
+    with itself. Tests resolving a different copy than the bundle is that
+    same failure with a worse ending, since the tests would go on passing
+    against the copy nobody ships.
+  */
+  test: {
+    /*
+      node, not jsdom. What is under test today is pure modules in src/lib --
+      arithmetic over numbers, with no element anywhere in an assertion -- so a
+      DOM would be a dependency to install and a document to build per file
+      that nothing reads.
+
+      This is a decision, not a default to inherit. The first component test
+      changes this line to 'jsdom' and adds jsdom as a devDependency in the
+      same edit; until someone has a reason to, the runner stays as light as
+      the tests are.
+    */
+    environment: 'node',
   },
   build: {
     rollupOptions: {

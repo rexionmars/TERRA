@@ -168,17 +168,6 @@ export function clampDetail(rem: number): number {
 }
 
 /**
- * What the two foot bands reserve together.
- *
- * A function of the partition rather than a constant, because the detail band
- * moves. Everything that lifts itself off the foot reads this, so a band that
- * grew without it would paint over the surfaces above it.
- */
-export function footRem(p: BoardPartition): number {
-  return p.runBandRem + p.detailRem
-}
-
-/**
  * The custom properties the partition publishes.
  *
  * Plain lengths, never `calc()`. boardScene reads `--map-foot` back with
