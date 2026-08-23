@@ -182,6 +182,7 @@ import {
   type LibraryLimitMode,
 } from "@/components/whiteboard/LibraryLimitEditor"
 import { SpectraEditor } from "@/components/whiteboard/SpectraEditor"
+import { SeparabilityEditor } from "@/components/whiteboard/SeparabilityEditor"
 import { StudioTables } from "@/components/whiteboard/StudioTables"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import {
@@ -3362,6 +3363,7 @@ export function BoardSurface({
       />
     ),
     spectra: <SpectraEditor runs={selectedRuns} rover={roverClass} />,
+    separability: <SeparabilityEditor runs={selectedRuns} />,
     libraryLimit: (
       <LibraryLimitEditor
         runs={selectedRuns}
