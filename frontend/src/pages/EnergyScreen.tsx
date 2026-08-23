@@ -30,30 +30,27 @@ import type { LayoutMode } from "@/lib/types"
 import { solarOverlayList } from "@/lib/solarLayers"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
-import { PanelShell, type PanelPlacement } from "@/components/ui/PanelShell"
-import { statusPanelInset } from "@/components/analysisPrimitives"
+import { PanelShell, PanelTab, type PanelPlacement } from "@/components/ui/PanelShell"
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ComponentProps,
   type Dispatch,
 } from "react"
-import { ChartLine, Trash2, Wind as WindIcon } from "lucide-react"
 import { MapView } from "@/components/MapView"
 import { SearchBar } from "@/components/SearchBar"
-import {
-  SolarResourceSection,
-  SolarSitingSection,
-  SolarTerrainSection,
-} from "@/components/SolarSections"
-import { EnergyModelSection } from "@/components/EnergyModelSection"
-import { WindScreening } from "@/components/WindScreening"
 import { PanelSection } from "@/components/ui/PanelSection"
 import { AoiSection } from "@/components/energy/AoiSection"
-import { EnergyStatusPanel } from "@/components/energy/EnergyStatusPanel"
+import { ChartColumn, SlidersHorizontal } from "lucide-react"
+import { EnergyReadingColumn } from "@/components/energy/EnergyReadingColumn"
+import {
+  solarReadingGroups,
+  windReadingGroups,
+} from "@/components/energy/readingSections"
 import {
   RecordWindowBar,
   lastCompleteYear,
@@ -135,13 +132,13 @@ export interface EnergyScreenProps {
   /** Go to another destination, for the dock layout's bar. */
   onNavigate: (groupId: string, itemId?: string) => void
   /**
-   * Opens the analysis screen, where the long blocks live -- the loss
-   * waterfall, the generation profile, the tracking comparison. They render
-   * there from the same components, so this is a route to one rendering rather
-   * than a second copy of it.
+   * A request to show a restored result, counted rather than flagged.
+   *
+   * Bumped when a saved solar or wind run is opened from a list, so the reader
+   * lands on the figures they asked for instead of on an empty screen with the
+   * result folded into a panel they have to find.
    */
-  onOpenAnalysis: () => void
-
+  openResultNonce?: number
   // The AOI, defined from this screen. A run here consults no satellite scene,
   // so requiring a visit to the classification panel to draw one would make a
   // classification a precondition of an analysis that needs none.
@@ -183,6 +180,14 @@ export interface EnergyScreenProps {
   onTabChange?: (tab: EnergyTab) => void
 }
 
+/*
+  The last open-the-reading request this session has acted on.
+
+  Module scope, because the screen unmounts on navigation and a ref inside it
+  cannot outlive the visit it was set in. See the effect that reads it.
+*/
+let lastHandledOpenNonce = 0
+
 export function EnergyScreen(props: EnergyScreenProps) {
   const { solar, solarDispatch, wind, windDispatch } = props
 
@@ -191,6 +196,10 @@ export function EnergyScreen(props: EnergyScreenProps) {
   const setTab = useCallback(
     (next: EnergyTab) => {
       setLocalTab(next)
+      // The reading is a different subject on the other tab, and solar and wind
+      // must never be read as one comparison. Left open, the switch replaced a
+      // reading under the reader with an unrelated one.
+      setResultOpen(false)
       props.onTabChange?.(next)
     },
     [props]
@@ -263,6 +272,32 @@ export function EnergyScreen(props: EnergyScreenProps) {
 
   const workspace = props.layoutMode === "workspace"
   const [configOpen, setConfigOpen] = useState(false)
+  /*
+    Whether the full reading is on screen.
+
+    Per screen and not per product: the reading holds every solar result the run
+    has produced, so a reader who opens it and then switches product is still
+    looking at the same reading with one more section in it.
+  */
+  const [resultOpen, setResultOpen] = useState(false)
+
+  /*
+    A restored run arrives with its result already in the reducers, and the
+    reader asked to see it -- so it opens rather than waiting to be found.
+
+    Compared against module scope, not a ref. This screen unmounts on
+    navigation, so a ref inside it cannot tell a fresh request from one that
+    outlived the last visit: the effect fired on every mount with a truthy
+    nonce, and after any run restore every later return to this screen
+    re-opened a full reading nobody had asked for.
+  */
+  useEffect(() => {
+    const n = props.openResultNonce
+    if (n && n !== lastHandledOpenNonce) {
+      lastHandledOpenNonce = n
+      setResultOpen(true)
+    }
+  }, [props.openResultNonce])
   /** The island's measured width, so the record bar can retract past it. */
   const [barWidthPx, setBarWidthPx] = useState(0)
   const solarBusy = solar.run.active !== null
@@ -311,6 +346,22 @@ export function EnergyScreen(props: EnergyScreenProps) {
   // Seeded at the solar tab height so the first paint is close; the bar
   // corrects it on mount.
   const [footPx, setFootPx] = useState(62)
+
+  /*
+    The stage measured itself here, for two consumers that no longer exist.
+
+    One was `--reading-h`, a pixel height for the full-width raster tile inside
+    the reading, which reached for 45vh in a scroll window barely taller than
+    that and pushed the siting class list off screen. The reading is a dialog
+    now and declares that bound against its own body, which is the box the tile
+    is actually in.
+
+    The other was `drawerOverlapsReading`: the parameter drawer and the expanded
+    reading were both right-anchored overlays at comparable z-indices, so below
+    1488px of stage width opening one had to close the other. A dialog covers
+    the surface it is opened from and does not compete with it for the right
+    edge, so the collision and the ResizeObserver that predicted it are gone.
+  */
 
   /**
    * The record windows of the tab in use, outermost first.
@@ -522,11 +573,59 @@ export function EnergyScreen(props: EnergyScreenProps) {
     </>
   )
 
-  /** Any result the current tab can report into the bottom panel. */
+  /*
+    Any result the current tab can report into the bottom panel.
+
+    Any solar product, not the selected one. Gated on `selected`, choosing a
+    product that had run nothing unmounted the panel and with it a reading of
+    the three products that had -- results that were still in the store and
+    still valid.
+  */
   const hasResult =
     tab === "wind"
       ? !!wind.result
-      : !!solar.results[selected]
+      : SOLAR_PRODUCTS.some((p) => !!solar.results[p.id])
+
+  /*
+    Clearing the last result closes the reading rather than leaving the column
+    holding it. Nothing but unmounting the screen reset this before, so the next
+    run of any product re-opened a full reading nobody had asked for.
+  */
+  useEffect(() => {
+    if (!hasResult) setResultOpen(false)
+  }, [hasResult])
+
+  /*
+    Which results the reading can show, as a key rather than a count.
+
+    A run that finishes is the one moment the reader is certainly asking for
+    the result, so the column opens on it. Compared as a key and not as a
+    length so that clearing one product of four does not read as an arrival and
+    re-open a column the reader had folded away.
+  */
+  const resultKeys = useMemo(
+    () =>
+      tab === "wind"
+        ? wind.result
+          ? "wind"
+          : ""
+        : SOLAR_PRODUCTS.filter((p) => solar.results[p.id]).map((p) => p.id).join(","),
+    [tab, wind.result, solar.results]
+  )
+  const lastKeys = useRef(resultKeys)
+  useEffect(() => {
+    const arrived = resultKeys.length > lastKeys.current.length
+    lastKeys.current = resultKeys
+    if (arrived) setResultOpen(true)
+  }, [resultKeys])
+
+  const groups = useMemo(
+    () =>
+      tab === "wind"
+        ? windReadingGroups(wind.result)
+        : solarReadingGroups(solar.results),
+    [tab, wind.result, solar.results]
+  )
 
   /**
    * The setup column, floated over the map exactly as the map screen's tool
@@ -534,12 +633,27 @@ export function EnergyScreen(props: EnergyScreenProps) {
    * same object two shapes and left the map letterboxed with dead space under
    * it -- the map is where the AOI is drawn, so it is not a thumbnail.
    */
+  /*
+    Whether the parameters are on screen.
+
+    They were not foldable while this column was the screen's only surface --
+    a control that empties the screen is not a control. The result is read in
+    its own column now, and a reader comparing a run against the map it was
+    computed over has a reason to want the map: 19rem of a 1400px stage is
+    nearly a seventh of it, and the AOI is drawn on what it covers.
+  */
+  const [setupOpen, setSetupOpen] = useState(true)
+
   const setupColumn = (placement: PanelPlacement) => (
     <PanelShell
       key={tab}
       placement={placement}
       title={tab === "solar" ? "Solar resource" : "Wind screening"}
-      onCollapse={placement === "drawer" ? () => setConfigOpen(false) : undefined}
+      onCollapse={
+        placement === "drawer"
+          ? () => setConfigOpen(false)
+          : () => setSetupOpen(false)
+      }
     >
       {tab === "solar" ? solarSetup : windSetup}
     </PanelShell>
@@ -548,12 +662,17 @@ export function EnergyScreen(props: EnergyScreenProps) {
   return (
     <div
       className="relative h-full min-h-0 w-full"
-      // What the record bar occupies, reported by the bar itself, so the status
-      // panel and the Leaflet attribution clear it exactly. Held by hand this
-      // was wrong in both directions -- too small on the solar tab, which
-      // overlapped, and too large on wind, which left a strip of map between the
-      // attribution and the bar and made the attribution read as floating.
-      style={{ "--map-foot": `${footPx}px` } as React.CSSProperties}
+      style={
+        {
+          // What the record bar occupies, reported by the bar itself, so the
+          // status panel and the Leaflet attribution clear it exactly. Held by
+          // hand this was wrong in both directions -- too small on the solar
+          // tab, which overlapped, and too large on wind, which left a strip of
+          // map between the attribution and the bar and made the attribution
+          // read as floating.
+          "--map-foot": `${footPx}px`,
+        } as React.CSSProperties
+      }
     >
       {/*
         Full bleed, as on the map screen. Two of the four solar products and the
@@ -571,7 +690,19 @@ export function EnergyScreen(props: EnergyScreenProps) {
         same block either way: only the container it is given changes.
       */}
       <AnimatePresence mode="wait" initial={false}>
-        {workspace ? null : setupColumn("docked")}
+        {workspace || !setupOpen ? null : setupColumn("docked")}
+      </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {!workspace && !setupOpen && (
+          <PanelTab
+            key="setup-tab"
+            placement="docked"
+            label="Setup"
+            icon={SlidersHorizontal}
+            title="Show the run parameters"
+            onOpen={() => setSetupOpen(true)}
+          />
+        )}
       </AnimatePresence>
       {/*
         The presence stays mounted and its child is what comes and goes. Gating
@@ -611,35 +742,63 @@ export function EnergyScreen(props: EnergyScreenProps) {
         bands={recordBands}
         endYear={endYear}
         disabled={tab === "wind" ? windBusy : solarBusy}
-        flushLeft={workspace}
+        /* Folded, the column holds nothing at the foot's left end but a 32px
+           tab three rems above it, so the reserved 20.5rem would be a strip of
+           map kept clear for a panel that is not on screen. */
+        flushLeft={workspace || !setupOpen}
         leftOffset={
           workspace
             ? barWidthPx
               ? `calc(${barWidthPx}px + 0.75rem)`
               : undefined
-            : "20.5rem"
+            : setupOpen
+              ? "20.5rem"
+              : undefined
         }
         onHeightChange={setFootPx}
       />
 
-      <AnimatePresence initial={false}>
-        {hasResult && (
-          <EnergyStatusPanel
-            leftOffsetClass={statusPanelInset(workspace)}
-            key={`${tab}-${selected}`}
-            tab={tab}
-            selected={selected}
-            results={solar.results}
-            wind={wind.result}
-            onClear={() =>
-              tab === "wind"
+      {/*
+        The reading, in the column that mirrors the setup one. Folded, it leaves
+        the control that brings it back where its own head stands.
+
+        Keyed on the tab alone: keyed on the product too, every product switch
+        remounted a column that holds every product's result and would have
+        thrown away the reader's scroll position for a change of selection.
+        `mode="wait"`, because the default stacks the outgoing and incoming
+        columns in one rectangle for the length of the exit spring.
+      */}
+      <AnimatePresence initial={false} mode="wait">
+        {hasResult && resultOpen && (
+          <EnergyReadingColumn
+            key={tab}
+            /* Not the tab's name: the setup column on the other edge already
+               carries it, and two columns titled "Solar resource" flanking one
+               map is the duplication this reshape exists to remove. */
+            title={tab === "solar" ? "Solar result" : "Wind result"}
+            groups={groups}
+            onClear={(key) =>
+              key === "wind"
                 ? windDispatch({ type: "result/clear" })
-                : solarDispatch({ type: "result/clear", product: selected })
+                : solarDispatch({ type: "result/clear", product: key })
             }
-            onOpenAnalysis={props.onOpenAnalysis}
+            onCollapse={() => setResultOpen(false)}
           />
         )}
       </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {hasResult && !resultOpen && (
+          <PanelTab
+            key="result-tab"
+            placement="reading"
+            label="Result"
+            icon={ChartColumn}
+            title={`Read the ${tab} result`}
+            onOpen={() => setResultOpen(true)}
+          />
+        )}
+      </AnimatePresence>
+
     </div>
   )
 }

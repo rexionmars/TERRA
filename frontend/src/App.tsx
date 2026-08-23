@@ -619,6 +619,14 @@ function AppBody(props: {
    */
   const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
+  /*
+    A request to show a restored energy result, counted rather than flagged.
+
+    Same mechanism as the board nonce beside it and for the same reason:
+    restoring the same solar run twice in a row has to open its result both
+    times, and a boolean already true does nothing the second time.
+  */
+  const [openEnergyResultNonce, setOpenEnergyResultNonce] = useState(0)
 
   /*
     THE SURFACE THE SESSION OPENS ON, asked for once and not again.
@@ -1809,10 +1817,14 @@ function AppBody(props: {
         result: res,
         aoiSignature,
       })
+      /*
+        No action. The result panel appears on this screen the moment the run
+        lands and carries its own Read control, so a toast action would be a
+        second route to a thing already in front of the reader -- and it used to
+        be the only route, which is why it was here.
+      */
       notifySuccess(
-        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`,
-        undefined,
-        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`
       )
       void refreshRuns()
       void refreshProjects()
@@ -2019,10 +2031,9 @@ function AppBody(props: {
         result: res,
         aoiSignature,
       })
+      // No action: the result panel on this screen carries the Read control.
       notifySuccess(
-        `Energy model: ${res.plant.suitable.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp/yr at performance ratio ${res.performance_ratio.applied.toFixed(3)} (${res.performance_ratio.applied_source}), ${res.reporting_basis} basis.`,
-        undefined,
-        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+        `Energy model: ${res.plant.suitable.specific_yield_kwh_kwp_year.toFixed(0)} kWh/kWp/yr at performance ratio ${res.performance_ratio.applied.toFixed(3)} (${res.performance_ratio.applied_source}), ${res.reporting_basis} basis.`
       )
       void refreshRuns()
       void refreshProjects()
@@ -2076,10 +2087,9 @@ function AppBody(props: {
       // the qualifier: this figure is gross of every plant loss, rests on an
       // extrapolation above the highest measured level, and has no external
       // benchmark of the kind the solar ratio has.
+      // No action: the result panel on this screen carries the Read control.
       notifySuccess(
-        `Wind screening: mean ${res.measured.mean_speed_50m_ms.toFixed(2)} m/s at 50 m, gross capacity factor ${res.hub.gross_capacity_factor_pct.toFixed(1)}% at ${res.hub_height_m.toFixed(0)} m hub. Screening indication, gross of losses, unvalidated.`,
-        undefined,
-        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+        `Wind screening: mean ${res.measured.mean_speed_50m_ms.toFixed(2)} m/s at 50 m, gross capacity factor ${res.hub.gross_capacity_factor_pct.toFixed(1)}% at ${res.hub_height_m.toFixed(0)} m hub. Screening indication, gross of losses, unvalidated.`
       )
       void refreshRuns()
       void refreshProjects()
@@ -2289,7 +2299,7 @@ function AppBody(props: {
      * run on the map. Passed rather than corrected afterwards -- navigating to
      * one screen and then to another shows the first one on the way past.
      */
-    async (run: InferenceRun, opts?: { land?: "analysis" | "map" }) => {
+    async (run: InferenceRun, opts?: { land?: "analysis" | "map" | "energy" }) => {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
@@ -2371,8 +2381,23 @@ function AppBody(props: {
             key: Date.now(),
           })
         }
-        if (opts?.land === "map") goMap()
-        else goAnalysis()
+        /*
+          A solar or wind run is read on the energy screen now, so restoring one
+          lands there with its result open rather than on the analysis page.
+
+          Decided from `run.kind` rather than from the payload: the payload for
+          a solar product and for a wind screening differ in shape, and the
+          record already carries the one word that tells them apart. The caller
+          can still override -- the project menu asks for the map, because a run
+          picked from there is a request to see it on the map.
+        */
+        const kind = run.kind === "solar" || run.kind === "wind" ? "energy" : null
+        const land = opts?.land ?? kind ?? "analysis"
+        if (land === "map") goMap()
+        else if (land === "energy") {
+          goEnergy()
+          setOpenEnergyResultNonce((n) => n + 1)
+        } else goAnalysis()
         notifySuccess("Analysis restored.")
       } catch (e) {
         notifyError("Could not load analysis", e)
@@ -3073,7 +3098,7 @@ function AppBody(props: {
                     else void handleRunEnergyModel()
                   }}
                   onRunWind={() => void handleRunWind()}
-                  onOpenAnalysis={goAnalysis}
+                  openResultNonce={openEnergyResultNonce}
                   onLocationSelect={(lat, lon) =>
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }

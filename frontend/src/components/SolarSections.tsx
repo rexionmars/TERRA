@@ -1,14 +1,27 @@
 /**
  * The three solar result sections, as shown on screen.
  *
- * Live outside AnalysisPage so the energy screen and the analysis screen render
- * them from one definition. Duplicating them would let the two drift, and these
- * are the blocks whose figures each carry the assumption that produced them:
- * the ramp drawn on the sidecar's scale rather than the layer's own range, the
- * beam share behind the shading figure, and the siting thresholds being project
- * conventions.
+ * These are the blocks whose figures each carry the assumption that produced
+ * them: the ramp drawn on the sidecar's scale rather than the layer's own
+ * range, the beam share behind the shading figure, and the siting thresholds
+ * being project conventions.
  *
  * Each takes only the payload it renders, so none of them can read page state.
+ *
+ * NONE OF THEM DRAWS ITS OWN HEADING. Each used to open with a `ReadingBlock`
+ * naming the product, and the panel hosting it named the product again a few
+ * hundred pixels below -- "Irradiation over terrain" twice on one screen, and
+ * for the resource under two different names at once, "Solar resource" here
+ * and "Resource at the AOI centroid" on the panel. The heading, the provenance
+ * meta and the four headline figures are stated once by the host; see
+ * components/energy/readingSections.tsx. A section renders its body.
+ *
+ * Every grid here measures the CONTAINER, not the window. These sections were
+ * authored for a full-width page column and their breakpoints were `sm:`/`lg:`,
+ * which read the viewport: hosted in a 40rem panel on a 1600px screen they
+ * still took the four-column layout their content needs 45rem for, so the
+ * reading came out cramped and sparse at the same time. A section that follows
+ * the box it is in needs no tuning when that box is resized.
  */
 import type {
   SolarAnalysis,
@@ -44,14 +57,7 @@ import {
  */
 export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
   return (
-    <section className="rounded-sm border border-border bg-secondary/50 p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <p className="eyebrow">Solar resource</p>
-        <p className="telemetry text-[10px] text-muted-foreground">
-          {solar.resource.n_years} years ·{" "}
-          {solar.lat.toFixed(2)}, {solar.lon.toFixed(2)}
-        </p>
-      </div>
+    <>
       <ResponsiveContainer width="100%" height={200}>
         <LineChart
           data={solar.resource.monthly.map((m) => ({
@@ -142,34 +148,15 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
           ))}
         </LineChart>
       </ResponsiveContainer>
-      <div
-        className="mt-3 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-4"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <WaterFigure
-          label="GHI"
-          value={solar.resource.ghi_annual_kwh_m2.toFixed(0)}
-          sub={`kWh/m2/yr · CV ${solar.resource.ghi_cv_pct.toFixed(1)}%`}
-        />
-        <WaterFigure
-          label="Optimum tilt"
-          value={`${solar.geometry.optimal_tilt_deg.toFixed(0)}°`}
-          sub={`+${solar.geometry.gain_over_horizontal_pct.toFixed(1)}% over flat`}
-        />
-        <WaterFigure
-          label="Specific yield"
-          value={solar.pv.specific_yield_kwh_kwp_year.toFixed(0)}
-          sub={`kWh/kWp/yr · PR ${solar.pv.performance_ratio.toFixed(2)}`}
-        />
-        <WaterFigure
-          label="Capacity factor"
-          value={`${solar.pv.capacity_factor_pct.toFixed(1)}%`}
-          sub={`modelled PR ${solar.pv.performance_ratio_modelled.toFixed(3)}`}
-        />
-      </div>
+      {/*
+        The four headline figures were here AND in the panel strip above, at
+        two roundings and two wordings of the same subs -- "+3.4% over flat"
+        against "3.4% over horizontal" for one number. They are now stated once,
+        by headlineFigures.ts, in the band this block scrolls under.
+      */}
 
       {solar.geometry.tilt_tolerance.length > 0 && (
-        <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-3 text-body leading-relaxed text-muted-foreground">
           Tilt tolerance:{" "}
           {solar.geometry.tilt_tolerance
             .map(
@@ -185,32 +172,51 @@ export function SolarResourceSection({ solar }: { solar: SolarAnalysis }) {
         tens of kilometres apart resolve to one radiation cell and return the
         same series, so identical numbers would otherwise have no explanation.
       */}
-      <div className="mt-2 text-[10px] text-muted-foreground">
+      <div className="mt-2 text-meta text-muted-foreground">
         <p className="telemetry">1° radiation cell, not site-specific</p>
         <PowerProvenanceNote provenance={solar.power_provenance} />
       </div>
-    </section>
+    </>
   )
 }
 
-/** Terrain irradiation: the raster, its ramp and the figures over the area. */
+/**
+ * What the ramp's endpoints are the endpoints OF.
+ *
+ * Three answers and they are not interchangeable: a fixed domain is comparable
+ * between runs, a shared one is wider than this layer and drawn so the pair can
+ * be compared, and a layer's own range fills the ramp regardless of how narrow
+ * the spread actually is. Saying the wrong one turns a 1.2% spread into an
+ * image that looks like a strong gradient, or the reverse.
+ */
+function scaleBasisNote(scale: SolarTerrainAnalysis["scale"]): string {
+  if (scale.basis === "fixed") {
+    return "Fixed domain · comparable with other runs of this layer"
+  }
+  if (scale.basis === "shared" && scale.shared_with) {
+    return `Domain shared with the ${scale.shared_with} layer · wider than this layer's own range`
+  }
+  return "Domain is this layer's own range · contrast is relative, not absolute"
+}
+
+/**
+ * Terrain irradiation: the raster, its ramp and the figures over the area.
+ *
+ * ONE NAME FOR THIS PRODUCT. The heading read "Terrain irradiation · annual"
+ * while the panel that framed it read "Irradiation over terrain" -- the same
+ * two words in the other order, both uppercase, both on screen at once. The
+ * selector, the run button and the status panel all take the name from
+ * solarProducts, so this takes it too, and the season moves to the meta line
+ * beside the rest of the provenance.
+ */
 export function SolarTerrainSection({
   terrain,
 }: {
   terrain: SolarTerrainAnalysis
 }) {
   return (
-    <section className="rounded-sm border border-border bg-secondary/50 p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <p className="eyebrow">
-          Terrain irradiation · {terrain.season}
-        </p>
-        <p className="telemetry text-[10px] text-muted-foreground">
-          {terrain.dem_source} ·{" "}
-          {terrain.hourly_years} years
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <>
+      <div className="grid grid-cols-1 gap-4 @min-[31rem]:grid-cols-2">
         <div>
           <PanelTile
             title={`Plane-of-array · ${terrain.unit}`}
@@ -229,26 +235,34 @@ export function SolarTerrainSection({
               terrain.scale.decimals
             )}
           />
+          {/*
+            WHICH domain, read from the payload rather than asserted.
+
+            The status panel used to print "drawn on the scale reported with
+            the raster, not on this layer's own range" under every terrain
+            result. `render_scale` shares a domain only between winter and
+            summer (sidecar/solar.py, SEASON_PAIR); for annual it returns
+            basis "own", so the sentence denied exactly what the endpoints
+            showed -- 1366 and 1607 beside figures reading Minimum 1366 and
+            Maximum 1607. The payload has carried `basis` and `shared_with`
+            for this the whole time and nothing read them.
+
+            It also belongs here and not in the summary strip: it describes
+            how the ramp two lines above was drawn, and the strip is on screen
+            when no raster and no ramp are.
+          */}
+          <p className="mt-1 text-meta text-muted-foreground">
+            {scaleBasisNote(terrain.scale)}
+          </p>
         </div>
+        {/*
+          Minimum, Mean, Maximum and Spatial spread are NOT here. They are the
+          product's headline and are stated once, in the band this block
+          scrolls under -- they used to be printed in both places, about 400px
+          apart, under character-identical labels and in two different orders.
+          What remains is what the headline does not carry.
+        */}
         <div className="grid grid-cols-2 gap-3 self-start">
-          <WaterFigure
-            label="Minimum"
-            value={terrain.poa_min.toFixed(0)}
-          />
-          <WaterFigure
-            label="Maximum"
-            value={terrain.poa_max.toFixed(0)}
-          />
-          <WaterFigure
-            label="Mean"
-            value={terrain.poa_mean.toFixed(0)}
-            sub={terrain.unit}
-          />
-          <WaterFigure
-            label="Spatial spread"
-            value={`${terrain.poa_std_pct.toFixed(1)}%`}
-            sub="standard deviation"
-          />
           <WaterFigure
             label="Mean slope"
             value={`${terrain.slope_mean_deg.toFixed(1)}°`}
@@ -272,7 +286,7 @@ export function SolarTerrainSection({
           varies is the inclined surface -- method, and the same sentence for
           every AOI. The number it ended on is what changes. */}
       {terrain.beam_fraction > 0 && (
-        <p className="mt-3 text-[10px] text-muted-foreground">
+        <p className="mt-3 text-meta text-muted-foreground">
           <span className="telemetry">
             Beam share {(terrain.beam_fraction * 100).toFixed(0)}%
           </span>{" "}
@@ -287,7 +301,7 @@ export function SolarTerrainSection({
       <PowerProvenanceNote
         provenance={terrain.power_provenance}
       />
-    </section>
+    </>
   )
 }
 
@@ -298,8 +312,7 @@ export function SolarSitingSection({
   siting: SolarSitingAnalysis
 }) {
   return (
-    <section className="rounded-sm border border-border bg-secondary/50 p-4">
-      <p className="eyebrow mb-3">Photovoltaic siting</p>
+    <>
       {/* Full-width, like the water occurrence tile: a 4:3 box across a whole
           panel runs off the bottom of the window on a wide screen. */}
       <PanelTile
@@ -308,18 +321,9 @@ export function SolarSitingSection({
         empty="No siting raster"
         fullWidth
       />
-      <div className="mb-3 mt-3 grid grid-cols-2 gap-3">
-        <WaterFigure
-          label="Suitable, no conflict"
-          value={`${siting.suitable_no_conflict_ha.toFixed(1)} ha`}
-        />
-        <WaterFigure
-          label="Suitable, on cropland"
-          value={`${siting.suitable_cropland_ha.toFixed(1)} ha`}
-          sub="reported apart, never summed"
-        />
-      </div>
-      <ul className="flex flex-col gap-1.5">
+      {/* The two areas are the product's headline and are stated once, in the
+          band above. The class list is what this block is for. */}
+      <ul className="mt-3 flex flex-col gap-1.5">
         {siting.classes.map((c) => (
           <li key={c.code} className="flex items-center gap-2 text-xs">
             <span
@@ -338,7 +342,7 @@ export function SolarSitingSection({
       </ul>
       {/* The thresholds as figures, and the one thing the classes do not
           account for -- without it "suitable" reads as permitted. */}
-      <p className="mt-3 text-[10px] text-muted-foreground">
+      <p className="mt-3 text-meta text-muted-foreground">
         <span className="telemetry">
           Slope limits {siting.thresholds.slope_acceptable_deg}° /{" "}
           {siting.thresholds.slope_restrictive_deg}°
@@ -355,6 +359,6 @@ export function SolarSitingSection({
           codes={siting.thresholds.cropland_cover}
         />
       </div>
-    </section>
+    </>
   )
 }

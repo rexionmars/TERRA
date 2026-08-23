@@ -1,16 +1,36 @@
 /**
  * The photovoltaic energy model, as shown on screen.
  *
- * Lives outside AnalysisPage so the energy screen and the analysis screen render
- * it from one definition. Duplicating it would let the two drift, and this is
- * the block whose figures each carry the assumption that produced them.
+ * Exported as PAGES rather than as one section. The seven blocks below run to
+ * several thousand pixels together and no container in the application is that
+ * tall, so as a single column the reading was always seen through a viewport
+ * holding a fraction of it. `energyModelSections` at the foot of this file is the
+ * entry point; the blocks themselves are unchanged and each still carries the
+ * assumption that produced its figures.
+ *
+ * Every grid measures the CONTAINER, not the window. The breakpoints here were
+ * `sm:`/`lg:`, which read the viewport: hosted in a panel on a wide screen this
+ * section took four-column layouts at widths where two columns collide, which
+ * is why the reading looked both cramped and half-empty. Three query roots are
+ * declared -- the section, the performance-ratio scale and the plant card --
+ * because each is a different width from its parent.
  */
+import type { ReactNode } from "react"
 import type {
   EnergyCapacityDensity,
   EnergyModelAnalysis,
   EnergyPlantClass,
 } from "@/lib/types"
-import { Chip, PowerProvenanceNote, rampStop, WaterFigure } from "@/components/analysisPrimitives"
+import {
+  Chip,
+  PowerProvenanceNote,
+  rampStop,
+  Stat,
+  StatGrid,
+  WaterFigure,
+} from "@/components/analysisPrimitives"
+import type { ReadingSection } from "@/components/energy/readingSections"
+import { areaHa, capacityMw } from "@/lib/energyFormat"
 import { PALETTE_STOPS, paletteGradient } from "@/lib/palettes"
 import { cn } from "@/lib/utils"
 
@@ -23,33 +43,6 @@ import { cn } from "@/lib/utils"
  * from the beam and diffuse components is a property of the radiation product;
  * drawn inside the chain it reads as a plant loss the site would incur.
  */
-/**
- * A dense label/value pair.
- *
- * This section carried its figures inside sentences -- "Specific yield 1234.56
- * kWh/kWp/yr at a performance ratio of 0.80 (reference), reporting basis
- * year_one" -- which put the method between the reader and every number. The
- * numbers are the same; they are now read down a column rather than out of a
- * paragraph.
- */
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="truncate text-[10px] text-muted-foreground">{label}</span>
-      <span className="telemetry shrink-0 text-[11px] text-foreground">{value}</span>
-    </div>
-  )
-}
-
-/** Two-column grid for a run of Stat rows. */
-function StatGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-      {children}
-    </div>
-  )
-}
-
 function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
   const w = energy.loss_waterfall
   const steps = w.steps
@@ -62,7 +55,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
     <div>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <p className="eyebrow">Loss waterfall · global horizontal to AC</p>
-        <p className="telemetry text-[10px] text-muted-foreground">
+        <p className="telemetry text-meta text-muted-foreground">
           base {w.base.ghi_hourly_kwh_m2_year.toFixed(2)} kWh/m2/yr ·{" "}
           {w.base.hourly_window}
         </p>
@@ -75,7 +68,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
         />
       </StatGrid>
 
-      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-3 w-0 border-l-2"
@@ -86,7 +79,6 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-3 w-0 border-l-2 border-dashed"
-            style={{ borderColor: "var(--border)" }}
           />
           outside it: not a plant loss and not multiplied into the ratio
         </span>
@@ -106,7 +98,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
               key={s.step}
               className={cn(
                 "border-l-2 py-1.5 pl-2.5 pr-1",
-                inPR ? "" : "bg-[var(--background)]"
+                inPR ? "" : "bg-background"
               )}
               style={{
                 borderColor: inPR ? "rgb(var(--p-accent))" : "var(--border)",
@@ -114,18 +106,22 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
               }}
             >
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                <span className="telemetry w-5 shrink-0 text-[10px] text-muted-foreground">
+                <span className="telemetry w-5 shrink-0 text-meta text-muted-foreground">
                   {s.step}
                 </span>
-                <span className="min-w-[12rem] flex-1 text-xs text-foreground">
+                <span className="min-w-[10rem] flex-1 text-xs text-foreground">
                   {s.label}
                 </span>
                 <Chip>{s.kind.replace(/_/g, " ")}</Chip>
                 {!inPR && <Chip>outside PR</Chip>}
-                <span className="telemetry w-24 shrink-0 text-right text-[11px] text-foreground">
+                <span className="telemetry w-16 shrink-0 text-right text-body text-foreground">
                   {s.factor == null ? "—" : s.factor.toFixed(6)}
                 </span>
-                <span className="bg-background relative hidden h-1.5 w-24 shrink-0 sm:block">
+                {/* The bar needs 49rem of row before the columns beside it
+                    collide, which no width this panel offers reaches; the
+                    cumulative-ratio column is what carries the departure
+                    there. Kept as a literal so a wider host restores it. */}
+                <span className="bg-background relative hidden h-1.5 w-24 shrink-0 @min-[49rem]:block">
                   <span
                     className="absolute inset-y-0"
                     style={{
@@ -140,14 +136,16 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
                     }}
                   />
                 </span>
-                <span className="telemetry w-36 shrink-0 text-right text-[11px] text-foreground">
-                  {s.energy_after.toFixed(2)}{" "}
-                  <span className="text-muted-foreground">{s.units}</span>
-                </span>
-                <span className="telemetry w-24 shrink-0 text-right text-[11px] text-muted-foreground">
-                  {s.cumulative_ratio == null
-                    ? "—"
-                    : s.cumulative_ratio.toFixed(6)}
+                <span className="flex w-full justify-end gap-x-2.5 @min-[42rem]:w-auto">
+                  <span className="telemetry w-36 shrink-0 text-right text-body text-foreground">
+                    {s.energy_after.toFixed(2)}{" "}
+                    <span className="text-muted-foreground">{s.units}</span>
+                  </span>
+                  <span className="telemetry w-16 shrink-0 text-right text-body text-muted-foreground">
+                    {s.cumulative_ratio == null
+                      ? "—"
+                      : s.cumulative_ratio.toFixed(6)}
+                  </span>
                 </span>
               </div>
             </li>
@@ -155,7 +153,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
         })}
       </ul>
 
-      <p className="mt-2 text-[10px] text-muted-foreground">
+      <p className="mt-2 text-meta text-muted-foreground">
         Outside the performance ratio:{" "}
         <span className="telemetry">{w.outside_performance_ratio.join(" · ")}</span>
       </p>
@@ -192,7 +190,10 @@ function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
   const bracketed = hasBand && pr.applied >= lo && pr.applied <= hi
 
   return (
-    <div>
+    /* Its own container: at two columns of the outer grid this block reports
+       about 342px, and the pairs below it need more than the outer section's
+       width to decide by. */
+    <div className="@container/pr">
       <p className="eyebrow mb-2">Performance ratio · applied against the band</p>
       <div className="relative h-9">
         <div className="bg-background absolute inset-x-0 top-4 h-1.5 rounded-sm" />
@@ -224,7 +225,7 @@ function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
       <div className="mt-1 grid grid-cols-3 gap-2">
         {marks.map((m) => (
           <div key={m.key}>
-            <div className="eyebrow !text-[9px]">{m.label}</div>
+            <div className="eyebrow !text-micro">{m.label}</div>
             <div
               className={cn(
                 "telemetry text-sm",
@@ -236,20 +237,30 @@ function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
           </div>
         ))}
       </div>
-      <StatGrid>
-        {hasBand && (
+      {/*
+        The band, and where the applied ratio falls in it.
+
+        The applied and derived ratios themselves are this product's headline
+        and are stated once, by headlineFigures.ts, at the head of the group
+        this section sits in. Printed here as well they were on screen twice at
+        the same rounding, about a screen apart -- one measurement disagreeing
+        with nothing, which is the reading equivalent of a duplicated source of
+        truth. What the headline cannot carry is the relation between the two,
+        so that travels on the band it is a relation to.
+      */}
+      {hasBand && (
+        <StatGrid at="pr">
           <Stat
             label="Global Solar Atlas band"
             value={`${lo.toFixed(3)} – ${hi.toFixed(3)}`}
           />
-        )}
-        <Stat
-          label="Applied ratio"
-          value={`${pr.applied.toFixed(3)}${hasBand ? (bracketed ? " · inside band" : " · outside band") : ""}`}
-        />
-        <Stat label="Derived ratio" value={pr.derived.toFixed(4)} />
-      </StatGrid>
-      <StatGrid>
+          <Stat
+            label="Applied ratio against the band"
+            value={bracketed ? "inside" : "outside"}
+          />
+        </StatGrid>
+      )}
+      <StatGrid at="pr">
         <Stat
           label="Derived at reference optionals"
           value={pr.derived_if_optional_at_pvwatts_defaults.toFixed(4)}
@@ -283,14 +294,14 @@ function EnergyCheckpoints({ energy }: { energy: EnergyModelAnalysis }) {
       {checks.map((c) => (
         <li key={c.name} className="rounded-sm border border-border bg-secondary px-3 py-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="telemetry text-[11px] text-foreground">
+            <span className="telemetry text-body text-foreground">
               {c.name.replace(/_/g, " ")}
             </span>
             <span className="telemetry text-sm text-foreground">
               {c.value.toFixed(6)}
             </span>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-meta text-muted-foreground">
             <span className="telemetry">
               {c.residual == null
                 ? "no residual"
@@ -330,18 +341,18 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
       <p className="eyebrow">Fixed tilt against one-axis tracking</p>
 
       <div>
-            <p className="eyebrow !text-[9px] mb-2">Per hectare, as published</p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <p className="eyebrow !text-micro mb-2">Per hectare, as published</p>
+        <div className="grid grid-cols-1 gap-2 @min-[33.5rem]:grid-cols-2">
           <div className="rounded-sm border border-border bg-secondary px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="eyebrow !text-[9px]">
+              <span className="eyebrow !text-micro">
                 Bolinger and Bolinger (2022)
               </span>
               <span className="telemetry text-sm text-foreground">
                 {bol.change_pct.toFixed(1)}%
               </span>
             </div>
-            <div className="telemetry mt-1 text-[11px] text-muted-foreground">
+            <div className="telemetry mt-1 text-body text-muted-foreground">
               fixed {bol.fixed_gwh_ha_year.toFixed(2)} · tracking{" "}
               {bol.tracking_gwh_ha_year.toFixed(2)} GWh/ha/yr (
               {bol.fixed_mwh_acre_year.toFixed(0)} and{" "}
@@ -350,14 +361,14 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
           </div>
           <div className="rounded-sm border border-border bg-secondary px-3 py-2">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="eyebrow !text-[9px]">Ong et al. (2013), Table 5</span>
+              <span className="eyebrow !text-micro">Ong et al. (2013), Table 5</span>
               <span className="telemetry text-sm text-foreground">
                 {ong.band_pct.length >= 2
                   ? `${Math.min(...ong.band_pct).toFixed(1)} to ${Math.max(...ong.band_pct).toFixed(1)}%`
                   : "—"}
               </span>
             </div>
-            <div className="telemetry mt-1 text-[11px] text-muted-foreground">
+            <div className="telemetry mt-1 text-body text-muted-foreground">
               nearest sites at this DNI of{" "}
               {ong.site_dni_kwh_m2_year.toFixed(1)} kWh/m2/yr:{" "}
               {ong.nearest_rows
@@ -367,24 +378,23 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
                 )
                 .join(" · ")}
             </div>
-                <p className="text-[10px] text-muted-foreground">tracking land per unit energy</p>
+                <p className="text-meta text-muted-foreground">tracking land per unit energy</p>
           </div>
         </div>
       </div>
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="eyebrow !text-[9px]">
+          <span className="eyebrow !text-micro">
             Derived here, third line · not measured
           </span>
           <span className="telemetry text-sm text-foreground">
             {md.change_pct.toFixed(2)}%
           </span>
         </div>
-        <div className="telemetry mt-1 text-[11px] text-muted-foreground">
+        <div className="telemetry mt-1 text-body text-muted-foreground">
           energy per hectare ratio {md.energy_per_hectare_ratio.toFixed(4)} at
           ground coverage {md.gcr_fixed.toFixed(3)} fixed and{" "}
           {md.gcr_tracker.toFixed(3)} tracking, a ratio of{" "}
@@ -404,10 +414,9 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
-        <p className="eyebrow !text-[9px] mb-2">Per kWp, this site's series</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <p className="eyebrow !text-micro mb-2">Per kWp, this site's series</p>
+        <div className="grid grid-cols-1 gap-3 @min-[22rem]:grid-cols-2 @min-[45rem]:grid-cols-4">
           <WaterFigure
             label="Fixed"
             value={t.per_kwp.fixed.specific_yield_kwh_kwp_year.toFixed(0)}
@@ -437,9 +446,8 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
-        <p className="eyebrow !text-[9px] mb-2">
+        <p className="eyebrow !text-micro mb-2">
           Plane-of-array gain by season, kWh/m2
         </p>
         <ul className="flex flex-col gap-1.5">
@@ -451,10 +459,10 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
               <span className="w-24 shrink-0 truncate">
                 {r.season.replace(/_/g, " ")}
               </span>
-              <span className="telemetry w-16 shrink-0 text-right text-[11px] text-muted-foreground">
+              <span className="telemetry w-16 shrink-0 text-right text-body text-muted-foreground">
                 {r.fixed_poa_kwh_m2_season.toFixed(1)}
               </span>
-              <span className="telemetry w-16 shrink-0 text-right text-[11px] text-muted-foreground">
+              <span className="telemetry w-16 shrink-0 text-right text-body text-muted-foreground">
                 {r.tracker_poa_kwh_m2_season.toFixed(1)}
               </span>
               <span className="bg-background relative h-1.5 min-w-[6rem] flex-1">
@@ -483,7 +491,6 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
         <StatGrid>
           <Stat
@@ -499,7 +506,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
             value={t.configuration.backtrack ? "on" : "off"}
           />
         </StatGrid>
-        <StatGrid>
+        <StatGrid at="wide">
           {t.performance_ratio.transfer_between_configurations.map((r) => (
             <Stat
               key={r.wind}
@@ -540,7 +547,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="eyebrow">Generation profile</p>
-        <p className="telemetry text-[10px] text-muted-foreground">
+        <p className="telemetry text-meta text-muted-foreground">
           {g.time_standard.source_standard}
           {offset == null
             ? ""
@@ -548,16 +555,16 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
           {g.time_standard.hour_label}
         </p>
       </div>
-          <p className="text-[10px] text-muted-foreground">before applied performance ratio</p>
+          <p className="text-meta text-muted-foreground">before applied performance ratio</p>
 
-      <div className="edge-fade-x -mx-1 overflow-x-auto px-1">
+      <div className="@max-[34rem]:edge-fade-x -mx-1 overflow-x-auto px-1">
         <div className="min-w-[34rem]">
           <div className="flex items-center gap-1">
             <span className="w-8 shrink-0" />
             {Array.from({ length: 24 }, (_, h) => (
               <span
                 key={h}
-                className="telemetry min-w-0 flex-1 text-center text-[8px] text-muted-foreground"
+                className="telemetry min-w-0 flex-1 text-center text-micro text-muted-foreground"
               >
                 {h % 3 === 0 ? String(h).padStart(2, "0") : ""}
               </span>
@@ -565,7 +572,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
           </div>
           {matrix.rows.map((row) => (
             <div key={row.month} className="flex items-center gap-1">
-              <span className="telemetry w-8 shrink-0 text-[9px] text-muted-foreground">
+              <span className="telemetry w-8 shrink-0 text-micro text-muted-foreground">
                 {String(row.month).padStart(2, "0")}
               </span>
               {Array.from({ length: 24 }, (_, h) => {
@@ -579,12 +586,19 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
                         : `month ${row.month}, hour ${h}: ${v.toFixed(1)} ${matrix.units}`
                     }
                     className="h-4 min-w-0 flex-1 rounded-[1px]"
-                    style={{
-                      backgroundColor:
-                        v == null
-                          ? "var(--border)"
-                          : rampStop(PALETTE_STOPS.inferno, v / peak),
-                    }}
+                    style={
+                      v == null
+                        ? {
+                            background:
+                              "repeating-linear-gradient(45deg,transparent,transparent 2px,rgb(var(--p-line-strong)/0.5) 2px,rgb(var(--p-line-strong)/0.5) 3px)",
+                          }
+                        : {
+                            backgroundColor: rampStop(
+                              PALETTE_STOPS.inferno,
+                              v / peak
+                            ),
+                          }
+                    }
                   />
                 )
               })}
@@ -592,7 +606,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
           ))}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 text-meta text-muted-foreground">
         <span
           className="h-2 w-24 rounded-sm"
           style={{ background: paletteGradient("inferno") }}
@@ -608,15 +622,14 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
-        <p className="eyebrow !text-[9px] mb-2">
+        <p className="eyebrow !text-micro mb-2">
           Peak sun hours per day, module plane
         </p>
         <ul className="flex flex-col gap-1">
           {psh.map((m) => (
             <li key={m.month} className="flex items-center gap-2 text-xs">
-              <span className="telemetry w-6 shrink-0 text-[10px] text-muted-foreground">
+              <span className="telemetry w-6 shrink-0 text-meta text-muted-foreground">
                 {String(m.month).padStart(2, "0")}
               </span>
               <span className="bg-background relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
@@ -624,17 +637,22 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
                   className="absolute inset-y-0 left-0 rounded-sm"
                   style={{
                     width: `${(m.peak_sun_hours_day / pshMax) * 100}%`,
-                    backgroundColor: "#f59e0b",
+                    /* Measured 1.90:1 against its rail in the light theme,
+                       under the 3.0 WCAG 1.4.11 floor for a graphic that
+                       encodes a value by length. index.css:174-180 names this
+                       exact hex as a retired series colour that failed the
+                       same floor. */
+                    backgroundColor: "rgb(var(--p-accent))",
                   }}
                 />
               </span>
-              <span className="telemetry w-14 shrink-0 text-right text-[11px]">
+              <span className="telemetry w-14 shrink-0 text-right text-body">
                 {m.peak_sun_hours_day.toFixed(2)} h
               </span>
-              <span className="telemetry w-20 shrink-0 text-right text-[10px] text-muted-foreground">
+              <span className="telemetry w-20 shrink-0 text-right text-meta text-muted-foreground">
                 {m.poa_kwh_m2_month.toFixed(1)} kWh/m2
               </span>
-              <span className="telemetry w-24 shrink-0 text-right text-[10px] text-muted-foreground">
+              <span className="telemetry w-24 shrink-0 text-right text-meta text-muted-foreground">
                 {m.ac_kwh_kwp_month.toFixed(1)} kWh/kWp
               </span>
             </li>
@@ -644,9 +662,8 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
-        <p className="eyebrow !text-[9px] mb-2">
+        <p className="eyebrow !text-micro mb-2">
           Share of annual AC energy by hour
         </p>
         <div className="flex items-end gap-1">
@@ -660,16 +677,16 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
                 className="w-full rounded-t-[1px]"
                 style={{
                   height: `${Math.max(1, (h.share_pct / shareMax) * 36)}px`,
-                  backgroundColor: "#f59e0b",
+                  backgroundColor: "rgb(var(--p-accent))",
                 }}
               />
-              <span className="telemetry text-[8px] text-muted-foreground">
+              <span className="telemetry text-micro text-muted-foreground">
                 {h.hour % 3 === 0 ? String(h.hour).padStart(2, "0") : ""}
               </span>
             </div>
           ))}
         </div>
-        <p className="mt-1 text-[10px] text-muted-foreground">
+        <p className="mt-1 text-meta text-muted-foreground">
           <span className="telemetry">
             {g.share_of_annual_generation_by_hour.units}
           </span>
@@ -688,22 +705,22 @@ function PlantClassCard({
   density: EnergyCapacityDensity
 }) {
   return (
-    <div className="rounded-sm border border-border bg-secondary px-3 py-2.5">
+    <div className="@container/card rounded-sm border border-border bg-secondary px-3 py-2.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-xs text-foreground">{cls.label}</span>
         <span className="telemetry text-sm text-foreground">
-          {cls.area_ha.toFixed(3)} ha
+          {areaHa(cls.area_ha)}
         </span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         <WaterFigure
           label="Capacity"
-          value={`${cls.capacity_dc_mw.toFixed(2)} MW`}
+          value={capacityMw(cls.capacity_dc_mw)}
           sub={`DC at ${density.value_mw_dc_per_ha.toFixed(4)} MW/ha, ${density.area_basis.replace(/_/g, " ")}`}
         />
         <WaterFigure
           label="Capacity"
-          value={`${cls.capacity_ac_mw.toFixed(2)} MW`}
+          value={capacityMw(cls.capacity_ac_mw)}
           sub={`AC at a fleet DC/AC ratio of ${density.fleet_dc_ac_ratio.toFixed(4)}`}
         />
       </div>
@@ -724,7 +741,7 @@ function PlantClassCard({
           sub="GWh/yr"
         />
       </div>
-      <StatGrid>
+      <StatGrid at="card">
         <Stat
           label="Specific yield"
           value={`${cls.specific_yield_kwh_kwp_year.toFixed(2)} kWh/kWp/yr`}
@@ -734,10 +751,10 @@ function PlantClassCard({
           value={`${cls.performance_ratio.toFixed(2)} · ${cls.reporting_basis}`}
         />
       </StatGrid>
-      <StatGrid>
+      <StatGrid at="card">
         <Stat
           label="Largest contiguous patch"
-          value={`${cls.contiguity.largest_ha.toFixed(3)} ha`}
+          value={areaHa(cls.contiguity.largest_ha)}
         />
         <Stat
           label="Patches"
@@ -761,15 +778,16 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
   const ex = p.exceedance
   return (
     <div className="flex flex-col gap-3">
+      {/* The heading is the section's, above. What is left is the basis the
+          figures are reported on, which the heading does not say. */}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="eyebrow">Plant energy over the sited area</p>
-        <p className="telemetry text-[10px] text-muted-foreground">
+        <p className="telemetry text-meta text-muted-foreground">
           basis {p.reporting_basis} · {ex.convention} convention
         </p>
+        <p className="text-meta text-muted-foreground">areas are not additive</p>
       </div>
-          <p className="text-[10px] text-muted-foreground">areas are not additive</p>
 
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 @min-[31rem]:grid-cols-2">
         {p.suitable.area_ha > 0 && (
           <PlantClassCard cls={p.suitable} density={p.capacity_density} />
         )}
@@ -791,7 +809,7 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
               {p.restrictive.area_ha.toFixed(3)} ha
             </span>
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-meta text-muted-foreground">
             <span className="telemetry">
               {p.restrictive.capacity_dc_mw == null
                 ? "no capacity reported"
@@ -803,9 +821,8 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
-        <p className="eyebrow !text-[9px] mb-2">
+        <p className="eyebrow !text-micro mb-2">
           Exceedance on {ex.n_years} years of annual global horizontal
           irradiation
         </p>
@@ -815,19 +832,19 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
               key={l.level}
               className="flex flex-wrap items-center gap-2 text-xs"
             >
-              <span className="telemetry w-10 shrink-0 text-[11px]">
+              <span className="telemetry w-10 shrink-0 text-body">
                 P{l.level}
               </span>
-              <span className="telemetry w-28 shrink-0 text-right text-[11px] text-foreground">
+              <span className="telemetry w-28 shrink-0 text-right text-body text-foreground">
                 {l.ghi_empirical_kwh_m2_year.toFixed(2)}
               </span>
-              <span className="telemetry w-20 shrink-0 text-right text-[11px] text-muted-foreground">
+              <span className="telemetry w-20 shrink-0 text-right text-body text-muted-foreground">
                 ×{l.factor_empirical.toFixed(6)}
               </span>
-              <span className="telemetry w-28 shrink-0 text-right text-[10px] text-muted-foreground">
+              <span className="telemetry w-28 shrink-0 text-right text-meta text-muted-foreground">
                 normal fit {l.ghi_normal_kwh_m2_year.toFixed(2)}
               </span>
-              <span className="telemetry w-24 shrink-0 text-right text-[10px] text-muted-foreground">
+              <span className="telemetry w-24 shrink-0 text-right text-meta text-muted-foreground">
                 ±{l.normal_fit_standard_error_kwh_m2.toFixed(2)}
               </span>
             </li>
@@ -865,30 +882,29 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
-        <p className="eyebrow !text-[9px] mb-2">
+        <p className="eyebrow !text-micro mb-2">
           What the band does and does not carry
         </p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 @min-[33.5rem]:grid-cols-2">
           <div>
-            <div className="eyebrow !text-[9px]">included</div>
-            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+            <div className="eyebrow !text-micro">included</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-meta text-muted-foreground">
               {p.uncertainty.included.map((u) => (
                 <li key={u}>{u}</li>
               ))}
             </ul>
           </div>
           <div>
-            <div className="eyebrow !text-[9px]">excluded</div>
-            <ul className="mt-1 flex flex-col gap-0.5 text-[10px] text-muted-foreground">
+            <div className="eyebrow !text-micro">excluded</div>
+            <ul className="mt-1 flex flex-col gap-0.5 text-meta text-muted-foreground">
               {p.uncertainty.excluded.map((u) => (
                 <li key={u}>{u}</li>
               ))}
             </ul>
           </div>
         </div>
-            <p className="mt-2 text-[10px] text-muted-foreground">
+            <p className="mt-2 text-meta text-muted-foreground">
               resource variability only · dominant term{" "}
               <span className="telemetry">{p.uncertainty.dominant_term}</span>
             </p>
@@ -896,7 +912,6 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
 
       <div
         className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
       >
         <StatGrid>
           <Stat
@@ -961,22 +976,13 @@ function PlantEnergy({ energy }: { energy: EnergyModelAnalysis }) {
  * shown together because they answer under different assumptions rather than
  * one correcting the other.
  */
-export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) {
+/** The four figures the model is read by, and the chain that produced them. */
+function DeliveredYield({ energy }: { energy: EnergyModelAnalysis }) {
   const d = energy.loss_waterfall.delivered
   const g = energy.geometry
-  const mt = energy.module_type
-
   return (
-    <section className="rounded-sm border border-border bg-secondary/50 p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <p className="eyebrow">Photovoltaic energy model</p>
-        <p className="telemetry text-[10px] text-muted-foreground">
-          {energy.hourly_window} · {energy.climatology_window} ·{" "}
-          {energy.lat.toFixed(2)}, {energy.lon.toFixed(2)}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <>
+      <div className="grid grid-cols-1 gap-3 @min-[24rem]:grid-cols-2 @min-[48rem]:grid-cols-4">
         <WaterFigure
           label="Specific yield, applied"
           value={d.applied_kwh_kwp_year.toFixed(2)}
@@ -999,94 +1005,130 @@ export function EnergyModelSection({ energy }: { energy: EnergyModelAnalysis }) 
         />
       </div>
 
-      <div
-        className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--border)" }}
-      >
+      <div className="mt-4 border-t pt-4">
         <EnergyWaterfall energy={energy} />
       </div>
+    </>
+  )
+}
 
-      <div
-        className="mt-4 grid grid-cols-1 gap-4 border-t pt-4 lg:grid-cols-2"
-        style={{ borderColor: "var(--border)" }}
-      >
+/** What the chain was computed under, and where the series came from. */
+function ModelAssumptions({ energy }: { energy: EnergyModelAnalysis }) {
+  const g = energy.geometry
+  const mt = energy.module_type
+  return (
+    <>
+      <StatGrid>
+        <Stat
+          label="Horizontal plane, hourly window"
+          value={`${g.ghi_hourly_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+        />
+        <Stat
+          label="Same array laid flat"
+          value={`${g.poa_horizontal_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
+        />
+      </StatGrid>
+      <StatGrid>
+        <Stat
+          label="Temperature coefficient"
+          value={`${mt.gamma_pdc_per_c} /°C`}
+        />
+        <Stat label="Module type" value={mt.module_type ?? "custom"} />
+        {Object.entries(mt.alternatives).map(([k, v]) => (
+          <Stat key={k} label={`Alternative, ${k}`} value={`${v} /°C`} />
+        ))}
+        <Stat
+          label="Transposition"
+          value={energy.loss_waterfall.assumptions.transposition_model.value}
+        />
+        <Stat
+          label="Ground albedo"
+          value={String(energy.loss_waterfall.assumptions.albedo.value)}
+        />
+        {/*
+          The wind qualifier stays: WS2M alone reads as the wind the model
+          wants, and the Faiman coefficient expects a module-height wind. The
+          height mismatch is the figure's meaning, not commentary on it.
+        */}
+        <Stat
+          label="Wind field, 2 m not module height"
+          value={energy.loss_waterfall.assumptions.wind_source.value}
+        />
+        <Stat
+          label="Physical vs flat loss placement"
+          value={`${energy.loss_waterfall.assumptions.flat_placement_bias_pct.value}%`}
+        />
+        <Stat label="Radiation cell" value="1°, one cell over the AOI" />
+        <Stat label="Meteorology cell" value="0.5° × 0.625°" />
+      </StatGrid>
+      <PowerProvenanceNote provenance={energy.power_provenance} />
+    </>
+  )
+}
+
+/**
+ * The energy model as sections of one reading, in the order it is read.
+ *
+ * It was one section of seven blocks, several thousand pixels tall, and no
+ * container in the application is that tall -- so it was always read through a
+ * viewport showing a fraction of it, with the fold landing wherever the content
+ * put it. The blocks were already authored as blocks; this states that.
+ *
+ * EACH SECTION IS NAMED FOR WHAT IS IN IT. Every one of the six used to open
+ * with the same heading, "Photovoltaic energy model", and the same provenance
+ * line, because each was a page read alone -- so a reader four blocks in had
+ * the product's name on screen and no way to see which block they were in. The
+ * product's name, its provenance and its four headline figures are stated once
+ * by the host, at the head of the group; the title below names the block, and
+ * is what the column's index addresses.
+ */
+export function energyModelSections(
+  energy: EnergyModelAnalysis
+): ReadingSection[] {
+  const section = (
+    id: string,
+    title: string,
+    short: string,
+    node: ReactNode
+  ): ReadingSection => ({ id: `energy-${id}`, title, short, node })
+
+  return [
+    section(
+      "delivered",
+      "Delivered yield and loss waterfall",
+      "Delivered",
+      <DeliveredYield energy={energy} />
+    ),
+    section(
+      "ratio",
+      "Performance ratio and checkpoints",
+      "Ratio",
+      <div className="flex flex-col gap-4">
         <div>
           <p className="eyebrow mb-2">Checkpoints, outside the loss rows</p>
           <EnergyCheckpoints energy={energy} />
         </div>
         <PerformanceRatioScale energy={energy} />
       </div>
-
-      <div
-        className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <TrackingComparison energy={energy} />
-      </div>
-
-      <div
-        className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <GenerationProfile energy={energy} />
-      </div>
-
-      <div
-        className="mt-4 border-t pt-4"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <PlantEnergy energy={energy} />
-      </div>
-
-      <div
-        className="border-t pt-3"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <StatGrid>
-          <Stat
-            label="Horizontal plane, hourly window"
-            value={`${g.ghi_hourly_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
-          />
-          <Stat
-            label="Same array laid flat"
-            value={`${g.poa_horizontal_kwh_m2_year.toFixed(2)} kWh/m2/yr`}
-          />
-        </StatGrid>
-        <StatGrid>
-          <Stat
-            label="Temperature coefficient"
-            value={`${mt.gamma_pdc_per_c} /°C`}
-          />
-          <Stat label="Module type" value={mt.module_type ?? "custom"} />
-          {Object.entries(mt.alternatives).map(([k, v]) => (
-            <Stat key={k} label={`Alternative, ${k}`} value={`${v} /°C`} />
-          ))}
-          <Stat
-            label="Transposition"
-            value={energy.loss_waterfall.assumptions.transposition_model.value}
-          />
-          <Stat
-            label="Ground albedo"
-            value={String(energy.loss_waterfall.assumptions.albedo.value)}
-          />
-          {/*
-            The wind qualifier stays: WS2M alone reads as the wind the model
-            wants, and the Faiman coefficient expects a module-height wind. The
-            height mismatch is the figure's meaning, not commentary on it.
-          */}
-          <Stat
-            label="Wind field, 2 m not module height"
-            value={energy.loss_waterfall.assumptions.wind_source.value}
-          />
-          <Stat
-            label="Physical vs flat loss placement"
-            value={`${energy.loss_waterfall.assumptions.flat_placement_bias_pct.value}%`}
-          />
-          <Stat label="Radiation cell" value="1°, one cell over the AOI" />
-          <Stat label="Meteorology cell" value="0.5° × 0.625°" />
-        </StatGrid>
-        <PowerProvenanceNote provenance={energy.power_provenance} />
-      </div>
-    </section>
-  )
+    ),
+    section(
+      "tracking",
+      "Fixed tilt against tracking",
+      "Tracking",
+      <TrackingComparison energy={energy} />
+    ),
+    section(
+      "profile",
+      "Generation profile",
+      "Profile",
+      <GenerationProfile energy={energy} />
+    ),
+    section("plant", "Plant energy", "Plant", <PlantEnergy energy={energy} />),
+    section(
+      "assumptions",
+      "Model assumptions",
+      "Assumptions",
+      <ModelAssumptions energy={energy} />
+    ),
+  ]
 }
