@@ -1,27 +1,25 @@
 /**
  * What a flood envelope run is asked for, and the DEM products it can name.
  *
- * THE PRODUCT SET IS THE ANALYSIS, so it is spelled out here rather than left
- * to the sidecar's default. The study this ports compared COP30, NASADEM,
- * SRTMGL1 and COP90 from OpenTopography; Planetary Computer, which TERRA
- * already reads its DEM from with no API key, does not carry SRTMGL1, so ALOS
- * World 3D takes its place. A reader who is not shown the set cannot know that
- * substitution happened, and the envelope this application measures is not the
- * one the study published. The note below travels with the selector for that
- * reason, and the payload's own `qualifier` repeats it after the run.
+ * The product set is the analysis, and this table names it. The study this
+ * ports compared COP30, NASADEM, SRTMGL1 and COP90 from OpenTopography.
+ * Planetary Computer, which TERRA already reads its DEM from with no API key,
+ * does not carry SRTMGL1, so ALOS World 3D takes its place. The envelope this
+ * application measures is therefore over a different product set from the
+ * published one. The note below is rendered with the selector, and the
+ * payload's own `qualifier` repeats it after the run.
  *
  * Mirrors sidecar/dem.py COLLECTIONS and DEFAULT_IDS. The payload echoes each
  * product's id, collection and native resolution back in `products`, so
  * everything a reading states about a product comes from the response; this
- * table exists only so the set can be chosen before the response exists.
+ * table exists so the set can be chosen before the response exists.
  *
- * WHAT IS SENT AND WHAT IS OMITTED. Two of these parameters are derived by the
- * sidecar from the AOI when the request leaves them out -- the buffer from the
- * AOI extent, the inset margin from the cell size -- and a fixed number sent
- * from here would replace a value computed per window with one chosen for
- * another. So they are null until the reader asks to set them, and null is not
- * sent. The other two carry the study's reference values, which are constants
- * of the method rather than of the window.
+ * Two parameters are omitted from the request unless asked for. The sidecar
+ * derives the buffer from the AOI extent and the inset margin from the cell
+ * size, per window. A fixed number sent from here would replace a value
+ * computed per window with one chosen for another, so both are null until the
+ * reader sets them, and null is not sent. The other two carry the study's
+ * reference values, which are constants of the method.
  */
 
 /** One DEM product the envelope can be measured over. */
@@ -62,22 +60,21 @@ export const FLOOD_DEM_PRODUCTS: readonly FloodDemProduct[] = [
 ]
 
 /**
- * Why the fourth product is not the study's fourth product. Rendered beside
- * the selector, not folded into a tooltip: it is the reason the range measured
- * here cannot be compared with the published one.
+ * Which product stands in for the study's fourth, and why the range measured
+ * here cannot be compared with the published one. Rendered beside the
+ * selector.
  */
 export const FLOOD_PRODUCT_SUBSTITUTION_NOTE =
-  "The study compared COP30, NASADEM, SRTMGL1 and COP90 from OpenTopography. " +
-  "Microsoft Planetary Computer, which this application reads without an API " +
-  "key, carries no SRTMGL1, so ALOS World 3D stands in its place. The " +
-  "envelope measured here is therefore TERRA's own over its own product set " +
-  "and is not the range the study published."
+  "The study E-hand-flood-baseline compared COP30, NASADEM, SRTMGL1 and COP90 " +
+  "from OpenTopography. Microsoft Planetary Computer, which this application " +
+  "reads without an API key, carries no SRTMGL1, so ALOS World 3D stands in " +
+  "its place. The envelope measured here is over that different product set, " +
+  "and the range the study published does not apply to it."
 
 export interface FloodParams {
   /**
-   * The products to compare. Fewer than two is refused by the sidecar: one
-   * product yields an extent with no measure of how much of it that product
-   * chose, which is the shape this analysis exists not to ship.
+   * The products to compare. The sidecar refuses fewer than two: one product
+   * yields an extent with no measure of how much of it that product chose.
    */
   demIds: string[]
   /** Where the agreement raster is built. Need not be one of the swept values. */
@@ -90,20 +87,19 @@ export interface FloodParams {
    * Ring cut from inside the AOI polygon for the inset statistics. Null leaves
    * the width to the sidecar.
    *
-   * Named for the AOI and not for an edge, because the ring is no longer taken
-   * off the computed window: the buffer already puts the window outside every
-   * figure reported. The request key moved with it, and the sidecar refuses
-   * the old edge_margin_cells by name.
+   * The ring is cut from the AOI polygon; it was once cut from the border of
+   * the computed window. The request key is inset_margin_cells, and the
+   * sidecar refuses the earlier edge_margin_cells by name.
    */
   insetMarginCells: number | null
 }
 
 /**
  * The reference threshold and the drainage area are sidecar/flood.py
- * REFERENCE_THRESHOLD_M and DRAINAGE_REF_KM2, which are the study's reference
- * values. They are restated here so the panel can show what the run will use
- * before it runs; the payload's `assumptions` block states, per run, whether
- * each value was the default or the caller's.
+ * REFERENCE_THRESHOLD_M and DRAINAGE_REF_KM2, the study's reference values.
+ * They are restated here so the panel can show what the run will use before it
+ * runs; the payload's `assumptions` block states, per run, whether each value
+ * was the default or the caller's.
  */
 export const FLOOD_DEFAULT_PARAMS: FloodParams = {
   demIds: FLOOD_DEM_PRODUCTS.map((p) => p.id),
@@ -116,18 +112,18 @@ export const FLOOD_DEFAULT_PARAMS: FloodParams = {
 /**
  * Seeds for the two derived parameters at the moment a reader takes them over.
  *
- * Not defaults: nothing sends these unless the override is switched on. They
- * are a starting figure to edit from, and the run reports the value that was
- * actually used, which is where the derived one can be read.
+ * Nothing sends these unless the override is switched on. They are a starting
+ * figure to edit from. The run reports the value it used, which is where the
+ * derived one can be read.
  */
 export const FLOOD_OVERRIDE_SEED = { bufferM: 2000, insetMarginCells: 30 }
 
 /**
  * Why the run is not admissible yet, or null when it is.
  *
- * The sidecar refuses each of these too, and its messages are the authority.
- * Refusing here as well is what keeps a reader from waiting through four DEM
- * reads to be told the request was never admissible.
+ * The sidecar refuses each of these as well, and its messages are the
+ * authority. Refusing here avoids waiting through four DEM reads for a
+ * request that was never admissible.
  */
 export function floodRequestBlocker(
   params: FloodParams,
@@ -138,7 +134,7 @@ export function floodRequestBlocker(
     return (
       "An envelope is a disagreement between DEM products and needs at least " +
       "two. One product yields an extent with no measure of how much of it " +
-      "that product chose."
+      "follows from the choice of product."
     )
   }
   if (!(params.referenceThresholdM >= 0)) {

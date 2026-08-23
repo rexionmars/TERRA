@@ -43,8 +43,8 @@ describe("agreementLevels", () => {
   })
 
   /*
-    The class list is about agreement BETWEEN products, and 0 of 4 is not a
-    statement about that. It is also 91.7% of this AOI, so listed as a class it
+    The class list measures agreement between products, and 0 of 4 states
+    nothing about that. It is also 91.7% of this AOI, so listed as a class it
     would be the largest row in a list whose subject is disagreement.
   */
   it("keeps the dry remainder out of the classes and reports it apart", () => {
@@ -96,8 +96,8 @@ describe("agreementLevels", () => {
 
   /*
     With four products every level lands exactly on a stop of the blues ramp,
-    so the legend and the raster are the same byte rather than nearly it. This
-    is what would break first if either the palette or agreement_rgba changed.
+    so the legend and the raster carry the same byte. This is what would break
+    first if either the palette or agreement_rgba changed.
   */
   it("colours a four-product level on a palette stop, with no interpolation", () => {
     const blues = PALETTE_STOPS.blues

@@ -3351,6 +3351,28 @@ export namespace analysis {
 	
 	
 	
+	export class FloodAOI {
+	    cells: number;
+	    area_km2: number;
+	    inset_cells: number;
+	    window_cells: number;
+	    window_area_km2: number;
+	    frac_of_window: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodAOI(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cells = source["cells"];
+	        this.area_km2 = source["area_km2"];
+	        this.inset_cells = source["inset_cells"];
+	        this.window_cells = source["window_cells"];
+	        this.window_area_km2 = source["window_area_km2"];
+	        this.frac_of_window = source["frac_of_window"];
+	    }
+	}
 	export class FloodAgreement {
 	    counts: number[];
 	    unanimous_wet_km2: number;
@@ -3375,10 +3397,12 @@ export namespace analysis {
 	    drainage_threshold: string;
 	    reference_threshold: string;
 	    thresholds: string;
-	    edge_margin: string;
+	    reporting_extent: string;
+	    inset_margin: string;
 	    cell_size: string;
 	    alignment: string;
 	    buffer: string;
+	    rasters: string;
 	    chain_grid: string;
 	    excluded: string[];
 	
@@ -3391,10 +3415,12 @@ export namespace analysis {
 	        this.drainage_threshold = source["drainage_threshold"];
 	        this.reference_threshold = source["reference_threshold"];
 	        this.thresholds = source["thresholds"];
-	        this.edge_margin = source["edge_margin"];
+	        this.reporting_extent = source["reporting_extent"];
+	        this.inset_margin = source["inset_margin"];
 	        this.cell_size = source["cell_size"];
 	        this.alignment = source["alignment"];
 	        this.buffer = source["buffer"];
+	        this.rasters = source["rasters"];
 	        this.chain_grid = source["chain_grid"];
 	        this.excluded = source["excluded"];
 	    }
@@ -3403,8 +3429,8 @@ export namespace analysis {
 	    threshold_m: number;
 	    iou_min?: number;
 	    iou_max?: number;
-	    iou_min_interior?: number;
-	    iou_max_interior?: number;
+	    iou_min_inset?: number;
+	    iou_max_inset?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new FloodEnvelopeRow(source);
@@ -3415,8 +3441,8 @@ export namespace analysis {
 	        this.threshold_m = source["threshold_m"];
 	        this.iou_min = source["iou_min"];
 	        this.iou_max = source["iou_max"];
-	        this.iou_min_interior = source["iou_min_interior"];
-	        this.iou_max_interior = source["iou_max_interior"];
+	        this.iou_min_inset = source["iou_min_inset"];
+	        this.iou_max_inset = source["iou_max_inset"];
 	    }
 	}
 	export class FloodPair {
@@ -3424,7 +3450,7 @@ export namespace analysis {
 	    dem_b: string;
 	    threshold_m: number;
 	    iou?: number;
-	    iou_interior?: number;
+	    iou_inset?: number;
 	    area_ratio_b_over_a?: number;
 	    resampled?: boolean;
 	
@@ -3438,7 +3464,7 @@ export namespace analysis {
 	        this.dem_b = source["dem_b"];
 	        this.threshold_m = source["threshold_m"];
 	        this.iou = source["iou"];
-	        this.iou_interior = source["iou_interior"];
+	        this.iou_inset = source["iou_inset"];
 	        this.area_ratio_b_over_a = source["area_ratio_b_over_a"];
 	        this.resampled = source["resampled"];
 	    }
@@ -3522,15 +3548,17 @@ export namespace analysis {
 	    cell_size_m: FloodCellSize;
 	    grid: FloodGrid;
 	    buffer_m: number;
+	    aoi: FloodAOI;
 	    products: FloodProduct[];
 	    agreement: FloodAgreement;
 	    pairs: FloodPair[];
 	    envelope: FloodEnvelopeRow[];
-	    edge_margin_cells: number;
+	    inset_margin_cells: number;
 	    qualifier: string;
 	    assumptions: FloodAssumptions;
 	    agreement_tif: string;
 	    agreement_png: string;
+	    extent: Bounds;
 	    agreement_uri?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -3545,15 +3573,17 @@ export namespace analysis {
 	        this.cell_size_m = this.convertValues(source["cell_size_m"], FloodCellSize);
 	        this.grid = this.convertValues(source["grid"], FloodGrid);
 	        this.buffer_m = source["buffer_m"];
+	        this.aoi = this.convertValues(source["aoi"], FloodAOI);
 	        this.products = this.convertValues(source["products"], FloodProduct);
 	        this.agreement = this.convertValues(source["agreement"], FloodAgreement);
 	        this.pairs = this.convertValues(source["pairs"], FloodPair);
 	        this.envelope = this.convertValues(source["envelope"], FloodEnvelopeRow);
-	        this.edge_margin_cells = source["edge_margin_cells"];
+	        this.inset_margin_cells = source["inset_margin_cells"];
 	        this.qualifier = source["qualifier"];
 	        this.assumptions = this.convertValues(source["assumptions"], FloodAssumptions);
 	        this.agreement_tif = source["agreement_tif"];
 	        this.agreement_png = source["agreement_png"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
 	        this.agreement_uri = source["agreement_uri"];
 	    }
 	
@@ -3589,7 +3619,7 @@ export namespace analysis {
 	    reference_threshold_m?: number;
 	    drainage_km2?: number;
 	    buffer_m?: number;
-	    edge_margin_cells?: number;
+	    inset_margin_cells?: number;
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
@@ -3608,7 +3638,7 @@ export namespace analysis {
 	        this.reference_threshold_m = source["reference_threshold_m"];
 	        this.drainage_km2 = source["drainage_km2"];
 	        this.buffer_m = source["buffer_m"];
-	        this.edge_margin_cells = source["edge_margin_cells"];
+	        this.inset_margin_cells = source["inset_margin_cells"];
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];

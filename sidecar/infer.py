@@ -3342,9 +3342,9 @@ def action_flood_envelope(req, work_dir):
     if len(products) < 2:
         fail(f'an envelope is a disagreement between DEM products and needs at '
              f'least two; this request names {len(products)}. One product '
-             f'yields an extent with no measure of how much of it the product '
-             f'chose, which is the shape this analysis exists to avoid '
-             f'shipping. Known products: {", ".join(sorted(dem_mod.COLLECTIONS))}.')
+             f'yields an extent with no measure of how much of it follows from '
+             f'the choice of product. Known products: '
+             f'{", ".join(sorted(dem_mod.COLLECTIONS))}.')
 
     thresholds = req.get('thresholds_m')
     if thresholds is None:
@@ -3390,9 +3390,9 @@ def action_flood_envelope(req, work_dir):
     # report a margin the request did not ask for.
     if 'edge_margin_cells' in req:
         fail('edge_margin_cells was renamed to inset_margin_cells. The ring is '
-             'now cut from inside the AOI polygon rather than from the border '
-             'of the buffered window the terrain chain ran over, so the two '
-             'are rings of different shapes and the payload reports '
+             'now cut from inside the AOI polygon; it was previously cut from '
+             'the border of the buffered window the terrain chain ran over. '
+             'The two are rings of different shapes, and the payload reports '
              'inset_margin_cells with iou_inset beside it.')
     inset_margin_cells = request_number(req, 'inset_margin_cells', None, int)
     if inset_margin_cells is not None and inset_margin_cells < 0:
@@ -3419,10 +3419,10 @@ def action_flood_envelope(req, work_dir):
             f'for each of the {len(products)} DEM products. The flood envelope '
             f'is limited to {MAX_ENVELOPE_CELLS / 1e6:.0f} million, about '
             f'{admissible_km:.0f} km on a side, because the chain holds roughly '
-            f'250 bytes per cell at its peak. Draw a smaller AOI. The envelope '
-            f'will not read the products at a coarser resolution to fit: it '
-            f'measures how much the choice of DEM decides the extent, and '
-            f'resampling the products changes that measurement.'
+            f'250 bytes per cell at its peak. Draw a smaller AOI. The products '
+            f'are read at their native resolution; reading them at a coarser '
+            f'resolution to fit the limit would change the quantity being '
+            f'measured.'
         )
 
     # The read and the terrain chain are the two slow stages, and each reports
@@ -3488,12 +3488,11 @@ def action_flood_envelope(req, work_dir):
         # flood.measure counts products cell by cell and so requires one grid,
         # which means a product whose native grid differs is moved onto the
         # reference grid BEFORE its terrain chain runs. dem.fetch_set argues for
-        # the other order -- chain on the native grid, align the mask after --
-        # and on the 6 by 6 km window measured here the two orders put COP90's
-        # 1 m extent at IoU 0.47 of each other, so the order is not a detail.
-        # It is recorded in assumptions.chain_grid below and, per pair, in the
-        # resampled column, because a reader cannot separate the two components
-        # from the numbers alone.
+        # the other order: chain on the native grid, align the mask after. On
+        # the 6 by 6 km window measured here the two orders put COP90's 1 m
+        # extent at IoU 0.47 of each other. The order used is recorded in
+        # assumptions.chain_grid below and, per pair, in the resampled column;
+        # the two components cannot be separated from the numbers alone.
         arrays[read.product.id] = (
             dem_mod.resample_onto(read.array, read.grid, reference)
             if read.resampled else read.array
@@ -3513,11 +3512,12 @@ def action_flood_envelope(req, work_dir):
         fail(f'the products do not cover one common window: {missing} have no '
              f'elevation, and trimming up to {max_trim} cells from each border '
              f'does not reach a rectangle all of them cover. A void that far '
-             f'inside the window is a hole in the product rather than an '
-             f'alignment sliver -- over water, or in radar shadow -- and the '
-             f'terrain chain would still return a HAND field over it, wrong '
-             f'over a region rather than absent over it. Move or shrink the '
-             f'AOI, or name a dem_ids set without the product that is missing.')
+             f'inside the window is a hole in the product itself, over water '
+             f'or in radar shadow; the trim covers only the alignment sliver '
+             f'at the border. The terrain chain would still return a HAND '
+             f'field over such a hole, and nothing in the output would mark '
+             f'the region it is wrong over. Move or shrink the AOI, or name a '
+             f'dem_ids set without the product that is missing elevation.')
     r0, r1, c0, c1 = covered
     arrays = {pid: z[r0:r1, c0:c1] for pid, z in arrays.items()}
 
@@ -3587,9 +3587,8 @@ def action_flood_envelope(req, work_dir):
 
     # The PNG is drawn on the map beside the figures, so it covers what the
     # figures cover: clipped to the AOI bounding box, and transparent at every
-    # cell outside the polygon itself. An overlay spilling into the buffer
-    # would show a reader several times the ground the areas are measured over,
-    # which is the reading the reporting mask exists to prevent.
+    # cell outside the polygon itself. An overlay reaching into the buffer
+    # would cover several times the ground the areas are measured over.
     rows = np.flatnonzero(aoi_mask.any(axis=1))
     cols = np.flatnonzero(aoi_mask.any(axis=0))
     ar0, ar1 = int(rows[0]), int(rows[-1]) + 1
@@ -3618,21 +3617,22 @@ def action_flood_envelope(req, work_dir):
     payload['assumptions']['rasters'] = (
         f'The GeoTIFF holds the agreement counts over the whole computed '
         f'{grid.width} by {grid.height} window, buffer included, on the grid '
-        f'the grid block describes. The PNG is the same counts clipped to the '
-        f'AOI: {ac1 - ac0} by {ar1 - ar0} cells of bounding box with every cell '
-        f'outside the polygon transparent, placed by extent, so what is drawn '
-        f'is the ground the figures are measured over.'
+        f'the grid block describes. The PNG holds the same counts clipped to '
+        f'the AOI: a {ac1 - ac0} by {ar1 - ar0} cell bounding box with every '
+        f'cell outside the polygon transparent, placed by extent. That is the '
+        f'ground the figures are measured over.'
     )
     payload['assumptions']['chain_grid'] = (
-        f'Every product ran the terrain chain on the shared '
-        f'{grid.width} by {grid.height} grid, so a product whose native cells '
-        f'are coarser was moved onto it before the chain rather than after. '
-        f'Running the chain on the native grid and aligning the resulting mask '
-        f'gives a different extent for such a product: measured over one 6 by '
-        f'6 km window (n=1), the two orders agreed at IoU 0.47 for COP90 at the '
-        f'1 m threshold, against 0.95 for a product already at 30 m. Pairs '
-        f'flagged resampled therefore carry a method component of that order '
-        f'alongside the terrain difference; pairs flagged false do not.'
+        f'The terrain chain ran on the shared {grid.width} by {grid.height} '
+        f'grid for every product. A product whose native cells are coarser was '
+        f'moved onto that grid before the chain. The other order, the chain on '
+        f'the native grid and the resulting mask aligned after, gives a '
+        f'different extent for such a product: measured over one 6 by 6 km '
+        f'window (n=1), the two orders agreed at IoU 0.47 for COP90 at the 1 m '
+        f'threshold and at 0.95 for a product already at 30 m. Pairs flagged '
+        f'resampled carry a method component of that order in addition to the '
+        f'terrain difference. Pairs flagged false carry the terrain difference '
+        f'alone.'
     )
 
     emit_progress(100, 'done')

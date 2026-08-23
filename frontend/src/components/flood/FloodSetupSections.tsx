@@ -1,20 +1,18 @@
 /**
  * The parameters of a flood envelope run.
  *
- * THE PRODUCT SET IS FIRST BECAUSE IT IS THE MEASUREMENT. Every other control
- * here moves the extent; this one decides whether there is an envelope at all.
- * A reader who unchecks three of the four products is left with a single DEM's
- * mask, which is the shape the study found is not reproducible, so the panel
- * refuses it in the same words the sidecar does rather than letting the run
- * reach the network to be rejected.
+ * The product set is first because it is the measurement. The other controls
+ * move the extent; this one decides whether there is an envelope at all. One
+ * product leaves a single DEM's mask, which the study found is not
+ * reproducible, and the panel refuses that in the same words the sidecar does,
+ * before the run reaches the network.
  *
- * TWO PARAMETERS ARE NOT SENT UNLESS ASKED FOR. The buffer is sized from the
- * AOI and the inset margin from the cell size, both per window, so the panel
- * offers them as overrides rather than as fields with a number already in
- * them: a fixed default typed here would silently replace a value computed for
- * this window with one chosen for another. What the run actually used is
- * reported in the reading, which is where a reader takes a figure to override
- * from.
+ * Two parameters are not sent unless asked for. The sidecar sizes the buffer
+ * from the AOI and the inset margin from the cell size, per window. The panel
+ * offers both as overrides, with no number in the field until the reader takes
+ * one over: a fixed default typed here would replace a value computed for this
+ * window with one chosen for another. The reading reports the value the run
+ * used.
  */
 import { FieldNote, NumberField } from "@/components/energy/controls"
 import { PanelSection } from "@/components/ui/PanelSection"
@@ -33,7 +31,7 @@ export function FloodSetupSections({
 }: {
   params: FloodParams
   onSet: (patch: Partial<FloodParams>) => void
-  /** A run is in flight; editing under it would describe the wrong result. */
+  /** A run is in flight, and the controls are disabled for its duration. */
   busy: boolean
 }) {
   const toggleProduct = (id: string) => {
@@ -41,9 +39,9 @@ export function FloodSetupSections({
     onSet({
       demIds: on
         ? params.demIds.filter((x) => x !== id)
-        : // Kept in the table's order rather than in click order, so the
-          // request, the legend and the pair table list the products the same
-          // way whatever order they were switched on in.
+        : // Kept in the table's order, so the request, the legend and the
+          // pair table list the products identically whatever order they were
+          // switched on in.
           FLOOD_DEM_PRODUCTS.filter(
             (p) => p.id === id || params.demIds.includes(p.id)
           ).map((p) => p.id),
@@ -84,9 +82,9 @@ export function FloodSetupSections({
         </ul>
         <FieldNote>{FLOOD_PRODUCT_SUBSTITUTION_NOTE}</FieldNote>
         <FieldNote>
-          At least two. A product coarser than the others is moved onto the
-          shared grid before the terrain chain runs, and every pair it appears
-          in carries that resampling alongside the terrain difference; the
+          At least two products. A coarser product is resampled onto the shared
+          grid before the terrain chain runs, so every pair it appears in
+          carries a resampling component alongside the terrain difference. The
           reading marks those rows.
         </FieldNote>
       </PanelSection>
@@ -110,16 +108,13 @@ export function FloodSetupSections({
         />
         <FieldNote>
           The agreement raster is built at the reference threshold. The study
-          reports its widest product disagreement at 1 m, which is where the
-          envelope is drawn rather than where it flatters. HAND is a terrain
-          index, so a threshold in metres ranks susceptibility and is not a
-          flood depth.
+          reports its widest disagreement between products at 1 m. A threshold
+          in metres ranks relative susceptibility; it is not a flood depth.
         </FieldNote>
         <FieldNote>
-          The sweep of thresholds the pairs are compared over is the sidecar's,
-          and the run reports which values it swept. The drainage area is held
-          fixed across it: the extent moves with it and this analysis does not
-          measure that movement.
+          The sidecar sets the sweep of thresholds the pairs are compared over,
+          and the run reports the values swept. The drainage area is held fixed
+          across the sweep; its effect on the extent is not measured here.
         </FieldNote>
       </PanelSection>
 
@@ -143,17 +138,19 @@ export function FloodSetupSections({
           max={500}
           step={1}
           busy={busy}
-          derivedNote="A 1 km ring by default, capped by the sidecar so enough of the AOI is left to measure."
+          derivedNote="A 1 km ring by default, capped by the sidecar to keep half the AOI's shorter side inside the inset."
           onChange={(v) => onSet({ insetMarginCells: v })}
         />
         <FieldNote>
-          The DEM is read beyond the AOI so drainage entering it is real
-          terrain, and the terrain chain runs on the AOI plus that buffer on
-          every side. The figures come back over the AOI alone; the buffered
-          window is reported with them as provenance. Water arriving from
-          beyond the buffer is still missing, so the inset statistics repeat
-          every comparison over the AOI shrunk by this ring, where the
-          contributing area is truncated and HAND reads high.
+          The terrain chain runs on the AOI plus the buffer on every side, so
+          the drainage entering the AOI is measured terrain. The figures are
+          over the AOI, with the buffered window reported beside them as
+          provenance.
+        </FieldNote>
+        <FieldNote>
+          Drainage arriving from beyond the buffer is absent. The inset
+          statistics repeat every comparison over the AOI shrunk by this ring,
+          where the contributing area is truncated and HAND reads high.
         </FieldNote>
       </PanelSection>
     </>
@@ -163,8 +160,9 @@ export function FloodSetupSections({
 /**
  * A parameter the sidecar derives per window, offered as an override.
  *
- * The checkbox is the whole point: unchecked sends nothing, and the field is
- * not on screen holding a number that looks like what the run will use.
+ * Unchecked sends nothing, and the number field appears only once the reader
+ * takes the parameter over, so no number is on screen that the run will not
+ * use.
  */
 function OverrideField({
   label,

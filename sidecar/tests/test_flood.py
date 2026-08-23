@@ -380,9 +380,11 @@ def test_the_qualifier_names_the_products_and_refuses_a_hydrodynamic_reading():
     assert "cop30" in text and "cop90" in text
     assert "OpenTopography" in text and "E-hand-flood-baseline" in text
     assert "not a hydrodynamic model" in text
-    for absent in ("rainfall", "discharge", "routing"):
-        assert absent in text
-    assert "no rainfall" in text
+    for unmodelled in ("rainfall", "discharge", "routing", "channel geometry"):
+        assert unmodelled in text
+    assert "are not modelled" in text
+    # A threshold in metres is not a depth, and the qualifier says so.
+    assert "not a flood depth" in text
 
 
 def test_the_catalogue_facts_come_from_the_read_and_are_null_when_unrecorded():

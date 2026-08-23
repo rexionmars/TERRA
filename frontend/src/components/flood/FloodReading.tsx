@@ -1,66 +1,54 @@
 /**
  * The flood envelope, read in the column the parameters were set in.
  *
- * THE AGREEMENT RASTER IS THE PRODUCT AND IT IS ON THE MAP. This column
+ * The agreement raster is the product, and it is drawn on the map. This column
  * carries its legend, its switch and its figures; the raster itself is drawn
- * over the AOI beside them, placed on the payload's own `extent`. It used to
- * be a 200 px tile in this column, which is where a picture whose whole claim
- * is WHERE the products disagree cannot be read: the claim is a location, and
- * a thumbnail detached from the map has none. Everything else in this column
- * is evidence about that raster. The study this ports found that a HAND extent
- * is not reproducible across DEM products -- two products disagree about
- * roughly a fifth of the cells at the 1 m threshold -- so an extent shipped
- * alone is a shape one DEM chose, with the choice never shown. What is
- * shown instead is, per cell, how many products call it flooded: unanimous
- * cells are where the terrain decides, and the cells between are where the
- * choice of DEM decides. A single mask with an accuracy figure beside it
- * cannot carry that, because it does not say WHERE the disagreement is, which
- * is the one thing the study measured.
+ * over the AOI beside them, placed on the payload's own `extent`. What it
+ * states is a location, which a thumbnail inside this column cannot carry.
+ * Everything else in this column is evidence about that raster. The study this
+ * ports found that a HAND extent is not reproducible across DEM products: two
+ * products disagree about roughly a fifth of the cells at the 1 m threshold.
+ * What is shown is, per cell, how many products call it flooded. Unanimous
+ * cells are where the terrain decides; the cells between are where the choice
+ * of DEM decides. A single mask with an accuracy figure beside it does not
+ * show where the disagreement is.
  *
- * THE LEGEND IS A LIST OF CLASSES, NOT A RAMP. See agreementLevels.ts: "3 of
- * 4" is a class and there is no cell between it and "4 of 4". A gradient bar
- * with two end labels would invite a reading the quantity does not support.
- * The swatches are the colours the renderer used, computed from the same stops.
- * The classes are split under two headings rather than listed as one run from
- * 4 down to 1, because a single run of darkening blue reads as a confidence
- * scale and is not one: unanimous is where the terrain decides the extent, and
- * every class below it is where the choice of DEM decides it. "0 of 4" is not
- * in the list at all -- on the recorded run it is 92 percent of the AOI, and
- * that every product calls a cell dry says nothing about how far the products
- * agree with each other -- and is reported under the classes as the dry
- * remainder, without a swatch, since the raster draws nothing there.
+ * The legend is a list of classes. See agreementLevels.ts: "3 of 4" is a class
+ * and there is no cell between it and "4 of 4", so a gradient bar with two end
+ * labels would report a quantity that has no values between the classes. The
+ * swatches are the colours the renderer used, computed from the same stops.
+ * The classes are split under two headings, because one run of darkening blue
+ * from 4 down to 1 reads as a confidence scale: unanimous is where the terrain
+ * decides the extent, and every class below it is where the choice of DEM
+ * decides it. "0 of 4" is 92 percent of the AOI on the recorded run, and a
+ * cell no product calls flooded carries no measure of agreement between the
+ * products, so it is reported under the classes as the dry remainder, without
+ * a swatch, since the raster draws nothing there.
  *
- * THE QUALIFIER IS PINNED, NOT PLACED IN THE FLOW. This column scrolls past
- * several screens of figures, and the sentence has to be on screen with any of
- * them -- it is what separates TERRA's own measurement over its own product
- * set from the range the study published, and what stops a HAND threshold in
- * metres from being read as a flood depth. It is bounded in height and scrolls
- * within itself because at this measure the full text is about sixteen lines,
- * which would leave no room for the reading it qualifies. It is not a tooltip
- * and does not need a hover, a click or a pointer to be read.
+ * The qualifier is pinned above the scrolling flow, which runs several screens
+ * of figures. It separates TERRA's measurement over its own product set from
+ * the range the study published, and a HAND threshold in metres from a flood
+ * depth. It is bounded in height and scrolls within itself: at this measure
+ * the full text is about sixteen lines, and it is readable without a hover or
+ * a click.
  *
- * EVERY AREA HERE IS OVER THE AOI POLYGON. The terrain chain ran over the AOI
- * plus a buffer of 2 to 5 km, because HAND needs the contributing area
- * upstream of a cell, and the figures used to be taken over that whole window:
- * on one recorded run 37.5 km2 of classified ground against an AOI of 4.5 km2,
- * every number on screen inflated 8.3 times by a buffer that exists for
- * numerical reasons alone. The window is still reported, under "Computed
- * window", as provenance -- what a reader needs to re-run the analysis and
- * what the GeoTIFF is georeferenced on -- and nothing on this reading is
- * measured over it.
+ * Every area here is over the AOI polygon. The terrain chain ran over the AOI
+ * plus a buffer of 2 to 5 km, since HAND needs the contributing area upstream
+ * of a cell. The figures were once taken over that whole window: on one
+ * recorded run 37.5 km2 of classified ground against an AOI of 4.5 km2, every
+ * number inflated 8.3 times by the buffer. The window is reported under
+ * "Computed window" as provenance, being what a reader needs to re-run the
+ * analysis and what the GeoTIFF is georeferenced on. No figure on this reading
+ * is measured over it.
  *
- * A COLUMN, NOT A DIALOG, and no scroll-spy index. The energy reading has one
- * for nine blocks across four products; this reading is one run of six blocks,
- * and an index band over six entries would spend a row of the column on a
- * question a reader of six blocks does not have.
+ * A column, with no scroll-spy index. The energy reading has one for nine
+ * blocks across four products; this reading is one run of six blocks, which is
+ * short enough to read without one.
  *
- * THE BLOCKS OPEN AND CLOSE, AND FOUR OF THE SIX START CLOSED. Six blocks all
- * open is most of a screen of evidence standing in front of the one thing the
- * product is read on. The index the paragraph above rejects would have helped a
- * reader travel that length; closing what they are not reading removes the
- * length instead, which is the better answer to the same complaint. Which
- * blocks open is argued at Block, and it is the caller's call there rather than
- * a default, so a seventh block cannot be added without deciding whether it is
+ * The blocks open and close, and four of the six start closed. Six open blocks
+ * are most of a screen of evidence in front of the one thing the product is
+ * read on. Which blocks open is decided at Block by the caller and not by a
+ * default, so a seventh block cannot be added without deciding whether it is
  * the answer or the evidence for it.
  */
 import { useId, useState } from "react"
@@ -98,10 +86,9 @@ export function FloodReadingColumn({
   /**
    * The raster on the map, controlled from beside its legend.
    *
-   * The switch lives here and not in the parameters column because this is
-   * where the colours are named: a reader turning the layer down is reading
-   * the legend at the time. The state is the screen's, so the map and this
-   * column cannot disagree about what is drawn.
+   * The switch is here, where the colours are named, and not in the parameters
+   * column. The state is the screen's, so the map and this column cannot
+   * disagree about what is drawn.
    */
   overlay: {
     visible: boolean
@@ -117,7 +104,7 @@ export function FloodReadingColumn({
   const dry = agreementDry(flood.agreement, flood.cell_size_m)
   /*
     Darkest first: the unanimous class is the extent every product agrees on,
-    and it is what a reader looks for before the classes that qualify it.
+    and the classes below it qualify that extent.
   */
   const ordered = [...levels].reverse()
 
@@ -143,9 +130,9 @@ export function FloodReadingColumn({
             <Trash2 className="size-3.5" />
           </button>
         </div>
-        {/* Verbatim from the payload. Nothing here composes a shorter version:
-            a second qualifier written on this side can disagree with the one
-            the sidecar wrote, which is the failure it exists to prevent. */}
+        {/* Verbatim from the payload. Nothing here composes a shorter
+            version: a second qualifier written on this side could disagree
+            with the one the sidecar wrote. */}
         <p className="panel-scroll max-h-[7rem] overflow-y-auto text-micro leading-relaxed text-muted-foreground">
           {flood.qualifier}
         </p>
@@ -187,8 +174,8 @@ export function FloodReadingColumn({
           </div>
           <p className="text-micro leading-relaxed text-muted-foreground">
             Areas are cell counts times the cell size, over the cells whose
-            centre falls inside the AOI polygon. A null contested share means no
-            product called anything flooded, which is not the same as agreement.
+            centre falls inside the AOI polygon. A null contested share means
+            no product called any cell flooded, and the share is undefined.
           </p>
         </Block>
 
@@ -219,20 +206,19 @@ export function FloodReadingColumn({
             value={`${flood.grid.bounds.lon_min.toFixed(3)}, ${flood.grid.bounds.lat_min.toFixed(3)} to ${flood.grid.bounds.lon_max.toFixed(3)}, ${flood.grid.bounds.lat_max.toFixed(3)}`}
           />
           <p className="text-micro leading-relaxed text-muted-foreground">
-            Provenance, not the reporting extent. HAND needs the contributing
-            area upstream of a cell, so the terrain chain ran over the AOI plus
-            the buffer, trimmed to the rectangle every product covers. No figure
-            on this reading is measured over these cells. The inset statistics
-            repeat every comparison over the AOI shrunk by the inset margin,
-            where the contributing area is still short of whatever drains in
-            from beyond the buffer and HAND reads high.
+            These figures are provenance; the reporting extent is the AOI.
+            HAND needs the contributing area upstream of a cell, so the terrain
+            chain ran over the AOI plus the buffer, trimmed to the rectangle
+            every product covers. No figure on this reading is measured over
+            these cells. The inset statistics repeat every comparison over the
+            AOI shrunk by the inset margin, where the contributing area does
+            not include drainage from beyond the buffer and HAND reads high.
           </p>
-          {/* A path on the machine that ran it. The webview cannot open it and
-              does not pretend to: it is named so a reader can take the raster
-              into a GIS, which is the only place the full-resolution counts can
-              be interrogated cell by cell. The GeoTIFF is the WHOLE window and
-              the overlay on the map is the AOI clip, so the two are not the
-              same picture. */}
+          {/* A path on the machine that ran it. The webview cannot open it;
+              it is named so a reader can take the raster into a GIS, where the
+              full-resolution counts can be read cell by cell. The GeoTIFF
+              covers the whole window and the overlay on the map is the AOI
+              clip, so the two are different pictures. */}
           <p className="telemetry break-all text-micro leading-relaxed text-muted-foreground">
             GeoTIFF, whole window: {flood.agreement_tif || "not written"}
           </p>
@@ -302,20 +288,19 @@ export function FloodReadingColumn({
           </ul>
           <p className="text-micro leading-relaxed text-muted-foreground">
             The narrowest and widest agreement any pair of products reaches at
-            that threshold, over the AOI polygon. The index is the Jaccard index
-            between two binary extents, which for a binary mask is numerically
-            the critical success index (CSI) of the flood literature. A wide gap
-            between a row and its inset figures places the disagreement at the
-            border of the AOI rather than through the middle of it.
+            that threshold, over the AOI polygon. The index is the Jaccard
+            index between two binary extents, numerically the critical success
+            index (CSI) of the flood literature. A wide gap between a row and
+            its inset figures indicates that the disagreement is concentrated
+            near the AOI boundary.
           </p>
         </Block>
 
         <PairBlock flood={flood} />
 
         <Block title="Assumptions" defaultOpen={false}>
-          {/* First, because it says which ground every area above is of, and
-              an area quoted without it is a figure a reader attributes to the
-              wrong extent. */}
+          {/* First, because it states which ground every area above is
+              measured over. */}
           <AssumptionText label="Reporting extent" text={flood.assumptions.reporting_extent} />
           <AssumptionText label="Reference threshold" text={flood.assumptions.reference_threshold} />
           <AssumptionText label="Thresholds swept" text={flood.assumptions.thresholds} />
@@ -348,23 +333,22 @@ export function FloodReadingColumn({
 /*
 One block of the reading, openable and closable.
 
-The column carries six of these and every one of them opened at once. Read top
-to bottom that is the agreement raster, the window it was computed over, the
-per-product areas, the pairwise table, the envelope sweep and the assumptions --
-most of a screen of evidence in front of the one thing the product is read on.
+The column carries six of these: the agreement raster, the window it was
+computed over, the per-product areas, the pairwise table, the envelope sweep
+and the assumptions. All six open at once is most of a screen of evidence in
+front of the one thing the product is read on.
 
-So the two blocks that ARE the reading open by default and the four that support
-it start closed. Which is which is the caller's decision, not this component's:
-`defaultOpen` is required rather than defaulted, so adding a block forces the
+So the two blocks that are the reading open by default and the four that
+support it start closed. Which is which is the caller's decision:
+`defaultOpen` is required and has no default, so adding a block forces the
 question of whether it is the answer or the evidence for it.
 
-The whole header is the control, not a chevron beside it. A 14 px target for
-something a reader toggles while comparing two rows is a target they miss.
+The whole header is the control, and not a chevron beside it. A 14 px target
+is easy to miss for something toggled while comparing two rows.
 
-State is per mount and deliberately not persisted. A reader who closes the
-assumptions is closing them for this reading; a preference that outlived the
-run would hide provenance from the next one, which is the opposite of what this
-column is for.
+State is per mount and is not persisted. Closing the assumptions closes them
+for this reading only; a preference that outlived the run would hide
+provenance from the next one.
 */
 function Block({
   title,
@@ -404,11 +388,10 @@ function Block({
 /**
  * The switch and the opacity of the raster this column describes.
  *
- * Beside the legend rather than in the parameters column: the legend is what
- * makes the colours mean anything, and turning the layer down is something a
- * reader does while reading it. The empty case is a sentence and not a hidden
- * control -- a rendering that could not be read leaves the map without an
- * overlay, and the figures below still stand.
+ * Beside the legend, which is where the colours are named, and not in the
+ * parameters column. When the rendering could not be read the map has no
+ * overlay; the empty case says so as a sentence, and the figures below still
+ * stand.
  */
 function MapLayerControl({
   drawn,
@@ -427,8 +410,8 @@ function MapLayerControl({
   if (!drawn) {
     return (
       <p className="text-micro leading-relaxed text-muted-foreground">
-        The rendering could not be read, so nothing is drawn on the map. Every
-        figure below is unaffected.
+        The rendering could not be read, so nothing is drawn on the map. The
+        figures below are unaffected.
       </p>
     )
   }
@@ -445,8 +428,8 @@ function MapLayerControl({
       </label>
       <p className="text-micro leading-relaxed text-muted-foreground">
         {`Products calling each cell flooded at HAND <= ${threshold} m, clipped to the AOI.`}{" "}
-        Cells no product calls flooded are transparent, so what shows through
-        them is the imagery underneath.
+        Cells no product calls flooded are transparent, showing the imagery
+        underneath.
       </p>
       <label className="flex flex-col gap-1 text-micro text-muted-foreground">
         Opacity {(overlay.opacity * 100).toFixed(0)}%
@@ -467,17 +450,16 @@ function MapLayerControl({
 }
 
 /**
- * The agreement classes, under the two headings that say what a class MEANS.
+ * The agreement classes, under the two headings that state what a class means.
  *
- * Not one run of rows from 4 of 4 down to 1 of 4. That list is ordered
- * correctly and still reads as a scale of confidence, with 1 of 4 at the
- * shallow end -- and 1 of 4 is not a shallower flood, it is the widest
- * disagreement the product set can produce. The heading is what separates the
+ * One run of rows from 4 of 4 down to 1 of 4 is ordered correctly and reads as
+ * a scale of confidence, with 1 of 4 at the shallow end. 1 of 4 is in fact the
+ * widest disagreement the product set can produce. The headings separate the
  * class where the terrain decides the extent from the classes where the choice
- * of DEM does, which is the distinction the whole analysis exists to draw.
+ * of DEM decides it.
  *
  * The dry remainder closes the accounting underneath, as a figure with no
- * swatch: the raster leaves those cells transparent, so a filled swatch would
+ * swatch. The raster leaves those cells transparent, so a filled swatch would
  * put a colour in the legend that appears nowhere on the map, and a class row
  * would put 92 percent of the AOI at the top of a list about disagreement.
  */
@@ -492,9 +474,9 @@ function AgreementLegend({
   const contested = levels.filter((l) => l.standing === "contested")
   return (
     <div className="flex flex-col gap-2">
-      {/* Named once, at the head, rather than repeated on every row: without
-          it the two figures on a row are a bare area and a bare percentage,
-          and the percentage is of the AOI rather than of the flooded extent. */}
+      {/* Named once, at the head, and not repeated on every row. Without it
+          the two figures on a row are a bare area and a bare percentage, and
+          the percentage is of the AOI, not of the flooded extent. */}
       <div className="flex items-baseline justify-between gap-2">
         <span className="eyebrow">Agreement class</span>
         <span className="eyebrow shrink-0">Area · share of AOI</span>
@@ -511,9 +493,9 @@ function AgreementLegend({
           </span>
         </div>
         <p className="text-micro leading-relaxed text-muted-foreground">
-          The remainder of the AOI, not an agreement class: that every product
-          calls a cell dry says nothing about how far the products agree with
-          each other. The raster draws nothing there.
+          The remainder of the AOI, reported outside the agreement classes: a
+          cell no product calls flooded carries no measure of agreement between
+          the products. The raster draws nothing there.
         </p>
       </div>
     </div>
@@ -562,10 +544,10 @@ function LegendGroup({
 /**
  * Every unordered pair, at one threshold at a time.
  *
- * Split by threshold rather than listed whole: four products over five
- * thresholds is thirty rows, and a reader comparing two products is comparing
- * them at one threshold. The chips are the thresholds the run actually swept,
- * read from the payload, so a run with a different sweep names its own.
+ * Split by threshold: four products over five thresholds is thirty rows, and a
+ * comparison of two products is made at one threshold. The chips are the
+ * thresholds the run swept, read from the payload, so a run with a different
+ * sweep names its own.
  */
 function PairBlock({ flood }: { flood: FloodAnalysis }) {
   const thresholds = [...new Set(flood.pairs.map((p) => p.threshold_m))].sort(
@@ -612,8 +594,8 @@ function PairBlock({ flood }: { flood: FloodAnalysis }) {
       </ul>
       <p className="text-micro leading-relaxed text-muted-foreground">
         Ratio is the second product's extent over the first's. A null index
-        means both extents are empty at this threshold, where the index is
-        undefined rather than zero.
+        means both extents are empty at this threshold and the index is
+        undefined.
       </p>
     </Block>
   )
@@ -642,11 +624,10 @@ function PairRow({ row }: { row: FloodPair }) {
 /**
  * Whether the figure beside it includes a resampling component.
  *
- * Three states, not two. A false is silent because it is the ordinary case; a
- * true has to be said, because that row's disagreement is terrain plus
- * alignment and the payload's chain_grid assumption quantifies how large that
- * can be; a null is said differently, because a fact that was not recorded is
- * not a fact that is false.
+ * Three states. A false is silent, being the ordinary case. A true is stated:
+ * that row's disagreement is terrain plus alignment, and the payload's
+ * chain_grid assumption bounds the alignment part. A null is stated in its own
+ * words, a fact that was not recorded being unknown and not false.
  */
 function ResampledNote({ resampled }: { resampled: boolean | null }) {
   if (resampled === false) return null
@@ -654,7 +635,7 @@ function ResampledNote({ resampled }: { resampled: boolean | null }) {
     <span className="text-micro leading-relaxed text-muted-foreground">
       {resampled === true
         ? "Moved onto the shared grid before the terrain chain ran, so this figure carries a resampling component alongside the terrain difference."
-        : "Whether this was resampled onto the shared grid was not recorded, which is not the same as it having been left alone."}
+        : "Whether this was resampled onto the shared grid was not recorded, so this figure may carry a resampling component."}
     </span>
   )
 }

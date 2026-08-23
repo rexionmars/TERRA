@@ -2,43 +2,34 @@
  * The flood envelope screen: a HAND extent and the disagreement between the
  * DEM products it can be derived from.
  *
- * A DESTINATION OF ITS OWN, NOT A TAB OF ENERGY. The energy screen holds two
- * resources that share a chassis because both are read at an AOI centroid off
- * a reanalysis; this reads four DEM products over the AOI's terrain and
- * produces a raster whose subject is the disagreement between them. Filed as a
- * third energy tab it would inherit a comparison it does not belong to and a
- * record-window bar it has no record for.
+ * A screen of its own. The energy screen holds two resources read at an AOI
+ * centroid from a reanalysis; this reads four DEM products over the AOI's
+ * terrain and produces a raster of the disagreement between them. As an
+ * energy tab it would inherit that screen's comparison and its record-window
+ * bar, neither of which applies here.
  *
- * WHAT IT SHIPS AND WHY IT SHIPS THAT. The study this ports found the HAND
- * mask is not reproducible across DEM products: at the 1 m threshold, where
- * the map most resembles a real flood, the pairwise agreement between 30 m
+ * The study this ports reports that the HAND mask is not reproducible across
+ * DEM products: at the 1 m threshold the pairwise agreement between 30 m
  * products runs from about 0.43 to about 0.69, so two products disagree about
- * roughly a fifth of the cells. Shipping "the HAND extent" would ship a shape
- * that changes with a choice the reader never made and is never shown. So the
- * deliverable is the extent WITH its envelope, and the central representation
- * is an agreement count raster rather than a mask with an accuracy figure
- * beside it.
+ * roughly a fifth of the cells. A HAND extent from a single product moves with
+ * that choice. What this screen reports is the extent with its envelope, and
+ * the central representation is an agreement count raster.
  *
- * THE MAP IS WHERE THE RESULT IS READ. The AOI is drawn here -- this analysis
- * reads no satellite scene, so sending the reader to the classification panel
- * to define one would make a classification a precondition of a run that needs
- * none -- and the agreement raster is drawn over it when a run finishes. Its
- * legend, its switch and its figures are in the result column beside it. The
- * raster used to be a tile inside that column and nothing put it on the map,
- * which for a product whose claim is WHERE the terrain decides and where the
- * DEM decides withheld the claim: the answer is a location, and a 200 px image
- * detached from the map does not carry one.
+ * The result is read on the map. This analysis reads no satellite scene and
+ * requires no classification, so the AOI is drawn here, and the agreement
+ * raster is drawn over it when a run finishes. Its legend, its switch and its
+ * figures are in the result column beside it. The raster states where the
+ * terrain decides the extent and where the choice of DEM decides it.
  *
- * IT IS PLACED ON THE PAYLOAD'S OWN EXTENT and not on the grid the chain ran
- * over. The PNG is the counts clipped to the AOI bounding box; the grid is
- * that AOI plus 2 to 5 km of buffer on every side, so placing the clip on the
- * grid would stretch it over several times the ground it covers. The full
- * window survives as the GeoTIFF the reading names, which is the route to a
+ * The raster is placed on the payload's own extent and not on the grid the
+ * chain ran over. The PNG is the counts clipped to the AOI bounding box; the
+ * grid is that AOI plus 2 to 5 km of buffer on every side, so placing the clip
+ * on the grid would stretch it over several times the ground it covers. The
+ * GeoTIFF the reading names covers the full window, and is the route to a
  * GIS.
  *
- * TWO COLUMNS OF ONE SPECIES, as on the energy screen: the parameters on the
- * left edge, the reading on the right, both 19rem PanelShells over the map
- * they describe.
+ * Two columns, as on the energy screen: the parameters on the left edge, the
+ * reading on the right, both 19rem PanelShells over the map they describe.
  */
 import { AnimatePresence } from "motion/react"
 import { useEffect, useRef, useState } from "react"
@@ -60,31 +51,33 @@ import { floodAgreementLayer } from "@/lib/mapLayers"
 import type { Area, FloodAnalysis, GeoJSONGeometry, LayoutMode } from "@/lib/types"
 
 /**
- * What this analysis is and is not, stated before a run as well as after one.
+ * The scope of the analysis, stated before a run as well as after one.
  *
- * After a run the reading prints the payload's own qualifier. Before one there
- * is no payload, and the figures a reader is about to request are exactly the
- * ones that need the caveat in advance -- the same argument the wind tab's
- * qualifier makes on the energy screen.
+ * After a run the reading prints the payload's own qualifier. Before a run
+ * there is no payload, and the caveat applies to the figures being requested.
+ * The wind tab carries its qualifier on the same terms.
+ *
+ * The wording follows sidecar/flood.py qualifier_text, minus the product list,
+ * which is not fixed until the run names it. The two state the same claims in
+ * the same order.
  */
 const FLOOD_QUALIFIER =
-  "HAND is a terrain index -- the height of a cell above the drainage it " +
-  "flows to -- and not a hydrodynamic model. There is no rainfall, no " +
-  "discharge, no routing and no channel geometry here, so a threshold in " +
-  "metres ranks susceptibility and does not state the depth, the extent or " +
-  "the probability of any flood. What the run measures is how much the choice " +
-  "of DEM decides the answer: the envelope is TERRA's own measurement over " +
-  "its own product set, and it is not the range published by the study this " +
-  "ports."
+  "The envelope is TERRA's measurement over its own product set. The range " +
+  "published by the study this ports does not apply to it. HAND is the " +
+  "height of a cell above the drainage cell it flows to. It is not a " +
+  "hydrodynamic model: rainfall, discharge, routing and channel geometry are " +
+  "not modelled. A threshold in metres ranks relative susceptibility; it is " +
+  "not a flood depth, extent or probability. Disagreement between products " +
+  "indicates cells where the result depends on the choice of DEM."
 
 const AOI_NOTE =
-  "The DEM is read beyond the AOI so drainage entering it is real terrain, " +
-  "and the terrain chain runs over that larger window; every figure the run " +
-  "reports comes back over the AOI itself, with the window beside it as " +
+  "The DEM is read beyond the AOI, so the drainage entering it is measured " +
+  "terrain, and the terrain chain runs over that larger window. Every figure " +
+  "the run reports is over the AOI itself, with the window beside it as " +
   "provenance. The products are read from Microsoft Planetary Computer at " +
-  "their native resolution; a large AOI is refused before the first byte is " +
-  "fetched rather than read at a coarser resolution, because resampling the " +
-  "products changes the very disagreement being measured."
+  "their native resolution; reading them at a coarser resolution would " +
+  "change the disagreement being measured, so an AOI above the size limit is " +
+  "refused before the products are read."
 
 /** Stable no-op: the swipe compare belongs to the classification map. */
 const NO_SWIPE_CHANGE = () => {}
@@ -97,7 +90,7 @@ export interface FloodScreenProps {
   run: { active: boolean; progress: number; message: string }
   onRun: () => void
   /**
-   * A request to show a restored result, counted rather than flagged. Same
+   * A request to show a restored result, carried as a counter. Same
    * shape and same reason as the energy screen's: see the module-scope note
    * below on why it is not compared against a ref inside the component.
    */
@@ -128,8 +121,8 @@ export interface FloodScreenProps {
 /*
   The last open-the-reading request this session has acted on.
 
-  Module scope, because the screen unmounts on navigation and a ref inside it
-  cannot tell a fresh request from one that outlived the previous visit. The
+  Module scope: the screen unmounts on navigation, and a ref inside it cannot
+  distinguish a fresh request from one that outlived the previous visit. The
   energy screen carries the same value for the same reason.
 */
 let lastHandledOpenNonce = 0
@@ -139,23 +132,23 @@ export function FloodScreen(props: FloodScreenProps) {
   const [configOpen, setConfigOpen] = useState(false)
   const [resultOpen, setResultOpen] = useState(false)
   /*
-    The raster is drawn as soon as there is one, and can be turned down rather
-    than only off: the agreement classes are read against the terrain in the
-    imagery underneath, and 0.85 is where both stay legible. Held on this
-    screen, so the map and the legend that names the colours cannot disagree
-    about what is drawn, and not in the run state, because it describes how the
-    result is being LOOKED AT rather than anything the run measured. The screen
-    unmounts on navigation, so a later visit starts from visible again.
+    The raster is drawn as soon as there is one, and its opacity is
+    adjustable: the agreement classes are read against the terrain in the
+    imagery underneath, and 0.85 keeps both legible. Held on this screen, so
+    the map and the legend that names the colours cannot disagree about what
+    is drawn, and outside the run state, since it describes how the result is
+    displayed. The screen unmounts on navigation, so a later visit starts
+    visible again.
   */
   const [showAgreement, setShowAgreement] = useState(true)
   const [agreementOpacity, setAgreementOpacity] = useState(0.85)
 
   /*
-    Derived in lib/mapLayers.ts, not here. That module owns which rasters are
-    drawn, in what order and under which guard -- a zero extent is what the
-    sidecar returns when it resolved no window, and drawn it would stretch the
-    overlay across the null island. A second derivation on this screen would
-    disagree with the table within a release.
+    Derived in lib/mapLayers.ts. That module owns which rasters are drawn, in
+    what order and under which guard. A zero extent is what the sidecar
+    returns when it resolved no window; drawn, it would stretch the overlay
+    across the null island. A second derivation on this screen could drift
+    from that one.
   */
   const agreement = floodAgreementLayer(
     props.result,
@@ -176,9 +169,8 @@ export function FloodScreen(props: FloodScreenProps) {
   }, [props.openResultNonce])
 
   /*
-    A run that finishes is the one moment the reader is certainly asking for
-    the result, so the column opens on it; clearing the result folds it away
-    rather than leaving an empty column on the edge.
+    The column opens when a run finishes, and folds away when the result is
+    cleared.
   */
   const hadResult = useRef(hasResult)
   useEffect(() => {
@@ -229,9 +221,9 @@ export function FloodScreen(props: FloodScreenProps) {
             {blocker}
           </p>
         )}
-        {/* Carried here as well as on the result: what a HAND threshold is and
-            whose envelope this is have to be readable before the run as much
-            as after it. */}
+        {/* Carried here as well as on the result: what a HAND threshold is
+            and whose envelope this is are readable before the run as well as
+            after it. */}
         <p className="text-meta leading-relaxed text-muted-foreground">
           {FLOOD_QUALIFIER}
         </p>
@@ -242,10 +234,9 @@ export function FloodScreen(props: FloodScreenProps) {
   return (
     <div className="relative h-full min-h-0 w-full">
       {/*
-        Full bleed. The run draws nothing here -- the agreement raster is read
-        with its legend in the result column -- and the map still carries the
-        AOI the whole measurement is over, so it stays rather than being
-        swapped for an empty state.
+        Full bleed. The map carries the AOI the measurement is over, before a
+        run and after it; the agreement raster is drawn over it once there is
+        one, and its legend is in the result column.
       */}
       <MapView
         initialView={props.initialView}
@@ -254,9 +245,9 @@ export function FloodScreen(props: FloodScreenProps) {
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
         flyTo={props.flyTo}
-        // The classification chrome is pinned off, as on the energy screen:
-        // there is no prediction here to weigh against, so a confidence toggle
-        // or a swipe compare would offer a comparison with nothing.
+        // The classification chrome is pinned off, as on the energy screen.
+        // There is no prediction here, so a confidence toggle and a swipe
+        // compare have nothing to act on.
         result={null}
         overlayOpacity={1}
         showConfidence={false}

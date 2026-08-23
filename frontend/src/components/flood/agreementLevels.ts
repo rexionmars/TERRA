@@ -2,47 +2,46 @@
  * The agreement raster as a small set of named classes, with the colour the
  * renderer gave each one.
  *
- * THE LEGEND IS DISCRETE BECAUSE THE QUANTITY IS. "Three of four products"
- * is not a position on a ramp: there is no cell between three and four, and a
- * gradient bar with two end labels invites the reader to interpolate one. The
- * raster is drawn from a continuous ramp only because that is what makes the
- * ordering legible; what it encodes is N classes, and this module turns the
- * payload's `counts` array into exactly those classes.
+ * The legend is discrete because the quantity is. "Three of four products" is
+ * not a position on a ramp: there is no cell between three and four, and a
+ * gradient bar with two end labels would offer values the quantity does not
+ * take. The raster is drawn from a continuous ramp, which makes the ordering
+ * legible; what it encodes is N classes, and this module turns the payload's
+ * `counts` array into those classes.
  *
- * "0 OF 4" IS NOT ONE OF THEM. counts[0] is every AOI cell no product calls
+ * "0 of 4" is not one of them. counts[0] is every AOI cell no product calls
  * flooded, which on the recorded run is 4818 of 5256 cells, 91.7 percent of
- * the area. That a cell is called dry by everybody says nothing about how far
- * the products agree WITH EACH OTHER, which is the one thing this analysis
- * measures, and a list whose subject is disagreement is dominated by it.
- * `agreementLevels` therefore starts at one product and the dry remainder
+ * the area. Such a cell carries no measure of agreement between the products,
+ * and at that share it would be the largest row in a list about disagreement.
+ * `agreementLevels` therefore starts at one product, and the dry remainder
  * comes back from `agreementDry`, which the reading prints as a figure and not
  * as a class: the raster leaves those cells transparent, so a swatch matching
- * the others would put a colour in the legend that appears nowhere on the map.
+ * the others would put a colour in the legend that appears nowhere on the
+ * map.
  *
- * THE COUNT IS NOT A CONFIDENCE SCALE, and the ramp reads like one. Darkening
- * blue from 1 of 4 to 4 of 4 orders the classes correctly and still invites
+ * The count is not a confidence scale, and the ramp reads like one. Darkening
+ * blue from 1 of 4 to 4 of 4 orders the classes correctly and still supports
  * "1 of 4 is a shallow flood, 4 of 4 is a deep one". Neither is a depth: 4 of
- * 4 is where the terrain decides the extent and 1 of 4 is the widest
- * disagreement the product set can produce. `agreementStandingLabel` says
+ * 4 is where the terrain decides the extent, and 1 of 4 is the widest
+ * disagreement the product set can produce. `agreementStandingLabel` states
  * which, per class, in those words.
  *
- * THE SWATCH IS THE PIXEL. sidecar/infer.py agreement_rgba colours a cell by
+ * The swatch is the pixel. sidecar/infer.py agreement_rgba colours a cell by
  * t = count / n_products through composite._BLUES, and leaves count 0
  * transparent. The same t through the same stops is computed here, so a swatch
- * in the legend is the colour of the cells it names rather than an
- * approximation of them. lib/palettes.ts is generated from those stops for
- * this reason; a hand-picked blue would be a legend that disagrees with its
- * raster, which is the defect that file records. It is also why these colours
- * are not tokens in index.css: a token is a colour this interface chooses, and
- * these are colours it reads off the renderer.
+ * in the legend is the colour of the cells it names. lib/palettes.ts is
+ * generated from those stops for this reason; a hand-picked blue would give a
+ * legend that disagrees with its raster. It is also why these colours are not
+ * tokens in index.css: a token is a colour this interface chooses, and these
+ * are read off the renderer.
  *
  * With the four-product default the arithmetic is exact in both directions:
  * `blues` has five stops, so t = k/4 lands on stop k and no interpolation
- * happens at all. For any other product count the value is interpolated, and
- * the two sides can differ by one part in 255 -- the renderer interpolates the
- * float stops and truncates once, this interpolates stops that were already
- * truncated. That is below a visible difference and is not worth a second
- * palette file to remove.
+ * happens. For any other product count the value is interpolated, and the two
+ * sides can differ by one part in 255: the renderer interpolates the float
+ * stops and truncates once, this interpolates stops that were already
+ * truncated. That is below a visible difference, and a second palette file
+ * would not remove it.
  */
 import { PALETTE_STOPS } from "@/lib/palettes"
 import type { FloodAgreement, FloodCellSize } from "@/lib/types"
@@ -80,8 +79,8 @@ export interface AgreementDry {
  * Mirror of composite._lerp_cmap for one scalar.
  *
  * The index rule is the renderer's, including the clamp of the segment index
- * at n-1 so that t = 1 reads the last segment at f = 1 rather than running off
- * the end of the stop list.
+ * at n-1, so that t = 1 reads the last segment at f = 1 and stays within the
+ * stop list.
  */
 function rampColor(t: number, stops: string[]): string {
   const clamped = Math.min(1, Math.max(0, t))
@@ -126,9 +125,9 @@ function cellKm2(cell: FloodCellSize): number {
  *
  * The area of a level is its cell count times the cell size, which is how
  * every area in this payload is derived (see FloodAssumptions.cell_size). It
- * is recomputed here rather than read from the payload because the payload
- * carries only three aggregates -- unanimous wet, contested, unanimous dry --
- * and the point of the raster is the levels between them.
+ * is recomputed here because the payload carries three aggregates alone:
+ * unanimous wet, contested and unanimous dry. The subject of the raster is the
+ * levels between them.
  */
 export function agreementLevels(
   agreement: FloodAgreement,
@@ -154,10 +153,9 @@ export function agreementLevels(
 /**
  * The dry remainder of the AOI: counts[0], as an area and a share.
  *
- * Computed from the same counts and the same cell size as the classes rather
- * than read from agreement.unanimous_dry_km2, so the figure a reader sums the
- * legend against is derived the way the legend is. The two agree to the
- * payload's four decimal places.
+ * Computed from the same counts and the same cell size as the classes, so the
+ * figure the legend sums against is derived the way the legend is. It agrees
+ * with agreement.unanimous_dry_km2 to the payload's four decimal places.
  */
 export function agreementDry(
   agreement: FloodAgreement,
@@ -181,13 +179,13 @@ export function agreementLevelLabel(level: AgreementLevel): string {
 }
 
 /**
- * What the level means, in the terms the analysis is about: where the terrain
+ * What the level means, in the terms of the analysis: where the terrain
  * decides the extent and where the choice of DEM decides it.
  *
- * The contested classes are named by how many products call the cell DRY, not
- * only by how many call it wet. "1 of 4" beside "4 of 4" reads as less flood;
- * "three of four call it dry" reads as what it is, which is the widest split
- * the four products can produce.
+ * The contested classes are named by how many products call the cell dry as
+ * well as by how many call it wet. "1 of 4" beside "4 of 4" reads as less
+ * flood; "three of four call it dry" states the split, which at 1 of 4 is the
+ * widest split the four products can produce.
  */
 export function agreementStandingLabel(level: AgreementLevel): string {
   if (level.standing === "unanimous") {

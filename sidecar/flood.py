@@ -3,51 +3,43 @@ The flood envelope: how much of a HAND extent is terrain, and how much is the DE
 
 The study this ports (E-hand-flood-baseline) measured its own reproducibility
 and found the extent is not reproducible across DEM products: at the 1 m
-threshold, where the map most resembles a real flood, IoU between its 30 m
-products ran 0.425 to 0.694 -- two DEMs disagreeing about roughly a fifth of
-all cells. Shipping "the HAND extent" would therefore ship a shape that moves
-with a choice the user never made and never sees. What ships instead is the
-extent WITH the envelope around it.
+threshold, IoU between its 30 m products ran 0.425 to 0.694, two DEMs
+disagreeing about roughly a fifth of all cells. A HAND extent from a single
+product moves with the choice of product. This module returns the extent
+together with the envelope around it.
 
-THE CENTRAL OBJECT IS THE AGREEMENT RASTER, NOT A MASK AND A NUMBER. For every
-cell it holds how many products call that cell flooded at the reference
-threshold: 0 to N. Where the count is 0 or N the terrain decided; anywhere
-between, the DEM decided. A single mask with an accuracy figure beside it
-cannot carry that, because the reader cannot see WHERE the products disagree,
-and where is the one thing the study measured. Everything in the payload below
-is a summary of that raster; `measure` returns the raster itself, because a
-summary is not a substitute for it.
+The central object is the agreement raster. For every cell it holds how many
+products call that cell flooded at the reference threshold, 0 to N. Where the
+count is 0 or N the terrain decided; anywhere between, the DEM decided. A
+single mask with an accuracy figure beside it does not show where the products
+disagree. Everything in the payload below summarises that raster, and `measure`
+returns the raster itself.
 
-WHAT THE FIGURES COVER IS NOT WHAT THE CHAIN RAN OVER. HAND needs the
+The figures cover less ground than the chain ran over. HAND needs the
 contributing area upstream of a cell, so dem.py reads 2 to 5 km beyond the AOI
-and every stage of the terrain chain runs on that buffered window -- the fill,
-the flow directions, the accumulation and the HAND field itself. The REPORT
-does not. Every count, area, fraction and IoU below is taken over the cells
-inside the AOI polygon, which the caller rasterises onto the shared grid and
-passes as `aoi_mask`. Summarising the buffered window instead answers a
-question nobody asked: on one observed run a 277 by 291 window of 30.8 m cells
-put class areas summing to 76.2 km2 on screen against an AOI of about 20 km2,
-so every figure a reader saw was inflated about fourfold by a buffer that
-exists for numerical reasons alone. The buffer is a computational necessity,
-not the analysis extent. The window stays in the payload as provenance --
-`grid`, `cell_size_m`, `buffer_m`, and the `aoi.window_*` pair that puts the
-two extents side by side -- so a reader can tell the chain saw more ground
-than the report covers.
+and every stage of the terrain chain runs on that buffered window: the fill,
+the flow directions, the accumulation and the HAND field. The report does not.
+Every count, area, fraction and IoU below is taken over the cells inside the
+AOI polygon, which the caller rasterises onto the shared grid and passes as
+`aoi_mask`. Summarising the buffered window instead inflates every figure: on
+one observed run a 277 by 291 window of 30.8 m cells put class areas summing to
+76.2 km2 against an AOI of about 20 km2, about fourfold. The window stays in
+the payload as provenance, under `grid`, `cell_size_m`, `buffer_m` and the
+`aoi.window_*` pair.
 
-WHAT THIS MODULE DOES NOT DO. It does not fetch: sidecar/dem.py reads the
-products, buffers the window and puts them on one grid. It does not recompute
-the terrain chain: sidecar/hand.py owns that, and is called once per product.
-Once per product is the whole cost argument -- the fill and the D8 dominate at
-4.3 microseconds per cell, the thresholds after them are array comparisons, so
-sweeping five thresholds costs what one costs and recomputing the chain per
-threshold would cost five times as much for identical numbers.
+This module does not fetch: sidecar/dem.py reads the products, buffers the
+window and puts them on one grid. It does not compute the terrain chain:
+sidecar/hand.py owns that, and is called once per product. The fill and the D8
+dominate the cost at 4.3 microseconds per cell and the thresholds after them
+are array comparisons, so sweeping five thresholds costs what one costs;
+recomputing the chain per threshold would cost five times as much for identical
+numbers.
 
-PROVENANCE, WHICH HAS TO REACH THE READER. The study drew its four products
-from OpenTopography with an API key. TERRA reads Planetary Computer without
-one, and that catalogue has no SRTMGL1, so alos-dem takes its place. The
-envelope this reports is therefore TERRA's own measurement over TERRA's own
-DEM set. The study's published range is not a prediction of it and must not be
-quoted as one -- which is what the payload `qualifier` exists to carry.
+Provenance. The study drew its four products from OpenTopography with an API
+key. TERRA reads Planetary Computer without one, and that catalogue has no
+SRTMGL1, so alos-dem takes its place. The envelope reported here is TERRA's own
+measurement over TERRA's own DEM set, and the study's published range is not a
+prediction of it. The payload `qualifier` carries that.
 """
 
 import itertools
@@ -60,47 +52,42 @@ import hand
 # The study's sweep, unchanged, so a TERRA table can be laid beside the study's.
 THRESHOLDS_M = (1.0, 2.0, 5.0, 10.0, 20.0)
 
-# The threshold the agreement raster is built at. 1 m is the study's own worst
-# case: it is where the extent most resembles a flood and where the products
-# agree least, so an envelope drawn at any higher threshold would report a
-# narrower disagreement than the map a user is most likely to read.
+# The threshold the agreement raster is built at. 1 m is where the study
+# reports its widest disagreement between products; an envelope drawn at a
+# higher threshold reports a narrower one.
 REFERENCE_THRESHOLD_M = 1.0
 
 # Contributing area above which a cell is drainage. The study's reference
-# value, and the parameter it points out that flood work rarely reports; this
-# payload fixes it and states it rather than sweeping it.
+# value, and the parameter it points out that flood work rarely reports. This
+# payload holds it fixed and states it; it is not swept.
 DRAINAGE_REF_KM2 = 0.5
 
 # The ring cut from the INSIDE OF THE AOI for the inset statistics, in metres.
 #
-# This ring used to be cut from the computed window, where its job was to
-# discard the border of the rectangle the DEM was read over: there the
-# contributing area of a cell is truncated by the window itself, fewer cells
-# clear the drainage threshold, HAND comes out high and the extent small, so
-# two products can disagree for a reason that is about the rectangle rather
-# than the terrain. Since the report is now taken over the AOI polygon, that
-# rectangle border is already outside every figure and the ring would be
-# cutting ground nobody is reporting on.
+# This ring was once cut from the computed window, to discard the border of
+# the rectangle the DEM was read over: there the contributing area of a cell is
+# truncated by the window itself, fewer cells clear the drainage threshold,
+# HAND comes out high and the extent small, so two products can disagree over a
+# property of the rectangle. Since the report is taken over the AOI polygon,
+# that rectangle border already falls outside every figure.
 #
-# WHAT THE RING MEANS NOW: the AOI shrunk by this distance from its own
-# boundary. The truncation it tests for has moved rather than disappeared. The
-# buffer is 2 to 5 km, the contributing area of a lowland cell is unbounded in
-# principle, and what drains in from beyond the buffer is missing for every
-# cell it would have reached -- which is the cells nearest the AOI boundary
-# first. So `iou` over the AOI and `iou_inset` over the AOI minus this ring
-# still answer the same question in the same direction: a large gap between
-# them says the disagreement sits at the edge of the reported area, where the
-# missing upstream is, rather than through the middle of it. The study set the
-# ring at 1 km and measured that it moved IoU by about 0.02, which is how it
-# established the disagreement it reports is not an edge artefact; the same
-# 1 km is kept so that comparison still means something, but the two rings are
-# cut from different shapes and the numbers are not the same statistic.
+# The ring is now the AOI shrunk by this distance from its own boundary. The
+# truncation it tests for has moved rather than disappeared: the buffer is 2 to
+# 5 km, the contributing area of a lowland cell is unbounded in principle, and
+# what drains in from beyond the buffer is missing first for the cells nearest
+# the AOI boundary. `iou` over the AOI and `iou_inset` over the AOI minus this
+# ring therefore answer the same question in the same direction, and a large
+# gap between them puts the disagreement at the edge of the reported area. The
+# study set the ring at 1 km and measured that it moved IoU by about 0.02,
+# which is how it established that the disagreement it reports is not an edge
+# artefact. The same 1 km is kept, but the two rings are cut from different
+# shapes and the numbers are not the same statistic.
 INSET_MARGIN_M = 1000.0
 
 # The inset may not fall below this share of the shorter side of the AOI. On a
-# small AOI a 1 km ring can swallow the whole polygon, and a statistic computed
-# over a handful of cells is noise reported with the authority of a number.
-# When the cap binds, the payload reports the margin actually used.
+# small AOI a 1 km ring can consume the whole polygon, leaving a statistic
+# computed over a handful of cells. When the cap binds, the payload reports the
+# margin actually used.
 INSET_MIN_FRACTION_OF_SIDE = 0.5
 
 
@@ -109,13 +96,13 @@ def iou(a, b):
     Jaccard index between two binary masks, or None when both are empty.
 
     For binary masks this is numerically the Critical Success Index of the
-    flood literature -- TP / (TP + FP + FN) -- so a reader coming from
-    hydrology can read the same column as CSI without converting anything.
+    flood literature, TP / (TP + FP + FN), so the same column reads as CSI
+    without conversion.
 
-    None rather than NaN for the empty case, and the difference is not
-    cosmetic: this payload crosses a pipe as JSON into Go and then into a
-    browser, and NaN is not valid JSON. A NaN here would fail the whole run at
-    the decoder with an error that names the parser rather than the empty mask.
+    The empty case returns None and not NaN: this payload crosses a pipe as
+    JSON into Go and then into a browser, and NaN is not valid JSON. A NaN here
+    would fail the run at the decoder, with an error naming the parser and not
+    the empty mask.
     """
     inter = int(np.count_nonzero(a & b))
     union = int(np.count_nonzero(a | b))
@@ -170,9 +157,8 @@ def resolve_inset_margin(shape, dx, inset_margin_cells=None):
 
     `shape` is the AOI's own bounding box, not the computed window: the ring is
     cut from the polygon, so a 1 km ring is measured against how much polygon
-    there is to cut it from. Returns the value actually used, which is what the
-    payload reports -- a margin silently reduced by the cap would make
-    `iou_inset` describe a different ring than the one named beside it.
+    there is to cut it from. Returns the value actually used, which is the
+    value the payload reports beside `iou_inset`.
     """
     if inset_margin_cells is None:
         inset_margin_cells = int(round(INSET_MARGIN_M / dx))
@@ -260,8 +246,8 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
         raise ValueError(
             f"an envelope is a disagreement between DEM products and needs at "
             f"least two; got {len(sources)} ({names}). One product yields an "
-            "extent with no measure of how much of it is the product's choice, "
-            "which is the shape this analysis exists to avoid shipping."
+            "extent with no measure of how much of it follows from the choice "
+            "of product."
         )
     if dx <= 0 or dy <= 0:
         raise ValueError(f"cell size must be positive, got dx={dx} dy={dy}")
@@ -291,9 +277,9 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
             n = int((~np.isfinite(s.z)).sum())
             raise ValueError(
                 f"{s.id}: {n} cells are not finite. A void reaching the "
-                "depression fill leaves the priority order undefined, and the "
-                "chain still returns a HAND field -- wrong over a region "
-                "rather than absent over it."
+                "depression fill leaves the priority order undefined. The "
+                "chain still returns a HAND field, and nothing in the output "
+                "marks the region it is wrong over."
             )
 
     if grid is None:
@@ -304,9 +290,9 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
         )
     if not hasattr(grid, "get"):
         raise ValueError(
-            "grid must be the payload block -- dem.payload_grid(reference) -- "
-            f"not a {type(grid).__name__}. The payload carries bounds in "
-            "degrees, which a transform does not spell out."
+            f"grid must be the payload block from dem.payload_grid(reference), "
+            f"got a {type(grid).__name__}. The payload carries bounds in "
+            "degrees; an affine transform does not."
         )
     if (int(grid.get("height", -1)), int(grid.get("width", -1))) != shape:
         raise ValueError(
@@ -317,8 +303,8 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
     if buffer_m is None:
         raise ValueError(
             "assess needs buffer_m, how far beyond the AOI the DEM was read. "
-            "It bounds the drainage that is missing at the border, so a reader "
-            "cannot judge the inset statistic without it."
+            "It bounds the drainage missing at the border and is required to "
+            "read the inset statistic."
         )
 
     if aoi_mask is None:
@@ -327,9 +313,8 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
             "grid. The arrays cover the AOI plus buffer_m on every side, and "
             "without the mask every area here would be the area of that "
             "buffered window: on one observed run 76.2 km2 of class areas for "
-            "an AOI of about 20 km2. There is no defensible default -- a mask "
-            "of all True says the caller means the whole computed window, and "
-            "that has to be said rather than assumed."
+            "an AOI of about 20 km2. There is no default. A caller reporting "
+            "over the whole computed window passes a mask of all True."
         )
     if aoi_mask.shape != shape:
         raise ValueError(
@@ -341,10 +326,9 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
     if not aoi_mask.any():
         raise ValueError(
             "aoi_mask selects no cell: the AOI polygon covers no cell centre "
-            "of this grid, so there is nothing to report over. This is an AOI "
-            "smaller than one cell of the coarsest product, not an empty "
-            "flood extent, and reporting zeros for it would say the terrain "
-            "is dry rather than that nothing was measured."
+            "of this grid, so there is nothing to report over. The AOI is "
+            "smaller than one cell of the coarsest product. Zeros reported for "
+            "it would read as dry terrain where no measurement was made."
         )
 
 
@@ -357,12 +341,11 @@ class Result:
 
     payload: dict
     # The agreement raster at the reference threshold, 0..N per cell, over the
-    # whole computed window. The payload cannot carry it -- a 1e7-cell array as
-    # JSON numbers is hundreds of megabytes through a pipe -- so a caller that
+    # whole computed window. The payload cannot carry it: a 1e7-cell array as
+    # JSON numbers is hundreds of megabytes through a pipe. A caller that
     # renders the map takes it from here and writes it as a file, the route the
-    # meshes already take. The caller clips it to `aoi` for anything it draws,
-    # because the payload figures are over `aoi` and a map wider than the
-    # numbers beside it is the defect this whole reporting mask exists to fix.
+    # meshes already take, and clips it to `aoi` for anything it draws, since
+    # the payload figures are over `aoi`.
     agreement: np.ndarray
     # The reference-threshold extents over the computed window, before the AOI
     # mask. The payload counts them inside it.
@@ -375,27 +358,24 @@ class Result:
 
 def qualifier_text(ids):
     """
-    The sentence that must travel with any figure this module produces.
+    The text that travels with any figure this module produces.
 
-    Two claims a number from here cannot support on its own, and both are
-    invited by the shape of the output: that the envelope is the study's
-    published range, and that a HAND threshold in metres is a flood depth.
+    It states two things a number from here cannot support on its own: that the
+    envelope is the study's published range, and that a HAND threshold in
+    metres is a flood depth.
     """
     listed = ", ".join(ids)
     return (
-        f"This envelope is TERRA's own measurement over the DEM products it "
-        f"reads from Microsoft Planetary Computer -- {listed}. It is not the "
-        "range published by the study E-hand-flood-baseline, which measured "
-        "COP30, NASADEM, SRTMGL1 and COP90 from OpenTopography over one fixed "
-        "area; that range does not apply to these figures and quoting it "
-        "beside them would attribute someone else's measurement to this map. "
-        "HAND is a terrain index -- the height of a cell above the drainage "
-        "it flows to -- and not a hydrodynamic model: there is no rainfall, "
-        "no discharge, no routing and no channel geometry here, so a "
-        "threshold in metres ranks susceptibility and does not state the "
-        "depth, the extent or the probability of any flood. Cells where the "
-        "products disagree are cells where the choice of DEM decides the "
-        "answer rather than the terrain."
+        f"These figures are TERRA's measurement over the products {listed} "
+        "(Microsoft Planetary Computer). The published range for the study "
+        "E-hand-flood-baseline used COP30, NASADEM, SRTMGL1 and COP90 from "
+        "OpenTopography over a single area and does not apply to these "
+        "figures. HAND is the height of a cell above the drainage cell "
+        "it flows to. It is not a hydrodynamic model: rainfall, discharge, "
+        "routing and channel geometry are not modelled. A threshold in metres "
+        "ranks relative susceptibility; it is not a flood depth, extent or "
+        "probability. Disagreement between products indicates cells where the "
+        "result depends on the choice of DEM."
     )
 
 
@@ -404,99 +384,101 @@ def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
                  cell_km2):
     """Every default in the payload, where it came from, and what is left out."""
     # Each sentence states where its number came from, and says so differently
-    # when the caller overrode the default -- an assumptions block that credits
-    # the study for a value the study never chose is worse than none.
+    # when the caller overrode the default, so that no value is credited to the
+    # study that the study did not choose.
     drainage_source = (
         "the study's reference value"
         if drainage_km2 == DRAINAGE_REF_KM2
-        else f"the caller's choice; the default is {DRAINAGE_REF_KM2} km2, the study's"
+        else f"the caller's choice; the default is {DRAINAGE_REF_KM2} km2, "
+             "the study's reference value"
     )
     reference_source = (
-        "The study reports its widest product disagreement at 1 m, so the "
-        "envelope is drawn where it is widest rather than where it flatters."
+        "The study reports its widest disagreement between products at 1 m."
         if reference_threshold_m == REFERENCE_THRESHOLD_M
-        else f"The caller set this; the default is {REFERENCE_THRESHOLD_M} m, "
-             "which is where the study reports its widest product disagreement."
+        else f"The caller set this value; the default is "
+             f"{REFERENCE_THRESHOLD_M} m, where the study reports its widest "
+             "disagreement between products."
     )
     requested_margin = int(round(INSET_MARGIN_M / dx))
     margin_note = (
         ""
         if margin >= requested_margin
-        else (f" The {INSET_MARGIN_M:.0f} m ring the default asks for is "
-              f"{requested_margin} cells here and was capped: it would leave "
-              "too little of the AOI to measure.")
+        else (f" The default {INSET_MARGIN_M:.0f} m ring is "
+              f"{requested_margin} cells on this grid and was capped at "
+              f"{margin}, which leaves at least half the shorter side of the "
+              "AOI bounding box inside the inset.")
     )
     return {
         "drainage_threshold": (
             f"A cell is drainage when at least {drainage_km2} km2 drains "
             f"through it, which is {min_cells} cells at this cell size. This is "
-            f"{drainage_source}. The extent moves with it and this payload does "
-            "not sweep it, so the drainage threshold is a fixed choice reported "
-            "here rather than a measured uncertainty."
+            f"{drainage_source}. The extent moves with this value, which is "
+            "held fixed here; its contribution to the reported "
+            "disagreement is unmeasured."
         ),
         "reference_threshold": (
             f"The agreement raster is built at HAND <= {reference_threshold_m} m. "
             + reference_source
         ),
         "thresholds": (
-            f"Thresholds swept: {list(thresholds)} m, the study's sweep, kept so "
-            "the tables can be read side by side."
+            f"Thresholds swept: {list(thresholds)} m. These are the values "
+            "the study reports."
         ),
         "reporting_extent": (
-            f"Every count, area, fraction and IoU here is over the "
+            f"Every count, area, fraction and IoU here is taken over the "
             f"{aoi_cells} cells inside the AOI polygon, "
             f"{aoi_cells * cell_km2:.4g} km2. The terrain chain ran over "
-            f"{window_cells} cells, {window_cells * cell_km2:.4g} km2, because "
-            "HAND needs the contributing area upstream of the AOI; that window "
-            "is reported under grid and buffer_m and is not what any figure "
-            "above is measured over. Cells are counted in or out by whether "
-            "their centre falls inside the polygon, so the reported area and "
-            "the polygon's own area differ by at most a half cell along the "
+            f"{window_cells} cells, {window_cells * cell_km2:.4g} km2, since "
+            "HAND requires the contributing area upstream of the AOI. That "
+            "window is reported under grid and buffer_m as provenance; no "
+            "figure here is measured over it. A cell is counted when its "
+            "centre falls inside the polygon, so the reported area differs "
+            "from the polygon's own area by at most half a cell along the "
             "boundary."
         ),
         "inset_margin": (
             f"The inset statistics repeat every comparison over the AOI shrunk "
             f"by {margin} cells, about {margin * dx:.0f} m, measured from the "
             f"AOI boundary and covering {inset_cells} cells. The ring is cut "
-            "from the polygon and not from the computed window, which the "
-            "buffer already puts outside every figure here. What it tests is "
-            "unchanged: near the AOI boundary the contributing area is still "
-            "short of whatever drains in from beyond the buffer, so HAND reads "
-            "high and the extent small, and a large gap between iou and "
-            "iou_inset means the disagreement is concentrated there rather "
-            "than through the AOI." + margin_note
+            "from the AOI polygon. Near the AOI boundary the contributing area "
+            "does not include drainage from beyond the buffer, so HAND reads "
+            "high and the extent small. A large gap between iou "
+            "and iou_inset indicates that the disagreement is concentrated "
+            "near that boundary." + margin_note
         ),
         "cell_size": (
             f"Cells are {dx:.1f} by {dy:.1f} m, evaluated at the centre latitude "
             "of the window (hand.pixel_size_m). Areas in this payload are cell "
-            "counts times that, not a projected-area calculation."
+            "counts multiplied by that cell area; no projected-area "
+            "calculation is applied."
         ),
         "alignment": (
-            "Every product arrives on one grid. A product whose native grid "
-            "differs was aligned by nearest neighbour, recorded per row as "
-            "resampled; its disagreement with the others includes the "
-            "alignment and is not purely terrain. A null in that column means "
-            "the caller did not record the fact, not that it is false."
+            "All products are on one grid. A product whose native grid "
+            "differs was aligned by nearest neighbour and is marked resampled "
+            "in its row. Its disagreement with the others carries an alignment "
+            "component in addition to the terrain difference. A null in that "
+            "column means the caller did not report whether the product was "
+            "resampled."
         ),
         "buffer": (
-            f"The DEM was read {buffer_m:.0f} m beyond the AOI so drainage "
-            "entering it is real terrain. Water arriving from beyond that "
-            "buffer is still missing, so HAND remains biased high, and the "
-            "extent low, near the AOI edge. The buffered window is where the "
-            "chain ran and not where the figures are taken."
+            f"The DEM was read {buffer_m:.0f} m beyond the AOI, so the drainage "
+            "entering the AOI is measured terrain. Drainage arriving from "
+            "beyond that buffer is absent, which biases HAND high and the "
+            "extent low near the AOI edge. The chain ran over the buffered "
+            "window; the figures are taken over the AOI."
         ),
         "excluded": [
             "No rainfall, discharge, routing or hydrodynamic simulation.",
             "No observed flood: nothing here is compared against a satellite "
             "or gauge record of an event.",
             "No channel bathymetry, levees, dams or drainage infrastructure. "
-            "The DEM surface is what is measured, which over open water is the "
-            "water surface at acquisition and, for products that are not bare "
-            "earth, includes buildings and canopy.",
+            "The measured surface is the DEM surface, which over open water is "
+            "the water surface at acquisition and, for products that are not "
+            "bare earth, includes buildings and canopy.",
             "No vertical datum harmonisation between products. HAND is a height "
             "difference within one product, so a constant offset between "
-            "products cancels; a spatially varying one does not and would show "
-            "here as terrain disagreement.",
+            "products cancels. A spatially varying offset does not cancel and "
+            "appears here as terrain disagreement.",
             "No uncertainty from the drainage threshold, which is held fixed.",
             "No temporal dimension: the products were acquired years apart and "
             "the terrain is treated as unchanged between them.",
@@ -526,8 +508,7 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
 
     # The reference threshold joins the sweep even if the caller left it out.
     # Without it the payload would show an agreement raster built at a
-    # threshold that has no row in `envelope` -- a map with no measure of its
-    # own spread next to it.
+    # threshold with no row in `envelope`, and no measure of its spread.
     thresholds = sorted({float(t) for t in thresholds_m} | {float(reference_threshold_m)})
     reference_threshold_m = float(reference_threshold_m)
 
@@ -542,9 +523,9 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
 
     # The HAND field once per product, then thresholded five times. Held as
     # float32: the comparison is against a threshold in whole metres and the
-    # float32 spacing at 1000 m of relief is 6e-5 m. It is NOT safe inside the
-    # chain -- hand.fill_depressions separates a plateau by 1e-3 m, which
-    # float32 rounds away at that elevation -- and hand.compute allocates its
+    # float32 spacing at 1000 m of relief is 6e-5 m. It is not safe inside the
+    # chain, where hand.fill_depressions separates a plateau by 1e-3 m and
+    # float32 rounds that away at such an elevation. hand.compute allocates its
     # own float64 arrays, so the narrowing happens strictly after it.
     #
     # The chain runs on the full window, buffer included. Narrowing it to the
@@ -646,18 +627,17 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
         "agreement": {
             # counts[k] is the number of AOI cells exactly k products call
             # flooded. counts[0] closes the accounting and is not a level of
-            # agreement: that no product calls a cell flooded says nothing
-            # about how far the products agree with each other, and listing it
-            # as a class beside the others flattens the one distinction this
-            # analysis draws. It belongs beside aoi.area_km2 as the dry
-            # remainder of the AOI, which is what unanimous_dry_km2 is.
+            # agreement: a cell no product calls flooded carries no measure of
+            # agreement between the products. It is reported as the dry
+            # remainder of the AOI, in unanimous_dry_km2.
             "counts": [int(c) for c in counts],
             "unanimous_wet_km2": _round(unanimous_wet * cell_km2, 4),
             "contested_km2": _round(contested * cell_km2, 4),
             "unanimous_dry_km2": _round(unanimous_dry * cell_km2, 4),
-            # The share of the wet extent that the DEM decides rather than the
-            # terrain. None when no product calls anything wet: there is no
-            # extent to take a share of, and 0.0 would read as agreement.
+            # The share of the wet extent the DEM decides, the rest being the
+            # share the terrain decides. None when no product calls anything
+            # wet: there is no extent to take a share of, and 0.0 would read as
+            # agreement.
             "contested_frac_of_wet": (
                 _round(contested / wet_total, 4) if wet_total else None
             ),
@@ -696,9 +676,9 @@ def _either_resampled(a, b):
     """
     Whether the pair crossed a resampling. None when either side is unrecorded.
 
-    A pair is only free of alignment error if BOTH products are known to be
-    native on the shared grid, so an unknown on either side makes the pair
-    unknown rather than clean.
+    A pair is free of alignment error only if both products are known to be
+    native on the shared grid, so an unknown on either side leaves the pair
+    unknown.
     """
     if a.resampled is None or b.resampled is None:
         return None
