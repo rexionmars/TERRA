@@ -1910,7 +1910,7 @@ AnalyzeFlood measures the HAND flood extent over the AOI and, cell by cell, how
 much of that extent the choice of DEM product decides rather than the terrain.
 
 There is no mode that returns one mask. The recorded run put the pairwise
-agreement between four products at IoU 0.27 to 0.39 at the 1 m reference
+agreement between four products at IoU 0.29 to 0.50 at the 1 m reference
 threshold over one window, so an extent shipped alone would be a shape produced
 by a DEM the user never chose and is never shown. What comes back is the
 agreement count raster and the envelope around it.

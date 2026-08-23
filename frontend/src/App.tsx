@@ -2629,6 +2629,13 @@ function AppBody(props: {
     setWater(null)
     solarDispatch({ type: "results/clearAll" })
     windDispatch({ type: "result/clear" })
+    // Flood is one of them. It was added to `resultWithWater` and not here, so
+    // the two disagreed about what a standalone product is: the payload counted
+    // a loaded envelope, this did not clear it, and the detail view therefore
+    // rebuilt itself from the flood result the moment this returned. The list
+    // was then unreachable for the rest of the session -- pressing the control
+    // again ran exactly the same no-op.
+    setFlood(null)
     props.setShowPredictionOverlay(true)
     props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
@@ -2925,6 +2932,12 @@ function AppBody(props: {
       // Every standalone product counts. A run that carries only one of them
       // no longer sets a classification result, so leaving any out here would
       // hand the analysis screen nothing to show for it.
+      //
+      // THE SAME LIST APPEARS IN backToAnalysesList, WHICH CLEARS IT. A product
+      // added to one and not the other is the defect flood shipped with: this
+      // counted a loaded envelope, the clearing did not remove it, and the
+      // detail view rebuilt itself from what the clearing left behind. Adding a
+      // product here means adding it there.
       const r = solar.results
       const w = wind.result
       if (

@@ -859,7 +859,7 @@ func assertFloodFixtureBinds(t *testing.T, f *analysis.FloodAnalysis) {
 			sumKm2, f.AOI.AreaKm2)
 	}
 	// A pointer because no product calling anything wet leaves the share
-	// undefined. Here 88 percent of the wet cells are contested, and a null
+	// undefined. Here 84 percent of the wet cells are contested, and a null
 	// decoded into a bare float64 would print that as agreement.
 	if f.Agreement.ContestedFracOfWet == nil {
 		t.Fatal("contested_frac_of_wet is nil: this AOI contests 0.8402 of its wet cells")

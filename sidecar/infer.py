@@ -3624,8 +3624,10 @@ def action_flood_envelope(req, work_dir):
     )
     payload['assumptions']['chain_grid'] = (
         f'The terrain chain ran on the shared {grid.width} by {grid.height} '
-        f'grid for every product. A product whose native cells are coarser was '
-        f'moved onto that grid before the chain. The other order, the chain on '
+        f'grid for every product. A product whose native grid differs from that '
+        f'one was moved onto it before the chain -- which includes a product at '
+        f'the same nominal cell size on a different origin, not only a coarser '
+        f'one. The other order, the chain on '
         f'the native grid and the resulting mask aligned after, gives a '
         f'different extent for such a product: measured over one 6 by 6 km '
         f'window (n=1), the two orders agreed at IoU 0.47 for COP90 at the 1 m '

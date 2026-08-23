@@ -270,8 +270,11 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
             raise ValueError(
                 f"{s.id}: shape {s.z.shape} does not match {sources[0].id} {shape}. "
                 "The agreement raster counts products cell by cell, so every "
-                "product must already be on one grid; dem.fetch_set and "
-                "dem.align_mask do that alignment."
+                "product must already be on one grid. dem.fetch_set reports "
+                "each product on its own grid with a resampled flag; the "
+                "caller is what moves them, with dem.resample_onto. "
+                "dem.align_mask is for the other order -- chain first, align "
+                "the finished mask -- and has no call site yet."
             )
         if not np.isfinite(s.z).all():
             n = int((~np.isfinite(s.z)).sum())
@@ -381,7 +384,7 @@ def qualifier_text(ids):
 
 def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
                  margin, dx, dy, buffer_m, aoi_cells, inset_cells, window_cells,
-                 cell_km2):
+                 cell_km2, inset_margin_cells=None):
     """Every default in the payload, where it came from, and what is left out."""
     # Each sentence states where its number came from, and says so differently
     # when the caller overrode the default, so that no value is credited to the
@@ -399,11 +402,22 @@ def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
              f"{REFERENCE_THRESHOLD_M} m, where the study reports its widest "
              "disagreement between products."
     )
-    requested_margin = int(round(INSET_MARGIN_M / dx))
+    # WHOSE RING WAS CAPPED. This read the module's own INSET_MARGIN_M whether
+    # or not the caller had chosen a width, so a caller-supplied ring that hit
+    # the cap was reported as "the default 1000 m ring" being capped -- a
+    # provenance that did not happen, and the exact thing the comment above says
+    # this function exists to avoid. It now branches the same way drainage and
+    # the reference threshold do.
+    if inset_margin_cells is None:
+        requested_margin = int(round(INSET_MARGIN_M / dx))
+        requested_source = f"The default {INSET_MARGIN_M:.0f} m ring is "
+    else:
+        requested_margin = max(0, int(inset_margin_cells))
+        requested_source = "The ring the caller asked for is "
     margin_note = (
         ""
         if margin >= requested_margin
-        else (f" The default {INSET_MARGIN_M:.0f} m ring is "
+        else (f" {requested_source}"
               f"{requested_margin} cells on this grid and was capped at "
               f"{margin}, which leaves at least half the shorter side of the "
               "AOI bounding box inside the inset.")
@@ -649,7 +663,7 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
         "assumptions": _assumptions(drainage_km2, min_cells, reference_threshold_m,
                                     thresholds, margin, dx, dy, buffer_m,
                                     aoi_cells, inset_cells, counts_raster.size,
-                                    cell_km2),
+                                    cell_km2, inset_margin_cells),
     }
 
     return Result(payload=payload, agreement=counts_raster, masks=reference_masks,
