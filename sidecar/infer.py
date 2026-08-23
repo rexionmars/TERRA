@@ -3178,6 +3178,384 @@ def action_wind_resource(req, work_dir):
     sys.stdout.flush()
 
 
+# The ceiling on one flood envelope run, in cells of the shared grid.
+#
+# Measured on this chain (hand.compute, one product, square grids from 300 by
+# 300 to 1200 by 1200 cells): 1.9 to 3.0 microseconds per cell, the rate rising
+# with grid size, and about 200 bytes of peak resident memory per cell, flat
+# across that range. Every product runs the chain on the shared grid, so four
+# products over N cells cost about 4 * 3e-6 * N seconds, and the peak holds one
+# chain's working set plus the elevation arrays, HAND fields and masks kept
+# across it, roughly 250 * N bytes.
+#
+# At 4e6 cells that is roughly 50 s of terrain chain and 1.0 GB resident, inside
+# a desktop application that is also holding a browser. Memory binds before time
+# and it binds steeply: 8e6 cells would ask for 1.9 GB, where the packaged
+# application on a 16 GB machine stops being slow and starts swapping.
+#
+# 4e6 cells of 30 m is a 60 km square, which after the 5 km buffer cap in
+# dem.recommended_buffer_m is an AOI of about 50 km on a side. Beyond that the
+# run is refused rather than quietly downsampled: this analysis measures
+# disagreement between DEM products, and reading them at a resolution none of
+# them has changes the quantity being measured. Measured over one 6 by 6 km
+# window at Propriedade B, moving COP90 onto the 30 m grid before the terrain
+# chain rather than after it moved its own 1 m extent by IoU 0.47, which is as
+# large as the product disagreement this payload exists to report.
+MAX_ENVELOPE_CELLS = 4_000_000
+
+
+def common_covered_window(arrays, max_trim):
+    """
+    The largest rectangle of the shared grid that every DEM product covers.
+
+    Returns (row_start, row_stop, col_start, col_stop), or None when trimming up
+    to `max_trim` cells from each border does not reach a rectangle they all
+    cover.
+
+    Each product is merged over a window snapped outward to its own cell
+    boundaries, so the windows differ by less than one of their own cells and a
+    product moved onto the reference grid can fall short of it at the border: on
+    a real 6 by 6 km read here, ALOS left one column of 203 cells uncovered.
+    Those cells arrive as NaN, and the terrain chain has no answer for a NaN --
+    the depression fill orders on elevation, so a void leaves the flow direction
+    of everything downstream of it undefined and the chain still returns a HAND
+    field, wrong over a region rather than absent over it.
+
+    `max_trim` is what separates that sliver from a hole in a product. The
+    sliver cannot exceed one cell of the coarsest product plus a rounding cell;
+    a void over water or in radar shadow can sit anywhere and be any size, and
+    peeling the window until it disappears would report a smaller area with
+    nothing on screen saying why. Past the bound this returns None and the
+    caller names the products that are missing elevation.
+    """
+    covered = None
+    for z in arrays:
+        finite = np.isfinite(z)
+        covered = finite if covered is None else (covered & finite)
+    height, width = covered.shape
+    r0, r1, c0, c1 = 0, height, 0, width
+    while r1 > r0 and c1 > c0:
+        block = covered[r0:r1, c0:c1]
+        if block.all():
+            return r0, r1, c0, c1
+        # The border line missing the most cells goes first. Peeling in a fixed
+        # order instead spends the whole allowance in the wrong direction: one
+        # uncovered column leaves every row incomplete, so a row-first rule
+        # trims max_trim rows off both ends before it reaches the column.
+        missing = [
+            int((~block[0]).sum()), int((~block[-1]).sum()),
+            int((~block[:, 0]).sum()), int((~block[:, -1]).sum()),
+        ]
+        worst = int(np.argmax(missing))
+        if missing[worst] == 0:
+            return None  # every border line is covered; the hole is inside
+        if worst == 0 and r0 < max_trim:
+            r0 += 1
+        elif worst == 1 and height - r1 < max_trim:
+            r1 -= 1
+        elif worst == 2 and c0 < max_trim:
+            c0 += 1
+        elif worst == 3 and width - c1 < max_trim:
+            c1 -= 1
+        else:
+            return None
+    return None
+
+
+def agreement_rgba(counts, n_products):
+    """
+    Colour the agreement raster: how many products call each cell flooded.
+
+    The blue ramp water.occurrence_to_rgba uses, on an absolute scale rather
+    than a percentile stretch, so the same colour means the same count in every
+    run and one legend describes them all. Cells no product calls flooded are
+    transparent rather than the palest tone of the ramp, which is what stops the
+    dry majority of a window from reading as a faint flood.
+    """
+    import composite as comp
+
+    t = np.clip(counts.astype(np.float32) / max(int(n_products), 1), 0.0, 1.0)
+    rgb = comp._lerp_cmap(t, comp._BLUES)
+    height, width = counts.shape
+    rgba = np.zeros((height, width, 4), dtype=np.uint8)
+    for band in range(3):
+        rgba[..., band] = (rgb[..., band] * 255).astype(np.uint8)
+    rgba[..., 3] = np.where(counts > 0, 255, 0).astype(np.uint8)
+    return rgba
+
+
+# HAND flood extent with the envelope of DEM products around it.
+def action_flood_envelope(req, work_dir):
+    # Imported here rather than at module scope, as every heavy action does.
+    # dem pulls pystac_client, planetary_computer and shapely.ops, flood pulls
+    # the terrain chain; at module scope every action would pay those imports,
+    # and one missing dependency would fail the sidecar for every product
+    # instead of for this one.
+    import composite as comp
+    import dem as dem_mod
+    import flood as flood_mod
+
+    configure_gdal_for_cog()
+
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+    if polygon.is_empty:
+        fail('the AOI polygon is empty, so there is no window to read a DEM over')
+
+    # An explicit empty list is a broken request and reaches the count check
+    # below with its own message; only absence selects the four-product set.
+    ids = req.get('dem_ids')
+    if ids is None:
+        ids = list(dem_mod.DEFAULT_IDS)
+    try:
+        products = [dem_mod.resolve(pid) for pid in ids]
+    except ValueError as e:
+        fail(str(e))
+    if len(products) < 2:
+        fail(f'an envelope is a disagreement between DEM products and needs at '
+             f'least two; this request names {len(products)}. One product '
+             f'yields an extent with no measure of how much of it the product '
+             f'chose, which is the shape this analysis exists to avoid '
+             f'shipping. Known products: {", ".join(sorted(dem_mod.COLLECTIONS))}.')
+
+    thresholds = req.get('thresholds_m')
+    if thresholds is None:
+        thresholds = list(flood_mod.THRESHOLDS_M)
+    try:
+        thresholds = [float(t) for t in thresholds]
+    except (TypeError, ValueError):
+        fail('thresholds_m must be a list of HAND thresholds in metres')
+    if not thresholds:
+        fail('thresholds_m is empty; give at least one HAND threshold in metres, '
+             f'or omit it for the {list(flood_mod.THRESHOLDS_M)} m sweep')
+    if any(t < 0 for t in thresholds):
+        fail(f'HAND thresholds are heights above the drainage and cannot be '
+             f'negative, got {thresholds}')
+
+    # Zero is a value for a threshold: HAND <= 0 m is the drainage surface
+    # itself, which is a question a caller can ask. Only absence selects the 1 m
+    # reference the study reports its widest disagreement at.
+    reference_threshold_m = request_positive(
+        req, 'reference_threshold_m', flood_mod.REFERENCE_THRESHOLD_M,
+        allow_zero=True,
+    )
+    # Zero is not a value for the drainage area. hand.compute floors the
+    # threshold at one cell, so a request of zero makes every cell drainage,
+    # HAND zero everywhere and the extent the whole window at every threshold.
+    drainage_km2 = request_positive(req, 'drainage_km2', flood_mod.DRAINAGE_REF_KM2)
+
+    # Both of these default to None on absence, which is the signal each module
+    # reads as "choose for me": dem sizes the buffer from the AOI and flood
+    # takes its 1 km edge ring. Zero is a value for both -- a caller reading
+    # exactly the AOI, and a caller asking for no interior ring -- so neither
+    # can go through request_positive, whose default would have to be a number.
+    buffer_m = request_number(req, 'buffer_m', None)
+    if buffer_m is None:
+        buffer_m = dem_mod.recommended_buffer_m(polygon.bounds)
+    elif buffer_m < 0:
+        fail(f'buffer_m is a distance beyond the AOI and cannot be negative, '
+             f'got {buffer_m}')
+    edge_margin_cells = request_number(req, 'edge_margin_cells', None, int)
+    if edge_margin_cells is not None and edge_margin_cells < 0:
+        fail(f'edge_margin_cells is a ring width and cannot be negative, '
+             f'got {edge_margin_cells}')
+
+    # Refused before the first byte is fetched: the read is the slow part of an
+    # oversized request and the user would wait through all four of them to be
+    # told the size was never admissible.
+    aoi_w, aoi_h = dem_mod.aoi_extent_m(polygon.bounds)
+    window_w, window_h = dem_mod.aoi_extent_m(
+        dem_mod.buffer_bounds(polygon.bounds, buffer_m)
+    )
+    reference_res_m = products[0].native_resolution_m
+    window_cells = (window_w / reference_res_m) * (window_h / reference_res_m)
+    if window_cells > MAX_ENVELOPE_CELLS:
+        admissible_km = (
+            reference_res_m * MAX_ENVELOPE_CELLS ** 0.5 - 2 * buffer_m
+        ) / 1000.0
+        fail(
+            f'this AOI is {aoi_w / 1000:.1f} by {aoi_h / 1000:.1f} km, which '
+            f'with the {buffer_m:.0f} m buffer the terrain chain needs is '
+            f'{window_cells / 1e6:.1f} million cells of {reference_res_m:.0f} m '
+            f'for each of the {len(products)} DEM products. The flood envelope '
+            f'is limited to {MAX_ENVELOPE_CELLS / 1e6:.0f} million, about '
+            f'{admissible_km:.0f} km on a side, because the chain holds roughly '
+            f'250 bytes per cell at its peak. Draw a smaller AOI. The envelope '
+            f'will not read the products at a coarser resolution to fit: it '
+            f'measures how much the choice of DEM decides the extent, and '
+            f'resampling the products changes that measurement.'
+        )
+
+    # The read and the terrain chain are the two slow stages, and each reports
+    # per unit of real work: one step per product read, then one per terrain
+    # chain and one per threshold compared.
+    read_floor, read_ceiling = 5, 45
+    chain_floor, chain_ceiling = 45, 92
+
+    def read_progress(message):
+        """
+        Advance once per product read.
+
+        dem.fetch_set prefixes every message with the product id, which is how a
+        message is placed. One that matches no id still reports its text and
+        leaves the bar where it stands, so the prefix is not load-bearing: a
+        change to it makes the bar coarser and nothing else.
+        """
+        for index, product in enumerate(products):
+            if message.startswith(product.id + ':'):
+                emit_progress(
+                    read_floor
+                    + int((read_ceiling - read_floor) * index / len(products)),
+                    message,
+                )
+                return
+        emit_progress(read_floor, message)
+
+    # flood.measure emits one message per product for the terrain chain and one
+    # per threshold for the comparison, and it adds the reference threshold to
+    # the sweep if the caller left it out -- so the step count is known before
+    # the run rather than estimated. min() keeps a message the module might add
+    # later from running the bar past its band.
+    chain_steps = len(products) + len(
+        {float(t) for t in thresholds} | {float(reference_threshold_m)}
+    )
+    chain_done = {'n': 0}
+
+    def chain_progress(message):
+        chain_done['n'] += 1
+        emit_progress(
+            chain_floor
+            + int((chain_ceiling - chain_floor)
+                  * min(chain_done['n'], chain_steps) / chain_steps),
+            message,
+        )
+
+    emit_progress(
+        read_floor,
+        f'reading {len(products)} DEM products over the AOI plus {buffer_m:.0f} m'
+    )
+    try:
+        reads = dem_mod.fetch_set(
+            polygon, ids=[p.id for p in products], buffer_m=buffer_m,
+            progress=read_progress,
+        )
+    except Exception as e:
+        fail(f'DEM read failed: {e}')
+
+    emit_progress(read_ceiling, 'aligning the products onto one grid')
+    reference = reads[0].reference
+    arrays = {}
+    for read in reads:
+        # flood.measure counts products cell by cell and so requires one grid,
+        # which means a product whose native grid differs is moved onto the
+        # reference grid BEFORE its terrain chain runs. dem.fetch_set argues for
+        # the other order -- chain on the native grid, align the mask after --
+        # and on the 6 by 6 km window measured here the two orders put COP90's
+        # 1 m extent at IoU 0.47 of each other, so the order is not a detail.
+        # It is recorded in assumptions.chain_grid below and, per pair, in the
+        # resampled column, because a reader cannot separate the two components
+        # from the numbers alone.
+        arrays[read.product.id] = (
+            dem_mod.resample_onto(read.array, read.grid, reference)
+            if read.resampled else read.array
+        )
+
+    # One cell of the coarsest product, plus one for the rounding: past that a
+    # missing cell is not the alignment sliver.
+    max_trim = int(
+        round(max(p.native_resolution_m for p in products) / reference_res_m)
+    ) + 1
+    covered = common_covered_window(arrays.values(), max_trim)
+    if covered is None:
+        missing = ', '.join(
+            f'{pid} {int((~np.isfinite(z)).sum())} cells'
+            for pid, z in arrays.items() if not np.isfinite(z).all()
+        )
+        fail(f'the products do not cover one common window: {missing} have no '
+             f'elevation, and trimming up to {max_trim} cells from each border '
+             f'does not reach a rectangle all of them cover. A void that far '
+             f'inside the window is a hole in the product rather than an '
+             f'alignment sliver -- over water, or in radar shadow -- and the '
+             f'terrain chain would still return a HAND field over it, wrong '
+             f'over a region rather than absent over it. Move or shrink the '
+             f'AOI, or name a dem_ids set without the product that is missing.')
+    r0, r1, c0, c1 = covered
+    arrays = {pid: z[r0:r1, c0:c1] for pid, z in arrays.items()}
+
+    # The window the products were actually compared on, which the crop above
+    # can leave up to one cell inside the read window on any side. The payload
+    # bounds have to be this one and not the requested one, or the map would be
+    # drawn a cell off the ground it describes.
+    grid = dem_mod.Grid(
+        transform=rasterio.windows.transform(
+            rasterio.windows.Window(c0, r0, c1 - c0, r1 - r0), reference.transform
+        ),
+        width=c1 - c0,
+        height=r1 - r0,
+        crs=reference.crs,
+    )
+    dx, dy = dem_mod.cell_size_m(grid)
+
+    sources = {}
+    for read in reads:
+        row = read.describe()
+        sources[row['id']] = flood_mod.Source(
+            id=row['id'],
+            z=arrays[row['id']],
+            collection=row['collection'],
+            native_resolution_m=row['native_resolution_m'],
+            resampled=row['resampled'],
+        )
+
+    try:
+        result = flood_mod.measure(
+            sources, dx, dy,
+            thresholds_m=thresholds,
+            drainage_km2=drainage_km2,
+            reference_threshold_m=reference_threshold_m,
+            edge_margin_cells=edge_margin_cells,
+            grid=dem_mod.payload_grid(grid),
+            buffer_m=buffer_m,
+            progress=chain_progress,
+        )
+    except Exception as e:
+        fail(f'the flood envelope could not be measured: {e}')
+
+    emit_progress(94, 'writing the agreement raster')
+    payload = result.payload
+    # The agreement raster is the product, and it cannot travel in the payload:
+    # a 4e6-cell array as JSON numbers is tens of megabytes through the pipe.
+    # It leaves as two files instead -- the counts themselves, georeferenced on
+    # the grid the payload describes, and a rendering of them to draw.
+    agreement_tif = Path(work_dir) / 'flood_agreement.tif'
+    with rasterio.open(
+        agreement_tif, 'w', driver='GTiff', height=grid.height, width=grid.width,
+        count=1, dtype='uint8', crs=grid.crs, transform=grid.transform,
+        compress='deflate',
+    ) as dst:
+        dst.write(result.agreement, 1)
+    agreement_png = Path(work_dir) / 'flood_agreement.png'
+    comp.write_rgba_png(agreement_rgba(result.agreement, len(sources)), agreement_png)
+    payload['agreement_tif'] = str(agreement_tif)
+    payload['agreement_png'] = str(agreement_png)
+    payload['assumptions']['chain_grid'] = (
+        f'Every product ran the terrain chain on the shared '
+        f'{grid.width} by {grid.height} grid, so a product whose native cells '
+        f'are coarser was moved onto it before the chain rather than after. '
+        f'Running the chain on the native grid and aligning the resulting mask '
+        f'gives a different extent for such a product: measured over one 6 by '
+        f'6 km window (n=1), the two orders agreed at IoU 0.47 for COP90 at the '
+        f'1 m threshold, against 0.95 for a product already at 30 m. Pairs '
+        f'flagged resampled therefore carry a method component of that order '
+        f'alongside the terrain difference; pairs flagged false do not.'
+    )
+
+    emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'flood': payload}))
+    sys.stdout.flush()
+
+
 # Surface water / flood mapping from spectral water indices (no model).
 def action_water(req, work_dir):
     import water as water_mod
@@ -3889,6 +4267,7 @@ ACTIONS = {
     'solar_siting': action_solar_siting,
     'energy_model': action_energy_model,
     'wind_resource': action_wind_resource,
+    'flood_envelope': action_flood_envelope,
     'water': action_water,
     'render_composite': action_render_composite,
     'predict': action_predict,

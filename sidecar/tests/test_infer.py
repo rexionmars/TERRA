@@ -488,3 +488,292 @@ def test_library_limit_skips_a_class_missing_a_band():
         ],
     }
     assert infer.library_limit(spectra) is None
+
+
+# The flood envelope dispatcher.
+#
+# The handler is what turns two modules into one product: it reads four DEM
+# products, puts them on one grid, runs the envelope and writes the agreement
+# raster out. These pin the parts of that composition that fail silently -- the
+# size ceiling, the alignment sliver, and the colouring of a raster whose
+# majority is dry.
+
+
+def _flood_grid(height, width, step_deg, lon_min=-53.54, lat_max=-25.71):
+    """A north-up EPSG:4326 grid, the shape dem.fetch_set returns."""
+    import rasterio
+    from rasterio.transform import Affine
+
+    import dem
+
+    transform = Affine.translation(lon_min, lat_max) * Affine.scale(step_deg, -step_deg)
+    return dem.Grid(transform=transform, width=width, height=height,
+                    crs=rasterio.crs.CRS.from_epsg(4326))
+
+
+def _flood_valley(height, width, centre, cross_slope, along_slope=0.01):
+    """The V-shaped valley test_flood.py uses: HAND is the distance to the axis."""
+    across = np.abs(np.arange(width) - centre).astype(float) * cross_slope
+    along = np.arange(height, 0, -1, dtype=float) * along_slope
+    return 100.0 + across[None, :] + along[:, None]
+
+
+def _flood_reads(height=48, width=52):
+    """
+    Four products over one window: three on the reference grid, one at 3x the
+    cell size, which is the arrangement Planetary Computer actually returns.
+    """
+    import dem
+
+    step = 1.0 / 3600.0
+    reference = _flood_grid(height, width, step)
+    coarse = _flood_grid(height // 3, width // 3, step * 3)
+
+    fine = _flood_valley(height, width, width / 2, 1.0)
+    rng = np.random.default_rng(7)
+    reads = [
+        dem.ProductRead(product=dem.resolve("cop30"), array=fine,
+                        grid=reference, reference=reference, resampled=False),
+        dem.ProductRead(product=dem.resolve("nasadem"),
+                        array=fine + rng.normal(0.0, 0.4, fine.shape),
+                        grid=reference, reference=reference, resampled=False),
+        dem.ProductRead(product=dem.resolve("alos"),
+                        array=fine + rng.normal(0.0, 0.8, fine.shape),
+                        grid=reference, reference=reference, resampled=False),
+        dem.ProductRead(product=dem.resolve("cop90"),
+                        array=_flood_valley(height // 3, width // 3,
+                                            width / 6, 3.0, along_slope=0.03),
+                        grid=coarse, reference=reference, resampled=True),
+    ]
+    return reads
+
+
+def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypatch,
+                                                             capsys):
+    """
+    The handler end to end, with the catalogue replaced and everything else real.
+
+    What it pins is the composition: the coarse product reaches the envelope on
+    the shared grid, the payload the frontend and the Go layer are written
+    against arrives under "flood", and the agreement raster leaves as files
+    because it cannot travel as JSON.
+    """
+    import dem
+    import rasterio
+
+    reads = _flood_reads()
+    monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: reads)
+
+    infer.action_flood_envelope(
+        {
+            "polygon_geojson": {
+                "type": "Polygon",
+                "coordinates": [[[-53.54, -25.72], [-53.53, -25.72],
+                                 [-53.53, -25.71], [-53.54, -25.71],
+                                 [-53.54, -25.72]]],
+            },
+            # 0.5 km2 is 556 cells of 30 m and nothing in a 48 by 52 window
+            # reaches it, which would leave no drainage network at all.
+            "drainage_km2": 0.02,
+            "edge_margin_cells": 4,
+        },
+        tmp_path,
+    )
+
+    out = capsys.readouterr()
+    payload = json.loads(out.out)["flood"]
+
+    assert [row["id"] for row in payload["products"]] == [
+        "cop30", "nasadem", "alos", "cop90",
+    ]
+    assert payload["reference_threshold_m"] == 1.0
+    assert payload["thresholds_m"] == [1.0, 2.0, 5.0, 10.0, 20.0]
+    # Four products, so every cell is counted 0 to 4 and the counts account for
+    # the whole grid.
+    counts = payload["agreement"]["counts"]
+    assert len(counts) == 5
+    assert sum(counts) == payload["grid"]["width"] * payload["grid"]["height"]
+    # Six unordered pairs at each of the five thresholds.
+    assert len(payload["pairs"]) == 30
+    assert len(payload["envelope"]) == 5
+    assert payload["buffer_m"] > 0
+
+    # The coarse product is the one that crossed a resampling, and every pair it
+    # is in is flagged, which is what lets a reader separate the alignment from
+    # the terrain.
+    resampled = {row["id"]: row["resampled"] for row in payload["products"]}
+    assert resampled == {"cop30": False, "nasadem": False, "alos": False,
+                         "cop90": True}
+    for pair in payload["pairs"]:
+        assert pair["resampled"] == ("cop90" in (pair["dem_a"], pair["dem_b"]))
+
+    # The raster the payload summarises, on the grid the payload describes.
+    with rasterio.open(payload["agreement_tif"]) as src:
+        agreement = src.read(1)
+        assert src.width == payload["grid"]["width"]
+        assert src.height == payload["grid"]["height"]
+    assert agreement.max() <= 4
+    assert int((agreement == 4).sum()) == counts[4]
+    assert Path(payload["agreement_png"]).is_file()
+
+    # Progress reaches the caller as one line per unit of real work, not as a
+    # jump per stage: four reads are replaced here, so what is left is four
+    # terrain chains and five thresholds.
+    steps = [json.loads(line)["progress"]
+             for line in out.err.strip().splitlines()]
+    assert steps == sorted(steps)
+    assert steps[-1] == 100
+    assert len(steps) >= 4 + 5
+
+
+def test_the_flood_envelope_refuses_an_aoi_it_cannot_hold_in_memory(capsys):
+    """
+    The refusal names the AOI, the limit and why the alternative is not taken.
+
+    Downsampling to fit would be the silent option, and it is the one thing this
+    analysis cannot do: it measures how far four DEM products disagree, and
+    reading them at a resolution none of them has changes that measurement.
+    """
+    with pytest.raises(SystemExit):
+        infer.action_flood_envelope(
+            {
+                "polygon_geojson": {
+                    "type": "Polygon",
+                    "coordinates": [[[-53.9, -25.9], [-53.0, -25.9],
+                                     [-53.0, -25.0], [-53.9, -25.0],
+                                     [-53.9, -25.9]]],
+                }
+            },
+            Path("."),
+        )
+    error = json.loads(capsys.readouterr().err.strip())["error"]
+    # The size the user drew, in the units they drew it in.
+    assert "90.5 by 99.5 km" in error
+    assert "4 million" in error
+    assert "coarser resolution" in error
+
+
+def test_the_flood_envelope_needs_two_products_and_says_which_exist(capsys):
+    with pytest.raises(SystemExit):
+        infer.action_flood_envelope(
+            {
+                "polygon_geojson": {
+                    "type": "Polygon",
+                    "coordinates": [[[-53.54, -25.72], [-53.53, -25.72],
+                                     [-53.53, -25.71], [-53.54, -25.72]]],
+                },
+                "dem_ids": ["cop30"],
+            },
+            Path("."),
+        )
+    error = json.loads(capsys.readouterr().err.strip())["error"]
+    assert "needs at least two" in error
+    assert "cop90" in error
+
+
+def test_the_common_window_trims_the_alignment_sliver_but_not_an_interior_void():
+    """
+    A product moved onto the reference grid can miss it by one column at the
+    border, which is what the trim is for. A void away from the border is a hole
+    in the product, and shrinking the window around it would report a smaller
+    area with nothing on screen saying why.
+    """
+    full = np.ones((6, 8))
+    sliver = full.copy()
+    sliver[:, -1] = np.nan
+    # One column costs one column, not the four rows a row-first peel would
+    # spend before reaching it.
+    assert infer.common_covered_window([full, sliver], 4) == (0, 6, 0, 7)
+
+    holed = full.copy()
+    holed[3, 4] = np.nan
+    assert infer.common_covered_window([full, holed], 4) is None
+
+    # And a sliver wider than the alignment can explain is not a sliver.
+    wide = full.copy()
+    wide[:, -5:] = np.nan
+    assert infer.common_covered_window([full, wide], 4) is None
+    assert infer.common_covered_window([full, np.full((6, 8), np.nan)], 4) is None
+
+
+def test_the_agreement_colouring_leaves_the_cells_no_product_calls_wet_clear():
+    """
+    Zero has to be transparent rather than the palest tone of the ramp. Most of
+    a window is dry, and painting it the first colour of a blue ramp would draw
+    a flood over the whole AOI at an opacity a reader reads as shallow water.
+    """
+    counts = np.array([[0, 1], [2, 4]], dtype=np.uint8)
+    rgba = infer.agreement_rgba(counts, 4)
+
+    assert rgba.shape == (2, 2, 4)
+    assert rgba[0, 0, 3] == 0
+    assert (rgba[0, 1, 3], rgba[1, 0, 3], rgba[1, 1, 3]) == (255, 255, 255)
+    # More products agreeing reads as a darker blue, so the ramp is ordered.
+    def luminance(pixel):
+        return int(pixel[0]) + int(pixel[1]) + int(pixel[2])
+    assert luminance(rgba[0, 1]) > luminance(rgba[1, 0]) > luminance(rgba[1, 1])
+
+
+def test_the_flood_envelope_is_registered_under_the_name_the_shell_sends():
+    assert infer.ACTIONS["flood_envelope"] is infer.action_flood_envelope
+
+
+FLOOD_FIXTURE = (
+    Path(__file__).resolve().parents[2]
+    / "internal" / "research" / "testdata" / "flood_b.json"
+)
+
+
+@pytest.mark.skipif(not FLOOD_FIXTURE.is_file(), reason="flood fixture not recorded")
+def test_the_recorded_flood_payload_carries_every_field_the_other_layers_read():
+    """
+    The recorded run the Go and TypeScript layers are tested against.
+
+    Those layers cannot detect a field this sidecar stops emitting: they decode
+    what the fixture holds, and a fixture recorded from an older payload would
+    let all three agree on a shape the sidecar no longer produces. This is the
+    one test that reads the fixture from the side that writes it.
+    """
+    payload = json.loads(FLOOD_FIXTURE.read_text())["flood"]
+
+    for key in ("reference_threshold_m", "thresholds_m", "drainage_km2",
+                "cell_size_m", "grid", "buffer_m", "products", "agreement",
+                "pairs", "envelope", "edge_margin_cells", "qualifier",
+                "assumptions"):
+        assert key in payload, key
+    assert set(payload["cell_size_m"]) == {"x", "y"}
+    assert set(payload["grid"]["bounds"]) == {
+        "lon_min", "lat_min", "lon_max", "lat_max",
+    }
+
+    for row in payload["products"]:
+        assert set(row) == {"id", "collection", "native_resolution_m",
+                            "resampled", "cells", "area_km2", "area_frac"}
+    for row in payload["pairs"]:
+        assert set(row) == {"dem_a", "dem_b", "threshold_m", "iou",
+                            "iou_interior", "area_ratio_b_over_a", "resampled"}
+    for row in payload["envelope"]:
+        assert set(row) == {"threshold_m", "iou_min", "iou_max",
+                            "iou_min_interior", "iou_max_interior"}
+    assert set(payload["agreement"]) == {
+        "counts", "unanimous_wet_km2", "contested_km2", "unanimous_dry_km2",
+        "contested_frac_of_wet",
+    }
+
+    n_products = len(payload["products"])
+    n_thresholds = len(payload["thresholds_m"])
+    # One agreement level per possible count, 0 to N, and every cell in one.
+    assert len(payload["agreement"]["counts"]) == n_products + 1
+    assert (sum(payload["agreement"]["counts"])
+            == payload["grid"]["width"] * payload["grid"]["height"])
+    assert len(payload["pairs"]) == n_thresholds * n_products * (n_products - 1) // 2
+    assert len(payload["envelope"]) == n_thresholds
+    # The agreement raster is built at a threshold the envelope also reports, or
+    # the map on screen would have no measure of its own spread beside it.
+    assert payload["reference_threshold_m"] in payload["thresholds_m"]
+
+    # The provenance the figures cannot travel without: this is TERRA's own DEM
+    # set, not the study's, and a HAND threshold is not a flood depth.
+    assert "Planetary Computer" in payload["qualifier"]
+    assert "E-hand-flood-baseline" in payload["qualifier"]
+    assert "not a hydrodynamic model" in payload["qualifier"]
