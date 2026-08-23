@@ -27,7 +27,7 @@
  * The arithmetic is in lib/separability.ts, with its own tests. Nothing here
  * computes a distance; this file chooses what to compare and draws the result.
  */
-import { useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import { useTheme } from "next-themes"
 
 import type { ClassSpectra, PredictResult } from "@/lib/types"
@@ -42,7 +42,7 @@ import {
   measureText,
   plotHeightFor,
 } from "@/lib/figure"
-import { useFigureBox } from "@/lib/useFigureSize"
+import { useFigureHost } from "@/lib/useFigureSize"
 import {
   classDriftBetweenRuns,
   classPairSeparability,
@@ -89,8 +89,15 @@ export function SeparabilityEditor({
   const { resolvedTheme } = useTheme()
   const theme: ThemeName = resolvedTheme === "light" ? "light" : "dark"
 
-  const host = useRef<HTMLDivElement | null>(null)
-  const box = useFigureBox(host)
+  /*
+    A callback ref, not a ref object. This panel answers "nothing selected"
+    and "this run carries no spectra" before it ever draws a figure, so the
+    measured host is absent on the first render more often than it is present
+    -- and it unmounts again on every deselection. A ref-object measurement
+    attaches once, finds nothing, and leaves the chart on the 640x300 fallback
+    for the rest of the session. See useFigureSize's own header.
+  */
+  const [host, box] = useFigureHost()
 
   const run = runs.length ? runs[Math.min(runIdx, runs.length - 1)] : undefined
   const other =
@@ -310,6 +317,22 @@ export function SeparabilityEditor({
                       </span>
                     ) : (
                       <>
+                        {/*
+                          How many bands the headline rests on, and only when
+                          that is fewer than were tried. A distance drawn from
+                          two bands out of seven is a weaker reading than one
+                          drawn from all seven, and nothing else on the row
+                          says so. Silent at full count, because "7/7" on
+                          every row is noise that hides the "2/7" beside it.
+                        */}
+                        {r.measured < r.bands.length && (
+                          <span
+                            className="telemetry shrink-0 text-[10px] text-muted-foreground"
+                            title={`${r.measured} of ${r.bands.length} bands could be measured for this comparison`}
+                          >
+                            {r.measured}/{r.bands.length}
+                          </span>
+                        )}
                         <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
                           {r.best.band}
                         </span>

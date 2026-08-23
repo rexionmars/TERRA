@@ -375,7 +375,7 @@ export function legendFor(
       },
       note:
         "Ensemble vote share over classified pixels, not a calibrated probability." +
-        " Under domain shift, higher is not more correct." +
+        " Under domain shift it can run opposite to accuracy." +
         (floorShown ? " Read against the floor." : "") +
         " Lower values are drawn cooler and more transparent.",
     }

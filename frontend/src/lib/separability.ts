@@ -123,10 +123,18 @@ export function jeffriesMatusita(
   const b = bhattacharyyaGaussian(mean1, sd1, mean2, sd2)
   if (b === null) return null
   const jm = 2 * (1 - Math.exp(-b))
-  // Clamped at the top only. exp(-B) underflows to exactly 0 for B above about
-  // 745, which lands on 2 rather than past it, but the arithmetic above can
-  // land a hair over on the way there and a distance reading 2.0000000000000004
-  // is a distance that failed its own stated range.
+  /*
+    The range holds by construction and this cannot currently fire.
+    `bhattacharyyaGaussian` returns B >= 0 for every input it does not refuse,
+    so exp(-B) lies in (0, 1], so jm lies in [0, 2) -- and exp(-B) underflows to
+    exactly 0 above B ~ 745, which lands on 2 rather than past it. Nothing here
+    rounds over the top: that would need exp(-B) to come back negative.
+
+    Kept as an invariant rather than a repair. It costs two comparisons and it
+    is what fails first if the expression above is ever changed to one whose
+    range is not obviously bounded, on a value that is otherwise drawn on a
+    fixed 0 to 2 axis where an out-of-range point is clipped and not reported.
+  */
   return Math.min(2, Math.max(0, jm))
 }
 
