@@ -4,7 +4,7 @@
  * Every one of these has a null case, and none of them turns a null into a
  * zero. The payload uses null for "undefined here", and the distinction is
  * load-bearing in three places: an IoU over two empty extents is undefined
- * rather than total disagreement, a contested share over a window nobody calls
+ * rather than total disagreement, a contested share over an AOI nobody calls
  * flooded is undefined rather than perfect agreement, and a `resampled` flag
  * that was not recorded is unknown rather than false. Printing 0 or "no" for
  * any of them states a measurement that was never made.

@@ -2,14 +2,20 @@ import { describe, expect, it } from "vitest"
 
 import {
   agreementColor,
+  agreementDry,
   agreementLevelLabel,
   agreementLevels,
+  agreementStandingLabel,
 } from "@/components/flood/agreementLevels"
 import { PALETTE_STOPS } from "@/lib/palettes"
 import type { FloodAgreement, FloodCellSize } from "@/lib/types"
 
-/** The counts and cell size of internal/research/testdata/flood_b.json. */
-const COUNTS = [38958, 2272, 1190, 863, 565]
+/**
+ * The counts and cell size of internal/research/testdata/flood_b.json, which
+ * are over the AOI polygon: they sum to aoi.cells (5256) and not to
+ * grid.width * grid.height (43848).
+ */
+const COUNTS = [4818, 169, 104, 95, 70]
 const CELL: FloodCellSize = { x: 27.853935364831365, y: 30.705555555555556 }
 
 const agreement = (counts: number[]): FloodAgreement => ({
@@ -21,39 +27,71 @@ const agreement = (counts: number[]): FloodAgreement => ({
 })
 
 describe("agreementLevels", () => {
-  it("names one level per agreement count, dry level first", () => {
+  it("names one level per agreement count and leaves the dry cells out", () => {
     const levels = agreementLevels(agreement(COUNTS), CELL)
-    expect(levels).toHaveLength(5)
-    expect(levels.map((l) => l.count)).toEqual([0, 1, 2, 3, 4])
-    expect(levels.map((l) => l.of)).toEqual([4, 4, 4, 4, 4])
+    expect(levels).toHaveLength(4)
+    expect(levels.map((l) => l.count)).toEqual([1, 2, 3, 4])
+    expect(levels.map((l) => l.of)).toEqual([4, 4, 4, 4])
     expect(levels.map((l) => l.standing)).toEqual([
-      "dry",
       "contested",
       "contested",
       "contested",
       "unanimous",
     ])
-    expect(agreementLevelLabel(levels[3])).toBe("3 of 4")
+    expect(agreementLevelLabel(levels[2])).toBe("3 of 4")
+    expect(agreementLevelLabel(levels[3])).toBe("All 4 products")
+  })
+
+  /*
+    The class list is about agreement BETWEEN products, and 0 of 4 is not a
+    statement about that. It is also 91.7% of this AOI, so listed as a class it
+    would be the largest row in a list whose subject is disagreement.
+  */
+  it("keeps the dry remainder out of the classes and reports it apart", () => {
+    const levels = agreementLevels(agreement(COUNTS), CELL)
+    expect(levels.some((l) => l.count === 0)).toBe(false)
+    const dry = agreementDry(agreement(COUNTS), CELL)
+    expect(dry.cells).toBe(4818)
+    // The payload reports 4.1207 km2 unanimous dry over this AOI.
+    expect(dry.areaKm2).toBeCloseTo(4.1207, 3)
+    expect(dry.frac).toBeCloseTo(4818 / 5256, 12)
   })
 
   it("takes the area of a level as its cells times the cell size", () => {
     const levels = agreementLevels(agreement(COUNTS), CELL)
     const cellKm2 = (CELL.x * CELL.y) / 1e6
-    expect(levels[4].areaKm2).toBeCloseTo(565 * cellKm2, 10)
-    // The payload reports 0.4832 km2 unanimous wet over this window.
-    expect(levels[4].areaKm2).toBeCloseTo(0.4832, 3)
+    expect(levels[3].areaKm2).toBeCloseTo(70 * cellKm2, 10)
+    // The payload reports 0.0599 km2 unanimous wet over this AOI.
+    expect(levels[3].areaKm2).toBeCloseTo(0.0599, 4)
   })
 
-  it("takes each level's share against the whole window", () => {
+  it("takes each level's share against the whole AOI", () => {
     const levels = agreementLevels(agreement(COUNTS), CELL)
     const total = COUNTS.reduce((s, n) => s + n, 0)
-    expect(levels[1].frac).toBeCloseTo(2272 / total, 12)
-    expect(levels.reduce((s, l) => s + l.frac, 0)).toBeCloseTo(1, 12)
+    expect(total).toBe(5256)
+    expect(levels[0].frac).toBeCloseTo(169 / total, 12)
+    const dry = agreementDry(agreement(COUNTS), CELL)
+    expect(levels.reduce((s, l) => s + l.frac, dry.frac)).toBeCloseTo(1, 12)
   })
 
-  it("leaves the dry level without a swatch, since it is not drawn", () => {
+  /*
+    The ramp orders the classes and does not rank them by confidence. The
+    lowest class is the widest split the products can produce, and the label
+    has to say so where the colour suggests the opposite.
+  */
+  it("names a contested class by how many products call the cell dry", () => {
+    const levels = agreementLevels(agreement(COUNTS), CELL)
+    expect(agreementStandingLabel(levels[0])).toBe(
+      "3 of 4 call it dry, the widest disagreement this product set can reach"
+    )
+    expect(agreementStandingLabel(levels[1])).toBe("2 of 4 call it dry")
+    expect(agreementStandingLabel(levels[3])).toBe(
+      "every product agrees, the terrain decides the extent"
+    )
+  })
+
+  it("leaves the dry cells without a swatch, since the raster draws none", () => {
     expect(agreementColor(0, 4)).toBeNull()
-    expect(agreementLevels(agreement(COUNTS), CELL)[0].color).toBeNull()
   })
 
   /*
@@ -63,10 +101,14 @@ describe("agreementLevels", () => {
   */
   it("colours a four-product level on a palette stop, with no interpolation", () => {
     const blues = PALETTE_STOPS.blues
-    expect(agreementColor(1, 4)).toBe(blues[1])
-    expect(agreementColor(2, 4)).toBe(blues[2])
+    const levels = agreementLevels(agreement(COUNTS), CELL)
+    expect(levels.map((l) => l.color)).toEqual([
+      blues[1],
+      blues[2],
+      blues[3],
+      blues[4],
+    ])
     expect(agreementColor(3, 4)).toBe(blues[3])
-    expect(agreementColor(4, 4)).toBe(blues[4])
   })
 
   it("interpolates between stops for a product count the ramp does not divide", () => {
@@ -80,9 +122,14 @@ describe("agreementLevels", () => {
     expect(agreementColor(3, 3)).toBe(blues[4])
   })
 
-  it("reports a window nobody calls flooded without dividing by zero", () => {
+  it("reports an AOI nobody calls flooded without dividing by zero", () => {
     const levels = agreementLevels(agreement([0, 0, 0]), CELL)
-    expect(levels.map((l) => l.frac)).toEqual([0, 0, 0])
-    expect(levels.map((l) => l.areaKm2)).toEqual([0, 0, 0])
+    expect(levels.map((l) => l.frac)).toEqual([0, 0])
+    expect(levels.map((l) => l.areaKm2)).toEqual([0, 0])
+    expect(agreementDry(agreement([0, 0, 0]), CELL)).toEqual({
+      cells: 0,
+      areaKm2: 0,
+      frac: 0,
+    })
   })
 })

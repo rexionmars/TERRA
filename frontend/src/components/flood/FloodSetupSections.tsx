@@ -9,7 +9,7 @@
  * reach the network to be rejected.
  *
  * TWO PARAMETERS ARE NOT SENT UNLESS ASKED FOR. The buffer is sized from the
- * AOI and the edge margin from the cell size, both per window, so the panel
+ * AOI and the inset margin from the cell size, both per window, so the panel
  * offers them as overrides rather than as fields with a number already in
  * them: a fixed default typed here would silently replace a value computed for
  * this window with one chosen for another. What the run actually used is
@@ -123,7 +123,7 @@ export function FloodSetupSections({
         </FieldNote>
       </PanelSection>
 
-      <PanelSection title="Window">
+      <PanelSection title="Window and inset">
         <OverrideField
           label="Buffer beyond the AOI (m)"
           value={params.bufferM}
@@ -136,22 +136,23 @@ export function FloodSetupSections({
           onChange={(v) => onSet({ bufferM: v })}
         />
         <OverrideField
-          label="Edge margin (cells)"
-          value={params.edgeMarginCells}
-          seed={FLOOD_OVERRIDE_SEED.edgeMarginCells}
+          label="Inset margin (cells)"
+          value={params.insetMarginCells}
+          seed={FLOOD_OVERRIDE_SEED.insetMarginCells}
           min={0}
           max={500}
           step={1}
           busy={busy}
-          derivedNote="Taken from the cell size by the sidecar, about a 1 km ring."
-          onChange={(v) => onSet({ edgeMarginCells: v })}
+          derivedNote="A 1 km ring by default, capped by the sidecar so enough of the AOI is left to measure."
+          onChange={(v) => onSet({ insetMarginCells: v })}
         />
         <FieldNote>
           The DEM is read beyond the AOI so drainage entering it is real
-          terrain, and the measured window is the AOI plus that buffer on every
-          side. Every area the run reports is over that window, not over the
-          AOI. Water arriving from beyond the buffer is still missing, so the
-          interior statistics drop a ring of cells at the border, where the
+          terrain, and the terrain chain runs on the AOI plus that buffer on
+          every side. The figures come back over the AOI alone; the buffered
+          window is reported with them as provenance. Water arriving from
+          beyond the buffer is still missing, so the inset statistics repeat
+          every comparison over the AOI shrunk by this ring, where the
           contributing area is truncated and HAND reads high.
         </FieldNote>
       </PanelSection>

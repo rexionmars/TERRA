@@ -1974,8 +1974,14 @@ func (r *Runner) AnalyzeFlood(ctx context.Context, req FloodRequest) (*FloodAnal
 	if req.BufferM != nil {
 		payload["buffer_m"] = *req.BufferM
 	}
-	if req.EdgeMarginCells != nil {
-		payload["edge_margin_cells"] = *req.EdgeMarginCells
+	// inset_margin_cells, and not the edge_margin_cells this sent until the
+	// ring moved from the computed window to the AOI polygon. The sidecar
+	// refuses the old key by name rather than reading it as the new one, so
+	// every override run fails outright until the caller is changed -- which is
+	// the loud version of the alternative, a ring cut from a shape the payload
+	// does not describe.
+	if req.InsetMarginCells != nil {
+		payload["inset_margin_cells"] = *req.InsetMarginCells
 	}
 
 	reqBytes, err := json.Marshal(payload)

@@ -19,13 +19,22 @@
  * is an agreement count raster rather than a mask with an accuracy figure
  * beside it.
  *
- * THE MAP STAYS FULL BLEED even though the run draws nothing on it. The AOI is
- * drawn here -- this analysis reads no satellite scene, so sending the reader
- * to the classification panel to define one would make a classification a
- * precondition of a run that needs none -- and the agreement raster is read in
- * the result column, where its legend is. The raster is georeferenced on the
- * window's bounds and its GeoTIFF path is named in the reading, which is the
- * route to a GIS; the map here is the AOI's, not the result's.
+ * THE MAP IS WHERE THE RESULT IS READ. The AOI is drawn here -- this analysis
+ * reads no satellite scene, so sending the reader to the classification panel
+ * to define one would make a classification a precondition of a run that needs
+ * none -- and the agreement raster is drawn over it when a run finishes. Its
+ * legend, its switch and its figures are in the result column beside it. The
+ * raster used to be a tile inside that column and nothing put it on the map,
+ * which for a product whose claim is WHERE the terrain decides and where the
+ * DEM decides withheld the claim: the answer is a location, and a 200 px image
+ * detached from the map does not carry one.
+ *
+ * IT IS PLACED ON THE PAYLOAD'S OWN EXTENT and not on the grid the chain ran
+ * over. The PNG is the counts clipped to the AOI bounding box; the grid is
+ * that AOI plus 2 to 5 km of buffer on every side, so placing the clip on the
+ * grid would stretch it over several times the ground it covers. The full
+ * window survives as the GeoTIFF the reading names, which is the route to a
+ * GIS.
  *
  * TWO COLUMNS OF ONE SPECIES, as on the energy screen: the parameters on the
  * left edge, the reading on the right, both 19rem PanelShells over the map
@@ -47,6 +56,7 @@ import { FloodSetupSections } from "@/components/flood/FloodSetupSections"
 import { floodRequestBlocker, type FloodParams } from "@/components/flood/floodSetup"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import type { BasemapKind } from "@/lib/basemaps"
+import { floodAgreementLayer } from "@/lib/mapLayers"
 import type { Area, FloodAnalysis, GeoJSONGeometry, LayoutMode } from "@/lib/types"
 
 /**
@@ -69,11 +79,12 @@ const FLOOD_QUALIFIER =
 
 const AOI_NOTE =
   "The DEM is read beyond the AOI so drainage entering it is real terrain, " +
-  "and every figure the run reports is over that larger window. The products " +
-  "are read from Microsoft Planetary Computer at their native resolution; a " +
-  "large AOI is refused before the first byte is fetched rather than read at " +
-  "a coarser resolution, because resampling the products changes the very " +
-  "disagreement being measured."
+  "and the terrain chain runs over that larger window; every figure the run " +
+  "reports comes back over the AOI itself, with the window beside it as " +
+  "provenance. The products are read from Microsoft Planetary Computer at " +
+  "their native resolution; a large AOI is refused before the first byte is " +
+  "fetched rather than read at a coarser resolution, because resampling the " +
+  "products changes the very disagreement being measured."
 
 /** Stable no-op: the swipe compare belongs to the classification map. */
 const NO_SWIPE_CHANGE = () => {}
@@ -127,6 +138,30 @@ export function FloodScreen(props: FloodScreenProps) {
   const [setupOpen, setSetupOpen] = useState(true)
   const [configOpen, setConfigOpen] = useState(false)
   const [resultOpen, setResultOpen] = useState(false)
+  /*
+    The raster is drawn as soon as there is one, and can be turned down rather
+    than only off: the agreement classes are read against the terrain in the
+    imagery underneath, and 0.85 is where both stay legible. Held on this
+    screen, so the map and the legend that names the colours cannot disagree
+    about what is drawn, and not in the run state, because it describes how the
+    result is being LOOKED AT rather than anything the run measured. The screen
+    unmounts on navigation, so a later visit starts from visible again.
+  */
+  const [showAgreement, setShowAgreement] = useState(true)
+  const [agreementOpacity, setAgreementOpacity] = useState(0.85)
+
+  /*
+    Derived in lib/mapLayers.ts, not here. That module owns which rasters are
+    drawn, in what order and under which guard -- a zero extent is what the
+    sidecar returns when it resolved no window, and drawn it would stretch the
+    overlay across the null island. A second derivation on this screen would
+    disagree with the table within a release.
+  */
+  const agreement = floodAgreementLayer(
+    props.result,
+    showAgreement,
+    agreementOpacity
+  )
 
   const workspace = props.layoutMode === "workspace"
   const hasResult = !!props.result
@@ -230,6 +265,15 @@ export function FloodScreen(props: FloodScreenProps) {
         showPredictionOverlay={false}
         showCompositionOverlay={false}
         composition={null}
+        floodOverlay={
+          agreement?.visible
+            ? {
+                uri: agreement.uri,
+                extent: agreement.extent,
+                opacity: agreement.opacity,
+              }
+            : null
+        }
         swipeCompare={false}
         swipeRatio={0.5}
         onSwipeRatioChange={NO_SWIPE_CHANGE}
@@ -287,6 +331,12 @@ export function FloodScreen(props: FloodScreenProps) {
           <FloodReadingColumn
             key="flood-reading"
             flood={props.result}
+            overlay={{
+              visible: showAgreement,
+              opacity: agreementOpacity,
+              onVisibleChange: setShowAgreement,
+              onOpacityChange: setAgreementOpacity,
+            }}
             onClear={props.onClearResult}
             onCollapse={() => setResultOpen(false)}
           />

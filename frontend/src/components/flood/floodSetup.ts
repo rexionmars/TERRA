@@ -17,7 +17,7 @@
  *
  * WHAT IS SENT AND WHAT IS OMITTED. Two of these parameters are derived by the
  * sidecar from the AOI when the request leaves them out -- the buffer from the
- * AOI extent, the edge margin from the cell size -- and a fixed number sent
+ * AOI extent, the inset margin from the cell size -- and a fixed number sent
  * from here would replace a value computed per window with one chosen for
  * another. So they are null until the reader asks to set them, and null is not
  * sent. The other two carry the study's reference values, which are constants
@@ -86,8 +86,16 @@ export interface FloodParams {
   drainageKm2: number
   /** Metres beyond the AOI to read. Null leaves the sizing to the sidecar. */
   bufferM: number | null
-  /** Ring dropped from the interior statistics. Null leaves it to the sidecar. */
-  edgeMarginCells: number | null
+  /**
+   * Ring cut from inside the AOI polygon for the inset statistics. Null leaves
+   * the width to the sidecar.
+   *
+   * Named for the AOI and not for an edge, because the ring is no longer taken
+   * off the computed window: the buffer already puts the window outside every
+   * figure reported. The request key moved with it, and the sidecar refuses
+   * the old edge_margin_cells by name.
+   */
+  insetMarginCells: number | null
 }
 
 /**
@@ -102,7 +110,7 @@ export const FLOOD_DEFAULT_PARAMS: FloodParams = {
   referenceThresholdM: 1.0,
   drainageKm2: 0.5,
   bufferM: null,
-  edgeMarginCells: null,
+  insetMarginCells: null,
 }
 
 /**
@@ -112,7 +120,7 @@ export const FLOOD_DEFAULT_PARAMS: FloodParams = {
  * are a starting figure to edit from, and the run reports the value that was
  * actually used, which is where the derived one can be read.
  */
-export const FLOOD_OVERRIDE_SEED = { bufferM: 2000, edgeMarginCells: 30 }
+export const FLOOD_OVERRIDE_SEED = { bufferM: 2000, insetMarginCells: 30 }
 
 /**
  * Why the run is not admissible yet, or null when it is.
@@ -139,15 +147,15 @@ export function floodRequestBlocker(
   if (!(params.drainageKm2 > 0)) {
     return (
       "The drainage area must be above zero. At zero every cell is drainage, " +
-      "HAND is zero everywhere and the extent is the whole window at every " +
+      "HAND is zero everywhere and the extent is the whole AOI at every " +
       "threshold."
     )
   }
   if (params.bufferM !== null && !(params.bufferM >= 0)) {
     return "The buffer is a distance beyond the AOI and cannot be negative."
   }
-  if (params.edgeMarginCells !== null && !(params.edgeMarginCells >= 0)) {
-    return "The edge margin is a ring width and cannot be negative."
+  if (params.insetMarginCells !== null && !(params.insetMarginCells >= 0)) {
+    return "The inset margin is a ring width and cannot be negative."
   }
   return null
 }

@@ -943,8 +943,10 @@ export function windShearSensitivityTable(
  *
  * The threshold is not a column because every row shares it; it is in the
  * manifest, and an area read from this file without it names no extent. Areas
- * are cell counts times the cell size, over the buffered measured window
- * rather than over the AOI, which is what area_frac is a fraction of.
+ * are cell counts times the cell size over the cells inside the AOI polygon,
+ * which is what area_frac is a fraction of. The buffered window the terrain
+ * chain ran over is several times that ground and nothing here is measured
+ * against it.
  */
 export function floodProductsTable(
   flood?: FloodAnalysis | null
@@ -978,9 +980,11 @@ export function floodProductsTable(
  *
  * iou is the Jaccard index between the two binary extents, which for a binary
  * mask is numerically the critical success index (CSI) of the flood
- * literature. A wide gap between iou and iou_interior places the disagreement
- * at the border of the window, where the contributing area is truncated and
- * HAND reads high.
+ * literature. Both columns are over the AOI polygon: iou_inset repeats the
+ * comparison over the AOI shrunk by the inset margin, and a wide gap between
+ * the two places the disagreement at the border of the reported area, where
+ * the contributing area is short of whatever drains in from beyond the buffer
+ * and HAND reads high.
  */
 export function floodPairsTable(
   flood?: FloodAnalysis | null
@@ -993,7 +997,7 @@ export function floodPairsTable(
       { key: "dem_b" },
       num("threshold_m"),
       num("iou"),
-      num("iou_interior"),
+      num("iou_inset"),
       num("area_ratio_b_over_a"),
       { key: "resampled" },
     ],
@@ -1002,7 +1006,7 @@ export function floodPairsTable(
       p.dem_b,
       p.threshold_m,
       p.iou,
-      p.iou_interior,
+      p.iou_inset,
       p.area_ratio_b_over_a,
       boolCell(p.resampled),
     ])
@@ -1027,15 +1031,15 @@ export function floodEnvelopeTable(
       num("threshold_m"),
       num("iou_min"),
       num("iou_max"),
-      num("iou_min_interior"),
-      num("iou_max_interior"),
+      num("iou_min_inset"),
+      num("iou_max_inset"),
     ],
     (flood?.envelope ?? []).map((e) => [
       e.threshold_m,
       e.iou_min,
       e.iou_max,
-      e.iou_min_interior,
-      e.iou_max_interior,
+      e.iou_min_inset,
+      e.iou_max_inset,
     ])
   )
 }

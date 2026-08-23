@@ -56,13 +56,22 @@ def grid_for(z, lon_min=-47.0, lat_min=-15.0):
 
 
 def run(dems, **kwargs):
-    """measure() with the small-window drainage threshold and a real grid."""
+    """
+    measure() with the small-window drainage threshold and a real grid.
+
+    aoi_mask defaults to the whole window here, which says these synthetic
+    cases have no buffer: the array IS the AOI. On the production path it is
+    the polygon rasterised onto the grid and covers a fraction of the array,
+    and the cases below that pass their own mask are the ones that check what
+    that changes.
+    """
     first = next(iter(dems.values()))
     z = getattr(first, "array", first)
     kwargs.setdefault("drainage_km2", DRAINAGE_KM2)
-    kwargs.setdefault("edge_margin_cells", 4)
+    kwargs.setdefault("inset_margin_cells", 4)
     kwargs.setdefault("grid", grid_for(z))
     kwargs.setdefault("buffer_m", 2000.0)
+    kwargs.setdefault("aoi_mask", np.ones(z.shape, dtype=bool))
     return flood.measure(dems, DX, DY, **kwargs)
 
 
@@ -163,6 +172,8 @@ def test_the_agreement_counts_account_for_every_cell():
     counts = payload["agreement"]["counts"]
 
     assert len(counts) == len(dems) + 1
+    # Every reported cell at exactly one level, and here the whole window is
+    # reported because this case gives measure() a mask of the whole window.
     assert sum(counts) == z.size
     assert counts[len(dems)] * (DX * DY / 1e6) == payload["agreement"]["unanimous_wet_km2"]
 
@@ -286,44 +297,70 @@ def test_the_reference_threshold_joins_the_sweep_when_the_caller_omits_it():
     assert [row["threshold_m"] for row in payload["envelope"]] == [1.0, 2.0, 5.0]
 
 
-def test_the_interior_statistic_discards_the_ring_the_payload_names():
+def test_the_inset_statistic_discards_the_ring_the_payload_names():
     """
-    iou_interior is computed on the interior, and the margin reported is the
-    one used.
+    iou_inset is computed on the inset, and the margin reported is the one used.
 
     Checked by construction: the two products are made to differ only inside
-    the discarded ring, so the full-window IoU is below 1 and the interior IoU
-    is exactly 1. A margin reported but not applied, or applied but not
-    reported, fails one of the two.
+    the discarded ring, so the IoU over the whole reported area is below 1 and
+    the inset IoU is exactly 1. A margin reported but not applied, or applied
+    but not reported, fails one of the two.
     """
     z = valley(40, 41, 20, 1.0)
     edge_only = z.copy()
     edge_only[:3, :] -= 3.0
     edge_only[-3:, :] -= 3.0
 
-    payload = run({"a": z, "b": edge_only}, edge_margin_cells=4).payload
+    payload = run({"a": z, "b": edge_only}, inset_margin_cells=4).payload
 
     row = payload["pairs"][0]
-    assert payload["edge_margin_cells"] == 4
+    assert payload["inset_margin_cells"] == 4
     assert row["iou"] < 1.0
-    assert row["iou_interior"] == 1.0
+    assert row["iou_inset"] == 1.0
 
 
-def test_the_edge_margin_is_capped_before_it_swallows_the_window():
+def test_the_inset_ring_is_cut_from_the_aoi_and_not_from_the_array():
     """
-    A 1 km ring on a 40 by 41 window would leave nothing to measure.
+    The ring follows the polygon, which is the whole point of the rename.
 
-    At 30 m cells the default margin is 33 cells, which exceeds half the
-    window. The cap holds the interior at half the shorter side, and the
-    payload reports the reduced value rather than the one that was asked for.
+    The AOI here is an interior rectangle of the array, and the two products
+    are made to differ in a band just inside its boundary. A ring cut from the
+    array border -- what the field used to mean -- leaves that band in the
+    inset and reports a disagreement there; a ring cut from the AOI removes it.
+    """
+    z = valley(40, 41, 20, 1.0)
+    disturbed = z.copy()
+    disturbed[12:14, :] -= 3.0
+
+    aoi = np.zeros(z.shape, dtype=bool)
+    aoi[10:30, 5:36] = True
+
+    payload = run({"a": z, "b": disturbed}, aoi_mask=aoi,
+                  inset_margin_cells=4).payload
+
+    row = payload["pairs"][0]
+    assert row["iou"] < 1.0
+    assert row["iou_inset"] == 1.0
+    # 20 by 31 of AOI eroded by 4 on each side is 12 by 23.
+    assert payload["aoi"]["cells"] == 20 * 31
+    assert payload["aoi"]["inset_cells"] == 12 * 23
+
+
+def test_the_inset_margin_is_capped_before_it_swallows_the_aoi():
+    """
+    A 1 km ring on a 40 by 41 AOI would leave nothing to measure.
+
+    At 30 m cells the default margin is 33 cells, which exceeds half the AOI.
+    The cap holds the inset at half the shorter side, and the payload reports
+    the reduced value rather than the one that was asked for.
     """
     dems = {"a": valley(40, 41, 20, 1.0), "b": valley(40, 41, 20, 0.5)}
 
-    payload = run(dems, edge_margin_cells=None).payload
+    payload = run(dems, inset_margin_cells=None).payload
 
-    assert flood.resolve_edge_margin((40, 41), DX) == 10
-    assert payload["edge_margin_cells"] == 10
-    assert payload["envelope"][0]["iou_min_interior"] is not None
+    assert flood.resolve_inset_margin((40, 41), DX) == 10
+    assert payload["inset_margin_cells"] == 10
+    assert payload["envelope"][0]["iou_min_inset"] is not None
 
 
 def test_the_qualifier_names_the_products_and_refuses_a_hydrodynamic_reading():
@@ -387,10 +424,86 @@ def test_the_product_rows_are_the_reference_threshold_masks():
     payload = result.payload
 
     for row in payload["products"]:
-        mask = result.masks[row["id"]]
+        mask = result.masks[row["id"]] & result.aoi
         assert row["cells"] == int(mask.sum())
         assert row["area_km2"] == pytest.approx(row["cells"] * DX * DY / 1e6, abs=5e-5)
-        assert row["area_frac"] == pytest.approx(row["cells"] / z.size, abs=5e-7)
+        assert row["area_frac"] == pytest.approx(
+            row["cells"] / int(result.aoi.sum()), abs=5e-7
+        )
+
+
+def test_the_reporting_mask_moves_the_figures_and_not_the_terrain():
+    """
+    The mask narrows what is counted. It must not narrow what was computed.
+
+    This is the whole shape of the fix. HAND needs the contributing area from
+    outside the AOI, so the chain has to keep the buffered window; the figures
+    have to leave it out. The check is that the reference-threshold extents are
+    identical between a run reporting over the whole array and one reporting
+    over half of it -- same terrain, same HAND, same masks -- while every count
+    in the payload is the part of those masks inside the AOI.
+    """
+    z = valley(40, 41, 20, 1.0)
+    dems = {"a": z, "b": valley(40, 41, 20, 0.5)}
+
+    whole = run(dems)
+    aoi = np.zeros(z.shape, dtype=bool)
+    aoi[:, :21] = True
+    part = run(dems, aoi_mask=aoi)
+
+    for pid in dems:
+        assert np.array_equal(whole.masks[pid], part.masks[pid])
+    assert np.array_equal(whole.agreement, part.agreement)
+
+    assert part.payload["aoi"]["cells"] == int(aoi.sum())
+    assert part.payload["aoi"]["window_cells"] == z.size
+    assert part.payload["aoi"]["frac_of_window"] == pytest.approx(
+        int(aoi.sum()) / z.size, abs=5e-7
+    )
+    assert sum(part.payload["agreement"]["counts"]) == int(aoi.sum())
+
+    for whole_row, part_row in zip(whole.payload["products"],
+                                   part.payload["products"]):
+        assert part_row["cells"] == int((part.masks[part_row["id"]] & aoi).sum())
+        assert part_row["cells"] < whole_row["cells"]
+
+
+def test_a_missing_reporting_mask_is_refused_rather_than_defaulted():
+    """
+    Without the mask every area would be the area of the buffered window.
+
+    Defaulting to the whole array is the failure this module shipped with: the
+    arrays reaching measure() are the AOI plus 2 to 5 km on every side, and on
+    one observed run that put 76.2 km2 of class areas on screen for an AOI of
+    about 20 km2. A caller that does mean the whole array says so with a mask
+    of all True.
+    """
+    z = valley(40, 41, 20, 1.0)
+
+    with pytest.raises(ValueError, match="aoi_mask"):
+        flood.measure({"a": z, "b": z.copy()}, DX, DY, drainage_km2=DRAINAGE_KM2,
+                      grid=grid_for(z), buffer_m=2000.0)
+
+
+def test_a_mask_that_selects_no_cell_is_refused_rather_than_reported_as_dry():
+    """
+    An AOI smaller than a cell is not a place where nothing floods.
+
+    Every count would come back zero and every area 0.0 km2, which reads as a
+    measurement of dry terrain rather than as the absence of one.
+    """
+    z = valley(40, 41, 20, 1.0)
+
+    with pytest.raises(ValueError, match="no cell"):
+        run({"a": z, "b": z.copy()}, aoi_mask=np.zeros(z.shape, dtype=bool))
+
+
+def test_a_mask_rasterised_onto_another_grid_is_refused():
+    """A mask of the wrong shape selects ground the arrays do not describe."""
+    z = valley(40, 41, 20, 1.0)
+
+    with pytest.raises(ValueError, match="different grid"):
+        run({"a": z, "b": z.copy()}, aoi_mask=np.ones((40, 40), dtype=bool))
 
 
 def test_one_product_is_refused_rather_than_reported_without_an_envelope():

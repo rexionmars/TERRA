@@ -503,7 +503,17 @@ def align_mask(mask, read):
     only has to decide the cells that fell outside the source. Those are counted
     dry: the products are read over one buffered window and their snapped
     extents differ by less than a cell, so the affected cells are a sliver on
-    the border, inside the margin `edge_margin_cells` discards anyway.
+    the border of that window -- which the report never reaches, because the
+    figures are taken inside the AOI polygon and the window extends past it by
+    the whole buffer. The sliver was previously argued away as falling inside a
+    discarded ring; the AOI mask is the stronger guarantee that replaced it.
+
+    STILL UNCALLED. The action resamples each product onto the reference grid
+    BEFORE running its terrain chain, so nothing aligns a finished mask. That
+    order is a known defect -- measured, the two orders agree at IoU 0.73 to
+    0.81 while the products themselves agree at 0.43 to 0.69, so the choice
+    moves the answer as much as the terrain does. This function is what the
+    correct order needs and is kept for it.
     """
     mask = np.asarray(mask, dtype=bool)
     if not read.resampled:

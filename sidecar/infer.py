@@ -3262,7 +3262,28 @@ def common_covered_window(arrays, max_trim):
     return None
 
 
-def agreement_rgba(counts, n_products):
+def aoi_reporting_mask(polygon, grid):
+    """
+    The AOI polygon rasterised onto the shared grid: which cells are reported.
+
+    The polygon and not its bounding box. A user who draws an L-shaped AOI is
+    asking about the L, and a bounding box would put the notch back into every
+    area, count and IoU with nothing on screen saying it had.
+
+    A cell is inside when its CENTRE is inside the polygon -- rasterio's
+    default, all_touched left off. The alternative includes every cell the
+    boundary clips, which biases the reported area outward by half a cell all
+    the way round; with a centre rule the two errors cancel to first order.
+    """
+    from rasterio import features
+
+    return features.geometry_mask(
+        [polygon], out_shape=(grid.height, grid.width),
+        transform=grid.transform, invert=True,
+    )
+
+
+def agreement_rgba(counts, n_products, inside=None):
     """
     Colour the agreement raster: how many products call each cell flooded.
 
@@ -3271,6 +3292,11 @@ def agreement_rgba(counts, n_products):
     run and one legend describes them all. Cells no product calls flooded are
     transparent rather than the palest tone of the ramp, which is what stops the
     dry majority of a window from reading as a faint flood.
+
+    `inside` is the reporting mask. Cells outside it are transparent too, for
+    the same reason the payload does not count them: the terrain chain ran over
+    the AOI plus its buffer, and an overlay that covers more ground than the
+    figures beside it invites the reader to attribute those figures to it.
     """
     import composite as comp
 
@@ -3280,7 +3306,8 @@ def agreement_rgba(counts, n_products):
     rgba = np.zeros((height, width, 4), dtype=np.uint8)
     for band in range(3):
         rgba[..., band] = (rgb[..., band] * 255).astype(np.uint8)
-    rgba[..., 3] = np.where(counts > 0, 255, 0).astype(np.uint8)
+    drawn = counts > 0 if inside is None else (counts > 0) & inside
+    rgba[..., 3] = np.where(drawn, 255, 0).astype(np.uint8)
     return rgba
 
 
@@ -3347,8 +3374,8 @@ def action_flood_envelope(req, work_dir):
 
     # Both of these default to None on absence, which is the signal each module
     # reads as "choose for me": dem sizes the buffer from the AOI and flood
-    # takes its 1 km edge ring. Zero is a value for both -- a caller reading
-    # exactly the AOI, and a caller asking for no interior ring -- so neither
+    # takes its 1 km inset ring. Zero is a value for both -- a caller reading
+    # exactly the AOI, and a caller asking for no inset ring -- so neither
     # can go through request_positive, whose default would have to be a number.
     buffer_m = request_number(req, 'buffer_m', None)
     if buffer_m is None:
@@ -3356,10 +3383,21 @@ def action_flood_envelope(req, work_dir):
     elif buffer_m < 0:
         fail(f'buffer_m is a distance beyond the AOI and cannot be negative, '
              f'got {buffer_m}')
-    edge_margin_cells = request_number(req, 'edge_margin_cells', None, int)
-    if edge_margin_cells is not None and edge_margin_cells < 0:
-        fail(f'edge_margin_cells is a ring width and cannot be negative, '
-             f'got {edge_margin_cells}')
+    # Refused rather than ignored. This key was renamed when the ring stopped
+    # being cut from the computed window and started being cut from the AOI
+    # boundary: a caller still sending the old name means a caller whose ring
+    # width would silently fall back to the default, and the payload would
+    # report a margin the request did not ask for.
+    if 'edge_margin_cells' in req:
+        fail('edge_margin_cells was renamed to inset_margin_cells. The ring is '
+             'now cut from inside the AOI polygon rather than from the border '
+             'of the buffered window the terrain chain ran over, so the two '
+             'are rings of different shapes and the payload reports '
+             'inset_margin_cells with iou_inset beside it.')
+    inset_margin_cells = request_number(req, 'inset_margin_cells', None, int)
+    if inset_margin_cells is not None and inset_margin_cells < 0:
+        fail(f'inset_margin_cells is a ring width and cannot be negative, '
+             f'got {inset_margin_cells}')
 
     # Refused before the first byte is fetched: the read is the slow part of an
     # oversized request and the user would wait through all four of them to be
@@ -3497,6 +3535,13 @@ def action_flood_envelope(req, work_dir):
     )
     dx, dy = dem_mod.cell_size_m(grid)
 
+    # What the figures are about. The arrays above cover the AOI plus buffer_m
+    # on every side because the terrain chain needs the drainage entering the
+    # AOI to be real terrain; the report covers the AOI itself. Rasterised
+    # after the crop, so the mask is on the same grid the products were
+    # compared on and not on the window that was requested.
+    aoi_mask = aoi_reporting_mask(polygon, grid)
+
     sources = {}
     for read in reads:
         row = read.describe()
@@ -3514,9 +3559,10 @@ def action_flood_envelope(req, work_dir):
             thresholds_m=thresholds,
             drainage_km2=drainage_km2,
             reference_threshold_m=reference_threshold_m,
-            edge_margin_cells=edge_margin_cells,
+            inset_margin_cells=inset_margin_cells,
             grid=dem_mod.payload_grid(grid),
             buffer_m=buffer_m,
+            aoi_mask=aoi_mask,
             progress=chain_progress,
         )
     except Exception as e:
@@ -3526,8 +3572,11 @@ def action_flood_envelope(req, work_dir):
     payload = result.payload
     # The agreement raster is the product, and it cannot travel in the payload:
     # a 4e6-cell array as JSON numbers is tens of megabytes through the pipe.
-    # It leaves as two files instead -- the counts themselves, georeferenced on
-    # the grid the payload describes, and a rendering of them to draw.
+    # It leaves as two files instead, and they cover different ground on
+    # purpose. The GeoTIFF is the chain's own output over the whole computed
+    # window, which is what the `grid` block describes and what a reader
+    # re-running the analysis needs; it carries its own transform, so nothing
+    # about its extent is implicit.
     agreement_tif = Path(work_dir) / 'flood_agreement.tif'
     with rasterio.open(
         agreement_tif, 'w', driver='GTiff', height=grid.height, width=grid.width,
@@ -3535,10 +3584,45 @@ def action_flood_envelope(req, work_dir):
         compress='deflate',
     ) as dst:
         dst.write(result.agreement, 1)
+
+    # The PNG is drawn on the map beside the figures, so it covers what the
+    # figures cover: clipped to the AOI bounding box, and transparent at every
+    # cell outside the polygon itself. An overlay spilling into the buffer
+    # would show a reader several times the ground the areas are measured over,
+    # which is the reading the reporting mask exists to prevent.
+    rows = np.flatnonzero(aoi_mask.any(axis=1))
+    cols = np.flatnonzero(aoi_mask.any(axis=0))
+    ar0, ar1 = int(rows[0]), int(rows[-1]) + 1
+    ac0, ac1 = int(cols[0]), int(cols[-1]) + 1
     agreement_png = Path(work_dir) / 'flood_agreement.png'
-    comp.write_rgba_png(agreement_rgba(result.agreement, len(sources)), agreement_png)
+    comp.write_rgba_png(
+        agreement_rgba(result.agreement[ar0:ar1, ac0:ac1], len(sources),
+                       inside=aoi_mask[ar0:ar1, ac0:ac1]),
+        agreement_png,
+    )
     payload['agreement_tif'] = str(agreement_tif)
     payload['agreement_png'] = str(agreement_png)
+    # Where to put the PNG, in the field shape the water payload already uses,
+    # so mapLayers.ts places both overlays through one code path. This is the
+    # extent of the PNG and not of the GeoTIFF or of `grid`: those two describe
+    # the buffered window, and placing a clipped image on them would stretch it
+    # over ground it does not cover.
+    payload['extent'] = comp.extent_from_profile({
+        'transform': rasterio.windows.transform(
+            rasterio.windows.Window(ac0, ar0, ac1 - ac0, ar1 - ar0), grid.transform
+        ),
+        'height': ar1 - ar0,
+        'width': ac1 - ac0,
+        'crs': grid.crs,
+    })
+    payload['assumptions']['rasters'] = (
+        f'The GeoTIFF holds the agreement counts over the whole computed '
+        f'{grid.width} by {grid.height} window, buffer included, on the grid '
+        f'the grid block describes. The PNG is the same counts clipped to the '
+        f'AOI: {ac1 - ac0} by {ar1 - ar0} cells of bounding box with every cell '
+        f'outside the polygon transparent, placed by extent, so what is drawn '
+        f'is the ground the figures are measured over.'
+    )
     payload['assumptions']['chain_grid'] = (
         f'Every product ran the terrain chain on the shared '
         f'{grid.width} by {grid.height} grid, so a product whose native cells '

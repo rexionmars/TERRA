@@ -953,7 +953,7 @@ describe("the flood tables", () => {
             dem_b: "nasadem",
             threshold_m: 1,
             iou: null,
-            iou_interior: null,
+            iou_inset: null,
             area_ratio_b_over_a: null,
             resampled: false,
           },
@@ -961,7 +961,7 @@ describe("the flood tables", () => {
       })
     )
     // An index over two empty extents is undefined; zero would state total
-    // disagreement between two products that agree the window is dry.
+    // disagreement between two products that agree the AOI is dry.
     expect(tableToCSV(t as DataTable).split("\n")[1]).toBe(
       "cop30,nasadem,1,,,,false"
     )
@@ -975,8 +975,8 @@ describe("the flood tables", () => {
             threshold_m: 20,
             iou_min: null,
             iou_max: null,
-            iou_min_interior: null,
-            iou_max_interior: null,
+            iou_min_inset: null,
+            iou_max_inset: null,
           },
         ],
       })

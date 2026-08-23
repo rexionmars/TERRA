@@ -626,6 +626,7 @@ func TestFloodRunRoundTrip(t *testing.T) {
 		RefM        float64  `json:"flood_reference_threshold_m"`
 		Contested   float64  `json:"flood_contested_km2"`
 		Unanimous   float64  `json:"flood_unanimous_wet_km2"`
+		AOIAreaKm2  float64  `json:"flood_aoi_area_km2"`
 		Frac        *float64 `json:"flood_contested_frac_of_wet"`
 		NProducts   int      `json:"flood_n_products"`
 		ProductIDs  []string `json:"flood_products"`
@@ -641,6 +642,13 @@ func TestFloodRunRoundTrip(t *testing.T) {
 	if summary.RefM != res.ReferenceThresholdM || summary.Contested != res.Agreement.ContestedKm2 ||
 		summary.Unanimous != res.Agreement.UnanimousWetKm2 {
 		t.Fatalf("the agreement figures did not reach the summary: %+v", summary)
+	}
+	// The two areas above are of the AOI, and the row has to say so. Without
+	// this figure beside them a contested 0.31 km2 reads the same whether it
+	// was measured over 4.5 km2 of AOI or over 37.5 km2 of buffered window.
+	if summary.AOIAreaKm2 != res.AOI.AreaKm2 || summary.AOIAreaKm2 == 0 {
+		t.Fatalf("the run row lists areas with no AOI to take them of: %v",
+			summary.AOIAreaKm2)
 	}
 	if summary.Frac == nil || *summary.Frac != *res.Agreement.ContestedFracOfWet {
 		t.Fatalf("contested share did not reach the summary: %v", summary.Frac)
@@ -686,11 +694,17 @@ func TestFloodRunRoundTrip(t *testing.T) {
 
 	if got.ReferenceThresholdM != res.ReferenceThresholdM ||
 		got.DrainageKm2 != res.DrainageKm2 || got.BufferM != res.BufferM ||
-		got.EdgeMarginCells != res.EdgeMarginCells {
+		got.InsetMarginCells != res.InsetMarginCells {
 		t.Fatalf("the parameters the extent rests on were not restored: %+v", got)
 	}
 	if got.Grid != res.Grid || got.CellSizeM != res.CellSizeM {
-		t.Fatalf("the measured window was not restored: %+v", got.Grid)
+		t.Fatalf("the window the chain ran on was not restored: %+v", got.Grid)
+	}
+	// The ground every figure above is measured over. Restored empty, the areas
+	// come back with no denominator and cannot be told apart from the same
+	// numbers taken over the buffered window, which is eight times the ground.
+	if got.AOI != res.AOI {
+		t.Fatalf("the reporting extent was not restored: %+v, want %+v", got.AOI, res.AOI)
 	}
 	if len(got.Products) != len(res.Products) || len(got.Pairs) != len(res.Pairs) ||
 		len(got.Envelope) != len(res.Envelope) {
@@ -728,6 +742,22 @@ func TestFloodRunRoundTrip(t *testing.T) {
 	if _, err := os.Stat(got.AgreementPNG); err != nil {
 		t.Fatalf("restored agreement_png does not resolve: %v", err)
 	}
+	/*
+		The bounds that place the rendering, restored with it.
+
+		A URI with no extent is an overlay the map cannot position, so the run
+		reopens showing its figures and none of its geography -- the same
+		"lists correctly, reopens as an empty card" failure the branch above
+		exists for, one field further in. Zero is what an unrestored Bounds
+		looks like, and it is also a legal point off the coast of Africa, so it
+		is checked against the payload rather than against emptiness.
+	*/
+	if got.Extent != res.Extent {
+		t.Fatalf("the overlay bounds were not restored: %+v, want %+v", got.Extent, res.Extent)
+	}
+	if got.Extent == (analysis.Bounds{}) {
+		t.Fatal("the restored overlay bounds are the zero Bounds: nothing can be placed on them")
+	}
 	assertNoNullSlices(t, got)
 }
 
@@ -737,17 +767,69 @@ func TestFloodRunRoundTrip(t *testing.T) {
 // would hold.
 //
 // These are the figures of the recorded flood envelope over Propriedade B: four
-// Planetary Computer DEM products at the 1 m reference threshold, on a 216 by
-// 203 window read 2000 m beyond the AOI.
+// Planetary Computer DEM products at the 1 m reference threshold, reported over
+// the 5256 AOI cells inside a 216 by 203 window read 2000 m beyond the AOI.
 func assertFloodFixtureBinds(t *testing.T, f *analysis.FloodAnalysis) {
 	t.Helper()
 	if f.ReferenceThresholdM != 1.0 || f.DrainageKm2 != 0.5 || f.BufferM != 2000.0 {
 		t.Fatalf("parameters did not bind: %v m, %v km2, %v m",
 			f.ReferenceThresholdM, f.DrainageKm2, f.BufferM)
 	}
-	if f.Grid.Width != 216 || f.Grid.Height != 203 || f.EdgeMarginCells != 36 {
-		t.Fatalf("window did not bind: %dx%d, margin %d",
-			f.Grid.Width, f.Grid.Height, f.EdgeMarginCells)
+	// 18 cells and not the 36 an earlier payload recorded: the ring is now cut
+	// from the AOI polygon, so the cap that bounds it is taken from the AOI
+	// bounding box rather than from the buffered window.
+	if f.Grid.Width != 216 || f.Grid.Height != 203 || f.InsetMarginCells != 18 {
+		t.Fatalf("window did not bind: %dx%d, inset margin %d",
+			f.Grid.Width, f.Grid.Height, f.InsetMarginCells)
+	}
+	/*
+		The reporting extent, and the two identities that say the figures are
+		over it.
+
+		WindowCells is the whole grid, 216 by 203; AOI.Cells is the 5256 of them
+		whose centre falls inside the polygon, 12 percent of the ground the
+		chain solved. Asserting the numbers alone would still pass if a later
+		payload reported over the window again, so the accounting is checked as
+		well: the agreement histogram sums to the AOI and not to the grid, which
+		is the one arithmetic fact that separates the two extents.
+	*/
+	if f.AOI.Cells != 5256 || f.AOI.InsetCells != 1332 || f.AOI.WindowCells != 43848 {
+		t.Fatalf("the reporting extent did not bind: %+v", f.AOI)
+	}
+	if f.AOI.WindowCells != f.Grid.Width*f.Grid.Height {
+		t.Fatalf("aoi.window_cells = %d but the grid is %d by %d",
+			f.AOI.WindowCells, f.Grid.Width, f.Grid.Height)
+	}
+	if !withinTolerance(f.AOI.AreaKm2, 4.4953, 1e-4) ||
+		!withinTolerance(f.AOI.WindowAreaKm2, 37.5019, 1e-4) ||
+		!withinTolerance(f.AOI.FracOfWindow, 0.119869, 1e-6) {
+		t.Fatalf("the reporting areas did not bind: %+v", f.AOI)
+	}
+	total := 0
+	for _, c := range f.Agreement.Counts {
+		total += c
+	}
+	if total != f.AOI.Cells {
+		t.Fatalf("the agreement histogram sums to %d cells, want the AOI's %d: "+
+			"these figures are over the buffered window again", total, f.AOI.Cells)
+	}
+	/*
+		Where the rendering goes, which is not where the grid is.
+
+		extent is the bounding box of the AOI clip; Grid.Bounds is the buffered
+		window around it. Equality between them is what a payload looks like
+		when the clip was dropped and the whole window rendered instead, so the
+		containment is asserted rather than the four numbers alone -- an overlay
+		placed on the grid would be stretched over 37.5 km2 of ground for a
+		4.5 km2 picture.
+	*/
+	if f.Extent == (analysis.Bounds{}) {
+		t.Fatal("extent did not bind: the overlay has no bounds to be placed on")
+	}
+	if f.Extent.LonMin <= f.Grid.Bounds.LonMin || f.Extent.LonMax >= f.Grid.Bounds.LonMax ||
+		f.Extent.LatMin <= f.Grid.Bounds.LatMin || f.Extent.LatMax >= f.Grid.Bounds.LatMax {
+		t.Fatalf("extent %+v is not inside the buffered window %+v",
+			f.Extent, f.Grid.Bounds)
 	}
 	if !withinTolerance(f.CellSizeM.X, 27.8539, 1e-4) || !withinTolerance(f.CellSizeM.Y, 30.7056, 1e-4) {
 		t.Fatalf("cell size did not bind: %v by %v", f.CellSizeM.X, f.CellSizeM.Y)
@@ -761,29 +843,55 @@ func assertFloodFixtureBinds(t *testing.T, f *analysis.FloodAnalysis) {
 	if len(f.Agreement.Counts) != 5 {
 		t.Fatalf("agreement histogram has %d levels, want 5", len(f.Agreement.Counts))
 	}
-	if !withinTolerance(f.Agreement.UnanimousWetKm2, 0.4832, 1e-4) ||
-		!withinTolerance(f.Agreement.ContestedKm2, 3.699, 1e-3) {
-		t.Fatalf("agreement areas did not bind: %v wet, %v contested",
-			f.Agreement.UnanimousWetKm2, f.Agreement.ContestedKm2)
+	if !withinTolerance(f.Agreement.UnanimousWetKm2, 0.0599, 1e-4) ||
+		!withinTolerance(f.Agreement.ContestedKm2, 0.3147, 1e-4) ||
+		!withinTolerance(f.Agreement.UnanimousDryKm2, 4.1207, 1e-4) {
+		t.Fatalf("agreement areas did not bind: %v wet, %v contested, %v dry",
+			f.Agreement.UnanimousWetKm2, f.Agreement.ContestedKm2,
+			f.Agreement.UnanimousDryKm2)
+	}
+	// The three areas are the AOI, split. A sum that misses it says the classes
+	// were measured over one extent and the AOI reported over another.
+	sumKm2 := f.Agreement.UnanimousWetKm2 + f.Agreement.ContestedKm2 +
+		f.Agreement.UnanimousDryKm2
+	if !withinTolerance(sumKm2, f.AOI.AreaKm2, 1e-3) {
+		t.Fatalf("the agreement classes sum to %.4f km2, want the AOI's %.4f",
+			sumKm2, f.AOI.AreaKm2)
 	}
 	// A pointer because no product calling anything wet leaves the share
 	// undefined. Here 88 percent of the wet cells are contested, and a null
 	// decoded into a bare float64 would print that as agreement.
 	if f.Agreement.ContestedFracOfWet == nil {
-		t.Fatal("contested_frac_of_wet is nil: this window contests 0.8845 of its wet cells")
+		t.Fatal("contested_frac_of_wet is nil: this AOI contests 0.8402 of its wet cells")
 	}
-	if !withinTolerance(*f.Agreement.ContestedFracOfWet, 0.8845, 1e-4) {
-		t.Fatalf("contested_frac_of_wet = %v, want 0.8845", *f.Agreement.ContestedFracOfWet)
+	if !withinTolerance(*f.Agreement.ContestedFracOfWet, 0.8402, 1e-4) {
+		t.Fatalf("contested_frac_of_wet = %v, want 0.8402", *f.Agreement.ContestedFracOfWet)
 	}
 	// The reference threshold is where the products disagree most, which is
 	// where the envelope is drawn.
 	if f.Envelope[0].ThresholdM != 1.0 || f.Envelope[0].IoUMin == nil || f.Envelope[0].IoUMax == nil {
 		t.Fatalf("the reference envelope row did not bind: %+v", f.Envelope[0])
 	}
-	if !withinTolerance(*f.Envelope[0].IoUMin, 0.2685, 1e-4) ||
-		!withinTolerance(*f.Envelope[0].IoUMax, 0.3948, 1e-4) {
-		t.Fatalf("envelope at 1 m = %v..%v, want 0.2685..0.3948",
+	if !withinTolerance(*f.Envelope[0].IoUMin, 0.2941, 1e-4) ||
+		!withinTolerance(*f.Envelope[0].IoUMax, 0.4985, 1e-4) {
+		t.Fatalf("envelope at 1 m = %v..%v, want 0.2941..0.4985",
 			*f.Envelope[0].IoUMin, *f.Envelope[0].IoUMax)
+	}
+	// The same range over the AOI minus the inset ring. It binds separately
+	// because it is the column that moved: iou_min_inset is 0.1143 against the
+	// 0.2941 beside it, so the disagreement at this threshold sits away from
+	// the AOI boundary, and a reader who saw only the outer pair would not
+	// know that.
+	if f.Envelope[0].IoUMinInset == nil || f.Envelope[0].IoUMaxInset == nil {
+		t.Fatalf("the inset envelope row did not bind: %+v", f.Envelope[0])
+	}
+	if !withinTolerance(*f.Envelope[0].IoUMinInset, 0.1143, 1e-4) ||
+		!withinTolerance(*f.Envelope[0].IoUMaxInset, 0.5472, 1e-4) {
+		t.Fatalf("inset envelope at 1 m = %v..%v, want 0.1143..0.5472",
+			*f.Envelope[0].IoUMinInset, *f.Envelope[0].IoUMaxInset)
+	}
+	if f.Pairs[0].IoUInset == nil || !withinTolerance(*f.Pairs[0].IoUInset, 0.5424, 1e-4) {
+		t.Fatalf("the first pair's inset index did not bind: %+v", f.Pairs[0])
 	}
 	// The 90 m product is resampled onto the shared grid and the pointer must
 	// say so: decoded into a bare bool a null reads as a comparison of terrain
@@ -805,5 +913,15 @@ func assertFloodFixtureBinds(t *testing.T, f *analysis.FloodAnalysis) {
 	}
 	if f.Qualifier == "" || f.Assumptions.ChainGrid == "" || len(f.Assumptions.Excluded) == 0 {
 		t.Fatal("the qualifier or the assumptions did not bind")
+	}
+	// The two prose entries a figure cannot be read without: which cells it is
+	// over, and which raster covers what. Empty, the areas travel with nothing
+	// naming their ground and the GeoTIFF travels with nothing saying it is
+	// wider than they are.
+	if f.Assumptions.ReportingExtent == "" || f.Assumptions.Rasters == "" {
+		t.Fatal("the reporting extent or the raster note did not bind")
+	}
+	if f.Assumptions.InsetMargin == "" {
+		t.Fatal("the inset margin note did not bind")
 	}
 }

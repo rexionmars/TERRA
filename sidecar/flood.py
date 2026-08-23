@@ -18,6 +18,22 @@ and where is the one thing the study measured. Everything in the payload below
 is a summary of that raster; `measure` returns the raster itself, because a
 summary is not a substitute for it.
 
+WHAT THE FIGURES COVER IS NOT WHAT THE CHAIN RAN OVER. HAND needs the
+contributing area upstream of a cell, so dem.py reads 2 to 5 km beyond the AOI
+and every stage of the terrain chain runs on that buffered window -- the fill,
+the flow directions, the accumulation and the HAND field itself. The REPORT
+does not. Every count, area, fraction and IoU below is taken over the cells
+inside the AOI polygon, which the caller rasterises onto the shared grid and
+passes as `aoi_mask`. Summarising the buffered window instead answers a
+question nobody asked: on one observed run a 277 by 291 window of 30.8 m cells
+put class areas summing to 76.2 km2 on screen against an AOI of about 20 km2,
+so every figure a reader saw was inflated about fourfold by a buffer that
+exists for numerical reasons alone. The buffer is a computational necessity,
+not the analysis extent. The window stays in the payload as provenance --
+`grid`, `cell_size_m`, `buffer_m`, and the `aoi.window_*` pair that puts the
+two extents side by side -- so a reader can tell the chain saw more ground
+than the report covers.
+
 WHAT THIS MODULE DOES NOT DO. It does not fetch: sidecar/dem.py reads the
 products, buffers the window and puts them on one grid. It does not recompute
 the terrain chain: sidecar/hand.py owns that, and is called once per product.
@@ -55,28 +71,37 @@ REFERENCE_THRESHOLD_M = 1.0
 # payload fixes it and states it rather than sweeping it.
 DRAINAGE_REF_KM2 = 0.5
 
-# The edge ring discarded for the interior statistics, in metres.
+# The ring cut from the INSIDE OF THE AOI for the inset statistics, in metres.
 #
-# The window is a rectangle a user drew, not a basin. Near its border the
+# This ring used to be cut from the computed window, where its job was to
+# discard the border of the rectangle the DEM was read over: there the
 # contributing area of a cell is truncated by the window itself, fewer cells
-# clear the drainage threshold, and HAND comes out high -- so the extent comes
-# out small, and two products can disagree there for a reason that is about the
-# rectangle rather than about the terrain. `iou_interior` repeats every
-# comparison with this ring removed, and the pair (iou, iou_interior) is what
-# tells a reader which kind of disagreement they are looking at. The study set
-# the ring at 1 km and found it moved IoU by about 0.02, which is how it
-# established that the disagreement it reports is not an edge artefact; the
-# same 1 km is kept here so that finding transfers. dem.py already buffers the
-# read beyond the AOI, which reduces the truncation but does not remove it: the
-# upstream area of a lowland cell is unbounded in principle and no affordable
-# buffer contains it.
-EDGE_MARGIN_M = 1000.0
+# clear the drainage threshold, HAND comes out high and the extent small, so
+# two products can disagree for a reason that is about the rectangle rather
+# than the terrain. Since the report is now taken over the AOI polygon, that
+# rectangle border is already outside every figure and the ring would be
+# cutting ground nobody is reporting on.
+#
+# WHAT THE RING MEANS NOW: the AOI shrunk by this distance from its own
+# boundary. The truncation it tests for has moved rather than disappeared. The
+# buffer is 2 to 5 km, the contributing area of a lowland cell is unbounded in
+# principle, and what drains in from beyond the buffer is missing for every
+# cell it would have reached -- which is the cells nearest the AOI boundary
+# first. So `iou` over the AOI and `iou_inset` over the AOI minus this ring
+# still answer the same question in the same direction: a large gap between
+# them says the disagreement sits at the edge of the reported area, where the
+# missing upstream is, rather than through the middle of it. The study set the
+# ring at 1 km and measured that it moved IoU by about 0.02, which is how it
+# established the disagreement it reports is not an edge artefact; the same
+# 1 km is kept so that comparison still means something, but the two rings are
+# cut from different shapes and the numbers are not the same statistic.
+INSET_MARGIN_M = 1000.0
 
-# The interior may not fall below this share of the shorter side. On a small
-# AOI a 1 km ring can swallow the whole window, and an interior statistic
-# computed over a handful of cells is noise reported with the authority of a
-# number. When the cap binds, the payload reports the margin actually used.
-INTERIOR_MIN_FRACTION_OF_SIDE = 0.5
+# The inset may not fall below this share of the shorter side of the AOI. On a
+# small AOI a 1 km ring can swallow the whole polygon, and a statistic computed
+# over a handful of cells is noise reported with the authority of a number.
+# When the cap binds, the payload reports the margin actually used.
+INSET_MIN_FRACTION_OF_SIDE = 0.5
 
 
 def iou(a, b):
@@ -97,33 +122,72 @@ def iou(a, b):
     return float(inter / union) if union else None
 
 
-def interior_mask(shape, margin_cells):
-    """The window with a ring of `margin_cells` removed on every side."""
-    if margin_cells <= 0:
-        return np.ones(shape, dtype=bool)
-    out = np.zeros(shape, dtype=bool)
-    out[margin_cells:-margin_cells, margin_cells:-margin_cells] = True
+def _erode_rows(mask, margin_cells):
+    """True where the `margin_cells` cells above and below are also True."""
+    height, width = mask.shape
+    span = 2 * margin_cells + 1
+    out = np.zeros_like(mask)
+    if span > height:
+        return out
+    # A running count rather than a shift per cell of the margin. The default
+    # margin is 33 cells at 30 m, and eroding a 4e6-cell window by comparing
+    # 67 by 67 neighbourhoods cell by cell is 1.8e10 reads; two cumulative sums
+    # are two passes over the array whatever the margin is.
+    running = np.zeros((height + 1, width), dtype=np.int32)
+    np.cumsum(mask, axis=0, dtype=np.int32, out=running[1:])
+    covered = running[span:] - running[:height - span + 1]
+    out[margin_cells:height - margin_cells] = covered == span
     return out
 
 
-def resolve_edge_margin(shape, dx, edge_margin_cells=None):
+def inset_mask(mask, margin_cells):
     """
-    The edge ring in cells: EDGE_MARGIN_M by default, capped for small windows.
+    `mask` shrunk by `margin_cells` on every side, and away from every hole.
 
-    Returns the value actually used, which is what the payload reports -- a
-    margin silently reduced by the cap would make `iou_interior` describe a
-    different ring than the one named beside it.
+    Square structuring element, so a cell survives when everything within
+    `margin_cells` in either axis is inside the mask. Cells near the array
+    border are dropped too: the polygon can run to the edge of the computed
+    window, and a cell whose ring falls off the array has not been shown to be
+    that far inside anything.
     """
-    if edge_margin_cells is None:
-        edge_margin_cells = int(round(EDGE_MARGIN_M / dx))
-    edge_margin_cells = max(0, int(edge_margin_cells))
-    cap = int(min(shape) * (1.0 - INTERIOR_MIN_FRACTION_OF_SIDE) / 2)
-    return min(edge_margin_cells, cap)
+    if margin_cells <= 0:
+        return mask.copy()
+    return _erode_rows(_erode_rows(mask, margin_cells).T, margin_cells).T
+
+
+def bbox_shape(mask):
+    """The height and width of the smallest rectangle holding every True cell."""
+    rows = np.flatnonzero(mask.any(axis=1))
+    cols = np.flatnonzero(mask.any(axis=0))
+    if rows.size == 0 or cols.size == 0:
+        return (0, 0)
+    return (int(rows[-1] - rows[0]) + 1, int(cols[-1] - cols[0]) + 1)
+
+
+def resolve_inset_margin(shape, dx, inset_margin_cells=None):
+    """
+    The inset ring in cells: INSET_MARGIN_M by default, capped for a small AOI.
+
+    `shape` is the AOI's own bounding box, not the computed window: the ring is
+    cut from the polygon, so a 1 km ring is measured against how much polygon
+    there is to cut it from. Returns the value actually used, which is what the
+    payload reports -- a margin silently reduced by the cap would make
+    `iou_inset` describe a different ring than the one named beside it.
+    """
+    if inset_margin_cells is None:
+        inset_margin_cells = int(round(INSET_MARGIN_M / dx))
+    inset_margin_cells = max(0, int(inset_margin_cells))
+    cap = int(min(shape) * (1.0 - INSET_MIN_FRACTION_OF_SIDE) / 2)
+    return min(inset_margin_cells, cap)
 
 
 def agreement_raster(masks):
     """
     How many products call each cell flooded. The product, in one array.
+
+    Over the whole computed window, not the AOI: this is the raster the caller
+    georeferences and writes, and clipping belongs where the file is written.
+    The payload summarises it inside the AOI.
 
     uint8: the count cannot exceed the number of DEM products, and at 1e7 cells
     the difference against the int64 a plain sum would return is 10 MB against
@@ -189,7 +253,7 @@ def _source(pid, value):
     return Source(id=str(pid), z=value)
 
 
-def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m):
+def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask):
     """Refuse an input that would produce a plausible wrong envelope."""
     if len(sources) < 2:
         names = ", ".join(s.id for s in sources) or "none"
@@ -254,7 +318,33 @@ def _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m):
         raise ValueError(
             "assess needs buffer_m, how far beyond the AOI the DEM was read. "
             "It bounds the drainage that is missing at the border, so a reader "
-            "cannot judge the interior statistic without it."
+            "cannot judge the inset statistic without it."
+        )
+
+    if aoi_mask is None:
+        raise ValueError(
+            "assess needs aoi_mask, the AOI polygon rasterised onto the shared "
+            "grid. The arrays cover the AOI plus buffer_m on every side, and "
+            "without the mask every area here would be the area of that "
+            "buffered window: on one observed run 76.2 km2 of class areas for "
+            "an AOI of about 20 km2. There is no defensible default -- a mask "
+            "of all True says the caller means the whole computed window, and "
+            "that has to be said rather than assumed."
+        )
+    if aoi_mask.shape != shape:
+        raise ValueError(
+            f"aoi_mask is {aoi_mask.shape[1]}x{aoi_mask.shape[0]} but the "
+            f"arrays are {shape[1]}x{shape[0]}; the mask was rasterised onto a "
+            "different grid than the one measured, so it would select the "
+            "wrong ground."
+        )
+    if not aoi_mask.any():
+        raise ValueError(
+            "aoi_mask selects no cell: the AOI polygon covers no cell centre "
+            "of this grid, so there is nothing to report over. This is an AOI "
+            "smaller than one cell of the coarsest product, not an empty "
+            "flood extent, and reporting zeros for it would say the terrain "
+            "is dry rather than that nothing was measured."
         )
 
 
@@ -266,14 +356,21 @@ class Result:
     """The payload, and the arrays it summarises."""
 
     payload: dict
-    # The agreement raster at the reference threshold, 0..N per cell. The
-    # payload cannot carry it -- a 1e7-cell array as JSON numbers is hundreds
-    # of megabytes through a pipe -- so a caller that renders the map takes it
-    # from here and writes it as a file, the route the meshes already take.
+    # The agreement raster at the reference threshold, 0..N per cell, over the
+    # whole computed window. The payload cannot carry it -- a 1e7-cell array as
+    # JSON numbers is hundreds of megabytes through a pipe -- so a caller that
+    # renders the map takes it from here and writes it as a file, the route the
+    # meshes already take. The caller clips it to `aoi` for anything it draws,
+    # because the payload figures are over `aoi` and a map wider than the
+    # numbers beside it is the defect this whole reporting mask exists to fix.
     agreement: np.ndarray
+    # The reference-threshold extents over the computed window, before the AOI
+    # mask. The payload counts them inside it.
     masks: dict
     hand: dict
-    interior: np.ndarray
+    # The reporting mask, and the reporting mask minus the inset ring.
+    aoi: np.ndarray
+    inset: np.ndarray
 
 
 def qualifier_text(ids):
@@ -303,7 +400,8 @@ def qualifier_text(ids):
 
 
 def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
-                 margin, dx, dy, buffer_m):
+                 margin, dx, dy, buffer_m, aoi_cells, inset_cells, window_cells,
+                 cell_km2):
     """Every default in the payload, where it came from, and what is left out."""
     # Each sentence states where its number came from, and says so differently
     # when the caller overrode the default -- an assumptions block that credits
@@ -320,13 +418,13 @@ def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
         else f"The caller set this; the default is {REFERENCE_THRESHOLD_M} m, "
              "which is where the study reports its widest product disagreement."
     )
-    requested_margin = int(round(EDGE_MARGIN_M / dx))
+    requested_margin = int(round(INSET_MARGIN_M / dx))
     margin_note = (
         ""
         if margin >= requested_margin
-        else (f" The {EDGE_MARGIN_M:.0f} m ring the default asks for is "
+        else (f" The {INSET_MARGIN_M:.0f} m ring the default asks for is "
               f"{requested_margin} cells here and was capped: it would leave "
-              "too little interior to measure.")
+              "too little of the AOI to measure.")
     )
     return {
         "drainage_threshold": (
@@ -344,12 +442,29 @@ def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
             f"Thresholds swept: {list(thresholds)} m, the study's sweep, kept so "
             "the tables can be read side by side."
         ),
-        "edge_margin": (
-            f"The interior statistics discard a ring of {margin} cells, about "
-            f"{margin * dx:.0f} m. Inside that ring the contributing area is "
-            "truncated by the window, so HAND reads high and the extent reads "
-            "small. A large gap between iou and iou_interior means the "
-            "disagreement is concentrated at the border." + margin_note
+        "reporting_extent": (
+            f"Every count, area, fraction and IoU here is over the "
+            f"{aoi_cells} cells inside the AOI polygon, "
+            f"{aoi_cells * cell_km2:.4g} km2. The terrain chain ran over "
+            f"{window_cells} cells, {window_cells * cell_km2:.4g} km2, because "
+            "HAND needs the contributing area upstream of the AOI; that window "
+            "is reported under grid and buffer_m and is not what any figure "
+            "above is measured over. Cells are counted in or out by whether "
+            "their centre falls inside the polygon, so the reported area and "
+            "the polygon's own area differ by at most a half cell along the "
+            "boundary."
+        ),
+        "inset_margin": (
+            f"The inset statistics repeat every comparison over the AOI shrunk "
+            f"by {margin} cells, about {margin * dx:.0f} m, measured from the "
+            f"AOI boundary and covering {inset_cells} cells. The ring is cut "
+            "from the polygon and not from the computed window, which the "
+            "buffer already puts outside every figure here. What it tests is "
+            "unchanged: near the AOI boundary the contributing area is still "
+            "short of whatever drains in from beyond the buffer, so HAND reads "
+            "high and the extent small, and a large gap between iou and "
+            "iou_inset means the disagreement is concentrated there rather "
+            "than through the AOI." + margin_note
         ),
         "cell_size": (
             f"Cells are {dx:.1f} by {dy:.1f} m, evaluated at the centre latitude "
@@ -367,7 +482,8 @@ def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
             f"The DEM was read {buffer_m:.0f} m beyond the AOI so drainage "
             "entering it is real terrain. Water arriving from beyond that "
             "buffer is still missing, so HAND remains biased high, and the "
-            "extent low, near the window edge."
+            "extent low, near the AOI edge. The buffered window is where the "
+            "chain ran and not where the figures are taken."
         ),
         "excluded": [
             "No rainfall, discharge, routing or hydrodynamic simulation.",
@@ -392,8 +508,8 @@ def _assumptions(drainage_km2, min_cells, reference_threshold_m, thresholds,
 
 
 def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_KM2,
-            reference_threshold_m=REFERENCE_THRESHOLD_M, edge_margin_cells=None,
-            grid=None, buffer_m=None, eps=1e-3, progress=None):
+            reference_threshold_m=REFERENCE_THRESHOLD_M, inset_margin_cells=None,
+            grid=None, buffer_m=None, aoi_mask=None, eps=1e-3, progress=None):
     """
     The envelope over several DEM products. Returns a Result: payload + arrays.
 
@@ -401,6 +517,10 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
     already on the shared grid or a dem.ProductRead. The order is kept: the
     `products` rows follow it and the pair rows are generated in it, so the
     same run reproduces the same table row for row.
+
+    `aoi_mask` is the AOI polygon rasterised onto that same grid and is
+    required: the arrays cover the AOI plus its buffer, and it is the mask that
+    decides which of those cells the figures are about.
     """
     sources = [_source(pid, value) for pid, value in dems.items()]
 
@@ -411,11 +531,14 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
     thresholds = sorted({float(t) for t in thresholds_m} | {float(reference_threshold_m)})
     reference_threshold_m = float(reference_threshold_m)
 
-    _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m)
+    _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask)
 
     shape = sources[0].z.shape
-    margin = resolve_edge_margin(shape, dx, edge_margin_cells)
-    interior = interior_mask(shape, margin)
+    aoi = np.asarray(aoi_mask, dtype=bool)
+    aoi_cells = int(aoi.sum())
+    margin = resolve_inset_margin(bbox_shape(aoi), dx, inset_margin_cells)
+    inset = inset_mask(aoi, margin)
+    inset_cells = int(inset.sum())
 
     # The HAND field once per product, then thresholded five times. Held as
     # float32: the comparison is against a threshold in whole metres and the
@@ -423,6 +546,11 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
     # chain -- hand.fill_depressions separates a plateau by 1e-3 m, which
     # float32 rounds away at that elevation -- and hand.compute allocates its
     # own float64 arrays, so the narrowing happens strictly after it.
+    #
+    # The chain runs on the full window, buffer included. Narrowing it to the
+    # AOI here would be the same defect as reporting over the window, in the
+    # other direction: the drainage entering the AOI would stop at its border
+    # and every cell fed from outside would get a wrong height.
     fields, cell_km2, min_cells = {}, None, None
     for n, s in enumerate(sources, start=1):
         if progress:
@@ -438,17 +566,21 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
         if progress:
             progress(f"comparing {len(sources)} products at HAND <= {t:g} m")
         masks = {s.id: (fields[s.id] <= t) for s in sources}
+        # Every comparison below is between the reported extents, never the
+        # window ones: a product that floods half the buffer and none of the
+        # AOI has no extent to disagree about here.
+        reported = {s.id: masks[s.id] & aoi for s in sources}
 
         at_threshold = []
         for a, b in itertools.combinations(sources, 2):
-            ma, mb = masks[a.id], masks[b.id]
+            ma, mb = reported[a.id], reported[b.id]
             n_a = int(ma.sum())
             row = {
                 "dem_a": a.id,
                 "dem_b": b.id,
                 "threshold_m": t,
                 "iou": _round(iou(ma, mb), 4),
-                "iou_interior": _round(iou(ma & interior, mb & interior), 4),
+                "iou_inset": _round(iou(masks[a.id] & inset, masks[b.id] & inset), 4),
                 # None rather than a ratio against an empty denominator: a
                 # product with no wet cell at this threshold is a fact about the
                 # threshold, and dividing by one cell would report it as 1.0.
@@ -464,25 +596,28 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
             "threshold_m": t,
             "iou_min": _extreme(at_threshold, "iou", min),
             "iou_max": _extreme(at_threshold, "iou", max),
-            "iou_min_interior": _extreme(at_threshold, "iou_interior", min),
-            "iou_max_interior": _extreme(at_threshold, "iou_interior", max),
+            "iou_min_inset": _extreme(at_threshold, "iou_inset", min),
+            "iou_max_inset": _extreme(at_threshold, "iou_inset", max),
         })
 
         if t == reference_threshold_m:
             reference_masks = masks
             for s in sources:
-                cells = int(masks[s.id].sum())
+                cells = int(reported[s.id].sum())
                 row = s.describe()
                 row.update({
                     "cells": cells,
                     "area_km2": _round(cells * cell_km2, 4),
-                    "area_frac": _round(cells / masks[s.id].size, 6),
+                    # Of the AOI, which is what the reader drew. Of the window
+                    # this would be the same extent divided by up to four times
+                    # the ground, and would read as a much drier place.
+                    "area_frac": _round(cells / aoi_cells, 6),
                 })
                 products.append(row)
 
     counts_raster = agreement_raster([reference_masks[s.id] for s in sources])
     n_products = len(sources)
-    counts = np.bincount(counts_raster.ravel(), minlength=n_products + 1)
+    counts = np.bincount(counts_raster[aoi], minlength=n_products + 1)
     unanimous_wet = int(counts[n_products])
     unanimous_dry = int(counts[0])
     contested = int(counts[1:n_products].sum())
@@ -495,8 +630,27 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
         "cell_size_m": {"x": float(dx), "y": float(dy)},
         "grid": grid,
         "buffer_m": float(buffer_m),
+        # What the figures are over, beside what the chain ran over. Both are
+        # here because either one alone misleads: the AOI area alone hides that
+        # the terrain was solved on more ground, and the window alone is the
+        # defect this block was added to fix.
+        "aoi": {
+            "cells": aoi_cells,
+            "area_km2": _round(aoi_cells * cell_km2, 4),
+            "inset_cells": inset_cells,
+            "window_cells": int(counts_raster.size),
+            "window_area_km2": _round(counts_raster.size * cell_km2, 4),
+            "frac_of_window": _round(aoi_cells / counts_raster.size, 6),
+        },
         "products": products,
         "agreement": {
+            # counts[k] is the number of AOI cells exactly k products call
+            # flooded. counts[0] closes the accounting and is not a level of
+            # agreement: that no product calls a cell flooded says nothing
+            # about how far the products agree with each other, and listing it
+            # as a class beside the others flattens the one distinction this
+            # analysis draws. It belongs beside aoi.area_km2 as the dry
+            # remainder of the AOI, which is what unanimous_dry_km2 is.
             "counts": [int(c) for c in counts],
             "unanimous_wet_km2": _round(unanimous_wet * cell_km2, 4),
             "contested_km2": _round(contested * cell_km2, 4),
@@ -510,25 +664,28 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
         },
         "pairs": pairs,
         "envelope": envelope,
-        "edge_margin_cells": int(margin),
+        "inset_margin_cells": int(margin),
         "qualifier": qualifier_text([s.id for s in sources]),
         "assumptions": _assumptions(drainage_km2, min_cells, reference_threshold_m,
-                                    thresholds, margin, dx, dy, buffer_m),
+                                    thresholds, margin, dx, dy, buffer_m,
+                                    aoi_cells, inset_cells, counts_raster.size,
+                                    cell_km2),
     }
 
     return Result(payload=payload, agreement=counts_raster, masks=reference_masks,
-                  hand=fields, interior=interior)
+                  hand=fields, aoi=aoi, inset=inset)
 
 
 def assess(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_KM2,
-           reference_threshold_m=REFERENCE_THRESHOLD_M, edge_margin_cells=None,
-           grid=None, buffer_m=None, eps=1e-3, progress=None):
+           reference_threshold_m=REFERENCE_THRESHOLD_M, inset_margin_cells=None,
+           grid=None, buffer_m=None, aoi_mask=None, eps=1e-3, progress=None):
     """The payload alone. `measure` returns the same run with its arrays."""
     return measure(dems, dx, dy, thresholds_m=thresholds_m,
                    drainage_km2=drainage_km2,
                    reference_threshold_m=reference_threshold_m,
-                   edge_margin_cells=edge_margin_cells, grid=grid,
-                   buffer_m=buffer_m, eps=eps, progress=progress).payload
+                   inset_margin_cells=inset_margin_cells, grid=grid,
+                   buffer_m=buffer_m, aoi_mask=aoi_mask, eps=eps,
+                   progress=progress).payload
 
 
 def _round(value, places):

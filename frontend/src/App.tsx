@@ -2190,11 +2190,17 @@ function AppBody(props: {
    * products it can be derived from.
    *
    * The two parameters the sidecar derives per window -- the buffer from the
-   * AOI extent, the edge margin from the cell size -- are sent only when the
+   * AOI extent, the inset margin from the cell size -- are sent only when the
    * reader took them over. Absent, the sidecar chooses; sent as a number
    * chosen for another window, they would replace that choice silently. This
    * is the reason the two are nullable in FloodParams and why neither is
    * defaulted here.
+   *
+   * The inset margin travels as inset_margin_cells. The sidecar refuses the
+   * edge_margin_cells this used to send, by name: the ring it names is now cut
+   * from the AOI polygon rather than from the computed window, and accepting
+   * the old key would apply a number to a different ring than the one the
+   * reading reports back.
    */
   const handleRunFlood = async () => {
     const useExample = usesExampleArea(props.activeExample, props.areas)
@@ -2228,8 +2234,8 @@ function AppBody(props: {
         reference_threshold_m: floodParams.referenceThresholdM,
         drainage_km2: floodParams.drainageKm2,
         ...(floodParams.bufferM !== null ? { buffer_m: floodParams.bufferM } : {}),
-        ...(floodParams.edgeMarginCells !== null
-          ? { edge_margin_cells: floodParams.edgeMarginCells }
+        ...(floodParams.insetMarginCells !== null
+          ? { inset_margin_cells: floodParams.insetMarginCells }
           : {}),
       }
       const res = (await AnalyzeFlood(req as never)) as unknown as FloodAnalysis

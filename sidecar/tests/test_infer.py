@@ -575,7 +575,7 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
             # 0.5 km2 is 556 cells of 30 m and nothing in a 48 by 52 window
             # reaches it, which would leave no drainage network at all.
             "drainage_km2": 0.02,
-            "edge_margin_cells": 4,
+            "inset_margin_cells": 4,
         },
         tmp_path,
     )
@@ -588,11 +588,18 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
     ]
     assert payload["reference_threshold_m"] == 1.0
     assert payload["thresholds_m"] == [1.0, 2.0, 5.0, 10.0, 20.0]
-    # Four products, so every cell is counted 0 to 4 and the counts account for
-    # the whole grid.
+    # The AOI is the top-left 36 by 36 cells of the window the chain ran over:
+    # 0.01 degrees of the grid's 1/3600 degree cells on each axis. The window
+    # is 48 by 51 -- the read is 48 by 52 and the coarse product covers 51 of
+    # those columns, so the last one is trimmed. Four products, so every cell
+    # of the AOI is counted 0 to 4 and the counts account for the AOI, not for
+    # the window.
     counts = payload["agreement"]["counts"]
     assert len(counts) == 5
-    assert sum(counts) == payload["grid"]["width"] * payload["grid"]["height"]
+    assert payload["aoi"]["cells"] == 36 * 36
+    assert payload["aoi"]["window_cells"] == 48 * 51
+    assert (payload["grid"]["width"], payload["grid"]["height"]) == (51, 48)
+    assert sum(counts) == 36 * 36
     # Six unordered pairs at each of the five thresholds.
     assert len(payload["pairs"]) == 30
     assert len(payload["envelope"]) == 5
@@ -607,14 +614,35 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
     for pair in payload["pairs"]:
         assert pair["resampled"] == ("cop90" in (pair["dem_a"], pair["dem_b"]))
 
-    # The raster the payload summarises, on the grid the payload describes.
+    # The GeoTIFF is the chain's own output over the whole computed window, on
+    # the grid the payload describes; the payload counts the AOI part of it.
     with rasterio.open(payload["agreement_tif"]) as src:
         agreement = src.read(1)
         assert src.width == payload["grid"]["width"]
         assert src.height == payload["grid"]["height"]
     assert agreement.max() <= 4
-    assert int((agreement == 4).sum()) == counts[4]
-    assert Path(payload["agreement_png"]).is_file()
+    assert int((agreement[:36, :36] == 4).sum()) == counts[4]
+    # The buffer is where the difference between the two shows: the window
+    # holds unanimous cells the report does not count.
+    assert int((agreement == 4).sum()) > counts[4]
+
+    # The PNG is what goes on the map, so it is the AOI and not the window.
+    with rasterio.open(payload["agreement_png"]) as src:
+        assert (src.height, src.width) == (36, 36)
+        alpha = src.read(4)
+    assert int((alpha > 0).sum()) == int((agreement[:36, :36] > 0).sum())
+    # And the payload says where to put it, in the field shape the water
+    # overlay is placed from.
+    assert set(payload["extent"]) == {"lon_min", "lat_min", "lon_max", "lat_max"}
+    bounds = payload["grid"]["bounds"]
+    assert payload["extent"]["lon_min"] == pytest.approx(bounds["lon_min"])
+    assert payload["extent"]["lat_max"] == pytest.approx(bounds["lat_max"])
+    assert payload["extent"]["lon_max"] == pytest.approx(
+        bounds["lon_min"] + 36 / 3600.0
+    )
+    assert payload["extent"]["lat_min"] == pytest.approx(
+        bounds["lat_max"] - 36 / 3600.0
+    )
 
     # Progress reaches the caller as one line per unit of real work, not as a
     # jump per stage: four reads are replaced here, so what is left is four
@@ -624,6 +652,134 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
     assert steps == sorted(steps)
     assert steps[-1] == 100
     assert len(steps) >= 4 + 5
+
+
+def _flood_run(tmp_path, monkeypatch, capsys, coordinates):
+    """The action over one polygon, with the catalogue replaced by _flood_reads."""
+    import dem
+
+    monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: _flood_reads())
+    infer.action_flood_envelope(
+        {
+            "polygon_geojson": {"type": "Polygon", "coordinates": [coordinates]},
+            "drainage_km2": 0.02,
+            "inset_margin_cells": 4,
+        },
+        tmp_path,
+    )
+    return json.loads(capsys.readouterr().out)["flood"]
+
+
+# The window _flood_reads puts on the grid, after the trim: 48 rows and 51
+# columns of 1/3600 degree from the north-west corner. Written in degrees here
+# because that is what a polygon carries.
+CELL_DEG = 1.0 / 3600.0
+WINDOW_LON_MIN, WINDOW_LAT_MAX = -53.54, -25.71
+WINDOW_ROWS, WINDOW_COLS = 48, 51
+
+
+def test_the_flood_areas_are_over_the_polygon_and_scale_with_it(tmp_path,
+                                                                monkeypatch,
+                                                                capsys):
+    """
+    A polygon over half the window reports half the window's cells.
+
+    The figures used to be taken over the whole array the terrain chain ran on,
+    which is the AOI plus its buffer: on one observed run that reported 76.2
+    km2 of class areas for an AOI of about 20 km2. Here the AOI is exactly half
+    the computed window, so every cell count and every area has a value that
+    can be written down before the run.
+    """
+    lon_mid = WINDOW_LON_MIN + (WINDOW_COLS // 2) * CELL_DEG
+    lat_bottom = WINDOW_LAT_MAX - WINDOW_ROWS * CELL_DEG
+
+    payload = _flood_run(tmp_path, monkeypatch, capsys, [
+        [WINDOW_LON_MIN, WINDOW_LAT_MAX], [lon_mid, WINDOW_LAT_MAX],
+        [lon_mid, lat_bottom], [WINDOW_LON_MIN, lat_bottom],
+        [WINDOW_LON_MIN, WINDOW_LAT_MAX],
+    ])
+
+    half_cells = WINDOW_ROWS * (WINDOW_COLS // 2)
+    assert payload["aoi"]["window_cells"] == WINDOW_ROWS * WINDOW_COLS
+    assert payload["aoi"]["cells"] == half_cells
+    assert payload["aoi"]["area_km2"] == pytest.approx(
+        payload["aoi"]["window_area_km2"] * half_cells
+        / (WINDOW_ROWS * WINDOW_COLS), abs=5e-4
+    )
+    assert sum(payload["agreement"]["counts"]) == half_cells
+    # Every product's extent is inside the AOI too, and its fraction is of the
+    # AOI: over the window each of these would read as a much drier place.
+    for row in payload["products"]:
+        assert row["cells"] <= half_cells
+        assert row["area_frac"] == pytest.approx(row["cells"] / half_cells,
+                                                 abs=5e-7)
+
+
+def test_an_l_shaped_flood_aoi_reports_the_l_and_not_its_bounding_box(tmp_path,
+                                                                      monkeypatch,
+                                                                      capsys):
+    """
+    The notch of an L is outside the figures and transparent on the overlay.
+
+    A user who draws an L is asking about the L. A reporting mask taken from
+    the polygon's bounding box passes every proportional check -- a rectangle
+    covering half the window still reports half of it -- and silently puts the
+    quarter of the window the user cut out back into every area, count and IoU.
+    This L is the whole window minus its bottom-right quarter, so the two
+    implementations differ by 24 by 25 cells.
+    """
+    lon_mid = WINDOW_LON_MIN + (WINDOW_COLS // 2) * CELL_DEG
+    lon_right = WINDOW_LON_MIN + WINDOW_COLS * CELL_DEG
+    lat_mid = WINDOW_LAT_MAX - (WINDOW_ROWS // 2) * CELL_DEG
+    lat_bottom = WINDOW_LAT_MAX - WINDOW_ROWS * CELL_DEG
+
+    payload = _flood_run(tmp_path, monkeypatch, capsys, [
+        [WINDOW_LON_MIN, WINDOW_LAT_MAX], [lon_right, WINDOW_LAT_MAX],
+        [lon_right, lat_mid], [lon_mid, lat_mid], [lon_mid, lat_bottom],
+        [WINDOW_LON_MIN, lat_bottom], [WINDOW_LON_MIN, WINDOW_LAT_MAX],
+    ])
+
+    notch_rows, notch_cols = WINDOW_ROWS // 2, WINDOW_COLS - WINDOW_COLS // 2
+    l_cells = WINDOW_ROWS * WINDOW_COLS - notch_rows * notch_cols
+    assert notch_rows * notch_cols == 24 * 26
+    assert payload["aoi"]["cells"] == l_cells
+    assert sum(payload["agreement"]["counts"]) == l_cells
+
+    # The overlay covers the bounding box, because an image is a rectangle, and
+    # is transparent over the notch, because the figures do not include it.
+    import rasterio
+
+    with rasterio.open(payload["agreement_png"]) as src:
+        assert (src.height, src.width) == (WINDOW_ROWS, WINDOW_COLS)
+        alpha = src.read(4)
+    assert int(alpha[notch_rows:, WINDOW_COLS // 2:].sum()) == 0
+    assert int((alpha > 0).sum()) > 0
+
+
+def test_the_flood_reporting_mask_follows_the_polygon_cell_by_cell():
+    """
+    The rasterisation itself, away from the rest of the action.
+
+    A cell is in when its centre is in the polygon. The L above is built on
+    that rule, and this is where the rule is pinned: a cell the boundary merely
+    clips is out, so the reported area does not grow by half a cell all the way
+    round the AOI.
+    """
+    from shapely.geometry import box
+
+    grid = _flood_grid(WINDOW_ROWS, WINDOW_COLS, CELL_DEG)
+    # 2.2 cells wide and 2.2 tall from the north-west corner, so the third row
+    # and column of cells is clipped by the boundary rather than covered.
+    polygon = box(WINDOW_LON_MIN, WINDOW_LAT_MAX - 2.2 * CELL_DEG,
+                  WINDOW_LON_MIN + 2.2 * CELL_DEG, WINDOW_LAT_MAX)
+
+    mask = infer.aoi_reporting_mask(polygon, grid)
+
+    assert mask.shape == (WINDOW_ROWS, WINDOW_COLS)
+    # Centres sit at 0.5, 1.5 and 2.5 cells: the first two are inside the
+    # boundary at 2.2 and the clipped one is not.
+    assert int(mask.sum()) == 4
+    assert mask[:2, :2].all()
 
 
 def test_the_flood_envelope_refuses_an_aoi_it_cannot_hold_in_memory(capsys):
@@ -651,6 +807,32 @@ def test_the_flood_envelope_refuses_an_aoi_it_cannot_hold_in_memory(capsys):
     assert "90.5 by 99.5 km" in error
     assert "4 million" in error
     assert "coarser resolution" in error
+
+
+def test_the_renamed_ring_parameter_is_refused_under_its_old_name(capsys):
+    """
+    edge_margin_cells is gone, and a caller still sending it is told so.
+
+    Ignoring an unknown key is the silent failure here: the request would run,
+    the ring would fall back to the 1 km default, and the payload would report
+    a margin the caller did not ask for. The names differ because the rings do:
+    the old one was cut from the border of the buffered window, the new one
+    from inside the AOI polygon.
+    """
+    with pytest.raises(SystemExit):
+        infer.action_flood_envelope(
+            {
+                "polygon_geojson": {
+                    "type": "Polygon",
+                    "coordinates": [[[-53.54, -25.72], [-53.53, -25.72],
+                                     [-53.53, -25.71], [-53.54, -25.72]]],
+                },
+                "edge_margin_cells": 30,
+            },
+            Path("."),
+        )
+    error = json.loads(capsys.readouterr().err.strip())["error"]
+    assert "inset_margin_cells" in error
 
 
 def test_the_flood_envelope_needs_two_products_and_says_which_exist(capsys):
@@ -737,24 +919,28 @@ def test_the_recorded_flood_payload_carries_every_field_the_other_layers_read():
     payload = json.loads(FLOOD_FIXTURE.read_text())["flood"]
 
     for key in ("reference_threshold_m", "thresholds_m", "drainage_km2",
-                "cell_size_m", "grid", "buffer_m", "products", "agreement",
-                "pairs", "envelope", "edge_margin_cells", "qualifier",
-                "assumptions"):
+                "cell_size_m", "grid", "buffer_m", "aoi", "extent", "products",
+                "agreement", "pairs", "envelope", "inset_margin_cells",
+                "qualifier", "assumptions"):
         assert key in payload, key
     assert set(payload["cell_size_m"]) == {"x", "y"}
     assert set(payload["grid"]["bounds"]) == {
         "lon_min", "lat_min", "lon_max", "lat_max",
     }
+    assert set(payload["extent"]) == {"lon_min", "lat_min", "lon_max", "lat_max"}
+    assert set(payload["aoi"]) == {"cells", "area_km2", "inset_cells",
+                                   "window_cells", "window_area_km2",
+                                   "frac_of_window"}
 
     for row in payload["products"]:
         assert set(row) == {"id", "collection", "native_resolution_m",
                             "resampled", "cells", "area_km2", "area_frac"}
     for row in payload["pairs"]:
         assert set(row) == {"dem_a", "dem_b", "threshold_m", "iou",
-                            "iou_interior", "area_ratio_b_over_a", "resampled"}
+                            "iou_inset", "area_ratio_b_over_a", "resampled"}
     for row in payload["envelope"]:
         assert set(row) == {"threshold_m", "iou_min", "iou_max",
-                            "iou_min_interior", "iou_max_interior"}
+                            "iou_min_inset", "iou_max_inset"}
     assert set(payload["agreement"]) == {
         "counts", "unanimous_wet_km2", "contested_km2", "unanimous_dry_km2",
         "contested_frac_of_wet",
@@ -762,10 +948,19 @@ def test_the_recorded_flood_payload_carries_every_field_the_other_layers_read():
 
     n_products = len(payload["products"])
     n_thresholds = len(payload["thresholds_m"])
-    # One agreement level per possible count, 0 to N, and every cell in one.
+    # One agreement level per possible count, 0 to N, and every AOI cell in
+    # one. Over the AOI and not the window: the recording was made with a
+    # buffer, so the window holds several times the ground the figures cover,
+    # and a payload whose counts summed to the window would be the defect this
+    # fixture was re-recorded to catch.
     assert len(payload["agreement"]["counts"]) == n_products + 1
-    assert (sum(payload["agreement"]["counts"])
+    assert sum(payload["agreement"]["counts"]) == payload["aoi"]["cells"]
+    assert (payload["aoi"]["window_cells"]
             == payload["grid"]["width"] * payload["grid"]["height"])
+    assert payload["aoi"]["cells"] < payload["aoi"]["window_cells"]
+    # The overlay sits inside the window it was cut from.
+    assert payload["extent"]["lon_min"] >= payload["grid"]["bounds"]["lon_min"]
+    assert payload["extent"]["lat_max"] <= payload["grid"]["bounds"]["lat_max"]
     assert len(payload["pairs"]) == n_thresholds * n_products * (n_products - 1) // 2
     assert len(payload["envelope"]) == n_thresholds
     # The agreement raster is built at a threshold the envelope also reports, or

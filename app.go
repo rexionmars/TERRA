@@ -976,7 +976,8 @@ func (a *App) AnalyzeFlood(req analysis.FloodRequest) (*analysis.FloodAnalysis, 
 }
 
 // persistFloodRun saves a flood envelope run under its own kind, with its two
-// rasters copied out of the sidecar's work directory.
+// rasters copied out of the sidecar's work directory and the bounds that place
+// the displayed one stored beside them.
 //
 // The copy is the point. AnalyzeFlood deliberately leaves the work directory in
 // place because the returned paths point into it, but that directory is under
@@ -1005,8 +1006,19 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 		"flood_drainage_km2":          res.DrainageKm2,
 		"flood_n_products":            len(res.Products),
 		"flood_products":              floodProductIDs(res.Products),
-		"flood_unanimous_wet_km2":     res.Agreement.UnanimousWetKm2,
-		"flood_contested_km2":         res.Agreement.ContestedKm2,
+		/*
+			The AOI area, beside the two areas measured inside it.
+
+			The agreement figures below are now taken over the AOI polygon
+			rather than over the buffered window the terrain chain ran on, and
+			a row listing a contested area with no denominator cannot be told
+			apart from one that was taken over the window -- the difference on
+			the recorded payload is 4.5 km2 against 37.5. Listed here so the
+			run row carries the ground its own numbers are of.
+		*/
+		"flood_aoi_area_km2":      res.AOI.AreaKm2,
+		"flood_unanimous_wet_km2": res.Agreement.UnanimousWetKm2,
+		"flood_contested_km2":     res.Agreement.ContestedKm2,
 		// Null when no product calls anything wet. Zero would read as four
 		// products agreeing on an extent, which is the opposite of the fact.
 		"flood_contested_frac_of_wet": res.Agreement.ContestedFracOfWet,
@@ -1653,6 +1665,16 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 			_ = json.Unmarshal([]byte(run.ResultJSON), &flood)
 		}
 		flood.NormalizeNilSlices()
+		/*
+			Extent comes back with the rest of the payload and is not rebuilt
+			here. It is the bounds of the AOI clip alone; Grid.Bounds is the
+			buffered window the chain ran on, several times that ground, so a
+			restore that filled the missing field from the grid would place the
+			overlay stretched over the buffer -- the same misreading in pixels
+			that reporting over the window was in numbers. A run stored before
+			the field existed therefore restores with a zero extent and no
+			overlay, which the map can detect; a plausible wrong one it cannot.
+		*/
 		png := filepath.Join(assetsDir, floodAgreementPNG)
 		flood.AgreementPNG = ""
 		if uri, err := store.ReadFileDataURI(png, "image/png"); err == nil {
