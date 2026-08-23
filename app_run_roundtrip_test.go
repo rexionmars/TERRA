@@ -39,15 +39,22 @@ func latestRunID(t *testing.T, a *App) string {
 	return runs[0].ID
 }
 
-// loadFixture reads a recorded sidecar payload from backend/testdata and
-// unmarshals the block under
-// the given key, so the round trip runs on the shape the sidecar actually
-// emits rather than on a hand-written struct that cannot disagree with itself.
+/*
+loadFixture reads a recorded sidecar payload and unmarshals the block under the
+given key, so the round trip runs on the shape the sidecar actually emits rather
+than on a hand-written struct that cannot disagree with itself.
+
+A missing file fails rather than skipping. These fixtures are committed, so
+absence means the path is wrong, not that the environment lacks something --
+and the previous t.Skipf turned exactly that into silence: the path still said
+backend/testdata after the fixtures moved to internal/research/testdata, and
+both round trips stopped running while the package went on reporting ok.
+*/
 func loadFixture(t *testing.T, name, key string, dst any) {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("backend", "testdata", name))
+	raw, err := os.ReadFile(filepath.Join("internal", "research", "testdata", name))
 	if err != nil {
-		t.Skipf("fixture %s not available: %v", name, err)
+		t.Fatalf("fixture %s: %v", name, err)
 	}
 	var wrapped map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &wrapped); err != nil {
