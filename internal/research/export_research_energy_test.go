@@ -18,9 +18,13 @@ import (
 // the sidecar actually emits.
 func loadSidecarFixture(t *testing.T, name, key string, dst any) {
 	t.Helper()
+	// Fails rather than skips. The fixture is committed beside this file, so a
+	// read error means the path is wrong -- and its twin in
+	// app_run_roundtrip_test.go skipped for months on exactly that, reporting
+	// ok the whole time, after a package move left the path behind.
 	raw, err := os.ReadFile(filepath.Join("testdata", name))
 	if err != nil {
-		t.Skipf("fixture %s not available: %v", name, err)
+		t.Fatalf("fixture %s: %v", name, err)
 	}
 	var wrapped map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &wrapped); err != nil {
