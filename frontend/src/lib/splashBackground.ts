@@ -12,6 +12,14 @@
  * point of the code name: a version focused on solar and wind ships an image of
  * turbines at dusk, and the name is how the release is referred to afterwards.
  *
+ * ONE STILL, BY DECISION, NOT BY ACCIDENT. The manifest held six and the splash
+ * walked them; it now holds the one the splash shows. The machinery below still
+ * describes a rotation because a rotation is what this becomes again the moment
+ * a second entry is added -- with one entry every path through it resolves to
+ * that entry, and nothing here special-cases the count. The six that were
+ * removed, with their sources and photographers, are in the history of this
+ * file; their files are still in public/terra-splash-images.
+ *
  * THE ONE SOURCE. index.html paints a background before any bundle loads, so it
  * cannot import this -- the paths used to be duplicated into a script tag with
  * "keep in sync" comments on both copies, which is the admission that nothing
@@ -40,56 +48,22 @@ export type SplashStill = {
 
 /**
  * Named for what is observable from orbit, which is what this application is
- * about. A set rather than a list of one-offs: the coherence is what makes the
- * names read as deliberate, and there are enough of these for many releases.
+ * about. The names come from one set, so that a manifest of several reads as
+ * deliberate rather than arbitrary; the set is what a second entry rejoins.
  */
 export const SPLASH_STILLS: SplashStill[] = [
   {
-    name: "Meander",
-    path: "/terra-splash-images/meander.webp",
-    subject: "a river meandering through cultivated land, from altitude",
-    source: "https://www.pexels.com/photo/15509901/",
-    photographer: "Aleksandar Pasaric",
-    since: "0.1.0",
-  },
-  {
-    name: "Terraces",
-    path: "/terra-splash-images/terraces.webp",
-    subject: "terraced farmland",
-    source: "https://www.pexels.com/photo/10436186/",
-    photographer: "Andrey Kwin",
-    since: "0.1.0",
-  },
-  {
-    name: "Vortex",
-    path: "/terra-splash-images/vortex.webp",
-    subject: "a cyclone over the southern ocean, from orbit",
-    source: "https://www.pexels.com/photo/30596252/",
-    photographer: "Zelch Csaba",
-    since: "0.1.0",
-  },
-  {
-    name: "Windfarm",
-    path: "/terra-splash-images/windfarm.webp",
-    subject: "three turbines silhouetted against a sunset",
-    source: "https://www.pexels.com/photo/34316533/",
-    photographer: "Arlind Photography",
-    since: "0.4.0",
-  },
-  {
-    name: "Ember",
-    path: "/terra-splash-images/ember.webp",
-    subject: "turbines under a burning sky",
-    source: "https://www.pexels.com/photo/19564402/",
-    photographer: "stonesdonotdisappear",
-    since: "0.4.0",
-  },
-  {
-    name: "Soybean",
-    path: "/terra-splash-images/soybean.webp",
-    subject: "a soybean field under an advancing storm front",
-    source: "https://www.pexels.com/photo/8726632/",
-    photographer: "Scott Platt",
+    name: "Amazon",
+    path: "/terra-splash-images/amazon.webp",
+    subject: "a river winding through closed rainforest canopy, from altitude",
+    /*
+      Pexels, which asks for no attribution, and the upload it came from was
+      not recorded when the file arrived. The site rather than the photograph,
+      which is as far back as this entry can point -- a URL invented to fill
+      the field would be worse than an honest one that stops here.
+    */
+    source: "https://www.pexels.com",
+    photographer: "",
     since: "0.4.0",
   },
 ]
@@ -97,12 +71,13 @@ export const SPLASH_STILLS: SplashStill[] = [
 /**
  * The still this release is named for.
  *
- * Shown on the first launch after an update, then it takes its place in the
- * rotation. Featuring it permanently would discard the others and turn a
- * rotating splash into a fixed one; showing it never would make the code name
- * decorative.
+ * With one entry in the manifest it is also the only still there is, so the
+ * splash is fixed and this names what is on it. With more than one it is what
+ * the first launch after an update shows, and what half the launches after it
+ * show; the rest walk the others, so featuring a still neither discards them
+ * nor makes the code name decorative.
  */
-export const FEATURED_STILL = "Ember"
+export const FEATURED_STILL = "Amazon"
 
 /** Paths alone, for the places that only need to load them. */
 export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)
@@ -232,11 +207,4 @@ export function claimSplashSlideForLaunch(
     /* ignore quota / private mode */
   }
   return shown
-  try {
-    localStorage.setItem(SPLASH_NEXT_KEY, String((index + 1) % count))
-    sessionStorage.setItem(SPLASH_CURRENT_KEY, String(index))
-  } catch {
-    /* ignore quota / private mode */
-  }
-  return index
 }
