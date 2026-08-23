@@ -828,8 +828,8 @@ What this program leaves in os.TempDir(), and for how long.
 
 Two kinds of residue collect there. promoteExportFile copies a promoted GeoTIFF
 into exportCacheDirName so its path survives the work directory it came out of,
-and three analyses keep their entire work directory for the same reason (see
-Predict, AnalyzeSolarTerrain and AnalyzeSolarSiting). Nothing removed either:
+and four analyses keep their entire work directory for the same reason (see
+Predict, AnalyzeSolarTerrain, AnalyzeSolarSiting and AnalyzeFlood). Nothing removed either:
 every cleanup routine in this repository works inside the store data directory,
 so the count only ever went up. macOS ages its temp directory out and Linux has
 systemd-tmpfiles, but Windows sweeps nothing by default and release.yml builds
@@ -854,6 +854,7 @@ var keptWorkDirPrefixes = []string{
 	"terra-run-",
 	"terra-solar-terrain-",
 	"terra-solar-siting-",
+	"terra-flood-",
 }
 
 /*
@@ -1902,6 +1903,121 @@ func (w *WindAnalysis) NormalizeNilSlices() {
 	if w.Assumptions.ExcludedLosses == nil {
 		w.Assumptions.ExcludedLosses = []string{}
 	}
+}
+
+/*
+AnalyzeFlood measures the HAND flood extent over the AOI and, cell by cell, how
+much of that extent the choice of DEM product decides rather than the terrain.
+
+There is no mode that returns one mask. The recorded run put the pairwise
+agreement between four products at IoU 0.29 to 0.50 at the 1 m reference
+threshold over one window, so an extent shipped alone would be a shape produced
+by a DEM the user never chose and is never shown. What comes back is the
+agreement count raster and the envelope around it.
+*/
+func (r *Runner) AnalyzeFlood(ctx context.Context, req FloodRequest) (*FloodAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-flood-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	// Kept, for the reason AnalyzeSolarTerrain gives: the returned AgreementTIF
+	// is a path into this directory and nothing copies the file out, so a defer
+	// here would hand the caller a path to a file that no longer exists -- and
+	// that file is the agreement raster, which is what this product is. The
+	// prefix is in keptWorkDirPrefixes, which is what bounds the directory.
+
+	payload := map[string]any{
+		"action":          "flood_envelope",
+		"polygon_geojson": polygon,
+		"work_dir":        workDir,
+	}
+	// Each parameter travels only when the caller set it. Absence is what
+	// selects the sidecar's default, so sending a zero-valued field would
+	// silently replace four documented defaults with zeros -- and for three of
+	// these zero is itself a request the sidecar honours (the drainage surface
+	// itself, a read of exactly the AOI, no interior ring), which is why the
+	// distinction cannot be recovered downstream.
+	//
+	// An empty DEMIDs is omitted rather than sent: the sidecar reads an
+	// explicit empty list as a broken request and refuses it, while a Go caller
+	// with nothing to say arrives here holding exactly that.
+	if len(req.DEMIDs) > 0 {
+		payload["dem_ids"] = req.DEMIDs
+	}
+	if len(req.ThresholdsM) > 0 {
+		payload["thresholds_m"] = req.ThresholdsM
+	}
+	if req.ReferenceThresholdM != nil {
+		payload["reference_threshold_m"] = *req.ReferenceThresholdM
+	}
+	if req.DrainageKm2 != nil {
+		payload["drainage_km2"] = *req.DrainageKm2
+	}
+	if req.BufferM != nil {
+		payload["buffer_m"] = *req.BufferM
+	}
+	// inset_margin_cells, and not the edge_margin_cells this sent until the
+	// ring moved from the computed window to the AOI polygon. The sidecar
+	// refuses the old key by name rather than reading it as the new one, so
+	// every override run fails outright until the caller is changed -- which is
+	// the loud version of the alternative, a ring cut from a shape the payload
+	// does not describe.
+	if req.InsetMarginCells != nil {
+		payload["inset_margin_cells"] = *req.InsetMarginCells
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// The payload key is "flood", not "flood_envelope": the action names the
+	// question, the key names the result.
+	var wrapped struct {
+		Flood *FloodAnalysis `json:"flood"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse flood result: %w", err)
+	}
+	if wrapped.Flood == nil {
+		return nil, fmt.Errorf("sidecar returned empty flood payload")
+	}
+
+	// The rendering becomes a data URI here, as every other raster this program
+	// draws does: the webview is served from its own origin and cannot open a
+	// path on disk. A failure to read it is not a failure of the analysis --
+	// every figure in the payload stands without the picture -- so it leaves
+	// AgreementURI empty instead of discarding the run.
+	if wrapped.Flood.AgreementPNG != "" {
+		if uri, uerr := pngToDataURI(wrapped.Flood.AgreementPNG); uerr == nil {
+			wrapped.Flood.AgreementURI = uri
+		}
+	}
+	wrapped.Flood.NormalizeNilSlices()
+	return wrapped.Flood, nil
 }
 
 // The largest field the runner will carry back to the webview.

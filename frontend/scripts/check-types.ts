@@ -52,7 +52,13 @@ const here = dirname(fileURLToPath(import.meta.url))
  * split by product, so a new products file has to be added here to be guarded.
  */
 const GO_DIR = join(here, "..", "..", "internal", "analysis")
-const GO_FILES = ["types.go", "types_energy.go", "types_wind.go", "types_canopy.go"]
+const GO_FILES = [
+  "types.go",
+  "types_energy.go",
+  "types_wind.go",
+  "types_canopy.go",
+  "types_flood.go",
+]
 const TS = join(here, "..", "src", "lib", "types.ts")
 
 /**

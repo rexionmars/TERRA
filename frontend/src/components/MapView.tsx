@@ -78,6 +78,22 @@ interface MapViewProps {
     extent: PredictResult["extent"]
     opacity: number
   } | null
+  /**
+   * Flood agreement raster: per cell, how many DEM products call it flooded.
+   *
+   * Its own slot rather than a second water raster, because the two are
+   * different products that can describe one AOI, and sharing a slot is how
+   * producing one came to discard the other for the solar pair. The caller
+   * derives it through lib/mapLayers.ts `floodAgreementLayer`, which is where
+   * the placement rule lives: the image is the counts CLIPPED TO THE AOI, so
+   * it goes on the payload's `extent` and never on the window the terrain
+   * chain ran over.
+   */
+  floodOverlay?: {
+    uri: string
+    extent: PredictResult["extent"]
+    opacity: number
+  } | null
   /** Vertical wipe: left = basemap, right = prediction. */
   swipeCompare: boolean
   swipeRatio: number
@@ -1074,6 +1090,7 @@ export function MapView({
   composition = null,
   solarOverlays = null,
   waterOverlay = null,
+  floodOverlay = null,
   swipeCompare,
   swipeRatio,
   onSwipeRatioChange,
@@ -1192,6 +1209,27 @@ export function MapView({
       />
     ) : null
 
+  // Above surface water and below the classification, the z-index
+  // lib/mapLayers.ts gives it: the occurrence raster is the standing water an
+  // extent is read against, and a classification stays readable over both.
+  const floodBounds: LatLngBoundsExpression | null = floodOverlay
+    ? boundsToLatLng(floodOverlay.extent)
+    : null
+
+  const floodLayer =
+    floodOverlay && floodBounds && floodOverlay.uri ? (
+      <PredictionOverlay
+        key="flood"
+        url={floodOverlay.uri}
+        bounds={floodBounds}
+        // The cell values are N+1 classes. Smoothing would move a class
+        // boundary, and a blend of two agreement colours names no class.
+        smooth={false}
+        opacity={floodOverlay.opacity}
+        zIndex={365}
+        swipeRatio={null}
+      />
+    ) : null
 
   // One layer per raster, stacked in array order so the caller decides which
   // sits on top rather than the map silently preferring one product.
@@ -1313,6 +1351,7 @@ export function MapView({
       {compositionLayer}
       {solarLayer}
       {waterLayer}
+      {floodLayer}
       {predictionLayer}
       {confidenceLayer}
 

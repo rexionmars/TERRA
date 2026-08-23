@@ -16,6 +16,7 @@
 import type {
   Bounds,
   CompositionOverlay,
+  FloodAnalysis,
   PredictResult,
   WaterAnalysis,
 } from "@/lib/types"
@@ -104,6 +105,18 @@ export interface VisibleLayerInput {
   showWaterOverlay: boolean
   waterOpacity: number
   /**
+   * The flood envelope, whose agreement raster is the product it ships.
+   *
+   * Optional where the other rasters are not, because the map screen holds no
+   * flood result: the envelope is run and read on a screen of its own, and
+   * that screen calls `floodAgreementLayer` for the single raster its MapView
+   * takes. Passing one here draws it with the same order and the same guard
+   * rather than a second set chosen elsewhere.
+   */
+  flood?: FloodAnalysis | null
+  showFloodOverlay?: boolean
+  floodOpacity?: number
+  /**
    * Already-resolved solar rasters, in the order the caller wants them.
    *
    * `pixelated` is the caller's to state because only it knows which product
@@ -145,6 +158,45 @@ export function predictionSource(
   if (r.lulc?.map_uri) return { source: "lulc", uri: r.lulc.map_uri }
   if (r.reference_uri) return { source: "reference", uri: r.reference_uri }
   return null
+}
+
+/**
+ * The agreement count raster as a drawn layer, or null when there is nothing
+ * to draw.
+ *
+ * PLACED BY `flood.extent` AND NEVER BY `flood.grid.bounds`. The PNG is the
+ * counts clipped to the AOI bounding box; grid.bounds is the buffered window
+ * the terrain chain ran over, which on one recorded run is 8.3 times the AOI's
+ * area. Placing the clip on the window would stretch it over ground it does
+ * not cover, which is the same mistake in pixels that reporting figures over
+ * the window was in numbers.
+ *
+ * Above surface water and below the classification, which is the ordering the
+ * rest of this table already keeps: the occurrence raster is the standing
+ * water an extent is read against, and a classification stays readable over
+ * both. Not interpolated, for the reason the siting raster is not -- the cell
+ * values are N+1 classes and a blend of two of them names no class.
+ *
+ * Exported because two surfaces draw it: the table below, and the flood
+ * screen, whose MapView takes one raster per prop rather than a layer list.
+ */
+export function floodAgreementLayer(
+  flood: FloodAnalysis | null | undefined,
+  visible: boolean,
+  opacity: number
+): RasterLayer | null {
+  if (!flood?.agreement_uri || isZeroExtent(flood.extent)) return null
+  return {
+    id: "flood",
+    title: "Flood agreement",
+    uri: flood.agreement_uri,
+    extent: flood.extent,
+    opacity,
+    order: 365,
+    pixelated: true,
+    smooth: false,
+    visible,
+  }
 }
 
 /**
@@ -207,6 +259,13 @@ export function rasterLayers(i: VisibleLayerInput): RasterLayer[] {
       visible: i.showWaterOverlay,
     })
   }
+
+  const floodLayer = floodAgreementLayer(
+    i.flood,
+    i.showFloodOverlay ?? true,
+    i.floodOpacity ?? 1
+  )
+  if (floodLayer) layers.push(floodLayer)
 
   const prediction = predictionSource(i.result)
   const predictionUri = prediction?.uri

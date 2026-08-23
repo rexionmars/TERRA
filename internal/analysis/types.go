@@ -583,6 +583,10 @@ type PredictResult struct {
 	// from a different product on a different grid and carries no external
 	// validation, so it must not inherit the solar labelling.
 	Wind *WindAnalysis `json:"wind,omitempty"`
+	// The flood envelope. Terrain only: it needs no scene and no time series,
+	// so like the solar products it can be present over an AOI that carries no
+	// classification at all.
+	Flood *FloodAnalysis `json:"flood,omitempty"`
 	// Compact spectral / NDVI fingerprint cached at classify time for
 	// domain-shift diagnostics against another run. Absent on older runs and
 	// on water/solar-only results.

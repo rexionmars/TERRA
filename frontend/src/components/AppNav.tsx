@@ -23,6 +23,7 @@ import {
   LogIn,
   Map as MapIcon,
   UserRound,
+  Waves,
   Zap,
 } from "lucide-react"
 import { motion } from "motion/react"
@@ -64,8 +65,17 @@ export function AppNav({
   onEnergyTabChange,
   projectSwitcher,
 }: AppNavProps) {
-  const { user, loading, screen, goMap, goAuth, goProfile, goAnalysis, goEnergy } =
-    useAuth()
+  const {
+    user,
+    loading,
+    screen,
+    goMap,
+    goAuth,
+    goProfile,
+    goAnalysis,
+    goEnergy,
+    goFlood,
+  } = useAuth()
 
   const onMap = screen === "map"
   const onEnergy = screen === "energy"
@@ -120,7 +130,11 @@ export function AppNav({
       instead of reflowing into a narrower column on the way.
     */
     <motion.aside
-      className="app-no-drag shrink-0 overflow-hidden border-r border-border/60 bg-ink"
+      // One step up the surface scale from the title bar, which is bg-ink at 40
+      // percent over the map. Both read as the same tone where the map is dark,
+      // and the two are different surfaces: the title bar floats over the
+      // content, the sidebar sits beside it.
+      className="app-no-drag shrink-0 overflow-hidden border-r border-border/60 bg-surface"
       initial={{ width: 0 }}
       animate={{ width: "13.5rem" }}
       exit={{ width: 0 }}
@@ -154,6 +168,17 @@ export function AppNav({
           items={energyChildren}
           expanded={expanded.energy}
           onToggleExpanded={() => toggle("energy")}
+        />
+        {/* Waves rather than a rain or droplet glyph: the analysis reads
+            terrain and no precipitation at all, so a cloud would name an
+            input it does not have. See lib/navigation.ts, which carries the
+            same group for the dock layout's bar. */}
+        <NavItem
+          id="flood"
+          active={screen === "flood"}
+          label="Flood envelope"
+          onClick={goFlood}
+          icon={<Waves className="size-4" />}
         />
         <NavItem
           id="analysis"

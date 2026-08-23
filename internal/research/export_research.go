@@ -165,6 +165,49 @@ var researchTableColumns = map[string][]string{
 		"gross_capacity_factor_pct", "gross_annual_energy_mwh_per_turbine",
 		"excluded_losses",
 	},
+
+	// One row per DEM product at the reference threshold, which manifest.json
+	// names: these areas are not comparable across thresholds and the file does
+	// not carry one per row because every row shares it.
+	//
+	// area_km2 is a cell count times the cell size reported in the manifest,
+	// over the cells inside the AOI polygon and not over the buffered window
+	// the terrain chain ran on, so the fraction is of the AOI. The manifest
+	// carries both extents side by side under flood_aoi_* and flood_grid_*.
+	// resampled is empty when the fact was not recorded, which is not the same
+	// as false: a resampled product ran the terrain chain on a grid that is not
+	// its own.
+	"flood_products.csv": {
+		"id", "collection", "native_resolution_m", "resampled",
+		"cells", "area_km2", "area_frac",
+	},
+	// Every unordered pair at every threshold. iou is the Jaccard index between
+	// the two extents, which for a binary mask is numerically the critical
+	// success index (CSI) of the flood literature.
+	//
+	// iou_inset is the same index over the AOI shrunk by the inset margin the
+	// manifest reports; a large gap between the two places the disagreement at
+	// the edge of the reported area, where what drains in from beyond the
+	// buffer is missing and HAND therefore reads high. The ring is cut from the
+	// AOI polygon and not from the computed window, which is why the column is
+	// not the iou_interior earlier packs carried: the two name different rings
+	// and their numbers are not the same statistic. A resampled row carries an
+	// alignment component alongside the terrain difference, quantified in the
+	// manifest's flood_chain_grid, so it is not a comparison of terrain alone.
+	// Empty cells are undefined rather than zero: the index has no value over
+	// two empty extents, and the ratio none when A has no wet cell.
+	"flood_pairs.csv": {
+		"dem_a", "dem_b", "threshold_m", "iou", "iou_inset",
+		"area_ratio_b_over_a", "resampled",
+	},
+	// The range the products span at each threshold: the narrowest and the
+	// widest pairwise agreement. This is TERRA's own measurement over its own
+	// DEM set, not the range published by the study the method comes from --
+	// manifest.json carries the sentence that says so, and these numbers cannot
+	// be quoted without it.
+	"flood_envelope.csv": {
+		"threshold_m", "iou_min", "iou_max", "iou_min_inset", "iou_max_inset",
+	},
 }
 
 // researchHeader returns the registered header row for a CSV, as the first row
@@ -321,6 +364,60 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		manifest["wind_flags"] = wd.DataQuality.Flags
 		manifest["wind_comparison_note"] = wd.Assumptions.ComparisonNote
 		manifest["wind_grid_note"] = wd.GridNote
+	}
+	if fl := result.Flood; fl != nil {
+		// The qualifier first, because every figure below is a measurement over
+		// TERRA's own DEM set and none of them is a flood depth, an extent or a
+		// probability. The study's published range is not this range.
+		manifest["flood_qualifier"] = fl.Qualifier
+		manifest["flood_reference_threshold_m"] = fl.ReferenceThresholdM
+		manifest["flood_thresholds_m"] = fl.ThresholdsM
+		manifest["flood_drainage_km2"] = fl.DrainageKm2
+		manifest["flood_products"] = floodProductIDs(fl.Products)
+		// What every area and fraction in the CSVs is measured over: the cells
+		// inside the AOI polygon. Carried before the window below so a reader
+		// meets the reporting extent first, and stated in prose as well, since
+		// a bare km2 in a CSV is a number a reader attributes to ground and
+		// these tables cannot say which ground on their own.
+		manifest["flood_reporting_extent"] = fl.Assumptions.ReportingExtent
+		manifest["flood_aoi_cells"] = fl.AOI.Cells
+		manifest["flood_aoi_area_km2"] = fl.AOI.AreaKm2
+		manifest["flood_aoi_inset_cells"] = fl.AOI.InsetCells
+		// The window the terrain chain ran on, which is the AOI plus the buffer
+		// less the border trimmed to a rectangle every product covers. It is
+		// provenance and not the reporting extent: nothing in the CSVs is
+		// measured over it, and the pack ships it so a reader can tell the
+		// chain solved more ground than the tables cover. flood_aoi_area_km2
+		// against flood_window_area_km2 is that comparison in one line.
+		manifest["flood_grid_width"] = fl.Grid.Width
+		manifest["flood_grid_height"] = fl.Grid.Height
+		manifest["flood_grid_bounds"] = fl.Grid.Bounds
+		manifest["flood_window_cells"] = fl.AOI.WindowCells
+		manifest["flood_window_area_km2"] = fl.AOI.WindowAreaKm2
+		manifest["flood_aoi_frac_of_window"] = fl.AOI.FracOfWindow
+		manifest["flood_buffer_m"] = fl.BufferM
+		manifest["flood_cell_size_x_m"] = fl.CellSizeM.X
+		manifest["flood_cell_size_y_m"] = fl.CellSizeM.Y
+		manifest["flood_inset_margin_cells"] = fl.InsetMarginCells
+		// The agreement raster reduced to its histogram: index is how many
+		// products call the cell flooded. The contested share is of the wet
+		// cells alone, since the dry majority would hide it.
+		manifest["flood_agreement_counts"] = fl.Agreement.Counts
+		manifest["flood_unanimous_wet_km2"] = fl.Agreement.UnanimousWetKm2
+		manifest["flood_contested_km2"] = fl.Agreement.ContestedKm2
+		manifest["flood_unanimous_dry_km2"] = fl.Agreement.UnanimousDryKm2
+		manifest["flood_contested_frac_of_wet"] = fl.Agreement.ContestedFracOfWet
+		// Every default the figures rest on, and what is left out. The chain
+		// order is carried separately because it is the one assumption that
+		// moves a pairwise index by as much as the terrain does.
+		manifest["flood_assumptions"] = fl.Assumptions
+		manifest["flood_chain_grid"] = fl.Assumptions.ChainGrid
+		manifest["flood_excluded"] = fl.Assumptions.Excluded
+		// Which raster covers what. The GeoTIFF shipped under rasters/ is the
+		// whole computed window and the display rendering is the AOI clip, so a
+		// reader who opens the GeoTIFF in a GIS is looking at ground no figure
+		// in these tables describes, and nothing in the file itself says so.
+		manifest["flood_rasters"] = fl.Assumptions.Rasters
 	}
 	if result.LULC != nil && result.LULC.CompareReferenceCells > 0 {
 		manifest["compare_pixels"] = result.LULC.ComparePixels
@@ -849,6 +946,74 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		}
 	}
 
+	if fl := result.Flood; fl != nil {
+		if len(fl.Products) > 0 {
+			rows := researchHeader("flood_products.csv")
+			for _, p := range fl.Products {
+				rows = append(rows, []string{
+					p.ID,
+					p.Collection,
+					formatFloatPtr(p.NativeResolutionM),
+					formatBoolPtr(p.Resampled),
+					strconv.Itoa(p.Cells),
+					formatFloat(p.AreaKm2),
+					formatFloat(p.AreaFrac),
+				})
+			}
+			if err := writeZipCSV(zw, "flood_products.csv", rows); err != nil {
+				_ = zw.Close()
+				return nil, err
+			}
+		}
+
+		if len(fl.Pairs) > 0 {
+			rows := researchHeader("flood_pairs.csv")
+			for _, pr := range fl.Pairs {
+				rows = append(rows, []string{
+					pr.DEMA,
+					pr.DEMB,
+					formatFloat(pr.ThresholdM),
+					formatFloatPtr(pr.IoU),
+					formatFloatPtr(pr.IoUInset),
+					formatFloatPtr(pr.AreaRatioBOverA),
+					formatBoolPtr(pr.Resampled),
+				})
+			}
+			if err := writeZipCSV(zw, "flood_pairs.csv", rows); err != nil {
+				_ = zw.Close()
+				return nil, err
+			}
+		}
+
+		if len(fl.Envelope) > 0 {
+			rows := researchHeader("flood_envelope.csv")
+			for _, e := range fl.Envelope {
+				rows = append(rows, []string{
+					formatFloat(e.ThresholdM),
+					formatFloatPtr(e.IoUMin),
+					formatFloatPtr(e.IoUMax),
+					formatFloatPtr(e.IoUMinInset),
+					formatFloatPtr(e.IoUMaxInset),
+				})
+			}
+			if err := writeZipCSV(zw, "flood_envelope.csv", rows); err != nil {
+				_ = zw.Close()
+				return nil, err
+			}
+		}
+
+		// The agreement raster travels with the tables. It is the central
+		// representation of this product -- where the products disagree, cell
+		// by cell -- and the CSVs reduce it to histograms and indices that
+		// cannot be turned back into a map.
+		if tif := ResolveRasterPath(fl.AgreementTIF, dataDir); tif != "" {
+			if err := writeZipFile(zw, "rasters/flood_agreement.tif", tif); err != nil {
+				_ = zw.Close()
+				return nil, err
+			}
+		}
+	}
+
 	if rasterPath := ResolveRasterPath(result.RasterTIF, dataDir); rasterPath != "" {
 		if err := writeZipFile(zw, "rasters/classification.tif", rasterPath); err != nil {
 			_ = zw.Close()
@@ -860,6 +1025,17 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// floodProductIDs lists the DEM products the envelope was measured over. The
+// envelope is a property of the set, so a range recorded without the set it
+// spans is not attributable to anything.
+func floodProductIDs(products []analysis.FloodProduct) []string {
+	ids := make([]string, 0, len(products))
+	for _, p := range products {
+		ids = append(ids, p.ID)
+	}
+	return ids
 }
 
 // ResolveRasterPath returns an existing filesystem path for a classification
@@ -975,6 +1151,16 @@ func formatFloatPtr(v *float64) string {
 		return ""
 	}
 	return formatFloat(*v)
+}
+
+// formatBoolPtr writes an unrecorded fact as an empty cell rather than as
+// false. The flood tables distinguish the two: a pair whose alignment was never
+// recorded is not a pair known to have run on its native grid.
+func formatBoolPtr(v *bool) string {
+	if v == nil {
+		return ""
+	}
+	return strconv.FormatBool(*v)
 }
 
 func normalizeAOIGeoJSON(raw string) ([]byte, error) {

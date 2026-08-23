@@ -408,6 +408,14 @@ export interface PredictResult {
    */
   wind?: WindAnalysis | null
   /**
+   * A HAND flood envelope: the extent together with the disagreement between
+   * the DEM products it can be derived from. Never one product's mask alone --
+   * the study this ports found the mask is not reproducible across products,
+   * so a lone extent is a shape some DEM chose and the reader is never shown
+   * the choice.
+   */
+  flood?: FloodAnalysis | null
+  /**
    * Compact spectral / NDVI fingerprint cached at classify time for
    * domain-shift diagnostics. Absent on older runs and non-classify products.
    */
@@ -1907,4 +1915,305 @@ export interface WindAnalysis {
   turbine: WindTurbine
   assumptions: WindAssumptions
   power_provenance?: PowerProvenance | null
+}
+
+/**
+ * Request for the flood envelope.
+ *
+ * The optional fields are absent rather than zero when they are not being
+ * set: the sidecar reads a missing key as "choose the default", and 0 is a
+ * legitimate request for three of them -- a reference threshold of 0 m asks
+ * for the drainage surface itself, a buffer of 0 m for exactly the AOI, an
+ * inset margin of 0 cells for no inset ring. Sending a default as an
+ * explicit 0 asks for a different analysis than the one intended.
+ */
+export interface FloodRequest {
+  area_id: string
+  polygon_geojson: GeoJSONGeometry | null
+  /**
+   * The products to compare, by DEM collection id. Absent selects the
+   * four-product default set. Fewer than two the sidecar refuses: one product
+   * yields an extent with no measure of how much of it that product chose,
+   * which is the shape this analysis exists not to ship.
+   */
+  dem_ids?: string[]
+  /** HAND thresholds in metres to sweep. Absent selects the study's sweep. */
+  thresholds_m?: number[]
+  /** Where the agreement raster is built. Need not appear in thresholds_m. */
+  reference_threshold_m?: number
+  /** Contributing area above which a cell counts as drainage. Zero is refused. */
+  drainage_km2?: number
+  /** How far beyond the AOI to read each DEM, so inflowing drainage is real terrain. */
+  buffer_m?: number
+  /**
+   * Ring cut from inside the AOI polygon for the inset statistics.
+   *
+   * The key is inset_margin_cells and not the edge_margin_cells this once
+   * sent: the ring used to come off the computed window, it now comes off the
+   * AOI, and the sidecar refuses the old key by name rather than accept a
+   * number that would describe a different ring than the one reported back.
+   */
+  inset_margin_cells?: number
+  label?: string
+  run_label?: string
+  project_id?: string
+  /** The catalogued AOI this run is of, so the board can link the two. */
+  aoi_id?: string
+}
+
+/**
+ * Ground size of one grid cell in metres, at the centre latitude of the
+ * window. Every area in this analysis is a cell count times this, so it is not
+ * a projected-area calculation and the two differ across the window.
+ */
+export interface FloodCellSize {
+  x: number
+  y: number
+}
+
+/**
+ * The window the terrain chain ran on, which is provenance and NOT the extent
+ * anything is reported over.
+ *
+ * This is the AOI plus FloodAnalysis.buffer_m on each side, less the border
+ * cells trimmed to a rectangle every product covers. Nothing in this payload
+ * is measured over it -- FloodAOI is what every count, area and index covers
+ * -- and `bounds` places FloodAnalysis.agreement_tif alone, never the PNG. In
+ * the recorded payload it is 43848 cells against the AOI's 5256, so a figure
+ * read against these cells overstates the ground it describes by 8.3 times:
+ * that reading is how a 4.5 km2 AOI came to be reported as 37.5 km2 of
+ * classified land.
+ */
+export interface FloodGrid {
+  width: number
+  height: number
+  bounds: Bounds
+}
+
+/**
+ * The ground every figure in this payload is measured over: the cells whose
+ * centre falls inside the AOI polygon.
+ *
+ * It carries the computed window beside itself because either number alone
+ * misleads. `area_km2` alone hides that the terrain was solved over more
+ * ground than is reported, which is what makes the areas trustworthy;
+ * `window_area_km2` alone is the figure that used to be on screen. A cell is
+ * in or out by its centre, so `area_km2` and the polygon's own area differ by
+ * at most a half cell along the boundary.
+ */
+export interface FloodAOI {
+  cells: number
+  area_km2: number
+  /**
+   * Cells left after FloodAnalysis.inset_margin_cells is cut from the polygon,
+   * which is the denominator of every inset index.
+   */
+  inset_cells: number
+  /** The buffered window the chain ran over, as cells and as ground. */
+  window_cells: number
+  window_area_km2: number
+  /** AOI cells over window cells: how much of what was solved is reported. */
+  frac_of_window: number
+}
+
+/**
+ * One DEM product's extent at the reference threshold, counted inside the AOI
+ * polygon. `area_frac` is of FloodAOI.cells and not of the window, so it is a
+ * share of the ground the reader drew.
+ */
+export interface FloodProduct {
+  id: string
+  collection: string
+  /**
+   * Nullable because null here means the fact was not recorded, not that the
+   * resolution is 0 m or that the product was left on its own grid. Read as a
+   * plain number and boolean, a null prints as a measurement that was never
+   * made -- and `resampled` is the one column separating a terrain difference
+   * from a resampling artefact.
+   */
+  native_resolution_m: number | null
+  resampled: boolean | null
+  cells: number
+  area_km2: number
+  area_frac: number
+}
+
+/**
+ * The agreement count raster summarised. Unanimous cells are where the terrain
+ * decides the extent; contested cells are where the choice of DEM decides it.
+ */
+export interface FloodAgreement {
+  /**
+   * AOI cells at each agreement level, indexed by how many products call the
+   * cell flooded, so it carries one entry more than there are products and
+   * sums to FloodAOI.cells -- not to grid.width times grid.height.
+   *
+   * counts[0] closes that accounting and is not a level of agreement: that no
+   * product calls a cell flooded says nothing about how far the products agree
+   * with each other, and a legend listing it as a class beside the others
+   * flattens the one distinction this analysis draws. It is
+   * unanimous_dry_km2, the dry remainder of the AOI, and the raster leaves
+   * those cells transparent.
+   */
+  counts: number[]
+  unanimous_wet_km2: number
+  contested_km2: number
+  unanimous_dry_km2: number
+  /**
+   * contested / (contested + unanimous wet). Null when no product calls
+   * anything wet: there is no extent to take a share of, and rendering the
+   * null as 0 would state perfect agreement over an AOI nobody called flooded.
+   */
+  contested_frac_of_wet: number | null
+}
+
+/**
+ * Two products compared at one threshold.
+ *
+ * iou is the Jaccard index between the two binary extents. For a binary mask it
+ * is numerically the critical success index (CSI) of the flood literature, and
+ * a reader from hydrology looks for that name rather than this one.
+ */
+export interface FloodPair {
+  dem_a: string
+  dem_b: string
+  threshold_m: number
+  /**
+   * Null when both extents are empty: the index is undefined over an empty
+   * union, and 0 would state total disagreement between two products that
+   * agree the AOI is dry.
+   */
+  iou: number | null
+  /**
+   * The same over the AOI shrunk by FloodAnalysis.inset_margin_cells. The ring
+   * is cut from the polygon and not from the computed window, which the buffer
+   * already puts outside every figure here. What it tests is unchanged:
+   * whatever drains in from beyond the buffer is missing for the cells nearest
+   * the AOI boundary first, so there HAND reads high and the extent small, and
+   * a large gap from iou says the disagreement sits at the edge of the
+   * reported area rather than through the middle of it.
+   */
+  iou_inset: number | null
+  /**
+   * Null when dem_a has no wet cell at this threshold, rather than a ratio over
+   * a denominator of one cell, which would report that fact as 1.0.
+   */
+  area_ratio_b_over_a: number | null
+  /**
+   * Whether either side was moved onto the shared grid before its terrain chain
+   * ran. True rows carry a resampling component alongside the terrain
+   * difference, of the size quantified in FloodAssumptions.chain_grid; only the
+   * false rows compare terrain alone. Null means the fact was not recorded,
+   * which is not the same as false.
+   */
+  resampled: boolean | null
+}
+
+/**
+ * The range the products span at one threshold: the narrowest and widest
+ * pairwise agreement. Null throughout when no pair yielded a defined index.
+ */
+export interface FloodEnvelopeRow {
+  threshold_m: number
+  iou_min: number | null
+  iou_max: number | null
+  iou_min_inset: number | null
+  iou_max_inset: number | null
+}
+
+/**
+ * Every default the figures rest on, where it came from, and what is left out.
+ * Prose written by the sidecar and carried verbatim; each entry names a choice
+ * and states what moves if it changes.
+ */
+export interface FloodAssumptions {
+  drainage_threshold: string
+  reference_threshold: string
+  thresholds: string
+  /**
+   * Which cells the figures are taken over, in the numbers of this run: the
+   * AOI against the buffered window the chain solved. It travels with any area
+   * quoted from this payload, because an area is a figure a reader attributes
+   * to ground and this names which ground.
+   */
+  reporting_extent: string
+  inset_margin: string
+  cell_size: string
+  alignment: string
+  buffer: string
+  /**
+   * Which raster covers what. The GeoTIFF is the whole computed window and the
+   * PNG is the AOI clip, so the two are not the same picture and a reader who
+   * takes the GeoTIFF into a GIS sees ground no figure here describes.
+   */
+  rasters: string
+  /**
+   * The order the chain ran in and its measured cost: every product ran HAND on
+   * the shared grid, so a coarser product was resampled before the chain rather
+   * than after, and the two orders agreed at IoU 0.47 for the 90 m product
+   * against 0.95 for a 30 m one over one window (n=1). That is the size of the
+   * disagreement this analysis exists to report, so this string has to travel
+   * wherever a resampled pair's figure does.
+   */
+  chain_grid: string
+  excluded: string[]
+}
+
+/**
+ * A HAND flood extent and the disagreement between the DEM products it can be
+ * derived from.
+ *
+ * The envelope is TERRA's own measurement over the products it reads from
+ * Microsoft Planetary Computer. It is not the range published by the study this
+ * ports, which measured a different product set from a different catalogue;
+ * quoting that range beside these figures would attribute someone else's
+ * measurement to this map. `qualifier` carries the sentence that must travel
+ * with any figure taken from here, so nothing should render a number from this
+ * block without a route to it.
+ *
+ * Array fields are non-nullable for the reason given on EnergyModelAnalysis.
+ */
+export interface FloodAnalysis {
+  reference_threshold_m: number
+  thresholds_m: number[]
+  drainage_km2: number
+  cell_size_m: FloodCellSize
+  /** Provenance: the window the chain ran on. `aoi` is what the figures cover. */
+  grid: FloodGrid
+  buffer_m: number
+  aoi: FloodAOI
+  products: FloodProduct[]
+  agreement: FloodAgreement
+  pairs: FloodPair[]
+  envelope: FloodEnvelopeRow[]
+  inset_margin_cells: number
+  qualifier: string
+  assumptions: FloodAssumptions
+  /**
+   * The agreement counts as a single-band GeoTIFF, georeferenced on exactly
+   * grid.bounds -- the whole computed window, buffer included. A path on the
+   * machine that ran the analysis, not something the webview can open: it is
+   * what a reader takes into a GIS, and the interface can only name it.
+   */
+  agreement_tif: string
+  /**
+   * The same counts rendered for display, clipped to the AOI bounding box with
+   * every cell outside the polygon transparent, so the overlay covers what the
+   * figures cover. Also a server-side path.
+   */
+  agreement_png: string
+  /**
+   * Where agreement_png goes on the map: the bounds of that clipped image
+   * ALONE. grid.bounds is the buffered window, and placing the clip on it
+   * stretches the overlay over several times the ground it covers -- the same
+   * mistake in pixels that reporting over the window was in numbers. Same
+   * field shape as WaterAnalysis.extent, so one placement path serves both.
+   */
+  extent: Bounds
+  /**
+   * agreement_png as a data URI, which is how every raster this program draws
+   * reaches the webview. Empty or absent when the rendering could not be read,
+   * in which case the numbers still stand and only the map is missing.
+   */
+  agreement_uri?: string
 }

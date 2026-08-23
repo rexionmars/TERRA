@@ -16,6 +16,7 @@ import type {
   ClassStat,
   DomainFingerprint,
   EnergyModelAnalysis,
+  FloodAnalysis,
   SolarAnalysis,
   SolarSitingAnalysis,
   SolarTerrainAnalysis,
@@ -88,6 +89,17 @@ function table(
 }
 
 const num = (key: string): TableColumn => ({ key, numeric: true })
+
+/**
+ * A flag that may not have been recorded.
+ *
+ * Null stays null so the cell comes out empty, matching the Go writer's
+ * formatBoolPtr: a fact nobody recorded is not the same as a fact that is
+ * false, and the flood tables are the ones where the difference decides
+ * whether a figure compares terrain alone.
+ */
+const boolCell = (v: boolean | null | undefined): CellValue =>
+  v === null || v === undefined ? null : String(v)
 
 export function classStatsTable(stats: ClassStat[]): DataTable | null {
   return table(
@@ -912,6 +924,126 @@ export function windShearSensitivityTable(
   )
 }
 
+
+/*
+  THE FLOOD TABLES ARE THE EVIDENCE, NOT THE PRODUCT. The product is the
+  agreement count raster -- for each cell, how many DEM products call it
+  flooded -- and it is not a table: reduced to a histogram it stops saying
+  WHERE the products disagree, which is the one thing the analysis measures.
+  The raster travels in the research pack as rasters/flood_agreement.tif, and
+  these three tables carry what a reader can recompute from numbers.
+
+  Empty cells here are undefined, never zero. `resampled` is written as an
+  empty cell when the fact was not recorded, which is not the same as false,
+  and the two indices have no value over two empty extents.
+*/
+
+/**
+ * One DEM product's extent at the reference threshold.
+ *
+ * The threshold is not a column because every row shares it; it is in the
+ * manifest, and an area read from this file without it names no extent. Areas
+ * are cell counts times the cell size over the cells inside the AOI polygon,
+ * which is what area_frac is a fraction of. The buffered window the terrain
+ * chain ran over is several times that ground and nothing here is measured
+ * against it.
+ */
+export function floodProductsTable(
+  flood?: FloodAnalysis | null
+): DataTable | null {
+  return table(
+    "flood_products",
+    "flood_products.csv",
+    [
+      { key: "id" },
+      { key: "collection" },
+      num("native_resolution_m"),
+      { key: "resampled" },
+      num("cells"),
+      num("area_km2"),
+      num("area_frac"),
+    ],
+    (flood?.products ?? []).map((p) => [
+      p.id,
+      p.collection,
+      p.native_resolution_m,
+      boolCell(p.resampled),
+      p.cells,
+      p.area_km2,
+      p.area_frac,
+    ])
+  )
+}
+
+/**
+ * Every unordered pair at every threshold.
+ *
+ * iou is the Jaccard index between the two binary extents, which for a binary
+ * mask is numerically the critical success index (CSI) of the flood
+ * literature. Both columns are over the AOI polygon: iou_inset repeats the
+ * comparison over the AOI shrunk by the inset margin, and a wide gap between
+ * the two places the disagreement at the border of the reported area, where
+ * the contributing area is short of whatever drains in from beyond the buffer
+ * and HAND reads high.
+ */
+export function floodPairsTable(
+  flood?: FloodAnalysis | null
+): DataTable | null {
+  return table(
+    "flood_pairs",
+    "flood_pairs.csv",
+    [
+      { key: "dem_a" },
+      { key: "dem_b" },
+      num("threshold_m"),
+      num("iou"),
+      num("iou_inset"),
+      num("area_ratio_b_over_a"),
+      { key: "resampled" },
+    ],
+    (flood?.pairs ?? []).map((p) => [
+      p.dem_a,
+      p.dem_b,
+      p.threshold_m,
+      p.iou,
+      p.iou_inset,
+      p.area_ratio_b_over_a,
+      boolCell(p.resampled),
+    ])
+  )
+}
+
+/**
+ * The range the products span at each threshold.
+ *
+ * TERRA's own measurement over its own DEM set, and not the range the study
+ * this ports published over a different set from a different catalogue. The
+ * manifest carries the sentence that says so, and these numbers cannot be
+ * quoted without it.
+ */
+export function floodEnvelopeTable(
+  flood?: FloodAnalysis | null
+): DataTable | null {
+  return table(
+    "flood_envelope",
+    "flood_envelope.csv",
+    [
+      num("threshold_m"),
+      num("iou_min"),
+      num("iou_max"),
+      num("iou_min_inset"),
+      num("iou_max_inset"),
+    ],
+    (flood?.envelope ?? []).map((e) => [
+      e.threshold_m,
+      e.iou_min,
+      e.iou_max,
+      e.iou_min_inset,
+      e.iou_max_inset,
+    ])
+  )
+}
+
 /** Every table a result can produce, in the order the ZIP writes them. */
 export function allAnalysisTables(result: PredictResult): DataTable[] {
   return [
@@ -941,6 +1073,9 @@ export function allAnalysisTables(result: PredictResult): DataTable[] {
     windMonthlySpeedTable(result.wind),
     windDirectionRoseTable(result.wind),
     windShearSensitivityTable(result.wind),
+    floodProductsTable(result.flood),
+    floodPairsTable(result.flood),
+    floodEnvelopeTable(result.flood),
   ].filter((t): t is DataTable => t !== null)
 }
 
