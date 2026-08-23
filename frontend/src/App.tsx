@@ -861,28 +861,6 @@ function AppBody(props: {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
 
   /**
-   * Go to a destination from the dock layout's bar.
-   *
-   * Written here because navigating is two moves that live at this level: the
-   * screen, which is in the auth context, and the sub-tab, which is the state
-   * just above. The navigation table in lib/navigation carries the structure
-   * and deliberately not this, so the table cannot reach into either.
-   */
-  const navigateTo = useCallback(
-    (groupId: string, itemId?: string) => {
-      if (groupId === "energy") {
-        if (itemId) setEnergyTab(itemId as EnergyTab)
-        goEnergy()
-      } else if (groupId === "analysis") {
-        goAnalysis()
-      } else {
-        if (itemId) setLeftPanel(itemId as MapToolId)
-        goMap()
-      }
-    },
-    [goEnergy, goAnalysis, goMap]
-  )
-  /**
    * The last value this component wrote, so its own save does not echo back.
    *
    * The mode is state rather than derived from prefs because savePrefs
@@ -2760,6 +2738,68 @@ function AppBody(props: {
     [props.result, water, solar.results, wind.result]
   )
 
+  /**
+   * The hub, from wherever the click came from.
+   *
+   * ONE CALLBACK FOR EVERY CONTROL THAT SAYS "project hub". It was written
+   * inline on the navigation column, and the project switcher's own item went
+   * on calling `goAnalysis()` directly -- so the same destination had two
+   * implementations, one of which had the fix and one of which did not. That is
+   * the shape of the defect this replaced, restated one control over: the
+   * detail header's "Saved analyses" already cleared the payload and the
+   * navigation column did not.
+   *
+   * `screen === "analysis"` is deliberately not the test. It assumed arriving
+   * at the analysis screen from anywhere else lands on the hub, and it does
+   * not: that screen picks between the hub and the detail view by whether a
+   * result exists, so a run still loaded from an earlier visit captures the
+   * destination and draws its own detail page. For solar and wind that page is
+   * now empty, their sections having moved to the energy screen, so the button
+   * appeared to lead nowhere.
+   *
+   * Tested on the payload the page is actually showing rather than on the
+   * classification: a water or solar run has no classification and would
+   * otherwise leave the list unreachable.
+   *
+   * Clearing costs nothing unrecoverable. `retainRun` holds the outgoing
+   * classification for the board, and the run itself is in the store, reachable
+   * from the hub this opens.
+   */
+  const openProjectHub = useCallback(() => {
+    if (resultWithWater) backToAnalysesList()
+    else goAnalysis()
+  }, [resultWithWater, backToAnalysesList, goAnalysis])
+
+  /**
+   * Go to a destination from the dock layout's bar.
+   *
+   * Written here because navigating is two moves that live at this level: the
+   * screen, which is in the auth context, and the sub-tab, which is the state
+   * just above. The navigation table in lib/navigation carries the structure
+   * and deliberately not this, so the table cannot reach into either.
+   *
+   * MOVED DOWN to sit beside `openProjectHub`, which it now calls. It read
+   * `goAnalysis()` directly, and `NAV_GROUPS` labels that destination "Project
+   * hub" -- so this was the third control carrying that label, and the second
+   * of the three that did not have the fix. Its own dependencies were all
+   * declared far above; what it could not reach from where it was is
+   * `resultWithWater`, and reaching it is the whole correction.
+   */
+  const navigateTo = useCallback(
+    (groupId: string, itemId?: string) => {
+      if (groupId === "energy") {
+        if (itemId) setEnergyTab(itemId as EnergyTab)
+        goEnergy()
+      } else if (groupId === "analysis") {
+        openProjectHub()
+      } else {
+        if (itemId) setLeftPanel(itemId as MapToolId)
+        goMap()
+      }
+    },
+    [goEnergy, openProjectHub, goMap]
+  )
+
   const analysisPolygonGeoJSON = useMemo(() => {
     if (props.customPolygon) return JSON.stringify(props.customPolygon)
     if (props.activeExample) {
@@ -2828,7 +2868,7 @@ function AppBody(props: {
                   await openSavedAnalysis(run, { land: "map" })
                 })()
               }}
-              onOpenHub={() => goAnalysis()}
+              onOpenHub={openProjectHub}
             />
           ) : undefined
         }
@@ -2850,36 +2890,7 @@ function AppBody(props: {
             <AppNav
               key="app-nav"
               hasAnalysis={!!props.result || runs.length > 0}
-              onAnalysisClick={() => {
-                /*
-                  The hub, from wherever the click came from.
-
-                  This was guarded on `screen === "analysis"`, which assumed
-                  that arriving at the analysis screen from anywhere else
-                  would land on the hub. It does not. That screen picks
-                  between the hub and the detail view by whether a result
-                  exists, so a run still loaded from an earlier visit -- a
-                  LULC or solar payload opened from the hub and read on the
-                  energy screen -- captured the destination and drew its own
-                  detail page instead. For solar and wind that page is now
-                  empty, their sections having moved to the energy screen, so
-                  the button appeared to lead nowhere.
-
-                  Tested on the payload the page is actually showing, not on
-                  the classification: a water or solar run has no
-                  classification and would otherwise leave the list
-                  unreachable.
-
-                  Clearing costs nothing unrecoverable. retainRun holds the
-                  outgoing classification for the board, and the run itself is
-                  in the store, reachable from the hub this button opens. It
-                  is what the detail header's own "Saved analyses" already
-                  does -- two controls for one destination, and only one of
-                  them arrived.
-                */
-                if (resultWithWater) backToAnalysesList()
-                else goAnalysis()
-              }}
+              onAnalysisClick={openProjectHub}
               leftPanel={leftPanel}
               onLeftPanelChange={setLeftPanel}
               energyTab={energyTab}
