@@ -766,7 +766,7 @@ function AppBody(props: {
         const opened = await openWhiteboard(board.id)
         if (!opened.snapshot) {
           notifyError(
-            "Could not read this whiteboard",
+            "Could not read this studio",
             new Error("its arrangement is unreadable")
           )
           return
@@ -785,7 +785,7 @@ function AppBody(props: {
         writeBoardMemory("savedName", board.name)
         if (opened.missingRunIds.length) {
           notifyInfo(
-            `${opened.missingRunIds.length} run(s) on this whiteboard no longer exist.`
+            `${opened.missingRunIds.length} run(s) in this studio no longer exist.`
           )
         }
         /*
@@ -795,7 +795,7 @@ function AppBody(props: {
         */
         openInStudio(wanted)
       } catch (e) {
-        notifyError("Could not open this whiteboard", e)
+        notifyError("Could not open this studio", e)
       }
     },
     [openInStudio]

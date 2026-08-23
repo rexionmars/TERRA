@@ -315,6 +315,24 @@ export function legendFor(
       fractions are biased toward the middle of their range. It is meaningless
       without the floor, which is 1/K and the value it cannot go below, so the
       two are reported together or not at all.
+
+      AND IT CAN POINT THE WRONG WAY, which is the stronger caveat and the one
+      that was missing. Not-calibrated says the number is a poor estimate of the
+      probability of being right; it still leaves a reader assuming more is
+      better. Under domain shift that assumption fails outright. In a controlled
+      experiment where the shift was built component by component, the
+      configuration with the LOWEST mean posterior entropy -- the most confident
+      one -- had nearly the worst macro-F1 of the eleven measured, and ranking
+      the configurations by confidence would have selected close to the worst
+      available. The rank correlation between entropy and F1 came out positive
+      where the whole premise of using confidence as a proxy requires it to be
+      negative.
+
+      Stated as "can" rather than "does". That experiment is synthetic by
+      design -- it is what makes each component attributable -- so the direction
+      of the effect transfers and the size of it does not. What a reader needs
+      from a legend is that the inference "confident, therefore correct" is not
+      available here, and that much is not in question.
     */
     const r = src.result
     if (r?.mean_confidence === undefined) return null
@@ -357,6 +375,7 @@ export function legendFor(
       },
       note:
         "Ensemble vote share over classified pixels, not a calibrated probability." +
+        " Under domain shift it can run opposite to accuracy." +
         (floorShown ? " Read against the floor." : "") +
         " Lower values are drawn cooler and more transparent.",
     }

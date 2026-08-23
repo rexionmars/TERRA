@@ -23,6 +23,7 @@ import {
   LibraryBig,
   GitCompareArrows,
   ListTree,
+  Ruler,
   PanelBottom,
   SlidersHorizontal,
   Sprout,
@@ -38,6 +39,7 @@ export type EditorId =
   | "compare"
   | "domainShift"
   | "spectra"
+  | "separability"
   | "libraryLimit"
   | "brush"
   | "table"
@@ -150,6 +152,26 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 24,
     minRowRem: 14,
     hint: "What each predicted class reflects, band by band, on one acquisition",
+  },
+  {
+    id: "separability",
+    label: "Class separability",
+    icon: Ruler,
+    /*
+      Wider than the spectral response it reads from, and for the reason the
+      library check is wider too: the ranking above the figure carries a class
+      name on each side of a pair, so its label gutter holds two of what that
+      editor holds one of. Under this the pair names truncate to the point where
+      a row no longer says which two classes it ranked.
+
+      Taller as well. This is two readings stacked -- a ranking and the per-band
+      figure for whichever row is selected -- and the figure has a 150 px floor
+      of its own in plotHeightFor. Below 18 rem the ranking is squeezed to two
+      rows and the panel stops being a ranking at all.
+    */
+    minRem: 26,
+    minRowRem: 18,
+    hint: "How far apart two classes are, band by band, and where that separation is lost",
   },
   {
     id: "libraryLimit",

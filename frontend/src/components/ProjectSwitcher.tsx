@@ -243,7 +243,7 @@ export function ProjectSwitcher({
             <>
               <hr className="hairline" />
               <p className="px-2.5 pb-0.5 pt-2 text-[9px] uppercase tracking-wide text-muted-foreground">
-                Whiteboards
+                Studios
               </p>
               <div className="max-h-40 overflow-y-auto">
                 {whiteboards.map((b) => (

@@ -42,8 +42,8 @@ export function BoardButton({
         disabled
           ? "Nothing to work on: draw an area or run something first"
           : active
-            ? "Close the whiteboard"
-            : "Open the whiteboard for this area"
+            ? "Close the studio"
+            : "Open the studio for this area"
       }
       className={cn(
         // The bar's own vocabulary, matching the account and layout buttons it
