@@ -643,6 +643,7 @@ describe("legendFor, confidence", () => {
     expect(legend.rows).toEqual([{ label: "Mean", value: "62.0%" }])
     expect(legend.note).toBe(
       "Ensemble vote share over classified pixels, not a calibrated probability." +
+        " Under domain shift, higher is not more correct." +
         " Lower values are drawn cooler and more transparent."
     )
   })
@@ -655,6 +656,7 @@ describe("legendFor, confidence", () => {
 
     expect(asStats(legendFor("confidence", { result })).note).toBe(
       "Ensemble vote share over classified pixels, not a calibrated probability." +
+        " Under domain shift, higher is not more correct." +
         " Read against the floor." +
         " Lower values are drawn cooler and more transparent."
     )
