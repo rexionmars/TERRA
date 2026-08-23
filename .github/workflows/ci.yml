@@ -3,8 +3,13 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, whatever it targets. The filter here was
+  # `branches: [main]`, which selects on the BASE branch, so a pull request
+  # opened against another branch ran nothing at all and reported "no checks"
+  # -- which reads on the page as a clean result rather than as an absent one.
+  # Work stacked in a series, each branch based on the one below it, was
+  # therefore unchecked everywhere except at the bottom of the stack.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
