@@ -1,7 +1,7 @@
-# TERRA
+# TERRA Earth Observation
 
 <p align="center">
-  <img src="docs/img/v1/terra-opensource-project.png" alt="TERRA" width="280" />
+  <img src="docs/img/v4/TERRA_EO_Logo.png" alt="TERRA" width="280" />
 </p>
 
 TERRA classifies land cover over an area of interest from Sentinel-2 L2A time
