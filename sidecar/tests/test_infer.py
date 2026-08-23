@@ -409,6 +409,32 @@ def test_spectral_angle_ignores_brightness_but_not_shape():
     assert infer.spectral_angle(leaf, distorted) > 0.1
 
 
+def test_spectral_angle_holds_scale_invariance_at_every_scale():
+    """
+    The same property as above, asserted across a range of scales rather than
+    at one, because a single scale does not test it on every machine.
+
+    The test above uses 0.4, and on arm64 that particular product happens to
+    round to a cosine of exactly 1.0, so it passed there while the same code
+    returned 2.1e-8 radians on x86_64. The assertion was right and the platform
+    was hiding the defect: the angle came from arccos of a cosine, and arccos
+    has an infinite derivative at 1, so a rounding error of 2.2e-16 emerged
+    amplified by seven orders of magnitude.
+
+    Fifteen scales do not depend on which of them rounds cleanly. Under the
+    previous implementation this fails on x86_64 AND on arm64.
+    """
+    leaf = [0.06, 0.13, 0.05, 0.47, 0.47, 0.32, 0.19]
+    for scale in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9,
+                  1.1, 1.3, 1.7, 2.0, 3.0, 5.0, 10.0):
+        scaled = [v * scale for v in leaf]
+        angle = infer.spectral_angle(leaf, scaled)
+        assert angle == pytest.approx(0.0, abs=1e-12), (
+            f"the same material at {scale}x brightness reads as {angle:.3e} rad "
+            f"from itself; the angle is measuring illumination"
+        )
+
+
 def test_library_limit_measures_the_leaf_to_canopy_distortion(tmp_path):
     """
     The reported ratio is canopy over leaf, per band, and the angle is taken on
