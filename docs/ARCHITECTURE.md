@@ -13,7 +13,7 @@ hosted API server.
 └──────────────────────────┬──────────────────────────────┘
                            │ Wails bindings (Go ↔ JS)
 ┌──────────────────────────▼──────────────────────────────┐
-│  Go shell — main.go / app.go / backend/                 │
+│  Go shell — main.go / app.go / internal/                │
 │  Window lifecycle, Predict / DataCube / LULC / Geocode  │
 │  SQLite store (users, preferences, saved runs)          │
 └──────────────────────────┬──────────────────────────────┘
@@ -48,9 +48,11 @@ Prithvi pixel mode can be slow.
 | Path | Role |
 |------|------|
 | `main.go`, `app.go` | Window, boot, methods exposed to the frontend |
-| `backend/sidecar.go` | Resolve paths, spawn Python, convert PNG → data URI |
-| `backend/types.go` | Shared request/result types |
-| `backend/store/` | SQLite persistence |
+| `internal/analysis/` | The sidecar boundary: spawn Python, and the request/result types |
+| `internal/pyenv/` | Find, inspect and build the Python interpreter |
+| `internal/research/` | The research pack export |
+| `internal/geocode/` | Place-name lookup through Nominatim |
+| `internal/store/` | SQLite persistence |
 | `sidecar/` | Inference, LULC, phenology, Prithvi, Temporal Transformer |
 | `model/` | Trained artifacts |
 | `areas/` | Embedded GeoJSON study areas A/B/C |

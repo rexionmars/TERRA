@@ -5,8 +5,8 @@ TERRA exposes a **Wails binding API** from Go to the React frontend, and a
 not call these directly; they matter for contributors and for reviewers who
 want to understand the core surface.
 
-Source of truth: [`app.go`](../app.go), [`backend/types.go`](../backend/types.go),
-[`backend/sidecar.go`](../backend/sidecar.go), [`sidecar/infer.py`](../sidecar/infer.py).
+Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../internal/analysis/types.go),
+[`internal/analysis/runner.go`](../internal/analysis/runner.go), [`sidecar/infer.py`](../sidecar/infer.py).
 
 ## Wails methods (`App`)
 
@@ -136,4 +136,5 @@ the UI.
 ## TypeScript mirror
 
 Frontend types live in [`frontend/src/lib/types.ts`](../frontend/src/lib/types.ts)
-and should stay aligned with `backend/types.go`.
+and should stay aligned with the types in `internal/analysis/`, which
+`frontend/scripts/check-types.ts` verifies.

@@ -44,7 +44,7 @@ wails dev
 3. Run the automated tests before opening the PR:
 
 ```bash
-go test ./backend/...
+go test ./...
 pytest sidecar/tests -q
 ```
 
@@ -66,7 +66,7 @@ For planned features, see [docs/ROADMAP.md](docs/ROADMAP.md).
 | Path | Role |
 |------|------|
 | `frontend/` | React UI |
-| `app.go`, `backend/` | Wails bindings and Go services |
+| `app.go`, `internal/` | Wails bindings and Go services |
 | `sidecar/` | Python inference pipeline |
 | `model/` | Trained classifier artifacts |
 | `docs/` | User and developer documentation |

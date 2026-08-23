@@ -15,8 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"geosense-infer/backend"
-	"geosense-infer/backend/store"
+	"geosense-infer/internal/analysis"
+	"geosense-infer/internal/geocode"
+	"geosense-infer/internal/pyenv"
+	"geosense-infer/internal/research"
+	"geosense-infer/internal/store"
 
 	"github.com/google/uuid"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -25,14 +28,14 @@ import (
 // App is the application struct bound to the frontend.
 type App struct {
 	ctx    context.Context
-	runner *backend.Runner
+	runner *analysis.Runner
 	store  *store.Store
 
 	mu           sync.RWMutex
 	sessionToken string
 	currentUser  *store.User
 
-	envBuilder  backend.EnvBuilder
+	envBuilder  pyenv.EnvBuilder
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
@@ -83,10 +86,41 @@ interpreter wait for the run to finish. A run that started on the previous
 interpreter finishes on it, which is the honest outcome: it is the one it
 loaded its model into.
 */
-func (a *App) currentRunner() *backend.Runner {
+func (a *App) currentRunner() *analysis.Runner {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.runner
+}
+
+/*
+currentStore is the store as it stands right now, or nil when there is none.
+
+The same argument as currentRunner, with a second failure of its own. a.store
+is written while a restore swaps the database out from under it, and every
+bound method runs on its own goroutine, so a bare read races that write.
+
+The shape matters as much as the lock. The guard this replaced tested a.store
+and left the caller to dereference a.store again, which is two reads of a field
+that can change between them: the test could pass and the dereference still
+find nil. Callers take the pointer once and work through that.
+
+nil covers both no store and a store part-way through being replaced, which are
+the same thing to a caller: nothing to query.
+*/
+func (a *App) currentStore() *store.Store {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.store
+}
+
+// requireStore is currentStore for the bindings that all answer the same way
+// when there is no store to reach.
+func (a *App) requireStore() (*store.Store, error) {
+	st := a.currentStore()
+	if st == nil {
+		return nil, errors.New("user store not available")
+	}
+	return st, nil
 }
 
 func (a *App) bootLog(msg string) {
@@ -165,12 +199,17 @@ func (a *App) startup(ctx context.Context) {
 		wruntime.LogError(ctx, "failed to open user store: "+err.Error())
 		return
 	}
+	// Under the lock, for the reason set out on the runner assignment below:
+	// a field guarded in one place and bare in another reads as one that is
+	// safe to touch bare.
+	a.mu.Lock()
 	a.store = st
+	a.mu.Unlock()
 	a.bootLog("store ready")
 
-	cfg := backend.LoadAppConfig(st.DataDir())
+	cfg := pyenv.LoadAppConfig(st.DataDir())
 	a.bootLog("resolving sidecar paths…")
-	runner, err := backend.NewRunner(appDir, cfg.PythonPath)
+	runner, err := analysis.NewRunner(appDir, cfg.PythonPath)
 	if err != nil {
 		a.bootLog("runner init failed: " + err.Error())
 		wruntime.LogError(ctx, "failed to init runner: "+err.Error())
@@ -262,16 +301,16 @@ func (a *App) probeSidecar(ctx context.Context) {
 }
 
 // ListEmbeddedAreas returns the embedded study areas (A/B/C).
-func (a *App) ListEmbeddedAreas() []backend.Area {
+func (a *App) ListEmbeddedAreas() []analysis.Area {
 	runner := a.currentRunner()
 	if runner == nil {
-		return []backend.Area{}
+		return []analysis.Area{}
 	}
 	return runner.ListAreas()
 }
 
 // Predict runs the inference sidecar for the given request.
-func (a *App) Predict(req backend.PredictRequest) (*backend.PredictResult, error) {
+func (a *App) Predict(req analysis.PredictRequest) (*analysis.PredictResult, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -290,7 +329,7 @@ func (a *App) Predict(req backend.PredictRequest) (*backend.PredictResult, error
 // AnalyzeLULC runs descriptive MapBiomas land-cover / land-use analysis
 // without Sentinel imagery. Embedded areas use local TIFFs; custom AOIs in
 // Brazil fetch a MapBiomas Collection 10 COG window on demand.
-func (a *App) AnalyzeLULC(req backend.LULCRequest) (*backend.LULCAnalysis, error) {
+func (a *App) AnalyzeLULC(req analysis.LULCRequest) (*analysis.LULCAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -299,7 +338,7 @@ func (a *App) AnalyzeLULC(req backend.LULCRequest) (*backend.LULCAnalysis, error
 }
 
 // ListDataCube inventories Sentinel-2 L2A scenes for the AOI (before Classify).
-func (a *App) ListDataCube(req backend.DataCubeRequest) (*backend.DataCubeResult, error) {
+func (a *App) ListDataCube(req analysis.DataCubeRequest) (*analysis.DataCubeResult, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -308,7 +347,7 @@ func (a *App) ListDataCube(req backend.DataCubeRequest) (*backend.DataCubeResult
 }
 
 // RenderComposite builds an RGB / false-color or spectral-index overlay for one scene.
-func (a *App) RenderComposite(req backend.CompositeRequest) (*backend.CompositeResult, error) {
+func (a *App) RenderComposite(req analysis.CompositeRequest) (*analysis.CompositeResult, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -318,7 +357,7 @@ func (a *App) RenderComposite(req backend.CompositeRequest) (*backend.CompositeR
 
 // AnalyzeWater maps surface water over a period from spectral water indices.
 // Descriptive: a thresholded index, with no model and no trained legend.
-func (a *App) AnalyzeWater(req backend.WaterRequest) (*backend.WaterAnalysis, error) {
+func (a *App) AnalyzeWater(req analysis.WaterRequest) (*analysis.WaterAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -351,7 +390,7 @@ type savedRun struct {
 	// reference when the request named a catalogued area instead of drawing
 	// a shape.
 	areaID  string
-	polygon *backend.GeoJSONGeometry
+	polygon *analysis.GeoJSONGeometry
 
 	// What the run is called. aoiLabel names the ground and arrives already
 	// resolved, because the summary the caller built carries the same string;
@@ -413,9 +452,31 @@ func (a *App) saveRun(run savedRun) string {
 	runID := uuid.NewString()
 	assetsRel := filepath.Join("runs", runID)
 	assetsDir := st.RunsDir(runID)
-	_ = os.MkdirAll(assetsDir, 0o700)
-	resultBytes, _ := json.Marshal(run.result(assetsDir, assetsRel))
-	summaryBytes, _ := json.Marshal(run.summary)
+	// Each of the three below used to discard its error, and each failure
+	// produced the same shape of wreckage: a row that says a run was recorded,
+	// pointing at something that is not there.
+	//
+	// Without the directory, every asset write inside run.result fails and the
+	// row still carries assets_relpath and overlay_relpath into a path that
+	// does not exist. Without the marshal, result_json is written empty and
+	// LoadAnalysis returns a run with nothing in it -- and json.Marshal is not
+	// hypothetical here: it refuses NaN and Inf, which a sidecar payload with
+	// a missing float reaches the Go side carrying.
+	//
+	// Not recording the run at all is the better failure. The result still
+	// reaches the user, which is what best effort meant; only the claim to
+	// have saved it is withdrawn.
+	if err := os.MkdirAll(assetsDir, 0o700); err != nil {
+		return ""
+	}
+	resultBytes, err := json.Marshal(run.result(assetsDir, assetsRel))
+	if err != nil {
+		return ""
+	}
+	summaryBytes, err := json.Marshal(run.summary)
+	if err != nil {
+		return ""
+	}
 
 	poly := ""
 	if run.polygon != nil {
@@ -441,7 +502,7 @@ func (a *App) saveRun(run savedRun) string {
 		overlayRel = filepath.Join(assetsRel, run.overlayFile)
 	}
 
-	_, _ = st.SaveRun(store.InferenceRun{
+	if _, err := st.SaveRun(store.InferenceRun{
 		ID:             runID,
 		UserID:         userID,
 		Kind:           run.kind,
@@ -458,7 +519,13 @@ func (a *App) saveRun(run savedRun) string {
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(run.projectID),
 		AoiID:          strings.TrimSpace(run.aoiID),
-	})
+	}); err != nil {
+		// Best effort means the failure is not reported, not that it is
+		// reported as a success. The caller hands this id to the frontend as
+		// the run now on screen, and an id no row answers to is an entry that
+		// opens empty.
+		return ""
+	}
 	return runID
 }
 
@@ -481,7 +548,7 @@ func aoiLabel(candidates ...string) string {
 
 // persistWaterRun saves a surface-water run so it survives the session and is
 // listed, opened and exported like a classification.
-func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalysis) {
+func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnalysis) {
 	if res == nil {
 		return
 	}
@@ -522,7 +589,7 @@ func (a *App) persistWaterRun(req backend.WaterRequest, res *backend.WaterAnalys
 }
 
 // AnalyzeSolar computes the solar resource and photovoltaic yield at the AOI.
-func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, error) {
+func (a *App) AnalyzeSolar(req analysis.SolarRequest) (*analysis.SolarAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -536,7 +603,7 @@ func (a *App) AnalyzeSolar(req backend.SolarRequest) (*backend.SolarAnalysis, er
 }
 
 // AnalyzeDomainShift compares two cached domain fingerprints for shift diagnosis.
-func (a *App) AnalyzeDomainShift(req backend.DomainShiftRequest) (*backend.DomainShiftReport, error) {
+func (a *App) AnalyzeDomainShift(req analysis.DomainShiftRequest) (*analysis.DomainShiftReport, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -546,8 +613,8 @@ func (a *App) AnalyzeDomainShift(req backend.DomainShiftRequest) (*backend.Domai
 
 // AnalyzeDomainShiftCohort measures one source AOI against every target at once.
 func (a *App) AnalyzeDomainShiftCohort(
-	req backend.DomainShiftCohortRequest,
-) (*backend.DomainShiftCohort, error) {
+	req analysis.DomainShiftCohortRequest,
+) (*analysis.DomainShiftCohort, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -562,7 +629,7 @@ func (a *App) AnalyzeDomainShiftCohort(
 // under a second to rebuild, so storing it would keep a copy that the next
 // change of spacing invalidates. The analyses that do get saved are the ones
 // carrying a satellite acquisition nobody can reproduce on demand.
-func (a *App) BuildCanopyField(req backend.CanopyFieldRequest) (*backend.CanopyField, error) {
+func (a *App) BuildCanopyField(req analysis.CanopyFieldRequest) (*analysis.CanopyField, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -576,7 +643,7 @@ func (a *App) BuildCanopyField(req backend.CanopyFieldRequest) (*backend.CanopyF
 //
 // Not persisted, for the reason the other two canopy calls give: it is a
 // function of a saved run plus a sowing, and both are already recorded.
-func (a *App) BuildCanopyFromAOI(req backend.CanopyFromAOIRequest) (*backend.CanopyFromAOI, error) {
+func (a *App) BuildCanopyFromAOI(req analysis.CanopyFromAOIRequest) (*analysis.CanopyFromAOI, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -590,7 +657,7 @@ func (a *App) BuildCanopyFromAOI(req backend.CanopyFromAOIRequest) (*backend.Can
 // Not persisted, for the reason BuildCanopyField gives, and for one more: the
 // stand is deterministic in its seed, so the parameters are a smaller and more
 // durable record of it than the megabytes of triangles they produce.
-func (a *App) BuildCanopyMesh(req backend.CanopyMeshRequest) (*backend.CanopyMesh, error) {
+func (a *App) BuildCanopyMesh(req analysis.CanopyMeshRequest) (*analysis.CanopyMesh, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -679,7 +746,7 @@ func (a *App) meshMiddleware(next http.Handler) http.Handler {
 
 // persistSolarRun saves a solar resource run so it survives the session and is
 // listed, opened and exported like the other analyses.
-func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalysis) {
+func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnalysis) {
 	if res == nil {
 		return
 	}
@@ -710,7 +777,7 @@ func (a *App) persistSolarRun(req backend.SolarRequest, res *backend.SolarAnalys
 }
 
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.
-func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.SolarTerrainAnalysis, error) {
+func (a *App) AnalyzeSolarTerrain(req analysis.SolarTerrainRequest) (*analysis.SolarTerrainAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -725,7 +792,7 @@ func (a *App) AnalyzeSolarTerrain(req backend.SolarTerrainRequest) (*backend.Sol
 }
 
 // AnalyzeSolarSiting classifies the AOI for fixed-tilt photovoltaic siting.
-func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.SolarSitingAnalysis, error) {
+func (a *App) AnalyzeSolarSiting(req analysis.SolarSitingRequest) (*analysis.SolarSitingAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -742,7 +809,7 @@ func (a *App) AnalyzeSolarSiting(req backend.SolarSitingRequest) (*backend.Solar
 // persistSolarRaster saves a solar map run and writes its overlay to disk, so
 // reopening the run puts the raster back rather than only its numbers.
 func (a *App) persistSolarRaster(
-	areaID string, poly *backend.GeoJSONGeometry,
+	areaID string, poly *analysis.GeoJSONGeometry,
 	label, runLabel, projectID, aoiID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
 ) {
@@ -773,7 +840,7 @@ func (a *App) persistSolarRaster(
 }
 
 // AnalyzeEnergyModel runs the photovoltaic energy model over the AOI.
-func (a *App) AnalyzeEnergyModel(req backend.EnergyModelRequest) (*backend.EnergyModelAnalysis, error) {
+func (a *App) AnalyzeEnergyModel(req analysis.EnergyModelRequest) (*analysis.EnergyModelAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -792,7 +859,7 @@ func (a *App) AnalyzeEnergyModel(req backend.EnergyModelRequest) (*backend.Energ
 // Filed under RunKindSolar with solar_product "energy_model", which is the
 // discriminator the solar products already use. It is a solar product: same
 // radiation chain, same grid, same optimum.
-func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend.EnergyModelAnalysis) {
+func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analysis.EnergyModelAnalysis) {
 	if res == nil {
 		return
 	}
@@ -835,7 +902,7 @@ func (a *App) persistEnergyModelRun(req backend.EnergyModelRequest, res *backend
 }
 
 // AnalyzeWind screens the wind resource at the AOI.
-func (a *App) AnalyzeWind(req backend.WindRequest) (*backend.WindAnalysis, error) {
+func (a *App) AnalyzeWind(req analysis.WindRequest) (*analysis.WindAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {
 		return nil, errors.New("runner not initialized")
@@ -849,7 +916,7 @@ func (a *App) AnalyzeWind(req backend.WindRequest) (*backend.WindAnalysis, error
 }
 
 // persistWindRun saves a wind screening run under its own kind.
-func (a *App) persistWindRun(req backend.WindRequest, res *backend.WindAnalysis) {
+func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysis) {
 	if res == nil {
 		return
 	}
@@ -893,22 +960,22 @@ func (a *App) ExportClassification(rasterPath string) (string, error) {
 
 // ExportResearchPack writes a ZIP of tabular CSVs (+ AOI / optional GeoTIFF)
 // for use in an external training or study workspace.
-func (a *App) ExportResearchPack(meta backend.ResearchExportMeta, result *backend.PredictResult) (string, error) {
+func (a *App) ExportResearchPack(meta analysis.ResearchExportMeta, result *analysis.PredictResult) (string, error) {
 	if result == nil {
 		return "", errors.New("no analysis result to export")
 	}
 	dataDir := ""
-	if a.store != nil {
-		dataDir = a.store.DataDir()
+	if st := a.currentStore(); st != nil {
+		dataDir = st.DataDir()
 	}
-	zipBytes, err := backend.BuildResearchPackZIP(meta, result, dataDir)
+	zipBytes, err := research.BuildResearchPackZIP(meta, result, dataDir)
 	if err != nil {
 		return "", err
 	}
 
 	dest, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
 		Title:           "Export research pack",
-		DefaultFilename: backend.DefaultResearchPackFilename(meta.AoiLabel),
+		DefaultFilename: research.DefaultResearchPackFilename(meta.AoiLabel),
 		Filters: []wruntime.FileFilter{
 			{DisplayName: "ZIP archive", Pattern: "*.zip"},
 		},
@@ -944,9 +1011,7 @@ its README, and so does the button that makes it.
 Returns the path written, or an empty string when the user cancels the dialog.
 */
 func (a *App) ExportBackup() (string, error) {
-	a.mu.RLock()
-	st := a.store
-	a.mu.RUnlock()
+	st := a.currentStore()
 	if st == nil {
 		return "", errors.New("the local store is not open")
 	}
@@ -988,9 +1053,7 @@ func (a *App) ExportBackup() (string, error) {
 // and what it will displace before it happens. A restore replaces everything;
 // an operation of that weight should not be one click from a file dialog.
 func (a *App) ChooseBackupArchive() (*store.RestorePreview, error) {
-	a.mu.RLock()
-	st := a.store
-	a.mu.RUnlock()
+	st := a.currentStore()
 	if st == nil {
 		return nil, errors.New("the local store is not open")
 	}
@@ -1032,9 +1095,7 @@ func (a *App) RestoreBackup(archivePath string) (*store.RestoreResult, error) {
 		return nil, errors.New("no backup was chosen")
 	}
 
-	a.mu.RLock()
-	st := a.store
-	a.mu.RUnlock()
+	st := a.currentStore()
 	if st == nil {
 		return nil, errors.New("the local store is not open")
 	}
@@ -1049,6 +1110,15 @@ func (a *App) RestoreBackup(archivePath string) (*store.RestoreResult, error) {
 	if preview.Problem != "" {
 		return nil, errors.New(preview.Problem)
 	}
+
+	// Dropped from the field before it is closed. Close leaves the pointer
+	// valid and its database shut, so between here and the reopen below --
+	// extraction, verification, a directory rename -- every concurrent binding
+	// call reached the driver and came back "sql: database is closed" instead
+	// of being told the store was unavailable.
+	a.mu.Lock()
+	a.store = nil
+	a.mu.Unlock()
 
 	// Closed before the swap. RestoreBackup renames the directory this
 	// connection's file lives in.
@@ -1088,9 +1158,7 @@ func (a *App) RestoreBackup(archivePath string) (*store.RestoreResult, error) {
 // the database records what was saved, not what is on disk, and this screen is
 // only worth having if it is believed when it says where the space went.
 func (a *App) InspectStorage() (*store.StorageReport, error) {
-	a.mu.RLock()
-	st := a.store
-	a.mu.RUnlock()
+	st := a.currentStore()
 	if st == nil {
 		return nil, errors.New("the local store is not open")
 	}
@@ -1103,9 +1171,7 @@ func (a *App) InspectStorage() (*store.StorageReport, error) {
 // these are the only files nothing can reach. Anything else is removed by
 // removing the analysis it belongs to, which the user does deliberately.
 func (a *App) PurgeOrphanedRunAssets() (*store.PurgeResult, error) {
-	a.mu.RLock()
-	st := a.store
-	a.mu.RUnlock()
+	st := a.currentStore()
 	if st == nil {
 		return nil, errors.New("the local store is not open")
 	}
@@ -1178,8 +1244,15 @@ func (a *App) ExportOverlayFile(src string, defaultFilename string) (string, err
 	if err != nil {
 		return "", err
 	}
-	defer out.Close()
 	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return "", err
+	}
+	// Closed here rather than deferred and dropped. A write can fail for the
+	// first time at Close -- a full disk or an exceeded quota is reported when
+	// the last buffered bytes are flushed -- and discarding that error handed
+	// back the path of a truncated file as an export that had worked.
+	if err := out.Close(); err != nil {
 		return "", err
 	}
 	return dest, nil
@@ -1196,11 +1269,11 @@ func decodeDataURI(uri string) ([]byte, error) {
 
 // persistRunIfLoggedIn saves the run and returns its id, so the caller can tell
 // the frontend which run it is now looking at. Empty when nothing was saved.
-func (a *App) persistRunIfLoggedIn(req backend.PredictRequest, res *backend.PredictResult) string {
+func (a *App) persistRunIfLoggedIn(req analysis.PredictRequest, res *analysis.PredictResult) string {
 	return a.persistAnalysis(req, res)
 }
 
-func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictResult) string {
+func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.PredictResult) string {
 	if res == nil {
 		return ""
 	}
@@ -1270,10 +1343,7 @@ func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictRe
 		overlayFile: "overlay.png",
 	})
 	if runID != "" && strings.TrimSpace(req.ProjectID) != "" {
-		a.mu.RLock()
-		st := a.store
-		a.mu.RUnlock()
-		if st != nil {
+		if st := a.currentStore(); st != nil {
 			st.TouchProject(req.ProjectID)
 		}
 	}
@@ -1282,7 +1352,8 @@ func (a *App) persistAnalysis(req backend.PredictRequest, res *backend.PredictRe
 
 // ListRuns returns recent inference runs (signed-in user, or local guest).
 func (a *App) ListRuns(limit int) ([]store.InferenceRun, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	a.mu.RLock()
@@ -1292,7 +1363,7 @@ func (a *App) ListRuns(limit int) ([]store.InferenceRun, error) {
 	if u != nil {
 		userID = u.ID
 	}
-	return a.store.ListRuns(userID, limit)
+	return st.ListRuns(userID, limit)
 }
 
 // RunActivity returns the number of runs per calendar day over a trailing
@@ -1302,7 +1373,8 @@ func (a *App) ListRuns(limit int) ([]store.InferenceRun, error) {
 // result payload on each: a year of activity read through it would show empty
 // weeks that are not empty.
 func (a *App) RunActivity(days int) ([]store.ActivityDay, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	a.mu.RLock()
@@ -1312,12 +1384,13 @@ func (a *App) RunActivity(days int) ([]store.ActivityDay, error) {
 	if u != nil {
 		userID = u.ID
 	}
-	return a.store.RunActivity(userID, days)
+	return st.RunActivity(userID, days)
 }
 
 // LoadAnalysis restores a saved PredictResult (with image data URIs) by run id.
-func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
-	if err := a.requireStore(); err != nil {
+func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	a.mu.RLock()
@@ -1327,17 +1400,17 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	if u != nil {
 		userID = u.ID
 	}
-	run, err := a.store.GetRun(userID, runID)
+	run, err := st.GetRun(userID, runID)
 	if err != nil {
 		// Also try local bucket if signed-in user has no match (legacy local saves).
 		if u != nil {
-			run, err = a.store.GetRun(store.LocalUserID, runID)
+			run, err = st.GetRun(store.LocalUserID, runID)
 		}
 		if err != nil {
 			return nil, mapStoreErr(err)
 		}
 	}
-	assetsDir := a.store.RunsDir(run.ID)
+	assetsDir := st.RunsDir(run.ID)
 
 	// A water run stores a WaterAnalysis, not a PredictResult. It is returned
 	// attached to an otherwise empty result so the analysis view and the export
@@ -1350,10 +1423,10 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 			Product string `json:"solar_product"`
 		}
 		_ = json.Unmarshal([]byte(run.SummaryJSON), &meta)
-		out := &backend.PredictResult{}
+		out := &analysis.PredictResult{}
 		switch meta.Product {
 		case "solar_terrain":
-			var t backend.SolarTerrainAnalysis
+			var t analysis.SolarTerrainAnalysis
 			_ = json.Unmarshal([]byte(run.ResultJSON), &t)
 			if uri, err := store.ReadFileDataURI(
 				filepath.Join(assetsDir, "solar_terrain.png"), "image/png",
@@ -1362,7 +1435,7 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 			}
 			out.SolarTerrain = &t
 		case "solar_siting":
-			var st backend.SolarSitingAnalysis
+			var st analysis.SolarSitingAnalysis
 			_ = json.Unmarshal([]byte(run.ResultJSON), &st)
 			if uri, err := store.ReadFileDataURI(
 				filepath.Join(assetsDir, "solar_siting.png"), "image/png",
@@ -1382,14 +1455,14 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 			// No raster: the whole run is in result_json. Without this case the
 			// run saves and lists correctly and reopens as an empty solar card,
 			// with nothing raising an error.
-			var e backend.EnergyModelAnalysis
+			var e analysis.EnergyModelAnalysis
 			if run.ResultJSON != "" && run.ResultJSON != "{}" {
 				_ = json.Unmarshal([]byte(run.ResultJSON), &e)
 			}
 			e.NormalizeNilSlices()
 			out.EnergyModel = &e
 		default:
-			var solar backend.SolarAnalysis
+			var solar analysis.SolarAnalysis
 			if run.ResultJSON != "" && run.ResultJSON != "{}" {
 				_ = json.Unmarshal([]byte(run.ResultJSON), &solar)
 			}
@@ -1403,16 +1476,16 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	// otherwise empty result, the way a water run is, so the analysis view and
 	// the export see it through the field a live run uses.
 	if run.Kind == store.RunKindWind {
-		var wind backend.WindAnalysis
+		var wind analysis.WindAnalysis
 		if run.ResultJSON != "" && run.ResultJSON != "{}" {
 			_ = json.Unmarshal([]byte(run.ResultJSON), &wind)
 		}
 		wind.NormalizeNilSlices()
-		return &backend.PredictResult{Wind: &wind}, nil
+		return &analysis.PredictResult{Wind: &wind}, nil
 	}
 
 	if run.Kind == store.RunKindWater {
-		var water backend.WaterAnalysis
+		var water analysis.WaterAnalysis
 		if run.ResultJSON != "" && run.ResultJSON != "{}" {
 			_ = json.Unmarshal([]byte(run.ResultJSON), &water)
 		}
@@ -1421,10 +1494,10 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 		); err == nil {
 			water.OccurrenceURI = uri
 		}
-		return &backend.PredictResult{Water: &water}, nil
+		return &analysis.PredictResult{Water: &water}, nil
 	}
 
-	var res backend.PredictResult
+	var res analysis.PredictResult
 	if run.ResultJSON != "" && run.ResultJSON != "{}" {
 		_ = json.Unmarshal([]byte(run.ResultJSON), &res)
 	}
@@ -1450,7 +1523,7 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 	} else {
 		// Older saves may lack lulc block; map alone is optional.
 		if uri, err := store.ReadFileDataURI(filepath.Join(assetsDir, "lulc_map.png"), "image/png"); err == nil {
-			res.LULC = &backend.LULCAnalysis{MapURI: uri}
+			res.LULC = &analysis.LULCAnalysis{MapURI: uri}
 		}
 	}
 	tif := filepath.Join(assetsDir, "classification.tif")
@@ -1484,8 +1557,8 @@ func (a *App) LoadAnalysis(runID string) (*backend.PredictResult, error) {
 }
 
 // GeocodeSearch resolves a place name to candidate locations (OSM Nominatim).
-func (a *App) GeocodeSearch(query string) ([]backend.GeocodeResult, error) {
-	return backend.Geocode(a.ctx, query)
+func (a *App) GeocodeSearch(query string) ([]geocode.GeocodeResult, error) {
+	return geocode.Geocode(a.ctx, query)
 }
 
 // OpenExternal opens a URL in the system browser.
@@ -1494,13 +1567,6 @@ func (a *App) OpenExternal(url string) {
 }
 
 // --- Auth / profile ---
-
-func (a *App) requireStore() error {
-	if a.store == nil {
-		return errors.New("user store not available")
-	}
-	return nil
-}
 
 func (a *App) setSession(u *store.User, token string) {
 	a.mu.Lock()
@@ -1518,10 +1584,11 @@ func (a *App) clearSession() {
 
 // Register creates a local account and starts a session.
 func (a *App) Register(email, password, displayName string) (*store.User, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	u, token, err := a.store.Register(email, password, displayName)
+	u, token, err := st.Register(email, password, displayName)
 	if err != nil {
 		return nil, mapStoreErr(err)
 	}
@@ -1531,10 +1598,11 @@ func (a *App) Register(email, password, displayName string) (*store.User, error)
 
 // Login authenticates and starts a session.
 func (a *App) Login(email, password string) (*store.User, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	u, token, err := a.store.Login(email, password)
+	u, token, err := st.Login(email, password)
 	if err != nil {
 		return nil, mapStoreErr(err)
 	}
@@ -1544,14 +1612,15 @@ func (a *App) Login(email, password string) (*store.User, error) {
 
 // Logout ends the current session.
 func (a *App) Logout() error {
-	if a.store == nil {
+	st := a.currentStore()
+	if st == nil {
 		a.clearSession()
 		return nil
 	}
 	a.mu.RLock()
 	token := a.sessionToken
 	a.mu.RUnlock()
-	_ = a.store.Logout(token)
+	_ = st.Logout(token)
 	a.clearSession()
 	return nil
 }
@@ -1565,7 +1634,8 @@ func (a *App) CurrentUser() *store.User {
 
 // UpdateProfile updates the display name.
 func (a *App) UpdateProfile(displayName string) (*store.User, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	a.mu.RLock()
@@ -1574,7 +1644,7 @@ func (a *App) UpdateProfile(displayName string) (*store.User, error) {
 	if u == nil {
 		return nil, store.ErrUnauthorized
 	}
-	updated, err := a.store.UpdateProfile(u.ID, displayName)
+	updated, err := st.UpdateProfile(u.ID, displayName)
 	if err != nil {
 		return nil, mapStoreErr(err)
 	}
@@ -1586,7 +1656,8 @@ func (a *App) UpdateProfile(displayName string) (*store.User, error) {
 
 // SetAvatar saves a profile photo from a browser data URI (data:image/...;base64,...).
 func (a *App) SetAvatar(dataURI string) (*store.User, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	a.mu.RLock()
@@ -1595,7 +1666,7 @@ func (a *App) SetAvatar(dataURI string) (*store.User, error) {
 	if u == nil {
 		return nil, store.ErrUnauthorized
 	}
-	updated, err := a.store.SetAvatarFromDataURI(u.ID, dataURI)
+	updated, err := st.SetAvatarFromDataURI(u.ID, dataURI)
 	if err != nil {
 		return nil, mapStoreErr(err)
 	}
@@ -1607,7 +1678,8 @@ func (a *App) SetAvatar(dataURI string) (*store.User, error) {
 
 // ClearAvatar removes the current user's profile photo.
 func (a *App) ClearAvatar() (*store.User, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
 	a.mu.RLock()
@@ -1616,7 +1688,7 @@ func (a *App) ClearAvatar() (*store.User, error) {
 	if u == nil {
 		return nil, store.ErrUnauthorized
 	}
-	updated, err := a.store.ClearAvatar(u.ID)
+	updated, err := st.ClearAvatar(u.ID)
 	if err != nil {
 		return nil, mapStoreErr(err)
 	}
@@ -1628,19 +1700,21 @@ func (a *App) ClearAvatar() (*store.User, error) {
 
 // GetPreferences returns preferences for the logged-in user (or local guest).
 func (a *App) GetPreferences() (*store.Preferences, error) {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return nil, err
 	}
-	return a.store.GetPreferences(a.effectiveUserID())
+	return st.GetPreferences(a.effectiveUserID())
 }
 
 // SavePreferences persists preferences for the logged-in user (or local guest).
 func (a *App) SavePreferences(prefs store.Preferences) error {
-	if err := a.requireStore(); err != nil {
+	st, err := a.requireStore()
+	if err != nil {
 		return err
 	}
 	prefs.UserID = a.effectiveUserID()
-	return a.store.SavePreferences(prefs)
+	return st.SavePreferences(prefs)
 }
 
 func mapStoreErr(err error) error {

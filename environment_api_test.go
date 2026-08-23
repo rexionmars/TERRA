@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"geosense-infer/backend"
+	"geosense-infer/internal/analysis"
 )
 
 // byLabel indexes the reported paths, since the screen identifies them by label
@@ -35,7 +35,7 @@ func TestResolvedPathsReportsMissingPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runner, err := backend.NewRunner(appDir, "")
+	runner, err := analysis.NewRunner(appDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestResolvedPathsNamesTheDecidingVariable(t *testing.T) {
 	elsewhere := t.TempDir()
 	t.Setenv("TERRA_MODEL_DIR", elsewhere)
 
-	runner, err := backend.NewRunner(appDir, "")
+	runner, err := analysis.NewRunner(appDir, "")
 	if err != nil {
 		t.Fatal(err)
 	}

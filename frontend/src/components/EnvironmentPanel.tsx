@@ -28,7 +28,7 @@ import {
   ManageOptionalPackage,
   UseInterpreter,
 } from "../../wailsjs/go/main/App"
-import type { backend, main } from "../../wailsjs/go/models"
+import type { main, pyenv } from "../../wailsjs/go/models"
 import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 
@@ -68,7 +68,7 @@ export function EnvironmentPanel() {
   const [problem, setProblem] = useState<string | null>(null)
   const [log, setLog] = useState<SetupEvent[]>([])
   const [building, setBuilding] = useState(false)
-  const [optional, setOptional] = useState<backend.OptionalPackage[]>([])
+  const [optional, setOptional] = useState<pyenv.OptionalPackage[]>([])
   const logRef = useRef<HTMLDivElement | null>(null)
 
   const refresh = useCallback(async () => {
@@ -453,7 +453,7 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
  * "pvlib is missing" means nothing to an agronomist. "the photovoltaic model"
  * is the thing they came for, and the sidecar states it, so it is what shows.
  */
-function PackageRow({ pkg }: { pkg: backend.EnvPackage }) {
+function PackageRow({ pkg }: { pkg: pyenv.EnvPackage }) {
   return (
     <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-body">
       <span
@@ -530,7 +530,7 @@ function CandidateRow({
   onBuild,
   onChoose,
 }: {
-  candidate: backend.PythonCandidate
+  candidate: pyenv.PythonCandidate
   active: boolean
   disabled: boolean
   busy: boolean

@@ -1,3 +1,17 @@
+/*
+Command terra classifies land cover over an area of interest from Sentinel-2
+time series, and reports where that classification is wrong.
+
+This package is the shell, not the work. It opens the window, embeds the built
+frontend, and exposes the methods the interface calls; the analysis happens in
+a Python sidecar spawned per run, and the results live in a local SQLite file.
+Both are reached through package backend.
+
+The shell is what makes the application local: there is no server to talk to,
+so every method here runs on the user's machine against the user's files, and
+the only network traffic is the sidecar reading imagery from the Planetary
+Computer catalogue and a geocoding lookup.
+*/
 package main
 
 import (

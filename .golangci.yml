@@ -1,0 +1,201 @@
+version: "2"
+
+run:
+  # The same tag the CI build passes. Ubuntu ships webkit2gtk 4.1 only, and
+  # without the tag the linter type-checks a different set of Wails files than
+  # the build compiles -- so a run could come back clean on code that does not
+  # build. On darwin the tag selects nothing and costs nothing.
+  build-tags:
+    - webkit2_41
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck, unused. The tree was already
+  # clean under all five before this file existed, so they are carried for what
+  # they stop from coming back rather than for anything they find today.
+  default: standard
+  enable:
+    # internal/geocode/geocode.go holds the only outbound HTTP call in the module, and
+    # its body is closed. That is the state worth pinning rather than a defect
+    # worth finding: a leaked body holds its connection out of the pool, which
+    # at one request per search shows up as nothing at all until something
+    # loops. bodyclose is what follows a response value across branches far
+    # enough to tell a closed one from a leaked one.
+    - bodyclose
+
+    # internal/analysis/runner.go derives runCtx from the application context so a
+    # cancelled run kills the interpreter. Substituting context.Background()
+    # there compiles, passes every test, and leaves a Python process alive
+    # after the window closes; this is the check that sees it.
+    - contextcheck
+
+    # The companion failure: not a wrong context but no context at all. The
+    # geocoding request reaches the network through NewRequestWithContext for
+    # this reason, and a plain http.Get would hang the caller with nothing to
+    # cancel it.
+    - noctx
+
+    # Both guard the store package specifically. A *sql.Rows left unclosed
+    # holds its connection until the pool starves, and iteration that ends
+    # without consulting rows.Err() reports a truncated result set as a
+    # complete one -- silently, which is what makes it worth a linter.
+    - rowserrcheck
+    - sqlclosecheck
+
+    # errors.Is over ==, because the sidecar teardown distinguishes its own
+    # closed pipe from a real read failure through a wrapped os.ErrClosed. An
+    # equality comparison there would classify the ordinary shutdown as an
+    # error and quote it back to the user as one.
+    - errorlint
+
+    # An unchecked assertion panics, and a panic in a Wails handler takes the
+    # window with it. Nothing in non-test code asserts unchecked today.
+    - forcetypeassert
+
+    # This module compiles different files per platform -- darwin_link.go,
+    # focus_darwin.go, focus_stub.go -- and a //go:build line with a typo is
+    # not an error, it is a file that quietly stops being compiled anywhere.
+    - gocheckcompilerdirectives
+
+    # Two arithmetic mistakes that type-check: a Duration multiplied by a
+    # Duration, and an append to a make([]T, n) that leaves n zero values in
+    # front of the data.
+    - durationcheck
+    - makezero
+
+    # Returning the error variable that was not the one just checked. Cheap,
+    # and the store and sidecar paths carry several errors in scope at once.
+    - nilnesserr
+
+    # The comments in this repository are long-form prose that explains why
+    # code is shaped the way it is. They are read; a typo in one is worth the
+    # same fix as a typo in a string.
+    - misspell
+
+    # t.TempDir and t.Setenv over the manual equivalents, so a test that fails
+    # midway still cleans up after itself.
+    - usetesting
+
+  settings:
+    errcheck:
+      # Types that cannot report a lost write, so a discarded Close from them
+      # carries no information. This list is deliberately by type rather than
+      # by name: *os.File appears on both sides of the read/write divide, and
+      # excluding it wholesale would retire the check that this config exists
+      # to keep. For the same reason the std-error-handling exclusion preset
+      # is not used -- its EXC0001 excludes every identifier ending in Close.
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Stmt).Close
+        - (*archive/zip.ReadCloser).Close
+        - (io.ReadCloser).Close
+        # Best-effort cleanup of a temporary directory or snapshot file. The
+        # caller has already produced its result and has nowhere to report a
+        # failed unlink to.
+        - os.Remove
+        - os.RemoveAll
+
+    errorlint:
+      # The three type assertions in this tree are all `err.(*exec.ExitError)`
+      # applied to the value cmd.Output() just returned, which os/exec does not
+      # wrap -- internal/pyenv/environment.go:98, internal/pyenv/envsetup.go:235,
+      # internal/analysis/runner.go:211. The errorf and comparison checks, which are the
+      # ones with a defect behind them here, stay on.
+      asserts: false
+
+    staticcheck:
+      # The golangci-lint default, minus one. Note this is a superset of the
+      # checks the staticcheck binary runs on its own: it adds the QF
+      # (quickfix) family, which is where the single exclusion comes from.
+      checks:
+        - all
+        - -ST1003
+        - -ST1016
+        - -ST1022
+        # "could expand call to math.Pow". The one site is a Gaussian in
+        # internal/analysis/canopyaoi_test.go:19, written as exp(-(t-mu)^2 / 2sigma^2)
+        # because that is the form it is read against. Expanding the squares
+        # into products would obscure the formula to save an intrinsic.
+        - -QF1005
+
+  exclusions:
+    # An exclusion that no longer matches anything is reported. Every rule
+    # below stands for a defect somebody is expected to fix, and without this
+    # the rule would outlive the defect and quietly keep a check switched off
+    # in a file that no longer needs it. It reports as a warning and does not
+    # change the exit code, so fixing one of those defects leaves a line in the
+    # CI log naming the rule to delete rather than a red build.
+    warn-unused: true
+
+    rules:
+      # --- errcheck: the two shapes the type list above cannot separate ---
+
+      # The two read handles that errcheck cannot rule out by type, in
+      # app.go:1217 and internal/research/export_research.go:1039. Both come from
+      # os.Open, nothing is written through them, so Close can only report a
+      # failure that has already surfaced and been returned. Spelled as the one
+      # identifier that occurs rather than a set of plausible names: an
+      # alternative matching nothing is an allowance nobody checked.
+      - linters: [errcheck]
+        source: '^\s*defer in\.Close\(\)$'
+
+      # The io.Copy failure branch in app.go:1223 and
+      # internal/store/restore.go:325. The copy error is what the function
+      # returns; Close is called only to release the descriptor before the
+      # partial file is abandoned. Deliberately written without `defer`, and
+      # this pattern requires that -- a regression to `defer out.Close()` does
+      # not match here and is reported, which is the whole point, since the
+      # checked Close on the success path is a correction to exactly that.
+      - linters: [errcheck]
+        source: '^\s*out\.Close\(\)$'
+
+      # --- findings in files this config may not edit ---
+
+      # The store reaches the database through Query/Exec/Begin rather than
+      # their Context variants, at twenty sites across internal/store. Passing a
+      # context through that package is a change of its own; until someone
+      # makes it, noctx is kept for the HTTP and os/exec calls it was enabled
+      # for, where the context argument already exists.
+      - linters: [noctx]
+        text: database/sql
+
+      # focus_darwin.go:19. A fire-and-forget osascript whose result is
+      # discarded on purpose -- it raises the window and there is nothing to
+      # wait for. exec.CommandContext would need a context this function does
+      # not take.
+      - linters: [noctx]
+        path: focus_darwin\.go
+
+      # --- relaxed for tests, and why ---
+
+      # A failed assertion in a test panics, and a panicking test is a failing
+      # test that names its own line. The reason to check assertions in
+      # non-test code -- an unhandled panic reaching the user -- has no
+      # equivalent here.
+      - linters: [forcetypeassert]
+        path: _test\.go
+
+      # `go test` puts a deadline on the whole binary, which is the timeout
+      # these calls would otherwise be given individually: two capability
+      # probes that run an interpreter to see whether a package imports
+      # (internal/analysis/canopyfield_test.go:27, internal/analysis/domainshift_test.go:161) and
+      # a synthetic request that never leaves the process
+      # (meshhandler_test.go:33). None of the three has a caller that could
+      # cancel it.
+      - linters: [noctx]
+        path: _test\.go
+
+      # Test helpers close what they opened at the end of a function whose
+      # failure is already reported by t.Fatal; there is no caller left to
+      # return a Close error to.
+      - linters: [errcheck]
+        path: _test\.go
+        source: '\.Close\(\)$'
+
+      # govet's inline analyzer on reflect.Ptr, the pre-Go-1.18 spelling of
+      # reflect.Pointer, in app_run_roundtrip_test.go:312 and
+      # internal/analysis/canopy_aoi_decode_test.go:108. The alias is not deprecated and
+      # both files are test scaffolding; the analyzer stays on for everything
+      # else it inlines.
+      - linters: [govet]
+        text: Constant reflect.Ptr should be inlined

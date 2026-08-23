@@ -53,7 +53,7 @@ jobs:
         working-directory: frontend
         run: npm test
 
-      # Compares the JSON field names in backend/types.go against the
+      # Compares the JSON field names in internal/analysis/types*.go against the
       # interfaces src/lib/types.ts mirrors by hand. Nothing compared them
       # before, so a field renamed in Go type-checked clean on this side.
       - name: Check the Go/TypeScript type contract
@@ -66,6 +66,11 @@ jobs:
         working-directory: frontend
         run: npm run check:contrast
 
+      # Every Go step below this line needs the frontend built first: main.go
+      # carries //go:embed all:frontend/dist, and dist/ is generated, not
+      # committed. On a clean checkout each of them fails with "pattern
+      # all:frontend/dist: no matching files found", which names the embed and
+      # not the missing step.
       - name: Type-check and build frontend
         working-directory: frontend
         run: npm run build
@@ -73,12 +78,25 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
-      # ./... rather than ./backend/...: the tests in package main --
+      # The check set is chosen in .golangci.yml, where each entry names the
+      # defect it stops from coming back rather than being enabled because it
+      # exists. The linter type-checks the Wails bindings, so it needs the GTK
+      # headers installed above as well as the frontend built.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.1
+
+      # ./... and not a subdirectory pattern. This step ran ./backend/... for a
+      # long time, which never matched package main, so the tests in
       # app_run_roundtrip_test.go, environment_api_test.go and
-      # meshhandler_test.go -- were written, passed locally, and never ran
-      # here, because the narrower pattern excluded the package they live in.
+      # meshhandler_test.go were written, passed locally, and gated nothing.
+      #
+      # Under -race because the value of the detector is bounded by what a test
+      # actually runs concurrently, and the concurrency tests that make it
+      # worth anything were added with this step.
       - name: Go test
-        run: go test ./...
+        run: go test -race ./...
 
       # Ubuntu 24.04 ships webkit2gtk 4.1 only; target it via the build tag.
       - name: Go build
