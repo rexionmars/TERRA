@@ -7,6 +7,18 @@ export type WhatsNewEntry = {
 /** Newest first. Keep in sync with AppVersion / Git tags when cutting a release. */
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: "0.4.0",
+    title: "Amazon — the energy result in a column of its own",
+    items: [
+      "Energy results are read in a column rather than along the map's foot, with the figures worth quoting at the head of it",
+      "An analysis that stalls now stops and says so, instead of waiting without end on a subprocess that will not answer",
+      "A panel that fails leaves the rest of the board readable, where before it took the window with it",
+      "Work files no longer accumulate without bound: promoted rasters and abandoned work directories are swept once they are old enough that nothing can still be reading them",
+      "An export that cannot be finished reports the failure, rather than handing back the path of a file that was truncated on the way out",
+      "Analyses now run in the same import environment the Settings screen inspects. On a machine whose packages live only in the per-user site directory, a run will refuse where it previously imported -- which is what that screen was already reporting, and was the one place the two disagreed",
+    ],
+  },
+  {
     version: "0.3.0",
     title: "Ember — the studio, the crop in three dimensions, and energy",
     items: [
