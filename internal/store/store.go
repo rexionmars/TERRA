@@ -103,6 +103,13 @@ const (
 	// factor is gross and unvalidated, and the solar readers would label it as
 	// though it were neither.
 	RunKindWind = "wind"
+	// A HAND flood envelope: the extent per DEM product and the agreement
+	// count raster that says where the products disagree. Its own kind for the
+	// same reason wind has one -- it comes from DEM products rather than from a
+	// reanalysis or a scene stack, it carries a raster the other descriptive
+	// kinds do not, and a run filed under any of them would be listed and
+	// reopened as that product.
+	RunKindFlood = "flood"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"geosense-infer/internal/analysis"
@@ -540,5 +541,269 @@ func TestLoadAnalysisStampsTheRunItReturns(t *testing.T) {
 	}
 	if out.RunID != runID {
 		t.Fatalf("LoadAnalysis returned run_id %q, want %q", out.RunID, runID)
+	}
+}
+
+/*
+loadRecordedPayload reads a recorded sidecar payload from
+internal/research/testdata and unmarshals the block under the given key.
+
+Separate from loadFixture above, which reads backend/testdata -- a directory
+this repository no longer has, the package having been renamed to internal --
+and skips when the file is missing. A skip on a fixture that is present is a
+test that reports success without running, and a skip on one that is absent is
+a round trip nobody checked; both are failures here. loadFixture is corrected on
+another branch, so it is left alone rather than edited into a conflict.
+*/
+func loadRecordedPayload(t *testing.T, name, key string, dst any) {
+	t.Helper()
+	path := filepath.Join("internal", "research", "testdata", name)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var wrapped map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wrapped); err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	block, ok := wrapped[key]
+	if !ok {
+		t.Fatalf("%s carries no %q key", path, key)
+	}
+	if err := json.Unmarshal(block, dst); err != nil {
+		t.Fatalf("unmarshal %s from %s: %v", key, path, err)
+	}
+}
+
+// onePixelPNG is the smallest file that exercises the asset path: written from
+// a data URI on save and read back into one on load. Its content is never
+// examined, only its survival.
+const onePixelPNG = "data:image/png;base64," +
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+// TestFloodRunRoundTrip checks that a flood envelope run is saved under its own
+// kind, restored through the flood field, and keeps its rasters.
+//
+// Three defects are covered, each of which is silent. A run filed under another
+// kind lists and reopens as that product. A run with no restore branch lists
+// correctly, reopens as an empty card and reports nothing. A run whose stored
+// raster paths still name the sidecar's temporary work directory reopens
+// pointing at files the system has since removed.
+func TestFloodRunRoundTrip(t *testing.T) {
+	a := newTestApp(t)
+
+	var res analysis.FloodAnalysis
+	loadRecordedPayload(t, "flood_b.json", "flood", &res)
+	res.NormalizeNilSlices()
+	assertFloodFixtureBinds(t, &res)
+
+	// The recorded paths point into a work directory that never existed on this
+	// machine. Replaced by a real file, so the copy into the run's assets is
+	// exercised rather than skipped.
+	tifSrc := filepath.Join(t.TempDir(), "flood_agreement.tif")
+	if err := os.WriteFile(tifSrc, []byte("not a real geotiff, but a real file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res.AgreementTIF = tifSrc
+	res.AgreementPNG = ""
+	res.AgreementURI = onePixelPNG
+
+	a.persistFloodRun(analysis.FloodRequest{
+		AreaID: "B", Label: "Propriedade B",
+	}, &res)
+
+	runID := latestRunID(t, a)
+	runs, _ := a.store.ListRuns(store.LocalUserID, 10)
+	if runs[0].Kind != store.RunKindFlood {
+		t.Fatalf("kind = %q, want %q", runs[0].Kind, store.RunKindFlood)
+	}
+	if runs[0].NDates != 0 {
+		t.Fatalf("n_dates = %d, want 0: HAND has no observation dates to count", runs[0].NDates)
+	}
+
+	var summary struct {
+		Qualifier   string   `json:"qualifier"`
+		RefM        float64  `json:"flood_reference_threshold_m"`
+		Contested   float64  `json:"flood_contested_km2"`
+		Unanimous   float64  `json:"flood_unanimous_wet_km2"`
+		Frac        *float64 `json:"flood_contested_frac_of_wet"`
+		NProducts   int      `json:"flood_n_products"`
+		ProductIDs  []string `json:"flood_products"`
+		IoUMinAtRef *float64 `json:"flood_iou_min"`
+		IoUMaxAtRef *float64 `json:"flood_iou_max"`
+	}
+	if err := json.Unmarshal([]byte(runs[0].SummaryJSON), &summary); err != nil {
+		t.Fatal(err)
+	}
+	if summary.Qualifier == "" {
+		t.Fatal("the run row carries a contested area with no qualifier beside it")
+	}
+	if summary.RefM != res.ReferenceThresholdM || summary.Contested != res.Agreement.ContestedKm2 ||
+		summary.Unanimous != res.Agreement.UnanimousWetKm2 {
+		t.Fatalf("the agreement figures did not reach the summary: %+v", summary)
+	}
+	if summary.Frac == nil || *summary.Frac != *res.Agreement.ContestedFracOfWet {
+		t.Fatalf("contested share did not reach the summary: %v", summary.Frac)
+	}
+	if summary.NProducts != len(res.Products) || len(summary.ProductIDs) != len(res.Products) {
+		t.Fatalf("the product set did not reach the summary: %+v", summary.ProductIDs)
+	}
+	// The envelope at the reference threshold is the range the map is read
+	// against; listed without it the contested area has no scale.
+	if summary.IoUMinAtRef == nil || summary.IoUMaxAtRef == nil {
+		t.Fatal("the summary carries no pairwise range at the reference threshold")
+	}
+	if *summary.IoUMinAtRef != *res.Envelope[0].IoUMin || *summary.IoUMaxAtRef != *res.Envelope[0].IoUMax {
+		t.Fatalf("summary range = %v..%v, want %v..%v",
+			*summary.IoUMinAtRef, *summary.IoUMaxAtRef,
+			*res.Envelope[0].IoUMin, *res.Envelope[0].IoUMax)
+	}
+
+	// Nothing of the base64 reaches the database: the run row would otherwise
+	// carry a second copy of every raster this product renders.
+	stored, err := a.store.GetRun(store.LocalUserID, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stored.ResultJSON, "data:image/png") {
+		t.Fatal("the stored result still carries the agreement raster as a data URI")
+	}
+
+	out, err := a.LoadAnalysis(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Flood == nil {
+		t.Fatal("LoadAnalysis returned no flood block")
+	}
+	if out.Solar != nil || out.EnergyModel != nil || out.Wind != nil || out.Water != nil {
+		t.Fatal("a flood run was restored as another product, which is the defect this test exists for")
+	}
+	if out.RunID != runID {
+		t.Fatalf("the restored run cannot say which run it is: run_id = %q", out.RunID)
+	}
+	got := out.Flood
+
+	if got.ReferenceThresholdM != res.ReferenceThresholdM ||
+		got.DrainageKm2 != res.DrainageKm2 || got.BufferM != res.BufferM ||
+		got.EdgeMarginCells != res.EdgeMarginCells {
+		t.Fatalf("the parameters the extent rests on were not restored: %+v", got)
+	}
+	if got.Grid != res.Grid || got.CellSizeM != res.CellSizeM {
+		t.Fatalf("the measured window was not restored: %+v", got.Grid)
+	}
+	if len(got.Products) != len(res.Products) || len(got.Pairs) != len(res.Pairs) ||
+		len(got.Envelope) != len(res.Envelope) {
+		t.Fatalf("products %d, pairs %d, envelope %d restored",
+			len(got.Products), len(got.Pairs), len(got.Envelope))
+	}
+	if got.Agreement.ContestedKm2 != res.Agreement.ContestedKm2 ||
+		len(got.Agreement.Counts) != len(res.Agreement.Counts) {
+		t.Fatalf("the agreement histogram was not restored: %+v", got.Agreement)
+	}
+	if got.Qualifier != res.Qualifier || got.Assumptions.ChainGrid == "" ||
+		len(got.Assumptions.Excluded) != len(res.Assumptions.Excluded) {
+		t.Fatal("the qualifier or the assumptions did not survive the round trip")
+	}
+	// The pointers stay pointers: a null read as 0.0 states a measurement that
+	// was never made.
+	if got.Pairs[0].IoU == nil || *got.Pairs[0].IoU != *res.Pairs[0].IoU {
+		t.Fatalf("pairwise index not restored: %v", got.Pairs[0])
+	}
+
+	// Both rasters point at files that exist, in the run's own directory and
+	// not in the sidecar's temporary one.
+	if got.AgreementURI == "" {
+		t.Fatal("the agreement rendering was not restored")
+	}
+	if got.AgreementTIF == "" {
+		t.Fatal("the agreement GeoTIFF was not restored; it is what a reader takes into a GIS")
+	}
+	if _, err := os.Stat(got.AgreementTIF); err != nil {
+		t.Fatalf("restored agreement_tif does not resolve: %v", err)
+	}
+	if got.AgreementPNG == "" {
+		t.Fatal("the agreement PNG path was not restored")
+	}
+	if _, err := os.Stat(got.AgreementPNG); err != nil {
+		t.Fatalf("restored agreement_png does not resolve: %v", err)
+	}
+	assertNoNullSlices(t, got)
+}
+
+// assertFloodFixtureBinds pins the recorded payload to the figures of the run
+// it came from, for the reason given on assertEnergyFixtureBinds: without it
+// every field would be zero on both sides of the round trip and every equality
+// would hold.
+//
+// These are the figures of the recorded flood envelope over Propriedade B: four
+// Planetary Computer DEM products at the 1 m reference threshold, on a 216 by
+// 203 window read 2000 m beyond the AOI.
+func assertFloodFixtureBinds(t *testing.T, f *analysis.FloodAnalysis) {
+	t.Helper()
+	if f.ReferenceThresholdM != 1.0 || f.DrainageKm2 != 0.5 || f.BufferM != 2000.0 {
+		t.Fatalf("parameters did not bind: %v m, %v km2, %v m",
+			f.ReferenceThresholdM, f.DrainageKm2, f.BufferM)
+	}
+	if f.Grid.Width != 216 || f.Grid.Height != 203 || f.EdgeMarginCells != 36 {
+		t.Fatalf("window did not bind: %dx%d, margin %d",
+			f.Grid.Width, f.Grid.Height, f.EdgeMarginCells)
+	}
+	if !withinTolerance(f.CellSizeM.X, 27.8539, 1e-4) || !withinTolerance(f.CellSizeM.Y, 30.7056, 1e-4) {
+		t.Fatalf("cell size did not bind: %v by %v", f.CellSizeM.X, f.CellSizeM.Y)
+	}
+	if len(f.Products) != 4 || len(f.Pairs) != 30 || len(f.Envelope) != 5 {
+		t.Fatalf("products %d (want 4), pairs %d (want 30), envelope rows %d (want 5)",
+			len(f.Products), len(f.Pairs), len(f.Envelope))
+	}
+	// Five levels for four products: a cell can be called flooded by none of
+	// them, which is a level and not a missing row.
+	if len(f.Agreement.Counts) != 5 {
+		t.Fatalf("agreement histogram has %d levels, want 5", len(f.Agreement.Counts))
+	}
+	if !withinTolerance(f.Agreement.UnanimousWetKm2, 0.4832, 1e-4) ||
+		!withinTolerance(f.Agreement.ContestedKm2, 3.699, 1e-3) {
+		t.Fatalf("agreement areas did not bind: %v wet, %v contested",
+			f.Agreement.UnanimousWetKm2, f.Agreement.ContestedKm2)
+	}
+	// A pointer because no product calling anything wet leaves the share
+	// undefined. Here 88 percent of the wet cells are contested, and a null
+	// decoded into a bare float64 would print that as agreement.
+	if f.Agreement.ContestedFracOfWet == nil {
+		t.Fatal("contested_frac_of_wet is nil: this window contests 0.8845 of its wet cells")
+	}
+	if !withinTolerance(*f.Agreement.ContestedFracOfWet, 0.8845, 1e-4) {
+		t.Fatalf("contested_frac_of_wet = %v, want 0.8845", *f.Agreement.ContestedFracOfWet)
+	}
+	// The reference threshold is where the products disagree most, which is
+	// where the envelope is drawn.
+	if f.Envelope[0].ThresholdM != 1.0 || f.Envelope[0].IoUMin == nil || f.Envelope[0].IoUMax == nil {
+		t.Fatalf("the reference envelope row did not bind: %+v", f.Envelope[0])
+	}
+	if !withinTolerance(*f.Envelope[0].IoUMin, 0.2685, 1e-4) ||
+		!withinTolerance(*f.Envelope[0].IoUMax, 0.3948, 1e-4) {
+		t.Fatalf("envelope at 1 m = %v..%v, want 0.2685..0.3948",
+			*f.Envelope[0].IoUMin, *f.Envelope[0].IoUMax)
+	}
+	// The 90 m product is resampled onto the shared grid and the pointer must
+	// say so: decoded into a bare bool a null reads as a comparison of terrain
+	// alone, which a resampled row is not.
+	var cop90 *analysis.FloodProduct
+	for i := range f.Products {
+		if f.Products[i].ID == "cop90" {
+			cop90 = &f.Products[i]
+		}
+	}
+	if cop90 == nil {
+		t.Fatal("the fixture no longer carries the 90 m product")
+	}
+	if cop90.Resampled == nil || !*cop90.Resampled {
+		t.Fatal("cop90.resampled did not bind: the 90 m product runs on the shared 30 m grid")
+	}
+	if cop90.NativeResolutionM == nil || *cop90.NativeResolutionM != 90.0 {
+		t.Fatalf("cop90.native_resolution_m did not bind: %v", cop90.NativeResolutionM)
+	}
+	if f.Qualifier == "" || f.Assumptions.ChainGrid == "" || len(f.Assumptions.Excluded) == 0 {
+		t.Fatal("the qualifier or the assumptions did not bind")
 	}
 }

@@ -168,6 +168,8 @@ func kindLabel(kind string) string {
 		return "Solar"
 	case RunKindWind:
 		return "Wind"
+	case RunKindFlood:
+		return "Flood envelope"
 	default:
 		return kind
 	}

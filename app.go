@@ -953,6 +953,154 @@ func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysi
 	})
 }
 
+/*
+AnalyzeFlood measures the HAND flood extent over the AOI and how much of that
+extent the choice of DEM product decides rather than the terrain.
+
+There is no call that returns one mask. What comes back is the agreement count
+raster -- per cell, how many products call it flooded at the reference
+threshold -- with the pairwise envelope around it, because an extent shipped
+alone is a shape produced by a DEM the user never chose and is never shown.
+*/
+func (a *App) AnalyzeFlood(req analysis.FloodRequest) (*analysis.FloodAnalysis, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	res, err := runner.AnalyzeFlood(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.persistFloodRun(req, res)
+	return res, nil
+}
+
+// persistFloodRun saves a flood envelope run under its own kind, with its two
+// rasters copied out of the sidecar's work directory.
+//
+// The copy is the point. AnalyzeFlood deliberately leaves the work directory in
+// place because the returned paths point into it, but that directory is under
+// the system temporary root and is removed on a schedule nobody here controls.
+// A run whose stored paths still named it would list, reopen, and hand the
+// reader a GeoTIFF path that resolves to nothing -- and the GeoTIFF is the
+// product, not an illustration of it.
+func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnalysis) {
+	if res == nil {
+		return
+	}
+	label := aoiLabel(req.Label)
+	// The envelope row at the reference threshold: the narrowest and widest
+	// pairwise agreement where the agreement raster was built. Absent when the
+	// reference threshold produced no defined pair, in which case the summary
+	// carries no range rather than a zero one.
+	var refRow *analysis.FloodEnvelopeRow
+	for i := range res.Envelope {
+		if res.Envelope[i].ThresholdM == res.ReferenceThresholdM {
+			refRow = &res.Envelope[i]
+			break
+		}
+	}
+	summary := map[string]any{
+		"flood_reference_threshold_m": res.ReferenceThresholdM,
+		"flood_drainage_km2":          res.DrainageKm2,
+		"flood_n_products":            len(res.Products),
+		"flood_products":              floodProductIDs(res.Products),
+		"flood_unanimous_wet_km2":     res.Agreement.UnanimousWetKm2,
+		"flood_contested_km2":         res.Agreement.ContestedKm2,
+		// Null when no product calls anything wet. Zero would read as four
+		// products agreeing on an extent, which is the opposite of the fact.
+		"flood_contested_frac_of_wet": res.Agreement.ContestedFracOfWet,
+		/*
+			The qualifier is a listed field and not a detail of the open card.
+
+			Every figure above is a measurement over TERRA's own DEM set and
+			none of them is a flood depth, an extent or a probability. A row
+			printing a contested area with nothing beside it is exactly the
+			reading the qualifier exists to prevent, and the run list is where
+			these figures are read most often and explained least.
+		*/
+		"qualifier": res.Qualifier,
+		"aoi_label": label,
+	}
+	if refRow != nil {
+		summary["flood_iou_min"] = refRow.IoUMin
+		summary["flood_iou_max"] = refRow.IoUMax
+	}
+	// The thumbnail is claimed only when there is a rendering to write. Named
+	// unconditionally, the row would carry an overlay path into a file the
+	// result closure never produced, which is the shape saveRun refuses to
+	// write a row for elsewhere.
+	overlay := ""
+	if res.AgreementURI != "" || res.AgreementPNG != "" {
+		overlay = floodAgreementPNG
+	}
+	a.saveRun(savedRun{
+		kind: store.RunKindFlood,
+		// No model produced this; the terrain index and the catalogue the DEMs
+		// were read from are the method.
+		modelKind: "HAND over Planetary Computer DEM",
+		areaID:    req.AreaID,
+		polygon:   req.PolygonGeoJSON,
+		aoiLabel:  label,
+		runLabel:  req.RunLabel,
+		projectID: req.ProjectID,
+		aoiID:     req.AoiID,
+		// Zero, and not unfilled: HAND is a static terrain index with no
+		// observation dates to count. See FloodAnalysis.NDates.
+		nDates:  res.NDates(),
+		summary: summary,
+		result: func(assetsDir, assetsRel string) any {
+			stored := *res
+			// The rendering, written from the data URI when there is one and
+			// from the sidecar's path when the URI could not be read.
+			pngSrc := res.AgreementURI
+			if pngSrc == "" {
+				pngSrc = res.AgreementPNG
+			}
+			stored.AgreementPNG = ""
+			if err := store.WriteDataURIFile(
+				pngSrc, filepath.Join(assetsDir, floodAgreementPNG),
+			); err == nil && pngSrc != "" {
+				stored.AgreementPNG = filepath.Join(assetsRel, floodAgreementPNG)
+			}
+			stored.AgreementTIF = ""
+			if strings.TrimSpace(res.AgreementTIF) != "" {
+				if err := store.WriteDataURIFile(
+					res.AgreementTIF, filepath.Join(assetsDir, floodAgreementTIF),
+				); err == nil {
+					stored.AgreementTIF = filepath.Join(assetsRel, floodAgreementTIF)
+				}
+			}
+			// The base64 stays out of the database; LoadAnalysis reads it back
+			// from the file written above.
+			stored.AgreementURI = ""
+			return stored
+		},
+		// The run list paints its thumbnail from the agreement raster, which is
+		// the one image this product has.
+		overlayFile: overlay,
+	})
+}
+
+// The two files a flood run keeps in its assets directory. Named in one place
+// because the persist path writes them and LoadAnalysis reads them, and a run
+// whose writer and reader disagree on a file name reopens without its raster.
+const (
+	floodAgreementPNG = "flood_agreement.png"
+	floodAgreementTIF = "flood_agreement.tif"
+)
+
+// floodProductIDs lists which DEM products the envelope was measured over, for
+// the run row. The envelope is a property of the set, so a range listed without
+// the set it spans is not attributable to anything.
+func floodProductIDs(products []analysis.FloodProduct) []string {
+	ids := make([]string, 0, len(products))
+	for _, p := range products {
+		ids = append(ids, p.ID)
+	}
+	return ids
+}
+
 // ExportClassification copies the classification GeoTIFF to a user-chosen path.
 func (a *App) ExportClassification(rasterPath string) (string, error) {
 	return a.ExportOverlayFile(rasterPath, "terra_classification.tif")
@@ -1482,6 +1630,41 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		}
 		wind.NormalizeNilSlices()
 		return &analysis.PredictResult{Wind: &wind}, nil
+	}
+
+	/*
+		A flood run stores a FloodAnalysis and two rasters.
+
+		Without this branch the run falls through to the classification path,
+		which decodes the flood payload into a PredictResult where nothing binds
+		and returns it: the run lists correctly, reopens as an empty card, and
+		reports nothing, with no error raised anywhere. That is the defect the
+		wind and energy branches above were each written for.
+
+		Both raster paths are rewritten to where the files actually are. What
+		was stored is relative to the data directory, and the sidecar's own
+		paths -- into a temporary work directory -- are long gone by the time a
+		run is reopened. A path that resolves to nothing is worse than none: the
+		export would offer a GeoTIFF that cannot be produced.
+	*/
+	if run.Kind == store.RunKindFlood {
+		var flood analysis.FloodAnalysis
+		if run.ResultJSON != "" && run.ResultJSON != "{}" {
+			_ = json.Unmarshal([]byte(run.ResultJSON), &flood)
+		}
+		flood.NormalizeNilSlices()
+		png := filepath.Join(assetsDir, floodAgreementPNG)
+		flood.AgreementPNG = ""
+		if uri, err := store.ReadFileDataURI(png, "image/png"); err == nil {
+			flood.AgreementURI = uri
+			flood.AgreementPNG = png
+		}
+		flood.AgreementTIF = ""
+		tif := filepath.Join(assetsDir, floodAgreementTIF)
+		if _, err := os.Stat(tif); err == nil {
+			flood.AgreementTIF = tif
+		}
+		return &analysis.PredictResult{Flood: &flood, RunID: run.ID}, nil
 	}
 
 	if run.Kind == store.RunKindWater {
