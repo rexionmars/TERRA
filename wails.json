@@ -9,5 +9,11 @@
   "author": {
     "name": "rexionmars",
     "email": "opensource.leonardi@gmail.com"
+  },
+  "info": {
+    "productName": "TERRA",
+    "productVersion": "0.4.0",
+    "copyright": "TERRA contributors",
+    "comments": "Desktop land-cover classification from Sentinel-2 time series"
   }
 }

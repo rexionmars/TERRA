@@ -66,6 +66,15 @@ jobs:
         working-directory: frontend
         run: npm run check:contrast
 
+      # version.go against wails.json, CITATION.cff and the newest What's New
+      # entry. wails.json carried no info block at all, so every packaged
+      # bundle reported CFBundleShortVersionString 1.0.0 on a v0.4.0 release --
+      # to the Finder, the About panel and any crash report -- and nothing
+      # failed, because nothing looked.
+      - name: Check the version is the same everywhere
+        working-directory: frontend
+        run: npm run check:version
+
       # Every Go step below this line needs the frontend built first: main.go
       # carries //go:embed all:frontend/dist, and dist/ is generated, not
       # committed. On a clean checkout each of them fails with "pattern
