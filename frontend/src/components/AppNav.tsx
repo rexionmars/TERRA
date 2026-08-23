@@ -130,7 +130,11 @@ export function AppNav({
       instead of reflowing into a narrower column on the way.
     */
     <motion.aside
-      className="app-no-drag shrink-0 overflow-hidden border-r border-border/60 bg-ink"
+      // One step up the surface scale from the title bar, which is bg-ink at 40
+      // percent over the map. Both read as the same tone where the map is dark,
+      // and the two are different surfaces: the title bar floats over the
+      // content, the sidebar sits beside it.
+      className="app-no-drag shrink-0 overflow-hidden border-r border-border/60 bg-surface"
       initial={{ width: 0 }}
       animate={{ width: "13.5rem" }}
       exit={{ width: 0 }}

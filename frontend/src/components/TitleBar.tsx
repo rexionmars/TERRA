@@ -137,7 +137,9 @@ export function TitleBar({
 
   return (
     <header className={cn(
-        "app-draggable relative flex h-11 shrink-0 items-center justify-between bg-ink/40 pr-2 backdrop-blur-md",
+        // border-border/60 matches the sidebar's right edge, which this line
+        // meets at the top-left corner.
+        "app-draggable relative flex h-11 shrink-0 items-center justify-between border-b border-border/60 bg-ink/40 pr-2 backdrop-blur-md",
         // The window's traffic lights own the first 4.5rem in both states.
         "pl-[4.5rem]"
       )}>
