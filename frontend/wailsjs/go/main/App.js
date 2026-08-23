@@ -14,6 +14,10 @@ export function AnalyzeEnergyModel(arg1) {
   return window['go']['main']['App']['AnalyzeEnergyModel'](arg1);
 }
 
+export function AnalyzeFlood(arg1) {
+  return window['go']['main']['App']['AnalyzeFlood'](arg1);
+}
+
 export function AnalyzeLULC(arg1) {
   return window['go']['main']['App']['AnalyzeLULC'](arg1);
 }

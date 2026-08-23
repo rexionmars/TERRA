@@ -29,6 +29,7 @@ import {
   AnalyzeSolarSiting,
   AnalyzeEnergyModel,
   AnalyzeWind,
+  AnalyzeFlood,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -66,6 +67,8 @@ import type {
   EnergyModelRequest,
   WindAnalysis,
   WindRequest,
+  FloodAnalysis,
+  FloodRequest,
 } from "@/lib/types"
 import {
   layoutModeFromPrefs,
@@ -115,6 +118,17 @@ import { type EnergyTab } from "@/pages/EnergyScreen"
 const EnergyScreen = lazy(() =>
   import("@/pages/EnergyScreen").then((m) => ({ default: m.EnergyScreen }))
 )
+/* Same argument: the flood screen is not reachable from the map, and it pulls
+   the reading, its legend and the setup panel with it. */
+const FloodScreen = lazy(() =>
+  import("@/pages/FloodScreen").then((m) => ({ default: m.FloodScreen }))
+)
+import {
+  FLOOD_DEFAULT_PARAMS,
+  floodRequestBlocker,
+  type FloodParams,
+} from "@/components/flood/floodSetup"
+import { qualifierHead } from "@/components/flood/floodFormat"
 import { useSolarState, useWindState } from "@/lib/energyState"
 import type {
   SolarLayers,
@@ -606,8 +620,21 @@ function AppBody(props: {
   onClearArea: () => void
   onImportPolygon: () => void
 }) {
-  const { user, refreshRuns, refreshProjects, screen, goAnalysis, goMap, goEnergy, goProfile, runs, projects, prefs, savePrefs } =
-    useAuth()
+  const {
+    user,
+    refreshRuns,
+    refreshProjects,
+    screen,
+    goAnalysis,
+    goMap,
+    goEnergy,
+    goFlood,
+    goProfile,
+    runs,
+    projects,
+    prefs,
+    savePrefs,
+  } = useAuth()
   const [loadingRun, setLoadingRun] = useState(false)
 
   /**
@@ -627,6 +654,30 @@ function AppBody(props: {
     times, and a boolean already true does nothing the second time.
   */
   const [openEnergyResultNonce, setOpenEnergyResultNonce] = useState(0)
+  /* The same, for a restored flood envelope. */
+  const [openFloodResultNonce, setOpenFloodResultNonce] = useState(0)
+
+  /*
+    The flood envelope: its parameters, its result and its run status.
+
+    Held here rather than in the screen because the screen unmounts on every
+    navigation away, and a product set chosen for a run is not a thing to
+    rebuild after looking at the map. Plain state rather than a reducer of its
+    own: unlike the energy axis this is one product with one result, so there
+    is no second consumer to keep in step.
+  */
+  const [floodParams, setFloodParams] = useState<FloodParams>(FLOOD_DEFAULT_PARAMS)
+  const [flood, setFlood] = useState<FloodAnalysis | null>(null)
+  const [floodRun, setFloodRun] = useState({
+    active: false,
+    progress: 0,
+    message: "",
+  })
+  const setFloodParamsPatch = useCallback(
+    (patch: Partial<FloodParams>) =>
+      setFloodParams((prev) => ({ ...prev, ...patch })),
+    []
+  )
 
   /*
     THE SURFACE THE SESSION OPENS ON, asked for once and not again.
@@ -873,6 +924,8 @@ function AppBody(props: {
       if (groupId === "energy") {
         if (itemId) setEnergyTab(itemId as EnergyTab)
         goEnergy()
+      } else if (groupId === "flood") {
+        goFlood()
       } else if (groupId === "analysis") {
         goAnalysis()
       } else {
@@ -880,7 +933,7 @@ function AppBody(props: {
         goMap()
       }
     },
-    [goEnergy, goAnalysis, goMap]
+    [goEnergy, goFlood, goAnalysis, goMap]
   )
   /**
    * The last value this component wrote, so its own save does not echo back.
@@ -1606,6 +1659,23 @@ function AppBody(props: {
     setShowWaterOverlay(true)
   }, [aoiSignature, water])
 
+  /** The AOI the flood envelope on screen was measured over. */
+  const floodAoiRef = useRef<string>("")
+
+  /*
+    The same for the flood envelope, and for the same reason as the water
+    raster: every area, every cell count and the agreement raster itself are
+    over one window, so once the AOI moves the reading describes ground that is
+    no longer on the map. Compared against the AOI the run was made on rather
+    than cleared at each call site, because the AOI changes from drawing, from
+    loading an example, from opening a project and from restoring a run.
+  */
+  useEffect(() => {
+    if (!flood) return
+    if (aoiSignature === floodAoiRef.current) return
+    setFlood(null)
+  }, [aoiSignature, flood])
+
   /**
    * The same for the four solar products. All four are read off one AOI -- the
    * resource and the energy model from its centroid, the terrain and siting
@@ -1636,7 +1706,7 @@ function AppBody(props: {
   }, [aoiSignature, wind.aoiSignature, windDispatch])
 
   /**
-   * One sidecar progress channel, three destinations.
+   * One sidecar progress channel, four destinations.
    *
    * The sidecar emits on a single event and runs one action at a time, so the
    * store with a run in flight decides which display receives it. Sharing one
@@ -1661,6 +1731,9 @@ function AppBody(props: {
   windRunRef.current = wind.run
   const solarSeenRef = useRef({ progress: 0, message: "" })
   const windSeenRef = useRef({ progress: 0, message: "" })
+  const floodRunRef = useRef(floodRun)
+  floodRunRef.current = floodRun
+  const floodSeenRef = useRef({ progress: 0, message: "" })
   const setProgressRef = useRef(props.setProgress)
   setProgressRef.current = props.setProgress
   const setProgressMsgRef = useRef(props.setProgressMsg)
@@ -1702,7 +1775,19 @@ function AppBody(props: {
         })
         return
       }
-      // No energy run in flight, so this belongs to the classification channel.
+      if (floodRunRef.current.active) {
+        const seen = floodSeenRef.current
+        if (ev.progress >= 0) seen.progress = ev.progress
+        if (ev.msg) seen.message = ev.msg
+        setFloodRun({
+          active: true,
+          progress: seen.progress,
+          message: seen.message,
+        })
+        return
+      }
+      // No energy or flood run in flight, so this belongs to the
+      // classification channel.
       if (ev.progress >= 0) setProgressRef.current(ev.progress)
       if (ev.msg) setProgressMsgRef.current(ev.msg)
     })
@@ -2100,6 +2185,84 @@ function AppBody(props: {
     }
   }
 
+  /**
+   * The flood envelope: the HAND extent and the disagreement between the DEM
+   * products it can be derived from.
+   *
+   * The two parameters the sidecar derives per window -- the buffer from the
+   * AOI extent, the edge margin from the cell size -- are sent only when the
+   * reader took them over. Absent, the sidecar chooses; sent as a number
+   * chosen for another window, they would replace that choice silently. This
+   * is the reason the two are nullable in FloodParams and why neither is
+   * defaulted here.
+   */
+  const handleRunFlood = async () => {
+    const useExample = usesExampleArea(props.activeExample, props.areas)
+    if (!useExample && !props.customPolygon) {
+      notifyError("Define an area: draw, search, or load an example.")
+      return
+    }
+    const blocker = floodRequestBlocker(floodParams, true)
+    if (blocker) {
+      notifyError(blocker)
+      return
+    }
+    floodSeenRef.current = { progress: 0, message: "starting" }
+    setFloodRun({ active: true, progress: 0, message: "starting" })
+    const runAoi = aoiSignature
+    try {
+      const aoiLabel =
+        props.analysisLabel?.trim() ||
+        (useExample
+          ? props.areas.find((a) => a.id === props.activeExample)?.label
+          : undefined) ||
+        (useExample ? props.activeExample : "Custom AOI")
+      const req: FloodRequest = {
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        aoi_id: props.activeAoiId,
+        project_id: activeProjectId || undefined,
+        area_id: useExample ? props.activeExample : "",
+        polygon_geojson: useExample ? null : props.customPolygon,
+        dem_ids: floodParams.demIds,
+        reference_threshold_m: floodParams.referenceThresholdM,
+        drainage_km2: floodParams.drainageKm2,
+        ...(floodParams.bufferM !== null ? { buffer_m: floodParams.bufferM } : {}),
+        ...(floodParams.edgeMarginCells !== null
+          ? { edge_margin_cells: floodParams.edgeMarginCells }
+          : {}),
+      }
+      const res = (await AnalyzeFlood(req as never)) as unknown as FloodAnalysis
+      // Recorded before the result, so the invalidation effect above compares
+      // against the AOI this run was made on rather than dropping the reading
+      // it has just been handed.
+      floodAoiRef.current = runAoi
+      setFlood(res)
+      // The qualifier travels with the figure, here as everywhere: a contested
+      // share quoted without it reads as a published reproducibility range
+      // rather than as this application's own measurement over its own DEM set.
+      // Tested for a number rather than against null: the share is undefined
+      // when no product calls anything wet, and an absent key multiplied by a
+      // hundred would announce NaN where the fact is that there is no extent
+      // to take a share of.
+      const contested =
+        typeof res.agreement.contested_frac_of_wet === "number"
+          ? `${(res.agreement.contested_frac_of_wet * 100).toFixed(0)}% of the wet extent is contested`
+          : "no product called any cell flooded"
+      notifySuccess(
+        `Flood envelope: ${contested} at HAND <= ${res.reference_threshold_m} m ` +
+          `over ${res.products.length} DEM products. ` +
+          qualifierHead(res.qualifier)
+      )
+      void refreshRuns()
+      void refreshProjects()
+    } catch (e) {
+      notifyError("Flood envelope error", e)
+    } finally {
+      setFloodRun({ active: false, progress: 0, message: "" })
+    }
+  }
+
   const handleViewDataCube = async () => {
     if (!props.start || !props.end) {
       notifyError("Set the acquisition period.")
@@ -2299,7 +2462,10 @@ function AppBody(props: {
      * run on the map. Passed rather than corrected afterwards -- navigating to
      * one screen and then to another shows the first one on the way past.
      */
-    async (run: InferenceRun, opts?: { land?: "analysis" | "map" | "energy" }) => {
+    async (
+      run: InferenceRun,
+      opts?: { land?: "analysis" | "map" | "energy" | "flood" }
+    ) => {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
@@ -2373,6 +2539,16 @@ function AppBody(props: {
         } else {
           setWater(null)
         }
+        /* A flood envelope carries its own window and its own raster, so it is
+           restored with the AOI it was measured over recorded first -- the
+           invalidation effect would otherwise see a mismatch and drop the
+           reading that has just been restored. */
+        if (res.flood) {
+          floodAoiRef.current = restoredAoi
+          setFlood(res.flood)
+        } else {
+          setFlood(null)
+        }
         const centroid = geometryCentroid(aoi.polygon)
         if (centroid) {
           props.setFlyTo({
@@ -2391,12 +2567,20 @@ function AppBody(props: {
           can still override -- the project menu asks for the map, because a run
           picked from there is a request to see it on the map.
         */
-        const kind = run.kind === "solar" || run.kind === "wind" ? "energy" : null
+        const kind =
+          run.kind === "solar" || run.kind === "wind"
+            ? "energy"
+            : run.kind === "flood"
+              ? "flood"
+              : null
         const land = opts?.land ?? kind ?? "analysis"
         if (land === "map") goMap()
         else if (land === "energy") {
           goEnergy()
           setOpenEnergyResultNonce((n) => n + 1)
+        } else if (land === "flood") {
+          goFlood()
+          setOpenFloodResultNonce((n) => n + 1)
         } else goAnalysis()
         notifySuccess("Analysis restored.")
       } catch (e) {
@@ -2410,6 +2594,7 @@ function AppBody(props: {
     [
       goAnalysis,
       goMap,
+      goFlood,
       solarDispatch,
       windDispatch,
       props.areas,
@@ -2743,7 +2928,8 @@ function AppBody(props: {
         !r.terrain &&
         !r.siting &&
         !r.energy &&
-        !w
+        !w &&
+        !flood
       ) {
         return null
       }
@@ -2755,9 +2941,14 @@ function AppBody(props: {
         solar_siting: r.siting,
         energy_model: r.energy,
         wind: w,
+        // Carried for the same reason as the rest: the analysis screen's data
+        // views and the research pack read this one object, so a flood
+        // envelope left out of it is a run whose tables cannot be exported
+        // from the screen that lists it.
+        flood,
       }
     },
-    [props.result, water, solar.results, wind.result]
+    [props.result, water, solar.results, wind.result, flood]
   )
 
   const analysisPolygonGeoJSON = useMemo(() => {
@@ -2797,7 +2988,7 @@ function AppBody(props: {
           purpose, and not on settings or sign-in, which have no project.
         */
         projectSwitcher={
-          screen === "map" || screen === "energy" ? (
+          screen === "map" || screen === "energy" || screen === "flood" ? (
             <ProjectSwitcher
               projects={projects}
               activeProjectId={activeProjectId}
@@ -2837,7 +3028,7 @@ function AppBody(props: {
       <div className="flex min-h-0 flex-1">
         {/*
           The dock layout replaces this column with surfaces inside the map, so
-          it is withheld on the two screens that draw one. The project hub and
+          it is withheld on the three screens that draw one. The project hub and
           settings keep it: they have no map to put a bar over, and hiding it
           there would leave them with no navigation at all.
 
@@ -2846,7 +3037,9 @@ function AppBody(props: {
         */}
         <AnimatePresence initial={false}>
           {(layoutMode === "docked" ||
-            (screen !== "map" && screen !== "energy")) && (
+            (screen !== "map" &&
+              screen !== "energy" &&
+              screen !== "flood")) && (
             <AppNav
               key="app-nav"
               hasAnalysis={!!props.result || runs.length > 0}
@@ -3123,6 +3316,53 @@ function AppBody(props: {
                   flyTo={props.flyTo}
                   tab={energyTab}
                   onTabChange={setEnergyTab}
+                />
+                </Suspense>
+              </motion.div>
+            )}
+            {screen === "flood" && (
+              <motion.div
+                key="screen-flood"
+                className="absolute inset-0 min-h-0"
+                initial={{ opacity: 0, x: 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Suspense fallback={<ScreenLoading />}>
+                <FloodScreen
+                  layoutMode={layoutMode}
+                  onNavigate={navigateTo}
+                  params={floodParams}
+                  onParamsChange={setFloodParamsPatch}
+                  result={flood}
+                  onClearResult={() => setFlood(null)}
+                  run={floodRun}
+                  onRun={() => void handleRunFlood()}
+                  openResultNonce={openFloodResultNonce}
+                  onCreditChange={setCredit}
+                  onLocationSelect={(lat, lon) =>
+                    props.setFlyTo({ lat, lon, key: Date.now() })
+                  }
+                  hasArea={props.hasArea}
+                  areas={props.areas}
+                  activeExample={props.activeExample}
+                  customPolygon={props.customPolygon}
+                  onPolygonDrawn={handlePolygonDrawn}
+                  onImportPolygon={props.onImportPolygon}
+                  onClearArea={clearAreaAndComposition}
+                  areaLabel={areaLabel}
+                  onAreaLabelChange={(label) => {
+                    void applyAoiRename(label)
+                  }}
+                  aoiContourScheme={props.aoiContourScheme}
+                  onAoiContourSchemeChange={props.setAoiContourScheme}
+                  // The same live ref and the same debounced map_view the map
+                  // and energy screens use, so panning here and returning
+                  // there lands in the same place.
+                  initialView={initialMapView}
+                  onViewChange={handleViewChange}
+                  flyTo={props.flyTo}
                 />
                 </Suspense>
               </motion.div>

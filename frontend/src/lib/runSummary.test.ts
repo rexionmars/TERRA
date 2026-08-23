@@ -397,6 +397,47 @@ describe("runRowLine", () => {
     )
   })
 
+  it("gives a flood run its reference threshold in place of a period", () => {
+    // The envelope reads terrain and has no acquisition window at all, so the
+    // requested period on the run is not what the row states.
+    expect(
+      runRowLine({
+        kind: "flood",
+        model_kind: "Planetary Computer DEM",
+        ...period,
+        summary: '{"flood_reference_threshold_m":1}',
+      })
+    ).toBe("Flood envelope · Planetary Computer DEM · HAND <= 1 m")
+  })
+
+  it("ends a flood run at its source when no reference threshold was recorded", () => {
+    const flood = { kind: "flood", model_kind: "", ...period }
+    expect(runRowLine({ ...flood, summary: null })).toBe(
+      "Flood envelope · Planetary Computer DEM"
+    )
+    expect(runRowLine({ ...flood, summary: "{}" })).toBe(
+      "Flood envelope · Planetary Computer DEM"
+    )
+    // A threshold stored as text is not a threshold. Printing it would put an
+    // unvalidated string where a measured height belongs.
+    expect(
+      runRowLine({ ...flood, summary: '{"flood_reference_threshold_m":"1"}' })
+    ).toBe("Flood envelope · Planetary Computer DEM")
+  })
+
+  it("keeps a reference threshold of zero, which is the drainage surface", () => {
+    // Zero is a value here: HAND <= 0 m asks for the drainage surface itself.
+    // A truthiness test would drop it and describe the run as thresholdless.
+    expect(
+      runRowLine({
+        kind: "flood",
+        model_kind: "Planetary Computer DEM",
+        ...period,
+        summary: '{"flood_reference_threshold_m":0}',
+      })
+    ).toBe("Flood envelope · Planetary Computer DEM · HAND <= 0 m")
+  })
+
   it("prefers a classification run's observed extent over the window it requested", () => {
     // The requested window is what the operator asked for; the observed extent
     // is what the archive held. The row states the second.
@@ -438,6 +479,7 @@ describe("runKindLabel", () => {
     expect(runKindLabel("water")).toBe("water")
     expect(runKindLabel("solar")).toBe("solar")
     expect(runKindLabel("wind")).toBe("wind")
+    expect(runKindLabel("flood")).toBe("flood")
   })
 
   it("labels a row with no kind a classification rather than an unknown product", () => {

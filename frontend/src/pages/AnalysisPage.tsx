@@ -85,6 +85,7 @@ import {
   runSummaryObject,
   solarProductLabel,
 } from "@/lib/runSummary"
+import { qualifierHead } from "@/components/flood/floodFormat"
 import {
   gapLimitMs,
   dateToMs,
@@ -134,11 +135,18 @@ const VI_LINES = [
  *
  * `wind` is deliberately not the water blue: the two resolve on different
  * reanalyses and should not read as one product.
+ *
+ * `flood` is the darkest stop of the blues ramp the agreement raster is drawn
+ * with (lib/palettes.ts), which is the colour of its unanimous class. It is
+ * water-coloured on purpose and distinct from `water` on purpose: both are
+ * about water on the ground, and one is an observed surface-water record while
+ * the other is a terrain index with no observation in it at all.
  */
 const PRODUCT_COLOR = {
   solar: "#f59e0b",
   water: "#3182bd",
   wind: "#2a9d8f",
+  flood: "#07306b",
 } as const
 
 type ProjectTab = "analyses" | "compositions"
@@ -240,6 +248,62 @@ function windQualifierLine(summary?: string | null): string {
       : `${base}; record checks did not pass`
   }
   return base
+}
+
+/**
+ * What a saved flood envelope produced, from the summary already in memory.
+ *
+ * Every part is optional and an absent one is dropped rather than defaulted: a
+ * run written before a key existed must not be described with a figure nobody
+ * measured. The contested share is the headline because it is what the
+ * analysis is for -- how much of the wet extent the choice of DEM decides
+ * rather than the terrain.
+ */
+function floodSummaryLine(summary?: string | null): string {
+  const j = runSummaryObject(summary)
+  const contested =
+    typeof j.flood_contested_frac_of_wet === "number"
+      ? `${(j.flood_contested_frac_of_wet * 100).toFixed(0)}% of the wet extent contested`
+      : ""
+  const unanimous =
+    typeof j.flood_unanimous_wet_km2 === "number"
+      ? `${j.flood_unanimous_wet_km2.toFixed(3)} km2 unanimous`
+      : ""
+  // The range at the reference threshold, which persistFloodRun stores only
+  // when a pair was defined there. Both ends or neither: half a range names
+  // nothing.
+  const range =
+    typeof j.flood_iou_min === "number" && typeof j.flood_iou_max === "number"
+      ? `IoU ${j.flood_iou_min.toFixed(3)}–${j.flood_iou_max.toFixed(3)}`
+      : ""
+  const products =
+    typeof j.flood_n_products === "number"
+      ? `${j.flood_n_products} DEM products`
+      : ""
+  return (
+    [contested, unanimous, range, products].filter(Boolean).join(" \u00b7 ") ||
+    "flood envelope"
+  )
+}
+
+/**
+ * The qualifier that travels with a contested share in the run list.
+ *
+ * The sidecar's own sentence when the run stored one, cut to its first clause
+ * for a row that has one line to give it: a summary written here instead would
+ * be a second qualifier able to disagree with the one the payload carries. The
+ * fallback is for rows written before the key existed, and states the claim
+ * these figures cannot support -- that this is the reproducibility range the
+ * study published, over a product set it never measured.
+ */
+function floodQualifierLine(summary?: string | null): string {
+  const stored = runSummaryObject(summary).qualifier
+  const head = typeof stored === "string" ? qualifierHead(stored) : ""
+  return (
+    head ||
+    "TERRA's own measurement over its own DEM set, not the study's published " +
+      "range; HAND ranks susceptibility and is not a flood depth."
+  )
 }
 
 /** The window of record a wind run read, in place of a requested period. */
@@ -2191,10 +2255,18 @@ function SavedRunsPanel({
                             years of hourly reanalysis. Neither reads a scene,
                             and a wind run listed as "10 scenes" understated a
                             ten-year record as ten observations. */}
-                        {r.n_dates}{" "}
-                        {r.kind === "solar" || r.kind === "wind"
-                          ? "years"
-                          : "scenes"}
+                        {/* A flood envelope counts neither. It reads no
+                            scene and no year: what it reads is a set of DEM
+                            products, and the count of those is in the line
+                            below, where it comes from the summary rather than
+                            from a field that means something else. */}
+                        {r.kind === "flood"
+                          ? "terrain only"
+                          : `${r.n_dates} ${
+                              r.kind === "solar" || r.kind === "wind"
+                                ? "years"
+                                : "scenes"
+                            }`}
                       </span>
                     </div>
                     {/* What the run produced, from summary already in memory —
@@ -2211,6 +2283,26 @@ function SavedRunsPanel({
                         <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.water }} />
                         <span className="min-w-0 text-foreground">
                           {waterSummaryLine(r.summary)}
+                        </span>
+                      </div>
+                    ) : r.kind === "flood" ? (
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: PRODUCT_COLOR.flood }} />
+                          <span className="min-w-0 text-foreground">
+                            {floodSummaryLine(r.summary)}
+                          </span>
+                        </div>
+                        {/* The qualifier travels with the figure, exactly as
+                            it does for wind. A contested share read without it
+                            is taken for the reproducibility range the study
+                            published over a different product set. */}
+                        {/* Two lines rather than one, and clamped rather than
+                            truncated: the payload's sentence names the
+                            catalogue and the product set, and one truncated
+                            line of it names neither. */}
+                        <span className="line-clamp-2 text-meta text-muted-foreground">
+                          {floodQualifierLine(r.summary)}
                         </span>
                       </div>
                     ) : r.kind === "wind" ? (
@@ -2259,13 +2351,18 @@ function SavedRunsPanel({
                           ? `${solarProductLabel(r.summary)} · ${r.model_kind || "NASA POWER"}`
                           : r.kind === "wind"
                             ? `Wind screening · ${r.model_kind || "NASA POWER MERRA-2"}`
-                            : modelDisplayName(r.model_kind)}
+                            : r.kind === "flood"
+                              ? `Flood envelope · ${r.model_kind || "Planetary Computer DEM"}`
+                              : modelDisplayName(r.model_kind)}
                       {/* Solar reports a climatology and has no observed
                           window. A wind run's row rendered as a bare arrow
                           until the record window was read from the summary.
                           The separator is emitted with the second part so
                           neither row ends in a dangling one. */}
-                      {r.kind === "solar" ? null : r.kind === "wind" ? (
+                      {/* Neither a solar climatology nor a flood envelope has
+                          an observed acquisition window; the envelope has no
+                          period at all. */}
+                      {r.kind === "solar" || r.kind === "flood" ? null : r.kind === "wind" ? (
                         windWindow ? <> · {windWindow}</> : null
                       ) : (
                         <>
@@ -2327,7 +2424,9 @@ function SavedRunsPanel({
                     <FolderOpen className="h-3 w-3" />
                     {r.kind === "solar" || r.kind === "wind"
                       ? "Open in Energy"
-                      : "Open on the map"}
+                      : r.kind === "flood"
+                        ? "Open in Flood envelope"
+                        : "Open on the map"}
                   </button>
                   {onDelete && (
                     <button

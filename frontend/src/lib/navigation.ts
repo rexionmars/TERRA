@@ -12,7 +12,13 @@
  * because navigating means setting a screen and a sub-tab that live in App, and
  * a table that reached into those would be a table that owns them.
  */
-import { ChartColumn, Map as MapIcon, Zap, type LucideIcon } from "lucide-react"
+import {
+  ChartColumn,
+  Map as MapIcon,
+  Waves,
+  Zap,
+  type LucideIcon,
+} from "lucide-react"
 import { MAP_TOOLS } from "@/lib/mapTools"
 import type { AppScreen } from "@/lib/auth"
 
@@ -23,7 +29,7 @@ export interface NavItem {
 
 export interface NavGroup {
   /** The screen this group is, so the active one is found by comparison. */
-  id: Extract<AppScreen, "map" | "energy" | "analysis">
+  id: Extract<AppScreen, "map" | "energy" | "flood" | "analysis">
   label: string
   icon: LucideIcon
   /**
@@ -55,6 +61,20 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: "Energy",
     icon: Zap,
     items: ENERGY_TABS,
+  },
+  {
+    // Waves rather than CloudRain or Droplets: this analysis reads terrain
+    // only -- no rainfall, no discharge, no routing -- and a precipitation
+    // glyph would name the one input it does not have and read as a forecast.
+    // That is the argument the energy Zap makes above, applied to water.
+    //
+    // No children. The screen is one measurement: the products, the
+    // thresholds and the agreement raster are parameters and outputs of a
+    // single run, not places to go.
+    id: "flood",
+    label: "Flood envelope",
+    icon: Waves,
+    items: [],
   },
   {
     // The destination is the list of projects, their saved runs and their

@@ -12,6 +12,8 @@ export function AnalyzeDomainShiftCohort(arg1:analysis.DomainShiftCohortRequest)
 
 export function AnalyzeEnergyModel(arg1:analysis.EnergyModelRequest):Promise<analysis.EnergyModelAnalysis>;
 
+export function AnalyzeFlood(arg1:analysis.FloodRequest):Promise<analysis.FloodAnalysis>;
+
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
 
 export function AnalyzeSolar(arg1:analysis.SolarRequest):Promise<analysis.SolarAnalysis>;

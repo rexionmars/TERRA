@@ -23,6 +23,7 @@ import {
   LogIn,
   Map as MapIcon,
   UserRound,
+  Waves,
   Zap,
 } from "lucide-react"
 import { motion } from "motion/react"
@@ -64,8 +65,17 @@ export function AppNav({
   onEnergyTabChange,
   projectSwitcher,
 }: AppNavProps) {
-  const { user, loading, screen, goMap, goAuth, goProfile, goAnalysis, goEnergy } =
-    useAuth()
+  const {
+    user,
+    loading,
+    screen,
+    goMap,
+    goAuth,
+    goProfile,
+    goAnalysis,
+    goEnergy,
+    goFlood,
+  } = useAuth()
 
   const onMap = screen === "map"
   const onEnergy = screen === "energy"
@@ -154,6 +164,17 @@ export function AppNav({
           items={energyChildren}
           expanded={expanded.energy}
           onToggleExpanded={() => toggle("energy")}
+        />
+        {/* Waves rather than a rain or droplet glyph: the analysis reads
+            terrain and no precipitation at all, so a cloud would name an
+            input it does not have. See lib/navigation.ts, which carries the
+            same group for the dock layout's bar. */}
+        <NavItem
+          id="flood"
+          active={screen === "flood"}
+          label="Flood envelope"
+          onClick={goFlood}
+          icon={<Waves className="size-4" />}
         />
         <NavItem
           id="analysis"

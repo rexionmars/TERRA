@@ -3351,6 +3351,288 @@ export namespace analysis {
 	
 	
 	
+	export class FloodAgreement {
+	    counts: number[];
+	    unanimous_wet_km2: number;
+	    contested_km2: number;
+	    unanimous_dry_km2: number;
+	    contested_frac_of_wet?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodAgreement(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.counts = source["counts"];
+	        this.unanimous_wet_km2 = source["unanimous_wet_km2"];
+	        this.contested_km2 = source["contested_km2"];
+	        this.unanimous_dry_km2 = source["unanimous_dry_km2"];
+	        this.contested_frac_of_wet = source["contested_frac_of_wet"];
+	    }
+	}
+	export class FloodAssumptions {
+	    drainage_threshold: string;
+	    reference_threshold: string;
+	    thresholds: string;
+	    edge_margin: string;
+	    cell_size: string;
+	    alignment: string;
+	    buffer: string;
+	    chain_grid: string;
+	    excluded: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodAssumptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.drainage_threshold = source["drainage_threshold"];
+	        this.reference_threshold = source["reference_threshold"];
+	        this.thresholds = source["thresholds"];
+	        this.edge_margin = source["edge_margin"];
+	        this.cell_size = source["cell_size"];
+	        this.alignment = source["alignment"];
+	        this.buffer = source["buffer"];
+	        this.chain_grid = source["chain_grid"];
+	        this.excluded = source["excluded"];
+	    }
+	}
+	export class FloodEnvelopeRow {
+	    threshold_m: number;
+	    iou_min?: number;
+	    iou_max?: number;
+	    iou_min_interior?: number;
+	    iou_max_interior?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodEnvelopeRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.threshold_m = source["threshold_m"];
+	        this.iou_min = source["iou_min"];
+	        this.iou_max = source["iou_max"];
+	        this.iou_min_interior = source["iou_min_interior"];
+	        this.iou_max_interior = source["iou_max_interior"];
+	    }
+	}
+	export class FloodPair {
+	    dem_a: string;
+	    dem_b: string;
+	    threshold_m: number;
+	    iou?: number;
+	    iou_interior?: number;
+	    area_ratio_b_over_a?: number;
+	    resampled?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodPair(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dem_a = source["dem_a"];
+	        this.dem_b = source["dem_b"];
+	        this.threshold_m = source["threshold_m"];
+	        this.iou = source["iou"];
+	        this.iou_interior = source["iou_interior"];
+	        this.area_ratio_b_over_a = source["area_ratio_b_over_a"];
+	        this.resampled = source["resampled"];
+	    }
+	}
+	export class FloodProduct {
+	    id: string;
+	    collection: string;
+	    native_resolution_m?: number;
+	    resampled?: boolean;
+	    cells: number;
+	    area_km2: number;
+	    area_frac: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodProduct(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.collection = source["collection"];
+	        this.native_resolution_m = source["native_resolution_m"];
+	        this.resampled = source["resampled"];
+	        this.cells = source["cells"];
+	        this.area_km2 = source["area_km2"];
+	        this.area_frac = source["area_frac"];
+	    }
+	}
+	export class FloodGrid {
+	    width: number;
+	    height: number;
+	    bounds: Bounds;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodGrid(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.bounds = this.convertValues(source["bounds"], Bounds);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class FloodCellSize {
+	    x: number;
+	    y: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodCellSize(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	    }
+	}
+	export class FloodAnalysis {
+	    reference_threshold_m: number;
+	    thresholds_m: number[];
+	    drainage_km2: number;
+	    cell_size_m: FloodCellSize;
+	    grid: FloodGrid;
+	    buffer_m: number;
+	    products: FloodProduct[];
+	    agreement: FloodAgreement;
+	    pairs: FloodPair[];
+	    envelope: FloodEnvelopeRow[];
+	    edge_margin_cells: number;
+	    qualifier: string;
+	    assumptions: FloodAssumptions;
+	    agreement_tif: string;
+	    agreement_png: string;
+	    agreement_uri?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reference_threshold_m = source["reference_threshold_m"];
+	        this.thresholds_m = source["thresholds_m"];
+	        this.drainage_km2 = source["drainage_km2"];
+	        this.cell_size_m = this.convertValues(source["cell_size_m"], FloodCellSize);
+	        this.grid = this.convertValues(source["grid"], FloodGrid);
+	        this.buffer_m = source["buffer_m"];
+	        this.products = this.convertValues(source["products"], FloodProduct);
+	        this.agreement = this.convertValues(source["agreement"], FloodAgreement);
+	        this.pairs = this.convertValues(source["pairs"], FloodPair);
+	        this.envelope = this.convertValues(source["envelope"], FloodEnvelopeRow);
+	        this.edge_margin_cells = source["edge_margin_cells"];
+	        this.qualifier = source["qualifier"];
+	        this.assumptions = this.convertValues(source["assumptions"], FloodAssumptions);
+	        this.agreement_tif = source["agreement_tif"];
+	        this.agreement_png = source["agreement_png"];
+	        this.agreement_uri = source["agreement_uri"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	
+	
+	export class FloodRequest {
+	    area_id: string;
+	    polygon_geojson?: GeoJSONGeometry;
+	    dem_ids?: string[];
+	    thresholds_m?: number[];
+	    reference_threshold_m?: number;
+	    drainage_km2?: number;
+	    buffer_m?: number;
+	    edge_margin_cells?: number;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
+	    aoi_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_id = source["area_id"];
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.dem_ids = source["dem_ids"];
+	        this.thresholds_m = source["thresholds_m"];
+	        this.reference_threshold_m = source["reference_threshold_m"];
+	        this.drainage_km2 = source["drainage_km2"];
+	        this.buffer_m = source["buffer_m"];
+	        this.edge_margin_cells = source["edge_margin_cells"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	export class LULCAgreementBlock {
 	    row: number;
@@ -4945,6 +5227,7 @@ export namespace analysis {
 	    solar_siting?: SolarSitingAnalysis;
 	    energy_model?: EnergyModelAnalysis;
 	    wind?: WindAnalysis;
+	    flood?: FloodAnalysis;
 	    domain_fingerprint?: DomainFingerprint;
 	
 	    static createFrom(source: any = {}) {
@@ -4982,6 +5265,7 @@ export namespace analysis {
 	        this.solar_siting = this.convertValues(source["solar_siting"], SolarSitingAnalysis);
 	        this.energy_model = this.convertValues(source["energy_model"], EnergyModelAnalysis);
 	        this.wind = this.convertValues(source["wind"], WindAnalysis);
+	        this.flood = this.convertValues(source["flood"], FloodAnalysis);
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
 	    }
 	

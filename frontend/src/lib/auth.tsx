@@ -23,7 +23,13 @@ import {
 } from "../../wailsjs/go/main/App"
 import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
 
-export type AppScreen = "map" | "auth" | "profile" | "analysis" | "energy"
+export type AppScreen =
+  | "map"
+  | "auth"
+  | "profile"
+  | "analysis"
+  | "energy"
+  | "flood"
 
 /**
  * A page of the settings screen, when something wants to open a particular one.
@@ -47,6 +53,13 @@ interface AuthContextValue {
   goProfile: (page?: SettingsPage) => void
   goAnalysis: () => void
   goEnergy: () => void
+  /**
+   * The flood envelope, a destination of its own rather than a tab of Energy.
+   * It reads no radiation and no reanalysis: it compares DEM products over
+   * terrain, and a tab inside Energy would file it under a resource it does
+   * not measure.
+   */
+  goFlood: () => void
   /** Which settings page to open on arrival, consumed once by ProfilePage. */
   settingsPage: SettingsPage | null
   /** Clears the above, so it steers one arrival rather than every one. */
@@ -279,6 +292,7 @@ export function AuthProvider({
       goProfile,
       goAnalysis: () => setScreen("analysis"),
       goEnergy: () => setScreen("energy"),
+      goFlood: () => setScreen("flood"),
       settingsPage,
       consumeSettingsPage,
       settingsReturnTo,
