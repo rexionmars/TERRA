@@ -1,0 +1,1189 @@
+% =====================================================================
+% TERRA -- User guide (English edition)
+%
+% Build from inside docs/user-manual/:
+%   latexmk -pdf guide.tex
+% latexmk lives in /Library/TeX/texbin, outside the default PATH.
+%
+% After building, measure the cover:
+%   python3 scripts/verifica_capa.py guide.pdf
+%
+% Paths: terra.sty is in this directory, the screenshots in png-images/ and
+% the cover photograph in capas/. Building from anywhere else breaks all three.
+%
+% COMPANION TO guia.tex, WHICH IS THE PORTUGUESE EDITION. The two are ports,
+% not translations of each other: composed separately against docs/user-manual/
+% writing.md and escrita.md respectively. What must stay in step is the
+% content, not the wording.
+%
+% Three things differ from guia.tex by rule, and are easy to lose in a merge:
+%   1. British spelling  (writing.md section 11.1)
+%   2. Decimal point, not comma. 0.703 here, 0,703 there.
+%   3. babel [british], which sets hyphenation and \contentsname.
+%
+% SCOPE. This document says how the application is operated and how to read
+% what appears on screen. It does not document each parameter's derivation.
+% =====================================================================
+
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[british]{babel}
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{terra}
+
+% OPEN LEADING, and it is the margin's doing. At 2.0 cm the block is 17.0 cm
+% wide and the line runs long. What makes a long line tiring is not the length
+% itself but the return: the eye travels back from right to left and has to
+% find the next line, and the longer the journey the easier it is to land on
+% the wrong one. Opening the vertical separates the lines and gives back the
+% cue that the length took away.
+\linespread{1.10}
+
+% A MESSAGE THE APPLICATION DISPLAYS, quoted verbatim. Distinct from \texttt,
+% which quotes a LABEL: the name of a button, a field, a tab. A message is a
+% whole sentence, and in monospace it becomes a heavy block mid-paragraph.
+% Italic in quotes is light in the body, and the quotes close the citation.
+%
+% This convention matters MORE in the English edition than in the Portuguese
+% one. There, a message stood out because it was the only English in a
+% Portuguese sentence. Here it does not, so the mark is all there is.
+\newcommand{\msg}[1]{``\textit{#1}''}
+
+% RAGGED-RIGHT TABLE COLUMN. The tables here have narrow columns, and `p{}`
+% justifies: at that width justification opens gaps between words.
+%
+% `\arraybackslash` because `\raggedright` redefines `\\` and would break the
+% table's own row separator.
+%
+% And a BOUNDED `\rightskip`, not the `plus 1fil` that `\raggedright` installs.
+% With infinite stretch on the right TeX never considers a line too wide: a
+% cell holding unbreakable content wider than its column, such as a file path
+% in monospace, simply spills over the neighbouring column and `Overfull` says
+% nothing. That is how `rasters/classification.tif` came to touch the text
+% beside it without a line in the log. At `plus 2em` the setting still avoids
+% the gaps, and the diagnostic comes back.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\rightskip=0pt plus 2em\relax\hbadness=10000\relax}p{#1}}
+
+% The guide quotes interface labels in \texttt, and none of them hyphenate:
+% `Classification` and `Compositions` in one sentence are two rigid blocks.
+% When they fall together at the end of a paragraph, TeX prefers to overrun
+% the margin rather than set a very loose line.
+%
+% `emergencystretch` gives it one extra pass with additional stretch, and ONLY
+% in paragraphs that would otherwise overrun. The alternative is to let the
+% labels hyphenate, which splits the name of a button in half and sends the
+% reader looking for something that is not on the screen.
+\setlength{\emergencystretch}{2em}
+
+\setcapaimagem{capas/fumaca-a4.jpg}
+% Inherited from the measurement made for this same photograph. The cover
+% layout is the same as the Portuguese edition's, so the measured zones are the
+% same. Re-measure with:
+%   python3 scripts/verifica_capa.py guide.pdf
+\setcapaescuro{0.62}
+% THE EMBLEM BESIDE THE WORDMARK, which is how the application signs itself:
+% the TitleBar puts the mark on the left and the word TERRA next to it. The
+% cover repeating that composition makes the document and the product read as
+% one thing.
+%
+% Referenced in docs/img/v4/ rather than copied here. A second copy is the one
+% that goes stale when the first is redrawn.
+\setcapamarca{%
+  % 2.9 cm against the roughly 2.2 cm cap height of the wordmark at 86 pt, and
+  % raised by (2.2-2.9)/2 to centre on it. At 2.4 cm the emblem read as a dark
+  % dot: the ring text resolves only above about 2.8 cm, and an emblem whose
+  % own name cannot be read is a blur with an outline.
+  \raisebox{-0.35cm}{\includegraphics[height=2.9cm]{../img/v4/TERRA_EO_Logo.png}}%
+  \hspace{0.46cm}TERRA}
+% THE KICKER DOES NOT REPEAT THE HEADLINE. It numbers the DOCUMENT, not the
+% software: the TERRA version changes with every release and would leave the
+% cover stale without a line of the text having changed.
+\setcapachapeu{v1}
+% The footer calls the rest of the document, the way the band at the foot of a
+% Nature cover calls the other articles in the issue.
+%
+% IT DESCRIBES THE SOFTWARE, NOT THE SECTIONS. Whoever picks up the cover does
+% not yet know what TERRA is, and that is what three lines at the foot can
+% give. The contents page already lists the sections.
+%
+% AND IT STATES, RATHER THAN TEASES. A journal cover names what is inside. It
+% does not ask a question to make the reader open the document.
+\setcapacolunas
+  {Series, not images}{Sentinel-2 across a period, cloud-filtered and stacked}
+  {One area, six products}{Land cover, compositions, water, solar, wind and
+   flood}
+  {No server}{A desktop application: the scenes come from the catalogue, the
+   computation is local}
+
+\begin{document}
+
+\terracapaperiodico
+  {USER\\GUIDE}
+  {From the interpreter to the export: how to run each analysis, and how to
+   read what it returns}
+  {August 2026}
+
+% CONTENTS. Twenty-odd pages with appendices: without it, finding the
+% classification field table means leafing through.
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section*{Preface}
+\addcontentsline{toc}{section}{Preface}
+
+This document describes how TERRA is operated: the screens in the order they
+appear, what each field does, what a run returns, and what the returned numbers
+mean.
+
+\campo{Who it is for} Whoever is going to operate the application. It assumes
+no familiarity with the code or with remote sensing, but it does assume the
+reader knows what they want to measure. Domain terms such as leaf area index,
+Jeffries-Matusita distance and diffuse fraction are used where the screen uses
+them, and defined at the point they first appear.
+
+\campo{What it does not cover} The derivation of the methods. Where a
+formulation is cited, it comes with the reference and without the development.
+Installation is also out of scope, with one exception: the Python interpreter,
+covered in section~2, because it is the precondition for every task and the
+place a first run usually stops.
+
+\campo{How it is organised} Sections 2 to 7 follow the order of use: the
+environment, the main screen, classification, the other products, the Studio
+and the export. Each task opens with a summary block naming the panel, the
+preconditions and the output, then continues in numbered steps.
+
+The field tables, the editor catalogue and the message list are in the
+appendices. They are reference: the reader returns to them with a specific
+question, and in the middle of a procedure they interrupt what they were there
+to support. Short tables that carry the argument of the paragraph beside them
+stayed where they were.
+
+\campo{Three conventions} Interface labels appear in \texttt{monospace},
+exactly as they are on screen. Messages the application displays are quoted
+verbatim, in \msg{italic between quotation marks}. A caveat marked with a rule
+on the left bounds what has just been stated, and is not ornament: each one
+corresponds to a limitation the application itself declares on screen.
+
+\begin{aviso}
+The figures are screenshots of the application in use, with real data. The
+values in them belong to specific runs over specific areas and serve to locate
+each element on the screen. They are not reference values.
+\end{aviso}
+
+\campo{Version and validation} This document describes the application as it
+stood when the document was written. Defaults, ranges and messages were read
+from the code, and change with it.
+
+% CONTACT IN THE PREFACE, not on the cover. The journal-cover anatomy has no
+% authorship slot: kicker, date, mark, headline, standfirst and three columns,
+% and the three columns describe the software. Opening a slot there would break
+% the layout terra.sty documents.
+%
+% Here the address sits beside the continuous-revision notice, which is where
+% the reader is already being told the document may be stale. Whoever has just
+% read that the screen wins the tie is the person who needs to know where to
+
+\begin{aviso}
+The features described here are under continuous revision. Parameters, accepted
+ranges, screen labels and messages may have changed since this edition, and a
+feature may have been replaced or removed. Before using this guide as the
+reference for a result that will be reported, check the current edition of the
+document and the version of the application it corresponds to.
+
+The document and the code are versioned together, in the same repository:
+
+\begin{center}
+\url{https://github.com/rexionmars/TERRA}
+\end{center}
+
+\noindent The current edition of this guide is in \texttt{docs/user-manual/}.
+Where this document and the screen disagree, the screen is authoritative: this
+is a description of the program, not its specification.
+\end{aviso}
+
+% CONTACT IN THE PREFACE, not on the cover. The journal-cover anatomy has no
+% authorship slot: kicker, date, mark, headline, standfirst and three columns,
+% and the three columns describe the software. Opening a slot there would break
+% the layout terra.sty documents.
+%
+% After the notice rather than before it: the notice ends by saying the screen
+% wins the tie, and the next question a reader has is where to write.
+%
+% THE ADDRESS IS NOT IN \texttt. In monospace it is an unbreakable 33-character
+% block that overran the line by 349 pt on the first attempt: it does not
+% hyphenate, and TeX has nowhere to break it. Set in the serif face with \url,
+% the package installs break points after each separator.
+\campo{Contact} Corrections to this document, and questions about what it
+describes: Jo\~ao Leonardi, \url{joao_leonardi.melo@somosicev.com}. Defects in
+the application go to the \emph{issues} of the repository cited above, where
+they sit beside the code that produces them.
+
+% =====================================================================
+\section{What this guide covers}
+
+TERRA classifies land cover from Sentinel-2 time series. Over the same area and
+the same period it also produces band compositions, surface water mapping,
+solar and wind resource estimates, and a flood envelope derived from the
+terrain. The application is desktop: it runs on the user's machine, with no
+server.
+
+Appendix~\ref{ap:messages} collects the refusal messages and the conditions
+reported during a run, for every task.
+
+% =====================================================================
+\section{Before you start: the interpreter}
+
+The processing is carried out by a separate Python process, not by the Go
+binary. The application opens without that process, but every analysis task
+fails while it is unavailable. This is the precondition for all the sections
+that follow.
+
+% At 0.46 of the width for resolution, not for layout: this screenshot is
+% 932 px against 3692 for the others, and at full width it would print at
+% 139 dpi. Here it reaches 303, above the 300 floor. Recaptured on a Retina
+% display it can go back to \linewidth like the rest.
+\terrafig[.46\linewidth]{png-images/impressao/boot.png}
+  {The opening screen. The application locates the data directory, the
+   \emph{sidecar} and the model, and checks the interpreter before showing the
+   map. Missing components are recorded in this list.}
+  {fig:boot}
+
+\campo{How to tell it is missing} On start-up, when the sidecar does not
+respond, the application shows: \msg{TERRA started, but the analysis sidecar
+did not respond. Settings > System reports what is wrong.} On invoking an
+analysis without a valid environment it shows \msg{Analyses cannot run yet ---
+opening Settings > System} and navigates to that page.
+
+\campo{Procedure} In \texttt{Settings} $\rightarrow$ \texttt{System}:
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item Read the \texttt{In use} block. It names the current interpreter and
+        how it was chosen (table~\ref{tab:origin}).
+  \item If the notice \msg{No analysis can run yet} is present, the line after
+        it gives the cause: the interpreter could not be started, its version
+        is below the minimum, or packages the sidecar imports are missing.
+  \item Under \texttt{Interpreters on this machine}, choose a candidate.
+        \texttt{Use as is} adopts the interpreter as it stands.
+        \texttt{Build environment} builds an environment from it and installs
+        the dependencies.
+  \item For the neural models, install \texttt{torch} under \texttt{Optional
+        models}. Without it the Temporal Transformer and Prithvi-EO 2.0 are
+        unavailable; everything else works.
+\end{enumerate}
+
+\terrafig{png-images/impressao/settings.png}
+  {\texttt{Settings} $\rightarrow$ \texttt{System}. \texttt{In use} identifies
+   the current interpreter and says whether it is ready. \texttt{Interpreters
+   on this machine} lists the candidates. \texttt{Optional models} lists the
+   large downloads that do not come with the default install.
+   \texttt{Locations} gives the origin of each component.}
+  {fig:settings}
+
+\begin{aviso}
+The environment TERRA builds sits beside the database, not inside the
+application, so updating the application does not remove it. An interpreter
+adopted with \texttt{Use as is} is the machine's own, with whatever packages it
+already carries. Packages installed only in the user directory may be available
+to the terminal and not to the application.
+
+The \texttt{GEOSENSE\_} prefix has been replaced by \texttt{TERRA\_}. A variable
+with the old prefix stops being read without producing a symptom; the page
+lists any it finds.
+\end{aviso}
+
+% =====================================================================
+\section{The main screen}
+
+The operating screens for classification, water, energy and flood share the
+same structure. What varies is the content of the left-hand panel and of the
+result column.
+
+\terrafig{png-images/impressao/central-task-hub.png}
+  {An operating screen, with an area drawn and no result yet. The numbers
+   correspond to the items listed below.}
+  {fig:anatomy}
+
+\campo{1 --- Map controls} Zoom in and out, choice of basemap provider, drawing
+the area, and access to the overlay configuration.
+
+\campo{1.1 --- \texttt{Overlay Tools}} Renames the area, changes the polygon
+colour, controls the opacity of each overlay (0.75 by default) and shows the
+gallery of overlays generated for that area. While no run exists, the gallery
+is empty.
+
+\campo{2 --- The area of interest} The polygon drawn on the map. It can be
+drawn by hand, imported from a file, or obtained by searching for a place. It
+defines the extent of every subsequent operation.
+
+\campo{3 --- The time window} The bar at the foot of the screen. The axis is
+the same in every mode; what it controls varies. In classification it is the
+scene acquisition period; in wind, the historical record window.
+
+\campo{4 --- The action panel} Configures the run. The fields vary with the
+operating mode. The column ends in the run button.
+
+\campo{5 --- The operating modes} The navigation column. Modes with
+sub-contexts show them below: \texttt{Map} contains \texttt{Classification},
+\texttt{Compositions} and \texttt{Surface water}; \texttt{Energy} contains
+\texttt{Solar} and \texttt{Wind}.
+
+\campo{6 --- The header} On the left, the project selector, under which saved
+runs and studios are filed. On the right, the coordinates of the map centre,
+the zoom level, the basemap credit with its date, the button that opens the
+Studio, and the one that switches the layout between side column and bar over
+the map.
+
+% =====================================================================
+\section{Classifying land cover}
+
+\begin{ficha}
+  \item[Panel] \texttt{Map} $\rightarrow$ \texttt{Classification}, headed
+        \texttt{New classification}
+  \item[Preconditions] A valid Python environment, an area, and start and end
+        dates. The \texttt{Classify} button stays disabled while any of them is
+        missing.
+  \item[Output] A class layer over the area, saved to the active project
+\end{ficha}
+
+\campo{Procedure}
+
+\begin{enumerate}[leftmargin=*,itemsep=.3em]
+  \item \textbf{\texttt{01 Area}}. Draw a polygon on the map, search for a
+        place, or use \texttt{Import} to load a file. The block indicator
+        changes from \msg{No area defined} to \msg{Area defined}.
+        \texttt{Clear} removes the current area.
+  \item \textbf{\texttt{02 Period \& scenes}}. Set the dates, the maximum cloud
+        cover and the monthly-best option (table~\ref{tab:classify}).
+  \item \textbf{\texttt{03 Model}}. Choose the model. With Prithvi-EO 2.0 a
+        further choice appears between \texttt{Pixel} and \texttt{Patch}.
+  \item \textbf{\texttt{04 Mode}}. \texttt{Map} uses the whole temporal stack.
+        \texttt{Temporal} accumulates retention across the period and is
+        disabled outside Random Forest, with the reason given as
+        \msg{Temporal retention runs on Random Forest.}
+  \item Press \texttt{Classify}. The progress bar replaces the button label
+        with \msg{Classifying} while the run proceeds.
+  \item On completion the application shows \msg{Classification complete ---
+        N scenes (saved)} with a \texttt{View analysis} action.
+\end{enumerate}
+
+\campo{What comes back} A class layer over the area and a result panel giving
+the number of scenes used, the interval actually covered, and the share of each
+class.
+
+\terrafig{png-images/impressao/central-task-result-tocantins-AOI.png}
+  {A completed classification. The \texttt{Result} panel names the scenes used
+   and the interval covered, narrower than the one requested because cloudy
+   scenes are dropped by the filter, and lists the share of each class.
+   \texttt{Analysis} opens the full reading; \texttt{+ New} starts another run
+   over the same area.}
+  {fig:result}
+
+\begin{objecao}
+The \texttt{conf} value shown beside the scenes is the mean vote fraction of
+the winning class, not the probability of being right. It is not a calibrated
+measure, and under domain shift, meaning training in one region and applying in
+another, it can move in the opposite direction to accuracy. \texttt{conf 67\%}
+does not correspond to 67\% accuracy. The confidence layer legend, under
+\texttt{Analysis}, repeats this caveat.
+\end{objecao}
+
+\campo{Reference cover} The \texttt{Analyze land cover} button, above
+\texttt{Classify}, fetches MapBiomas cover for the same area. It requires an
+area; without one the button reports \msg{Draw or select an area first}.
+
+\campo{Where runs are kept} Every saved run goes to the \texttt{Project hub},
+filed under the active project.
+
+\terrafig{png-images/impressao/project-hub.png}
+  {The \texttt{Project hub}. Each stored run can be reopened over the map or
+   loaded into the Studio. Runs are also deleted from this screen.}
+  {fig:hub}
+
+% =====================================================================
+\section{The other products}
+
+All of them start from the same area and the same time axis as
+figure~\ref{fig:anatomy}, and each replaces the action panel with its own.
+
+\subsection{Band compositions}
+
+\begin{ficha}
+  \item[Panel] \texttt{Map} $\rightarrow$ \texttt{Compositions}
+  \item[Preconditions] An area, a period, and one scene selected from the list
+  \item[Output] An RGB layer over the area
+\end{ficha}
+
+Three bands are combined into the red, green and blue channels. No model is
+involved: the values are measured reflectance. The band combination makes
+visible features that a true-colour composition does not distinguish.
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item Set the area and the period, and list the available scenes. Without a
+        period the application answers \msg{Set the acquisition period.};
+        without an area, \msg{Define an area: draw, search, or load an
+        example.}
+  \item Select a scene. With none selected the request answers \msg{Select a
+        scene first.}
+  \item Choose the composition. The presets are \texttt{True color},
+        \texttt{False color IR}, \texttt{Agriculture} and \texttt{SWIR}; the
+        available indices are \texttt{NDVI}, \texttt{NDWI}, \texttt{NDMI} and
+        \texttt{EVI}.
+\end{enumerate}
+
+\terrafig{png-images/impressao/map-composition.png}
+  {\texttt{Map} $\rightarrow$ \texttt{Compositions}. The layer legend states
+   which band was assigned to which channel.}
+  {fig:composition}
+
+\subsection{Surface water}
+
+\begin{ficha}
+  \item[Panel] \texttt{Map} $\rightarrow$ \texttt{Surface water}
+  \item[Preconditions] An area and a period
+  \item[Output] A raster giving the proportion of dates on which each pixel was
+        classified as water, on a fixed 0 to 1 scale
+\end{ficha}
+
+The panel has four blocks: \texttt{01 Area}, \texttt{02 Period},
+\texttt{03 Index} and \texttt{04 Run}. The index is computed on every date in
+the period, with no trained model.
+
+\begin{table}[htbp]\centering
+\caption{Indices available under \texttt{Surface water}.}
+\label{tab:water}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.2cm}L{5.4cm}L{7.7cm}@{}}
+\toprule
+\textbf{Index} & \textbf{Bands} & \textbf{Reference} \\
+\midrule
+\texttt{MNDWI} & green and SWIR1 & Xu (2006) \\
+\texttt{NDWI}  & green and NIR & McFeeters (1996) \\
+\texttt{AWEI}  & four bands, unbounded & Feyisa (2014) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The cut is at zero, the literature threshold for all three indices. An Otsu
+threshold is reported alongside for comparison and is not applied.
+
+The result separates permanent water from water present on some of the dates.
+Two surfaces of the same extent can have different frequencies: a permanent
+reservoir and a seasonal floodplain occupy the same area and differ in that
+proportion.
+
+\terrafig{png-images/impressao/map-water-surface.png}
+  {\texttt{Map} $\rightarrow$ \texttt{Surface water}. The proportion of dates
+   on which each pixel was classified as water, on a fixed 0 to 1 scale.}
+  {fig:water}
+
+\subsection{Solar}
+
+\begin{ficha}
+  \item[Panel] \texttt{Energy} $\rightarrow$ \texttt{Solar}
+  \item[Preconditions] An area. No Sentinel-2 scene is required: the irradiance
+        comes from the NASA POWER record
+  \item[Output] Plane-of-array irradiance, distribution over the terrain,
+        usable area and estimated generation
+\end{ficha}
+
+Two fields have their range checked before the run: the performance ratio,
+refused outside 0 to 1 with \msg{Performance ratio must be between 0 and 1.},
+and the UTC offset, refused outside $-12$ to $+14$ hours with \msg{UTC offset
+must be between -12 and 14 hours.}
+
+\terrafig{png-images/impressao/map-solar.png}
+  {\texttt{Energy} $\rightarrow$ \texttt{Solar}. The result column gathers
+   specific yield, optimum angle and capacity above the detail.}
+  {fig:solar}
+
+\subsection{Wind}
+
+\begin{ficha}
+  \item[Panel] \texttt{Energy} $\rightarrow$ \texttt{Wind}
+  \item[Preconditions] An area. The series is read at the area centroid
+  \item[Output] Speed levels, Weibull fit, power density, shear, seasonality
+        and a direction rose
+\end{ficha}
+
+Resource screening from reanalysis data. The result is a \termo{screening}
+figure: it applies to excluding a site, not to sizing a wind farm.
+
+\terrafig{png-images/impressao/map-wind.png}
+  {\texttt{Energy} $\rightarrow$ \texttt{Wind}. The left-hand panel states, next
+   to each field, the assumptions adopted: roughness is a supposed rather than
+   a measured property, and rotor heights above 50~m are extrapolation. The
+   right-hand column presents levels, shear, seasonality and direction.}
+  {fig:wind}
+
+\begin{aviso}
+The wind screen records that the capacity factor excludes wake, availability,
+electrical losses, icing and curtailment, and that there is no external
+comparison equivalent to the photovoltaic ratio. The values are a screening
+indication, not a generation projection.
+
+The implied roughness is reported as absent when the inversion does not
+converge, rather than replaced by a plausible value. In that case the panel
+states the assumed roughness band.
+\end{aviso}
+
+\subsection{Flood envelope}
+
+\begin{ficha}
+  \item[Panel] \texttt{Flood envelope}
+  \item[Preconditions] An area, and at least two elevation products selected
+  \item[Output] The envelope by threshold, an agreement raster, and a per-run
+        assumptions block
+\end{ficha}
+
+Flood extent is derived from the terrain, from the height of each cell above
+the drainage it flows to. Disagreement between elevation products is reported
+as the uncertainty rather than aggregated into a mean.
+
+\terrafig{png-images/impressao/flood-envelope.png}
+  {\texttt{Flood envelope}. The reading is presented in collapsible blocks:
+   agreement over the area, the products used, the envelope by threshold, and
+   the assumptions.}
+  {fig:flood}
+
+\begin{objecao}
+A threshold in metres orders relative susceptibility. It does not correspond to
+water depth, extent or probability: rainfall, discharge, propagation and
+channel geometry do not enter the calculation. The figure shows where the
+result depends on the choice of elevation product.
+
+The product set here differs from the one published in the reference study. The
+catalogue this application reads carries no SRTMGL1, and ALOS World 3D stands
+in its place. The range measured here is over that different set, and the
+published range does not apply to it.
+\end{objecao}
+
+% =====================================================================
+\section{The Studio}
+
+\begin{ficha}
+  \item[How to open] The button on the right of the header (item~6 of
+        figure~\ref{fig:anatomy}), or from a run in the \texttt{Project hub}
+  \item[Preconditions] At least one saved run. \texttt{Comparison},
+        \texttt{Domain shift} and the \texttt{Between two runs} reading need
+        two
+  \item[Output] None in itself. The readings are read on screen and exported
+        through section~7
+\end{ficha}
+
+The Studio opens over the map and divides the screen into areas. Each area
+holds an \termo{editor}, and any editor can occupy any area: position is a
+property of the arrangement, not of the editor. Dragging a division moves both
+sides at once, and two areas cannot overlap.
+
+\campo{Why it exists} Two runs of areas hundreds of kilometres apart cannot be
+placed side by side on the map, because the map puts them where they are. The
+Studio lifts them off their coordinates.
+
+\campo{Procedure: putting two runs on the board}
+
+\begin{enumerate}[leftmargin=*,itemsep=.3em]
+  \item Open the Studio with one run loaded.
+  \item In the \texttt{Outliner} area, below the tree, use the add control. The
+        list is grouped by project, with the period on each row, since the
+        period is what separates two runs of the same project. There is a
+        search by name.
+  \item When there is nothing to add, the list says which of three cases
+        applies: \msg{No run matches that.}, \msg{No saved runs yet.} or
+        \msg{Every saved run is already on the board.}
+  \item Switch to the \texttt{Compare} or \texttt{Diagnose} arrangement.
+\end{enumerate}
+
+\campo{Procedure: choosing which pair is compared} The \texttt{Comparison}
+editor reads two slots, named in its header. Empty, each slot follows the
+selection and says so (\texttt{Follow selection}). Pinned, it holds the chosen
+plane while the selection moves on. With three or more planes selected, pinning
+is what determines which pair is being read; without it the answer changes
+under the reader.
+
+\begin{table}[htbp]\centering
+\caption{The five arrangements on the top ribbon, and the areas each lays out.}
+\label{tab:arrangements}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.8cm}L{6.3cm}L{6.2cm}@{}}
+\toprule
+\textbf{Arrangement} & \textbf{What for} & \textbf{Areas} \\
+\midrule
+\texttt{Layout} & the general arrangement: the board, what is in it, and what is selected & \texttt{Viewport}, \texttt{Outliner}, \texttt{Properties}, \texttt{Run} \\
+\texttt{Compare} & two planes read against each other, with no dialogue over the board & \texttt{Outliner}, \texttt{Viewport}, \texttt{Properties}, \texttt{Comparison} \\
+\texttt{Diagnose} & how far apart the domains are, and where the difference sits & \texttt{Viewport}, \texttt{Outliner}, \texttt{Domain shift} \\
+\texttt{Data} & the run's own tables, at the width a table needs & \texttt{Viewport}, \texttt{Outliner}, \texttt{Data table} \\
+\texttt{Simulation} & an orchard module and the light that reaches through it & \texttt{Canopy}, \texttt{Outliner}, \texttt{Canopy run} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The arrangements are presets, not user data. Moving a division or retyping an
+area alters the live tree, which survives closing the window and not a restart.
+Saving is an action asked for by name.
+
+\terrafig{png-images/impressao/studio-layout-default.png}
+  {\texttt{Layout}. The \texttt{Viewport} at the centre; the \texttt{Outliner}
+   over the \texttt{Properties} on the right; the \texttt{Run} band at the
+   foot. The text block below the data list summarises the selected run.}
+  {fig:studio-layout}
+
+\subsection{\texttt{Compare}: two runs}
+
+For the selected pair the editor gives the scene count of each run, the mean
+confidence, the class count, the two predicted planes identified by the model
+that produced them, the two confidence maps, the class transition matrix and
+the difference list. Where a run carries no such plane, the corresponding space
+states \msg{No prediction} or \msg{No confidence map} rather than sitting empty.
+
+\terrafig{png-images/impressao/studio-compare.png}
+  {\texttt{Compare}. The comparison takes the lower half at full width; the two
+   runs stay visible above it.}
+  {fig:studio-compare}
+
+\subsection{\texttt{Diagnose}: distance between domains}
+
+It answers one question: does a model fitted in one region still apply in
+another? The metrics in table~\ref{tab:domain} measure the distance between the
+two. The last four require MapBiomas reference cover over the area.
+
+\terrafig{png-images/impressao/studio-diagnose-domain-shift.png}
+  {\texttt{Diagnose}. On the right, the metrics of table~\ref{tab:domain} and
+   the histograms of the two areas overlaid. Lower left,
+   \texttt{Class separability}.}
+  {fig:studio-diagnose}
+
+\subsection{\texttt{Class separability}: where separation is lost}
+
+It measures the distance between two classes band by band, by the
+Jeffries-Matusita distance. The scale saturates at 2, and the bands in
+table~\ref{tab:jm} are drawn behind the bars: they are a reading convention,
+not a result. The shift between classes is reported in percentage points of
+reflectance, with a sign.
+
+\begin{table}[htbp]\centering
+\caption{Reading bands for the Jeffries-Matusita distance.}
+\label{tab:jm}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.0cm}L{4.0cm}L{8.6cm}@{}}
+\toprule
+\textbf{Band} & \textbf{Label} & \textbf{Reading} \\
+\midrule
+0 to 1.0 & \texttt{overlapping} & the two class distributions overlap in that band \\
+1.0 to 1.9 & \texttt{partial} & partial separation \\
+1.9 to 2.0 & \texttt{separable} & separated; 2 is the ceiling of the scale \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+There are two readings, and they can diverge. \texttt{Against the surround}
+measures each pair of classes within one run: how far a class stands apart from
+those around it. \texttt{Between two runs} measures the same class in both
+runs: whether its response still resembles the one in the other area. A class
+can hold a stable spectral response across the two runs and still become
+inseparable, if the contrast with neighbouring classes drops.
+
+\begin{objecao}
+The distances are \termo{univariate}: one band at a time. A classifier reads the
+bands together and separates classes that no single band separates. A column of
+low bars, such as the one in figure~\ref{fig:studio-diagnose}, does not indicate
+that those classes are indistinguishable; it indicates that no single band
+distinguishes them in that case. The panel records this caveat on the screen
+itself. The corrections tested against real data across regions did not remove
+the difference.
+\end{objecao}
+
+\subsection{\texttt{Rover} and \texttt{Spectral response}}
+
+The \texttt{Rover} points at a predicted pixel and reports its class, its
+position and what it reflects. Beside the \texttt{Spectral response}, sweeping
+the raster lights up the curve of the class under the pointer, band by band.
+
+\begin{objecao}
+The curve corresponds to \termo{one acquisition}, not to the seasonal mean. Two
+dates of the same class produce different curves, and comparing them holds only
+within the acquisition on screen.
+\end{objecao}
+
+\terrafig{png-images/impressao/studio-diagnose-brush-on-spectral-view.png}
+  {The \texttt{Rover} over the \texttt{Spectral response}. Sweeping the raster
+   shows the curve of the class under the pointer, band by band, on one
+   acquisition.}
+  {fig:studio-rover}
+
+\subsection{\texttt{Data}: the tables}
+
+The same tables the research pack writes (table~\ref{tab:pack}), sortable,
+without exporting. That is the reason for an arrangement of its own: a table
+needs width, and in the general arrangement it would sit in a column.
+
+\terrafig{png-images/impressao/studio-data.png}
+  {\texttt{Data}. The run's tables displayed inside the application.}
+  {fig:studio-data}
+
+\subsection{\texttt{Simulation}: light interception by the canopy}
+
+It answers how much of the light that reached an area was intercepted by the
+crop canopy. The reported quantity is \termo{faPAR}: the fraction of
+photosynthetically active radiation absorbed.
+
+A crop model obtains that fraction by applying Beer-Lambert with an assumed
+extinction coefficient. Here it is obtained by marching rays through a plant
+architecture built from the observed series, under the solar record of the cell
+itself, and the coefficient that would reproduce the result is returned
+alongside as \texttt{Emergent k}. The difference between it and a fixed
+coefficient is reported as \texttt{Fixed-k error}.
+
+\begin{ficha}
+  \item[Panel] The \texttt{Simulation} arrangement: the \texttt{Canopy} area
+        and the \texttt{Canopy run} band
+  \item[Preconditions] To draw, none beyond the Python environment. To read an
+        area, a saved run whose index series holds at least three observations
+  \item[Optional dependency] \texttt{pyhelios3d}, which does not come with the
+        default install. Without it the canopy is made of ellipsoids rather
+        than grown architecture
+  \item[Output] faPAR, the emergent coefficient, the resolved age, the LAI
+        series and the phenological states; the stand mesh in \texttt{glTF}
+\end{ficha}
+
+\campo{Four readings of one canopy} The choice is made in the area's type menu,
+not inside the panel. One reading per area; several areas can show different
+readings of the same stand.
+
+\begin{table}[htbp]\centering
+\caption{The four modes of the \texttt{Canopy} editor.}
+\label{tab:canopymodes}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.6cm}L{13.0cm}@{}}
+\toprule
+\textbf{Mode} & \textbf{What it brings} \\
+\midrule
+\texttt{Stand} & the drawn stand: stems and blades, as the architecture was grown. The only one that spends a WebGL context \\
+\texttt{Season} & the LAI series inverted from the index, the phenological states, and the cycles the window was split into \\
+\texttt{Light} & faPAR under the measured sun, the emergent coefficient, the fixed-coefficient error, the lit LAI, the diffuse share and the number of directions marched \\
+\texttt{Ages} & the two independent ages side by side, and whether comparing them is admissible on that date \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\campo{Procedure: drawing a stand} The \texttt{Canopy run} band sets species,
+age and sowing (table~\ref{tab:canopyparam}). \texttt{Grow} builds the mesh and
+loads it into every \texttt{Stand} area on the board. Change a parameter after
+that and the button becomes \texttt{Regrow}, with the panel stating that the
+drawn stand no longer matches the parameters on screen.
+
+\campo{Procedure: reading an area} In the band's \texttt{Area} group, select a
+saved run. Runs with fewer than three observations do not appear, and the
+control reports \msg{No analysed area carries a long enough index series yet}.
+\texttt{Read area} runs the chain described below and fills the \texttt{Season},
+\texttt{Light} and \texttt{Ages} readings at once.
+
+\campo{How the reading is obtained} Seven steps, in this order:
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item The area's vegetation index series is read. The species is suggested
+        from the classes the classification found, and a species declared in
+        the band overrides the suggestion.
+  \item NDVI is inverted into leaf area index by Beer-Lambert on the index
+        (Baret \& Guyot, 1991).
+  \item The phenological states are labelled, as \texttt{soil},
+        \texttt{greenup}, \texttt{mature}, \texttt{senescence} and
+        \texttt{fallow}, and the series is split into cycles. More than one
+        cycle means the window covers more than one crop, and each age is then
+        counted from its own cycle's green-up.
+  \item A per-species growth ladder returns the age whose plant carries the
+        observed leaf area, divided by the sowing density. The ladder refuses
+        in three cases (table~\ref{tab:ladder}).
+  \item The hourly solar record for the cell is fetched, three years by
+        default, and narrowed to a window of $\pm$21 days around the
+        day-of-year of the lit observation. From it come the beam energy
+        histogram by azimuth and elevation, and the measured diffuse fraction.
+  \item Rays are marched through the architecture, bin by bin of the histogram,
+        weighted by the energy that arrived from each direction. The procedure
+        is repeated for different seeds, for the reason recorded in the
+        limitations at the end of this section.
+  \item The median run by faPAR carries the reported figures, and the spread of
+        the set accompanies them.
+\end{enumerate}
+
+\begin{table}[htbp]\centering
+\caption{Parameters of the \texttt{Canopy run} band.}
+\label{tab:canopyparam}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.9cm}L{2.0cm}L{2.7cm}L{7.4cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Range} & \textbf{Effect} \\
+\midrule
+\texttt{Species} & sorghum & 30 species & the library carries no sugarcane, coffee or cotton; the ladder refuses rather than substituting a nearby species \\
+\texttt{Day} & 60 & 5 to 200, step 5 & age of the drawn stand. Reading an area resolves the age and does not use this field \\
+\texttt{Rows} & 3 & 1 to 8 & rows in the drawn stand \\
+\texttt{Per row} & 4 & 1 to 10 & plants per row. At 3$\times$4 and 60 days the mesh holds roughly 264 thousand triangles \\
+\texttt{Row spacing} & 0.80~m & 0.1 to 6~m, step 0.05 & enters the sowing density, which converts leaf area per plant into LAI \\
+\texttt{In row} & 0.25~m & 0.05 to 4~m, step 0.05 & the same \\
+\texttt{Sun} & 50$^\circ$ & 2 to 90$^\circ$ & sun elevation \emph{for the drawn scene}. It does not enter the faPAR calculation, which uses the cell's solar record \\
+\texttt{Azimuth} & 35$^\circ$ & 0 to 359$^\circ$, step 5 & the same \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]\centering
+\caption{When the ladder returns no age. The refusal is reported per
+observation, not suppressed.}
+\label{tab:ladder}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.6cm}L{12.0cm}@{}}
+\toprule
+\textbf{Refusal} & \textbf{Condition} \\
+\midrule
+out of reach & the observed LAI exceeds what the species attains at that density \\
+on the plateau & past the age at which leaf area stops changing, the age is not identifiable from it. The phenological state breaks the tie \\
+species absent & the species is not in the architecture library \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\terrafig{png-images/impressao/studio-simulation-soybean-tocantins-data.png}
+  {\texttt{Simulation}, in \texttt{Stand} mode. The central area draws the
+   architecture grown for the species, age and sowing set in the band at the
+   foot; on the right, the \texttt{Outliner} shows which area is on the board.
+   The mode draws the geometry and not the radiation: the faPAR values are in
+   \texttt{Light} mode.}
+  {fig:studio-sim}
+
+\campo{Limitations} The four below are declared by the application itself and
+affect how the result is read.
+
+\begin{objecao}
+\textbf{The architecture is optional, and the alternative is not equivalent.}
+The library that grows the plant is an extra that does not come with the
+default install. In its absence the canopy is made of uniform-density
+ellipsoids preserving leaf area and crown envelope, and the source is declared
+in the field metadata. An ellipsoid on those terms intercepts more light than
+the architecture it stands in for, so the two are not interchangeable.
+\end{objecao}
+
+\begin{objecao}
+\textbf{The result has a spread of its own, and it is sampled.} The
+architecture is grown stochastically. Measured on soybean at 55 days, with
+species, age and sowing held and the leaf area rescaled to a single LAI, five
+seeds produced faPAR between 0.703 and 0.799, a spread of 0.096. The run is
+therefore repeated, three seeds by default and up to twelve, and the panel
+reports the median with the observed range instead of a single value. The march
+dominates the cost, at around 11~s against 0.24~s to grow one plant.
+\end{objecao}
+
+\begin{objecao}
+\textbf{The plant model does not represent competition.} The architecture grows
+the ontogeny of an isolated plant. Verified on soybean at 60 days:
+1.402~m$^2$ isolated against 1.371~m$^2$ inside a 24-plant stand at
+30~pl/m$^2$, a ratio of 0.98. The neighbourhood barely alters growth.
+Multiplied by the real sowing density, the attainable LAI exceeds field LAI for
+some species (table~\ref{tab:reach}). Where it does, the inversion still returns
+a number, a young age whose leaf area matches, but the architecture is that of
+a juvenile plant where the field holds a mature one, with a different vertical
+distribution and different leaf angles.
+
+Two independent ages are therefore reported and neither is chosen: the one the
+leaf area implies, and the phenological one counted in days since the cycle's
+green-up. A large divergence between them indicates that the isolated-plant
+model does not apply to that crop at that sowing. Past the peak of the series
+the comparison is suppressed and the reason is stated: the ladder only grows,
+so after the peak the age it returns means ``a plant carrying this much leaf'',
+not ``a canopy of this age''.
+\end{objecao}
+
+\begin{table}[htbp]\centering
+\caption{LAI attainable by the ladder at field density, against LAI observed in
+the crop. Where the reach exceeds the observed value, the resolved age
+describes a plant with the right leaf area and the wrong architecture.}
+\label{tab:reach}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.6cm}L{4.6cm}L{3.4cm}L{4.2cm}@{}}
+\toprule
+\textbf{Species} & \textbf{Reach at density} & \textbf{Field LAI} & \textbf{Reading} \\
+\midrule
+maize    & 4.7 to 7.5 (5--8 pl/m$^2$)      & 3 to 6 & consistent \\
+rice     & 2.9 to 7.2 (100--250 pl/m$^2$)  & 4 to 7 & consistent \\
+sorghum  & 3.8 (5 pl/m$^2$)                & 3 to 5 & consistent \\
+wheat    & 12.8 to 25.6 (200--400 pl/m$^2$)& 4 to 7 & reach exceeds \\
+cowpea   & 12.8 to 25.6 (10--20 pl/m$^2$)  & 3 to 5 & reach exceeds \\
+soybean  & 37 to 75 (20--40 pl/m$^2$)      & 4 to 7 & reach exceeds \\
+bean     & 35 to 59 (15--25 pl/m$^2$)      & 3 to 5 & reach exceeds \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{objecao}
+\textbf{The inversion saturates, and the series is an area mean.} The three
+parameters of the inversion, bare-soil NDVI, closed-canopy NDVI and the
+extinction coefficient, are field calibration, and the values adopted by
+default correspond to soybean or maize. Above LAI 4 the index barely moves: at
+NDVI 0.85 one hundredth of index is worth about 0.3 of LAI, and at 0.88 it is
+worth 0.9. In that range the value is extrapolation, and the proportion of the
+series that fell there is reported. Above LAI 8 the inversion is refused.
+
+The series is also a mean over the area, and a mean over mixed cover is not the
+crop's index. Over the soybean area this reading was built against, the peak
+reads 0.314 with a standard deviation of 0.190, which for a roughly balanced
+mixture places crop pixels near 0.50 and the rest near 0.12. The inverted LAI
+understates the crop by about that much.
+\end{objecao}
+
+% =====================================================================
+\section{Taking the result out}
+
+\begin{ficha}
+  \item[Preconditions] A completed run, selected
+  \item[Output] A directory holding the contents of table~\ref{tab:pack}, or
+        one file per layer
+\end{ficha}
+
+\campo{Procedure: the research pack}
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item Open \texttt{Research pack}. The window lists the files on the left and
+        shows the contents of the selected one on the right, before writing.
+  \item Check \texttt{manifest.json}, which is the provenance record: model,
+        area, number of dates, interval, mean confidence and extent.
+  \item Press \texttt{Export pack} and choose the directory.
+\end{enumerate}
+
+\begin{table}[htbp]\centering
+\caption{Contents of the research pack.}
+\label{tab:pack}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{5.8cm}L{9.8cm}@{}}
+\toprule
+\textbf{File} & \textbf{Contents} \\
+\midrule
+\texttt{manifest.json} & schema version, export time, model, area identifier and label, number of dates, interval covered, mean confidence and extent \\
+\texttt{aoi.geojson} & the polygon, with the number of parts \\
+\texttt{*.csv} & one table per reading, with the row count \\
+\texttt{rasters/classification.tif} & the classification as GeoTIFF \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\terrafig{png-images/impressao/research-pack.png}
+  {A preview of the pack before writing. The list on the left enumerates the
+   files; the panel on the right shows the contents of the selected one.}
+  {fig:pack}
+
+\campo{Procedure: layer by layer} In the \texttt{Outliner}, each listed layer
+carries its own actions: \texttt{PNG} writes the image, and \texttt{GeoTIFF}
+writes the georeferenced raster where the layer has one. \texttt{Show} brings
+the layer onto the board, and \texttt{Drop} removes it.
+
+\begin{achado}
+Exports carry the text declaring the assumptions under which each value was
+obtained. The \texttt{manifest.json} is the pack's provenance record: without
+it the CSV files are numbers with no run behind them.
+\end{achado}
+
+% =====================================================================
+% APPENDICES
+%
+% What moved here is reference rather than continuous reading: a field table
+% with defaults and ranges, an editor catalogue, a message list. The reader
+% returns to them with a specific question, and in the middle of the text they
+% interrupted the procedure they were there to support.
+%
+% Short tables stayed where they were. A three-to-five-row table that carries
+% the argument of the paragraph beside it is not reference, it is the sentence.
+%
+% The tables here do not float. As floats they slid past their own headings,
+% and the contents page then pointed every appendix subsection at one page that
+% held nothing but headings. `captionof` comes from the `caption` package, and
+% numbers them identically.
+% =====================================================================
+\appendix
+
+\section{Fields and parameters}
+
+For each editable field, these tables give the value the application adopts on
+opening, the range accepted, and the effect of changing it.
+
+\subsection{Classification}
+
+\begin{center}
+\captionof{table}{Fields of \texttt{New classification}, with the value the
+application adopts on opening.}
+\label{tab:classify}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.0cm}L{2.7cm}L{3.0cm}L{6.6cm}@{}}
+\toprule
+\textbf{Field} & \textbf{Default} & \textbf{Range} & \textbf{Effect} \\
+\midrule
+\texttt{start} & one year ago & up to today & start of the acquisition period \\
+\texttt{end} & today & up to today & end of the period. Future dates are not accepted: the scenes have already been acquired, and a period running into the future returns the same set \\
+\texttt{max cloud} & 40\% & 0 to 100\%, step 5 & drops scenes with cloud cover above the value \\
+\texttt{Best scene per month} & on & on/off & takes one scene per month instead of every scene passing the filter \\
+\texttt{Model} & Random Forest & Random Forest; Temporal Transformer; Prithvi-EO 2.0 & the last two require \texttt{torch} \\
+\texttt{Prithvi mode} & \texttt{Pixel} & \texttt{Pixel} 10~m; \texttt{Patch} about 160~m & visible only with Prithvi. \texttt{Pixel} is comparable to Random Forest; \texttt{Patch} takes in spatial context \\
+\texttt{Mode} & \texttt{Map} & \texttt{Map}; \texttt{Temporal} & \texttt{Temporal} with Random Forest only \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Flood envelope}
+
+\begin{center}
+\captionof{table}{Parameters of \texttt{Flood envelope}. The first two are the
+reference values of the study; each run's \texttt{assumptions} block states
+whether the value used was the default or the operator's.}
+\label{tab:floodparam}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.4cm}L{2.7cm}L{2.9cm}L{6.3cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Range} & \textbf{Effect} \\
+\midrule
+Elevation products & all four & at least two & Copernicus GLO-30, NASADEM, ALOS World 3D and Copernicus GLO-90. One product yields an extent with no measure of how much of it follows from the choice of product \\
+Reference threshold & 1.0~m & not negative & height above the drainage at which the agreement raster is built \\
+Drainage area & 0.5~km$^2$ & above zero & contributing area above which a cell counts as drainage. At zero every cell is drainage and the extent is the whole area at any threshold \\
+Buffer & derived & not negative & metres read beyond the area \\
+Inset margin & derived & not negative & width of the ring cut from inside the polygon for the inset statistics \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Interface reference}
+
+\subsection{Interpreter origins}
+
+\begin{center}
+\captionof{table}{Origins that \texttt{In use} reports for the current
+interpreter.}
+\label{tab:origin}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.6cm}L{12.0cm}@{}}
+\toprule
+\textbf{Origin} & \textbf{Meaning} \\
+\midrule
+\texttt{created by TERRA}     & an environment built by \texttt{Build environment} \\
+\texttt{shipped with TERRA}   & the interpreter in the install package \\
+\texttt{chosen here}          & selected on this page \\
+\texttt{a project environment}& a project virtual environment \\
+\texttt{found on this machine}& located on the \texttt{PATH} \\
+\texttt{detected automatically}& resolved without intervention \\
+\texttt{forced by TERRA\_PYTHON} & imposed by the environment variable; the selection on this page does not apply \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{The Studio editors}
+
+\begin{center}
+\captionof{table}{The editors. One of them occupies each area of the board.}
+\label{tab:editors}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.9cm}L{11.7cm}@{}}
+\toprule
+\textbf{Editor} & \textbf{What it brings} \\
+\midrule
+\texttt{Viewport} & the rasters, lifted off their coordinates \\
+\texttt{Outliner} & what is in the scene, what data exists, which areas exist \\
+\texttt{Properties} & the selected plane: its legend, its classes, its accuracy \\
+\texttt{Comparison} & two planes against each other: difference, transitions and agreement \\
+\texttt{Domain shift} & how far the target domain sits from the one the model was fitted on \\
+\texttt{Spectral response} & what each predicted class reflects, band by band, on one acquisition \\
+\texttt{Class separability} & how far apart two classes are, band by band, and where that separation is lost \\
+\texttt{Library check} & each class against a spectral library, and why a small angle is not an identification \\
+\texttt{Rover} & points at a predicted pixel: its class, where it is, and what it reflects \\
+\texttt{Data table} & the run's own tables, sortable, as the research pack exports them \\
+\texttt{Run} & area, period and model for the next run \\
+\texttt{Canopy} & a stand: specified and drawn, or the one an area's season implies \\
+\texttt{Canopy run} & species, age and sowing for the stand, and which area is read \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{\texttt{Domain shift} metrics}
+
+\begin{center}
+\captionof{table}{What \texttt{Domain shift} reports.}
+\label{tab:domain}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.4cm}L{12.2cm}@{}}
+\toprule
+\textbf{Metric} & \textbf{What it measures} \\
+\midrule
+\texttt{KL (NDVI)} & Kullback-Leibler divergence between the NDVI distributions of the two areas \\
+\texttt{CVA |M|} & change vector magnitude, in standard deviations where normalisation is possible \\
+\texttt{MMD$^2$} & maximum mean discrepancy, with an RBF kernel \\
+\texttt{Spaces} & which kind of signature was used on each side, when the two do not match \\
+\texttt{Overall} & overall accuracy against the reference cover \\
+\texttt{Macro F1} & mean F1 across classes, unweighted by their frequency \\
+\texttt{Outside legend} & the fraction of pixels outside the comparable legend \\
+\texttt{Quantity / alloc.} & the disagreement decomposed into quantity error and allocation error \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Messages}
+\label{ap:messages}
+
+The messages below are the ones the application displays. An analysis failure
+appears as a notice with a title and a detail; the detail comes from the Python
+process and names the condition encountered.
+
+\begin{center}
+\captionof{table}{Refusal messages, shown before a run starts.}
+\label{tab:refusal}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{7.6cm}L{8.0cm}@{}}
+\toprule
+\textbf{Message} & \textbf{Cause and action} \\
+\midrule
+\msg{Set the acquisition period.} & the start or end date is empty. Fill both fields of the period block \\
+\msg{Define an area: draw, search, or load an example.} & no area is defined. Draw, search or import one \\
+\msg{Select a scene first.} & a composition was requested with no scene selected from the list \\
+\msg{No polygon found in the file.} & the imported file holds no polygon geometry \\
+\msg{Performance ratio must be between 0 and 1.} & a solar field is out of range \\
+\msg{UTC offset must be between -12 and 14 hours.} & a solar field is out of range \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\captionof{table}{Conditions reported during a run. They appear as the detail
+of the error notice for the corresponding task.}
+\label{tab:runtime}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{7.6cm}L{8.0cm}@{}}
+\toprule
+\textbf{Condition} & \textbf{Reading} \\
+\midrule
+\msg{No scenes found for this period / cloud filter.} & no scene passed the filter. Widen the period or raise the accepted cloud cover \\
+\msg{no Copernicus DEM tile covers this AOI} & the area lies outside the coverage of the elevation product \\
+\msg{the merged DEM window is empty for this AOI} & the selected products returned no data over the area \\
+\msg{No MapBiomas pixels in the AOI window (empty download).} & the area lies outside MapBiomas coverage \\
+\msg{NASA POWER returned no data for this period} & the irradiance record does not cover the requested period \\
+\msg{NASA POWER request failed after N attempts} & a network failure after the allotted retries \\
+\msg{no complete year in the annual totals} & the period does not close a year, so the annual totals cannot be computed \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\campo{Environment} Interpreter failures are covered in section~2. An analysis
+that dies mid-run on a missing import corresponds to an environment adopted
+with \texttt{Use as is} that lacks a package; \texttt{Settings} $\rightarrow$
+\texttt{System} names which.
+
+\end{document}

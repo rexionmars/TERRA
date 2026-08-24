@@ -1,0 +1,486 @@
+% =====================================================================
+% TERRA -- O livro para quem publica
+%
+% Manual da parcela de usuario que interroga o resultado: o que o modelo errou e
+% onde, que espectro ele observou, em que resolucao o numero resolve. E
+% transparencia, e nao preparacao de manuscrito.
+%
+% O guia geral (geosense-infer/docs/user-manual/guia.tex) cobre a operacao;
+% este cobre a definicao, o limite e a proveniencia de cada produto.
+%
+% Compilar da raiz do repositorio:
+%   make book
+% Ou daqui:
+%   TEXINPUTS="$(cd .. && pwd):$TEXINPUTS" latexmk -pdf livro.tex
+% O latexmk vive em /Library/TeX/texbin, fora do PATH padrao.
+%
+% Depois de compilar, aferir a capa:
+%   ../../../.venv/bin/python ../scripts/verifica_capa.py livro.pdf
+%
+% Classe `book`, e nao `article` como os estudos nem `report` como o template
+% cientifico. Duas razoes, e as duas sao sobre navegacao num documento de dois
+% digitos de capitulos:
+%   - `\part` agrupa. Vinte e tres capitulos numa lista plana nao se leem;
+%     em sete partes, o sumario cabe numa pagina e o leitor acha o produto
+%     que procura pelo grupo antes de procurar pelo titulo.
+%   - `\frontmatter` numera o pre-textual em romano. Assim acrescentar uma
+%     pagina ao sumario nao renumera o corpo -- num livro que cresce capitulo
+%     a capitulo, isso e a diferenca entre uma referencia de pagina estavel e
+%     uma que muda a cada release.
+% O `terra.sty` instala o formato de capitulo so quando a classe tem um, de
+% modo que os estudos, que sao `article`, nao mudam de aparencia.
+%
+% MAPA DOS CAPITULOS, e o estado de cada um: README.md deste diretorio.
+% Capitulo entra no `\include` abaixo quando esta escrito, e nao antes: um
+% sumario que anuncia capitulo vazio e uma promessa que o PDF nao cumpre.
+% =====================================================================
+
+\documentclass[11pt,a4paper,oneside]{book}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+
+% MARGEM DE 2,0 CM, a mesma do `guia.tex`, e nao os 3,5 cm do template
+% cientifico. Tres razoes, em ordem de peso:
+%
+%   1. Os dois documentos sao UM PAR. O guia e este livro cobrem o mesmo
+%      produto para dois leitores, e quem consulta os dois na mesma sessao le
+%      duas medidas diferentes como dois documentos de origens diferentes.
+%
+%   2. As capturas de tela. `scripts/prepara_capturas.py` reduz para 300 dpi na
+%      largura do bloco, e o alvo dele -- 17,0 cm, 2008 px -- e A4 com margem de
+%      2,0 cm. Compor este livro a 14 cm faria a ferramenta preparar imagem para
+%      uma medida que o documento nao tem, e uma captura de interface e quase
+%      toda tipo pequeno: e o caso em que sobrar largura importa.
+%
+%   3. Tabela de tres colunas. Metade das tabelas daqui compara produto contra
+%      produto contra ressalva, e a terceira coluna e a que carrega o limite.
+%      A 14 cm ela fica com 4,4 cm e quebra a cada duas palavras.
+%
+% O que a medida larga custa esta resolvido na linha seguinte.
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{terra}
+
+% ENTRELINHAMENTO ABERTO, e por causa da margem -- o mesmo argumento que o
+% `guia.tex` faz para a dele. A 2,0 cm o bloco tem 17,0 cm e a linha corre a
+% ~87 caracteres, contra os ~66 que a tipografia toma como confortavel. O que
+% torna linha longa cansativa nao e o comprimento em si: e o retorno -- o olho
+% volta da direita para a esquerda e precisa achar a linha seguinte, e quanto
+% mais longo o percurso, mais facil ele pousar na errada. Abrir o vertical
+% separa as linhas e devolve a pista que o comprimento tirou.
+%
+% Medida e entrelinhamento andam juntos; mexer numa sem mexer no outro e que
+% faz o bloco largo ler mal.
+\linespread{1.10}
+
+\usepackage{microtype}
+\usepackage{siunitx}
+\usepackage{tocloft}
+% A tabela de procedencia do apendice B: `longtable` porque ela atravessa
+% paginas, e `pdflscape` porque a coluna de arquivo e simbolo nao cabe nem
+% hifeniza em 17 cm. O `pdflscape` gira tambem a pagina no PDF, e nao so o
+% conteudo, entao ela se le sem virar a cabeca no leitor de tela.
+\usepackage{longtable}
+\usepackage{pdflscape}
+
+% Ponto de preenchimento tambem na linha de capitulo, que a classe `book` nao
+% faz -- sem ele o numero de pagina do capitulo fica solto do outro lado da
+% folha. E a folga entre capitulos cai de 1 em para 0,4, senao o sumario de
+% sete partes transborda de pagina sem ganhar legibilidade.
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
+\setlength{\cftbeforechapskip}{.4em}
+
+% Largura da caixa do numero de secao no sumario. O padrao de 2,3 em cabe
+% "9.9" e estoura em "16.10": dois digitos de capitulo com dois de secao. O
+% capitulo 17 tem dez secoes e foi o primeiro a chegar la.
+\setlength{\cftsecnumwidth}{2.9em}
+
+\sisetup{output-decimal-marker={,},group-separator={\,},
+         group-minimum-digits=4,separate-uncertainty=true}
+
+% O quilowatt-pico nao e unidade do SI: e a potencia de placa de um arranjo
+% fotovoltaico, medida em condicao padrao de ensaio. E a unidade em que a
+% industria e o Global Solar Atlas publicam rendimento especifico, e escreve-la
+% como \watt seria dizer outra coisa. Declarada aqui para que o \qty a componha
+% com as demais em vez de sair como texto solto no meio de uma coluna de numeros.
+% O quilowatt-hora composto por \kilo\watt\hour sai como "kW h", com espaco
+% entre os dois: siunitx trata hora como unidade separada e insere o produto.
+% A grafia corrente, e a que o Global Solar Atlas usa na mesma tabela contra a
+% qual o capitulo 15 se afere, e "kWh".
+\DeclareSIUnit{\kWh}{kWh}
+\DeclareSIUnit{\MWh}{MWh}
+\DeclareSIUnit{\kWp}{kWp}
+
+% COLUNA ALINHADA A ESQUERDA, herdada do guia geral com a mesma medida e a
+% mesma razao. As tabelas deste livro tem colunas estreitas, e `p{}` justifica:
+% a essa largura o justificado abre buracos entre palavras. O `plus 2em` em vez
+% do `plus 1fil` do \raggedright preserva o diagnostico: com folga infinita a
+% direita, TeX nunca acha uma linha larga demais, e uma celula com um caminho
+% de arquivo em monoespacada -- que nao hifeniza -- vaza por cima da coluna
+% vizinha sem uma linha de `Overfull` no log.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\rightskip=0pt plus 2em\relax\hbadness=10000\relax}p{#1}}
+
+% Este livro cita rotulos da interface em \texttt, e nenhum deles hifeniza:
+% `Class separability` e `Domain shift` na mesma frase sao dois blocos rigidos.
+% Quando caem juntos no fim de um paragrafo, TeX prefere estourar a margem a
+% compor uma linha frouxa. O emergencystretch da uma passada extra com folga
+% adicional, e so nos paragrafos que de outro modo estourariam.
+\setlength{\emergencystretch}{2em}
+
+% Uma mensagem ou rotulo citado da tela ao pe da letra, distinto do \texttt que
+% cita NOME de controle. Mesma convencao do guia geral.
+\newcommand{\msg}[1]{``\textit{#1}''}
+
+% CAMINHO DE ARQUIVO em \path{...}, e nao em \texttt{...}. O `url`, que o
+% hyperref do terra.sty ja carrega, permite quebra de linha depois de "/" e
+% cuida do "_" sem escape. Em \texttt cru,
+% `docs/TERRA/notas/triagem-estudos-features.md` e um bloco rigido de 42
+% caracteres: numa coluna de `ficha` ele estourou a margem em 87 pt, e o TeX
+% nao tinha onde quebrar.
+%
+% `\urlstyle{tt}` para o caminho sair na mesma monoespacada dos rotulos --
+% sem ele o `url` compoe em `\ttfamily` da classe, que nao e o plxMono do
+% pacote, e dois caminhos na mesma pagina saíam em duas fontes.
+%
+% Sem macro em volta, de proposito: `\path` le o argumento quase verbatim, e
+% embrulha-lo num \newcommand faz o "_" ser tokenizado antes -- o que devolve
+% "Missing $ inserted" no primeiro caminho com sublinhado.
+\usepackage{url}
+\urlstyle{tt}
+
+% A CAPA E A DE `templates/template-cientifico.tex`, sem divergir dela: mesma
+% foto, mesmo escurecimento, mesma marca e mesmo chapeu. O 0,60 nao e gosto --
+% e o minimo medido para esta foto nesta diagramacao, e reaferi-lo por conta de
+% um documento novo seria refazer uma medida que ja existe. As tres colunas do
+% rodape sao as unicas coisas que mudam, porque nomeiam ESTE documento.
+%
+% Reaferir depois de compilar:
+%   ../../../.venv/bin/python ../scripts/verifica_capa.py livro.pdf
+\setcapaimagem{../images/capas/delta-a4.jpg}
+\setcapaescuro{0.60}
+% O emblema ao lado do letreiro, como em `guia.tex` e nos dois templates: a
+% TitleBar do TERRA poe a marca a esquerda e a palavra TERRA ao lado dela, e a
+% capa repetir essa composicao faz o documento e o produto lerem como a mesma
+% coisa. 2,9 cm contra os ~2,2 cm de caixa-alta do letreiro a 86 pt, erguido de
+% (2,2-2,9)/2 para centrar nela; abaixo de uns 2,8 cm o texto do anel nao se
+% resolve e o emblema vira um ponto escuro.
+\setcapamarca{%
+  \raisebox{-0.35cm}{\includegraphics[height=2.9cm]{../images/TERRA_EO_Logo.png}}%
+  \hspace{0.46cm}TERRA}
+% O CHAPEU NUMERA O DOCUMENTO, e nao o software. Mesma decisao do `guia.tex`, e
+% pela mesma razao: a versao do TERRA muda a cada release e deixaria a capa
+% desatualizada sem que uma linha do texto tivesse mudado. A do livro muda
+% quando o livro muda, que e o que um numero na capa promete. Esta e a primeira
+% edicao.
+%
+% A versao do TERRA que o texto descreve continua declarada, e no lugar em que
+% decide alguma coisa: o primeiro campo do prefacio.
+\setcapachapeu{v1}
+% AS TRES COLUNAS DIZEM O QUE O DOCUMENTO RESPONDE, e nao o que o TERRA e --
+% quem pega este livro ja usa a aplicacao. Sao as tres perguntas do prefacio, na
+% ordem em que o livro as responde, e sao a razao de ele existir: o que a tela
+% mostra do resultado nao inclui como ele foi construido.
+%
+% ROTULO E SINTAGMA NOMINAL, e nao oracao. A primeira versao trazia "O que o
+% modelo leu", "Onde ele erra" e "Ate onde o numero vai": tres oracoes, duas
+% delas afirmando mais do que a tira de capa sustenta. Uma capa de periodico
+% nomeia o assunto -- "Ocean circulation", e nao "para onde vai a agua".
+%
+% "Erra" tambem saiu por ser impreciso aqui: o livro mede CONCORDANCIA contra o
+% MapBiomas e passa tres capitulos dizendo que aquilo nao e verdade de campo.
+% Chamar a diferenca de erro na capa contradiz o capitulo 6.
+%
+% A COLUNA TEM 5,3 CM, o que da cerca de 30 caracteres por linha a 9,5 pt. Um
+% corpo mais longo que duas ou tres linhas hifeniza, e a primeira versao destas
+% colunas partiu "bandas" ao meio na capa. Palavra partida numa capa nao se le
+% como quebra de linha, se le como erro.
+%
+% A TERCEIRA COLUNA MUDOU DE CORPO por cadencia. Ela dizia "e o que o produto
+% nao mede", e a linha fina termina em "e o que o numero nao sustenta": a mesma
+% construcao duas vezes na mesma capa. O corpo atual tambem acrescenta em vez
+% de repetir o rotulo -- "limite" ja esta no rotulo, e a resolucao da fonte
+% contra a grade em que o mapa e desenhado e um limite concreto, que o capitulo
+% 2 mede.
+%
+% E nao repete a linha fina: "a resolucao da fonte" estava escrito duas vezes na
+% mesma capa, com as mesmas quatro palavras.
+\setcapacolunas
+  {A entrada do modelo}{As cenas, as bandas e o espaço em que ele foi treinado}
+  {A discordância}{Quantidade contra alocação, e a concordância por blocos}
+  {O limite do produto}{A grade do mapa, contra o que a fonte resolve}
+
+\begin{document}
+
+% =====================================================================
+% PRE-TEXTUAL
+% =====================================================================
+\frontmatter
+
+% A manchete e uma chamada de duas a quatro palavras; o titulo inteiro vai na
+% linha fina abaixo dela.
+%
+% DOIS SUBSTANTIVOS, e nao uma oracao. A manchete anterior era "O QUE O NUMERO
+% DIZ" e a linha fina terminava em "onde o numero deixa de dizer o que parece
+% dizer": o verbo "dizer" tres vezes em seis linhas, em quiasmo. Espelho desses
+% e a cadencia mais reconhecivel de prosa gerada por modelo de linguagem, e a
+% manchete ainda provocava em vez de nomear, que a secao 7.3 da `escrita.md`
+% proibe expressamente para capa.
+%
+% "O metodo e o limite" parte o livro em dois, e sao as duas metades reais:
+% todo capitulo tem a definicao do produto e uma secao "o que nao se pode
+% concluir". A linha fina especifica; nao repete.
+%
+% A LINHA FINA PERDEU UM TERCO. Tinha 24 palavras em tripla com escalada, e
+% "em que resolucao ele resolve" repetia o radical. Ficaram 19, tres itens
+% concretos, sem espelho.
+\terracapaperiodico
+  {O MÉTODO\\E O LIMITE}
+  {Manual científico do TERRA: a definição de cada produto, a resolução real da
+   fonte, e o que o número não sustenta}
+  {Agosto de 2026}
+
+% SEM FOLHA DE ROSTO. Havia uma aqui, e ela repetia a capa: o titulo que a
+% manchete ja da, "Manual cientifico do TERRA" que a coluna do rodape ja diz, o
+% publico e o que o documento nao cobre -- que sao dois campos do prefacio --, e
+% a nota dos rotulos em ingles, que e uma das convencoes do prefacio, palavra
+% por palavra.
+%
+% Sobrava dela uma unica informacao que nao estava em outro lugar: de que
+% versao o livro fala. Isso e uma frase, e esta na abertura do prefacio. Nao era
+% pagina.
+%
+% --- sumario ----------------------------------------------------------
+% Sem o `\begingroup\singlespacing` que o template cientifico poe em volta do
+% seu: la ele existe para desfazer o `\onehalfspacing` do corpo, e aqui o corpo
+% nao esta em 1,5. Copiar o grupo trazia o `\singlespacing` do `setspace`, que
+% este preambulo nao carrega, e o sumario morria com "Undefined control
+% sequence" na primeira passada.
+\tableofcontents
+\clearpage
+
+% O prefacio vem DEPOIS do sumario, como no `guia.tex`. Nao e conteudo -- e o
+% que o leitor precisa saber antes de comecar --, entao nao entra no corpo
+% numerado; e e depois do sumario porque quem abre o PDF procura primeiro o
+% mapa do documento.
+\include{capitulos/00-prefacio}
+
+% A lista de siglas fecha o pre-textual, imediatamente antes do corpo, que e
+% onde o `template-cientifico.tex` da linha a poe. Nao e apendice: apendice
+% guarda tabela de consulta, e sigla se resolve no meio da frase.
+\include{capitulos/00-siglas}
+
+% =====================================================================
+% TEXTUAL
+% =====================================================================
+\mainmatter
+
+\part{O dado e o protocolo}
+\include{capitulos/01-escopo}
+\include{capitulos/02-protocolo}
+\include{capitulos/03-entrada}
+
+% As partes abaixo estao mapeadas no README.md deste diretorio, com o estado
+% de cada capitulo. Cada `\include` e descomentado quando o capitulo existe.
+%
+\part{Classificação de cobertura}
+\include{capitulos/04-caminhos}
+\include{capitulos/05-o-que-o-mapa-afirma}
+%
+\part{Erro, concordância e transferência}
+\include{capitulos/06-concordancia}
+\include{capitulos/07-quantidade-e-alocacao}
+\include{capitulos/08-blocos}
+\include{capitulos/09-separabilidade}
+\include{capitulos/10-domain-shift-diagnostico}
+\include{capitulos/11-domain-shift-limite}
+%
+\part{Água e terreno}
+\include{capitulos/12-agua}
+\include{capitulos/13-terreno}
+\include{capitulos/14-envoltoria}
+%
+\part{Energia}
+\include{capitulos/15-solar-ponto}
+% \include{capitulos/16-solar-terreno}
+\include{capitulos/17-energia-perdas}
+% \include{capitulos/18-vento}
+%
+% \part{Dossel}
+% \include{capitulos/19-lai-e-idade}
+% \include{capitulos/20-arquitetura}
+%
+% \part{Prática de pesquisa com o TERRA}
+% \include{capitulos/21-exportacao}
+% \include{capitulos/22-reprodutibilidade}
+% \include{capitulos/23-limites-e-referencias}
+
+% =====================================================================
+% POS-TEXTUAL
+% =====================================================================
+
+% A classe `book` chama a secao de "Bibliografia"; a ABNT chama de
+% "Referencias" e so. Trocado aqui para que o titulo impresso e a linha do
+% sumario digam a mesma coisa. Mesma decisao do template cientifico.
+\renewcommand{\bibname}{Referências}
+
+% Escrito a mao, como nos demais .tex da linha: por enquanto sao poucas
+% referencias e o BibTeX so acrescentaria um passo de compilacao. Quando o
+% livro passar de umas trinta -- e vai passar, sao 24 capitulos --, troque por
+% BibTeX de uma vez, porque a conversao a meio caminho e que da trabalho.
+%
+% O `thebibliography` ja imprime o titulo, por isso nao ha `\chapter*` aqui.
+%
+% `\phantomsection` ANTES do `\addcontentsline`, e nao e detalhe: sem ele o
+% `hyperref` nao tem ancora para criar e ata a linha do sumario a ultima que
+% existia -- a secao 3.6. Clicar em "Referencias" no sumario levava ao fim do
+% capitulo 3. O `\clearpage` vem junto porque a ancora tem de cair na pagina em
+% que a bibliografia comeca.
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Referências}
+\begin{thebibliography}{9}
+
+\bibitem[Barnes et al.(2014)]{barnes2014}
+Barnes, R., Lehman, C., Mulla, D. (2014). Priority-flood: an optimal
+depression-filling and watershed-labeling algorithm for digital elevation
+models. \emph{Computers \& Geosciences}, 62, 117--127.
+
+\bibitem[Bolinger e Bolinger(2022)]{bolinger2022}
+Bolinger, M., Bolinger, G. (2022). Land requirements for utility-scale PV: an
+empirical update on power and energy density. \emph{IEEE Journal of
+Photovoltaics}, 12(2), 589--594. Amostra de 736 usinas e
+\qty{35482}{\mega\watt} de corrente contínua, em operação comercial entre 2007
+e 2019, nos Estados Unidos.
+
+\bibitem[Brown et al.(2001)]{brown2001}
+Brown, L. D., Cai, T. T., DasGupta, A. (2001). Interval estimation for a
+binomial proportion. \emph{Statistical Science}, 16(2), 101--133.
+
+\bibitem[Dobos(2014)]{dobos2014}
+Dobos, A. P. (2014). \emph{PVWatts version 5 manual}. NREL/TP-6A20-62641,
+National Renewable Energy Laboratory, Golden, CO.
+
+\bibitem[Doelling et al.(2016)]{doelling2016}
+Doelling, D. R., Haney, C. O., Scarino, B. R., Gopalan, A., Bhatt, R. (2016).
+Advances in geostationary-derived longwave fluxes for the CERES synoptic
+(SYN1deg) product. \emph{Journal of Atmospheric and Oceanic Technology}, 33(3),
+503--521.
+
+\bibitem[ESA(2021)]{esa-psd}
+European Space Agency (2021). \emph{Sentinel-2 Products Specification
+Document}, PSD v14.9. Processing baseline 04.00, em produção desde 25 de
+janeiro de 2022.
+
+\bibitem[ESMAP(2020)]{gsa2020}
+Energy Sector Management Assistance Program (2020). \emph{Global Solar Atlas
+2.0}. Banco Mundial, Washington, DC. Dados modelados pela Solargis.
+
+\bibitem[Faiman(2008)]{faiman2008}
+Faiman, D. (2008). Assessing the outdoor operating temperature of photovoltaic
+modules. \emph{Progress in Photovoltaics: Research and Applications}, 16(4),
+307--315.
+
+\bibitem[Feyisa et al.(2014)]{feyisa2014}
+Feyisa, G. L., Meilby, H., Fensholt, R., Proud, S. R. (2014). Automated Water
+Extraction Index: a new technique for surface water mapping using Landsat
+imagery. \emph{Remote Sensing of Environment}, 140, 23--35.
+
+\bibitem[Gelaro et al.(2017)]{gelaro2017}
+Gelaro, R., McCarty, W., Suárez, M. J., et al. (2017). The Modern-Era
+Retrospective analysis for Research and Applications, version 2 (MERRA-2).
+\emph{Journal of Climate}, 30(14), 5419--5454.
+
+\bibitem[Gretton et al.(2012)]{gretton2012}
+Gretton, A., Borgwardt, K. M., Rasch, M. J., Schölkopf, B., Smola, A. (2012).
+A kernel two-sample test. \emph{Journal of Machine Learning Research}, 13,
+723--773.
+
+\bibitem[Holmgren et al.(2018)]{holmgren2018}
+Holmgren, W. F., Hansen, C. W., Mikofski, M. A. (2018). pvlib python: a python
+package for modeling solar energy systems. \emph{Journal of Open Source
+Software}, 3(29), 884.
+
+\bibitem[Jordan e Kurtz(2013)]{jordan2013}
+Jordan, D. C., Kurtz, S. R. (2013). Photovoltaic degradation rates: an
+analytical review. \emph{Progress in Photovoltaics: Research and Applications},
+21(1), 12--29. A taxa adotada pela aplicação é a mediana de silício cristalino.
+
+\bibitem[Kopp e Lean(2011)]{kopp2011}
+Kopp, G., Lean, J. L. (2011). A new, lower value of total solar irradiance:
+evidence and climate significance. \emph{Geophysical Research Letters}, 38,
+L01706.
+
+\bibitem[Marion(2017)]{marion2017}
+Marion, B. (2017). Numerical method for angle-of-incidence correction factors
+for diffuse radiation incident photovoltaic modules. \emph{Solar Energy}, 147,
+344--348.
+
+\bibitem[McFeeters(1996)]{mcfeeters1996}
+McFeeters, S. K. (1996). The use of the Normalized Difference Water Index
+(NDWI) in the delineation of open water features. \emph{International Journal of
+Remote Sensing}, 17(7), 1425--1432.
+
+\bibitem[Melo et al.(2026)]{melo2026}
+Melo, J. L. S., Magalhães, D. K., Kolodziej, J. E., Kuhn, E. V. (2026).
+Automatic Land Cover Classification with Sentinel-2 and MapBiomas Time Series.
+\emph{XLIV Simpósio Brasileiro de Telecomunicações e Processamento de Sinais
+(SBrT)}, Salvador, BA.
+
+\bibitem[Nobre et al.(2011)]{nobre2011}
+Nobre, A. D., Cuartas, L. A., Hodnett, M., Rennó, C. D., Rodrigues, G.,
+Silveira, A., Waterloo, M., Saleska, S. (2011). Height Above the Nearest
+Drainage: a hydrologically relevant new terrain model. \emph{Journal of
+Hydrology}, 404(1--2), 13--29.
+
+\bibitem[Olofsson et al.(2014)]{olofsson2014}
+Olofsson, P., Foody, G. M., Herold, M., Stehman, S. V., Woodcock, C. E.,
+Wulder, M. A. (2014). Good practices for estimating area and assessing accuracy
+of land change. \emph{Remote Sensing of Environment}, 148, 42--57.
+
+\bibitem[Ong et al.(2013)]{ong2013}
+Ong, S., Campbell, C., Denholm, P., Margolis, R., Heath, G. (2013).
+\emph{Land-use requirements for solar power plants in the United States}.
+NREL/TP-6A20-56290, National Renewable Energy Laboratory, Golden, CO.
+
+\bibitem[Otsu(1979)]{otsu1979}
+Otsu, N. (1979). A threshold selection method from gray-level histograms.
+\emph{IEEE Transactions on Systems, Man, and Cybernetics}, 9(1), 62--66.
+
+\bibitem[Perez et al.(1990)]{perez1990}
+Perez, R., Ineichen, P., Seals, R., Michalsky, J., Stewart, R. (1990). Modeling
+daylight availability and irradiance components from direct and global
+irradiance. \emph{Solar Energy}, 44(5), 271--289.
+
+\bibitem[Pontius e Millones(2011)]{pontius2011}
+Pontius, R. G., Millones, M. (2011). Death to Kappa: birth of quantity
+disagreement and allocation disagreement for accuracy assessment.
+\emph{International Journal of Remote Sensing}, 32(15), 4407--4429.
+
+\bibitem[Ramdas et al.(2015)]{ramdas2015}
+Ramdas, A., Reddi, S. J., Póczos, B., Singh, A., Wasserman, L. (2015). On the
+decreasing power of kernel and distance based nonparametric hypothesis tests in
+high dimensions. \emph{AAAI Conference on Artificial Intelligence}, 29(1).
+
+\bibitem[Strobl et al.(2007)]{strobl2007}
+Strobl, C., Boulesteix, A.-L., Zeileis, A., Hothorn, T. (2007). Bias in random
+forest variable importance measures: illustrations, sources and a solution.
+\emph{BMC Bioinformatics}, 8, 25.
+
+\bibitem[Xu(2006)]{xu2006}
+Xu, H. (2006). Modification of Normalised Difference Water Index (NDWI) to
+enhance open water features in remotely sensed imagery. \emph{International
+Journal of Remote Sensing}, 27(14), 3025--3033.
+
+\end{thebibliography}
+
+% Os apendices depois das referencias, que e a ordem do template cientifico da
+% linha. Sao consulta: entram aqui e nao no corpo porque o leitor volta a eles
+% com uma pergunta pontual, e no meio de um capitulo interromperiam o argumento
+% que estariam ali para apoiar.
+\appendix
+
+\include{apendices/A-acoes}
+\include{apendices/B-procedencia}
+
+\end{document}

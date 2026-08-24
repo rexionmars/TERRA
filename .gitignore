@@ -44,3 +44,7 @@ experiments/figures
 # package. Committing them would also redistribute someone else's data.
 experiments/s2_srf.xlsx
 experiments/ecosis_soybean.csv
+docs/user-manual/scripts
+docs/user-manual/png-images
+docs/user-manual/capas
+docs/user-manual/guides

@@ -1,0 +1,1275 @@
+% =====================================================================
+% TERRA -- Guia do usuario
+%
+% Compilar de dentro de docs/user-manual/:
+%   latexmk -pdf guia.tex
+% O latexmk vive em /Library/TeX/texbin, fora do PATH padrao.
+%
+% Depois de compilar, aferir a capa:
+%   python3 scripts/verifica_capa.py guia.pdf
+%
+% Caminhos: terra.sty esta neste diretorio, as capturas em png-images/ e a
+% foto de capa em capas/. Compilar de outro lugar quebra os tres.
+%
+% ESCOPO. Este documento diz como se opera a aplicacao e como se le o que
+% aparece na tela. Nao documenta parametro por parametro.
+%
+% O texto anterior remetia essa parte a um "documento de referencia tecnica"
+% que nao existe -- a remissao era uma string literal, nao uma referencia. Um
+% ponteiro para nada e pior que a ausencia dele, entao o escopo agora se
+% declara pelo que cobre, sem prometer onde esta o resto.
+%
+% NOMES DE ELEMENTO EM INGLES, de proposito. A interface do TERRA esta em
+% ingles; um guia em portugues que traduza "Classification" por
+% "Classificacao" faz o leitor procurar na tela um botao que nao existe. O
+% texto e portugues, os rotulos sao citados como estao.
+% =====================================================================
+
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{terra}
+
+% ENTRELINHAMENTO ABERTO, e por causa da margem. A 2,0 cm o bloco tem 17,0 cm e
+% a linha corre a ~87 caracteres, contra os ~66 que a tipografia toma como
+% confortavel. O que torna linha longa cansativa nao e o comprimento em si: e o
+% retorno -- o olho volta da direita para a esquerda e precisa achar a linha
+% seguinte, e quanto mais longo o percurso, mais facil ele pousar na errada.
+% Abrir o vertical separa as linhas e devolve a pista que o comprimento tirou.
+% Medida e entrelinhamento andam juntos; mexer numa margem sem mexer no outro
+% e que faz o bloco largo ler mal.
+\linespread{1.10}
+
+% UMA MENSAGEM DA INTERFACE, citada ao pe da letra. Distinta de \texttt, que
+% neste guia cita ROTULO -- nome de botao, de campo, de aba. Mensagem e frase
+% inteira: em monoespacada ela vira um bloco pesado no meio do paragrafo, e sem
+% marca nenhuma o leitor nao sabe onde a citacao acaba. Italico entre aspas
+% resolve os dois: leve no corpo, e as aspas fecham a citacao.
+\newcommand{\msg}[1]{``\textit{#1}''}
+
+% COLUNA DE TABELA ALINHADA A ESQUERDA. As tabelas deste guia tem colunas
+% estreitas -- "Padrao" cabe em 2,7 cm -- e `p{}` justifica: numa coluna dessa
+% largura o justificado abre buracos entre as palavras, e "hoje menos um ano"
+% saía com tres espacos de largura irregular. Alinhado a esquerda a linha
+% termina onde termina.
+%
+% `\arraybackslash` porque `\raggedright` redefine `\\` e derrubaria a quebra
+% de linha da propria tabela.
+%
+% E `\rightskip` limitado, e nao o `plus 1fil` que `\raggedright` instala.
+% Com folga infinita a direita, TeX nunca considera uma linha larga demais:
+% uma celula com conteudo inquebravel mais largo que a coluna -- um caminho de
+% arquivo em monoespacada, que nao hifeniza -- simplesmente vaza por cima da
+% coluna vizinha, e `Overfull` nao acusa. Foi assim que
+% `rasters/classification.tif` encostou no texto ao lado sem uma linha de
+% aviso no log. Em `plus 2em` a composicao continua sem os buracos que o
+% justificado abria, e o diagnostico volta.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\rightskip=0pt plus 2em\relax\hbadness=10000\relax}p{#1}}
+
+% O guia cita rotulos da interface em \texttt, e nenhum deles hifeniza:
+% "Classification" e "Compositions" numa mesma frase sao dois blocos rigidos de
+% doze e catorze caracteres. Quando eles caem juntos no fim de um paragrafo,
+% TeX prefere estourar a margem a compor uma linha frouxa demais -- foi o que
+% aconteceu ao passar de 13,8 para 15,0 cm de bloco.
+%
+% `emergencystretch` da a ele uma passada extra com folga adicional, e SO nos
+% paragrafos que de outro modo estourariam: os demais compoem como sempre.
+% A alternativa seria deixar os rotulos hifenizarem, que parte o nome de um
+% botao ao meio e manda o leitor procurar na tela uma coisa que nao esta la.
+\setlength{\emergencystretch}{2em}
+
+\setcapaimagem{capas/fumaca-a4.jpg}
+% Herdado da medida feita para esta mesma foto no template. A diagramacao da
+% capa aqui e a mesma -- chapeu, marca, manchete, linha fina e tres colunas --
+% entao as zonas aferidas sao as mesmas. Reaferir com:
+%   python3 scripts/verifica_capa.py guia.pdf
+\setcapaescuro{0.62}
+% O EMBLEMA AO LADO DO LETREIRO, que e como o proprio aplicativo se assina: a
+% TitleBar poe a marca a esquerda e a palavra TERRA ao lado dela. A capa
+% repetir essa composicao faz o documento e o produto lerem como a mesma
+% coisa, que e o ponto de ter identidade.
+%
+% O emblema ja diz TERRA e EARTH OBSERVATION. Por isso o chapeu abaixo perdeu
+% o "Earth Observation" que carregava: com o emblema na folha, ele seria a
+% terceira vez que a mesma capa diz a mesma coisa.
+%
+% Referenciado em docs/img/v4/ em vez de copiado para ca. E a marca da versao
+% corrente, versionada no repositorio; uma segunda copia aqui vira a que fica
+% velha quando a primeira for redesenhada.
+\setcapamarca{%
+  % 2,9 cm contra os ~2,2 cm de altura de caixa-alta do letreiro a 86 pt, e
+  % erguido de (2,2-2,9)/2 para centrar nela. A 2,4 cm o emblema lia como um
+  % ponto escuro: o texto do anel -- TERRA em cima, EARTH OBSERVATION embaixo --
+  % so se resolve acima de uns 2,8 cm, e um emblema cujo proprio nome nao se le
+  % e um borrao com contorno.
+  \raisebox{-0.35cm}{\includegraphics[height=2.9cm]{../img/v4/TERRA_EO_Logo.png}}%
+  \hspace{0.46cm}TERRA}
+% O CHAPEU NAO REPETE A MANCHETE. Ele dizia "Guia do usuario" acima de uma
+% manchete que diz GUIA DO USUARIO -- a mesma capa afirmando a mesma coisa
+% duas vezes, que e o defeito que o comentario do emblema acima identifica e
+% que ficou aqui.
+%
+% Numera o DOCUMENTO, e nao o software. A versao do TERRA muda a cada release
+% e deixaria a capa desatualizada sem que uma linha do texto tivesse mudado;
+% a do guia muda quando o guia muda, que e o que o numero na capa promete.
+\setcapachapeu{v1}
+% O rodape chama o resto do documento, como a faixa de baixo da Nature chama
+% os outros artigos do numero.
+%
+% FALA DO SOFTWARE, E NAO DAS SECOES. As colunas listavam o que cada capitulo
+% cobre -- "procedimento, campos com padrao e faixa" -- o que e o sumario, e o
+% sumario ja existe na pagina 2. Quem pega a capa ainda nao sabe o que o TERRA
+% e; e isso que tres linhas na base da capa podem dar.
+%
+% E DIZ, EM VEZ DE INSINUAR. A versao anterior destas colunas era chamada com
+% suspense -- "por que a primeira execucao falha", "o que conf 67% nao quer
+% dizer", "onde o modelo erra" -- e duas afirmavam mais do que o documento
+% sustenta. Uma capa de periodico nomeia o que ha dentro; ela nao faz pergunta
+% para o leitor abrir.
+\setcapacolunas
+  {S\'eries, n\~ao imagens}{Sentinel-2 ao longo de um per\'iodo, filtrado
+   por nuvem e empilhado}
+  {Uma \'area, seis produtos}{Cobertura do solo, composi\c{c}\~oes, \'agua,
+   solar, e\'olica e cheia}
+  {Sem servidor}{Aplica\c{c}\~ao desktop: as cenas v\^em do cat\'alogo, o
+   c\'alculo \'e local}
+
+\begin{document}
+
+\terracapaperiodico
+  {GUIA DO\\USU\'ARIO}
+  {Do interpretador \`a exporta\c{c}\~ao: como executar cada an\'alise, e
+   como ler o que ela devolve}
+  {Agosto de 2026}
+
+% SUMARIO. Vinte e sete paginas com apendice: sem ele, achar a tabela de
+% parametros da classificacao exige folhear.
+%
+% Sem estilo proprio. O `titlesec` do terra.sty ja formata `\section*`, entao
+% o titulo do sumario sai sans-serif como todos os outros; as entradas ficam
+% no padrao da classe, que e o que o leitor de qualquer artigo ja le.
+%
+% Em pagina propria, e nao seguido do prefacio: as duas coisas sao consulta e
+% leitura, e emenda-las na mesma pagina faz a segunda comecar no meio.
+\tableofcontents
+\newpage
+
+% =====================================================================
+% PREFACIO
+%
+% Nao numerado, e antes da secao 1, porque nao e conteudo: e o que o leitor
+% precisa saber ANTES de comecar a ler -- a quem o documento se dirige, o que
+% ele nao cobre, e as tres convencoes tipograficas sem as quais uma frase como
+% `Use as is' adota o interpretador nao se distingue de prosa.
+%
+% O aviso sobre as figuras vivia na secao 1. Veio para ca porque vale para as
+% dezessete e nao so para as tres primeiras.
+% =====================================================================
+\section*{Pref\'acio}
+\addcontentsline{toc}{section}{Pref\'acio}
+
+Este documento descreve a opera\c{c}\~ao do TERRA: as telas na ordem em que
+aparecem, o que cada campo faz, o que uma execu\c{c}\~ao devolve e o que os
+n\'umeros devolvidos significam.
+
+\campo{A quem se dirige} A quem vai operar a aplica\c{c}\~ao. N\~ao pressup\~oe
+familiaridade com o c\'odigo nem com sensoriamento remoto, mas pressup\~oe que
+o leitor saiba o que quer medir. Termos de dom\'inio --- \'indice de \'area
+foliar, dist\^ancia de Jeffries-Matusita, fra\c{c}\~ao difusa --- s\~ao usados
+onde a tela os usa, e definidos no ponto em que aparecem pela primeira vez.
+
+\campo{O que n\~ao cobre} A deriva\c{c}\~ao dos m\'etodos. Onde uma
+formula\c{c}\~ao \'e citada, ela vem com a refer\^encia bibliogr\'afica e sem
+o desenvolvimento. A instala\c{c}\~ao tamb\'em fica de fora, com uma
+exce\c{c}\~ao: o interpretador Python, tratado na se\c{c}\~ao~2, porque \'e a
+pr\'e-condi\c{c}\~ao de todas as tarefas e \'e onde o primeiro uso costuma
+parar.
+
+\campo{Como est\'a organizado} As se\c{c}\~oes 2 a 7 seguem a ordem de uso: o
+ambiente, a tela principal, a classifica\c{c}\~ao, os demais produtos, o Studio
+e a exporta\c{c}\~ao. Cada tarefa abre com uma ficha --- painel,
+pr\'e-condi\c{c}\~oes, sa\'ida --- e segue em passos numerados.
+
+As tabelas de campo, o cat\'alogo de editores e a lista de mensagens est\~ao
+nos ap\^endices. S\~ao consulta: o leitor volta a elas com uma pergunta
+pontual, e no meio do procedimento elas interrompiam o que estavam ali para
+apoiar. As tabelas curtas que sustentam o argumento do par\'agrafo ao lado
+ficaram onde estavam.
+
+\campo{Tr\^es conven\c{c}\~oes} Os r\'otulos da interface aparecem em
+\texttt{monoespa\c{c}ada} e em ingl\^es, como est\~ao na tela: um guia em
+portugu\^es que traduzisse \texttt{Classification} por ``Classifica\c{c}\~ao''
+faria o leitor procurar um bot\~ao que n\~ao existe. As mensagens que a
+aplica\c{c}\~ao exibe s\~ao citadas ao p\'e da letra, em \msg{it\'alico entre
+aspas}. Uma ressalva marcada com filete vermelho \`a esquerda limita o que se
+acabou de afirmar, e n\~ao \'e ornamento: cada uma corresponde a uma
+limita\c{c}\~ao que a pr\'opria aplica\c{c}\~ao declara em tela.
+
+\begin{aviso}
+As figuras s\~ao capturas da aplica\c{c}\~ao em uso, com dados reais. Os
+valores nelas correspondem a execu\c{c}\~oes espec\'ificas sobre \'areas
+espec\'ificas e servem para localizar cada elemento na tela. N\~ao s\~ao
+valores de refer\^encia.
+\end{aviso}
+
+\campo{Vers\~ao e valida\c{c}\~ao} O documento descreve a aplica\c{c}\~ao no
+estado em que ela estava quando foi escrito. Padr\~oes, faixas e mensagens
+foram lidos do c\'odigo, e mudam com ele.
+
+% CONTATO NO PREFACIO, e nao na capa. A anatomia de capa de periodico nao tem
+% campo de autoria -- chapeu, data, marca, manchete, linha fina e tres colunas,
+% e as tres colunas descrevem o software. Abrir um slot ali quebraria a
+% diagramacao que o terra.sty documenta.
+%
+% Aqui o endereco fica ao lado do aviso de revisao continua, que e onde o
+% leitor ja esta sendo informado de que o documento pode estar defasado. Quem
+% acabou de ler que a tela ganha o desempate e a pessoa que precisa saber para
+
+\begin{aviso}
+As funcionalidades descritas aqui est\~ao em revis\~ao cont\'inua. Par\^ametros,
+faixas aceitas, r\'otulos de tela e mensagens podem ter mudado desde esta
+edi\c{c}\~ao, e uma delas pode ter sido substitu\'ida ou removida. Antes de
+usar este guia como refer\^encia para um resultado que ser\'a reportado,
+confira a edi\c{c}\~ao corrente do documento e a vers\~ao da aplica\c{c}\~ao a
+que ela corresponde.
+
+O documento e o c\'odigo s\~ao versionados juntos, no mesmo reposit\'orio:
+
+\begin{center}
+\url{https://github.com/rexionmars/TERRA}
+\end{center}
+
+\noindent A edi\c{c}\~ao corrente deste guia est\'a em
+\texttt{docs/user-manual/}. Em caso de diverg\^encia entre o que se l\^e aqui
+e o que a tela mostra, a tela \'e a autoridade: este documento \'e uma
+descri\c{c}\~ao do programa, e n\~ao a especifica\c{c}\~ao dele.
+\end{aviso}
+
+% CONTATO NO PREFACIO, e nao na capa. A anatomia de capa de periodico nao tem
+% campo de autoria -- chapeu, data, marca, manchete, linha fina e tres colunas,
+% e as tres colunas descrevem o software. Abrir um slot ali quebraria a
+% diagramacao que o terra.sty documenta.
+%
+% Depois do aviso, e nao antes: o aviso termina dizendo que a tela ganha o
+% desempate, e a pergunta seguinte de quem leu isso e para quem escrever.
+%
+% O ENDERECO NAO VAI EM \texttt. Em monoespacada ele e um bloco inquebravel de
+% 33 caracteres que estourou a linha por 349 pt na primeira tentativa: nao
+% hifeniza, e TeX nao tem onde quebrar. Em serifada com \url o pacote instala
+% pontos de quebra depois de cada separador.
+\campo{Contato} Corre\c{c}\~oes deste documento e d\'uvidas sobre o que ele
+descreve: Jo\~ao Leonardi, \url{joao_leonardi.melo@somosicev.com}. Defeitos da
+aplica\c{c}\~ao v\~ao para as \emph{issues} do reposit\'orio citado acima, onde
+ficam junto do c\'odigo que os produz.
+
+% =====================================================================
+\section{O que este guia cobre}
+
+O TERRA classifica cobertura do solo a partir de s\'eries temporais do
+Sentinel-2. Sobre a mesma \'area e o mesmo per\'iodo, produz tamb\'em
+composi\c{c}\~oes de bandas, mapeamento de \'agua superficial, estimativas de
+recurso solar e e\'olico, e uma envolt\'oria de cheia derivada do terreno. A
+aplica\c{c}\~ao \'e desktop: executa na m\'aquina do usu\'ario, sem servidor.
+
+O ap\^endice~\ref{ap:mensagens} re\'une as mensagens de recusa e as
+condi\c{c}\~oes reportadas durante a execu\c{c}\~ao, de todas as tarefas.
+
+% =====================================================================
+\section{Antes de come\c{c}ar: o interpretador}
+
+O processamento \'e executado por um processo Python separado, e n\~ao pelo
+bin\'ario Go. A aplica\c{c}\~ao abre sem esse processo, mas toda tarefa de
+an\'alise falha enquanto ele n\~ao estiver dispon\'ivel. Esta \'e a
+pr\'e-condi\c{c}\~ao de todas as demais se\c{c}\~oes.
+
+% A 0,46 da largura por resolucao, e nao por diagramacao: esta captura tem
+% 932 px contra os 3692 das demais, e na largura cheia sairia a 139 dpi. Aqui
+% chega a 303, acima do piso de 300. Recapturada em Retina, pode voltar a
+% \linewidth como as outras.
+%
+% O fator segue a largura do bloco de texto, e ja mudou duas vezes com ela:
+% 0,55 para os 13,8 cm da margem de 3,6 cm, 0,52 para os 15,0 cm da de 3,0 cm,
+% 0,46 para os 17,0 cm da de 2,0 cm. Mexer na margem obriga a refazer esta
+% conta, porque esta e a unica figura que nao vem na largura cheia -- as outras
+% se ajustam sozinhas ao rodar `prepara_capturas.py` com a largura nova.
+\terrafig[.46\linewidth]{png-images/impressao/boot.png}
+  {Tela de abertura. A aplica\c{c}\~ao localiza o diret\'orio de dados, o
+   \emph{sidecar} e o modelo, e verifica o interpretador antes de exibir o
+   mapa. Componentes ausentes s\~ao registrados nesta lista.}
+  {fig:boot}
+
+\campo{Como saber que falta} Na abertura, quando o \emph{sidecar} n\~ao
+responde, a aplica\c{c}\~ao exibe: \msg{TERRA started, but the analysis
+sidecar did not respond. Settings > System reports what is wrong.} Ao acionar
+uma an\'alise sem ambiente v\'alido, exibe \msg{Analyses cannot run yet ---
+opening Settings > System} e navega para essa p\'agina.
+
+\campo{Procedimento} Em \texttt{Settings} $\rightarrow$ \texttt{System}:
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item Leia o bloco \texttt{In use}. Ele nomeia o interpretador corrente e a
+        origem dele (tabela~\ref{tab:origem}).
+  \item Se o aviso \msg{No analysis can run yet} estiver presente, a linha
+        seguinte d\'a a causa: interpretador n\~ao inicializ\'avel, vers\~ao
+        abaixo do m\'inimo exigido, ou pacotes ausentes.
+  \item Em \texttt{Interpreters on this machine}, escolha um candidato.
+        \texttt{Use as is} adota o interpretador como est\'a.
+        \texttt{Build environment} constr\'oi um ambiente a partir dele e
+        instala as depend\^encias.
+  \item Para os modelos neurais, instale \texttt{torch} em
+        \texttt{Optional models}. Sem ele, Temporal Transformer e Prithvi-EO
+        2.0 ficam indispon\'iveis; o restante funciona.
+\end{enumerate}
+
+\terrafig{png-images/impressao/settings.png}
+  {\texttt{Settings} $\rightarrow$ \texttt{System}. \texttt{In use} identifica
+   o interpretador corrente e indica se est\'a pronto.
+   \texttt{Interpreters on this machine} lista os candidatos.
+   \texttt{Optional models} lista os downloads grandes que n\~ao acompanham a
+   instala\c{c}\~ao padr\~ao. \texttt{Locations} indica a origem de cada
+   componente.}
+  {fig:settings}
+
+\begin{aviso}
+O ambiente constru\'ido pelo TERRA fica ao lado do banco de dados, e n\~ao
+dentro da aplica\c{c}\~ao; uma atualiza\c{c}\~ao do aplicativo n\~ao o remove.
+Um interpretador adotado com \texttt{Use as is} \'e o da m\'aquina, com os
+pacotes que ele j\'a possui: pacotes instalados apenas no diret\'orio de
+usu\'ario podem estar dispon\'iveis para o terminal e n\~ao para a
+aplica\c{c}\~ao.
+
+O prefixo \texttt{GEOSENSE\_} foi substitu\'ido por \texttt{TERRA\_}. Uma
+vari\'avel com o prefixo antigo deixa de ser lida sem produzir sintoma; a
+p\'agina lista as que encontrar.
+\end{aviso}
+
+% =====================================================================
+\section{A tela principal}
+
+As telas de opera\c{c}\~ao --- classifica\c{c}\~ao, \'agua, energia e cheia ---
+compartilham a mesma estrutura. Variam o conte\'udo do painel da esquerda e o
+da coluna de resultado.
+
+\terrafig{png-images/impressao/central-task-hub.png}
+  {Tela de opera\c{c}\~ao, com uma \'area desenhada e sem resultado. Os
+   n\'umeros correspondem aos itens listados abaixo.}
+  {fig:anatomia}
+
+\campo{1 --- Controles de mapa} Aproxima\c{c}\~ao e afastamento, sele\c{c}\~ao
+do provedor de imagem de fundo, desenho da \'area e acesso \`a
+configura\c{c}\~ao de sobreposi\c{c}\~oes.
+
+\campo{1.1 --- \texttt{Overlay Tools}} Renomeia a \'area, altera a cor do
+pol\'igono, controla a opacidade de cada sobreposi\c{c}\~ao (padr\~ao 0,75) e
+exibe a galeria das sobreposi\c{c}\~oes geradas para aquela \'area. Enquanto
+nenhuma execu\c{c}\~ao existir, a galeria aparece vazia.
+
+\campo{2 --- A \'area de interesse} O pol\'igono desenhado sobre o mapa. Pode
+ser desenhado manualmente, importado de arquivo ou obtido por busca de local.
+Define o recorte de todas as opera\c{c}\~oes subsequentes.
+
+\campo{3 --- A janela temporal} A barra ao p\'e da tela. O eixo \'e o mesmo em
+todos os modos; o que ele controla varia. Em classifica\c{c}\~ao, \'e o
+per\'iodo de aquisi\c{c}\~ao das cenas; em e\'olica, a janela de registro
+hist\'orico.
+
+\campo{4 --- O painel de a\c{c}\~ao} Configura a execu\c{c}\~ao. Os campos
+variam com o modo de opera\c{c}\~ao. A coluna termina no bot\~ao de
+execu\c{c}\~ao.
+
+\campo{5 --- Os modos de opera\c{c}\~ao} A coluna de navega\c{c}\~ao. Modos com
+sub-contextos os exibem abaixo de si: \texttt{Map} cont\'em
+\texttt{Classification}, \texttt{Compositions} e \texttt{Surface water};
+\texttt{Energy} cont\'em \texttt{Solar} e \texttt{Wind}.
+
+\campo{6 --- O cabe\c{c}alho} \`A esquerda, o seletor de projeto, sob o qual
+ficam arquivadas as execu\c{c}\~oes e os \emph{studios} salvos. \`A direita, as
+coordenadas do centro do mapa, o n\'ivel de aproxima\c{c}\~ao, o cr\'edito da
+imagem de fundo com a respectiva data, o bot\~ao que abre o Studio e o que
+alterna o arranjo entre coluna lateral e barra sobre o mapa.
+
+% =====================================================================
+\section{Classificar cobertura do solo}
+
+\begin{ficha}
+  \item[Painel] \texttt{Map} $\rightarrow$ \texttt{Classification}, r\'otulo
+        \texttt{New classification}
+  \item[Pr\'e-condi\c{c}\~oes] Ambiente Python v\'alido; uma \'area definida;
+        datas de in\'icio e fim preenchidas. O bot\~ao \texttt{Classify}
+        permanece desabilitado enquanto qualquer uma faltar.
+  \item[Sa\'ida] Camada de classes sobre a \'area, gravada no projeto ativo
+\end{ficha}
+
+\campo{Procedimento}
+
+\begin{enumerate}[leftmargin=*,itemsep=.3em]
+  \item \textbf{\texttt{01 Area}}. Desenhe um pol\'igono sobre o mapa, busque
+        um local, ou use \texttt{Import} para carregar um arquivo. O indicador
+        do bloco passa de \msg{No area defined} para \msg{Area defined}.
+        \texttt{Clear} remove a \'area corrente.
+  \item \textbf{\texttt{02 Period \& scenes}}. Ajuste as datas, a cobertura de
+        nuvem m\'axima e a op\c{c}\~ao de melhor cena mensal
+        (tabela~\ref{tab:classif}).
+  \item \textbf{\texttt{03 Model}}. Escolha o modelo. Com Prithvi-EO 2.0,
+        aparece a escolha adicional entre \texttt{Pixel} e \texttt{Patch}.
+  \item \textbf{\texttt{04 Mode}}. \texttt{Map} usa a pilha temporal inteira.
+        \texttt{Temporal} acumula reten\c{c}\~ao ao longo do per\'iodo e fica
+        desabilitado fora do Random Forest, com a justificativa
+        \msg{Temporal retention runs on Random Forest.}
+  \item Acione \texttt{Classify}. A barra de progresso substitui o r\'otulo do
+        bot\~ao por \msg{Classifying} enquanto a execu\c{c}\~ao corre.
+  \item Ao concluir, a aplica\c{c}\~ao exibe \msg{Classification complete ---
+        N scenes (saved)} com a a\c{c}\~ao \texttt{View analysis}.
+\end{enumerate}
+
+\campo{O que volta} Uma camada de classes sobre a \'area e um painel de
+resultado com o n\'umero de cenas utilizadas, o intervalo efetivamente coberto
+e a participa\c{c}\~ao de cada classe.
+
+\terrafig{png-images/impressao/central-task-result-tocantins-AOI.png}
+  {Classifica\c{c}\~ao conclu\'ida. O painel \texttt{Result} nomeia as cenas
+   utilizadas e o intervalo coberto, mais estreito que o solicitado porque
+   cenas nubladas s\~ao descartadas pelo filtro, e lista a participa\c{c}\~ao
+   de cada classe. \texttt{Analysis} abre a leitura completa; \texttt{+ New}
+   inicia outra execu\c{c}\~ao sobre a mesma \'area.}
+  {fig:resultado}
+
+\begin{objecao}
+O valor \texttt{conf} exibido ao lado das cenas \'e a m\'edia da fra\c{c}\~ao
+de votos da classe vencedora, e n\~ao a probabilidade de acerto. N\~ao \'e uma
+medida calibrada, e sob mudan\c{c}a de dom\'inio --- treino em uma regi\~ao e
+aplica\c{c}\~ao em outra --- pode variar em sentido oposto ao da acur\'acia.
+\texttt{conf 67\%} n\~ao corresponde a 67\% de acerto. A legenda da camada de
+confian\c{c}a, em \texttt{Analysis}, repete essa ressalva.
+\end{objecao}
+
+\campo{Cobertura de refer\^encia} O bot\~ao \texttt{Analyze land cover},
+acima de \texttt{Classify}, obt\'em a cobertura do MapBiomas para a mesma
+\'area. Exige uma \'area definida; sem ela, o bot\~ao informa \msg{Draw or
+select an area first}.
+
+\campo{Onde as execu\c{c}\~oes ficam} Toda execu\c{c}\~ao salva vai para o
+\texttt{Project hub}, arquivada sob o projeto ativo.
+
+\terrafig{png-images/impressao/project-hub.png}
+  {O \texttt{Project hub}. Cada execu\c{c}\~ao guardada pode ser reaberta sobre
+   o mapa ou carregada no Studio. A remo\c{c}\~ao de execu\c{c}\~oes tamb\'em
+   \'e feita nesta tela.}
+  {fig:hub}
+
+% =====================================================================
+\section{Os outros produtos}
+
+Todos partem da mesma \'area e do mesmo eixo temporal da
+figura~\ref{fig:anatomia}, e cada um substitui o painel de a\c{c}\~ao pelo seu.
+
+\subsection{Composi\c{c}\~oes de bandas}
+
+\begin{ficha}
+  \item[Painel] \texttt{Map} $\rightarrow$ \texttt{Compositions}
+  \item[Pr\'e-condi\c{c}\~oes] \'Area definida; per\'iodo definido; uma cena
+        selecionada da lista
+  \item[Sa\'ida] Camada RGB sobre a \'area
+\end{ficha}
+
+Combinam tr\^es bandas nos canais vermelho, verde e azul. N\~ao h\'a modelo
+envolvido: os valores s\~ao de reflect\^ancia medida. A combina\c{c}\~ao de
+bandas torna vis\'iveis fei\c{c}\~oes que a composi\c{c}\~ao em cor verdadeira
+n\~ao distingue.
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item Defina \'area e per\'iodo, e liste as cenas dispon\'iveis. Sem
+        per\'iodo, a aplica\c{c}\~ao responde \msg{Set the acquisition
+        period.}; sem \'area, \msg{Define an area: draw, search, or load an
+        example.}
+  \item Selecione uma cena. Sem sele\c{c}\~ao, o pedido responde
+        \msg{Select a scene first.}
+  \item Escolha a composi\c{c}\~ao. As predefinidas s\~ao \texttt{True color},
+        \texttt{False color IR}, \texttt{Agriculture} e \texttt{SWIR}; os
+        \'indices dispon\'iveis s\~ao \texttt{NDVI}, \texttt{NDWI},
+        \texttt{NDMI} e \texttt{EVI}.
+\end{enumerate}
+
+\terrafig{png-images/impressao/map-composition.png}
+  {\texttt{Map} $\rightarrow$ \texttt{Compositions}. A legenda da camada indica
+   qual banda foi atribu\'ida a cada canal.}
+  {fig:composicao}
+
+\subsection{\'Agua superficial}
+
+\begin{ficha}
+  \item[Painel] \texttt{Map} $\rightarrow$ \texttt{Surface water}
+  \item[Pr\'e-condi\c{c}\~oes] \'Area definida; per\'iodo definido
+  \item[Sa\'ida] Raster com a propor\c{c}\~ao de datas em que cada pixel foi
+        classificado como \'agua, em escala fixa de 0 a 1
+\end{ficha}
+
+O painel tem quatro blocos: \texttt{01 Area}, \texttt{02 Period},
+\texttt{03 Index} e \texttt{04 Run}. O \'indice \'e calculado em todas as datas
+do per\'iodo, sem modelo treinado.
+
+\begin{table}[htbp]\centering
+\caption{\'Indices dispon\'iveis em \texttt{Surface water}.}
+\label{tab:agua}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.2cm}L{5.4cm}L{7.7cm}@{}}
+\toprule
+\textbf{\'Indice} & \textbf{Bandas} & \textbf{Refer\^encia} \\
+\midrule
+\texttt{MNDWI} & verde e SWIR1 & Xu (2006) \\
+\texttt{NDWI}  & verde e NIR & McFeeters (1996) \\
+\texttt{AWEI}  & quatro bandas, sem limite superior & Feyisa (2014) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+O corte \'e em zero, o limiar da literatura para os tr\^es \'indices. Um limiar
+de Otsu \'e reportado junto, para compara\c{c}\~ao, e n\~ao \'e aplicado.
+
+O resultado distingue \'agua permanente de \'agua presente em parte das datas.
+Duas superf\'icies de mesma extens\~ao podem ter frequ\^encias distintas: um
+a\c{c}ude permanente e uma v\'arzea sazonal ocupam a mesma \'area e diferem
+nessa propor\c{c}\~ao.
+
+\terrafig{png-images/impressao/map-water-surface.png}
+  {\texttt{Map} $\rightarrow$ \texttt{Surface water}. Propor\c{c}\~ao de datas
+   em que cada pixel foi classificado como \'agua, em escala fixa de 0 a 1.}
+  {fig:agua}
+
+\subsection{Solar}
+
+\begin{ficha}
+  \item[Painel] \texttt{Energy} $\rightarrow$ \texttt{Solar}
+  \item[Pr\'e-condi\c{c}\~oes] \'Area definida. N\~ao requer cena
+        Sentinel-2: a irradia\c{c}\~ao vem da s\'erie NASA POWER
+  \item[Sa\'ida] Irradia\c{c}\~ao no plano dos m\'odulos, distribui\c{c}\~ao
+        sobre o terreno, \'area utiliz\'avel e gera\c{c}\~ao estimada
+\end{ficha}
+
+Dois campos t\^em faixa verificada antes da execu\c{c}\~ao: a raz\~ao de
+desempenho, recusada fora do intervalo de 0 a 1 com \msg{Performance ratio must
+be between 0 and 1.}, e o deslocamento UTC, recusado fora de $-12$ a $+14$ horas
+com \msg{UTC offset must be between -12 and 14 hours.}
+
+\terrafig{png-images/impressao/map-solar.png}
+  {\texttt{Energy} $\rightarrow$ \texttt{Solar}. A coluna de resultado re\'une
+   rendimento espec\'ifico, \^angulo \'otimo e capacidade acima do
+   detalhamento.}
+  {fig:solar}
+
+\subsection{E\'olica}
+
+\begin{ficha}
+  \item[Painel] \texttt{Energy} $\rightarrow$ \texttt{Wind}
+  \item[Pr\'e-condi\c{c}\~oes] \'Area definida. A s\'erie \'e lida no
+        centroide da \'area
+  \item[Sa\'ida] N\'iveis de velocidade, ajuste de Weibull, densidade de
+        pot\^encia, cisalhamento, sazonalidade e rosa de dire\c{c}\~ao
+\end{ficha}
+
+Triagem de recurso a partir de dados de rean\'alise. O resultado \'e de
+\termo{triagem}: aplica-se \`a exclus\~ao de s\'itios, n\~ao ao
+dimensionamento de um parque.
+
+\terrafig{png-images/impressao/map-wind.png}
+  {\texttt{Energy} $\rightarrow$ \texttt{Wind}. O painel da esquerda declara,
+   junto de cada campo, as premissas adotadas: a rugosidade \'e uma propriedade
+   suposta e n\~ao medida; alturas de rotor acima de 50~m s\~ao
+   extrapola\c{c}\~ao. A coluna da direita apresenta n\'iveis, cisalhamento,
+   sazonalidade e dire\c{c}\~ao.}
+  {fig:vento}
+
+\begin{aviso}
+A tela de e\'olica registra que o fator de capacidade exclui esteira,
+disponibilidade, perdas el\'etricas, gelo e corte, e que n\~ao h\'a
+compara\c{c}\~ao externa equivalente \`a raz\~ao fotovoltaica. Os valores s\~ao
+indica\c{c}\~ao de triagem, n\~ao proje\c{c}\~ao de gera\c{c}\~ao.
+
+A rugosidade implicada \'e reportada como ausente quando a invers\~ao n\~ao
+converge, e n\~ao substitu\'ida por um valor plaus\'ivel. O painel informa,
+nesse caso, a faixa de rugosidade assumida.
+\end{aviso}
+
+\subsection{Envolt\'oria de cheia}
+
+\begin{ficha}
+  \item[Painel] \texttt{Flood envelope}
+  \item[Pr\'e-condi\c{c}\~oes] \'Area definida; ao menos dois modelos de
+        eleva\c{c}\~ao selecionados
+  \item[Sa\'ida] Envolt\'oria por limiar, raster de concord\^ancia e bloco de
+        premissas por execu\c{c}\~ao
+\end{ficha}
+
+Deriva extens\~ao de inunda\c{c}\~ao do terreno, pela altura de cada c\'elula
+acima da drenagem para a qual escoa. A discord\^ancia entre os modelos de
+eleva\c{c}\~ao \'e reportada como incerteza, em vez de agregada em uma m\'edia.
+
+\terrafig{png-images/impressao/flood-envelope.png}
+  {\texttt{Flood envelope}. A leitura \'e apresentada em blocos recolh\'iveis:
+   concord\^ancia sobre a \'area, produtos utilizados, envolt\'oria por limiar
+   e premissas.}
+  {fig:cheia}
+
+\begin{objecao}
+Um limiar em metros ordena suscetibilidade relativa. N\~ao corresponde a
+profundidade de l\^amina, extens\~ao ou probabilidade: chuva, vaz\~ao,
+propaga\c{c}\~ao e geometria de canal n\~ao entram no c\'alculo. A figura
+indica onde o resultado depende da escolha do modelo de eleva\c{c}\~ao.
+
+O conjunto de produtos aqui difere do publicado no estudo de refer\^encia. O
+cat\'alogo lido pela aplica\c{c}\~ao n\~ao cont\'em SRTMGL1, e ALOS World 3D
+ocupa o lugar dele. A faixa medida aqui \'e sobre esse conjunto, e a faixa
+publicada no estudo n\~ao se aplica a ela.
+\end{objecao}
+
+% =====================================================================
+\section{O Studio}
+
+\begin{ficha}
+  \item[Como abrir] Bot\~ao no cabe\c{c}alho, \`a direita (item~6 da
+        figura~\ref{fig:anatomia}), ou a partir de uma execu\c{c}\~ao no
+        \texttt{Project hub}
+  \item[Pr\'e-condi\c{c}\~oes] Ao menos uma execu\c{c}\~ao salva.
+        \texttt{Comparison}, \texttt{Domain shift} e a leitura
+        \texttt{Between two runs} exigem duas
+  \item[Sa\'ida] Nenhuma por si. As leituras s\~ao lidas na tela e exportadas
+        pela se\c{c}\~ao~7
+\end{ficha}
+
+O Studio abre sobre o mapa e divide a tela em \'areas. Cada \'area cont\'em um
+\termo{editor}, e qualquer editor pode ocupar qualquer \'area: a
+posi\c{c}\~ao \'e propriedade do arranjo, n\~ao do editor. Arrastar uma
+divis\'oria move os dois lados ao mesmo tempo, e duas \'areas n\~ao se
+sobrep\~oem.
+
+\campo{Por que existe} Duas execu\c{c}\~oes de \'areas distantes centenas de
+quil\^ometros n\~ao podem ser postas lado a lado sobre o mapa, porque o mapa as
+coloca onde elas est\~ao. O Studio as tira das coordenadas.
+
+\campo{Procedimento: p\^or duas execu\c{c}\~oes no quadro}
+
+\begin{enumerate}[leftmargin=*,itemsep=.3em]
+  \item Abra o Studio com uma execu\c{c}\~ao carregada.
+  \item Na \'area \texttt{Outliner}, abaixo da \'arvore, acione o controle de
+        adi\c{c}\~ao. A lista vem agrupada por projeto, com o per\'iodo em cada
+        linha, que \'e o que separa duas execu\c{c}\~oes do mesmo projeto. H\'a busca por nome.
+  \item Quando n\~ao h\'a o que adicionar, a lista diz qual dos tr\^es casos
+        ocorre: \msg{No run matches that.}, \msg{No saved runs yet.} ou
+        \msg{Every saved run is already on the board.}
+  \item Passe ao arranjo \texttt{Compare} ou \texttt{Diagnose}.
+\end{enumerate}
+
+\campo{Procedimento: escolher qual par \'e comparado} O editor
+\texttt{Comparison} l\^e dois compartimentos, nomeados no cabe\c{c}alho dele.
+Vazio, cada compartimento segue a sele\c{c}\~ao e declara isso
+(\texttt{Follow selection}). Fixado, ele mant\'em o plano escolhido enquanto a
+sele\c{c}\~ao muda. Com tr\^es ou mais planos selecionados a fixa\c{c}\~ao \'e
+o que determina qual par est\'a sendo lido; sem ela, a resposta muda sob o
+leitor.
+
+\begin{table}[htbp]\centering
+\caption{Os cinco arranjos da fita superior, e as \'areas que cada um
+disp\~oe.}
+\label{tab:arranjos}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.5cm}L{6.4cm}L{6.4cm}@{}}
+\toprule
+\textbf{Arranjo} & \textbf{Para qu\^e} & \textbf{\'Areas} \\
+\midrule
+\texttt{Layout} & o arranjo geral: o quadro, o que h\'a nele e o que est\'a selecionado & \texttt{Viewport}, \texttt{Outliner}, \texttt{Properties}, \texttt{Run} \\
+\texttt{Compare} & dois planos lidos um contra o outro, sem di\'alogo sobre o quadro & \texttt{Outliner}, \texttt{Viewport}, \texttt{Properties}, \texttt{Comparison} \\
+\texttt{Diagnose} & qu\~ao distantes os dom\'inios est\~ao, e onde a diferen\c{c}a fica & \texttt{Viewport}, \texttt{Outliner}, \texttt{Domain shift} \\
+\texttt{Data} & as tabelas da execu\c{c}\~ao, na largura que uma tabela pede & \texttt{Viewport}, \texttt{Outliner}, \texttt{Data table} \\
+\texttt{Simulation} & um m\'odulo de pomar e a luz que o atravessa & \texttt{Canopy}, \texttt{Outliner}, \texttt{Canopy run} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Os arranjos s\~ao predefini\c{c}\~oes, e n\~ao dado do usu\'ario. Mover uma
+divis\'oria ou trocar o editor de uma \'area altera a \'arvore viva, que
+sobrevive ao fechamento da janela e n\~ao \`a reinicializa\c{c}\~ao.
+Gravar \'e uma a\c{c}\~ao pedida por nome.
+
+\terrafig{png-images/impressao/studio-layout-default.png}
+  {\texttt{Layout}. Ao centro, o \texttt{Viewport}; \`a direita, o
+   \texttt{Outliner} sobre o \texttt{Properties}; ao p\'e, a faixa
+   \texttt{Run}. O bloco de texto abaixo da lista de dados resume a
+   execu\c{c}\~ao selecionada.}
+  {fig:studio-layout}
+
+\subsection{\texttt{Compare}: duas execu\c{c}\~oes}
+
+O editor traz, para o par selecionado: o n\'umero de cenas de cada
+execu\c{c}\~ao, a confian\c{c}a m\'edia, a contagem de classes, os dois planos
+preditos identificados pelo modelo que os produziu, os dois mapas de
+confian\c{c}a, a matriz de transi\c{c}\~ao entre classes e a lista de
+diferen\c{c}as. Quando uma execu\c{c}\~ao n\~ao carrega um dos planos, o
+espa\c{c}o correspondente declara \msg{No prediction} ou \msg{No confidence
+map} em vez de ficar vazio.
+
+\terrafig{png-images/impressao/studio-compare.png}
+  {\texttt{Compare}. A compara\c{c}\~ao ocupa a metade inferior em toda a
+   largura; as duas execu\c{c}\~oes permanecem vis\'iveis acima dela.}
+  {fig:studio-compare}
+
+\subsection{\texttt{Diagnose}: dist\^ancia entre dom\'inios}
+
+Responde a uma pergunta: um modelo ajustado em uma regi\~ao continua
+aplic\'avel em outra? As m\'etricas da tabela~\ref{tab:dominio} medem a
+dist\^ancia entre as duas; as quatro \'ultimas exigem cobertura de
+refer\^encia do MapBiomas sobre a \'area.
+
+\terrafig{png-images/impressao/studio-diagnose-domain-shift.png}
+  {\texttt{Diagnose}. \`A direita, as m\'etricas da tabela~\ref{tab:dominio} e
+   os histogramas das duas \'areas sobrepostos. \`A esquerda embaixo,
+   \texttt{Class separability}.}
+  {fig:studio-diagnose}
+
+\subsection{\texttt{Class separability}: onde a separa\c{c}\~ao se perde}
+
+Mede a dist\^ancia entre duas classes banda a banda, pela dist\^ancia de
+Jeffries-Matusita. A escala satura em 2, e as faixas da
+tabela~\ref{tab:jm} s\~ao desenhadas atr\'as das barras: s\~ao
+conven\c{c}\~ao de leitura, n\~ao resultado. O deslocamento entre classes \'e
+reportado em pontos percentuais de reflect\^ancia, com sinal.
+
+\begin{table}[htbp]\centering
+\caption{Faixas de leitura da dist\^ancia de Jeffries-Matusita.}
+\label{tab:jm}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.0cm}L{4.0cm}L{8.6cm}@{}}
+\toprule
+\textbf{Faixa} & \textbf{R\'otulo} & \textbf{Leitura} \\
+\midrule
+0 a 1,0 & \texttt{overlapping} & as distribui\c{c}\~oes das duas classes se sobrep\~oem naquela banda \\
+1,0 a 1,9 & \texttt{partial} & separa\c{c}\~ao parcial \\
+1,9 a 2,0 & \texttt{separable} & separadas; 2 \'e o teto da escala \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Duas leituras, que podem divergir. \texttt{Against the surround} mede cada par
+de classes dentro de uma execu\c{c}\~ao: a distin\c{c}\~ao entre uma classe e
+as que a cercam. \texttt{Between two runs} mede a mesma classe nas duas
+execu\c{c}\~oes: se a resposta dela permanece semelhante \`a da outra \'area.
+Uma classe pode manter resposta espectral est\'avel entre as duas
+execu\c{c}\~oes e ainda assim tornar-se insepar\'avel, caso o contraste com as
+classes vizinhas diminua.
+
+\begin{objecao}
+As dist\^ancias s\~ao \termo{univariadas}: uma banda por vez. Um classificador
+l\^e as bandas em conjunto e separa classes que nenhuma banda separa
+isoladamente. Uma coluna de barras baixas, como a da
+figura~\ref{fig:studio-diagnose}, n\~ao indica que aquelas classes s\~ao
+indistingu\'iveis; indica que nenhuma banda isolada as distingue naquele caso.
+O painel registra essa ressalva na pr\'opria tela. As corre\c{c}\~oes testadas
+contra dado real entre regi\~oes n\~ao eliminaram a diferen\c{c}a.
+\end{objecao}
+
+\subsection{\texttt{Rover} e \texttt{Spectral response}}
+
+O \texttt{Rover} aponta um pixel predito e informa a classe, a posi\c{c}\~ao e
+o que ele reflete. Ao lado do \texttt{Spectral response}, a varredura do raster
+acende a curva da classe apontada, banda a banda.
+
+\begin{objecao}
+A curva corresponde a \termo{uma aquisi\c{c}\~ao}, e n\~ao \`a m\'edia da
+esta\c{c}\~ao. Duas datas da mesma classe produzem curvas diferentes, e a
+compara\c{c}\~ao entre elas s\'o vale dentro da aquisi\c{c}\~ao que est\'a na
+tela.
+\end{objecao}
+
+\terrafig{png-images/impressao/studio-diagnose-brush-on-spectral-view.png}
+  {O \texttt{Rover} sobre o \texttt{Spectral response}. A varredura do raster
+   exibe a curva da classe apontada, banda a banda, sobre uma aquisi\c{c}\~ao.}
+  {fig:studio-rover}
+
+\subsection{\texttt{Data}: as tabelas}
+
+As mesmas tabelas que o pacote de pesquisa grava
+(tabela~\ref{tab:pacote}), orden\'aveis, sem exportar. \'E a raz\~ao do
+arranjo pr\'oprio: uma tabela pede largura, e no arranjo geral ela ficaria numa
+coluna.
+
+\terrafig{png-images/impressao/studio-data.png}
+  {\texttt{Data}. As tabelas da execu\c{c}\~ao exibidas na aplica\c{c}\~ao.}
+  {fig:studio-data}
+
+\subsection{\texttt{Simulation}: intercepta\c{c}\~ao de luz pelo dossel}
+
+Responde a quanto da luz que chegou a uma \'area foi interceptado pelo dossel
+da cultura. A grandeza reportada \'e a \termo{faPAR}: a fra\c{c}\~ao da
+radia\c{c}\~ao fotossinteticamente ativa absorvida.
+
+Um modelo de cultura obt\'em essa fra\c{c}\~ao aplicando Beer-Lambert com um
+coeficiente de extin\c{c}\~ao assumido. Aqui ela \'e obtida marchando raios
+por uma arquitetura de planta constru\'ida a partir da s\'erie observada, sob
+o registro solar da pr\'opria c\'elula, e o coeficiente que reproduziria esse
+resultado \'e devolvido junto, sob o r\'otulo \texttt{Emergent k}. A diferen\c{c}a entre
+ele e um coeficiente fixo \'e reportada como \texttt{Fixed-k error}.
+
+\begin{ficha}
+  \item[Painel] arranjo \texttt{Simulation}: \'area \texttt{Canopy} e faixa
+        \texttt{Canopy run}
+  \item[Pr\'e-condi\c{c}\~oes] Para desenhar, nenhuma al\'em do ambiente
+        Python. Para ler uma \'area, uma execu\c{c}\~ao salva cuja s\'erie de
+        \'indice tenha ao menos tr\^es observa\c{c}\~oes
+  \item[Depend\^encia opcional] \texttt{pyhelios3d}, que n\~ao acompanha a
+        instala\c{c}\~ao padr\~ao. Sem ele o dossel \'e composto de
+        elips\'oides em vez da arquitetura crescida
+  \item[Sa\'ida] faPAR, coeficiente emergente, idade resolvida, s\'erie de LAI
+        e estados fenol\'ogicos; malha do povoamento em \texttt{glTF}
+\end{ficha}
+
+\campo{Quatro leituras da mesma cultura} A escolha \'e feita no menu de tipo
+da \'area, e n\~ao dentro do painel. Uma leitura por \'area; v\'arias \'areas
+podem mostrar leituras distintas do mesmo povoamento.
+
+\begin{table}[htbp]\centering
+\caption{Os quatro modos do editor \texttt{Canopy}.}
+\label{tab:canopymodos}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.6cm}L{13.0cm}@{}}
+\toprule
+\textbf{Modo} & \textbf{O que traz} \\
+\midrule
+\texttt{Stand} & o povoamento desenhado: caules e folhas, como a arquitetura foi crescida. \'E o \'unico que consome contexto WebGL \\
+\texttt{Season} & a s\'erie de LAI invertida do \'indice, os estados fenol\'ogicos e os ciclos em que a janela foi dividida \\
+\texttt{Light} & faPAR sob o sol medido, coeficiente emergente, erro do coeficiente fixo, LAI iluminado, fra\c{c}\~ao difusa e n\'umero de dire\c{c}\~oes marchadas \\
+\texttt{Ages} & as duas idades independentes, lado a lado, e se a compara\c{c}\~ao entre elas \'e admiss\'ivel naquela data \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\campo{Procedimento: desenhar um povoamento} A faixa \texttt{Canopy run}
+define esp\'ecie, idade e semeadura (tabela~\ref{tab:canopyparam}).
+\texttt{Grow} constr\'oi a malha e a carrega em toda \'area \texttt{Stand} do
+quadro. Alterado um par\^ametro depois disso, o bot\~ao passa a
+\texttt{Regrow} e o painel declara que o povoamento desenhado n\~ao
+corresponde mais aos par\^ametros em tela.
+
+\campo{Procedimento: ler uma \'area} Selecione, no grupo \texttt{Area} da
+faixa, uma execu\c{c}\~ao salva. Execu\c{c}\~oes com menos de tr\^es
+observa\c{c}\~oes n\~ao aparecem, e o controle informa \msg{No analysed area
+carries a long enough index series yet}. \texttt{Read area} executa a cadeia
+descrita abaixo e preenche as leituras \texttt{Season}, \texttt{Light} e
+\texttt{Ages} de uma vez.
+
+\campo{Como a leitura \'e obtida} Sete etapas, nesta ordem:
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item A s\'erie de \'indice de vegeta\c{c}\~ao da \'area \'e lida. A
+        esp\'ecie \'e sugerida a partir das classes que a
+        classifica\c{c}\~ao encontrou, e uma esp\'ecie declarada na faixa
+        prevalece sobre a sugest\~ao.
+  \item O NDVI \'e invertido em \'indice de \'area foliar por Beer-Lambert
+        sobre o \'indice (Baret \& Guyot, 1991).
+  \item Os estados fenol\'ogicos s\~ao rotulados --- \texttt{soil},
+        \texttt{greenup}, \texttt{mature}, \texttt{senescence},
+        \texttt{fallow} --- e a s\'erie \'e dividida em ciclos. Mais de um
+        ciclo indica que a janela cobre mais de uma cultura, e cada idade
+        passa a ser contada do green-up do pr\'oprio ciclo.
+  \item Uma escada de crescimento por esp\'ecie devolve a idade cuja planta
+        carrega a \'area foliar observada, dividida pela densidade de
+        semeadura. A escada recusa em tr\^es casos
+        (tabela~\ref{tab:escada}).
+  \item O registro solar hor\'ario da c\'elula \'e obtido, tr\^es anos por
+        padr\~ao, e recortado numa janela de $\pm$21 dias em torno do
+        dia-do-ano da observa\c{c}\~ao iluminada. Da\'i saem o histograma de
+        energia de feixe por azimute e eleva\c{c}\~ao, e a fra\c{c}\~ao
+        difusa medida.
+  \item Raios s\~ao marchados pela arquitetura, bin a bin do histograma,
+        ponderados pela energia que chegou de cada dire\c{c}\~ao. O
+        procedimento \'e repetido para sementes distintas, pela raz\~ao
+        registrada nas limita\c{c}\~oes ao fim desta se\c{c}\~ao.
+  \item A execu\c{c}\~ao mediana em faPAR carrega os n\'umeros reportados, e
+        a dispers\~ao do conjunto acompanha.
+\end{enumerate}
+
+\begin{table}[htbp]\centering
+\caption{Quando a escada n\~ao devolve idade. A recusa \'e reportada por
+observa\c{c}\~ao, e n\~ao suprimida.}
+\label{tab:escada}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.6cm}L{12.0cm}@{}}
+\toprule
+\textbf{Recusa} & \textbf{Condi\c{c}\~ao} \\
+\midrule
+fora do alcance & o LAI observado excede o que a esp\'ecie atinge naquela densidade \\
+no plat\^o & passada a idade em que a \'area foliar deixa de mudar, a idade n\~ao \'e identific\'avel a partir dela. O estado fenol\'ogico desempata \\
+esp\'ecie ausente & a esp\'ecie n\~ao consta da biblioteca de arquitetura \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\terrafig{png-images/impressao/studio-simulation-soybean-tocantins-data.png}
+  {\texttt{Simulation}, no modo \texttt{Stand}. A \'area central desenha a
+   arquitetura crescida para a esp\'ecie, a idade e a semeadura da faixa ao
+   p\'e; \`a direita, o \texttt{Outliner} indica qual \'area est\'a no quadro.
+   O modo desenha a geometria e n\~ao a radia\c{c}\~ao: os valores de faPAR
+   est\~ao no modo \texttt{Light}.}
+  {fig:studio-sim}
+
+\campo{Limita\c{c}\~oes} As quatro seguintes s\~ao declaradas pela
+pr\'opria aplica\c{c}\~ao e afetam a interpreta\c{c}\~ao do resultado.
+
+\begin{objecao}
+\textbf{A arquitetura \'e opcional, e a alternativa n\~ao \'e equivalente.} A
+biblioteca que cresce a planta \'e um extra que n\~ao acompanha a
+instala\c{c}\~ao padr\~ao. Na aus\^encia dela o dossel \'e composto de
+elips\'oides de densidade uniforme que preservam \'area foliar e envelope da
+copa, e a fonte \'e declarada nos metadados do campo. Um elips\'oide nessas
+condi\c{c}\~oes intercepta mais luz que a arquitetura que substitui, de modo
+que os dois n\~ao s\~ao intercambi\'aveis.
+\end{objecao}
+
+\begin{objecao}
+\textbf{O resultado tem dispers\~ao pr\'opria, e ela \'e amostrada.} A
+arquitetura \'e crescida de forma estoc\'astica. Medido em soja aos 55 dias,
+com esp\'ecie, idade e semeadura fixas e a \'area foliar reescalada para um
+mesmo LAI, cinco sementes produziram faPAR entre 0,703 e 0,799, uma amplitude
+de 0,096. Por isso a execu\c{c}\~ao \'e repetida (tr\^es sementes por
+padr\~ao, at\'e doze) e o painel reporta a mediana com a faixa observada, em
+vez de um valor isolado. A marcha domina o custo, em torno de 11~s contra
+0,24~s para crescer uma planta.
+\end{objecao}
+
+\begin{objecao}
+\textbf{O modelo de planta n\~ao representa competi\c{c}\~ao.} A arquitetura
+cresce a ontogenia de uma planta isolada. Verificado em soja aos 60 dias:
+1,402~m$^2$ isolada contra 1,371~m$^2$ dentro de um povoamento de 24 plantas a
+30~pl/m$^2$, raz\~ao de 0,98. A vizinhan\c{c}a praticamente n\~ao altera o
+crescimento. Multiplicado pela densidade real de semeadura, o LAI alcan\c{c}\'avel
+excede o LAI de campo em parte das esp\'ecies (tabela~\ref{tab:alcance}). Onde
+excede, a invers\~ao continua devolvendo um n\'umero --- uma idade jovem cuja
+\'area foliar coincide --- mas a arquitetura \'e de planta juvenil onde o campo
+tem planta madura, com distribui\c{c}\~ao vertical e \^angulos foliares
+distintos.
+
+Por isso duas idades independentes s\~ao reportadas e nenhuma \'e escolhida: a
+que a \'area foliar implica e a fenol\'ogica, contada em dias desde o green-up
+do ciclo. Diverg\^encia grande entre elas indica que o modelo de planta isolada
+n\~ao se aplica \`aquela cultura naquela semeadura. Passado o pico da s\'erie a
+compara\c{c}\~ao \'e suprimida e a raz\~ao \'e declarada: a escada s\'o cresce,
+de modo que ap\'os o pico a idade devolvida significa ``planta com esta \'area
+foliar'', e n\~ao ``dossel desta idade''.
+\end{objecao}
+
+\begin{table}[htbp]\centering
+\caption{LAI alcan\c{c}\'avel pela escada na densidade de campo, contra o LAI
+observado na cultura. Onde o alcance excede o observado, a idade resolvida
+descreve uma planta com a \'area foliar certa e a arquitetura errada.}
+\label{tab:alcance}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.6cm}L{4.6cm}L{3.4cm}L{4.2cm}@{}}
+\toprule
+\textbf{Esp\'ecie} & \textbf{Alcance na densidade} & \textbf{LAI de campo} & \textbf{Leitura} \\
+\midrule
+milho  & 4,7 a 7,5 (5--8 pl/m$^2$)      & 3 a 6 & compat\'ivel \\
+arroz  & 2,9 a 7,2 (100--250 pl/m$^2$)  & 4 a 7 & compat\'ivel \\
+sorgo  & 3,8 (5 pl/m$^2$)               & 3 a 5 & compat\'ivel \\
+trigo  & 12,8 a 25,6 (200--400 pl/m$^2$)& 4 a 7 & alcance excede \\
+caupi  & 12,8 a 25,6 (10--20 pl/m$^2$)  & 3 a 5 & alcance excede \\
+soja   & 37 a 75 (20--40 pl/m$^2$)      & 4 a 7 & alcance excede \\
+feij\~ao & 35 a 59 (15--25 pl/m$^2$)    & 3 a 5 & alcance excede \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{objecao}
+\textbf{A invers\~ao satura, e a s\'erie \'e m\'edia de \'area.} Os tr\^es
+par\^ametros da invers\~ao --- NDVI de solo exposto, NDVI de dossel fechado e
+coeficiente de extin\c{c}\~ao --- s\~ao calibra\c{c}\~ao de campo, e os
+valores adotados por padr\~ao correspondem a soja ou milho. Acima de LAI 4 o
+\'indice quase n\~ao se move: a 0,85 de NDVI, um cent\'esimo de \'indice vale
+cerca de 0,3 de LAI, e a 0,88 vale 0,9. Nessa faixa o valor \'e
+extrapola\c{c}\~ao, e a propor\c{c}\~ao da s\'erie que caiu nela \'e
+reportada. Acima de LAI 8 a invers\~ao \'e recusada.
+
+A s\'erie \'e ainda uma m\'edia sobre a \'area, e uma m\'edia sobre cobertura
+mista n\~ao \'e o \'indice da cultura. Na \'area de soja contra a qual esta
+leitura foi constru\'ida, o pico l\^e 0,314 com desvio-padr\~ao de 0,190, o
+que para uma mistura aproximadamente equilibrada situa os pixels de cultura
+pr\'oximos de 0,50 e os demais pr\'oximos de 0,12. O LAI invertido subestima a
+cultura nessa propor\c{c}\~ao.
+\end{objecao}
+
+% =====================================================================
+\section{Levar o resultado para fora}
+
+\begin{ficha}
+  \item[Pr\'e-condi\c{c}\~oes] Uma execu\c{c}\~ao conclu\'ida e selecionada
+  \item[Sa\'ida] Um diret\'orio com o conte\'udo da tabela~\ref{tab:pacote},
+        ou um arquivo por camada
+\end{ficha}
+
+\campo{Procedimento: o pacote de pesquisa}
+
+\begin{enumerate}[leftmargin=*,itemsep=.25em]
+  \item Abra \texttt{Research pack}. A janela lista os arquivos \`a esquerda e
+        mostra o conte\'udo do selecionado \`a direita, antes de gravar.
+  \item Confira o \texttt{manifest.json}, que \'e o registro de proced\^encia:
+        modelo, \'area, n\'umero de datas, intervalo, confian\c{c}a m\'edia e
+        extens\~ao.
+  \item Acione \texttt{Export pack} e escolha o diret\'orio.
+\end{enumerate}
+
+\begin{table}[htbp]\centering
+\caption{Conte\'udo do pacote de pesquisa.}
+\label{tab:pacote}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{5.8cm}L{9.8cm}@{}}
+\toprule
+\textbf{Arquivo} & \textbf{Conte\'udo} \\
+\midrule
+\texttt{manifest.json} & vers\~ao do esquema, momento da exporta\c{c}\~ao, modelo, identificador e r\'otulo da \'area, n\'umero de datas, intervalo coberto, confian\c{c}a m\'edia e extens\~ao \\
+\texttt{aoi.geojson} & o pol\'igono, com o n\'umero de partes \\
+\texttt{*.csv} & uma tabela por leitura, com a contagem de linhas \\
+\texttt{rasters/classification.tif} & a classifica\c{c}\~ao como GeoTIFF \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\terrafig{png-images/impressao/research-pack.png}
+  {Pr\'e-visualiza\c{c}\~ao do pacote antes da grava\c{c}\~ao. A lista \`a
+   esquerda enumera os arquivos; o painel \`a direita mostra o conte\'udo do
+   selecionado.}
+  {fig:pacote}
+
+\campo{Procedimento: camada a camada} No \texttt{Outliner}, cada camada
+listada traz as suas pr\'oprias a\c{c}\~oes: \texttt{PNG} grava a
+imagem, e \texttt{GeoTIFF} grava o raster georreferenciado quando a camada
+tiver um. \texttt{Show} traz a camada para o quadro, e \texttt{Drop} a remove.
+
+\begin{achado}
+As exporta\c{c}\~oes incluem o texto que declara as premissas sob as quais cada
+valor foi obtido. O \texttt{manifest.json} \'e o registro de proced\^encia do
+pacote: sem ele, os CSV s\~ao n\'umeros sem a execu\c{c}\~ao que os produziu.
+\end{achado}
+
+% =====================================================================
+% APENDICES
+%
+% O que veio para ca e consulta, e nao leitura corrida: tabela de campo com
+% padrao e faixa, catalogo de editor, lista de mensagem. O leitor volta a elas
+% com uma pergunta pontual -- "qual e o padrao da nuvem?", "o que essa
+% mensagem quer dizer?" -- e no meio do texto elas interrompiam o procedimento
+% que estavam ali para apoiar.
+%
+% As tabelas curtas ficaram onde estavam. Uma tabela de tres a cinco linhas
+% que sustenta o argumento do paragrafo ao lado -- as faixas de leitura de
+% Jeffries-Matusita, as recusas da escada -- nao e consulta, e a frase.
+% =====================================================================
+\appendix
+
+\section{Campos e par\^ametros}
+
+As tabelas desta se\c{c}\~ao trazem, para cada campo edit\'avel, o valor que a
+aplica\c{c}\~ao adota ao abrir, a faixa aceita e o efeito de alter\'a-lo.
+
+\subsection{Classifica\c{c}\~ao}
+
+\begin{center}
+\captionof{table}{Campos de \texttt{New classification}, com o valor que a
+aplica\c{c}\~ao adota ao abrir.}
+\label{tab:classif}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.0cm}L{2.7cm}L{3.0cm}L{6.6cm}@{}}
+\toprule
+\textbf{Campo} & \textbf{Padr\~ao} & \textbf{Faixa} & \textbf{Efeito} \\
+\midrule
+\texttt{start} & hoje menos um ano & at\'e a data de hoje & in\'icio do per\'iodo de aquisi\c{c}\~ao \\
+\texttt{end} & hoje & at\'e a data de hoje & fim do per\'iodo. Datas futuras n\~ao s\~ao aceitas: as cenas j\'a foram adquiridas, e um per\'iodo que avan\c{c}a no futuro devolve o mesmo conjunto \\
+\texttt{max cloud} & 40\% & 0 a 100\%, passo 5 & descarta cenas com cobertura de nuvem acima do valor \\
+\texttt{Best scene per month} & ativo & liga/desliga & toma uma cena por m\^es em vez de todas as aprovadas pelo filtro \\
+\texttt{Model} & Random Forest & Random Forest; Temporal Transformer; Prithvi-EO 2.0 & os dois \'ultimos exigem \texttt{torch} \\
+\texttt{Prithvi mode} & \texttt{Pixel} & \texttt{Pixel} 10~m; \texttt{Patch} cerca de 160~m & vis\'ivel apenas com Prithvi. \texttt{Pixel} \'e compar\'avel ao Random Forest; \texttt{Patch} incorpora contexto espacial \\
+\texttt{Mode} & \texttt{Map} & \texttt{Map}; \texttt{Temporal} & \texttt{Temporal} apenas com Random Forest \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Envolt\'oria de cheia}
+
+\begin{center}
+\captionof{table}{Par\^ametros de \texttt{Flood envelope}. Os dois primeiros s\~ao os
+valores de refer\^encia do estudo; o bloco \texttt{assumptions} de cada
+execu\c{c}\~ao declara se o valor usado foi o padr\~ao ou o do operador.}
+\label{tab:cheia}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.4cm}L{2.7cm}L{2.9cm}L{6.3cm}@{}}
+\toprule
+\textbf{Par\^ametro} & \textbf{Padr\~ao} & \textbf{Faixa} & \textbf{Efeito} \\
+\midrule
+Produtos de eleva\c{c}\~ao & os quatro & no m\'inimo dois & Copernicus GLO-30, NASADEM, ALOS World 3D e Copernicus GLO-90. Um produto s\'o produz extens\~ao sem medida de quanto dela decorre da escolha do produto \\
+Limiar de refer\^encia & 1,0~m & n\~ao negativo & altura acima da drenagem em que o raster de concord\^ancia \'e constru\'ido \\
+\'Area de drenagem & 0,5~km$^2$ & acima de zero & \'area contribuinte a partir da qual a c\'elula conta como drenagem. Em zero, toda c\'elula \'e drenagem e a extens\~ao \'e a \'area inteira em qualquer limiar \\
+Buffer & derivado & n\~ao negativo & metros lidos al\'em da \'area \\
+Margem interna & derivada & n\~ao negativa & largura do anel cortado de dentro do pol\'igono para as estat\'isticas internas \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Dossel}
+
+\begin{center}
+\captionof{table}{Par\^ametros da faixa \texttt{Canopy run}.}
+\label{tab:canopyparam}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{2.9cm}L{2.0cm}L{2.7cm}L{7.4cm}@{}}
+\toprule
+\textbf{Par\^ametro} & \textbf{Padr\~ao} & \textbf{Faixa} & \textbf{Efeito} \\
+\midrule
+\texttt{Species} & sorgo & 30 esp\'ecies & a biblioteca n\~ao traz cana, caf\'e nem algod\~ao; a escada recusa em vez de substituir por esp\'ecie pr\'oxima \\
+\texttt{Day} & 60 & 5 a 200, passo 5 & idade do povoamento desenhado. A leitura de uma \'area resolve a idade e n\~ao usa este campo \\
+\texttt{Rows} & 3 & 1 a 8 & linhas do povoamento desenhado \\
+\texttt{Per row} & 4 & 1 a 10 & plantas por linha. A 3$\times$4 e 60 dias a malha tem cerca de 264 mil tri\^angulos \\
+\texttt{Row spacing} & 0,80~m & 0,1 a 6~m, passo 0,05 & entra na densidade de semeadura, que converte \'area foliar por planta em LAI \\
+\texttt{In row} & 0,25~m & 0,05 a 4~m, passo 0,05 & idem \\
+\texttt{Sun} & 50$^\circ$ & 2 a 90$^\circ$ & eleva\c{c}\~ao do sol \emph{da cena desenhada}. N\~ao entra no c\'alculo de faPAR, que usa o registro solar da c\'elula \\
+\texttt{Azimuth} & 35$^\circ$ & 0 a 359$^\circ$, passo 5 & idem \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Refer\^encia da interface}
+
+\subsection{Origens do interpretador}
+
+\begin{center}
+\captionof{table}{Origens que \texttt{In use} reporta para o interpretador corrente.}
+\label{tab:origem}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.6cm}L{12.0cm}@{}}
+\toprule
+\textbf{Origem} & \textbf{Significado} \\
+\midrule
+\texttt{created by TERRA}     & ambiente constru\'ido por \texttt{Build environment} \\
+\texttt{shipped with TERRA}   & interpretador do pr\'oprio pacote de instala\c{c}\~ao \\
+\texttt{chosen here}          & selecionado nesta p\'agina \\
+\texttt{a project environment}& ambiente virtual de projeto \\
+\texttt{found on this machine}& localizado no \texttt{PATH} \\
+\texttt{detected automatically}& resolvido sem interven\c{c}\~ao \\
+\texttt{forced by TERRA\_PYTHON} & imposto pela vari\'avel de ambiente; a sele\c{c}\~ao desta p\'agina n\~ao se aplica \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Os editores do Studio}
+
+\begin{center}
+\captionof{table}{Os editores. Um deles ocupa cada \'area do quadro.}
+\label{tab:editores}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.9cm}L{11.7cm}@{}}
+\toprule
+\textbf{Editor} & \textbf{O que traz} \\
+\midrule
+\texttt{Viewport} & os rasters, levantados das coordenadas \\
+\texttt{Outliner} & o que est\'a na cena, quais dados existem, quais \'areas existem \\
+\texttt{Properties} & o plano selecionado: legenda, classes e acur\'acia \\
+\texttt{Comparison} & dois planos um contra o outro: diferen\c{c}a, transi\c{c}\~oes e concord\^ancia \\
+\texttt{Domain shift} & a dist\^ancia entre o dom\'inio de aplica\c{c}\~ao e aquele em que o modelo foi ajustado \\
+\texttt{Spectral response} & o que cada classe predita reflete, banda a banda, sobre uma aquisi\c{c}\~ao \\
+\texttt{Class separability} & a dist\^ancia entre duas classes, banda a banda, e onde a separa\c{c}\~ao se perde \\
+\texttt{Library check} & cada classe contra uma biblioteca espectral, e por que um \^angulo pequeno n\~ao \'e identifica\c{c}\~ao \\
+\texttt{Rover} & aponta um pixel predito: a classe, a posi\c{c}\~ao e o que reflete \\
+\texttt{Data table} & as tabelas da execu\c{c}\~ao, orden\'aveis, como o pacote de pesquisa as exporta \\
+\texttt{Run} & \'area, per\'iodo e modelo da pr\'oxima execu\c{c}\~ao \\
+\texttt{Canopy} & um povoamento, especificado e desenhado, ou o que a esta\c{c}\~ao de uma \'area implica \\
+\texttt{Canopy run} & esp\'ecie, idade e semeadura do povoamento, e qual \'area \'e lida \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{M\'etricas de \texttt{Domain shift}}
+
+\begin{center}
+\captionof{table}{O que \texttt{Domain shift} reporta.}
+\label{tab:dominio}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{3.4cm}L{12.2cm}@{}}
+\toprule
+\textbf{M\'etrica} & \textbf{O que mede} \\
+\midrule
+\texttt{KL (NDVI)} & diverg\^encia de Kullback-Leibler entre as distribui\c{c}\~oes de NDVI das duas \'areas \\
+\texttt{CVA |M|} & magnitude do vetor de mudan\c{c}a; em desvios-padr\~ao quando a normaliza\c{c}\~ao \'e poss\'ivel \\
+\texttt{MMD$^2$} & discrep\^ancia m\'edia m\'axima, com n\'ucleo RBF \\
+\texttt{Spaces} & que tipo de assinatura foi usado em cada lado, quando os dois n\~ao coincidem \\
+\texttt{Overall} & acur\'acia global contra a cobertura de refer\^encia \\
+\texttt{Macro F1} & F1 m\'edio entre as classes, sem pesar pela frequ\^encia delas \\
+\texttt{Outside legend} & fra\c{c}\~ao de pixels fora da legenda compar\'avel \\
+\texttt{Quantity / alloc.} & o desacordo decomposto em erro de quantidade e erro de aloca\c{c}\~ao \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Mensagens}
+\label{ap:mensagens}
+
+As mensagens abaixo s\~ao as que a aplica\c{c}\~ao exibe. Uma falha de
+an\'alise aparece como aviso com t\'itulo e detalhe; o detalhe vem do processo
+Python e nomeia a condi\c{c}\~ao encontrada.
+
+\begin{center}
+\captionof{table}{Mensagens de recusa antes da execu\c{c}\~ao.}
+\label{tab:recusa}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{7.6cm}L{8.0cm}@{}}
+\toprule
+\textbf{Mensagem} & \textbf{Causa e a\c{c}\~ao} \\
+\midrule
+\msg{Set the acquisition period.} & data de in\'icio ou fim vazia. Preencha os dois campos do bloco de per\'iodo \\
+\msg{Define an area: draw, search, or load an example.} & nenhuma \'area definida. Desenhe, busque ou importe \\
+\msg{Select a scene first.} & composi\c{c}\~ao pedida sem cena selecionada na lista \\
+\msg{No polygon found in the file.} & o arquivo importado n\~ao cont\'em geometria de pol\'igono \\
+\msg{Performance ratio must be between 0 and 1.} & campo solar fora da faixa \\
+\msg{UTC offset must be between -12 and 14 hours.} & campo solar fora da faixa \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\captionof{table}{Condi\c{c}\~oes reportadas durante a execu\c{c}\~ao. Aparecem como
+detalhe do aviso de erro da tarefa correspondente.}
+\label{tab:execucao}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{7.6cm}L{8.0cm}@{}}
+\toprule
+\textbf{Condi\c{c}\~ao} & \textbf{Leitura} \\
+\midrule
+\msg{No scenes found for this period / cloud filter.} & nenhuma cena passou no filtro. Amplie o per\'iodo ou eleve a cobertura de nuvem aceita \\
+\msg{no Copernicus DEM tile covers this AOI} & a \'area est\'a fora da cobertura do produto de eleva\c{c}\~ao \\
+\msg{the merged DEM window is empty for this AOI} & os produtos selecionados n\~ao retornaram dado sobre a \'area \\
+\msg{No MapBiomas pixels in the AOI window (empty download).} & a \'area est\'a fora da cobertura do MapBiomas \\
+\msg{NASA POWER returned no data for this period} & a s\'erie de irradia\c{c}\~ao n\~ao cobre o per\'iodo pedido \\
+\msg{NASA POWER request failed after N attempts} & falha de rede ap\'os as tentativas previstas \\
+\msg{no complete year in the annual totals} & o per\'iodo n\~ao fecha um ano, e os totais anuais n\~ao s\~ao calcul\'aveis \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\campo{Ambiente} As falhas de interpretador s\~ao tratadas na
+se\c{c}\~ao~2. Uma an\'alise que morre no meio por importa\c{c}\~ao ausente
+corresponde a um ambiente adotado com \texttt{Use as is} ao qual falta um
+pacote; \texttt{Settings} $\rightarrow$ \texttt{System} nomeia qual.
+
+\end{document}
