@@ -1,0 +1,441 @@
+% =====================================================================
+% TERRA -- The method and the limit
+%
+% English edition of `../livro.tex`. Same product, same structure, same cover.
+% What changes is the language, and three things that follow from it: `babel`
+% is loaded for English, siunitx marks decimals with a point, and the
+% bibliography heading reads "References".
+%
+% This is not a second book. Chapter for chapter and section for section it
+% carries the same argument as the Portuguese edition, and a claim added on one
+% side is added on the other. Where the two disagree, the Portuguese edition is
+% the one that was written first and the one to check against the code.
+%
+% Compile from the repository root:
+%   make book-en
+% Or from here:
+%   TEXINPUTS="$(cd ../.. && pwd):$TEXINPUTS" latexmk -pdf book.tex
+% latexmk lives in /Library/TeX/texbin, outside the default PATH.
+%
+% After compiling, measure the cover:
+%   ../../../../.venv/bin/python ../../scripts/verifica_capa.py book.pdf
+%
+% FIGURES COME FROM `../figuras/en/`, produced by `figuras.py --en`. Same
+% script and same measurement as the Portuguese edition; what differs is the
+% string table and the decimal marker. Regenerate both with:
+%   ../../../../.venv/bin/python ../figuras/figuras.py
+%   ../../../../.venv/bin/python ../figuras/figuras.py --en
+%
+% Class `book`, for the two reasons the Portuguese edition gives: `\part`
+% groups twenty-odd chapters into a contents page that fits on one sheet, and
+% `\frontmatter` numbers the front matter in roman so that adding a page to the
+% contents does not renumber the body.
+% =====================================================================
+
+\documentclass[11pt,a4paper,oneside]{book}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+
+% MARGIN OF 2.0 CM, the same as `guia.tex` and as the Portuguese edition, and
+% not the 3.5 cm of the scientific template. The three reasons are recorded in
+% `../livro.tex`: the two manuals are one pair and must measure alike, the
+% screenshot pipeline targets a 17.0 cm block, and the three-column tables
+% carry the limit in the third column, which breaks every two words at 14 cm.
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{terra}
+
+% OPEN LEADING, because of the margin. At 2.0 cm the block is 17.0 cm wide and
+% the line runs to about 87 characters, against the 66 that typography treats
+% as comfortable. What tires the eye on a long line is the return, not the
+% length: opening the vertical gives back the track the length took away.
+\linespread{1.10}
+
+\usepackage{microtype}
+\usepackage{siunitx}
+\usepackage{tocloft}
+% The provenance table in appendix B: `longtable` because it crosses pages, and
+% `pdflscape` because the file-and-symbol column neither fits nor hyphenates at
+% 17 cm. `pdflscape` rotates the page in the PDF as well as the content, so it
+% reads without turning the head in a screen reader.
+\usepackage{longtable}
+\usepackage{pdflscape}
+
+% Leader dots on the chapter line too, which class `book` does not do. Without
+% them the chapter page number floats loose on the far side of the sheet. The
+% gap between chapters drops from 1 em to 0.4, or a contents page of seven
+% parts overflows without becoming more legible.
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
+\setlength{\cftbeforechapskip}{.4em}
+
+% Width of the section-number box in the contents. The 2.3 em default fits
+% "9.9" and overflows on "16.10": two chapter digits with two section digits.
+\setlength{\cftsecnumwidth}{2.9em}
+
+% DECIMAL POINT, and this is the one numeric convention that separates the two
+% editions. `writing.md` §11.3: the Portuguese documents use a decimal comma,
+% the English ones must not. The thousands separator is a comma, which is what
+% the reader of an English table expects.
+\sisetup{output-decimal-marker={.},group-separator={,},
+         group-minimum-digits=4,separate-uncertainty=true}
+
+% The kilowatt-peak is not an SI unit: it is the nameplate power of a
+% photovoltaic array under standard test conditions. It is the unit in which
+% the industry and the Global Solar Atlas publish specific yield, and writing
+% it as \watt would say something else. Declared here so that \qty composes it
+% with the rest instead of leaving it as loose text in a column of numbers.
+% A kilowatt-hour built from \kilo\watt\hour comes out as "kW h", with a space:
+% siunitx treats the hour as a separate unit and inserts the product. The
+% current spelling, and the one the Global Solar Atlas uses in the very table
+% chapter 15 measures itself against, is "kWh".
+\DeclareSIUnit{\kWh}{kWh}
+\DeclareSIUnit{\MWh}{MWh}
+\DeclareSIUnit{\kWp}{kWp}
+
+% LEFT-ALIGNED COLUMN, inherited from the user guide at the same width and for
+% the same reason. The tables here have narrow columns and `p{}` justifies: at
+% that width justification opens holes between words. The `plus 2em` instead of
+% the `plus 1fil` of \raggedright preserves the diagnostic: with infinite
+% stretch on the right TeX never finds a line too wide, and a cell holding a
+% monospaced file path, which does not hyphenate, spills over the neighbouring
+% column without a single `Overfull` line in the log.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\rightskip=0pt plus 2em\relax\hbadness=10000\relax}p{#1}}
+
+% This book quotes interface labels in \texttt, and none of them hyphenate:
+% `Class separability` and `Domain shift` in one sentence are two rigid blocks.
+% When they fall together at the end of a paragraph, TeX prefers to overrun the
+% margin to setting a loose line. The emergencystretch buys one extra pass with
+% additional stretch, and only in the paragraphs that would otherwise overrun.
+\setlength{\emergencystretch}{2em}
+
+% A message or label quoted from the screen word for word, distinct from the
+% \texttt that names a control. Same convention as the user guide.
+\newcommand{\msg}[1]{``\textit{#1}''}
+
+% FILE PATHS in \path{...}, not in \texttt{...}. The `url` package, already
+% loaded by hyperref in terra.sty, allows a line break after "/" and handles
+% "_" without escaping. In bare \texttt,
+% `docs/TERRA/notas/triagem-estudos-features.md` is a rigid 42-character block.
+%
+% `\urlstyle{tt}` so that the path comes out in the same monospace as the
+% labels: without it `url` sets in the class `\ttfamily`, which is not the
+% package plxMono, and two paths on one page came out in two fonts.
+\usepackage{url}
+\urlstyle{tt}
+
+% FIGURES COME FROM `../figuras/en/`, which `figuras.py --en` writes. One
+% drawing, two languages: the same function draws both editions, and what
+% changes is the string table and the decimal marker. Duplicating the drawing
+% code is what would let the two versions drift on the first correction someone
+% forgot to apply on both sides.
+%
+% The path is written out in the chapter, `figuras/en/fig-x.pdf`, rather than
+% hidden in the search path. A `\graphicspath` prefix cannot rewrite the middle
+% of a relative name, and spelling it out means the source says which artefact
+% is drawn.
+\graphicspath{{../}}
+
+% THE COVER IS THE ONE FROM `templates/template-cientifico.tex`, unchanged:
+% same photograph, same darkening, same mark and same kicker. The 0.60 is not
+% taste, it is the measured minimum for this photograph in this layout, and
+% re-measuring it for a second edition of the same book would redo a
+% measurement that already exists. The three footer columns are the only things
+% that change, because they name THIS document.
+%
+% Measure again after compiling:
+%   ../../../../.venv/bin/python ../../scripts/verifica_capa.py book.pdf
+\setcapaimagem{../../images/capas/delta-a4.jpg}
+\setcapaescuro{0.60}
+% The emblem beside the wordmark, as in `guia.tex` and in both templates: the
+% TERRA TitleBar puts the mark on the left and the word TERRA beside it, and a
+% cover that repeats that composition makes the document and the product read
+% as one thing. 2.9 cm against the roughly 2.2 cm cap height of the wordmark at
+% 86 pt, raised by (2.2-2.9)/2 to centre on it; below about 2.8 cm the text in
+% the ring stops resolving and the emblem becomes a dark dot.
+\setcapamarca{%
+  \raisebox{-0.35cm}{\includegraphics[height=2.9cm]{../../images/TERRA_EO_Logo.png}}%
+  \hspace{0.46cm}TERRA}
+% THE KICKER NUMBERS THE DOCUMENT, not the software. Same decision as
+% `guia.tex`, and for the same reason: the TERRA version changes with every
+% release and would leave the cover out of date without a line of the text
+% having changed. The book's own number changes when the book changes, which is
+% what a number on a cover promises.
+%
+% The TERRA version the text describes is still declared, in the place where it
+% decides something: the first field of the preface.
+\setcapachapeu{v1}
+% THE THREE COLUMNS SAY WHAT THE DOCUMENT ANSWERS, not what TERRA is. Whoever
+% picks this book up already uses the application. They are the three questions
+% of the preface, in the order the book answers them.
+%
+% LABEL AS NOUN PHRASE, not as clause. A journal cover names the subject,
+% "Ocean circulation", and does not ask where the water goes.
+%
+% The column is 5.3 cm, which gives about 30 characters per line at 9.5 pt. A
+% body longer than two or three lines hyphenates, and a word split on a cover
+% does not read as a line break, it reads as an error.
+\setcapacolunas
+  {The model input}{The scenes, the bands, and the space it was trained in}
+  {The disagreement}{Quantity against allocation, and agreement by block}
+  {The limit of the product}{The grid of the map, against what the source resolves}
+
+\begin{document}
+
+% =====================================================================
+% FRONT MATTER
+% =====================================================================
+\frontmatter
+
+% The headline is a two-to-four word call; the whole title goes on the
+% standfirst below it.
+%
+% TWO NOUNS, not a clause. "The method and the limit" splits the book in two,
+% and those are its two real halves: every chapter has the definition of the
+% product and a section on what cannot be concluded from it. The standfirst
+% specifies; it does not repeat.
+\terracapaperiodico
+  {THE METHOD\\AND THE LIMIT}
+  {The scientific manual for TERRA: the definition of each product, the
+   resolution its source truly reaches, and the limit of the number}
+  {August 2026}
+
+% NO TITLE PAGE. There was one, and it repeated the cover: the title the
+% headline already gives, the description the footer column already gives, the
+% audience and the exclusions, which are two fields of the preface, and the
+% note on English labels, which is one of the preface conventions.
+%
+% One piece of information was only there: which version the book describes.
+% That is a sentence, and it opens the preface. It was not a page.
+%
+% --- contents ---------------------------------------------------------
+\tableofcontents
+\clearpage
+
+% The preface comes AFTER the contents, as in `guia.tex`. It is not content, it
+% is what the reader needs before starting, so it is not numbered with the
+% body; and it is after the contents because whoever opens the PDF looks first
+% for the map of the document.
+\include{chapters/00-preface}
+
+% The list of abbreviations closes the front matter, immediately before the
+% body, which is where `template-cientifico.tex` puts it. It is not an
+% appendix: an appendix holds a lookup table, and an abbreviation is resolved
+% in the middle of a sentence.
+\include{chapters/00-abbreviations}
+
+% =====================================================================
+% BODY
+% =====================================================================
+\mainmatter
+
+\part{The data and the protocol}
+\include{chapters/01-scope}
+\include{chapters/02-protocol}
+\include{chapters/03-input}
+
+% The parts below are mapped in the README.md of this directory, with the state
+% of each chapter. Each `\include` is uncommented when the chapter exists.
+%
+\part{Land cover classification}
+\include{chapters/04-paths}
+\include{chapters/05-what-the-map-claims}
+%
+\part{Error, agreement and transfer}
+\include{chapters/06-agreement}
+\include{chapters/07-quantity-and-allocation}
+\include{chapters/08-blocks}
+\include{chapters/09-separability}
+\include{chapters/10-domain-shift-diagnosis}
+\include{chapters/11-domain-shift-limit}
+%
+\part{Water and terrain}
+\include{chapters/12-water}
+\include{chapters/13-terrain}
+\include{chapters/14-envelope}
+%
+\part{Energy}
+\include{chapters/15-solar-point}
+% \include{chapters/16-solar-terrain}
+\include{chapters/17-energy-losses}
+% \include{chapters/18-wind}
+%
+% \part{Canopy}
+% \include{chapters/19-lai-and-age}
+% \include{chapters/20-architecture}
+%
+% \part{Research practice with TERRA}
+% \include{chapters/21-export}
+% \include{chapters/22-reproducibility}
+% \include{chapters/23-limits-and-references}
+
+% =====================================================================
+% BACK MATTER
+% =====================================================================
+
+% Class `book` calls the section "Bibliography". This edition calls it
+% "References", which is the heading the reader of a manual expects and the one
+% the Portuguese edition uses.
+\renewcommand{\bibname}{References}
+
+% Written by hand, as in the rest of the line: there are still few references
+% and BibTeX would only add a compilation pass. When the book passes about
+% thirty, and it will, switch to BibTeX in one move, because it is the
+% halfway conversion that costs the work.
+%
+% `thebibliography` prints its own heading, so there is no `\chapter*` here.
+%
+% `\phantomsection` BEFORE `\addcontentsline`, and this is not a detail:
+% without it `hyperref` has no anchor to create and ties the contents line to
+% the last one that existed. `\clearpage` goes with it because the anchor has
+% to land on the page where the bibliography starts.
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{References}
+\begin{thebibliography}{9}
+
+\bibitem[Barnes et al.(2014)]{barnes2014}
+Barnes, R., Lehman, C., Mulla, D. (2014). Priority-flood: an optimal
+depression-filling and watershed-labeling algorithm for digital elevation
+models. \emph{Computers \& Geosciences}, 62, 117--127.
+
+\bibitem[Bolinger and Bolinger(2022)]{bolinger2022}
+Bolinger, M., Bolinger, G. (2022). Land requirements for utility-scale PV: an
+empirical update on power and energy density. \emph{IEEE Journal of
+Photovoltaics}, 12(2), 589--594. A sample of 736 plants and
+\qty{35482}{\mega\watt} of direct current, in commercial operation between 2007
+and 2019, in the United States.
+
+\bibitem[Brown et al.(2001)]{brown2001}
+Brown, L. D., Cai, T. T., DasGupta, A. (2001). Interval estimation for a
+binomial proportion. \emph{Statistical Science}, 16(2), 101--133.
+
+\bibitem[Dobos(2014)]{dobos2014}
+Dobos, A. P. (2014). \emph{PVWatts version 5 manual}. NREL/TP-6A20-62641,
+National Renewable Energy Laboratory, Golden, CO.
+
+\bibitem[Doelling et al.(2016)]{doelling2016}
+Doelling, D. R., Haney, C. O., Scarino, B. R., Gopalan, A., Bhatt, R. (2016).
+Advances in geostationary-derived longwave fluxes for the CERES synoptic
+(SYN1deg) product. \emph{Journal of Atmospheric and Oceanic Technology}, 33(3),
+503--521.
+
+\bibitem[ESA(2021)]{esa-psd}
+European Space Agency (2021). \emph{Sentinel-2 Products Specification
+Document}, PSD v14.9. Processing baseline 04.00, in production since 25 January
+2022.
+
+\bibitem[ESMAP(2020)]{gsa2020}
+Energy Sector Management Assistance Program (2020). \emph{Global Solar Atlas
+2.0}. World Bank, Washington, DC. Data modelled by Solargis.
+
+\bibitem[Faiman(2008)]{faiman2008}
+Faiman, D. (2008). Assessing the outdoor operating temperature of photovoltaic
+modules. \emph{Progress in Photovoltaics: Research and Applications}, 16(4),
+307--315.
+
+\bibitem[Feyisa et al.(2014)]{feyisa2014}
+Feyisa, G. L., Meilby, H., Fensholt, R., Proud, S. R. (2014). Automated Water
+Extraction Index: a new technique for surface water mapping using Landsat
+imagery. \emph{Remote Sensing of Environment}, 140, 23--35.
+
+\bibitem[Gelaro et al.(2017)]{gelaro2017}
+Gelaro, R., McCarty, W., Suárez, M. J., et al. (2017). The Modern-Era
+Retrospective analysis for Research and Applications, version 2 (MERRA-2).
+\emph{Journal of Climate}, 30(14), 5419--5454.
+
+\bibitem[Gretton et al.(2012)]{gretton2012}
+Gretton, A., Borgwardt, K. M., Rasch, M. J., Schölkopf, B., Smola, A. (2012).
+A kernel two-sample test. \emph{Journal of Machine Learning Research}, 13,
+723--773.
+
+\bibitem[Holmgren et al.(2018)]{holmgren2018}
+Holmgren, W. F., Hansen, C. W., Mikofski, M. A. (2018). pvlib python: a python
+package for modeling solar energy systems. \emph{Journal of Open Source
+Software}, 3(29), 884.
+
+\bibitem[Jordan and Kurtz(2013)]{jordan2013}
+Jordan, D. C., Kurtz, S. R. (2013). Photovoltaic degradation rates: an
+analytical review. \emph{Progress in Photovoltaics: Research and Applications},
+21(1), 12--29. The rate the application adopts is the median for crystalline
+silicon.
+
+\bibitem[Kopp and Lean(2011)]{kopp2011}
+Kopp, G., Lean, J. L. (2011). A new, lower value of total solar irradiance:
+evidence and climate significance. \emph{Geophysical Research Letters}, 38,
+L01706.
+
+\bibitem[Marion(2017)]{marion2017}
+Marion, B. (2017). Numerical method for angle-of-incidence correction factors
+for diffuse radiation incident photovoltaic modules. \emph{Solar Energy}, 147,
+344--348.
+
+\bibitem[McFeeters(1996)]{mcfeeters1996}
+McFeeters, S. K. (1996). The use of the Normalized Difference Water Index
+(NDWI) in the delineation of open water features. \emph{International Journal of
+Remote Sensing}, 17(7), 1425--1432.
+
+\bibitem[Melo et al.(2026)]{melo2026}
+Melo, J. L. S., Magalhães, D. K., Kolodziej, J. E., Kuhn, E. V. (2026).
+Automatic Land Cover Classification with Sentinel-2 and MapBiomas Time Series.
+\emph{XLIV Simpósio Brasileiro de Telecomunicações e Processamento de Sinais
+(SBrT)}, Salvador, BA, Brazil.
+
+\bibitem[Nobre et al.(2011)]{nobre2011}
+Nobre, A. D., Cuartas, L. A., Hodnett, M., Rennó, C. D., Rodrigues, G.,
+Silveira, A., Waterloo, M., Saleska, S. (2011). Height Above the Nearest
+Drainage: a hydrologically relevant new terrain model. \emph{Journal of
+Hydrology}, 404(1--2), 13--29.
+
+\bibitem[Olofsson et al.(2014)]{olofsson2014}
+Olofsson, P., Foody, G. M., Herold, M., Stehman, S. V., Woodcock, C. E.,
+Wulder, M. A. (2014). Good practices for estimating area and assessing accuracy
+of land change. \emph{Remote Sensing of Environment}, 148, 42--57.
+
+\bibitem[Ong et al.(2013)]{ong2013}
+Ong, S., Campbell, C., Denholm, P., Margolis, R., Heath, G. (2013).
+\emph{Land-use requirements for solar power plants in the United States}.
+NREL/TP-6A20-56290, National Renewable Energy Laboratory, Golden, CO.
+
+\bibitem[Otsu(1979)]{otsu1979}
+Otsu, N. (1979). A threshold selection method from gray-level histograms.
+\emph{IEEE Transactions on Systems, Man, and Cybernetics}, 9(1), 62--66.
+
+\bibitem[Perez et al.(1990)]{perez1990}
+Perez, R., Ineichen, P., Seals, R., Michalsky, J., Stewart, R. (1990). Modeling
+daylight availability and irradiance components from direct and global
+irradiance. \emph{Solar Energy}, 44(5), 271--289.
+
+\bibitem[Pontius and Millones(2011)]{pontius2011}
+Pontius, R. G., Millones, M. (2011). Death to Kappa: birth of quantity
+disagreement and allocation disagreement for accuracy assessment.
+\emph{International Journal of Remote Sensing}, 32(15), 4407--4429.
+
+\bibitem[Ramdas et al.(2015)]{ramdas2015}
+Ramdas, A., Reddi, S. J., Póczos, B., Singh, A., Wasserman, L. (2015). On the
+decreasing power of kernel and distance based nonparametric hypothesis tests in
+high dimensions. \emph{AAAI Conference on Artificial Intelligence}, 29(1).
+
+\bibitem[Strobl et al.(2007)]{strobl2007}
+Strobl, C., Boulesteix, A.-L., Zeileis, A., Hothorn, T. (2007). Bias in random
+forest variable importance measures: illustrations, sources and a solution.
+\emph{BMC Bioinformatics}, 8, 25.
+
+\bibitem[Xu(2006)]{xu2006}
+Xu, H. (2006). Modification of Normalised Difference Water Index (NDWI) to
+enhance open water features in remotely sensed imagery. \emph{International
+Journal of Remote Sensing}, 27(14), 3025--3033.
+
+\end{thebibliography}
+
+% The appendices after the references, which is the order of the line's
+% scientific template. They are lookup material: they go here and not in the
+% body because the reader comes back to them with a specific question, and in
+% the middle of a chapter they would interrupt the argument they are there to
+% support.
+\appendix
+
+\include{appendices/A-actions}
+\include{appendices/B-provenance}
+
+\end{document}

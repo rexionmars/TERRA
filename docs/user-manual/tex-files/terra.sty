@@ -1,0 +1,498 @@
+% =====================================================================
+% terra.sty — identidade dos documentos da linha TERRA-Simulation
+%
+%   \usepackage{terra}
+%
+% Extrai o que ja se repetia nos .tex da linha (cores, \campo, aviso,
+% objecao) e acrescenta a capa. Nao inventa estilo novo: os documentos
+% existentes continuam com a mesma cara depois de migrar para ca.
+%
+% Serve `article` e `report`/`book` -- o formato de capitulo so e instalado
+% quando a classe tem `\chapter`, de modo que os estudos em `article` nao
+% mudam de aparencia.
+%
+% Opcoes:
+%   [semcapa]   nao carrega tikz/eso-pic (documento curto, sem capa)
+% =====================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{terra}[2026/08/22 Identidade TERRA-Simulation]
+
+\newif\ifterra@capa \terra@capatrue
+\DeclareOption{semcapa}{\terra@capafalse}
+
+% Familia tipografica. Serifada no corpo e sem serifa nos titulos: texto
+% corrido longo -- e os documentos desta linha sao longos -- cansa menos em
+% serifada, e o contraste marca a hierarquia sem precisar de regua nem cor.
+\def\terra@fonte{plex}
+\DeclareOption{plex}{\def\terra@fonte{plex}}
+\DeclareOption{source}{\def\terra@fonte{source}}
+\DeclareOption{libertinus}{\def\terra@fonte{libertinus}}
+\DeclareOption{padrao}{\def\terra@fonte{padrao}}
+\ProcessOptions\relax
+
+\def\terra@plex{plex}\def\terra@source{source}
+\def\terra@libertinus{libertinus}
+\ifx\terra@fonte\terra@plex
+  \RequirePackage{plex-serif}
+  \RequirePackage[scale=.96]{plex-sans}
+  \RequirePackage[scale=.92]{plex-mono}
+\else\ifx\terra@fonte\terra@source
+  \RequirePackage{sourceserifpro}
+  \RequirePackage[scale=.95]{sourcesanspro}
+  \RequirePackage[scale=.92]{sourcecodepro}
+\else\ifx\terra@fonte\terra@libertinus
+  % A familia libertinus ja traz serifada, sem serifa e monoespacada
+  % combinadas. Somar `inter` aqui fazia o corpo virar sem serifa.
+  \RequirePackage{libertinus}
+\fi\fi\fi
+
+% Titulos sem serifa, corpo serifado -- em todas as variantes. Sem isto o
+% `source` herdava titulo serifado e a hierarquia sumia: a diferenca entre
+% titulo e corpo passava a ser so o corpo da fonte, que a olho nu quase nao
+% separa.
+\RequirePackage{titlesec}
+\titleformat{\section}{\sffamily\large\bfseries}{\thesection}{.7em}{}
+\titleformat{\subsection}{\sffamily\normalsize\bfseries}{\thesubsection}{.6em}{}
+\titleformat{\subsubsection}{\sffamily\small\bfseries}{\thesubsubsection}{.6em}{}
+\titlespacing*{\section}{0pt}{1.5em}{.6em}
+\titlespacing*{\subsection}{0pt}{1.1em}{.45em}
+
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{caption}
+\RequirePackage{array}
+\RequirePackage{booktabs}
+\RequirePackage{enumitem}
+\RequirePackage{amsmath,amssymb}
+% natbib: os estudos citam com \citet/\citep e trazem `thebibliography`
+% escrita a mao. Carregado aqui para que o preambulo do estudo fique so com o
+% que e do estudo -- o `graphicspath`, o titulo e o resumo.
+\RequirePackage{natbib}
+\RequirePackage[hidelinks]{hyperref}
+
+\ifterra@capa
+  \RequirePackage{tikz}
+  \RequirePackage{eso-pic}
+  % Condensada pesada para a manchete da capa de periodico. A Nature usa
+  % Knockout, que e comercial; Oswald Bold e o parente livre mais proximo --
+  % grotesca condensada, caixa-alta fechada, que e o que faz manchete
+  % sobreviver a fundo agitado com o mesmo contraste que tipo leve nao
+  % sobrevive.
+  %
+  % O pacote troca \rmdefault e \sfdefault do documento inteiro por Oswald,
+  % que nao e o que se quer: aqui ele e carregado so pela familia, e os
+  % defaults voltam ao que o bloco tipografico acima escolheu.
+  \let\terra@rmsalvo\rmdefault
+  \let\terra@sfsalvo\sfdefault
+  \let\terra@ttsalvo\ttdefault
+  \RequirePackage{Oswald}
+  \renewcommand{\rmdefault}{\terra@rmsalvo}
+  \renewcommand{\sfdefault}{\terra@sfsalvo}
+  \renewcommand{\ttdefault}{\terra@ttsalvo}
+  \newcommand{\terracondensada}{\fontfamily{Zeroswald-TLF}\fontseries{b}\selectfont}
+\fi
+
+% --- cores -----------------------------------------------------------
+% A PALETA, nomeada como veio. Quatro tons analogos, de um quase-preto
+% esverdeado a um caqui dourado. Substituiu um esquema de azul, vermelho e
+% verde: os tres papeis de ressalva se distinguiam por MATIZ, e passam a se
+% distinguir por CLARIDADE, que e o que uma paleta monocromatica oferece.
+%
+% Medido sobre papel branco, para o piso de 4,5:1 que texto pede:
+%
+%   Black Glaze     #021017   19,28:1
+%   Shadow Warrior  #1C2922   15,11:1
+%   Waiouru         #4A4C33    8,85:1
+%   Trim            #726D47    5,26:1
+%
+% E entre si, que e o que separa um filete do vizinho:
+%
+%   Shadow Warrior x Waiouru  1,71      Waiouru x Trim  1,68
+%   Shadow Warrior x Trim     2,87
+%
+% Um filete e um bloco solido de 0,35 x 1,6 em, tamanho em que uma diferenca
+% de claridade dessa ordem se le. Nao se le tao rapido quanto azul contra
+% vermelho: essa e a troca que uma paleta analoga impoe, e nao um defeito da
+% escolha dos tons dentro dela.
+\definecolor{terrablackglaze}{HTML}{021017}
+\definecolor{terrashadowwarrior}{HTML}{1C2922}
+\definecolor{terrawaiouru}{HTML}{4A4C33}
+\definecolor{terratrim}{HTML}{726D47}
+
+% OS PAPEIS APONTAM PARA A PALETA, em vez de repetirem os valores. Trocar um
+% tom passa a ser trocar uma linha, e nenhum documento cita hexadecimal.
+%
+% `destaque` carrega texto corrido -- rotulo de campo, termo em negrito -- e
+% por isso fica com Waiouru: 8,85:1, praticamente o mesmo peso do azul que
+% ocupava o papel (8,22:1), de modo que nada no corpo muda de legibilidade.
+% `fechada` marca o que limita, e desce para o tom mais escuro. `aberta`
+% marca o achado, e sobe para o mais claro.
+\colorlet{destaque}{terrawaiouru}
+\colorlet{fechada}{terrashadowwarrior}
+\colorlet{aberta}{terratrim}
+
+% O disco que a capa pinta sobre a foto. E o mesmo Black Glaze da paleta, e
+% nao mais um quase-preto proprio.
+%
+% `scripts/verifica_capa.py` reconstroi esse escurecimento para medir o
+% contraste, e guarda o valor em `DISCO`. Os dois tem de andar juntos: com
+% valores diferentes o script mede uma capa que o leitor nunca ve, e passa
+% sem acusar nada.
+\colorlet{terradisco}{terrablackglaze}
+
+% O creme do letreiro do brasao, e o verde-agua do subtitulo. Usados pela
+% `\terracapa` -- a capa sem anatomia de periodico -- e nao pela
+% `\terracapaperiodico`, que compoe em branco puro.
+%
+% Os demais tons amostrados do brasao sairam: ouro, ceu, aqua e tres verdes,
+% nenhum deles citado por comando algum. Definicao que ninguem usa nao e
+% paleta, e dois deles eram azuis que a troca acima existiu para tirar.
+\definecolor{terrapapel}{HTML}{F0ECE0}
+\definecolor{terrabroto}{HTML}{7FD6AE}
+% Creme rebaixado sobre o disco. Existe porque a capa usava o mesmo tom em
+% dois niveis diferentes da hierarquia -- subtitulo e afiliacao --, e cor que
+% marca duas coisas distintas nao marca nenhuma. O guia de ilustracao da
+% Nature pede tipo neutro e UMA cor de destaque; aqui o destaque fica com o
+% subtitulo, e a afiliacao desce um tom dentro da mesma familia.
+% Medido: 6,6:1 sobre o pior pixel de fundo sob a faixa, contra o piso de 4,5.
+\colorlet{terrapapelfraco}{terrapapel!70!terradisco}
+
+% Capitulo -- so existe quando a classe tem um (`report`, `book`). Os estudos
+% da linha sao `article` e nao passam por aqui; o template de tese passa.
+% O rotulo "CAPITULO 3" fica pequeno e em cor acima do titulo, em vez de um
+% numero gigante ao lado: numero grande compete com o titulo e nao ajuda a
+% navegar, que e a unica coisa que um rotulo de capitulo tem para fazer.
+\@ifundefined{chapter}{}{%
+  \titleformat{\chapter}[display]
+    {\sffamily\bfseries}
+    {\normalfont\sffamily\bfseries\fontsize{10}{12}\selectfont
+     \color{destaque}\MakeUppercase{\chaptertitlename}\ \thechapter}
+    {.4em}{\fontsize{21}{25}\selectfont}
+  \titleformat{name=\chapter,numberless}[display]
+    {\sffamily\bfseries}{}{0pt}{\fontsize{21}{25}\selectfont}
+  \titlespacing*{\chapter}{0pt}{0pt}{1.7em}
+  \titlespacing*{name=\chapter,numberless}{0pt}{0pt}{1.7em}
+}
+
+% --- marcacoes de texto ----------------------------------------------
+\newcommand{\termo}[1]{\textbf{\textcolor{destaque}{#1}}}
+\newcommand{\campo}[1]{\par\smallskip\noindent\textbf{\textcolor{destaque}{#1.}}\ }
+
+% Aviso: interrompe a exposicao com uma ressalva pratica.
+\newenvironment{aviso}
+  {\par\medskip\noindent\begin{tabular}{@{}p{0.4em}@{\hspace{0.8em}}p{\dimexpr\linewidth-2.2em}@{}}
+   \textcolor{destaque}{\rule{0.35em}{1.6em}} &}
+  {\end{tabular}\par\medskip}
+
+% Objecao: o que derruba, limita ou contradiz o que se acabou de afirmar.
+\newenvironment{objecao}
+  {\par\medskip\noindent\begin{tabular}{@{}p{0.4em}@{\hspace{0.8em}}p{\dimexpr\linewidth-2.2em}@{}}
+   \textcolor{fechada}{\rule{0.35em}{1.6em}} &}
+  {\end{tabular}\par\medskip}
+
+% Achado: o resultado que o documento existe para comunicar.
+\newenvironment{achado}
+  {\par\medskip\noindent\begin{tabular}{@{}p{0.4em}@{\hspace{0.8em}}p{\dimexpr\linewidth-2.2em}@{}}
+   \textcolor{aberta}{\rule{0.35em}{1.6em}} &}
+  {\end{tabular}\par\medskip}
+
+% --- documento cientifico --------------------------------------------
+% Tudo daqui para baixo e comando NOVO. Nada e redefinido: os estudos ja
+% escritos usam o `abstract` da classe `article` e continuam usando -- por
+% isso o resumo daqui se chama `resumo`, e nao `abstract`.
+
+% Resumo, com rotulo opcional para a versao em outra lingua:
+%   \begin{resumo} ... \end{resumo}
+%   \begin{resumo}[Abstract] ... \end{resumo}
+\newenvironment{resumo}[1][Resumo]
+  {\par\medskip\small
+   \begin{list}{}{%
+     \setlength{\leftmargin}{1.4em}\setlength{\rightmargin}{1.4em}%
+     \setlength{\listparindent}{0pt}\setlength{\parsep}{.4em}}%
+   \item\relax
+   {\sffamily\bfseries\color{destaque}\MakeUppercase{#1}}\par\smallskip
+   \noindent\ignorespaces}
+  {\end{list}\medskip}
+
+\newcommand{\palavraschave}[1]{%
+  \par\smallskip\noindent{\small
+  \textbf{\textcolor{destaque}{Palavras-chave.}}\ #1}\par\medskip}
+\newcommand{\keywords}[1]{%
+  \par\smallskip\noindent{\small
+  \textbf{\textcolor{destaque}{Keywords.}}\ #1}\par\medskip}
+
+% Ficha de procedencia: de onde veio o dado, que periodo cobre, onde esta o
+% codigo. Fica no inicio, e nao enterrada no metodo, porque "com que dado?"
+% e a primeira pergunta de quem le -- e a unica que decide se vale ler o resto.
+%
+%   \begin{ficha}
+%     \item[Dados] Sentinel-2 L2A, ...
+%   \end{ficha}
+\newlist{ficha}{description}{1}
+\setlist[ficha]{font=\normalfont\sffamily\bfseries\color{destaque},
+                style=multiline,leftmargin=3.4cm,labelwidth=3.1cm,
+                topsep=.7em,itemsep=.35em,parsep=0pt}
+
+% Lista de siglas da tese. Mesma forma da ficha, rotulo mais estreito.
+\newlist{siglas}{description}{1}
+\setlist[siglas]{font=\normalfont\sffamily\bfseries\color{destaque},
+                 style=multiline,leftmargin=2.6cm,labelwidth=2.3cm,
+                 topsep=.7em,itemsep=.25em,parsep=0pt}
+
+% Figura de uma linha so, que e o formato de 90% delas:
+%   \terrafig{curva.pdf}{O que se le no grafico.}{fig:curva}
+%   \terrafig[.72\linewidth]{mapa.pdf}{...}{fig:mapa}
+\newcommand{\terrafig}[4][\linewidth]{%
+  \begin{figure}[htbp]\centering
+    \includegraphics[width=#1]{#2}%
+    \caption{#3}\label{#4}
+  \end{figure}}
+
+\captionsetup{font=small,labelfont=bf,width=.94\linewidth}
+
+% --- capa ------------------------------------------------------------
+\ifterra@capa
+
+\newcommand{\terracapaimagem}{images/pexels-pixabay-71116.jpg}
+\newcommand{\terracapaselo}{Linha de pesquisa TERRA-Simulation}
+\newcommand{\terracapainstituicao}{UTFPR}
+% Versao e codinome. Vazios por padrao: documento de estudo nao versiona, so
+% o proprio TERRA versiona. Preenchidos, aparecem acima do titulo.
+\newcommand{\terraversao}{}
+\newcommand{\terracodinome}{}
+% Autoria. Vazias por padrao: nota de versao nao assina, artigo assina.
+\newcommand{\terraautores}{}
+\newcommand{\terraafiliacao}{}
+% Quanto a foto escurece. 0 = imagem crua, 1 = chapado. Fotos claras pedem
+% mais; noturnas, menos.
+\newcommand{\terracapaescuro}{0.74}
+% Faixa opcional atras do bloco de texto, de sangria a sangria. Vazia por
+% padrao: capa sem faixa continua sem faixa.
+%
+% Existe porque foto de satelite em falsa cor e alto-contraste em toda a folha
+% -- `verifica_capa.py` mede 0,50 de aspereza na janela mais calma de
+% `delta-a4.jpg`, e 0,74 onde o titulo caia. O contraste passava (8:1), mas o
+% fundo disputava com o texto assim mesmo. A resposta do guia da Nature para
+% este caso e por cor atras do texto, e nao por mais escurecimento global, que
+% apagaria a foto inteira para resolver um problema de seis centimetros.
+%
+% De sangria a sangria, e nao uma placa do tamanho do texto: placa lê como
+% adesivo colado na foto; faixa inteira lê como arquitetura da pagina.
+\newcommand{\terracapafaixa}{}
+\newcommand{\terracapafaixatopo}{0cm}
+\newcommand{\terracapafaixaalt}{0cm}
+% Posicao do bloco de texto na folha, em medida absoluta -- independente da
+% margem do corpo.
+\newcommand{\terracapamargem}{3.2cm}
+\newcommand{\terracapaalto}{10.5cm}
+\newcommand{\terracapalargura}{13.5cm}
+
+\newcommand{\setcapaimagem}[1]{\renewcommand{\terracapaimagem}{#1}}
+\newcommand{\setcapaselo}[1]{\renewcommand{\terracapaselo}{#1}}
+\newcommand{\setcapainstituicao}[1]{\renewcommand{\terracapainstituicao}{#1}}
+\newcommand{\setcapaescuro}[1]{\renewcommand{\terracapaescuro}{#1}}
+% \setcapafaixa{opacidade}{topo, do alto da folha}{altura}
+% --- capa de periodico: os slots ---------------------------------------
+% Chapeu, marca e as tres colunas do rodape. Vazios por padrao; so a
+% `\terracapaperiodico` os usa.
+\newcommand{\terracapachapeu}{}
+\newcommand{\terracapamarca}{TERRA}
+\newcommand{\terracapacolA}{}\newcommand{\terracapacolAt}{}
+\newcommand{\terracapacolB}{}\newcommand{\terracapacolBt}{}
+\newcommand{\terracapacolC}{}\newcommand{\terracapacolCt}{}
+\newcommand{\setcapachapeu}[1]{\renewcommand{\terracapachapeu}{#1}}
+\newcommand{\setcapamarca}[1]{\renewcommand{\terracapamarca}{#1}}
+% \setcapacolunas{rotulo}{texto}{rotulo}{texto}{rotulo}{texto}
+\newcommand{\setcapacolunas}[6]{%
+  \renewcommand{\terracapacolA}{#1}\renewcommand{\terracapacolAt}{#2}%
+  \renewcommand{\terracapacolB}{#3}\renewcommand{\terracapacolBt}{#4}%
+  \renewcommand{\terracapacolC}{#5}\renewcommand{\terracapacolCt}{#6}}
+
+\newcommand{\setcapafaixa}[3]{%
+  \renewcommand{\terracapafaixa}{#1}\renewcommand{\terracapafaixatopo}{#2}%
+  \renewcommand{\terracapafaixaalt}{#3}}
+% \setcapatexto{margem}{altura do topo}{largura do bloco}
+\newcommand{\setcapatexto}[3]{%
+  \renewcommand{\terracapamargem}{#1}\renewcommand{\terracapaalto}{#2}%
+  \renewcommand{\terracapalargura}{#3}}
+% \setversao{v0.4.0}{Amazon}
+\newcommand{\setversao}[2]{%
+  \renewcommand{\terraversao}{#1}\renewcommand{\terracodinome}{#2}}
+\newcommand{\setautores}[1]{\renewcommand{\terraautores}{#1}}
+\newcommand{\setafiliacao}[1]{\renewcommand{\terraafiliacao}{#1}}
+
+% \terracapa{titulo}{subtitulo}{data}
+%
+% Foto em sangria total, escurecida por igual, texto por cima. Nada mais.
+% Nem selo, nem brasao, nem filete: a capa de um documento de pesquisa nao
+% precisa se apresentar duas vezes, e o titulo ja diz o que ele e.
+\newcommand{\terracapa}[3]{%
+  \begingroup
+  \thispagestyle{empty}%
+  \AddToShipoutPictureBG*{%
+    \AtPageLowerLeft{%
+      % A imagem ja vem na proporcao do A4, recortada por `prepara_capa.py`.
+      % Por isso este `width`+`height` nao deforma nada: os dois valores batem
+      % com a razao do arquivo. Passar aqui uma foto crua, de qualquer outra
+      % proporcao, estica -- prepare antes.
+      \includegraphics[width=\paperwidth,height=\paperheight]%
+        {\terracapaimagem}}%
+    \AtPageLowerLeft{%
+      \begin{tikzpicture}[remember picture,overlay]
+        % Uma cor so, opacidade uniforme, pagina inteira. Gradiente aqui vira
+        % faixa visivel e chama atencao para si em vez de para o titulo.
+        \fill[terradisco,opacity=\terracapaescuro]
+          (0,0) rectangle (\paperwidth,\paperheight);
+        % A faixa vai por cima do escurecimento e por baixo do texto.
+        \ifx\terracapafaixa\empty\else
+          \fill[terradisco,opacity=\terracapafaixa]
+            (0,\paperheight-\terracapafaixatopo-\terracapafaixaalt)
+            rectangle (\paperwidth,\paperheight-\terracapafaixatopo);
+        \fi
+        % O texto vai no TikZ, em coordenada absoluta da folha, e nao no fluxo
+        % da pagina. No fluxo ele somava a margem do `geometry`: mudar a margem
+        % do corpo deslocava a capa junto, que e acoplamento sem motivo -- capa
+        % e miolo nao tem por que compartilhar medida.
+        \node[anchor=north west,inner sep=0,text width=\terracapalargura,
+              align=left] at (\terracapamargem,\paperheight-\terracapaalto) {%
+          \ifx\terraversao\empty\else
+            {\sffamily\fontsize{10}{13}\selectfont\bfseries
+             \color{terrabroto}\terraversao
+             \ifx\terracodinome\empty\else
+               \color{terrapapel}\,\textbullet\,\MakeUppercase{\terracodinome}%
+             \fi}\\[.9em]
+          \fi
+          {\color{terrapapel}\fontsize{30}{35}\selectfont\bfseries #1}\\[.7em]
+          {\color{terrabroto}\sffamily\fontsize{12}{16}\selectfont #2}\\[1.4em]
+          \ifx\terraautores\empty\else
+            {\color{terrapapel}\sffamily\fontsize{10.5}{14}\selectfont
+             \terraautores}%
+            \ifx\terraafiliacao\empty\\[1.2em]\else\\[.4em]\fi
+          \fi
+          \ifx\terraafiliacao\empty\else
+            {\color{terrapapelfraco}\sffamily\fontsize{9}{12.5}\selectfont
+             \terraafiliacao}\\[1.2em]
+          \fi
+          {\color{terrapapel}\sffamily\fontsize{9}{12}\selectfont #3}%
+        };
+      \end{tikzpicture}}%
+  }%
+  \null
+  \newpage
+  \endgroup
+}
+
+% \terracapaperiodico{manchete}{linha fina}{data}
+%
+% A anatomia de capa de periodico, medida nas capas que a propria Nature
+% publica: chapeu e fio no topo, marca grande sobreposta a foto, manchete em
+% caixa-alta condensada na parte de baixo, fio curto, linha fina em serifada,
+% e um rodape de tres colunas sob um fio de margem a margem.
+%
+% Duas diferencas em relacao ao original, e as duas sao medidas:
+%
+%   1. A Nature nao escurece a foto. Nao escurece porque escolhe a foto e o
+%      recorte para o tipo cair onde ela ja e escura -- folha verde sob "HEAT
+%      STRESS", espaco preto sob "DEATH OF A STAR". `verifica_capa.py` mediu
+%      as nove fotos de `images/` nas cinco zonas desta diagramacao: nenhuma
+%      passa 4,5:1 com branco puro sem escurecimento, e a melhor ainda pede
+%      0,41. Mosaico de satelite em falsa cor tem pixel quase branco em toda
+%      parte. Entao o escurecimento fica, no minimo que a foto exigir.
+%
+%   2. Nao ha a linha girada de volume e ISSN na borda direita. Numera
+%      periodico, e um documento de estudo nao e periodico.
+%
+% A manchete e uma CHAMADA de duas a quatro palavras, e nao o titulo. O titulo
+% vai na linha fina, exatamente como "HEAT STRESS" chama e "Ectotherms show
+% dangerous sensitivity to extreme temperatures" diz.
+%
+% A caixa e do autor, e nao forcada por `\MakeUppercase`: forcar quebrava o
+% `\\` da manchete, e caixa e decisao de quem escreve a chamada.
+%
+% Nem `\MakeUppercase` nem `\raggedright` entram nos nos daqui. O `align=left`
+% do TikZ ja alinha a esquerda e instala o proprio `\\`; o `\raggedright` da
+% LaTeX faz `\let\\\@centercr` e derruba a quebra junto com o espaco anterior
+% a ela. A hifenizacao sai por `\hyphenchar\font=-1`, que desliga na fonte --
+% capa nenhuma da Nature hifeniza, nem manchete nem linha fina.
+\newlength{\terra@colw}
+\newcommand{\terracapaperiodico}[3]{%
+  \begingroup
+  \thispagestyle{empty}%
+  % Largura da coluna do rodape, calculada da folha e nao escrita a mao: a
+  % capa nao tem por que deixar de fechar em papel que nao seja A4.
+  \setlength{\terra@colw}{\dimexpr(\paperwidth-3cm)/3\relax}%
+  \AddToShipoutPictureBG*{%
+    \AtPageLowerLeft{%
+      \includegraphics[width=\paperwidth,height=\paperheight]%
+        {\terracapaimagem}}%
+    \AtPageLowerLeft{%
+      \begin{tikzpicture}[remember picture,overlay,
+                          every node/.style={inner sep=0,outer sep=0}]
+        \fill[terradisco,opacity=\terracapaescuro]
+          (0,0) rectangle (\paperwidth,\paperheight);
+        % -- chapeu e fio do topo
+        \ifx\terracapachapeu\empty\else
+          \node[anchor=base west,white] at (1.5cm,\paperheight-1.30cm)
+            {\rmfamily\bfseries\fontsize{9.5}{11}\selectfont\terracapachapeu};
+          \node[anchor=base east,white] at (\paperwidth-1.5cm,\paperheight-1.30cm)
+            {\rmfamily\bfseries\fontsize{9.5}{11}\selectfont #3};
+        \fi
+        \draw[white,line width=.5pt]
+          (1.5cm,\paperheight-1.62cm) -- (\paperwidth-1.5cm,\paperheight-1.62cm);
+        % -- a marca, sobreposta a foto, sem caixa e sem filete
+        \node[anchor=base west,white] at (1.5cm,\paperheight-5.30cm)
+          {\rmfamily\bfseries\fontsize{86}{86}\selectfont\terracapamarca};
+        % -- a manchete
+        \node[anchor=north west,white,align=left,
+              text width=\dimexpr\paperwidth-3cm\relax]
+             at (1.5cm,\paperheight-16.30cm)
+          {\terracondensada\fontsize{68}{58}\selectfont
+           % Espaco entre palavras aberto de proposito. Em caixa-alta
+           % condensada a 68 pt o espaco natural le como colado -- "VOLUME
+           % SEM" saía "VOLUMESEM" -- porque a largura do glifo caiu e a do
+           % espaco nao. Manchete de capa se abre; texto corrido nao.
+           \spaceskip=.38em plus .04em\relax
+           \hyphenchar\font=-1\hbadness=10000 #1};
+        % -- fio curto e linha fina
+        \draw[white,line width=.5pt]
+          (1.5cm,\paperheight-22.95cm) -- (8.9cm,\paperheight-22.95cm);
+        \node[anchor=north west,white,align=left,text width=11.4cm]
+             at (1.5cm,\paperheight-23.25cm)
+          {\rmfamily\fontsize{16}{20}\selectfont
+           \hyphenchar\font=-1\hbadness=10000 #2};
+        % -- fio e rodape de tres colunas
+        \draw[white,line width=.5pt]
+          (1.5cm,\paperheight-26.75cm) -- (\paperwidth-1.5cm,\paperheight-26.75cm);
+        \node[anchor=north west,white,align=left,
+              text width=\dimexpr\terra@colw-0.7cm\relax]
+             at (1.5cm,\paperheight-27.10cm)
+          {\rmfamily\bfseries\fontsize{9.5}{11.6}\selectfont\terracapacolA\\
+           \mdseries\terracapacolAt};
+        \node[anchor=north west,white,align=left,
+              text width=\dimexpr\terra@colw-0.7cm\relax]
+             at (\dimexpr1.5cm+\terra@colw\relax,\paperheight-27.10cm)
+          {\rmfamily\bfseries\fontsize{9.5}{11.6}\selectfont\terracapacolB\\
+           \mdseries\terracapacolBt};
+        \node[anchor=north west,white,align=left,
+              text width=\dimexpr\terra@colw-0.7cm\relax]
+             at (\dimexpr1.5cm+2\terra@colw\relax,\paperheight-27.10cm)
+          {\rmfamily\bfseries\fontsize{9.5}{11.6}\selectfont\terracapacolC\\
+           \mdseries\terracapacolCt};
+      \end{tikzpicture}}%
+  }%
+  \null
+  \newpage
+  \endgroup
+}
+
+% Faixa fina para abrir uma parte ou secao longa.
+\newcommand{\terrafaixa}[1]{%
+  \par\medskip\noindent
+  \begin{minipage}{\linewidth}
+    \includegraphics[width=\linewidth]{images/capas/faixa-relevo.pdf}\\[-2.6cm]
+    \hspace{.8cm}{\color{terrapapel}\Large\bfseries #1}\\[1.9cm]
+  \end{minipage}
+  \par\medskip}
+
+\fi
+\endinput
