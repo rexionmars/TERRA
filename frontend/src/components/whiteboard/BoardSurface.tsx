@@ -1478,9 +1478,20 @@ export function BoardSurface({
       on, which is the one drawing this surface is about.
     */
     ...savedAois
-      .filter(
-        (a) => a.id !== live && a.id !== activeAoiId && !groundOnBoard.has(a.id)
-      )
+      /*
+        The active drawing is no longer excluded here.
+
+        It was, on the assumption that it is the live area and already listed
+        as such. `liveAreaId` follows the SHOWN RUN, so drawing a new area while
+        a classification is up leaves the two apart -- and the new drawing then
+        fell through both filters, appearing neither as the live area nor as a
+        catalogued one. It was invisible in the scene and in the tree until a
+        run over it existed, which is when the live area finally became it.
+
+        `a.id !== live` alone says what this filter meant: do not list twice
+        what is already listed.
+      */
+      .filter((a) => a.id !== live && !groundOnBoard.has(a.id))
       .map((a) => ({
         id: a.id,
         title: names[stackRow(a.id)] ?? a.name,
@@ -1502,6 +1513,20 @@ export function BoardSurface({
       // ground is already on the board, in which case the outline would stand
       // empty beside the plane that is the same field.
       (a.id === live && !!aoiPolygon?.length && !groundOnBoard.has(live)) ||
+      /*
+        And the drawing the map is ACTIVE on, when that is not the live area.
+
+        Same reason as the line above, which is the one that matters: this is
+        the ground the next run happens on, and the board is where that run is
+        started. The two are usually the same area and this adds nothing; they
+        part company the moment a reader draws while a result is still up, and
+        that is exactly when the new drawing has to be visible -- it is what
+        they are about to aim at.
+      */
+      (!!activeAoiId &&
+        a.id === activeAoiId &&
+        activeAoiId !== live &&
+        !groundOnBoard.has(a.id)) ||
       // Nothing else earns a place. A drawing with no raster on it is a
       // catalog entry, and the Areas tab is where a catalog is read.
       false
@@ -1725,14 +1750,32 @@ export function BoardSurface({
    */
   const polygonsRef = useRef<Record<string, LonLat[]>>({})
   polygonsRef.current = {
-    ...(aoiPolygon?.length ? { [live]: aoiPolygon } : {}),
+    /*
+      EVERY CATALOGUED DRAWING SUPPLIES ITS OWN, the active one included.
+
+      The active one used to be skipped, on the assumption that it is the live
+      area and that `aoiPolygon` therefore already describes it. `liveAreaId`
+      breaks that assumption whenever a result is on screen: the live area
+      follows the SHOWN RUN, so drawing a new area while a classification is up
+      leaves the two apart. The new drawing was then skipped here and had no
+      shape at all, while `aoiPolygon` -- which is that new drawing's ring --
+      was filed under the old run's id, outlining one field with another's edge.
+    */
     ...Object.fromEntries(
       savedAois.flatMap((a) => {
-        if (a.id === activeAoiId) return []
         const ring = polygonOuterRing(a.geometry)
         return ring ? [[a.id, ring] as const] : []
       })
     ),
+    /*
+      The map's own shape, for a ground the catalog does not hold: an example
+      area, an adopted geometry, a studio opened on nothing. Where the live
+      area IS catalogued, the entry above is the same ring from a source that
+      cannot drift.
+    */
+    ...(aoiPolygon?.length && !savedAois.some((a) => a.id === live)
+      ? { [live]: aoiPolygon }
+      : {}),
     /*
       A retained run's outline, from the run record where there is one.
 
