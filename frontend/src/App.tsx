@@ -296,6 +296,18 @@ function App() {
   const [retainedRuns, setRetainedRuns] = useState<
     readonly { id: string; result: PredictResult }[]
   >([])
+  /*
+    Forgotten, when what they are a memory OF is no longer the subject.
+
+    Retention is the map's affordance: the run it has moved on from stays in
+    hand so the board can still show it beside the new one. Nothing ever
+    dropped them, so they accumulated for the session and were injected into
+    every board that opened -- a run from one project, or from before a stored
+    board was opened, appearing as an area of that board. `assetRuns` adds them
+    to whatever is on screen, which is right for the live board and wrong for a
+    board whose membership was saved.
+  */
+  const clearRetainedRuns = useCallback(() => setRetainedRuns([]), [])
   const retainRun = useCallback((outgoing: PredictResult | null) => {
     // A result with no classification is a water or solar payload the board
     // reads from its own fields; nothing of it belongs to a scene.
@@ -558,6 +570,7 @@ function App() {
             setResult={setResult}
             retainRun={retainRun}
             retainedRuns={retainedRuns}
+            clearRetainedRuns={clearRetainedRuns}
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
@@ -627,6 +640,8 @@ function AppBody(props: {
   /** Archive the outgoing result before the live slot is emptied. */
   retainRun: (outgoing: PredictResult | null) => void
   retainedRuns: readonly { id: string; result: PredictResult }[]
+  /** Drops them all, where what they are a memory of stops being the subject. */
+  clearRetainedRuns: () => void
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
@@ -786,6 +801,12 @@ function AppBody(props: {
         }
         restoreBoard(opened.snapshot)
         /*
+          The map's retained runs go with it. A stored board is the runs it was
+          saved with; anything the map happened to be holding is not one of
+          them, and `assetRuns` would add it as an area of this board.
+        */
+        props.clearRetainedRuns()
+        /*
           The rasters are fetched by the board itself, where LoadAnalysis
           already lives. Members whose run has been deleted are left out with
           a word rather than silently: a board that opened with one side
@@ -811,7 +832,7 @@ function AppBody(props: {
         notifyError("Could not open this studio", e)
       }
     },
-    [openInStudio]
+    [openInStudio, props.clearRetainedRuns]
   )
 
   /**
@@ -1335,6 +1356,34 @@ function AppBody(props: {
     ]
   )
 
+  /*
+    Every result the screens can be holding, dropped together.
+
+    ONE PLACE BECAUSE A PARTIAL COPY HAS ALREADY COST US ONE. The comment this
+    replaces recorded it: flood was added to `resultWithWater` and not to the
+    clearing, so the two disagreed about what a standalone product is -- the
+    payload counted a loaded envelope, the clearing did not remove it, and the
+    detail view rebuilt itself from the flood result the moment the reader asked
+    for the list. The list was then unreachable for the rest of the session.
+
+    A third caller was about to be written with the same shape and the same
+    chance of missing one, which is what turned three copies into this.
+
+    THE RETAIN IS NOT HERE. Two callers keep the run they are leaving so the
+    board can still show it; one does not, because it is leaving the project
+    that run belongs to. That is a decision about the caller's subject rather
+    than about what a result is, so it stays with them.
+  */
+  const clearAnalysisResults = useCallback(() => {
+    props.setResult(null)
+    setCurrentRunLabel(null)
+    setCurrentRunId(null)
+    setWater(null)
+    solarDispatch({ type: "results/clearAll" })
+    windDispatch({ type: "result/clear" })
+    setFlood(null)
+  }, [props.setResult, solarDispatch, windDispatch])
+
   const activateProject = useCallback(
     async (
       id: string | null,
@@ -1345,6 +1394,44 @@ function AppBody(props: {
       // must not: a session that begins with an AOI outline and an overlay the
       // user did not ask for in that session leaves them clearing both by hand.
       const userInitiated = opts?.userInitiated ?? true
+      /*
+        WHAT THE PREVIOUS PROJECT LEFT BEHIND, dropped before this one arrives.
+
+        Opening a project set the AOI, the label and the composition and cleared
+        nothing, so the run on the map, the standalone products beside it and
+        the catalogued AOI id all stayed -- every one of them belonging to the
+        project just left. The visible half is a raster from another field
+        sitting over the new one.
+
+        The half that is not visible is worse, because it reaches the studio.
+        The board receives `runId` as `result?.run_id || "current"` and resolves
+        the live area from it and from `activeAoiId`; carrying both across meant
+        the new project's ground opened under the OLD project's identity, and
+        that identity is the key to everything the board keeps per area -- the
+        name a reader typed, the layer order, what they removed, where they
+        dragged it. boardMemory.ts describes this failure and the work done to
+        end it; this path was still reaching it.
+
+        Read before persisting, since persisting is what moves the ref.
+
+        NOT ON RESTORE. A session resuming at its last project is not leaving
+        anything, and clearing there would drop the AOI that the same startup
+        restored from preferences a moment earlier.
+
+        NOT RETAINED, either, unlike the other two callers of the clear. They
+        keep the run they are leaving so the board can still show it; this is
+        leaving the project that run belongs to, and putting it on the next
+        project's board is the contamination being removed.
+      */
+      const leaving = activeProjectIdRef.current
+      if (userInitiated && leaving !== id) {
+        clearAnalysisResults()
+        // The retained ones too. Clearing the shown result while leaving the
+        // runs it moved on from in hand carries the previous project onto this
+        // one's boards by the other door.
+        props.clearRetainedRuns()
+        props.setActiveAoiId(undefined)
+      }
       await persistActiveProjectId(id)
       if (!id) {
         setComposition(null)
@@ -1417,10 +1504,13 @@ function AppBody(props: {
       }
     },
     [
+      clearAnalysisResults,
       persistActiveProjectId,
+      props.clearRetainedRuns,
       persistAoiLabel,
       prefs?.extras_json,
       props.areas,
+      props.setActiveAoiId,
       props.setActiveExample,
       props.setCustomPolygon,
       props.setAnalysisLabel,
@@ -2624,24 +2714,10 @@ function AppBody(props: {
     ]
   )
 
+
   const backToAnalysesList = useCallback(() => {
     props.retainRun(props.result)
-    props.setResult(null)
-    setCurrentRunLabel(null)
-    setCurrentRunId(null)
-    // The standalone products have to go too. The analysis payload is
-    // non-null whenever any of them is present, so clearing only the
-    // classification leaves the detail view up and the saved list unreachable.
-    setWater(null)
-    solarDispatch({ type: "results/clearAll" })
-    windDispatch({ type: "result/clear" })
-    // Flood is one of them. It was added to `resultWithWater` and not here, so
-    // the two disagreed about what a standalone product is: the payload counted
-    // a loaded envelope, this did not clear it, and the detail view therefore
-    // rebuilt itself from the flood result the moment this returned. The list
-    // was then unreachable for the rest of the session -- pressing the control
-    // again ran exactly the same no-op.
-    setFlood(null)
+    clearAnalysisResults()
     props.setShowPredictionOverlay(true)
     props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
@@ -2686,15 +2762,10 @@ function AppBody(props: {
    */
   const startNewClassification = useCallback(() => {
     props.retainRun(props.result)
-    props.setResult(null)
-    setCurrentRunLabel(null)
-    setCurrentRunId(null)
+    clearAnalysisResults()
     props.setShowPredictionOverlay(true)
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
-    setWater(null)
-    solarDispatch({ type: "results/clearAll" })
-    windDispatch({ type: "result/clear" })
     // Starting over drops the AOI, so the session composition must go with it:
     // otherwise the previous AOI's overlay stays painted over the empty map.
     // Saved compositions are reloaded from the project on reopen.
@@ -3322,7 +3393,7 @@ function AppBody(props: {
                   */
                   whiteboards={whiteboards}
                   onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
-                  onWhiteboardsMenu={() => void refreshWhiteboards()}
+                  onWhiteboardsMenu={refreshWhiteboards}
                   onCloseResult={() => {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)

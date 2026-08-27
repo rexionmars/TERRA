@@ -5044,6 +5044,7 @@ export namespace analysis {
 		}
 	}
 	export class SolarAnalysis {
+	    run_id?: string;
 	    lon: number;
 	    lat: number;
 	    resource: SolarResource;
@@ -5058,6 +5059,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.lon = source["lon"];
 	        this.lat = source["lat"];
 	        this.resource = this.convertValues(source["resource"], SolarResource);
@@ -5120,6 +5122,7 @@ export namespace analysis {
 	    }
 	}
 	export class WaterAnalysis {
+	    run_id?: string;
 	    index: string;
 	    threshold_method: string;
 	    threshold_fixed: number;
@@ -5145,6 +5148,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.index = source["index"];
 	        this.threshold_method = source["threshold_method"];
 	        this.threshold_fixed = source["threshold_fixed"];
