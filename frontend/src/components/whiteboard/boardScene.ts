@@ -154,6 +154,45 @@ export interface PlaneState {
  * Only the two units this variable is ever written in. Anything else returns 0,
  * which is the same fallback the caller had and is honest about not knowing.
  */
+/** What one board is costing to draw. Every figure is measured, none derived. */
+export interface BoardStats {
+  /**
+   * Frames per second the BROWSER delivers, from a loop that draws nothing.
+   *
+   * Near the display's own rate means the page's frame loop is healthy and a
+   * large `frameMs` is the board idling. Far below it means the browser cannot
+   * finish a frame, and nothing in this scene is the reason.
+   */
+  displayHz: number
+  /** Median time inside one pointermove handler, in milliseconds. */
+  moveMs: number
+  /** Pointer events arriving per second, over the last full second. */
+  moveHz: number
+  /** The drawing buffer, in device pixels, and the ratio it was built at. */
+  bufferW: number
+  bufferH: number
+  pixelRatio: number
+  /**
+   * Median time spent INSIDE a frame: controls, draw, helper, labels.
+   *
+   * This is the figure that says whether the surface is slow. It is not the
+   * interval -- see workMs in createBoard for why the two differ here.
+   */
+  workMs: number
+  /** Median interval between frames, which on an idle board is mostly waiting. */
+  frameMs: number
+  /** The interval as a rate, or 0 before two frames have been drawn. */
+  fps: number
+  /** three's renderer.info.render.calls for the last frame. */
+  calls: number
+  triangles: number
+  /** Live GPU resources: renderer.info.memory. */
+  textures: number
+  geometries: number
+  /** Compiled shader programs held by the renderer. */
+  programs: number
+}
+
 export interface BoardHandle {
   /** Redraw once. The board renders on demand, not in a permanent loop. */
   render: () => void
@@ -277,6 +316,14 @@ export interface BoardHandle {
    */
   focusPlane: (groupId: string, layerId: string) => boolean
   /** Release the GL context and every resource attached to it. */
+  /**
+   * What the surface is costing, for the studio's status bar.
+   *
+   * Read on demand rather than pushed: the caller polls at a rate a person can
+   * read, and a scene that reported every frame would be asking React to
+   * re-render at the frame rate to display the frame rate.
+   */
+  stats: () => BoardStats
   dispose: () => void
 }
 
@@ -1216,6 +1263,23 @@ export function createBoard(
   }
 
   const onPointerMove = (e: PointerEvent) => {
+    const began = performance.now()
+    moveCount++
+    if (!moveWindowAt) moveWindowAt = began
+    else if (began - moveWindowAt >= 1000) {
+      moveHz = (moveCount * 1000) / (began - moveWindowAt)
+      moveCount = 0
+      moveWindowAt = began
+    }
+    try {
+      onPointerMoveInner(e)
+    } finally {
+      moveMs.push(performance.now() - began)
+      if (moveMs.length > 60) moveMs.shift()
+    }
+  }
+
+  const onPointerMoveInner = (e: PointerEvent) => {
     if (!dragging) {
       sampleProbe(e)
       return
@@ -1478,10 +1542,91 @@ export function createBoard(
     opts.onLabels(spots)
   }
 
+  /*
+    What the last frames cost, and what they drew.
+
+    The board renders on demand, so a frame rate here is not "how fast the loop
+    runs" -- it is how long the frames that DID happen took, which is the number
+    that says whether a drag is smooth. Kept as a small ring rather than an
+    average since the scene opened: a mean over a session hides the stall that
+    is being looked for.
+
+    The counters come from three's own renderer.info, so they are what was
+    submitted rather than an estimate of it.
+  */
+  const frameMs: number[] = []
+  /*
+    And what the frame COST, which is a different number from what it waited.
+
+    The board renders on demand, so the gap between two frames includes however
+    long nothing asked for one. A readout of that gap alone reports a scene
+    sitting still as a slow scene -- the interval is honest about the rate and
+    says nothing about the work, and the two are only the same thing in a loop
+    that never idles. This one idles by design.
+
+    Measured around the whole callback rather than around renderer.render: what
+    a dropped frame costs includes the controls' update and the label
+    projection, and blaming only the draw would point at the wrong half.
+  */
+  const workMs: number[] = []
+  let lastFrameAt = 0
+
+  /*
+    How fast the BROWSER is handing out frames, measured by a loop that draws
+    nothing.
+
+    `frameMs` cannot answer this on its own. The board renders on demand, so a
+    gap of 70ms is either the browser delivering frames at 14Hz or the board
+    only being asked for one that often -- opposite diagnoses with opposite
+    fixes, and the same number.
+
+    This ticker asks for a frame, records when it arrives, and asks again. It
+    submits no drawing, so what it measures is the page's own frame loop:
+    whatever style, layout, paint and compositing the browser does between
+    handing out one frame and the next.
+
+    A DIAGNOSTIC, and not free: a self-scheduling rAF keeps the page animating,
+    which is the state being measured but not one the studio would otherwise
+    sit in.
+  */
+  /*
+    What a pointer event costs, measured because the frame timing cannot see it.
+
+    `workMs` covers the requestAnimationFrame callback. Pointer handlers run
+    OUTSIDE it: if a move handler were expensive, the main thread would be busy
+    between frames, the browser would deliver them late, and the readout would
+    show a fast frame and a slow page -- which is exactly what it does show. So
+    this closes the one gap in that reasoning rather than assuming it shut.
+  */
+  const moveMs: number[] = []
+  let moveCount = 0
+  let moveWindowAt = 0
+  let moveHz = 0
+
+  const displayMs: number[] = []
+  let tickAt = 0
+  let tickRaf = 0
+  const tick = (t: number) => {
+    if (disposed) return
+    if (tickAt) {
+      displayMs.push(t - tickAt)
+      if (displayMs.length > 60) displayMs.shift()
+    }
+    tickAt = t
+    tickRaf = requestAnimationFrame(tick)
+  }
+  tickRaf = requestAnimationFrame(tick)
+
   const render = () => {
     if (disposed || raf) return
     raf = requestAnimationFrame(() => {
       raf = 0
+      const began = performance.now()
+      if (lastFrameAt) {
+        frameMs.push(began - lastFrameAt)
+        if (frameMs.length > 60) frameMs.shift()
+      }
+      lastFrameAt = began
       controls.update()
       updateFog()
       renderer.clear()
@@ -1491,6 +1636,8 @@ export function createBoard(
       // behind the raster.
       viewHelper.render(renderer)
       reportLabels()
+      workMs.push(performance.now() - began)
+      if (workMs.length > 60) workMs.shift()
     })
   }
   controls.addEventListener("change", render)
@@ -2371,6 +2518,31 @@ export function createBoard(
         render()
       }
     },
+    stats() {
+      const mid = (xs: number[]) => {
+        if (!xs.length) return 0
+        const sorted = [...xs].sort((x, y) => x - y)
+        return sorted[Math.floor(sorted.length / 2)]
+      }
+      const median = mid(frameMs)
+      const display = mid(displayMs)
+      return {
+        displayHz: display > 0 ? 1000 / display : 0,
+        moveMs: mid(moveMs),
+        moveHz,
+        bufferW: renderer.domElement.width,
+        bufferH: renderer.domElement.height,
+        pixelRatio: renderer.getPixelRatio(),
+        workMs: mid(workMs),
+        frameMs: median,
+        fps: median > 0 ? 1000 / median : 0,
+        calls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        textures: renderer.info.memory.textures,
+        geometries: renderer.info.memory.geometries,
+        programs: renderer.info.programs?.length ?? 0,
+      }
+    },
     dispose() {
       disposed = true
       // Returns every echo to the pool first, so the loop below sees them all.
@@ -2384,6 +2556,7 @@ export function createBoard(
       for (const echo of echoPool) echo.material.dispose()
       echoPool.length = 0
       if (raf) cancelAnimationFrame(raf)
+      if (tickRaf) cancelAnimationFrame(tickRaf)
       stopPaletteWatch()
       observer.disconnect()
       controls.removeEventListener("change", render)
