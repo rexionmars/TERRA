@@ -52,7 +52,36 @@ func main() {
 		MinHeight:        220,
 		AlwaysOnTop:      true,
 		BackgroundColour: &options.RGBA{R: 8, G: 7, B: 6, A: 1},
-		Frameless:        true,
+		/*
+			NOT FRAMELESS, and the reason is measured rather than aesthetic.
+
+			While this window was frameless it degraded compositing for every
+			other window sharing its space. Safari running the WebGL aquarium
+			benchmark measured 60fps constantly on any other space and 27-41fps
+			on the one this window occupied -- a different application, slowed
+			by this one being present.
+
+			The cause is in Wails' own window construction. WailsContext.m only
+			adds NSWindowStyleMaskTitled when the window is NOT frameless, so a
+			frameless window here is borderless, and macOS composites a
+			borderless window off the path it uses for titled ones.
+
+			None of it was visible from inside the page, which is what made it
+			expensive to find: the scene submitted 9 draw calls and 72 triangles
+			and cost 0.0ms a frame, the pointer handlers cost 0.0ms, and the web
+			content and GPU processes sat at 2.8% and 0.1% while a
+			requestAnimationFrame that drew nothing was delivered at 11Hz.
+			Everything was waiting, and nothing in the application was the
+			reason.
+
+			The look is kept by TitleBar below. TitleBarHiddenInset gives a
+			titled window with a transparent, title-less bar and full-size
+			content -- the traffic lights inset over the application's own
+			header, which is what the frameless window was being used for. The
+			custom drag regions are unaffected: --wails-draggable is handled in
+			the JavaScript runtime and does not depend on the style mask.
+		*/
+		Frameless: false,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 			/*
