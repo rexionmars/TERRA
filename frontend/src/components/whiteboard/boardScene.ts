@@ -70,6 +70,10 @@ import {
   onPaletteChange,
   viewportPaletteOverride,
 } from "@/lib/paletteWatch"
+import {
+  subscribeStudioTelemetry,
+  telemetryShows,
+} from "@/lib/studioTelemetry"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
 
@@ -1607,7 +1611,12 @@ export function createBoard(
   let tickAt = 0
   let tickRaf = 0
   const tick = (t: number) => {
-    if (disposed) return
+    if (disposed || !telemetryShows("page")) {
+      tickRaf = 0
+      tickAt = 0
+      displayMs.length = 0
+      return
+    }
     if (tickAt) {
       displayMs.push(t - tickAt)
       if (displayMs.length > 60) displayMs.shift()
@@ -1615,7 +1624,25 @@ export function createBoard(
     tickAt = t
     tickRaf = requestAnimationFrame(tick)
   }
-  tickRaf = requestAnimationFrame(tick)
+  /*
+    Started only when the figure is switched on, and stopped when it is off.
+
+    This is the one measurement that is not free, so it does not run for a
+    reader who is not reading it. Subscribing rather than reading once means the
+    setting takes effect on the open studio instead of on the next one.
+  */
+  const syncTicker = () => {
+    if (telemetryShows("page")) {
+      if (!tickRaf && !disposed) tickRaf = requestAnimationFrame(tick)
+    } else if (tickRaf) {
+      cancelAnimationFrame(tickRaf)
+      tickRaf = 0
+      tickAt = 0
+      displayMs.length = 0
+    }
+  }
+  const stopTelemetryWatch = subscribeStudioTelemetry(syncTicker)
+  syncTicker()
 
   const render = () => {
     if (disposed || raf) return
@@ -2557,6 +2584,7 @@ export function createBoard(
       echoPool.length = 0
       if (raf) cancelAnimationFrame(raf)
       if (tickRaf) cancelAnimationFrame(tickRaf)
+      stopTelemetryWatch()
       stopPaletteWatch()
       observer.disconnect()
       controls.removeEventListener("change", render)

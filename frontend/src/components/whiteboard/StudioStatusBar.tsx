@@ -21,6 +21,12 @@
 import { Loader2 } from "lucide-react"
 import type { RunLogEntry } from "@/lib/runLog"
 import type { BoardStats } from "@/components/whiteboard/boardScene"
+import { useSyncExternalStore } from "react"
+import {
+  TELEMETRY_FIGURES,
+  studioTelemetry,
+  subscribeStudioTelemetry,
+} from "@/lib/studioTelemetry"
 import { cn } from "@/lib/utils"
 
 /** The strip's height, which the area tree subtracts from its rectangle. */
@@ -49,6 +55,20 @@ export function StudioStatusBar({
   onOpenLog?: () => void
 }) {
   const stage = runLog.length ? runLog[runLog.length - 1] : null
+  /*
+    Which figures to draw, subscribed rather than received.
+
+    Off by default and each switched separately in Settings, because a status
+    bar reporting its own performance to a reader who did not ask is chrome
+    spent on a question they are not holding. One of them is not free -- see
+    lib/studioTelemetry.ts -- and the scene watches the same store, so switching
+    that one off stops the work as well as the display.
+  */
+  const shows = useSyncExternalStore(
+    subscribeStudioTelemetry,
+    studioTelemetry
+  )
+  const anyShown = TELEMETRY_FIGURES.some((f) => shows[f.key])
 
   return (
     <div
@@ -96,54 +116,49 @@ export function StudioStatusBar({
         transient cache files. A number invented for those columns would be
         worse than their absence.
       */}
-      {stats && stats.fps > 0 && (
+      {stats && anyShown && (
         <span className="telemetry hidden shrink-0 items-center gap-2 text-[9px] text-muted-foreground xl:flex">
-          {/*
-            The browser's own rate first, because it is the figure that decides
-            whether anything below it is the studio's fault. It comes from a
-            loop that submits no drawing, so it measures the page rather than
-            the scene.
-          */}
-          <Figure
-            label="page"
-            value={`${stats.displayHz.toFixed(0)}hz`}
-            warn={stats.displayHz < 45}
-          />
-          <Figure
-            label="fps"
-            value={stats.fps.toFixed(0)}
-            /* Under 30 a drag reads as stepping rather than moving. */
-            warn={stats.fps < 30}
-          />
-          {/*
-            Two times, because they answer different questions and only one of
-            them accuses the surface. `work` is what a frame cost; `gap` is how
-            long the board waited before being asked for one, which on a
-            render-on-demand surface is mostly idleness and not a fault.
-          */}
-          <Figure label="work" value={`${stats.workMs.toFixed(1)}ms`} warn={stats.workMs > 16} />
-          <Figure label="gap" value={`${stats.frameMs.toFixed(0)}ms`} />
-          {/*
-            What a pointer event costs and how many arrive. The frame timing
-            cannot see these -- pointer handlers run outside the animation
-            callback -- and they are the one path that could block the main
-            thread between frames while every frame itself measured fast.
-          */}
-          <Figure label="move" value={`${stats.moveMs.toFixed(1)}ms`} warn={stats.moveMs > 4} />
-          <Figure label="ev" value={`${stats.moveHz.toFixed(0)}/s`} />
-          <Figure label="calls" value={String(stats.calls)} />
-          <Figure label="tris" value={formatCount(stats.triangles)} />
-          <Figure label="tex" value={String(stats.textures)} />
-          <Figure label="geo" value={String(stats.geometries)} />
-          {/*
-            The drawing buffer, because the cost of a frame that draws almost
-            nothing is the cost of moving it: WebKit resolves and copies this
-            many pixels into a window-server surface every frame.
-          */}
-          <Figure
-            label={`buf @${stats.pixelRatio}x`}
-            value={`${stats.bufferW}x${stats.bufferH}`}
-          />
+          {shows.page && (
+            <Figure
+              label="page"
+              value={`${stats.displayHz.toFixed(0)}hz`}
+              warn={stats.displayHz > 0 && stats.displayHz < 45}
+            />
+          )}
+          {shows.fps && (
+            <>
+              {/* Under 30 a drag reads as stepping rather than moving. */}
+              <Figure label="fps" value={stats.fps.toFixed(0)} warn={stats.fps > 0 && stats.fps < 30} />
+              <Figure label="gap" value={`${stats.frameMs.toFixed(0)}ms`} />
+            </>
+          )}
+          {shows.work && (
+            <Figure label="work" value={`${stats.workMs.toFixed(1)}ms`} warn={stats.workMs > 16} />
+          )}
+          {shows.pointer && (
+            <>
+              <Figure label="move" value={`${stats.moveMs.toFixed(1)}ms`} warn={stats.moveMs > 4} />
+              <Figure label="ev" value={`${stats.moveHz.toFixed(0)}/s`} />
+            </>
+          )}
+          {shows.draws && (
+            <>
+              <Figure label="calls" value={String(stats.calls)} />
+              <Figure label="tris" value={formatCount(stats.triangles)} />
+            </>
+          )}
+          {shows.resources && (
+            <>
+              <Figure label="tex" value={String(stats.textures)} />
+              <Figure label="geo" value={String(stats.geometries)} />
+            </>
+          )}
+          {shows.buffer && (
+            <Figure
+              label={`buf @${stats.pixelRatio}x`}
+              value={`${stats.bufferW}x${stats.bufferH}`}
+            />
+          )}
         </span>
       )}
 

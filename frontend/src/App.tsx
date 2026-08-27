@@ -2,6 +2,10 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { selectPanel } from "@/lib/panelSelection"
+import {
+  TELEMETRY_DEFAULT,
+  setStudioTelemetry,
+} from "@/lib/studioTelemetry"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import type { Whiteboard } from "@/lib/whiteboards"
 import { listWhiteboards, openWhiteboard } from "@/lib/whiteboards"
@@ -344,6 +348,13 @@ function App() {
       const extras = parsePreferenceExtras(p.extras_json)
       setSavedAois(extras.saved_aois ?? [])
       setActiveAoiId(extras.active_aoi_id)
+      /*
+        Into a module rather than into state: the readers are the studio's
+        status bar and the scene, and the scene is not React. Seeded here
+        because this is where preferences arrive, and absent means none --
+        which is what a reader who has never opened the setting should get.
+      */
+      setStudioTelemetry(extras.studio_telemetry ?? TELEMETRY_DEFAULT)
     },
     [setTheme]
   )

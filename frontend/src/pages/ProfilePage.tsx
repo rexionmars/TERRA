@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import {
   ArrowLeft,
   Camera,
@@ -32,6 +32,14 @@ import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { StorageModal } from "@/components/StorageModal"
+import {
+  TELEMETRY_FIGURES,
+  setStudioTelemetry,
+  studioTelemetry,
+  subscribeStudioTelemetry,
+  type StudioTelemetry,
+  type TelemetryKey,
+} from "@/lib/studioTelemetry"
 import { cn } from "@/lib/utils"
 import type {
   InferenceRun,
@@ -52,7 +60,7 @@ import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
 
-type SettingsSectionId = "account" | "system"
+type SettingsSectionId = "account" | "telemetry" | "system"
 
 /**
  * The pages of settings, grouped by subject.
@@ -92,6 +100,11 @@ const SECTIONS: {
   // No count. The other page is a list of controls, and the number says how
   // long the list is. This one reports the state of an environment and offers
   // what to do about it, so "(1)" would be counting the wrong thing.
+  /*
+    Counted, unlike System: this page IS a list of controls, and the number says
+    how long the list is.
+  */
+  { id: "telemetry", label: "Telemetry", count: TELEMETRY_FIGURES.length },
   { id: "system", label: "System" },
 ]
 
@@ -168,6 +181,18 @@ export function ProfilePage({
     consumeSettingsPage()
   }, [settingsPage, consumeSettingsPage])
   const [focusedSetting, setFocusedSetting] = useState<string | null>(null)
+  /*
+    Read from the module the studio reads, not from a copy held here.
+
+    The scene and the status bar subscribe to the same store, so a switch flipped
+    here takes effect on an open studio rather than on the next one -- including
+    the one figure whose cost is the work it does, which stops when it is
+    switched off.
+  */
+  const telemetry = useSyncExternalStore(
+    subscribeStudioTelemetry,
+    studioTelemetry
+  )
   const fileRef = useRef<HTMLInputElement>(null)
   const prefsReady = useRef(false)
   const savePrefsTimer = useRef<number | null>(null)
@@ -198,6 +223,32 @@ export function ProfilePage({
     write a zero opacity and an empty model over whatever is stored. Passing
     the stored value through keeps a theme change to being a theme change.
   */
+  /*
+    The store first and the preferences after, deliberately.
+
+    Writing preferences means a round trip through the bridge and the database,
+    and a switch that waited for it would feel like it had not registered. The
+    store is what the studio reads, so flipping it first makes the change
+    immediate; the save is how it survives a restart.
+  */
+  const persistTelemetry = useCallback(
+    async (key: TelemetryKey, on: boolean) => {
+      const next: StudioTelemetry = { ...studioTelemetry(), [key]: on }
+      setStudioTelemetry(next)
+      if (!user) return
+      await savePrefs({
+        user_id: user.id,
+        default_model: prefs?.default_model || "spectral",
+        overlay_opacity: prefs?.overlay_opacity ?? 0.75,
+        theme: prefs?.theme || "dark",
+        extras_json: mergePreferenceExtras(prefs?.extras_json, {
+          studio_telemetry: next,
+        }),
+      })
+    },
+    [user, prefs?.default_model, prefs?.overlay_opacity, prefs?.theme, prefs?.extras_json, savePrefs]
+  )
+
   const persistPreferences = useCallback(
     async (next: {
       theme: string
@@ -1021,6 +1072,61 @@ export function ProfilePage({
               description beside it, which is right for a name or a slider and
               wrong for this: wrapped, the page showed its title twice and
               indented the whole thing as though it were one control's value. */}
+          {activeSection === "telemetry" && (
+            <Section>
+              {/*
+                All off until asked for. A status bar reporting its own
+                performance to a reader who did not ask is chrome spent on a
+                question they are not holding -- and one of these is not free,
+                so it must not be running for anyone who has not read what it
+                costs.
+
+                Each row says what the figure means and which question it
+                answers, because a reader switching these on is diagnosing
+                something and the useful thing to know is which figure speaks
+                to which symptom.
+              */}
+              <p className="px-4 pb-1 pt-3 text-body leading-relaxed text-muted-foreground">
+                Figures the studio&rsquo;s status bar reports, beside the pointer
+                bindings. Off by default; switch on what a symptom calls for.
+              </p>
+              {TELEMETRY_FIGURES.map((figure) => (
+                <SettingRow
+                  key={figure.key}
+                  id={`telemetry.${figure.key}`}
+                  title={figure.label}
+                  description={figure.what}
+                  focused={focusedSetting === `telemetry.${figure.key}`}
+                  onFocus={() => setFocusedSetting(`telemetry.${figure.key}`)}
+                >
+                  <label className="flex cursor-pointer items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      className={cn("mt-0.5 shrink-0", focusRing)}
+                      checked={telemetry[figure.key] === true}
+                      onChange={(e) =>
+                        void persistTelemetry(figure.key, e.target.checked)
+                      }
+                    />
+                    <span className="min-w-0 text-body leading-relaxed text-muted-foreground">
+                      {figure.when}
+                      {figure.cost && (
+                        <>
+                          {" "}
+                          {/* The one figure that is not free says so where the
+                              switch is, not in a note somewhere else. */}
+                          <span className="text-destructive-quiet">
+                            Costs: {figure.cost}
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </label>
+                </SettingRow>
+              ))}
+            </Section>
+          )}
+
           {activeSection === "system" && (
             <Section>
               <div className="pt-3">
