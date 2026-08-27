@@ -846,6 +846,14 @@ export interface WaterDate {
 }
 
 export interface WaterAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. Anything telling the reader the run was
+   * saved has to read it.
+   */
+  run_id?: string
   index: WaterIndex
   threshold_method: string
   threshold_fixed: number
@@ -892,6 +900,14 @@ export interface SolarMonth {
 }
 
 export interface SolarAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. Anything telling the reader the run was
+   * saved has to read it.
+   */
+  run_id?: string
   lon: number
   lat: number
   resource: {

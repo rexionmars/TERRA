@@ -1825,7 +1825,15 @@ function AppBody(props: {
       setWater(res)
       setShowWaterOverlay(true)
       notifySuccess(
-        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}% (saved).`,
+        /*
+          The word only where the run was actually recorded.
+
+          saveRun withdraws its claim to have saved by returning nothing, on
+          three failures it states -- and this said "(saved)" either way, which
+          is exactly the claim that comment exists to withdraw. A reader told a
+          run was saved goes looking for it in the hub.
+        */
+        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}%${res.run_id ? " (saved)" : ""}.`,
         undefined,
         { action: { label: "View analysis", onClick: () => goAnalysis() } }
       )
@@ -1897,7 +1905,8 @@ function AppBody(props: {
         be the only route, which is why it was here.
       */
       notifySuccess(
-        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`
+        // See the water toast: the word is conditional for the same reason.
+        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees${res.run_id ? " (saved)" : ""}.`
       )
       void refreshRuns()
       void refreshProjects()
@@ -2347,12 +2356,21 @@ function AppBody(props: {
         await syncProjectAoi(activeProjectId, req.label)
         await refreshProjects()
       }
-      notifySuccess(`Classification complete — ${res.n_dates} scenes (saved).`, undefined, {
-        action: {
-          label: "View analysis",
-          onClick: () => goAnalysis(),
-        },
-      })
+      /*
+        The word AND the action, both conditional on the run existing.
+
+        "View analysis" opens the hub, and the hub lists rows -- so offering it
+        for a run that was never recorded sends the reader to look for
+        something that is not there. See the water toast for what withdraws the
+        claim.
+      */
+      notifySuccess(
+        `Classification complete — ${res.n_dates} scenes${res.run_id ? " (saved)" : ""}.`,
+        undefined,
+        res.run_id
+          ? { action: { label: "View analysis", onClick: () => goAnalysis() } }
+          : undefined
+      )
       void refreshRuns()
       void refreshProjects()
     } catch (e) {

@@ -553,7 +553,7 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 		return
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	res.RunID = a.saveRun(savedRun{
 		kind: store.RunKindWater,
 		// No model produced this: the index name carries the method instead.
 		modelKind:   res.Index,
@@ -751,7 +751,7 @@ func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnal
 		return
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	res.RunID = a.saveRun(savedRun{
 		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
 		modelKind: "NASA POWER",
