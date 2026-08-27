@@ -114,7 +114,18 @@ func main() {
 			app,
 		},
 		Mac: &mac.Options{
-			TitleBar:   mac.TitleBarHiddenInset(),
+			/*
+				Hidden, not hidden-inset. The two differ by one field --
+				UseToolbar -- and the toolbar is what pushes the traffic lights
+				in from the corner, right and down, past the 4.5rem the header
+				reserves for them. That reservation is the standard position,
+				so the standard position is what to ask for rather than a new
+				number guessed to match an offset macOS controls.
+
+				Both keep NSWindowStyleMaskTitled, which is the part that
+				matters for compositing -- see Frameless above.
+			*/
+			TitleBar:   mac.TitleBarHidden(),
 			Appearance: mac.NSAppearanceNameDarkAqua,
 			About: &mac.AboutInfo{
 				Title:   "TERRA",
