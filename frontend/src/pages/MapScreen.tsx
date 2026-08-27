@@ -6,7 +6,7 @@ import {
   Map as MapGlyph,
   type LucideIcon,
 } from "lucide-react"
-import { Suspense, lazy, useEffect, useRef, useState } from "react"
+import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence } from "motion/react"
 import type {
@@ -24,6 +24,11 @@ import type {
   WaterAnalysis,
   WaterIndex,
 } from "@/lib/types"
+import {
+  panelSelection,
+  selectPanel,
+  subscribePanelSelection,
+} from "@/lib/panelSelection"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { MapView } from "@/components/MapView"
 import { SearchBar } from "@/components/SearchBar"
@@ -106,8 +111,6 @@ export interface MapScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
-  leftPanel: MapToolId | null
-  onLeftPanelChange: (id: MapToolId | null) => void
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
   /**
@@ -313,7 +316,17 @@ export function MapScreen(props: MapScreenProps) {
   // goes to another one, so local state put the dock back on "classify" on
   // every return -- including a return from a water run, which left a water
   // raster on the map with the classification panel open beside it.
-  const { leftPanel, onLeftPanelChange } = props
+  /*
+    Subscribed rather than received. It was a prop because this screen remounts
+    on every return to it and a useState here forgot the choice -- a module
+    outlives the remount for free, and App stops re-rendering for a collapse.
+    See lib/panelSelection.ts.
+  */
+  const leftPanel = useSyncExternalStore(
+    subscribePanelSelection,
+    panelSelection
+  )
+  const onLeftPanelChange = selectPanel
   /**
    * Which right-edge drawer is open, at most one.
    *
