@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "motion/react"
-import { Copy, Save } from "lucide-react"
+import { Copy, Save, Settings2 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
 import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
@@ -93,6 +93,7 @@ import {
   compareShareDeltaTable,
 } from "@/lib/compareTables"
 import { saveWhiteboard, type Whiteboard } from "@/lib/whiteboards"
+import { StudioManager } from "@/components/whiteboard/StudioManager"
 import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
@@ -473,7 +474,7 @@ export function BoardSurface({
   whiteboards?: readonly Whiteboard[]
   onOpenWhiteboard?: (board: Whiteboard) => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
-  onWhiteboardsMenu?: () => void
+  onWhiteboardsMenu?: () => void | Promise<void>
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -776,6 +777,8 @@ export function BoardSurface({
   const [saving, setSaving] = useState(false)
   /** Whether the title block's catalog is open. */
   const [boardMenu, setBoardMenu] = useState(false)
+  /** Whether the rename-and-remove dialog is up. */
+  const [managing, setManaging] = useState(false)
   /**
    * A board chosen while this one has changes that were never saved.
    *
@@ -3695,6 +3698,38 @@ export function BoardSurface({
         />
       )}
 
+      {managing && (
+        <StudioManager
+          boards={whiteboards}
+          openId={savedId}
+          onDismiss={() => setManaging(false)}
+          /*
+            The caller owns the list, so it is asked to re-read it rather than
+            the dialog keeping a copy that the surface would then disagree
+            with. Awaited, so the dialog shows the result of its own act.
+          */
+          onChanged={async () => {
+            await onWhiteboardsMenu?.()
+          }}
+          /*
+            THE BOARD ON SCREEN OUTLIVED ITS RECORD.
+
+            Its arrangement is still here and still worth keeping -- that is
+            the reader's work -- so nothing is torn down. What goes is the
+            claim to be a saved board: the name in the title block named a row
+            that no longer exists, and pressing Save would have written over an
+            id the store would refuse. Forgetting both turns this back into an
+            unsaved board, which is exactly what it now is, and the next Save
+            asks for a name.
+          */
+          onOpenDeleted={() => {
+            setSavedId(null)
+            setSavedName(null)
+            markBoardDirty()
+          }}
+        />
+      )}
+
       {/*
         THE WORKSPACE TABS.
 
@@ -3934,6 +3969,23 @@ export function BoardSurface({
                 setNaming(savedName ?? "")
               }}
             />
+            {/*
+              Renaming a board that is NOT open, and removing one, are the two
+              things the list above cannot offer: its rows are buttons whose
+              whole job is a single press, and a rename needs a field while a
+              delete needs a confirmation. Only offered where there is
+              something to manage.
+            */}
+            {whiteboards.length > 0 && (
+              <StudioMenuItem
+                icon={Settings2}
+                label="Manage studios…"
+                onSelect={() => {
+                  setBoardMenu(false)
+                  setManaging(true)
+                }}
+              />
+            )}
           </StudioPopover>
           {/*
             Saving names the board. Unnamed it asks for one; named it writes over

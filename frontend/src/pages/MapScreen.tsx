@@ -244,7 +244,12 @@ export interface MapScreenProps {
   whiteboards?: import("@/lib/whiteboards").Whiteboard[]
   onOpenWhiteboard?: (board: import("@/lib/whiteboards").Whiteboard) => void
   /** Called when the studio's board menu opens, to refresh the list. */
-  onWhiteboardsMenu?: () => void
+  /*
+    Returns its promise, so a caller that needs the list BEFORE it draws again
+    can wait for it. The menu that opens on hover does not and ignores it; the
+    manage dialog does, since it shows the result of its own rename or delete.
+  */
+  onWhiteboardsMenu?: () => void | Promise<void>
   onNewClassification: () => void
   onViewDataCube: () => void
   dataCubeLoading?: boolean
