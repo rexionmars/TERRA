@@ -66,6 +66,10 @@ import {
   file consult the partition without the chrome it must not pull.
 */
 import type { CardGroup, CardPlane } from "@/lib/boardLayout"
+import {
+  onPaletteChange,
+  viewportPaletteOverride,
+} from "@/lib/paletteWatch"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
 
@@ -82,6 +86,24 @@ import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
  * Measured against three 0.185: `rgb(23 23 23)` parses to ffffff,
  * `rgb(23,23,23)` to 171717.
  */
+/**
+ * The ground grid's alpha.
+ *
+ * Sparse and dim on purpose -- see addGround. Named because the palette
+ * override can replace it, and a literal in two places would let the override
+ * and the default disagree about what "the grid's own alpha" means.
+ */
+const GRID_OPACITY = 0.14
+
+/** --v-grid-alpha, or the constant above where the token is missing. */
+function gridAlpha(): number {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--v-grid-alpha")
+    .trim()
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 && n <= 1 ? n : GRID_OPACITY
+}
+
 /** Arrowhead size, in board units where the largest area's side is 1. */
 const ARROW_RADIUS = 0.018
 const ARROW_LENGTH = 0.055
@@ -408,7 +430,25 @@ export function createBoard(
   host.appendChild(renderer.domElement)
 
   const scene = new Scene()
-  scene.background = new Color(opts.background)
+  /*
+    The chassis colours the board is painted in RIGHT NOW, rather than the ones
+    it was built with.
+
+    Held together and mutable because the theme can move under a scene that is
+    already open, and everything below reads from here instead of from `opts`
+    -- including the ground, which is built later than this and would otherwise
+    be the one object still wearing the palette that was current at the build.
+
+    `opts` stays the source of the first values: BoardSurface reads the tokens
+    off the computed style before calling, and repainting immediately to
+    re-read what it just passed would be a second answer to a settled question.
+  */
+  const palette = {
+    background: opts.background,
+    line: opts.line,
+    accent: opts.accent,
+  }
+  scene.background = new Color(palette.background)
 
   const FOV = 45
   /*
@@ -421,7 +461,7 @@ export function createBoard(
     Near and far are set once the cards are laid out, since both depend on how
     large the stack turned out to be.
   */
-  scene.fog = new Fog(new Color(opts.background).getHex(), 1, 10)
+  scene.fog = new Fog(new Color(palette.background).getHex(), 1, 10)
 
   const camera = new PerspectiveCamera(FOV, 1, 0.01, 1000)
 
@@ -1294,6 +1334,16 @@ export function createBoard(
   }
 
   /**
+   * The ground's material, once there is one.
+   *
+   * Kept because the ground is the only theme-painted thing here that is built
+   * on demand rather than with the scene, so a repaint cannot assume it exists
+   * and cannot find it by walking the graph without knowing what it is looking
+   * at.
+   */
+  let gridMaterial: LineBasicMaterial | null = null
+
+  /**
    * The ground the stack sits over: a sparse grid, fading out.
    *
    * Sparse and dim on purpose. A dense bright grid is what makes a surface
@@ -1307,15 +1357,16 @@ export function createBoard(
     // Ten cells across the object, out to four times its radius: fine enough
     // to read motion against, coarse enough not to draw attention.
     const span = radius * 8
-    const grid = new GridHelper(span, 20, opts.line, opts.line)
+    const grid = new GridHelper(span, 20, palette.line, palette.line)
     const material = grid.material as LineBasicMaterial
     material.transparent = true
-    material.opacity = 0.14
+    material.opacity = viewportPaletteOverride()?.gridOpacity ?? gridAlpha()
     material.depthWrite = false
     // Below the lowest plane, so it never fights the rasters for the surface.
     grid.position.y = -radius * 0.35
     scene.add(grid)
     disposables.push(grid.geometry, material)
+    gridMaterial = material
 
     gridSpan = span
   }
@@ -1564,7 +1615,7 @@ export function createBoard(
     boundary to reconcile with the first.
   */
   const footprintMaterial = new LineBasicMaterial({
-    color: new Color(opts.line),
+    color: new Color(palette.line),
     transparent: true,
     opacity: 0.55,
     depthWrite: false,
@@ -1578,7 +1629,7 @@ export function createBoard(
     for a property with two values.
   */
   const footprintSelected = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.95,
     depthWrite: false,
@@ -1617,7 +1668,7 @@ export function createBoard(
     geometry was disposed -- three only drops a replaced attribute then.
   */
   const linkMaterial = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.45,
     depthWrite: false,
@@ -1667,13 +1718,13 @@ export function createBoard(
     already is when it follows a line.
   */
   const pathMaterial = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.85,
     depthWrite: false,
   })
   const arrowMaterial = new MeshBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.9,
     depthWrite: false,
@@ -1870,12 +1921,64 @@ export function createBoard(
     are per plane and disposed individually.
   */
   const outlineMaterial = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.9,
     depthWrite: false,
   })
   disposables.push(outlineMaterial)
+
+  /*
+    Re-reads the chassis tokens and repaints everything drawn in them.
+
+    IN PLACE, not by rebuilding. A rebuilt scene decodes every raster again and
+    starts from the layout's first answer, so changing the theme would undo an
+    arrangement -- the planes someone dragged apart would spring back, and the
+    textures would go for a second trip through the decoder to arrive
+    identical. Nothing here is geometry: it is a colour per material, plus the
+    two on the scene itself.
+
+    Named for what it does rather than exposed on the handle, because no caller
+    asks for it. What asks is the attribute the theme is written to, and this
+    subscribes to that itself -- see onPaletteChange for why a WebGL surface is
+    the one place in the application that has to.
+  */
+  const repaint = () => {
+    /*
+      The override wins where there is one. It is how the studio can be held on
+      one palette while the panels around it move to another, which is the only
+      way to judge the two against each other -- they read the same tokens
+      otherwise, by design.
+    */
+    const pinned = viewportPaletteOverride()
+    palette.background = pinned
+      ? pinned.background
+      : tokenColor("--v-ink", palette.background)
+    palette.line = pinned ? pinned.line : tokenColor("--v-line", palette.line)
+    palette.accent = pinned
+      ? pinned.accent
+      : tokenColor("--p-accent", palette.accent)
+    ;(scene.background as Color).set(palette.background)
+    // The fog is the background, so the ground still dissolves into the edge
+    // of the viewport rather than into the colour the viewport used to be.
+    if (scene.fog) scene.fog.color.set(palette.background)
+    if (gridMaterial) {
+      gridMaterial.color.set(palette.line)
+      gridMaterial.opacity = pinned?.gridOpacity ?? gridAlpha()
+    }
+    footprintMaterial.color.set(palette.line)
+    for (const m of [
+      footprintSelected,
+      linkMaterial,
+      pathMaterial,
+      arrowMaterial,
+      outlineMaterial,
+    ]) {
+      m.color.set(palette.accent)
+    }
+    render()
+  }
+  const stopPaletteWatch = onPaletteChange(repaint)
 
   /*
     Every plane on the board, drawn in a single order.
@@ -2281,6 +2384,7 @@ export function createBoard(
       for (const echo of echoPool) echo.material.dispose()
       echoPool.length = 0
       if (raf) cancelAnimationFrame(raf)
+      stopPaletteWatch()
       observer.disconnect()
       controls.removeEventListener("change", render)
       controls.dispose()

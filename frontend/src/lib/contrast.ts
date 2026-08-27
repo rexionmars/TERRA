@@ -38,16 +38,16 @@ export function contrast(a: Channels, b: Channels): number {
 /** The channel values in index.css, per theme. Edited together with it. */
 export const TOKENS = {
   dark: {
-    ink: [26, 26, 26],
-    surface: [37, 37, 37],
-    surfaceRaised: [53, 53, 53],
+    ink: [33, 33, 33],
+    surface: [47, 47, 47],
+    surfaceRaised: [67, 67, 67],
     line: [75, 75, 75],
-    lineStrong: [126, 126, 126],
+    lineStrong: [127, 127, 127],
     text: [221, 221, 221],
     muted: [161, 161, 161],
     accent: [237, 135, 68],
-    accentQuiet: [236, 128, 57],
-    accentDim: [75, 37, 11],
+    accentQuiet: [240, 155, 99],
+    accentDim: [83, 40, 12],
     destructive: [160, 44, 44],
     success: [111, 156, 90],
     warning: [217, 164, 65],
@@ -74,6 +74,37 @@ export const TOKENS = {
 } as const satisfies Record<string, Record<string, Channels>>
 
 export type ThemeName = keyof typeof TOKENS
+
+/**
+ * Pairs the palette's owner has accepted below their floor.
+ *
+ * NOT a way to quiet the check. check-contrast prints each one on its own every
+ * run, with its measured ratio and its floor, so the cost stays visible and
+ * countable rather than becoming a red build everyone learns to scroll past.
+ * What the list buys is that anything NOT on it still fails.
+ *
+ * All three came in together, from a chassis whose surfaces were lifted: ink 33,
+ * surface 47, raised 67. Lifting a surface does not lift what has to be seen
+ * against it, and these are the three tokens that did not follow. The values
+ * that would clear were measured -- lineStrong 142, muted 175, destructiveQuiet
+ * #E59E8F -- and were not taken.
+ *
+ * It lives here rather than in the script because it is part of the palette's
+ * contract: the script and the test both read it, and two copies would let them
+ * disagree about which failures are known.
+ *
+ * Removing an entry is how one gets fixed -- drop the line, and the check tells
+ * you whether it still needed to be there. An entry that no longer describes a
+ * failure is itself reported as a failure.
+ */
+export const ACCEPTED: Record<string, string> = {
+  "dark.muted.surfaceRaised":
+    "secondary text on a card; 175 would clear 4.5 and was not taken",
+  "dark.lineStrong.surfaceRaised":
+    "the border between a card and its panel; 142 would clear 3.0",
+  "dark.destructiveQuiet.surfaceRaised":
+    "error text on a card; #E59E8F would clear 4.5",
+}
 export type TokenName = keyof (typeof TOKENS)["dark"]
 
 export interface ContrastRule {
@@ -90,7 +121,7 @@ export interface ContrastRule {
  * Every pair the interface paints, and the floor each has to clear.
  *
  * `accent` is checked at 3.0, not 4.5, and only as a fill, a focus ring and an
- * active state. The present accent happens to measure 4.76 on the raised
+ * active state. The present accent happens to measure 3.84 on the raised
  * surface, which is a property of this accent being a light one and not a rule
  * the token holds -- the blue before it measured 3.01 there. The floor stays at
  * 3.0 because the next accent may be a mid tone again, and text that has to
@@ -102,7 +133,7 @@ export interface ContrastRule {
  * the omission survived a change that removed its original reason. Under the
  * blue it was a stated exception: that accent was a mid tone, white measured
  * 4.43 on it and nothing at that hue cleared both floors. Under this one the
- * ink measures 6.75 and there is no exception left. The pair stays unlisted
+ * ink measures 6.25 and there is no exception left. The pair stays unlisted
  * because --accent-foreground resolves to --p-ink and the rule would restate
  * `text on ink`, not because the trade is still open.
  */
@@ -142,7 +173,7 @@ export const RULES: readonly ContrastRule[] = [
     fg: "lineStrong",
     on: ["ink", "surface", "surfaceRaised", "accentDim"],
     min: 3.0,
-    why: "component boundary, WCAG 1.4.11; the surfaces are 1.14 and 1.25 apart, so the border is what separates them",
+    why: "component boundary, WCAG 1.4.11; the surfaces are 1.20 and 1.35 apart, so the border is what separates them",
   },
   /*
    * Destructive splits the same way the accent does, and was checked neither

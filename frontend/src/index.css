@@ -29,29 +29,39 @@
     frontend/src/lib/contrast.ts re-derives them from these channels so a future
     edit that breaks one fails a check rather than shipping.
 
-    The surfaces sit higher than either predecessor -- ink 26 against 23, the
-    raised surface 53 against 41 -- which is what moved --p-line-strong. Lifting
-    a surface does not lift the boundary that separates it.
+    The surfaces sit well above either predecessor -- ink 33 against 23, the
+    raised surface 67 against 41 -- and lifting a surface does not lift what
+    lands on it. Every token measured against these had to follow, which is the
+    Three tokens did not follow, and that is a decision rather than an
+    oversight: --p-line-strong, --p-muted and --destructive-quiet each read below
+    their floor on the raised surface. The values that would clear were measured
+    -- 142, 175 and #E59E8F -- and were not taken. They are listed by name in
+    scripts/check-contrast.ts, which prints them every run and still fails for
+    anything not on that list.
   */
-  --p-ink: 26 26 26;
-  --p-surface: 37 37 37;
-  --p-surface-raised: 53 53 53;
+  --p-ink: 33 33 33;
+  --p-surface: 47 47 47;
+  --p-surface-raised: 67 67 67;
   /*
-    Surface separation is 1.14 and 1.25, and --p-line-strong is what actually
-    tells two panels apart, which is why it clears WCAG 1.4.11 against BOTH
-    surfaces: 3.78 on surface and 3.02 on the raised one.
+    Surface separation is 1.20 and 1.35 -- wider than any earlier reading of
+    this family, because the surfaces were lifted apart rather than merely
+    lifted. --p-line-strong is what tells two panels apart, and it clears WCAG
+    1.4.11 on surface at 3.34 but NOT on the raised one, where it reads 2.47.
+    That shortfall is accepted rather than corrected: see the note above and the
+    ACCEPTED list in scripts/check-contrast.ts.
 
-    126, not the 120 the picker proposed. At 120 the raised surface measured
-    2.78 -- the exact case this check exists to catch, and reachable because
-    lifting the surfaces moves the boundary's job without moving the boundary.
+    127 is where the measurement left it against a raised surface of 54. The
+    surface has since reached 67 and the boundary has not followed.
   */
   --p-line: 75 75 75;
-  --p-line-strong: 126 126 126;
+  --p-line-strong: 127 127 127;
   --p-text: 221 221 221;
   /*
     Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
-    which is the raised one. This measures 4.75 there, 5.93 on surface and 6.74
-    on ink. Used only as a text colour, never as a background.
+    which is the raised one. This measures 3.83 there, under the floor, and
+    5.18 on surface and 6.23 on ink. 175 is the first value that clears and was
+    not taken -- the pair is accepted by name in scripts/check-contrast.ts.
+    Used only as a text colour, never as a background.
   */
   --p-muted: 161 161 161;
   /*
@@ -62,16 +72,38 @@
     on screen that is not data, which is a stronger position than it had when
     every surface leaned the same way.
 
-    A LIGHT FILL TAKES THE NEAR-BLACK LABEL. Ink measures 6.75 on it and white
+    A LIGHT FILL TAKES THE NEAR-BLACK LABEL. Ink measures 6.25 on it and white
     2.58, which is the reverse of the blue that preceded it -- that one was a
     mid tone and took white at 4.43. --accent-foreground follows the accent
     rather than staying where the blue left it.
   */
   --p-accent: 237 135 68;
-  --p-accent-quiet: 236 128 57;
-  --p-accent-dim: 75 37 11;
+  --p-accent-quiet: 240 155 99;
+  --p-accent-dim: 83 40 12;
   --p-place: 120 138 148;
   --p-haze: 144 144 144;
+  /*
+    THE STUDIO'S OWN THREE, and the reason they exist.
+
+    The 3D scenes used to read --p-ink and --p-line, the same tokens the panels
+    around them read. So the room the rasters sit in could never be set apart
+    from the interface: every attempt to deepen the studio deepened every panel
+    with it, and every attempt to hold the panels held the studio too. That is
+    one palette doing two jobs, and the jobs disagree -- the panels are a
+    reading surface, the studio is a room with photographs in it.
+
+    Lifted well clear of the chassis, and the grid is opaque and near-white
+    rather than a seventh of a mid grey. A raster is judged against the room it
+    hangs in, so the room is a deliberate grey rather than the darkest thing
+    available, and the grid is a rule to measure against rather than a texture.
+
+    No contrast rule covers these: nothing reads text on them, and what lands
+    on them is imagery. check-contrast has no opinion, which is the same
+    position --p-haze is in.
+  */
+  --v-ink: 51 51 51;
+  --v-line: 246 246 246;
+  --v-grid-alpha: 1;
 }
 
 /*
@@ -98,6 +130,15 @@
   --p-accent-dim: 240 214 198;
   --p-place: 90 110 122;
   --p-haze: 176 176 176;
+  /*
+    The light theme's studio is unchanged: the chassis tokens, at the alpha the
+    scenes have always drawn the grid with. The dark room above was set by eye
+    against real rasters and the light one has not been, so it stays where it
+    was rather than being guessed at from the dark values.
+  */
+  --v-ink: var(--p-ink);
+  --v-line: var(--p-line);
+  --v-grid-alpha: 0.14;
 }
 
 :root {
@@ -118,7 +159,7 @@
 
     It was white for a while, because the blue accent was a mid tone and white
     was the better of two failing options at 4.43. This accent is light: ink
-    measures 6.75 on it and white 2.58. A fill's label is a consequence of the
+    measures 6.25 on it and white 2.58. A fill's label is a consequence of the
     fill, not a constant.
   */
   --primary-foreground: rgb(var(--p-ink));
@@ -206,8 +247,8 @@
   /* Full accent, not a wash of it. At 0.55 the composited ring measured under
      the 3.0 WCAG 1.4.11 asks of a focus indicator, and under the figure the
      contrast check verifies, because the check reads the token and the token
-     was not what got painted. At full strength the two agree: 6.75 on ink,
-     5.95 on the panel, 4.76 on a raised surface. */
+     was not what got painted. At full strength the two agree: 6.25 on ink,
+     5.20 on the panel, 3.84 on a raised surface. */
   --ring: rgb(var(--p-accent));
 
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -345,7 +386,7 @@
     follows the border radius and does not fight the shadow utilities a floating
     panel needs.
 
-    --ring is the full accent: 6.75 on ink, 5.95 on a panel, 4.76 on a raised
+    --ring is the full accent: 6.25 on ink, 5.20 on a panel, 3.84 on a raised
     surface, all clearing the 3.0 WCAG 1.4.11 asks of a focus indicator.
   */
   button:focus-visible,

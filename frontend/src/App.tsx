@@ -8,6 +8,7 @@ import {
   restoreBoard,
   writeBoardMemory,
 } from "@/components/whiteboard/boardMemory"
+import { AccentLab } from "@/components/AccentLab"
 import { useTheme } from "next-themes"
 import {
   ListEmbeddedAreas,
@@ -3458,6 +3459,8 @@ function AppBody(props: {
           )}
         </div>
       </div>
+      {/* TEMPORARY: accent lab. Delete this line and AccentLab.tsx. */}
+      {import.meta.env.DEV && <AccentLab />}
     </div>
   )
 }

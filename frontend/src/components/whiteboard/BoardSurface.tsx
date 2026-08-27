@@ -2445,9 +2445,11 @@ export function BoardSurface({
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
         groups,
-        background: tokenColor("--p-ink", "#171717"),
-        line: tokenColor("--p-line", "#424C5A"),
-        accent: tokenColor("--p-accent", "#3578CF"),
+        // --v-*, not --p-*: the studio is a room the rasters hang in and the
+        // panels around it are a reading surface. See index.css.
+        background: tokenColor("--v-ink", "#333333"),
+        line: tokenColor("--v-line", "#F6F6F6"),
+        accent: tokenColor("--p-accent", "#ED8744"),
         // The separation in force at the moment of the build, so a plane lands
         // at its true height rather than at the base for a frame.
         gap: gapRef.current,
