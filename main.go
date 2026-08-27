@@ -41,6 +41,12 @@ therefore the one whose pins match the model artifacts it ships beside.
 var requirementsTxt string
 
 func main() {
+	/*
+		Before wails.Run, because the menu is built during it. See
+		editmenu_darwin.go -- on every platform but macOS this does nothing.
+	*/
+	trimEditMenu()
+
 	app := NewApp()
 
 	err := wails.Run(&options.App{

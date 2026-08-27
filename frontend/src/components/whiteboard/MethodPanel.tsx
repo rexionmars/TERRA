@@ -103,7 +103,7 @@ function Trace({
       <p className="eyebrow !text-[9px] pb-1">
         {running ? "Running" : "Last run"}
       </p>
-      <ul className="panel-scroll flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+      <ul className="selectable panel-scroll flex max-h-40 flex-col gap-0.5 overflow-y-auto">
         {entries.map((e, i) => {
           const last = i === entries.length - 1
           return (
