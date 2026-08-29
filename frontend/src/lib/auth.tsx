@@ -30,6 +30,7 @@ export type AppScreen =
   | "analysis"
   | "energy"
   | "flood"
+  | "globe"
 
 /**
  * A page of the settings screen, when something wants to open a particular one.
@@ -60,6 +61,15 @@ interface AuthContextValue {
    * not measure.
    */
   goFlood: () => void
+  /**
+   * The globe.
+   *
+   * A destination rather than a mode of the map, because the two answer
+   * different questions: the map is about one area in detail, and the globe is
+   * about where every area IS. A toggle would have made them alternatives, and
+   * a reader who wanted the second would have had to give up the first.
+   */
+  goGlobe: () => void
   /** Which settings page to open on arrival, consumed once by ProfilePage. */
   settingsPage: SettingsPage | null
   /** Clears the above, so it steers one arrival rather than every one. */
@@ -293,6 +303,7 @@ export function AuthProvider({
       goAnalysis: () => setScreen("analysis"),
       goEnergy: () => setScreen("energy"),
       goFlood: () => setScreen("flood"),
+      goGlobe: () => setScreen("globe"),
       settingsPage,
       consumeSettingsPage,
       settingsReturnTo,
