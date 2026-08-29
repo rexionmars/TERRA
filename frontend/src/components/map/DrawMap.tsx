@@ -27,6 +27,7 @@ import { useEffect, useRef, useState } from "react"
 import { Pencil, Spline, Trash2 } from "lucide-react"
 import { Map as MapLibreMap, type GeoJSONSource, type Subscription } from "maplibre-gl"
 
+import { MapBar, MapButton } from "@/components/map/MapChrome"
 import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
 import { useAreaDrawing } from "@/components/map/useAreaDrawing"
 import type { Basemap } from "@/lib/basemaps"
@@ -171,59 +172,25 @@ export function DrawMap({
         and the container collapses to zero height.
       */}
       <div ref={hostRef} className="h-full w-full" />
-      <div className="app-no-drag absolute bottom-3 right-3 z-[400] flex flex-col overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]">
-        <DrawButton
+      <MapBar className="app-no-drag absolute bottom-3 right-3 z-[400] flex flex-col">
+        <MapButton
           label="Draw an area"
           active={mode === "draw"}
           onClick={() => setMode((m) => (m === "draw" ? "idle" : "draw"))}
         >
           <Pencil className="size-4" strokeWidth={1.5} />
-        </DrawButton>
-        <DrawButton
+        </MapButton>
+        <MapButton
           label="Edit the area"
           active={mode === "edit"}
           onClick={() => setMode((m) => (m === "edit" ? "idle" : "edit"))}
         >
           <Spline className="size-4" strokeWidth={1.5} />
-        </DrawButton>
-        <DrawButton label="Delete the area" onClick={clear}>
+        </MapButton>
+        <MapButton label="Delete the area" onClick={clear}>
           <Trash2 className="size-4" strokeWidth={1.5} />
-        </DrawButton>
-      </div>
+        </MapButton>
+      </MapBar>
     </div>
-  )
-}
-
-/** The map chrome's figures, as MapSurface and OverlayToolsPanel both use them. */
-function DrawButton({
-  label,
-  active = false,
-  onClick,
-  children,
-}: {
-  label: string
-  active?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "flex size-[2.125rem] items-center justify-center transition-colors",
-        "border-b border-[rgb(var(--p-line)/0.22)] last:border-b-0",
-        "bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-        active
-          ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-primary"
-          : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground"
-      )}
-    >
-      {children}
-    </button>
   )
 }

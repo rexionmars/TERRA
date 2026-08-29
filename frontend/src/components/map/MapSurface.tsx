@@ -73,6 +73,7 @@ import {
   hypsometricRamp,
   type SurfaceState,
 } from "@/components/map/ElevationLayer"
+import { MapBar, MapButton } from "@/components/map/MapChrome"
 import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
 import {
   HILLSHADE_LAYER,
@@ -1174,54 +1175,6 @@ export function MapSurface({
         />
       )}
     </div>
-  )
-}
-
-/**
- * One bar of controls, at the figures the map's chrome used before the library
- * that supplied them was removed, so a bar of these sits beside
- * OverlayToolsPanel's button as one family rather than two.
- */
-function MapBar({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]">
-      {children}
-    </div>
-  )
-}
-
-function MapButton({
-  label,
-  active = false,
-  onClick,
-  children,
-}: {
-  label: string
-  active?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        // 2.125rem, which is the figure the zoom and draw bars used and the
-        // one OverlayToolsPanel matched itself to.
-        "flex size-[2.125rem] items-center justify-center transition-colors",
-        "border-b border-[rgb(var(--p-line)/0.22)] last:border-b-0",
-        "bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-        active
-          ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-primary"
-          : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground"
-      )}
-    >
-      {children}
-    </button>
   )
 }
 

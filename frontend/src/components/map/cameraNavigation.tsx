@@ -26,7 +26,7 @@ import { useEffect, useRef, useState } from "react"
 import { Compass } from "lucide-react"
 import type { Map as MapLibreMap } from "maplibre-gl"
 
-import { cn } from "@/lib/utils"
+import { MapBar, MapButton } from "@/components/map/MapChrome"
 
 /** MapLibre's own rates, so a middle-drag feels like a Ctrl-drag. */
 const BEARING_PER_PX = 0.8
@@ -120,12 +120,13 @@ export function useCameraNavigation(
  * horizon is off-axis there is no edge left to level against, and a reader who
  * tilted by accident cannot undo it by dragging.
  *
- * THE BINDINGS ARE NOT WRITTEN OUT BESIDE IT. A strip naming the drag, the
- * modifier and the wheel stood here and was removed: it was permanent chrome
- * over the imagery answering a question asked once, and the gestures it named
- * are the ones every map on this machine already uses. The keys that are NOT
- * conventional -- n, u, r -- are on this control's own title, where a reader
- * wanting one is already looking.
+ * NEITHER THE BINDINGS NOR ITS OWN NAME ARE WRITTEN OUT. A strip naming the
+ * drag, the modifier and the wheel stood beside it and was removed: permanent
+ * chrome over the imagery, answering a question asked once, about gestures
+ * every map on this machine already uses. The control then kept a label of its
+ * own and read as a pill twice the height of the bar under it -- a different
+ * kind of control, which it is not. A glyph, at the neighbours' measurements,
+ * with the name and the three keys on its title.
  */
 export function CameraControls({
   map,
@@ -136,19 +137,17 @@ export function CameraControls({
   level: boolean
   className?: string
 }) {
+  // Nothing to square when the view is already square. The control appears
+  // with the tilt it undoes, and leaves with it.
+  if (level) return null
   return (
-    <div className={cn("pointer-events-none flex flex-col items-end gap-1.5", className)}>
-      {!level && (
-        <button
-          type="button"
-          onClick={() => map?.easeTo({ bearing: 0, pitch: 0, duration: 400 })}
-          title="Level and face north (r). n faces north, u looks straight down."
-          className="panel pointer-events-auto flex items-center gap-1.5 rounded-sm px-2 py-1 text-meta text-foreground transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <Compass className="size-3.5 text-primary" strokeWidth={1.5} />
-          Level, facing north
-        </button>
-      )}
-    </div>
+    <MapBar className={className}>
+      <MapButton
+        label="Level, facing north (r). n faces north, u looks straight down."
+        onClick={() => map?.easeTo({ bearing: 0, pitch: 0, duration: 400 })}
+      >
+        <Compass className="size-4" strokeWidth={1.5} />
+      </MapButton>
+    </MapBar>
   )
 }
