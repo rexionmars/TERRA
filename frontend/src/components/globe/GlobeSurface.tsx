@@ -23,7 +23,7 @@
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useRef, useState } from "react"
-import { Compass, Globe2, TriangleAlert } from "lucide-react"
+import { Globe2, TriangleAlert } from "lucide-react"
 import {
   Map as MapLibreMap,
   type GeoJSONSource,
@@ -34,6 +34,10 @@ import {
 import "@/lib/maplibreWorker"
 
 import type { GlobeArea } from "@/components/globe/globeArea"
+import {
+  CameraControls,
+  useCameraNavigation,
+} from "@/components/map/cameraNavigation"
 import { basemapByKind, type BasemapKind } from "@/lib/basemaps"
 import { onPaletteChange } from "@/lib/paletteWatch"
 import { cn } from "@/lib/utils"
@@ -128,17 +132,9 @@ export function GlobeSurface({
     The zoom figure alone answers a third of it: it moves while the picture
     does not, which says the gesture registered.
   */
+  const { level } = useCameraNavigation(mapRef.current, ready)
   const [zoom, setZoom] = useState(START_ZOOM)
   const [busy, setBusy] = useState(false)
-  /*
-    Whether the camera is north-up and flat. A globe that tilts and turns but
-    offers no way back is a trap: once the horizon is off-axis there is no edge
-    left to square the view against, and a reader who tilted by accident cannot
-    undo it by dragging. Held as a BOOLEAN rather than as the two angles,
-    because bearing and pitch change every frame of a drag while this changes
-    twice -- once on leaving level, once on returning.
-  */
-  const [level, setLevel] = useState(true)
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
@@ -350,77 +346,6 @@ export function GlobeSurface({
       the same value again is free -- React bails out of a re-render when the
       state is unchanged -- so no throttling is warranted here.
     */
-    /*
-      GOOGLE EARTH'S OTHER TWO WAYS IN.
-
-      MapLibre already matches Earth on most of it: left-drag turns, the wheel
-      zooms, Ctrl with the left button tilts and rotates, the arrows pan and
-      Shift with the arrows tilts and rotates. What Earth adds is the middle
-      button for the same tilt-and-rotate, and single keys that put the camera
-      back -- and the middle button is also what THIS application already binds
-      to orbit, in the studio's viewport, so it is the one gesture that satisfies
-      Earth's convention and its own at once.
-
-      Written by hand because MapLibre's handler is button-bound at
-      construction: generateMouseRotationHandler and generateMousePitchHandler
-      both test `LEFT && ctrl || RIGHT`, with no option for the middle. The
-      rates below are theirs -- 0.8 degrees of bearing and -0.5 of pitch per
-      pixel -- so the two gestures feel like one binding rather than two.
-
-      On the window rather than the canvas, so a drag that leaves the surface
-      keeps turning it instead of stopping at the edge.
-    */
-    const canvas = map.getCanvas()
-    let orbit: { x: number; y: number } | null = null
-    const onMiddleDown = (e: MouseEvent) => {
-      if (e.button !== 1) return
-      // Middle-press is autoscroll on some platforms, and paste on X11.
-      e.preventDefault()
-      orbit = { x: e.clientX, y: e.clientY }
-    }
-    const onMiddleMove = (e: MouseEvent) => {
-      if (!orbit) return
-      const dx = e.clientX - orbit.x
-      const dy = e.clientY - orbit.y
-      orbit = { x: e.clientX, y: e.clientY }
-      map.setBearing(map.getBearing() + dx * 0.8)
-      map.setPitch(map.getPitch() - dy * 0.5)
-    }
-    const onMiddleUp = (e: MouseEvent) => {
-      if (e.button === 1) orbit = null
-    }
-    canvas.addEventListener("mousedown", onMiddleDown)
-    window.addEventListener("mousemove", onMiddleMove)
-    window.addEventListener("mouseup", onMiddleUp)
-
-    /*
-      Earth's resets, on Earth's keys: `n` faces north, `u` looks straight
-      down, `r` does both. On the canvas, which MapLibre gives a tabindex of 0
-      precisely so it can take keys, so these reach the globe a reader is
-      working in and no other.
-    */
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return
-      const to =
-        e.key === "n"
-          ? { bearing: 0 }
-          : e.key === "u"
-            ? { pitch: 0 }
-            : e.key === "r"
-              ? { bearing: 0, pitch: 0 }
-              : null
-      if (!to) return
-      e.preventDefault()
-      map.easeTo({ ...to, duration: 400 })
-    }
-    canvas.addEventListener("keydown", onKey)
-
-    const readLevel = () => {
-      const flat = map.getBearing() === 0 && map.getPitch() === 0
-      setLevel((prev) => (prev === flat ? prev : flat))
-    }
-    subs.push(map.on("rotate", readLevel))
-    subs.push(map.on("pitch", readLevel))
     subs.push(map.on("dataloading", () => setBusy(true)))
     subs.push(map.on("idle", () => setBusy(false)))
     subs.push(
@@ -437,10 +362,6 @@ export function GlobeSurface({
     const stopPaletteWatch = onPaletteChange(paint)
 
     return () => {
-      canvas.removeEventListener("mousedown", onMiddleDown)
-      canvas.removeEventListener("keydown", onKey)
-      window.removeEventListener("mousemove", onMiddleMove)
-      window.removeEventListener("mouseup", onMiddleUp)
       window.clearTimeout(watchdog)
       stopPaletteWatch()
       for (const s of subs) s.unsubscribe()
@@ -508,44 +429,12 @@ export function GlobeSurface({
         </div>
       )}
 
-      {/*
-        BOTTOM RIGHT: what the pointer does, and the way back.
-
-        Written out because none of it is visible in the surface. Dragging to
-        turn a globe is guessable; that the same drag with a modifier lays the
-        camera over is not, and a reader who never finds it has a globe that
-        only spins. The studio's status bar carries the same argument for the
-        board's own gestures, which "had no written form anywhere -- pressing a
-        plane, shift to extend, drag to move were all discoverable only by
-        trying".
-
-        THREE CHIPS, not the whole mapping. The full set is Earth's -- arrows
-        pan, Shift with the arrows tilts and turns, `n` faces north, `u` looks
-        down, `r` does both -- and printing all of it here would trade the view
-        for a manual. These are the three a pointer reaches for; the keys are
-        on the control beside them, where a reader who wants one is looking.
-      */}
       {ready && !failure && (
-        <div className="pointer-events-none absolute bottom-3 right-3 flex flex-col items-end gap-1.5">
-          {!level && (
-            <button
-              type="button"
-              onClick={() =>
-                mapRef.current?.easeTo({ bearing: 0, pitch: 0, duration: 400 })
-              }
-              title="Level and face north (r). n faces north, u looks straight down."
-              className="panel pointer-events-auto flex items-center gap-1.5 rounded-sm px-2 py-1 text-meta text-foreground transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <Compass className="size-3.5 text-primary" strokeWidth={1.5} />
-              Level, facing north
-            </button>
-          )}
-          <span className="telemetry flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span>drag to turn</span>
-            <span>middle-drag or ctrl-drag to tilt</span>
-            <span>scroll to zoom</span>
-          </span>
-        </div>
+        <CameraControls
+          map={mapRef.current}
+          level={level}
+          className="absolute bottom-3 right-3"
+        />
       )}
 
       {onOpenMapHere && ready && !failure && (

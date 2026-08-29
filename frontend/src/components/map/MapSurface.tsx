@@ -20,10 +20,22 @@
  *   repository carries 319 lines of patch against it for three failures in
  *   WKWebView. None of that comes across.
  *
- * MERCATOR, NOT THE GLOBE, and north-up. This is the surface work is measured
- * on: an area is drawn here and a run is read here, the swipe's cut is a
- * meridian, and at working zooms the two projections are the same picture. The
- * globe screen is where the camera moves in three dimensions.
+ * THE SAME PLANET AS THE GLOBE SCREEN. The projection is MapLibre's adaptive
+ * `globe`, which is itself an interpolation -- a sphere below zoom 11, mercator
+ * above 12 -- so zooming out from an area gives the world as a world, and the
+ * zooms work is actually done at are the flat, conformal ones a measurement
+ * wants. The camera tilts and turns here as it does there, through the same
+ * bindings, from components/map/cameraNavigation.tsx.
+ *
+ * This was mercator and locked north-up for one revision, on the reasoning
+ * that a measuring surface should not move in three dimensions. That was a
+ * choice to state rather than to make: the request was for one map behaviour
+ * across the application, and two surfaces over one planet answering the
+ * pointer differently is the thing a reader has to learn twice.
+ *
+ * The swipe survives it because its cut is a meridian rather than a screen
+ * line: a ground-fixed seam stays correct under any bearing or pitch, where a
+ * screen-space clip would not. See cropOverlay.ts.
  */
 import "maplibre-gl/dist/maplibre-gl.css"
 // Points MapLibre at its worker; see the module for why that is not automatic.
@@ -45,6 +57,10 @@ import {
   type AoiContextMenuState,
 } from "@/components/AoiContextMenu"
 import { SwipeDivider } from "@/components/map/SwipeDivider"
+import {
+  CameraControls,
+  useCameraNavigation,
+} from "@/components/map/cameraNavigation"
 import { cropWestOf } from "@/components/map/cropOverlay"
 import {
   clearOverlays,
@@ -164,6 +180,8 @@ export function MapSurface({
   const [fitAoiNonce, setFitAoiNonce] = useState(0)
   const [handleRatio, setHandleRatio] = useState(swipeRatio)
 
+  const { level } = useCameraNavigation(mapRef.current, ready)
+
   const scheme = useMemo(
     () => getAoiContourScheme(aoiContourScheme),
     [aoiContourScheme]
@@ -206,11 +224,41 @@ export function MapSurface({
       attributionControl: false,
       center: [initialView?.lon ?? -52, initialView?.lat ?? -14.5],
       zoom: initialView?.zoom ?? 4,
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
+      /*
+        85, not the 60 this defaults to. Sixty is a flat map's ceiling, set so
+        a mercator plane never reaches its own horizon; below zoom 11 this is a
+        sphere, where the horizon is the point.
+      */
+      maxPitch: 85,
       style: {
         version: 8,
+        /*
+          The projection is a STYLE property in 6.6.0 -- MapOptions carries no
+          `projection` field -- and declared inline it is in force on the first
+          frame, with no mercator flash to look at. `globe` is itself an
+          interpolation: vertical-perspective below zoom 11, mercator above 12,
+          so the world reads as a world and the zooms work is done at stay flat
+          and conformal.
+        */
+        projection: { type: "globe" },
+        sky: {
+          "sky-color": "#0b1021",
+          "horizon-color": "#5b8fd6",
+          "fog-color": "#9ec5f0",
+          // Gone by the zoom the projection has already flattened at, so an
+          // atmosphere never sits over a working view.
+          "atmosphere-blend": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            0,
+            1,
+            6,
+            1,
+            10,
+            0,
+          ],
+        },
         sources: {
           [BASE_SOURCE]: {
             type: "raster",
@@ -950,6 +998,20 @@ export function MapSurface({
           </div>
         )}
       </div>
+
+      {ready && (
+        <CameraControls
+          map={mapRef.current}
+          level={level}
+          /*
+            Clear of the map foot rather than at the window's bottom edge: the
+            acquisition period track spans it, and --map-foot is the reservation
+            every other control on this screen is measured against. See
+            index.css and PanelShell.
+          */
+          className="absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] left-3 z-[1000]"
+        />
+      )}
 
       {swipeActive && (
         <SwipeDivider
