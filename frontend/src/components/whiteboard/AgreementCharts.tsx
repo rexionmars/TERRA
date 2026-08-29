@@ -52,6 +52,18 @@ import type {
  * Ink is kept low deliberately (Tufte 1983): hairlines, no fills, no rounded
  * corners, no gridlines between ticks.
  */
+/**
+ * The marker's radius, in pixels, and the axis's own inset.
+ *
+ * One number rather than two: the track is inset by exactly what a marker
+ * overhangs, so a class at 0 or at 100 is drawn whole, and the axis is inset
+ * by the same amount so the marks sit on the scale they are measured against.
+ */
+const MARK_R = 4
+
+/** The interval's end serifs. Tall enough to read as a bound, no taller. */
+const SERIF_PX = 5
+
 function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
   // Null is not zero. A class the reference never sampled has no producer's
   // accuracy at all, and a mark at the origin would read as total failure
@@ -80,77 +92,105 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
         </span>
       </span>
       {/*
-        A viewBox in data units: x is the percentage itself, so no arithmetic
-        maps value to position. preserveAspectRatio="none" lets the row stretch
-        horizontally while non-scaling-stroke keeps every line one hairline
-        wide -- without it, stretching would thicken the verticals and leave
-        the horizontals thin.
+        POSITIONED IN CSS, not in a stretched SVG.
+
+        This was an `svg viewBox="0 0 100 12"` with preserveAspectRatio="none",
+        so that x could be the percentage itself and no arithmetic mapped value
+        to position. The cost was not visible in the source and was the whole
+        legibility fault on screen: the row renders about six hundred pixels
+        wide and twelve tall, so x was scaled roughly six times and y not at
+        all, and `circle r=2.2` came out an ellipse thirteen pixels across and
+        two high. Every marker on this chart was a flat lozenge.
+
+        non-scaling-stroke, which is here for the lines, does not help: it holds
+        a stroke's WIDTH, not a shape's geometry.
+
+        Percentages of an inset track do the same job with none of that. A
+        marker is a div, so it is round because it is round.
       */}
-      <svg
-        viewBox="0 0 100 12"
-        preserveAspectRatio="none"
-        className="h-3 w-full overflow-visible"
-        role="img"
-        aria-label={marks
-          .map(
-            (m) =>
-              `${m.kind} ${m.v!.toFixed(1)} percent${
-                m.ci ? `, 95% CI ${m.ci[0].toFixed(0)} to ${m.ci[1].toFixed(0)}` : ""
-              }`
-          )
-          .join("; ")}
-      >
-        {marks.map((m, k) => {
-          const y = marks.length === 1 ? 6 : k === 0 ? 3.5 : 8.5
-          const lo = m.ci ? Math.max(0, m.ci[0]) : null
-          const hi = m.ci ? Math.min(100, m.ci[1]) : null
-          return (
-            <g key={m.kind}>
-              {lo != null && hi != null && (
-                <>
-                  <line
-                    x1={lo}
-                    x2={hi}
-                    y1={y}
-                    y2={y}
-                    stroke={c.color}
-                    strokeWidth={1}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  {/* Serifs, so the interval reads as bounded rather than as a
-                      line that happens to stop. */}
-                  {[lo, hi].map((x) => (
-                    <line
-                      key={x}
-                      x1={x}
-                      x2={x}
-                      y1={y - 2}
-                      y2={y + 2}
-                      stroke={c.color}
-                      strokeWidth={1}
-                      vectorEffect="non-scaling-stroke"
+      <div className="relative h-5 w-full">
+        {/*
+          Inset by the marker's own radius at both ends, so a class at 0 or at
+          100 is drawn whole rather than half outside the column. The axis
+          below is inset to match, or the marks would sit against a scale they
+          are not measured on.
+        */}
+        <div
+          className="absolute inset-y-0"
+          style={{ left: MARK_R, right: MARK_R }}
+          role="img"
+          aria-label={marks
+            .map(
+              (m) =>
+                `${m.kind} ${m.v!.toFixed(1)} percent${
+                  m.ci
+                    ? `, 95% CI ${m.ci[0].toFixed(0)} to ${m.ci[1].toFixed(0)}`
+                    : ""
+                }`
+            )
+            .join("; ")}
+        >
+          {marks.map((m, k) => {
+            /*
+              Two baselines, far enough apart that a pair with equal values is
+              two marks rather than one thicker one. Soybean reads 78 and 79 on
+              a real run, which is the case this spacing is for.
+            */
+            const top =
+              marks.length === 1 ? "50%" : k === 0 ? "28%" : "72%"
+            const lo = m.ci ? Math.max(0, m.ci[0]) : null
+            const hi = m.ci ? Math.min(100, m.ci[1]) : null
+            return (
+              <div key={m.kind}>
+                {lo != null && hi != null && (
+                  <>
+                    <div
+                      className="absolute h-px -translate-y-1/2"
+                      style={{
+                        left: `${lo}%`,
+                        width: `${Math.max(0, hi - lo)}%`,
+                        top,
+                        background: c.color,
+                      }}
                     />
-                  ))}
-                </>
-              )}
-              {/*
-                Producer's filled, user's open. The pair is told apart by fill
-                rather than by colour, leaving the class colour to mean the
-                class.
-              */}
-              <circle
-                cx={m.v!}
-                cy={y}
-                r={2.2}
-                fill={k === 0 ? c.color : "rgb(var(--p-surface))"}
-                stroke={c.color}
-                strokeWidth={1}
-                vectorEffect="non-scaling-stroke"
-              />
-            </g>
-          )
-        })}
-      </svg>
+                    {/* Serifs, so the interval reads as bounded rather than as
+                        a line that happens to stop. */}
+                    {[lo, hi].map((x) => (
+                      <div
+                        key={x}
+                        className="absolute w-px -translate-y-1/2"
+                        style={{
+                          left: `${x}%`,
+                          top,
+                          height: SERIF_PX,
+                          background: c.color,
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+                {/*
+                  Producer's filled, user's open. The pair is told apart by fill
+                  rather than by colour, leaving the class colour to mean the
+                  class.
+                */}
+                <div
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                  style={{
+                    left: `${m.v}%`,
+                    top,
+                    width: MARK_R * 2,
+                    height: MARK_R * 2,
+                    background:
+                      k === 0 ? c.color : "rgb(var(--p-surface))",
+                    border: `1px solid ${c.color}`,
+                  }}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </li>
   )
 }
@@ -158,7 +198,13 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
 /** The shared axis, drawn once beneath the rows it governs. */
 function AccuracyAxis() {
   return (
-    <div className="relative mt-1 h-3 w-full">
+    <div
+      className="relative mt-1 h-3"
+      // Inset by the marker's radius, like the rows above: an axis running the
+      // full width would put its 0 and its 100 at coordinates no mark can
+      // reach, and every reading would look shifted inward.
+      style={{ marginLeft: MARK_R, marginRight: MARK_R }}
+    >
       <div
         className="absolute inset-x-0 top-0 border-t"
         style={{ borderColor: "rgb(var(--p-line-strong) / 0.45)" }}
