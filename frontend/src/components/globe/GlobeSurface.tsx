@@ -26,10 +26,37 @@ import { useEffect, useRef, useState } from "react"
 import { Globe2, TriangleAlert } from "lucide-react"
 import {
   Map as MapLibreMap,
+  setWorkerUrl,
   type GeoJSONSource,
   type MapMouseEvent,
   type Subscription,
 } from "maplibre-gl"
+/*
+  THE WORKER, POINTED AT EXPLICITLY. Without this the globe opens and never
+  finishes -- and says nothing about why, which is how it cost an afternoon.
+
+  MapLibre finds its worker as a sibling of its own module URL:
+
+      new URL("./maplibre-gl-worker.mjs", import.meta.url)   web_worker.ts
+
+  Under Vite that module is served from node_modules/.vite/deps, where the
+  dependency optimiser put a rewritten copy of the library and nothing else --
+  it never copies the worker, because no static import mentions it. The sibling
+  URL therefore 404s, the Worker never starts, and NOTHING REPORTS IT: raster
+  tiles are fetched on the main thread and load fine, so the map paints, while
+  every GeoJSON source stays stuck in _isUpdatingWorker forever. Style.loaded()
+  gates on every source, Map fires "load" only when Style.loaded() is true, and
+  so "load" never arrives. Measured, not guessed: 33 imagery tiles all `loaded`
+  beside one geojson source with `_sourceLoaded: undefined`.
+
+  `?worker&url` makes Vite bundle the worker AND the ~490 kB sibling module it
+  imports into one emitted file, and hand back its URL -- in dev and in the
+  build. `?url` alone would emit the 18 kB worker without that sibling and fail
+  the same way with a different 404.
+*/
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
+
+setWorkerUrl(maplibreWorkerUrl)
 
 import type { GlobeArea } from "@/components/globe/globeArea"
 import { basemapByKind } from "@/lib/basemaps"
@@ -87,6 +114,8 @@ export function GlobeSurface({
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
+  /** The most recent error event, which the watchdog reports if it matters. */
+  const lastError = useRef<string | null>(null)
 
   useEffect(() => {
     const host = hostRef.current
@@ -210,19 +239,55 @@ export function GlobeSurface({
       map.setPaintProperty(AREA_LINE, "line-color", accent)
     }
 
+    /*
+      A DEADLINE ON OPENING, because the failure this file was written through
+      had no other symptom: the map was constructed, painted, reported no
+      error a reader could see, and simply never finished. An indefinite
+      placeholder is indistinguishable from a slow link, so after this it says
+      so and hands over whatever the last error was.
+
+      Generous, because the alternative failure -- a real map over a real bad
+      connection -- must not be called broken. The map is not torn down and
+      keeps trying; if "load" does arrive afterwards it clears this.
+    */
+    const watchdog = window.setTimeout(() => {
+      setFailure(
+        lastError.current ??
+          "The map was created but never finished loading its sources."
+      )
+    }, 20000)
+
     subs.push(
       map.on("load", () => {
+        // Before anything else: the deadline has been met, and a globe that
+        // opened must never be told twenty seconds later that it did not.
+        window.clearTimeout(watchdog)
         paint()
+        setFailure(null)
         setReady(true)
       })
     )
+
+    /*
+      KEPT, NOT DISCARDED. This handler used to be `void e`, on the reasoning
+      that an error here could only be a tile failing over a poor link. That
+      reasoning was wrong twice over: a failed WebGL context arrives here as
+      an event rather than a throw (Map._setupPainter fires an ErrorEvent and
+      returns, leaving no painter), and so does anything the style's sources
+      report. Discarding them turned every one of those into the same blank
+      wait.
+
+      Still not fatal on arrival, because a tile that fails genuinely is not a
+      failed map -- MapLibre reports each one and keeps drawing the rest. So
+      the last one is held, and only the watchdog below decides it mattered.
+    */
     subs.push(
       map.on("error", (e) => {
-        // A tile that fails is not a failed map: MapLibre reports each one and
-        // keeps drawing the rest, exactly as a map should over a poor link.
-        // Only a style that never loads leaves the surface unusable, and that
-        // arrives as a throw above rather than here.
-        void e
+        const message = e.error?.message ?? String(e.error ?? "unknown error")
+        lastError.current = message
+        // Kept on the console too: a reader reports what the panel says, and
+        // a developer needs the stack behind it.
+        console.error("[globe]", e.error ?? message)
       })
     )
     subs.push(
@@ -248,6 +313,7 @@ export function GlobeSurface({
     const stopPaletteWatch = onPaletteChange(paint)
 
     return () => {
+      window.clearTimeout(watchdog)
       stopPaletteWatch()
       for (const s of subs) s.unsubscribe()
       map.remove()
@@ -273,10 +339,26 @@ export function GlobeSurface({
         Space is painted here. MapLibre forces an alpha context and clears each
         frame to transparent, and its own stylesheet sets no background, so the
         colour behind the planet is whatever CSS puts on this element.
+
+        SIZED BY h-full, NOT BY `absolute inset-0`, AND THE DIFFERENCE IS NOT
+        STYLISTIC. MapLibre puts `.maplibregl-map` on this element and its own
+        stylesheet declares:
+
+            .maplibregl-map { position: relative; overflow: hidden; }
+
+        That is one class selector, exactly the specificity of Tailwind's
+        `.absolute`, so the tie breaks on source order -- and the library's
+        sheet is imported by this module, which lands after the app's. The
+        element therefore computes to `position: relative`, `inset-0` stops
+        stretching anything, and the div collapses to 1184x0 while the map
+        loads, reports no error and paints a canvas nothing can see.
+
+        Filling by height instead leaves the library's `position: relative`
+        harmless, because nothing here depends on which one it is.
       */}
       <div
         ref={hostRef}
-        className="absolute inset-0"
+        className="h-full w-full"
         style={{ background: "rgb(var(--p-ink))" }}
       />
       {onOpenMapHere && ready && !failure && (
@@ -310,7 +392,9 @@ export function GlobeSurface({
                 strokeWidth={1.5}
               />
               <p className="max-w-[22rem] text-body text-muted-foreground">
-                The globe could not be created.
+                {ready
+                  ? "The globe reported an error."
+                  : "The globe did not finish opening."}
               </p>
               <p className="telemetry max-w-[22rem] break-words text-meta text-muted-foreground">
                 {failure}
