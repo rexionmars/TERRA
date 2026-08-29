@@ -3266,7 +3266,7 @@ function AppBody(props: {
             NOT mode="wait". Under it the leaving screen has to finish its exit
             before the arriving one is allowed to mount, so every change of
             screen was 240ms of an empty stage followed by the mount -- and the
-            mount is the expensive half, since a screen here builds leaflet, its
+            mount is the expensive half, since a screen here builds a map, its
             overlays and sometimes the studio. Serialised by construction, and
             felt as the transition being slow rather than as the animation being
             long.

@@ -68,20 +68,15 @@ export const BASEMAPS: readonly Basemap[] = [
 ]
 
 /**
- * The library itself, credited on every basemap -- one constant per library,
- * because the credit has to name the one that actually drew the map.
+ * The library itself, credited on every basemap.
  *
- * The work map and the globe are MapLibre. Leaflet draws the studio's own
- * drawing map and nothing else, which is why both are still here.
+ * One constant, again: there were two while the migration ran, because a credit
+ * has to name the library that actually drew the map and for a while two of
+ * them did. Every map in the application is MapLibre now.
  */
 export const MAPLIBRE_CREDIT: CreditPart = {
   label: "MapLibre",
   href: "https://maplibre.org",
-}
-
-export const LEAFLET_CREDIT: CreditPart = {
-  label: "Leaflet",
-  href: "https://leafletjs.com",
 }
 
 export function basemapByName(name: string): Basemap {

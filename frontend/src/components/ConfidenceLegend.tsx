@@ -1,6 +1,6 @@
 /**
  * Slim confidence legend — aligned with the bottom-right map tool column
- * (same width/radius as leaflet-bar), clear gap above the draw button.
+ * (the width and radius the map's control bars use), clear gap above the draw button.
  */
 export function ConfidenceLegend({ visible }: { visible: boolean }) {
   if (!visible) return null

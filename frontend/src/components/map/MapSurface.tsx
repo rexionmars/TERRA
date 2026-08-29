@@ -49,14 +49,12 @@ import {
   type GeoJSONSource,
   type Subscription,
 } from "maplibre-gl"
-import { TerraDraw, TerraDrawPolygonMode, TerraDrawSelectMode } from "terra-draw"
-import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter"
-
 import {
   AoiContextMenu,
   type AoiContextMenuState,
 } from "@/components/AoiContextMenu"
 import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
+import { useAreaDrawing } from "@/components/map/useAreaDrawing"
 import { SwipeDivider } from "@/components/map/SwipeDivider"
 import {
   CameraControls,
@@ -177,11 +175,28 @@ export function MapSurface({
   const [dateLabel, setDateLabel] = useState<string | null>(null)
   const [aoiMenu, setAoiMenu] = useState<AoiContextMenuState | null>(null)
   const [swipeDragging, setSwipeDragging] = useState(false)
-  const [drawMode, setDrawMode] = useState<"idle" | "draw" | "edit">("idle")
   const [fitAoiNonce, setFitAoiNonce] = useState(0)
   const [handleRatio, setHandleRatio] = useState(swipeRatio)
 
   const { level } = useCameraNavigation(mapRef.current, ready)
+  /*
+    The drawing, shared with the board's own area modal. See useAreaDrawing:
+    the single-area rule, when a shape is reported, and the sync with the copy
+    the application holds all live there rather than in either surface.
+  */
+  const {
+    mode: drawMode,
+    setMode: setDrawMode,
+    clear: clearDrawing,
+    stop: stopDrawing,
+  } = useAreaDrawing({
+    map: mapRef.current,
+    ready,
+    polygon: customPolygon,
+    onPolygonDrawn,
+  })
+  const stopDrawingRef = useRef(stopDrawing)
+  stopDrawingRef.current = stopDrawing
 
   const scheme = useMemo(
     () => getAoiContourScheme(aoiContourScheme),
@@ -339,8 +354,7 @@ export function MapSurface({
         thrown out of stop() on every navigation away from this screen, which
         the error boundary caught as the whole window failing.
       */
-      drawRef.current?.stop()
-      drawRef.current = null
+      stopDrawingRef.current()
       for (const s of subs) s.unsubscribe()
       map.remove()
       mapRef.current = null
@@ -778,136 +792,6 @@ export function MapSurface({
     return () => el.removeEventListener("contextmenu", onMenu, true)
   }, [ready])
 
-  // ---- drawing ------------------------------------------------------------
-
-  const drawRef = useRef<TerraDraw | null>(null)
-  const onDrawnRef = useRef(onPolygonDrawn)
-  onDrawnRef.current = onPolygonDrawn
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    const draw = new TerraDraw({
-      adapter: new TerraDrawMapLibreGLAdapter({ map }),
-      modes: [
-        new TerraDrawPolygonMode({
-          styles: {
-            fillColor: "#ffffff",
-            fillOpacity: 0.06,
-            outlineColor: "#ffffff",
-            outlineWidth: 2,
-          },
-        }),
-        new TerraDrawSelectMode({
-          flags: {
-            polygon: {
-              feature: {
-                draggable: true,
-                coordinates: { midpoints: true, draggable: true, deletable: true },
-              },
-            },
-          },
-        }),
-      ],
-    })
-    draw.start()
-    drawRef.current = draw
-    // See the map handle above; the draw store is likewise unreachable from
-    // the DOM, and its snapshot is what told the vertices apart.
-    if (import.meta.env.DEV) {
-      ;(window as unknown as { __draw?: TerraDraw }).__draw = draw
-    }
-
-    const emit = () => {
-      const features = draw
-        .getSnapshot()
-        .filter((f) => f.geometry.type === "Polygon")
-      const last = features[features.length - 1]
-      onDrawnRef.current(last ? (last.geometry as GeoJSONGeometry) : null)
-    }
-
-    /*
-      ONE AREA AT A TIME, which is the map screen's rule and not terra-draw's:
-      a second polygon replaces the first rather than joining it, so what a run
-      reads is never ambiguous. By id, from the event, rather than by position
-      in the snapshot -- the store also holds the closing point and the
-      selection handles, and "everything but the last one" removed whichever of
-      those happened to sort last.
-    */
-    draw.on("finish", (id) => {
-      const others = draw
-        .getSnapshot()
-        .filter((f) => f.id !== id)
-        .map((f) => f.id!)
-      if (others.length) draw.removeFeatures(others)
-      emit()
-      setDrawMode("idle")
-      draw.setMode("select")
-    })
-
-    /*
-      NOT ON EVERY UPDATE, and this is the one that had to be found by watching
-      it: terra-draw fires `change` with "update" on each vertex of a polygon
-      still being drawn. Emitting those put a half-drawn shape into the
-      application's state, the effect below then saw the draw store disagreeing
-      with it and called clear(), and the drawing was wiped on its third click
-      and silently restarted. What came out was a two-point sliver.
-
-      So: the finished shape on `finish`, an edited one only while the select
-      mode owns it, and a removal whenever one happens.
-    */
-    draw.on("change", (_ids, type) => {
-      if (type === "delete") return emit()
-      if (type === "update" && draw.getMode() === "select") emit()
-    })
-
-    return () => {
-      // Only if the map's own cleanup has not already done it; see there.
-      if (drawRef.current === draw) {
-        draw.stop()
-        drawRef.current = null
-      }
-    }
-  }, [ready])
-
-  /*
-    The area held outside this component, put back into the draw store.
-
-    Search, import, an example and clearing all set the polygon from elsewhere,
-    and the store has to agree with them or the next edit starts from a shape
-    that is no longer on screen.
-  */
-  useEffect(() => {
-    const draw = drawRef.current
-    if (!draw) return
-    // Never while a shape is being drawn. The store is mid-edit and the
-    // application's copy is by definition older than it.
-    if (draw.getModeState() === "drawing") return
-    const current = draw.getSnapshot()
-    const currentGeom = current.length
-      ? (current[current.length - 1].geometry as GeoJSONGeometry)
-      : null
-    if (JSON.stringify(currentGeom) === JSON.stringify(customPolygon)) return
-    draw.clear()
-    if (customPolygon && customPolygon.type === "Polygon") {
-      draw.addFeatures([
-        {
-          type: "Feature",
-          properties: { mode: "polygon" },
-          geometry: customPolygon as never,
-        } as never,
-      ])
-    }
-  }, [customPolygon])
-
-  useEffect(() => {
-    const draw = drawRef.current
-    if (!draw) return
-    draw.setMode(
-      drawMode === "draw" ? "polygon" : drawMode === "edit" ? "select" : "select"
-    )
-  }, [drawMode])
-
   // ---- pan lock while the handle is dragged -------------------------------
 
   useEffect(() => {
@@ -995,11 +879,7 @@ export function MapSurface({
           </MapButton>
           <MapButton
             label="Delete the area"
-            onClick={() => {
-              drawRef.current?.clear()
-              onPolygonDrawn(null)
-              setDrawMode("idle")
-            }}
+            onClick={clearDrawing}
           >
             <Trash2 className="size-4" strokeWidth={1.5} />
           </MapButton>
@@ -1080,9 +960,9 @@ export function MapSurface({
 }
 
 /**
- * One bar of controls: the hairline, the radius and the shadow `.leaflet-bar`
- * carried, so a bar of these sits beside OverlayToolsPanel's button as one
- * family rather than two.
+ * One bar of controls, at the figures the map's chrome used before the library
+ * that supplied them was removed, so a bar of these sits beside
+ * OverlayToolsPanel's button as one family rather than two.
  */
 function MapBar({ children }: { children: React.ReactNode }) {
   return (

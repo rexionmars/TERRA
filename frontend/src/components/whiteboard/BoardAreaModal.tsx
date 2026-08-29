@@ -6,32 +6,28 @@
  * that the area was being drawn FOR. That is a round trip through the surface
  * you are trying to add to.
  *
- * A MAP OF ITS OWN, not the map screen's. MapView takes eighteen required props
+ * A MAP OF ITS OWN, not the map screen's. MapSurface answers twenty-five props
  * -- overlays, swipe, confidence, contour scheme -- because it draws an
  * analysis. This draws a shape: a basemap, pan and zoom, and the polygon tool.
- * Threading the other seventeen through the board to reach the one that matters
+ * Threading the other twenty through the board to reach the one that matters
  * would put every one of them somewhere they have nothing to do.
  *
- * The draw control itself is MapView's, exported rather than rebuilt. It
- * carries the single-polygon rule, the leaflet-draw patch and the geometry
- * shape the rest of the application means by an AOI; a second copy would be a
- * second place for those to drift.
- *
- * No new dependency and no new chunk: leaflet and leaflet-draw are already in
- * the eager graph through MapView, which the map screen mounts underneath.
+ * The drawing itself is shared, through `useAreaDrawing`: the single-polygon
+ * rule, when a shape is reported and the sync with the copy held outside all
+ * live there, so this map and the work map cannot come to mean different things
+ * by an area.
  *
  * The basemap credit is in the header beside the basemap buttons rather than in
- * Leaflet's corner control, where it floated over the ground being drawn on.
+ * a corner control over the ground being drawn on.
  */
 import { useState } from "react"
-import { MapContainer, TileLayer } from "react-leaflet"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
-import { DrawControl, FlyToController } from "@/components/MapView"
+import { DrawMap } from "@/components/map/DrawMap"
 import { SearchBar } from "@/components/SearchBar"
 import { Credit } from "@/components/TitleBar"
 import {
   BASEMAPS,
-  LEAFLET_CREDIT,
+  MAPLIBRE_CREDIT,
   basemapByKind,
   type BasemapKind,
 } from "@/lib/basemaps"
@@ -126,7 +122,7 @@ export function BoardAreaModal({
               one outcome that cannot be shipped.
             */}
             <span className="flex items-center gap-1.5 text-meta text-muted-foreground">
-              <Credit part={LEAFLET_CREDIT} />
+              <Credit part={MAPLIBRE_CREDIT} />
               {basemap.credit.map((c) => (
                 <Credit key={c.label} part={c} />
               ))}
@@ -154,39 +150,14 @@ export function BoardAreaModal({
               setFlyTo({ lat, lon, key: Date.now() })
             }
           />
-          <MapContainer
-            center={[view.lat, view.lon]}
-            zoom={view.zoom}
+          <DrawMap
             className="size-full"
-            /*
-              Not attribution-free: the licences ask for it where the medium
-              allows one, and a modal allows one. Leaflet's own control carries
-              the basemap's line.
-            */
-            // Off: its corner control floated the credit over the ground being
-            // drawn on, and its links are the anchors this webview ignores.
-            attributionControl={false}
-          >
-            <TileLayer
-              key={basemap.kind}
-              url={basemap.url}
-              maxZoom={basemap.maxZoom}
-            />
-            {/*
-              Painting its own stroke, because nothing else here does. On the
-              map the finished shape is deliberately hidden and AoiContour draws
-              the outline over the overlays; this map has no AoiContour, so
-              without this a closed polygon vanished the instant it was
-              finished -- the shape was in hand and invisible, which reads as
-              the drawing having failed.
-            */}
-            <DrawControl
-              customPolygon={draft}
-              onPolygonDrawn={setDraft}
-              visibleStroke
-            />
-            <FlyToController flyTo={flyTo} />
-          </MapContainer>
+            view={view}
+            basemap={basemap}
+            polygon={draft}
+            onPolygonDrawn={setDraft}
+            flyTo={flyTo}
+          />
         </div>
 
         {/*
