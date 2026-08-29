@@ -140,7 +140,10 @@ jobs:
         run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Byte-compile sidecar
-        run: python -m py_compile sidecar/*.py
+        # Recursive, so the terra package is covered and not only the modules
+        # still sitting beside it. A glob of sidecar/*.py silently compiles
+        # nothing inside a directory added later.
+        run: python -m compileall -q sidecar
 
       - name: Pytest
         run: pytest sidecar/tests -q

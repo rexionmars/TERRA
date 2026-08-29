@@ -10,7 +10,7 @@ import joblib
 import numpy as np
 import pytest
 
-import infer
+from terra import actions, protocol, registry
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
 
@@ -18,14 +18,14 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
 def test_calculate_ndvi_known_values():
     nir = np.array([[0.8, 0.2]], dtype=float)
     red = np.array([[0.2, 0.2]], dtype=float)
-    ndvi = infer.calculate_ndvi(nir, red)
+    ndvi = actions.calculate_ndvi(nir, red)
     assert ndvi.shape == (1, 2)
     assert abs(ndvi[0, 0] - 0.6) < 1e-6
     assert abs(ndvi[0, 1] - 0.0) < 1e-6
 
 
 def test_calculate_ndvi_zero_denominator():
-    ndvi = infer.calculate_ndvi(np.zeros((2, 2)), np.zeros((2, 2)))
+    ndvi = actions.calculate_ndvi(np.zeros((2, 2)), np.zeros((2, 2)))
     assert np.all(ndvi == 0)
 
 
@@ -33,8 +33,8 @@ def test_calculate_evi_and_savi_finite():
     nir = np.full((3, 3), 0.5)
     red = np.full((3, 3), 0.2)
     blue = np.full((3, 3), 0.1)
-    evi = infer.calculate_evi(nir, red, blue)
-    savi = infer.calculate_savi(nir, red)
+    evi = actions.calculate_evi(nir, red, blue)
+    savi = actions.calculate_savi(nir, red)
     assert np.all(np.isfinite(evi))
     assert np.all(np.isfinite(savi))
     assert np.all((-1 <= evi) & (evi <= 1))
@@ -44,7 +44,7 @@ def test_calculate_evi_and_savi_finite():
 def test_compute_index_features_shape():
     # 4 pixels × 6 timesteps
     ts = np.random.default_rng(0).random((4, 6))
-    feat = infer.compute_index_features(ts)
+    feat = actions.compute_index_features(ts)
     assert feat.shape == (4, 14)
 
 
@@ -61,14 +61,14 @@ def test_polygon_from_geojson():
             ]
         ],
     }
-    poly = infer.polygon_from_geojson(geom)
+    poly = actions.polygon_from_geojson(geom)
     assert poly.is_valid
     assert poly.area > 0
 
 
 def test_class_statistics():
     cmap = np.array([[39, 39, 3], [21, -1, 3]], dtype=np.int32)
-    stats = infer.class_statistics(cmap)
+    stats = actions.class_statistics(cmap)
     assert stats
     assert stats[0]["pixels"] >= stats[-1]["pixels"]
     total_pct = sum(s["pct"] for s in stats)
@@ -97,7 +97,7 @@ def test_classify_from_features_rf_smoke():
     # Mild random features in a plausible reflectance/index range
     X = rng.normal(loc=0.3, scale=0.1, size=(n_valid, n_feat))
 
-    cmap, conf = infer.classify_from_features(X, valid, model, scaler, label_encoder)
+    cmap, conf = actions.classify_from_features(X, valid, model, scaler, label_encoder)
     assert cmap.shape == (h, w)
     assert conf.shape == (h, w)
     assert cmap[0, 0] == -1
@@ -116,15 +116,15 @@ def test_classify_from_features_rf_smoke():
 
 def test_request_number_defaults_only_on_absence():
     req = {"present_zero": 0, "present_value": 3.5, "explicit_null": None}
-    assert infer.request_number(req, "present_zero", 0.5) == 0.0
-    assert infer.request_number(req, "present_value", 0.5) == 3.5
-    assert infer.request_number(req, "missing", 0.5) == 0.5
-    assert infer.request_number(req, "explicit_null", 0.5) == 0.5
+    assert protocol.request_number(req, "present_zero", 0.5) == 0.0
+    assert protocol.request_number(req, "present_value", 0.5) == 3.5
+    assert protocol.request_number(req, "missing", 0.5) == 0.5
+    assert protocol.request_number(req, "explicit_null", 0.5) == 0.5
     # A default of None survives, for parameters whose absence is the signal.
-    assert infer.request_number(req, "missing", None) is None
-    assert infer.request_number({"utc_offset_hours": 0}, "utc_offset_hours",
+    assert protocol.request_number(req, "missing", None) is None
+    assert protocol.request_number({"utc_offset_hours": 0}, "utc_offset_hours",
                                 None) == 0.0
-    assert infer.request_number(req, "present_value", 0, int) == 3
+    assert protocol.request_number(req, "present_value", 0, int) == 3
 
 
 def test_request_number_carries_a_zero_degradation_rate_through():
@@ -135,7 +135,7 @@ def test_request_number_carries_a_zero_degradation_rate_through():
     """
     import energy
 
-    rate = infer.request_number(
+    rate = protocol.request_number(
         {"degradation_rate_per_year": 0.0}, "degradation_rate_per_year",
         energy.DEGRADATION_RATE_PER_YEAR,
     )
@@ -151,17 +151,17 @@ def test_request_number_carries_a_zero_degradation_rate_through():
 
 
 def test_request_positive_admits_zero_only_where_zero_is_a_value():
-    assert infer.request_positive({"a": 0}, "a", 1.0, allow_zero=True) == 0.0
-    assert infer.request_positive({}, "a", 1.0, allow_zero=True) == 1.0
-    assert infer.request_positive({"a": 2}, "a", 1.0) == 2.0
+    assert protocol.request_positive({"a": 0}, "a", 1.0, allow_zero=True) == 0.0
+    assert protocol.request_positive({}, "a", 1.0, allow_zero=True) == 1.0
+    assert protocol.request_positive({"a": 2}, "a", 1.0) == 2.0
     # Zero years of record and a zero ground coverage ratio are broken
     # requests, not values: substituting the default would report a figure the
     # caller did not ask for under a parameter they did set.
     for bad in ({"a": 0}, {"a": -1}):
         with pytest.raises(SystemExit):
-            infer.request_positive(bad, "a", 1.0)
+            protocol.request_positive(bad, "a", 1.0)
     with pytest.raises(SystemExit):
-        infer.request_positive({"a": -1}, "a", 1.0, allow_zero=True)
+        protocol.request_positive({"a": -1}, "a", 1.0, allow_zero=True)
 
 
 def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
@@ -177,7 +177,7 @@ def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
     b = (-53.5362, -25.5)
     assert solar.grid_key(*a) != solar.grid_key(*b)
     assert wind.grid_key(*a) == wind.grid_key(*b)
-    assert infer.power_cell_key(*a) == infer.power_cell_key(*b)
+    assert actions.power_cell_key(*a) == actions.power_cell_key(*b)
 
     # Both grids have to agree, because 0.625 does not divide 1.0: these two
     # points share one MERRA-2 longitude cell and straddle the boundary between
@@ -185,7 +185,7 @@ def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
     # would return one series under two different radiation cells.
     c, d = (-53.6, -25.5), (-53.45, -25.5)
     assert wind.grid_key(*c) == wind.grid_key(*d)
-    assert infer.power_cell_key(*c) != infer.power_cell_key(*d)
+    assert actions.power_cell_key(*c) != actions.power_cell_key(*d)
 
 
 def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
@@ -206,15 +206,15 @@ def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
 
     args = (tmp_path, "hourly", -53.5048, -25.7434, "20160101", "20251231",
             ["ALLSKY_SFC_SW_DWN"])
-    first, first_provenance = infer.cached_power_series(*args, fetch)
+    first, first_provenance = actions.cached_power_series(*args, fetch)
     assert calls == [1]
     assert first_provenance["source"] == "fetch"
     assert first_provenance["fetched_utc"].endswith("+00:00")
-    assert first_provenance["cell_key"] == infer.power_cell_key(
+    assert first_provenance["cell_key"] == actions.power_cell_key(
         -53.5048, -25.7434
     )
 
-    second, second_provenance = infer.cached_power_series(*args, fetch)
+    second, second_provenance = actions.cached_power_series(*args, fetch)
     assert calls == [1]
     assert second.equals(first)
     assert second_provenance["source"] == "cache"
@@ -226,7 +226,7 @@ def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
     # A stored file with no stamp reports an unknown fetch date, not a fresh one.
     for stamp in tmp_path.glob("*.parquet.json"):
         stamp.unlink()
-    _, third_provenance = infer.cached_power_series(*args, fetch)
+    _, third_provenance = actions.cached_power_series(*args, fetch)
     assert calls == [1]
     assert third_provenance["source"] == "cache"
     assert third_provenance["fetched_utc"] is None
@@ -247,7 +247,7 @@ def test_the_cached_power_series_is_reused_across_the_cell_not_the_centroid():
     with tempfile.TemporaryDirectory() as d:
         cache = Path(d)
         for lon, lat in ((-53.5048, -25.7434), (-53.5362, -25.5)):
-            infer.cached_power_series(
+            actions.cached_power_series(
                 cache, "hourly", lon, lat, "20160101", "20251231",
                 ["ALLSKY_SFC_SW_DWN"], fetch,
             )
@@ -283,16 +283,16 @@ def test_class_spectra_reports_the_corrected_convention_not_the_trained_one(
     labelled "reflectance" that shows the first is off by the offset in every
     band.
     """
-    dn = {b: 1400 for b in infer.BAND_WAVELENGTH_NM}
+    dn = {b: 1400 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn)
-    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
     cmap = np.full((4, 4), 39, dtype=np.int32)
 
-    payload = infer.class_spectra(products, None, None, cmap, min_pixels=1)
+    payload = actions.class_spectra(products, None, None, cmap, min_pixels=1)
 
     assert payload is not None
     means = {p["band"]: p["mean"] for p in payload["points"]}
-    assert set(means) == set(infer.BAND_WAVELENGTH_NM)
+    assert set(means) == set(actions.BAND_WAVELENGTH_NM)
     for band, mean in means.items():
         assert abs(mean - 0.04) < 1e-9, band
     assert "offset applied" in payload["convention"]
@@ -303,11 +303,11 @@ def test_class_spectra_names_the_one_acquisition_it_measured(monkeypatch):
     The classification spans the period; the spectrum does not. Which scene it
     came from has to travel with it, or the curve reads as a seasonal mean.
     """
-    dn = {b: 1200 for b in infer.BAND_WAVELENGTH_NM}
+    dn = {b: 1200 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn, n=5)
-    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
 
-    payload = infer.class_spectra(
+    payload = actions.class_spectra(
         products, None, None, np.full((4, 4), 3, dtype=np.int32), min_pixels=1
     )
 
@@ -322,13 +322,13 @@ def test_class_spectra_drops_a_class_too_small_to_average(monkeypatch):
     Under the floor the mean is a handful of pixels. Dropping the class states
     less than drawing it at a precision the sample does not carry.
     """
-    dn = {b: 1500 for b in infer.BAND_WAVELENGTH_NM}
+    dn = {b: 1500 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn, shape=(10, 10))
-    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
     cmap = np.full((10, 10), 39, dtype=np.int32)
     cmap[0, :3] = 21  # three pixels, under the floor
 
-    payload = infer.class_spectra(products, None, None, cmap, min_pixels=30)
+    payload = actions.class_spectra(products, None, None, cmap, min_pixels=30)
 
     ids = {p["class_id"] for p in payload["points"]}
     assert ids == {39}
@@ -337,20 +337,20 @@ def test_class_spectra_drops_a_class_too_small_to_average(monkeypatch):
 def test_class_spectra_is_absent_rather_than_empty_when_nothing_is_classified(
     monkeypatch,
 ):
-    dn = {b: 1500 for b in infer.BAND_WAVELENGTH_NM}
+    dn = {b: 1500 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn)
-    monkeypatch.setattr(infer, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
 
-    assert infer.class_spectra(
+    assert actions.class_spectra(
         products, None, None, np.full((4, 4), -1, dtype=np.int32)
     ) is None
-    assert infer.class_spectra(
+    assert actions.class_spectra(
         [], None, None, np.full((4, 4), 39, dtype=np.int32)
     ) is None
 
 
 class _Transform:
-    """The affine fields infer.py reads, without pulling in rasterio."""
+    """The affine fields actions.py reads, without pulling in rasterio."""
 
     def __init__(self, a, e, f):
         self.a, self.e, self.f = a, e, f
@@ -371,7 +371,7 @@ def test_reference_pixel_size_reads_a_projected_grid_directly():
         "crs": _Crs(False),
         "height": 446,
     }
-    assert infer.reference_pixel_size_m(profile) == 10.0
+    assert actions.reference_pixel_size_m(profile) == 10.0
 
 
 def test_reference_pixel_size_converts_a_geographic_grid():
@@ -385,7 +385,7 @@ def test_reference_pixel_size_converts_a_geographic_grid():
         "crs": _Crs(True),
         "height": 100,
     }
-    metres = infer.reference_pixel_size_m(profile)
+    metres = actions.reference_pixel_size_m(profile)
     # 1e-4 degrees of longitude at the equator, where cos is 1.
     assert abs(metres - 11.132) < 1e-6
 
@@ -399,14 +399,14 @@ def test_spectral_angle_ignores_brightness_but_not_shape():
     whose shape differs must not return zero, or it could not measure anything.
     """
     leaf = [0.06, 0.13, 0.05, 0.47, 0.47, 0.32, 0.19]
-    assert infer.spectral_angle(leaf, leaf) == pytest.approx(0.0, abs=1e-9)
+    assert actions.spectral_angle(leaf, leaf) == pytest.approx(0.0, abs=1e-9)
     shaded = [v * 0.4 for v in leaf]
-    assert infer.spectral_angle(leaf, shaded) == pytest.approx(0.0, abs=1e-9)
+    assert actions.spectral_angle(leaf, shaded) == pytest.approx(0.0, abs=1e-9)
     # Red up and NIR down, which is what soil and row shadow do to a canopy.
     distorted = list(leaf)
     distorted[2] *= 1.7
     distorted[3] *= 0.49
-    assert infer.spectral_angle(leaf, distorted) > 0.1
+    assert actions.spectral_angle(leaf, distorted) > 0.1
 
 
 def test_spectral_angle_holds_scale_invariance_at_every_scale():
@@ -428,7 +428,7 @@ def test_spectral_angle_holds_scale_invariance_at_every_scale():
     for scale in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9,
                   1.1, 1.3, 1.7, 2.0, 3.0, 5.0, 10.0):
         scaled = [v * scale for v in leaf]
-        angle = infer.spectral_angle(leaf, scaled)
+        angle = actions.spectral_angle(leaf, scaled)
         assert angle == pytest.approx(0.0, abs=1e-12), (
             f"the same material at {scale}x brightness reads as {angle:.3e} rad "
             f"from itself; the angle is measuring illumination"
@@ -440,9 +440,9 @@ def test_library_limit_measures_the_leaf_to_canopy_distortion(tmp_path):
     The reported ratio is canopy over leaf, per band, and the angle is taken on
     the same seven bands the reference carries.
     """
-    reference = json.loads(infer.SOYBEAN_REFERENCE.read_text())["reference"]
+    reference = json.loads(actions.SOYBEAN_REFERENCE.read_text())["reference"]
     leaf = {b["band"]: b["reflectance"] for b in reference["bands"]}
-    bands = [b for b, _ in infer.TERRA_BANDS]
+    bands = [b for b, _ in actions.TERRA_BANDS]
 
     # A class that IS the reference, scaled: same shape, so angle zero.
     spectra = {
@@ -450,14 +450,14 @@ def test_library_limit_measures_the_leaf_to_canopy_distortion(tmp_path):
         "points": [
             {
                 "class_id": 39, "name": "Soybean", "color": "#f5b3c8",
-                "band": b, "wavelength_nm": infer.BAND_WAVELENGTH_NM[b],
+                "band": b, "wavelength_nm": actions.BAND_WAVELENGTH_NM[b],
                 "n_pixels": 1000, "mean": leaf[b] * 0.5,
                 "sd": 0.0, "p05": 0.0, "p95": 0.0,
             }
             for b in bands
         ],
     }
-    payload = infer.library_limit(spectra)
+    payload = actions.library_limit(spectra)
 
     assert payload is not None
     assert payload["reference"]["n_spectra"] == 1131
@@ -473,21 +473,21 @@ def test_library_limit_skips_a_class_missing_a_band():
     A partial vector is an angle in a different space, not a smaller one, so
     the class is dropped rather than compared on whatever bands it has.
     """
-    reference = json.loads(infer.SOYBEAN_REFERENCE.read_text())["reference"]
+    reference = json.loads(actions.SOYBEAN_REFERENCE.read_text())["reference"]
     leaf = {b["band"]: b["reflectance"] for b in reference["bands"]}
-    bands = [b for b, _ in infer.TERRA_BANDS][:-1]  # B12 absent
+    bands = [b for b, _ in actions.TERRA_BANDS][:-1]  # B12 absent
     spectra = {
         "points": [
             {
                 "class_id": 3, "name": "Forest Formation", "color": "#006400",
-                "band": b, "wavelength_nm": infer.BAND_WAVELENGTH_NM[b],
+                "band": b, "wavelength_nm": actions.BAND_WAVELENGTH_NM[b],
                 "n_pixels": 500, "mean": leaf[b],
                 "sd": 0.0, "p05": 0.0, "p95": 0.0,
             }
             for b in bands
         ],
     }
-    assert infer.library_limit(spectra) is None
+    assert actions.library_limit(spectra) is None
 
 
 # The flood envelope dispatcher.
@@ -564,7 +564,7 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
     reads = _flood_reads()
     monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: reads)
 
-    infer.action_flood_envelope(
+    actions.action_flood_envelope(
         {
             "polygon_geojson": {
                 "type": "Polygon",
@@ -659,7 +659,7 @@ def _flood_run(tmp_path, monkeypatch, capsys, coordinates):
     import dem
 
     monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: _flood_reads())
-    infer.action_flood_envelope(
+    actions.action_flood_envelope(
         {
             "polygon_geojson": {"type": "Polygon", "coordinates": [coordinates]},
             "drainage_km2": 0.02,
@@ -773,7 +773,7 @@ def test_the_flood_reporting_mask_follows_the_polygon_cell_by_cell():
     polygon = box(WINDOW_LON_MIN, WINDOW_LAT_MAX - 2.2 * CELL_DEG,
                   WINDOW_LON_MIN + 2.2 * CELL_DEG, WINDOW_LAT_MAX)
 
-    mask = infer.aoi_reporting_mask(polygon, grid)
+    mask = actions.aoi_reporting_mask(polygon, grid)
 
     assert mask.shape == (WINDOW_ROWS, WINDOW_COLS)
     # Centres sit at 0.5, 1.5 and 2.5 cells: the first two are inside the
@@ -791,7 +791,7 @@ def test_the_flood_envelope_refuses_an_aoi_it_cannot_hold_in_memory(capsys):
     reading them at a resolution none of them has changes that measurement.
     """
     with pytest.raises(SystemExit):
-        infer.action_flood_envelope(
+        actions.action_flood_envelope(
             {
                 "polygon_geojson": {
                     "type": "Polygon",
@@ -820,7 +820,7 @@ def test_the_renamed_ring_parameter_is_refused_under_its_old_name(capsys):
     from inside the AOI polygon.
     """
     with pytest.raises(SystemExit):
-        infer.action_flood_envelope(
+        actions.action_flood_envelope(
             {
                 "polygon_geojson": {
                     "type": "Polygon",
@@ -837,7 +837,7 @@ def test_the_renamed_ring_parameter_is_refused_under_its_old_name(capsys):
 
 def test_the_flood_envelope_needs_two_products_and_says_which_exist(capsys):
     with pytest.raises(SystemExit):
-        infer.action_flood_envelope(
+        actions.action_flood_envelope(
             {
                 "polygon_geojson": {
                     "type": "Polygon",
@@ -865,17 +865,17 @@ def test_the_common_window_trims_the_alignment_sliver_but_not_an_interior_void()
     sliver[:, -1] = np.nan
     # One column costs one column, not the four rows a row-first peel would
     # spend before reaching it.
-    assert infer.common_covered_window([full, sliver], 4) == (0, 6, 0, 7)
+    assert actions.common_covered_window([full, sliver], 4) == (0, 6, 0, 7)
 
     holed = full.copy()
     holed[3, 4] = np.nan
-    assert infer.common_covered_window([full, holed], 4) is None
+    assert actions.common_covered_window([full, holed], 4) is None
 
     # And a sliver wider than the alignment can explain is not a sliver.
     wide = full.copy()
     wide[:, -5:] = np.nan
-    assert infer.common_covered_window([full, wide], 4) is None
-    assert infer.common_covered_window([full, np.full((6, 8), np.nan)], 4) is None
+    assert actions.common_covered_window([full, wide], 4) is None
+    assert actions.common_covered_window([full, np.full((6, 8), np.nan)], 4) is None
 
 
 def test_the_agreement_colouring_leaves_the_cells_no_product_calls_wet_clear():
@@ -885,7 +885,7 @@ def test_the_agreement_colouring_leaves_the_cells_no_product_calls_wet_clear():
     a flood over the whole AOI at an opacity a reader reads as shallow water.
     """
     counts = np.array([[0, 1], [2, 4]], dtype=np.uint8)
-    rgba = infer.agreement_rgba(counts, 4)
+    rgba = actions.agreement_rgba(counts, 4)
 
     assert rgba.shape == (2, 2, 4)
     assert rgba[0, 0, 3] == 0
@@ -897,7 +897,7 @@ def test_the_agreement_colouring_leaves_the_cells_no_product_calls_wet_clear():
 
 
 def test_the_flood_envelope_is_registered_under_the_name_the_shell_sends():
-    assert infer.ACTIONS["flood_envelope"] is infer.action_flood_envelope
+    assert registry.resolve("flood_envelope") is actions.action_flood_envelope
 
 
 FLOOD_FIXTURE = (
