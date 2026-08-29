@@ -47,8 +47,7 @@ from dataclasses import dataclass
 import numpy as np
 
 import hand
-
-STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
+from terra import stac
 
 
 @dataclass(frozen=True)
@@ -406,8 +405,6 @@ def fetch(polygon, collection, buffer_m, progress=None):
     sidecar. Signing is `pc.sign_inplace` on the client, the same route
     solar.py takes, so the hrefs come back already signed and no key is needed.
     """
-    import planetary_computer as pc
-    import pystac_client
     from shapely.geometry import box
 
     product = resolve(collection)
@@ -415,13 +412,10 @@ def fetch(polygon, collection, buffer_m, progress=None):
 
     if progress:
         progress(f"{product.id}: searching {product.collection}")
-    catalog = pystac_client.Client.open(STAC_URL, modifier=pc.sign_inplace)
     # The buffered window, not the AOI. Searching by the AOI would miss a tile
     # that intersects only the buffer ring, and the merge would then leave a
     # hole in precisely the band the buffer was added to cover.
-    items = list(
-        catalog.search(collections=[product.collection], intersects=box(*window)).items()
-    )
+    items = stac.search(product.collection, intersects=box(*window))
     if not items:
         raise RuntimeError(f"no {product.collection} tile covers this AOI")
 

@@ -75,7 +75,7 @@ from class_palette import (  # noqa: E402
 
 # The stdin/stdout/stderr contract, and the two readers every numeric
 # request parameter goes through.
-from terra import protocol  # noqa: E402
+from terra import protocol, stac  # noqa: E402
 
 
 # --- Polygon / study area --------------------------------------------------
@@ -167,47 +167,15 @@ def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
             set (22 dates), keeping the temporal-statistic features comparable to
             the trained model. When False, all scenes below max_cloud are kept.
     """
-    import time
-    import pystac_client
-    import planetary_computer
-
     bounds = polygon.bounds
 
-    # The Planetary Computer STAC endpoint occasionally returns transient 5xx
-    # (502/503/504) or times out under load. Retry the catalog open + search +
-    # item paging with exponential backoff so a momentary outage does not abort
-    # the whole run.
-    attempts = 4
-    items = None
-    last_err = None
-    for attempt in range(attempts):
-        try:
-            catalog = pystac_client.Client.open(
-                stac_url, modifier=planetary_computer.sign_inplace
-            )
-            search = catalog.search(
-                collections=[collection],
-                bbox=[bounds[0], bounds[1], bounds[2], bounds[3]],
-                datetime=f'{start}/{end}',
-                query={'eo:cloud_cover': {'lt': max_cloud}},
-            )
-            items = list(search.items())  # triggers HTTP paging
-            break
-        except Exception as e:
-            last_err = e
-            if attempt < attempts - 1:
-                wait = 2 ** attempt  # 1s, 2s, 4s
-                sys.stderr.write(json.dumps({
-                    'progress': -1,
-                    'msg': f'STAC unavailable, retrying in {wait}s ({attempt + 1}/{attempts})',
-                }) + '\n')
-                sys.stderr.flush()
-                time.sleep(wait)
-    if items is None:
-        raise RuntimeError(
-            'the Sentinel-2 STAC service (Planetary Computer) is temporarily '
-            'unavailable; please try again in a moment'
-        ) from last_err
+    items = stac.search(
+        collection,
+        bbox=[bounds[0], bounds[1], bounds[2], bounds[3]],
+        datetime=f'{start}/{end}',
+        query={'eo:cloud_cover': {'lt': max_cloud}},
+        url=stac_url,
+    )
 
     # B02/B03/B04/B08 are required by the spectral model; B8A/B11/B12 are also
     # collected (present in Planetary Computer assets) so the Prithvi path has

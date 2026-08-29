@@ -37,6 +37,8 @@ import functools
 import numpy as np
 import pandas as pd
 
+from terra import stac
+
 POWER_BASE = "https://power.larc.nasa.gov/api/temporal"
 POWER_COMMUNITY = "RE"
 POWER_TIME_STANDARD = "UTC"
@@ -980,17 +982,10 @@ def fetch_dem(polygon, out_path, buffer_m: float = 0.0) -> str:
     pixels inside it. Without it, a ridge just beyond the boundary is invisible
     and the pixels it shades are reported as unshaded.
     """
-    import planetary_computer as pc
-    import pystac_client
     import rasterio
     from rasterio.windows import from_bounds
 
-    catalog = pystac_client.Client.open(
-        "https://planetarycomputer.microsoft.com/api/stac/v1",
-        modifier=pc.sign_inplace,
-    )
-    search = catalog.search(collections=[DEM_COLLECTION], intersects=polygon)
-    items = list(search.items())
+    items = stac.search(DEM_COLLECTION, intersects=polygon)
     if not items:
         raise RuntimeError("no Copernicus DEM tile covers this AOI")
 
