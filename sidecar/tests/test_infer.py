@@ -504,7 +504,7 @@ def _flood_grid(height, width, step_deg, lon_min=-53.54, lat_max=-25.71):
     import rasterio
     from rasterio.transform import Affine
 
-    import dem
+    from terra.terrain import dem
 
     transform = Affine.translation(lon_min, lat_max) * Affine.scale(step_deg, -step_deg)
     return dem.Grid(transform=transform, width=width, height=height,
@@ -523,7 +523,7 @@ def _flood_reads(height=48, width=52):
     Four products over one window: three on the reference grid, one at 3x the
     cell size, which is the arrangement Planetary Computer actually returns.
     """
-    import dem
+    from terra.terrain import dem
 
     step = 1.0 / 3600.0
     reference = _flood_grid(height, width, step)
@@ -558,7 +558,7 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
     against arrives under "flood", and the agreement raster leaves as files
     because it cannot travel as JSON.
     """
-    import dem
+    from terra.terrain import dem
     import rasterio
 
     reads = _flood_reads()
@@ -656,7 +656,7 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
 
 def _flood_run(tmp_path, monkeypatch, capsys, coordinates):
     """The action over one polygon, with the catalogue replaced by _flood_reads."""
-    import dem
+    from terra.terrain import dem
 
     monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: _flood_reads())
     actions.action_flood_envelope(

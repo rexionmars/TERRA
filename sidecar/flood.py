@@ -47,7 +47,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-import hand
+from terra.terrain import hand
 
 # The study's sweep, unchanged, so a TERRA table can be laid beside the study's.
 THRESHOLDS_M = (1.0, 2.0, 5.0, 10.0, 20.0)

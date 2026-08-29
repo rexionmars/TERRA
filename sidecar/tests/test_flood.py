@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 import flood
-import hand
+from terra.terrain import hand
 
 DX = DY = 30.0
 DRAINAGE_KM2 = 0.02

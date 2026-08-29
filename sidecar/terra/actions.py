@@ -3222,7 +3222,7 @@ def action_flood_envelope(req, work_dir):
     # and one missing dependency would fail the sidecar for every product
     # instead of for this one.
     import composite as comp
-    import dem as dem_mod
+    from terra.terrain import dem as dem_mod
     import flood as flood_mod
 
     configure_gdal_for_cog()

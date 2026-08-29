@@ -12,7 +12,7 @@ another opinion.
 import numpy as np
 import pytest
 
-import hand
+from terra.terrain import hand
 
 
 def test_flow_accumulation_on_a_plane_grows_by_one_per_row():

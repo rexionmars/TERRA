@@ -20,7 +20,7 @@ import rasterio
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-import dem
+from terra.terrain import dem
 import solar
 from terra import stac
 

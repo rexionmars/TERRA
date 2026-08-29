@@ -37,7 +37,7 @@ import functools
 import numpy as np
 import pandas as pd
 
-import dem
+from terra.terrain import dem
 from terra import stac
 
 POWER_BASE = "https://power.larc.nasa.gov/api/temporal"

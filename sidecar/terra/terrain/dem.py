@@ -1,31 +1,38 @@
 """
-Digital elevation models for the flood envelope: four products, one grid.
+Digital elevation models: four products, one grid, one way of reading them.
 
-The envelope this feeds measures how much of a HAND flood extent is decided by
-the terrain and how much by the choice of DEM. That measurement only exists if
-every product is read over the same ground, at the same moment, through the
-same code -- otherwise a difference between two products is a difference
-between two read paths and the number means nothing.
+Two chains read the ground. The flood envelope measures how much of a HAND
+extent is decided by the terrain and how much by the choice of DEM, which only
+means anything if every product is read over the same ground, at the same
+moment, through the same code. Solar terrain and siting read one product over
+one window. Both arrive here, and the reasons are the same in kind.
 
-WHAT THIS DOES THAT solar.fetch_dem DOES NOT.
+WHY THE WHOLE WINDOW, MERGED.
 
-solar.fetch_dem searches Planetary Computer and reads `items[0]`: the first
-tile, with no merge. Copernicus tiles are one degree, so an AOI crossing a tile
-edge silently receives a DEM covering part of itself. For slope and aspect that
-degrades in patches. For HAND it fails differently and worse: flow accumulation
-needs the contributing area upstream of each cell, so a DEM cut at the AOI edge
-truncates the drainage network, fewer cells clear the drainage-area threshold,
-and every cell whose water enters from outside references a drainage cell
-farther downstream than the real one. Its HAND comes out too high and the flood
-extent too small -- a plausible map, wrong in a direction nothing on screen
-would reveal. The study this ports never met the failure: it ran on a fixed AOI
-that already had a margin drawn around it.
+Copernicus tiles are one degree. Reading `items[0]` -- the first tile the
+catalogue returns, with no merge -- gives an AOI that crosses a tile edge a DEM
+covering part of itself. For slope and aspect that degrades in patches. For
+HAND it fails differently and worse: flow accumulation needs the contributing
+area upstream of each cell, so a DEM cut at the AOI edge truncates the drainage
+network, fewer cells clear the drainage-area threshold, and every cell whose
+water enters from outside references a drainage cell farther downstream than
+the real one. The HAND comes out too high and the flood extent too small -- a
+plausible map, wrong in a direction nothing on screen would reveal. The study
+this ports never met the failure: it ran on a fixed AOI that already had a
+margin drawn around it. solar.fetch_dem did meet it, until it was brought
+here.
 
-So this module merges every intersecting tile, and reads a buffer beyond the
-AOI so the drainage entering it is real terrain rather than a domain edge. The
-second bug it does not inherit: the STAC search here is by the BUFFERED window,
-not the AOI, or a tile intersecting only the buffer ring would never be
-returned and the merge would leave a hole exactly where the inflow is.
+So every intersecting tile is merged, over a window buffered beyond the AOI so
+the drainage entering it is real terrain rather than a domain edge. The search
+is by the BUFFERED window and not by the AOI, or a tile intersecting only the
+buffer ring would never be returned and the merge would leave a hole exactly
+where the inflow is.
+
+WHERE THE TWO CHAINS DIFFER, they differ by argument and not by module.
+`read_merged` refuses a window the tiles do not fill when `require_coverage` is
+set, which the envelope needs and the terrain read does not: Copernicus
+publishes no tile over the sea, so a coastal AOI has a gap that is a fact about
+the catalogue rather than a broken read.
 
 PROVENANCE. The study drew COP30, NASADEM, SRTMGL1 and COP90 from OpenTopography
 with an API key. Planetary Computer carries three of those four plus alos-dem
@@ -46,7 +53,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-import hand
+from terra.terrain import hand
 from terra import stac
 
 
