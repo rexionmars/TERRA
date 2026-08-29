@@ -25,7 +25,7 @@ import {
 import { mapPose, subscribeMapPose } from "@/lib/mapPose"
 import type { LayoutMode, PredictResult } from "@/lib/types"
 import {
-  LEAFLET_CREDIT,
+  MAPLIBRE_CREDIT,
   basemapByKind,
   type BasemapKind,
   type CreditPart,
@@ -278,7 +278,7 @@ export function TitleBar({
                 {/* Not telemetry, so it is not in the mono face the readings
                     use -- it is a sentence about who the imagery belongs to. */}
                 <span className="hidden max-w-[26rem] truncate font-sans normal-case xl:inline">
-                  <Credit part={LEAFLET_CREDIT} />
+                  <Credit part={MAPLIBRE_CREDIT} />
                   {credit.date ? ` \u00b7 imagery ${credit.date}` : ""}
                   {basemapByKind(credit.kind).credit.map((c, i) => (
                     <span key={c.label}>

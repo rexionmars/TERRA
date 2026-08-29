@@ -22,6 +22,8 @@ import { publishMapPose } from "@/lib/mapPose"
 import { boundsToLatLng, isZeroExtent } from "@/lib/mapLayers"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import {
+  pickContourEdge,
+  pointInAoi,
   polygonOuterRing,
   ringCentroid,
   type LonLat,
@@ -31,6 +33,7 @@ import {
   type AoiContourScheme,
   type AoiContourSchemeId,
 } from "@/lib/aoiStyle"
+import { SwipeDivider } from "@/components/map/SwipeDivider"
 import {
   AoiContextMenu,
   type AoiContextMenuState,
@@ -550,87 +553,6 @@ function MapDragLock({ locked }: { locked: boolean }) {
   return null
 }
 
-/** Vertical wipe handle overlaid on the map container (DOM, not a Leaflet layer). */
-function SwipeDivider({
-  ratio,
-  onRatioChange,
-  onDraggingChange,
-  rightLabel = "Prediction",
-}: {
-  ratio: number
-  onRatioChange: (ratio: number) => void
-  onDraggingChange: (dragging: boolean) => void
-  rightLabel?: string
-}) {
-  const trackRef = useRef<HTMLDivElement | null>(null)
-
-  const setFromClientX = (clientX: number) => {
-    const el = trackRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    if (rect.width <= 0) return
-    const next = Math.min(0.92, Math.max(0.08, (clientX - rect.left) / rect.width))
-    onRatioChange(next)
-  }
-
-  return (
-    <div
-      ref={trackRef}
-      className="map-swipe-track app-no-drag pointer-events-none absolute inset-0 z-[1050]"
-      aria-hidden={false}
-    >
-      <div
-        className="pointer-events-none absolute inset-y-0 w-px bg-white/85 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
-        style={{ left: `${ratio * 100}%`, transform: "translateX(-50%)" }}
-      />
-      <div
-        className="pointer-events-none absolute top-3 -translate-x-full rounded-sm bg-black/55 px-1.5 py-0.5 text-[10px] tracking-wide text-white/90"
-        style={{ left: `calc(${ratio * 100}% - 8px)` }}
-      >
-        Imagery
-      </div>
-      <div
-        className="pointer-events-none absolute top-3 translate-x-0 rounded-sm bg-black/55 px-1.5 py-0.5 text-[10px] tracking-wide text-white/90"
-        style={{ left: `calc(${ratio * 100}% + 8px)` }}
-      >
-        {rightLabel}
-      </div>
-      <button
-        type="button"
-        aria-label={`Drag to compare imagery and ${rightLabel.toLowerCase()}`}
-        className="map-swipe-handle pointer-events-auto absolute top-1/2 flex h-11 w-7 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border border-white/70 bg-black/55 shadow-md outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-        style={{ left: `${ratio * 100}%` }}
-        onPointerDown={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          const target = e.currentTarget
-          target.setPointerCapture(e.pointerId)
-          onDraggingChange(true)
-          setFromClientX(e.clientX)
-        }}
-        onPointerMove={(e) => {
-          if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-          e.preventDefault()
-          e.stopPropagation()
-          setFromClientX(e.clientX)
-        }}
-        onPointerUp={(e) => {
-          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-            e.currentTarget.releasePointerCapture(e.pointerId)
-          }
-          onDraggingChange(false)
-        }}
-        onPointerCancel={() => onDraggingChange(false)}
-      >
-        <span className="flex gap-0.5" aria-hidden>
-          <span className="h-4 w-0.5 rounded-full bg-white/90" />
-          <span className="h-4 w-0.5 rounded-full bg-white/90" />
-        </span>
-      </button>
-    </div>
-  )
-}
-
 /**
  * leaflet-draw integration: a single-polygon draw tool with edit/clear.
  *
@@ -788,46 +710,6 @@ export function DrawControl({
   return null
 }
 
-/** Ray-cast point-in-polygon (lon/lat), for AOI right-click hit testing. */
-function pointInRing(lon: number, lat: number, ring: LonLat[]): boolean {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0]
-    const yi = ring[i][1]
-    const xj = ring[j][0]
-    const yj = ring[j][1]
-    const intersect =
-      yi > lat !== yj > lat &&
-      lon < ((xj - xi) * (lat - yi)) / (yj - yi + Number.EPSILON) + xi
-    if (intersect) inside = !inside
-  }
-  return inside
-}
-
-function pointInAoi(lon: number, lat: number, geometry: GeoJSONGeometry): boolean {
-  if (geometry.type === "Polygon") {
-    const coords = geometry.coordinates as LonLat[][]
-    const outer = coords[0]
-    if (!outer || !pointInRing(lon, lat, outer)) return false
-    for (let h = 1; h < coords.length; h++) {
-      if (pointInRing(lon, lat, coords[h])) return false
-    }
-    return true
-  }
-  if (geometry.type === "MultiPolygon") {
-    const multi = geometry.coordinates as unknown as LonLat[][][]
-    return multi.some((poly) => {
-      const outer = poly[0]
-      if (!outer || !pointInRing(lon, lat, outer)) return false
-      for (let h = 1; h < poly.length; h++) {
-        if (pointInRing(lon, lat, poly[h])) return false
-      }
-      return true
-    })
-  }
-  return false
-}
-
 /**
  * Captures right-clicks on the map (including over prediction ImageOverlays).
  * Suppresses the Wails/browser menu and opens the AOI menu when inside the polygon.
@@ -880,43 +762,6 @@ function AoiRightClickBridge({
   }, [map, containerRefStable])
 
   return null
-}
-
-/** Longest edge in the southern band of the AOI — label glues to this segment. */
-function pickContourEdge(geometry: GeoJSONGeometry): {
-  a: LonLat
-  b: LonLat
-  mid: LonLat
-} | null {
-  const ring = polygonOuterRing(geometry)
-  if (!ring || ring.length < 2) return null
-
-  let latMin = Infinity
-  let latMax = -Infinity
-  for (const [, lat] of ring) {
-    if (lat < latMin) latMin = lat
-    if (lat > latMax) latMax = lat
-  }
-  const southBand = latMin + (latMax - latMin) * 0.4
-
-  let best: { a: LonLat; b: LonLat; mid: LonLat; score: number } | null = null
-  for (let i = 0; i < ring.length - 1; i++) {
-    const a = ring[i]
-    const b = ring[i + 1]
-    const mid: LonLat = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-    const dlon = b[0] - a[0]
-    const dlat = b[1] - a[1]
-    const len = Math.hypot(dlon, dlat)
-    if (len < 1e-12) continue
-    // Prefer southern long edges (Wheat Field labels sit on the bottom contour).
-    const southBonus = mid[1] <= southBand ? 3 : 1
-    const score = len * southBonus - (mid[1] - latMin) * 0.15
-    if (!best || score > best.score) {
-      best = { a, b, mid, score }
-    }
-  }
-  if (!best) return null
-  return { a: best.a, b: best.b, mid: best.mid }
 }
 
 /**

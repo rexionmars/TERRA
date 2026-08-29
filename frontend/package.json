@@ -30,6 +30,8 @@
     "recharts": "^2.15.0",
     "sonner": "^2.0.0",
     "tailwind-merge": "^3.3.0",
+    "terra-draw": "^1.32.3",
+    "terra-draw-maplibre-gl-adapter": "^1.4.1",
     "three": "^0.185.1"
   },
   "devDependencies": {

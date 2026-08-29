@@ -26,37 +26,12 @@ import { useEffect, useRef, useState } from "react"
 import { Compass, Globe2, TriangleAlert } from "lucide-react"
 import {
   Map as MapLibreMap,
-  setWorkerUrl,
   type GeoJSONSource,
   type MapMouseEvent,
   type Subscription,
 } from "maplibre-gl"
-/*
-  THE WORKER, POINTED AT EXPLICITLY. Without this the globe opens and never
-  finishes -- and says nothing about why, which is how it cost an afternoon.
-
-  MapLibre finds its worker as a sibling of its own module URL:
-
-      new URL("./maplibre-gl-worker.mjs", import.meta.url)   web_worker.ts
-
-  Under Vite that module is served from node_modules/.vite/deps, where the
-  dependency optimiser put a rewritten copy of the library and nothing else --
-  it never copies the worker, because no static import mentions it. The sibling
-  URL therefore 404s, the Worker never starts, and NOTHING REPORTS IT: raster
-  tiles are fetched on the main thread and load fine, so the map paints, while
-  every GeoJSON source stays stuck in _isUpdatingWorker forever. Style.loaded()
-  gates on every source, Map fires "load" only when Style.loaded() is true, and
-  so "load" never arrives. Measured, not guessed: 33 imagery tiles all `loaded`
-  beside one geojson source with `_sourceLoaded: undefined`.
-
-  `?worker&url` makes Vite bundle the worker AND the ~490 kB sibling module it
-  imports into one emitted file, and hand back its URL -- in dev and in the
-  build. `?url` alone would emit the 18 kB worker without that sibling and fail
-  the same way with a different 404.
-*/
-import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
-
-setWorkerUrl(maplibreWorkerUrl)
+// Points MapLibre at its worker; see the module for why that is not automatic.
+import "@/lib/maplibreWorker"
 
 import type { GlobeArea } from "@/components/globe/globeArea"
 import { basemapByKind, type BasemapKind } from "@/lib/basemaps"
