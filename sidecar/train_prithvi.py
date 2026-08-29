@@ -33,6 +33,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import accuracy_score, cohen_kappa_score, f1_score
 
 from terra import actions
+from terra.imagery import sentinel2
 import prithvi
 
 import warnings
@@ -49,7 +50,7 @@ def load_prithvi_band_stack(product, polygon, ref_profile):
         ("B02", "10m"), ("B03", "10m"), ("B04", "10m"),
         ("B8A", "20m"), ("B11", "20m"), ("B12", "20m"),
     ]:
-        arr = actions.load_band_to_reference_grid(product, name, polygon, ref_profile, resolution=res)
+        arr = sentinel2.load_band_to_reference_grid(product, name, polygon, ref_profile, resolution=res)
         bands.append(np.clip(arr / 10000.0, 0, 1))
     return np.stack(bands, axis=0).astype(np.float32)  # (6, H, W)
 
@@ -93,7 +94,7 @@ def main():
         sys.exit("polygon not found in KML")
     polygon = area["polygon"]
 
-    products = actions.list_sentinel_products(Path(args.sentinel), tile_list=args.tiles)
+    products = sentinel2.list_sentinel_products(Path(args.sentinel), tile_list=args.tiles)
     if not products:
         sys.exit("no .SAFE products found")
     # Representative acquisition: a summer soybean date if not specified.
@@ -106,7 +107,7 @@ def main():
     print(f"Representative acquisition: {target['date'].strftime('%Y-%m-%d')} "
           f"({target['tile']})")
 
-    ref_band, ref_profile = actions.load_and_clip_band(target, "B04", polygon)
+    ref_band, ref_profile = sentinel2.load_and_clip_band(target, "B04", polygon)
     band_stack = load_prithvi_band_stack(target, polygon, ref_profile)
     labels = reproject_mapbiomas(args.mapbiomas, ref_profile, ref_band)
 

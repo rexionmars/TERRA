@@ -51,11 +51,9 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 import rasterio
-from rasterio.mask import mask as rio_mask
 from rasterio.warp import reproject, Resampling
 from rasterio.windows import from_bounds
 from shapely.geometry import Polygon, shape
-from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 import joblib
 
@@ -75,7 +73,8 @@ from class_palette import (  # noqa: E402
 
 # The stdin/stdout/stderr contract, and the two readers every numeric
 # request parameter goes through.
-from terra import protocol, stac  # noqa: E402
+from terra import protocol  # noqa: E402
+from terra.imagery import cog, indices, sentinel2  # noqa: E402
 
 
 # --- Polygon / study area --------------------------------------------------
@@ -108,340 +107,6 @@ def parse_kml_coordinates(kml_path, target_name=None):
                 coords.append((lon, lat))
             return {'name': name_text, 'coordinates': coords, 'polygon': Polygon(coords)}
     return None
-
-
-# --- Sentinel-2 product discovery and band loading -------------------------
-
-def list_sentinel_products(data_path, tile_list=None):
-    """List Sentinel-2 SAFE directories, deduplicating by date (from notebooks)."""
-    products = {}
-    for safe_dir in sorted(data_path.rglob('*.SAFE')):
-        if not safe_dir.is_dir():
-            continue
-        name_parts = safe_dir.name.split('_')
-        if len(name_parts) < 6:
-            continue
-        tile_id = name_parts[5]
-        if tile_list and tile_id not in tile_list:
-            continue
-        date_str = name_parts[2][:8]
-        date_obj = datetime.strptime(date_str, '%Y%m%d')
-        if date_str in products:
-            existing_tile = products[date_str]['tile']
-            if tile_list:
-                existing_priority = tile_list.index(existing_tile) if existing_tile in tile_list else 999
-                new_priority = tile_list.index(tile_id) if tile_id in tile_list else 999
-                if new_priority >= existing_priority:
-                    continue
-            else:
-                continue
-        products[date_str] = {
-            'path': safe_dir,
-            'date': date_obj,
-            'satellite': name_parts[0],
-            'tile': tile_id,
-            'doy': date_obj.timetuple().tm_yday,
-        }
-    return sorted(products.values(), key=lambda x: x['date'])
-
-
-def list_stac_products(polygon, start, end, tile_list=None, max_cloud=100.0,
-                       monthly_best=True,
-                       collection='sentinel-2-l2a',
-                       stac_url='https://planetarycomputer.microsoft.com/api/stac/v1'):
-    """
-    Discover Sentinel-2 L2A products from a STAC catalog (Microsoft Planetary
-    Computer by default), returning the same product shape as
-    list_sentinel_products but with remote COG band hrefs in product['assets'].
-
-    Bands are read on demand via /vsicurl; only the polygon window and the four
-    required bands (B02, B03, B04, B08) are fetched, avoiding full SAFE downloads.
-
-    Parameters:
-        polygon: shapely Polygon (EPSG:4326)
-        start, end: 'YYYY-MM-DD' date strings (inclusive)
-        tile_list: optional MGRS tile filter, e.g. ['T22JBT', 'T21JZN']
-        max_cloud: maximum eo:cloud_cover percentage to accept
-        monthly_best: keep only the lowest-cloud scene per calendar month. This
-            approximates the ~1-scene-per-month cadence of the curated training
-            set (22 dates), keeping the temporal-statistic features comparable to
-            the trained model. When False, all scenes below max_cloud are kept.
-    """
-    bounds = polygon.bounds
-
-    items = stac.search(
-        collection,
-        bbox=[bounds[0], bounds[1], bounds[2], bounds[3]],
-        datetime=f'{start}/{end}',
-        query={'eo:cloud_cover': {'lt': max_cloud}},
-        url=stac_url,
-    )
-
-    # B02/B03/B04/B08 are required by the spectral model; B8A/B11/B12 are also
-    # collected (present in Planetary Computer assets) so the Prithvi path has
-    # its six bands. Missing extra bands do not drop the scene.
-    required_bands = ['B02', 'B03', 'B04', 'B08']
-    extra_bands = ['B8A', 'B11', 'B12']
-    products = {}
-    for item in items:
-        props = item.properties
-        dt = props.get('datetime', '')
-        date_obj = datetime.strptime(dt[:10], '%Y-%m-%d')
-        date_str = date_obj.strftime('%Y%m%d')
-
-        mgrs = props.get('s2:mgrs_tile') or ''
-        tile_id = 'T' + mgrs if mgrs and not mgrs.startswith('T') else mgrs
-        if tile_list and tile_id not in tile_list:
-            continue
-
-        cloud = float(props.get('eo:cloud_cover', 0.0))
-
-        assets = {}
-        ok = True
-        for band in required_bands:
-            if band not in item.assets:
-                ok = False
-                break
-            assets[band] = item.assets[band].href
-        if not ok:
-            continue
-        for band in extra_bands:
-            if band in item.assets:
-                assets[band] = item.assets[band].href
-
-        # Deduplicate by date, preferring tile_list order, then lower cloud cover.
-        if date_str in products:
-            prev = products[date_str]
-            if tile_list:
-                prev_pri = tile_list.index(prev['tile']) if prev['tile'] in tile_list else 999
-                new_pri = tile_list.index(tile_id) if tile_id in tile_list else 999
-                if new_pri > prev_pri:
-                    continue
-                if new_pri == prev_pri and cloud >= prev['cloud_cover']:
-                    continue
-            elif cloud >= prev['cloud_cover']:
-                continue
-
-        products[date_str] = {
-            'assets': assets,
-            'date': date_obj,
-            'satellite': props.get('platform', 'S2'),
-            'tile': tile_id,
-            'doy': date_obj.timetuple().tm_yday,
-            'cloud_cover': cloud,
-            'id': item.id,
-            # Which radiometric convention the DNs are in. See boa_add_offset:
-            # 04.00 and later carry BOA_ADD_OFFSET and earlier scenes do not,
-            # so the two cannot be converted by the same constant.
-            'processing_baseline': props.get('s2:processing_baseline'),
-            'preview_uri': (
-                item.assets['rendered_preview'].href
-                if 'rendered_preview' in item.assets
-                else ''
-            ),
-        }
-
-    result = sorted(products.values(), key=lambda x: x['date'])
-
-    if monthly_best:
-        by_month = {}
-        for p in result:
-            key = (p['date'].year, p['date'].month)
-            if key not in by_month or p['cloud_cover'] < by_month[key]['cloud_cover']:
-                by_month[key] = p
-        result = sorted(by_month.values(), key=lambda x: x['date'])
-
-    return result
-
-
-def find_band_file(safe_path, band_name, resolution='10m'):
-    """Find a band .jp2 within the SAFE directory structure (from notebooks)."""
-    granule_path = safe_path / 'GRANULE'
-    if not granule_path.exists():
-        return None
-    for granule in granule_path.iterdir():
-        img_path = granule / 'IMG_DATA' / f'R{resolution}'
-        if img_path.exists():
-            for f in img_path.iterdir():
-                if band_name in f.name and f.suffix == '.jp2':
-                    return f
-    return None
-
-
-def resolve_band_source(product, band_name, resolution='10m'):
-    """
-    Resolve a band to a readable raster reference for a product, supporting both
-    local SAFE products (product['path']) and STAC products (product['assets']).
-    Returns a path/href that rasterio can open (including remote /vsicurl COGs).
-    """
-    if product.get('assets'):
-        href = product['assets'].get(band_name)
-        if href is None:
-            raise FileNotFoundError(f'Band {band_name} not in STAC assets')
-        return href
-    band_file = find_band_file(product['path'], band_name, resolution)
-    if band_file is None:
-        raise FileNotFoundError(f"Band {band_name} not found in {product['path']}")
-    return band_file
-
-
-def clip_band_from_source(source, polygon):
-    """Open a raster source (local file or remote COG) and clip to the polygon."""
-    with rasterio.open(source) as src:
-        transformer = Transformer.from_crs('EPSG:4326', src.crs, always_xy=True)
-        projected_polygon = shp_transform(transformer.transform, polygon)
-        clipped, clipped_transform = rio_mask(src, [projected_polygon], crop=True, nodata=0)
-        profile = {
-            'transform': clipped_transform,
-            'crs': src.crs,
-            'height': clipped.shape[1],
-            'width': clipped.shape[2],
-        }
-    return clipped[0].astype(np.float32), profile
-
-
-def load_and_clip_band(product, band_name, polygon, resolution='10m'):
-    """
-    Load a Sentinel-2 band and clip it to the study-area polygon. Accepts either
-    a product dict (local SAFE or STAC) or, for backwards compatibility, a SAFE
-    Path object.
-    """
-    if not isinstance(product, dict):
-        product = {'path': product}
-    source = resolve_band_source(product, band_name, resolution)
-    return clip_band_from_source(source, polygon)
-
-
-QUANTIFICATION_VALUE = 10000.0
-BOA_ADD_OFFSET = -1000.0
-# Processing baseline 04.00, and the date it began producing. Either identifies
-# a product that carries the offset; the baseline is authoritative and the date
-# is the fallback for a catalogue that does not report one.
-BOA_OFFSET_FIRST_BASELINE = 4.0
-BOA_OFFSET_FIRST_DATE = datetime(2022, 1, 25)
-
-
-def boa_add_offset(product):
-    """
-    The radiometric offset this product's DNs carry, or zero.
-
-    Baseline 04.00 shifted the dynamic range by a constant so that reflectance
-    near zero would stop being clamped over dark surfaces, and recorded the
-    shift as BOA_ADD_OFFSET in the product metadata. Reflectance has been
-    (DN + offset) / QUANTIFICATION_VALUE ever since, and reading it as DN alone
-    overstates every band by 0.1.
-
-    Some catalogues harmonise this away and some do not. The Planetary
-    Computer, which this sidecar reads by default, does not: its items expose
-    no raster:bands scale or offset, so the correction belongs here.
-
-    Derived per product rather than hardcoded as a constant, because a scene
-    from before the switch carries no offset and subtracting one from it would
-    introduce the error this function exists to remove.
-    """
-    if not isinstance(product, dict):
-        return 0.0
-    baseline = product.get('processing_baseline')
-    if baseline:
-        try:
-            return (BOA_ADD_OFFSET
-                    if float(baseline) >= BOA_OFFSET_FIRST_BASELINE else 0.0)
-        except (TypeError, ValueError):
-            pass
-    acquired = product.get('date')
-    if isinstance(acquired, datetime):
-        return BOA_ADD_OFFSET if acquired >= BOA_OFFSET_FIRST_DATE else 0.0
-    # Neither field available: a local product with no metadata. Assume the
-    # pre-04.00 convention, which is what an archive predating the switch is.
-    return 0.0
-
-
-def to_reflectance(dn, product):
-    """
-    Surface reflectance from digital numbers, offset included.
-
-    Use this for every quantity that is REPORTED as reflectance or derived from
-    it: the vegetation indices, phenology, the water masks, the composites and
-    the canopy series. It is the physically correct conversion.
-
-    Do not use it to feed a trained model. See as_trained.
-    """
-    return (dn + boa_add_offset(product)) / QUANTIFICATION_VALUE
-
-
-def as_trained(dn):
-    """
-    The convention the shipped models were fitted under, which omits the offset.
-
-    A MODEL IS NOT A MEASUREMENT. The artifacts in model/ were fitted on inputs
-    built as DN / 10000 from 22 Sentinel-2 products acquired between 2024-05-04
-    and 2026-01-04 over tiles T21JZN and T22JBT. Every one of those postdates
-    baseline 04.00, so the training imagery carried the offset and the training
-    pipeline did not subtract it: the heads learned a feature space in which
-    every band sits 0.1 high, and they are self-consistent within it.
-
-    Nothing was mismatched before, therefore, and correcting inference alone is
-    what would create the mismatch. Measured over a Cascavel AOI, converting
-    these inputs with the offset moves 56.8 per cent of pixels and turns 70.8
-    per cent soybean into 62.0 per cent forest formation on cropland, which is
-    not an improvement in accuracy but a model answering a question it was
-    never asked.
-
-    So the seam is deliberate: everything the application reports as a physical
-    quantity uses to_reflectance, and the three model input paths use this. The
-    seam closes when the heads are refitted on offset-corrected inputs, at which
-    point this function is deleted rather than changed.
-    """
-    return dn / QUANTIFICATION_VALUE
-
-
-def load_reflectance_to_reference_grid(product, band_name, polygon, ref_profile,
-                                       resolution='10m'):
-    """`load_band_to_reference_grid` with the DN-to-reflectance step applied."""
-    return to_reflectance(
-        load_band_to_reference_grid(product, band_name, polygon, ref_profile,
-                                    resolution=resolution),
-        product,
-    )
-
-
-def load_band_to_reference_grid(product, band_name, polygon, ref_profile, resolution='10m'):
-    """Load a band and reproject to a reference grid if needed (from notebooks)."""
-    band, band_profile = load_and_clip_band(product, band_name, polygon, resolution)
-    if str(band_profile['crs']) == str(ref_profile['crs']):
-        if (band.shape[0] == ref_profile['height'] and band.shape[1] == ref_profile['width']):
-            return band
-    dst = np.zeros((ref_profile['height'], ref_profile['width']), dtype=np.float32)
-    reproject(
-        source=band, destination=dst,
-        src_transform=band_profile['transform'], src_crs=band_profile['crs'],
-        dst_transform=ref_profile['transform'], dst_crs=ref_profile['crs'],
-        resampling=Resampling.bilinear,
-    )
-    return dst
-
-
-# --- Vegetation indices ----------------------------------------------------
-
-def calculate_ndvi(nir, red):
-    with np.errstate(divide='ignore', invalid='ignore'):
-        ndvi = (nir - red) / (nir + red)
-        ndvi = np.where(np.isfinite(ndvi), ndvi, 0)
-    return np.clip(ndvi, -1, 1)
-
-
-def calculate_evi(nir, red, blue, G=2.5, C1=6.0, C2=7.5, L=1.0):
-    with np.errstate(divide='ignore', invalid='ignore'):
-        evi = G * (nir - red) / (nir + C1 * red - C2 * blue + L)
-        evi = np.where(np.isfinite(evi), evi, 0)
-    return np.clip(evi, -1, 1)
-
-
-def calculate_savi(nir, red, L=0.5):
-    with np.errstate(divide='ignore', invalid='ignore'):
-        savi = ((nir - red) / (nir + red + L)) * (1 + L)
-        savi = np.where(np.isfinite(savi), savi, 0)
-    return np.clip(savi, -1, 1)
 
 
 # --- Feature engineering (matches feature_names.joblib) ---------------------
@@ -482,16 +147,16 @@ def build_feature_matrix(products, polygon, ref_prof, n_dates_model):
     band_lists = {'B02': [], 'B03': [], 'B04': [], 'B08': []}
     for product in products:
         try:
-            blue = load_band_to_reference_grid(product, 'B02', polygon, ref_prof)
-            green = load_band_to_reference_grid(product, 'B03', polygon, ref_prof)
-            red = load_band_to_reference_grid(product, 'B04', polygon, ref_prof)
-            nir = load_band_to_reference_grid(product, 'B08', polygon, ref_prof)
+            blue = sentinel2.load_band_to_reference_grid(product, 'B02', polygon, ref_prof)
+            green = sentinel2.load_band_to_reference_grid(product, 'B03', polygon, ref_prof)
+            red = sentinel2.load_band_to_reference_grid(product, 'B04', polygon, ref_prof)
+            nir = sentinel2.load_band_to_reference_grid(product, 'B08', polygon, ref_prof)
             blue_r, green_r, red_r, nir_r = (
-                as_trained(blue), as_trained(green),
-                as_trained(red), as_trained(nir))
-            ndvi_list.append(calculate_ndvi(nir_r, red_r))
-            evi_list.append(calculate_evi(nir_r, red_r, blue_r))
-            savi_list.append(calculate_savi(nir_r, red_r))
+                sentinel2.as_trained(blue), sentinel2.as_trained(green),
+                sentinel2.as_trained(red), sentinel2.as_trained(nir))
+            ndvi_list.append(indices.calculate_ndvi(nir_r, red_r))
+            evi_list.append(indices.calculate_evi(nir_r, red_r, blue_r))
+            savi_list.append(indices.calculate_savi(nir_r, red_r))
             band_lists['B02'].append(blue_r)
             band_lists['B03'].append(green_r)
             band_lists['B04'].append(red_r)
@@ -647,13 +312,13 @@ def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None):
     best_rgb = None  # (red, green, blue, valid_mask)
     for product in products:
         try:
-            blue = load_reflectance_to_reference_grid(product, "B02", polygon, ref_prof)
-            green = load_reflectance_to_reference_grid(product, "B03", polygon, ref_prof)
-            red = load_reflectance_to_reference_grid(product, "B04", polygon, ref_prof)
-            nir = load_reflectance_to_reference_grid(product, "B08", polygon, ref_prof)
-            ndvi = calculate_ndvi(nir, red)
-            evi = calculate_evi(nir, red, blue)
-            savi = calculate_savi(nir, red)
+            blue = sentinel2.load_reflectance_to_reference_grid(product, "B02", polygon, ref_prof)
+            green = sentinel2.load_reflectance_to_reference_grid(product, "B03", polygon, ref_prof)
+            red = sentinel2.load_reflectance_to_reference_grid(product, "B04", polygon, ref_prof)
+            nir = sentinel2.load_reflectance_to_reference_grid(product, "B08", polygon, ref_prof)
+            ndvi = indices.calculate_ndvi(nir, red)
+            evi = indices.calculate_evi(nir, red, blue)
+            savi = indices.calculate_savi(nir, red)
             valid = ndvi != 0
             if not np.any(valid):
                 continue
@@ -755,10 +420,10 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
         bands = []
         try:
             for name, res in band_specs:
-                arr = load_band_to_reference_grid(
+                arr = sentinel2.load_band_to_reference_grid(
                     product, name, polygon, ref_profile, resolution=res
                 )
-                bands.append(np.clip(as_trained(arr), 0, 1).astype(np.float32))
+                bands.append(np.clip(sentinel2.as_trained(arr), 0, 1).astype(np.float32))
             frames.append(np.stack(bands, axis=0))
         except Exception as e:
             sys.stderr.write(json.dumps({"progress": -1, "msg": f"TT band error: {e}"}) + "\n")
@@ -914,10 +579,10 @@ def class_spectra(products, polygon, ref_profile, classification_map,
     same one the reference implementation in experiments/ measures, and it is
     named in the payload so the figure is not read as a seasonal mean.
 
-    to_reflectance, not as_trained: this is REPORTED as a physical quantity, so
+    sentinel2.to_reflectance, not sentinel2.as_trained: this is REPORTED as a physical quantity, so
     it carries the baseline 04.00 offset. The classifier that produced
     classification_map consumed the uncorrected convention it was fitted under,
-    which is the seam documented on as_trained -- the labels come from one
+    which is the seam documented on sentinel2.as_trained -- the labels come from one
     space, the reflectance reported for them from the other.
 
     Returns None when nothing can be measured, rather than an empty shell.
@@ -932,7 +597,7 @@ def class_spectra(products, polygon, ref_profile, classification_map,
     bands = {}
     for name, resolution in TERRA_BANDS:
         try:
-            bands[name] = load_reflectance_to_reference_grid(
+            bands[name] = sentinel2.load_reflectance_to_reference_grid(
                 scene, name, polygon, ref_profile, resolution=resolution)
         except Exception as e:
             sys.stderr.write(json.dumps({
@@ -1172,8 +837,8 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
     bands = []
     for name, res in [('B02', '10m'), ('B03', '10m'), ('B04', '10m'),
                       ('B8A', '20m'), ('B11', '20m'), ('B12', '20m')]:
-        arr = load_band_to_reference_grid(target, name, polygon, ref_profile, resolution=res)
-        bands.append(np.clip(as_trained(arr), 0, 1))
+        arr = sentinel2.load_band_to_reference_grid(target, name, polygon, ref_profile, resolution=res)
+        bands.append(np.clip(sentinel2.as_trained(arr), 0, 1))
     band_stack = np.stack(bands, axis=0).astype(np.float32)
 
     ref0 = bands[2]  # B04
@@ -1205,16 +870,6 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
 
 
 # --- Main ------------------------------------------------------------------
-
-def configure_gdal_for_cog():
-    """Tune GDAL/rasterio for efficient remote COG range reads."""
-    import os
-    os.environ.setdefault('GDAL_DISABLE_READDIR_ON_OPEN', 'EMPTY_DIR')
-    os.environ.setdefault('CPL_VSIL_CURL_ALLOWED_EXTENSIONS', '.tif,.TIF,.tiff')
-    os.environ.setdefault('GDAL_HTTP_MULTIRANGE', 'YES')
-    os.environ.setdefault('GDAL_HTTP_MERGE_CONSECUTIVE_RANGES', 'YES')
-    os.environ.setdefault('VSI_CACHE', 'TRUE')
-
 
 def power_cache_dir(req):
     """
@@ -2123,7 +1778,7 @@ def action_list_datacube(req, work_dir):
         protocol.fail('no polygon provided (polygon_geojson or kml_path required)')
     protocol.emit_progress(20, 'querying STAC catalog (Planetary Computer)')
     try:
-        products = list_stac_products(
+        products = sentinel2.list_stac_products(
             polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
             monthly_best=monthly_best,
         )
@@ -2312,10 +1967,9 @@ def action_solar_terrain(req, work_dir):
     import solar as solar_mod
     import composite as comp
     import rasterio
-    from rasterio.warp import reproject as rio_reproject, Resampling as RioResampling
     from datetime import date as _date
 
-    configure_gdal_for_cog()
+    cog.configure()
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
@@ -2575,7 +2229,7 @@ def action_solar_siting(req, work_dir):
     import composite as comp
     import rasterio
 
-    configure_gdal_for_cog()
+    cog.configure()
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
@@ -2862,7 +2516,7 @@ def action_energy_model(req, work_dir):
     elif siting_classes:
         class_areas = siting_classes
     else:
-        configure_gdal_for_cog()
+        cog.configure()
         slope_acceptable = protocol.request_number(
             req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
         )
@@ -3225,7 +2879,7 @@ def action_flood_envelope(req, work_dir):
     from terra.terrain import dem as dem_mod
     import flood as flood_mod
 
-    configure_gdal_for_cog()
+    cog.configure()
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
@@ -3550,7 +3204,7 @@ def action_water(req, work_dir):
     import water as water_mod
     import composite as comp
 
-    configure_gdal_for_cog()
+    cog.configure()
     start = req.get('start')
     end = req.get('end')
     max_cloud = float(req.get('max_cloud', 100.0))
@@ -3567,7 +3221,7 @@ def action_water(req, work_dir):
 
     protocol.emit_progress(10, 'querying STAC catalog (Planetary Computer)')
     try:
-        products = list_stac_products(
+        products = sentinel2.list_stac_products(
             polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
             monthly_best=monthly_best,
         )
@@ -3577,7 +3231,7 @@ def action_water(req, work_dir):
         protocol.fail('no scenes found for this period and cloud filter')
 
     # The reference grid comes from B04 at 10 m, as in the predict path.
-    ref_band, ref_profile = load_and_clip_band(products[0], 'B04', polygon)
+    ref_band, ref_profile = sentinel2.load_and_clip_band(products[0], 'B04', polygon)
     aoi_valid = ref_band > 0
     needed = water_mod.INDEX_BANDS[index_name]
 
@@ -3594,10 +3248,10 @@ def action_water(req, work_dir):
             bands = {}
             for name in ('B03', 'B8A', 'B11', 'B12'):
                 res = comp.BAND_RESOLUTION.get(name, '10m')
-                bands[name] = load_band_to_reference_grid(
+                bands[name] = sentinel2.load_band_to_reference_grid(
                     product, name, polygon, ref_profile, resolution=res
                 )
-                bands[name] = to_reflectance(bands[name], product)
+                bands[name] = sentinel2.to_reflectance(bands[name], product)
         except Exception as e:
             sys.stderr.write(json.dumps({
                 'progress': -1, 'msg': f'skipping {date_str}: {e}'
@@ -3694,7 +3348,7 @@ def action_water(req, work_dir):
 def action_render_composite(req, work_dir):
     import composite as comp
 
-    configure_gdal_for_cog()
+    cog.configure()
     start = req.get('start')
     end = req.get('end')
     max_cloud = float(req.get('max_cloud', 100.0))
@@ -3725,7 +3379,7 @@ def action_render_composite(req, work_dir):
 
     protocol.emit_progress(10, 'querying STAC for scene')
     try:
-        products = list_stac_products(
+        products = sentinel2.list_stac_products(
             polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
             monthly_best=False,  # need full list to match scene_id
         )
@@ -3740,7 +3394,7 @@ def action_render_composite(req, work_dir):
     if product is None:
         # Fall back: monthly_best list may have dropped the scene; retry without cloud filter widen
         try:
-            products = list_stac_products(
+            products = sentinel2.list_stac_products(
                 polygon, start, end, tile_list=tiles, max_cloud=100.0,
                 monthly_best=False,
             )
@@ -3755,7 +3409,7 @@ def action_render_composite(req, work_dir):
 
     protocol.emit_progress(30, 'loading reference band B04')
     try:
-        ref, ref_prof = load_and_clip_band(product, 'B04', polygon, '10m')
+        ref, ref_prof = sentinel2.load_and_clip_band(product, 'B04', polygon, '10m')
     except Exception as e:
         protocol.fail(f'failed to load B04: {e}')
 
@@ -3763,7 +3417,7 @@ def action_render_composite(req, work_dir):
         """Reflectance, not DN. The offset belongs to the product, which
         this closure holds, so the callers below cannot forget it."""
         res = comp.BAND_RESOLUTION.get(name, '10m')
-        return load_reflectance_to_reference_grid(product, name, polygon,
+        return sentinel2.load_reflectance_to_reference_grid(product, name, polygon,
                                                   ref_prof, res)
 
     mask = ref > 0
@@ -3801,7 +3455,7 @@ def action_render_composite(req, work_dir):
             if index_name == 'ndvi':
                 nir = load_band('B08')
                 red = load_band('B04')
-                idx = calculate_ndvi(nir, red)
+                idx = indices.calculate_ndvi(nir, red)
                 mask = mask & (nir > 0) & (red > 0)
             elif index_name == 'ndwi':
                 green = load_band('B03')
@@ -3817,7 +3471,7 @@ def action_render_composite(req, work_dir):
                 nir = load_band('B08')
                 red = load_band('B04')
                 blue = load_band('B02')
-                idx = calculate_evi(nir, red, blue)
+                idx = indices.calculate_evi(nir, red, blue)
                 mask = mask & (nir > 0) & (red > 0) & (blue > 0)
         except Exception as e:
             protocol.fail(f'index bands failed: {e}')
@@ -3864,7 +3518,7 @@ def action_predict(req, work_dir):
     prithvi_mode = req.get('prithvi_mode', 'pixel')  # 'pixel' or 'patch'
 
     if source == 'stac':
-        configure_gdal_for_cog()
+        cog.configure()
 
     # Resolve polygon from explicit geometry or KML path.
     if req.get('polygon_geojson'):
@@ -3900,7 +3554,7 @@ def action_predict(req, work_dir):
             protocol.fail('STAC source requires start and end dates (YYYY-MM-DD)')
         protocol.emit_progress(10, 'querying STAC catalog (Planetary Computer)')
         try:
-            products = list_stac_products(
+            products = sentinel2.list_stac_products(
                 polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
                 monthly_best=monthly_best,
             )
@@ -3914,14 +3568,14 @@ def action_predict(req, work_dir):
         if sentinel_dir is None or not sentinel_dir.exists():
             protocol.fail(f'Sentinel-2 directory not found: {sentinel_dir}')
         protocol.emit_progress(10, 'discovering local Sentinel-2 products')
-        products = list_sentinel_products(sentinel_dir, tile_list=tiles)
+        products = sentinel2.list_sentinel_products(sentinel_dir, tile_list=tiles)
         if len(products) == 0:
             protocol.fail('no Sentinel-2 .SAFE products found in the selected directory')
         protocol.emit_progress(15, f'{len(products)} products found')
 
     # Reference grid from the first product's B04 band.
     try:
-        ref_band, ref_profile = load_and_clip_band(products[0], 'B04', polygon)
+        ref_band, ref_profile = sentinel2.load_and_clip_band(products[0], 'B04', polygon)
     except Exception as e:
         protocol.fail(f'failed to build reference grid: {e}')
 
@@ -3984,9 +3638,9 @@ def action_predict(req, work_dir):
             dominant = None
             if soja_mask is not None:
                 try:
-                    red = load_reflectance_to_reference_grid(target, 'B04', polygon, ref_profile)
-                    nir = load_reflectance_to_reference_grid(target, 'B08', polygon, ref_profile)
-                    ndvi_map = calculate_ndvi(nir, red)
+                    red = sentinel2.load_reflectance_to_reference_grid(target, 'B04', polygon, ref_profile)
+                    nir = sentinel2.load_reflectance_to_reference_grid(target, 'B08', polygon, ref_profile)
+                    ndvi_map = indices.calculate_ndvi(nir, red)
                     sv = ndvi_map[soja_mask & (ndvi_map != 0)]
                     soja_ndvi_mean = float(np.mean(sv)) if sv.size > 0 else None
                 except Exception:

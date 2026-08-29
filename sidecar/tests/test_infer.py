@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from terra import actions, protocol, registry
+from terra.imagery import indices, sentinel2
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
 
@@ -18,14 +19,14 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
 def test_calculate_ndvi_known_values():
     nir = np.array([[0.8, 0.2]], dtype=float)
     red = np.array([[0.2, 0.2]], dtype=float)
-    ndvi = actions.calculate_ndvi(nir, red)
+    ndvi = indices.calculate_ndvi(nir, red)
     assert ndvi.shape == (1, 2)
     assert abs(ndvi[0, 0] - 0.6) < 1e-6
     assert abs(ndvi[0, 1] - 0.0) < 1e-6
 
 
 def test_calculate_ndvi_zero_denominator():
-    ndvi = actions.calculate_ndvi(np.zeros((2, 2)), np.zeros((2, 2)))
+    ndvi = indices.calculate_ndvi(np.zeros((2, 2)), np.zeros((2, 2)))
     assert np.all(ndvi == 0)
 
 
@@ -33,8 +34,8 @@ def test_calculate_evi_and_savi_finite():
     nir = np.full((3, 3), 0.5)
     red = np.full((3, 3), 0.2)
     blue = np.full((3, 3), 0.1)
-    evi = actions.calculate_evi(nir, red, blue)
-    savi = actions.calculate_savi(nir, red)
+    evi = indices.calculate_evi(nir, red, blue)
+    savi = indices.calculate_savi(nir, red)
     assert np.all(np.isfinite(evi))
     assert np.all(np.isfinite(savi))
     assert np.all((-1 <= evi) & (evi <= 1))
@@ -285,7 +286,7 @@ def test_class_spectra_reports_the_corrected_convention_not_the_trained_one(
     """
     dn = {b: 1400 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn)
-    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
     cmap = np.full((4, 4), 39, dtype=np.int32)
 
     payload = actions.class_spectra(products, None, None, cmap, min_pixels=1)
@@ -305,7 +306,7 @@ def test_class_spectra_names_the_one_acquisition_it_measured(monkeypatch):
     """
     dn = {b: 1200 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn, n=5)
-    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
 
     payload = actions.class_spectra(
         products, None, None, np.full((4, 4), 3, dtype=np.int32), min_pixels=1
@@ -324,7 +325,7 @@ def test_class_spectra_drops_a_class_too_small_to_average(monkeypatch):
     """
     dn = {b: 1500 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn, shape=(10, 10))
-    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
     cmap = np.full((10, 10), 39, dtype=np.int32)
     cmap[0, :3] = 21  # three pixels, under the floor
 
@@ -339,7 +340,7 @@ def test_class_spectra_is_absent_rather_than_empty_when_nothing_is_classified(
 ):
     dn = {b: 1500 for b in actions.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn)
-    monkeypatch.setattr(actions, "load_band_to_reference_grid", loader)
+    monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
 
     assert actions.class_spectra(
         products, None, None, np.full((4, 4), -1, dtype=np.int32)
