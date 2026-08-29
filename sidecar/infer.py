@@ -3599,8 +3599,29 @@ def action_flood_envelope(req, work_dir):
                        inside=aoi_mask[ar0:ar1, ac0:ac1]),
         agreement_png,
     )
+    # The same crop again, carrying the COUNTS rather than their colours.
+    #
+    # The coloured PNG is finished: its palette, and which counts are drawn at
+    # all, were decided here. A reader who wants a different ramp, or wants to
+    # see only the cells three products agree on, has to re-run the analysis to
+    # get it. This file is the measurement instead, and the map colours it on
+    # the GPU from an expression -- see frontend/src/components/map/scalarTiles.ts.
+    #
+    # The count goes in red, one per byte, which is what SCALAR_ENCODING
+    # decodes. Alpha marks the reporting mask, so a cell outside the AOI reads
+    # as absent rather than as a measured zero. Both are drawn as nothing, and
+    # the distinction is kept because they are not the same statement.
+    agreement_values_png = Path(work_dir) / 'flood_agreement_values.png'
+    counts_crop = result.agreement[ar0:ar1, ac0:ac1]
+    inside_crop = aoi_mask[ar0:ar1, ac0:ac1]
+    values_rgba = np.zeros((*counts_crop.shape, 4), dtype=np.uint8)
+    values_rgba[..., 0] = np.clip(counts_crop, 0, 255).astype(np.uint8)
+    values_rgba[..., 3] = np.where(inside_crop, 255, 0).astype(np.uint8)
+    comp.write_rgba_png(values_rgba, agreement_values_png)
+
     payload['agreement_tif'] = str(agreement_tif)
     payload['agreement_png'] = str(agreement_png)
+    payload['agreement_values_png'] = str(agreement_values_png)
     # Where to put the PNG, in the field shape the water payload already uses,
     # so mapLayers.ts places both overlays through one code path. This is the
     # extent of the PNG and not of the GeoTIFF or of `grid`: those two describe

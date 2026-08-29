@@ -53,6 +53,12 @@ import {
   AoiContextMenu,
   type AoiContextMenuState,
 } from "@/components/AoiContextMenu"
+import {
+  discretePalette,
+  installScalarProtocol,
+  registerScalarRaster,
+  unregisterScalarRaster,
+} from "@/components/map/scalarTiles"
 import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
 import {
   HILLSHADE_LAYER,
@@ -81,6 +87,7 @@ import {
 } from "@/lib/geometry"
 import { isZeroExtent } from "@/lib/mapLayers"
 import { publishMapPose } from "@/lib/mapPose"
+import { paletteColor } from "@/lib/palettes"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import type {
   Area,
@@ -115,7 +122,19 @@ export interface MapSurfaceProps {
     | { id: "terrain" | "siting"; uri: string; extent: Bounds; opacity?: number }[]
     | null
   waterOverlay?: { uri: string; extent: Bounds; opacity: number } | null
-  floodOverlay?: { uri: string; extent: Bounds; opacity: number } | null
+  floodOverlay?: {
+    uri: string
+    extent: Bounds
+    opacity: number
+    /**
+     * The counts, where the run wrote them. With this the layer is painted
+     * from the measurement and coloured by an expression; without it, `uri` is
+     * drawn as the finished image it always was.
+     */
+    valuesUri?: string
+    /** How many products voted, which is the top of the scale. */
+    classes?: number
+  } | null
   swipeCompare: boolean
   swipeRatio: number
   onSwipeRatioChange: (ratio: number) => void
@@ -144,6 +163,8 @@ interface RawOverlay {
   smooth: boolean
   /** Whether the swipe cut applies. Water and flood stay whole; see MapView. */
   clipped: boolean
+  /** Values raster and its scale, where the run produced one. */
+  values?: { url: string; classes: number }
 }
 
 export function MapSurface({
@@ -243,6 +264,8 @@ export function MapSurface({
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    // Global to MapLibre rather than per map, and idempotent.
+    installScalarProtocol()
     const first = basemapByKind("esri")
     const map = new MapLibreMap({
       container: host,
@@ -646,6 +669,10 @@ export function MapSurface({
         // a blend of two agreement colours names no class.
         smooth: false,
         clipped: false,
+        values:
+          floodOverlay.valuesUri && floodOverlay.classes
+            ? { url: floodOverlay.valuesUri, classes: floodOverlay.classes }
+            : undefined,
       })
     }
     if (predictionVisible) {
@@ -731,6 +758,37 @@ export function MapSurface({
     ;(async () => {
       const out: OverlaySpec[] = []
       for (const o of raw) {
+        /*
+          Painted from the measurement where there is one. The palette is the
+          sidecar's own ramp -- `agreement_rgba` colours count/n through
+          composite._BLUES -- read through paletteColor, so the expression and
+          the image it replaces name the same colour for the same count.
+
+          A flat band per count, not a blend: a colour halfway between "two
+          products agree" and "three products agree" states neither.
+        */
+        if (o.values) {
+          const colours = Array.from({ length: o.values.classes }, (_, i) =>
+            paletteColor("blues", (i + 1) / o.values!.classes)
+          )
+          const tiles = await registerScalarRaster(
+            o.id,
+            o.values.url,
+            o.bounds
+          ).catch(() => null)
+          if (tiles) {
+            out.push({
+              id: o.id,
+              url: o.url,
+              bounds: o.bounds,
+              opacity: o.opacity,
+              scalar: { tiles, colour: discretePalette(colours) },
+            })
+            continue
+          }
+          // Registration failed: fall through and draw the finished image,
+          // which is what this layer was before the values existed.
+        }
         let url = o.url
         if (o.smooth) {
           // A majority filter over the classes, which produces a different
@@ -768,6 +826,7 @@ export function MapSurface({
     return () => {
       const map = mapRef.current
       if (map) clearOverlays(map, overlayIdsRef.current)
+      for (const id of overlayIdsRef.current) unregisterScalarRaster(id)
     }
   }, [])
 

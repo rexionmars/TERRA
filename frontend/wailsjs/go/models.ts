@@ -3560,6 +3560,8 @@ export namespace analysis {
 	    agreement_png: string;
 	    extent: Bounds;
 	    agreement_uri?: string;
+	    agreement_values_png: string;
+	    agreement_values_uri?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FloodAnalysis(source);
@@ -3585,6 +3587,8 @@ export namespace analysis {
 	        this.agreement_png = source["agreement_png"];
 	        this.extent = this.convertValues(source["extent"], Bounds);
 	        this.agreement_uri = source["agreement_uri"];
+	        this.agreement_values_png = source["agreement_values_png"];
+	        this.agreement_values_uri = source["agreement_values_uri"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

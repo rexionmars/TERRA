@@ -47,6 +47,17 @@ export interface RasterLayer {
    */
   smooth: boolean
   /**
+   * The same ground as `uri`, carrying VALUES rather than colours.
+   *
+   * Present only where the run wrote one. A layer that has it is painted from
+   * the measurement and coloured by an expression, so the palette and which
+   * values are drawn become paint properties; a layer without it is drawn as
+   * the finished image it always was.
+   */
+  valuesUri?: string
+  /** How many discrete values the scale runs to, when `valuesUri` is set. */
+  classes?: number
+  /**
    * Whether it is currently drawn.
    *
    * The table returns layers that COULD be drawn, not only those that are, so
@@ -196,6 +207,14 @@ export function floodAgreementLayer(
     pixelated: true,
     smooth: false,
     visible,
+    /*
+      The counts, where the run produced them. The map paints from these and
+      colours them with an expression; `uri` above stays as the fallback for a
+      run made before this existed, or one whose values file could not be read.
+      `classes` is how many products voted, which is the top of the scale.
+    */
+    valuesUri: flood.agreement_values_uri || undefined,
+    classes: flood.products.length || undefined,
   }
 }
 

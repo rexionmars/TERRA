@@ -262,6 +262,12 @@ export function FloodScreen(props: FloodScreenProps) {
                 uri: agreement.uri,
                 extent: agreement.extent,
                 opacity: agreement.opacity,
+                // The counts, where the run wrote them: with these the map
+                // paints from the measurement and colours it with an
+                // expression, and `uri` is the fallback for a run made before
+                // the values existed.
+                valuesUri: agreement.valuesUri,
+                classes: agreement.classes,
               }
             : null
         }

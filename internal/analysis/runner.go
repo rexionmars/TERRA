@@ -2016,6 +2016,14 @@ func (r *Runner) AnalyzeFlood(ctx context.Context, req FloodRequest) (*FloodAnal
 			wrapped.Flood.AgreementURI = uri
 		}
 	}
+	// The values raster, on the same terms: a failure here leaves the field
+	// empty and the map draws the coloured overlay, which is what it drew
+	// before this existed. Nothing about the run depends on it.
+	if wrapped.Flood.AgreementValuesPNG != "" {
+		if uri, uerr := pngToDataURI(wrapped.Flood.AgreementValuesPNG); uerr == nil {
+			wrapped.Flood.AgreementValuesURI = uri
+		}
+	}
 	wrapped.Flood.NormalizeNilSlices()
 	return wrapped.Flood, nil
 }
