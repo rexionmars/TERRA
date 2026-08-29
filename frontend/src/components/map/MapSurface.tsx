@@ -42,7 +42,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import "@/lib/maplibreWorker"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Layers, Pencil, Spline, Trash2 } from "lucide-react"
+import { Layers, Minus, Pencil, Plus, Spline, Trash2 } from "lucide-react"
 import {
   Map as MapLibreMap,
   Marker,
@@ -947,23 +947,51 @@ export function MapSurface({
       <SpaceBackdrop />
       <div ref={hostRef} className="h-full w-full" />
 
-      {/* The map's own controls, in the app's chrome rather than the library's. */}
-      <div className="app-no-drag absolute bottom-3 right-3 z-[1000] flex flex-col items-end gap-1.5">
+      {/*
+        THE CONTROL STACK, at the measurements the map's chrome already used.
+
+        Leaflet's zoom and draw bars were styled in index.css and those rules
+        are dead now that the library is gone, so the numbers move here: a
+        2.125rem square, `--p-ink` at 0.82 behind an 18px blur, a hairline
+        between buttons in a bar and a hairline around it. OverlayToolsPanel
+        records the same figure and the reason -- "a narrower one beside them
+        reads as a different kind of control" -- which is exactly what the
+        first pass at this produced.
+
+        Three bars rather than one column, because they are three subjects:
+        what is on the map, what to do to the area, and where the camera is.
+        Leaflet stacked its controls the same way and for the same reason.
+      */}
+      {/*
+        Clear of the map foot, not of the window. The acquisition period track
+        spans the bottom of this screen and the stack ran under it -- the zoom
+        bar's second button was off the map entirely. --map-foot is that
+        track's exact height and is what every other control here is measured
+        against; see index.css and PanelShell.
+      */}
+      <div className="app-no-drag absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] right-3 z-[1000] flex flex-col items-end gap-2.5">
+        {/*
+          The way back from a tilt, at the head of the stack the tilt belongs
+          to. It stood at the bottom left and was invisible exactly when it was
+          needed: the classification column covers that corner whenever a run
+          is being set up, which is most of the time this screen is open.
+        */}
+        {ready && <CameraControls map={mapRef.current} level={level} />}
         {bottomRightSlot}
-        <div className="flex flex-col overflow-hidden rounded-sm border border-[rgb(var(--p-line)/0.28)] bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]">
+        <MapBar>
           <MapButton
             label="Draw an area"
             active={drawMode === "draw"}
             onClick={() => setDrawMode((m) => (m === "draw" ? "idle" : "draw"))}
           >
-            <Pencil className="size-3.5" strokeWidth={1.5} />
+            <Pencil className="size-4" strokeWidth={1.5} />
           </MapButton>
           <MapButton
             label="Edit the area"
             active={drawMode === "edit"}
             onClick={() => setDrawMode((m) => (m === "edit" ? "idle" : "edit"))}
           >
-            <Spline className="size-3.5" strokeWidth={1.5} />
+            <Spline className="size-4" strokeWidth={1.5} />
           </MapButton>
           <MapButton
             label="Delete the area"
@@ -973,31 +1001,32 @@ export function MapSurface({
               setDrawMode("idle")
             }}
           >
-            <Trash2 className="size-3.5" strokeWidth={1.5} />
+            <Trash2 className="size-4" strokeWidth={1.5} />
           </MapButton>
-        </div>
-        <div className="flex flex-col overflow-hidden rounded-sm border border-[rgb(var(--p-line)/0.28)] bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]">
+        </MapBar>
+        <MapBar>
           <MapButton label="Zoom in" onClick={() => mapRef.current?.zoomIn()}>
-            <span className="text-body leading-none">+</span>
+            <Plus className="size-4" strokeWidth={1.5} />
           </MapButton>
           <MapButton label="Zoom out" onClick={() => mapRef.current?.zoomOut()}>
-            <span className="text-body leading-none">−</span>
+            <Minus className="size-4" strokeWidth={1.5} />
           </MapButton>
-        </div>
+        </MapBar>
       </div>
 
       {/* Basemaps, where Leaflet's own layers control stood. */}
-      <div className="app-no-drag absolute right-3 top-3 z-[1000] flex flex-col items-end gap-1">
-        <MapButton
-          label="Basemap"
-          active={basemapOpen}
-          onClick={() => setBasemapOpen((v) => !v)}
-          className="rounded-sm border border-[rgb(var(--p-line)/0.28)] bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]"
-        >
-          <Layers className="size-3.5" strokeWidth={1.5} />
-        </MapButton>
+      <div className="app-no-drag absolute right-3 top-3 z-[1000] flex flex-col items-end gap-1.5">
+        <MapBar>
+          <MapButton
+            label="Basemap"
+            active={basemapOpen}
+            onClick={() => setBasemapOpen((v) => !v)}
+          >
+            <Layers className="size-4" strokeWidth={1.5} />
+          </MapButton>
+        </MapBar>
         {basemapOpen && (
-          <div className="flex flex-col overflow-hidden rounded-sm border border-[rgb(var(--p-line)/0.28)] bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]">
+          <MapBar>
             {BASEMAPS.map((b) => (
               <button
                 key={b.kind}
@@ -1007,32 +1036,19 @@ export function MapSurface({
                   setBasemapOpen(false)
                 }}
                 className={cn(
-                  "px-2.5 py-1.5 text-left text-meta transition-colors",
+                  "block w-full whitespace-nowrap border-b border-[rgb(var(--p-line)/0.22)] px-3 py-2 text-left text-meta",
+                  "bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px] transition-colors last:border-b-0",
                   b.kind === basemap
-                    ? "bg-surface-raised text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground"
                 )}
               >
                 {b.name}
               </button>
             ))}
-          </div>
+          </MapBar>
         )}
       </div>
-
-      {ready && (
-        <CameraControls
-          map={mapRef.current}
-          level={level}
-          /*
-            Clear of the map foot rather than at the window's bottom edge: the
-            acquisition period track spans it, and --map-foot is the reservation
-            every other control on this screen is measured against. See
-            index.css and PanelShell.
-          */
-          className="absolute bottom-[calc(var(--map-foot,0px)+0.75rem)] left-3 z-[1000]"
-        />
-      )}
 
       {swipeActive && (
         <SwipeDivider
@@ -1063,17 +1079,28 @@ export function MapSurface({
   )
 }
 
+/**
+ * One bar of controls: the hairline, the radius and the shadow `.leaflet-bar`
+ * carried, so a bar of these sits beside OverlayToolsPanel's button as one
+ * family rather than two.
+ */
+function MapBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-[rgb(var(--p-line)/0.28)] shadow-[0_2px_8px_rgb(0_0_0/0.28)]">
+      {children}
+    </div>
+  )
+}
+
 function MapButton({
   label,
   active = false,
   onClick,
-  className,
   children,
 }: {
   label: string
   active?: boolean
   onClick: () => void
-  className?: string
   children: React.ReactNode
 }) {
   return (
@@ -1084,12 +1111,15 @@ function MapButton({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "flex size-7 items-center justify-center transition-colors",
+        // 2.125rem, which is the figure the zoom and draw bars used and the
+        // one OverlayToolsPanel matched itself to.
+        "flex size-[2.125rem] items-center justify-center transition-colors",
+        "border-b border-[rgb(var(--p-line)/0.22)] last:border-b-0",
+        "bg-[rgb(var(--p-ink)/0.82)] backdrop-blur-[18px]",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         active
-          ? "bg-surface-raised text-primary"
-          : "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground",
-        className
+          ? "bg-[rgb(var(--p-surface-raised)/0.92)] text-primary"
+          : "text-muted-foreground hover:bg-[rgb(var(--p-surface-raised)/0.92)] hover:text-foreground"
       )}
     >
       {children}

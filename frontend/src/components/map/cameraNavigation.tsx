@@ -120,9 +120,12 @@ export function useCameraNavigation(
  * horizon is off-axis there is no edge left to level against, and a reader who
  * tilted by accident cannot undo it by dragging.
  *
- * THREE CHIPS, not the whole mapping. The keys are on the control's own title,
- * where a reader wanting one is already looking; printing all of it would trade
- * the view for a manual.
+ * THE BINDINGS ARE NOT WRITTEN OUT BESIDE IT. A strip naming the drag, the
+ * modifier and the wheel stood here and was removed: it was permanent chrome
+ * over the imagery answering a question asked once, and the gestures it named
+ * are the ones every map on this machine already uses. The keys that are NOT
+ * conventional -- n, u, r -- are on this control's own title, where a reader
+ * wanting one is already looking.
  */
 export function CameraControls({
   map,
@@ -146,11 +149,6 @@ export function CameraControls({
           Level, facing north
         </button>
       )}
-      <span className="telemetry flex items-center gap-2 text-[10px] text-muted-foreground">
-        <span>drag to turn</span>
-        <span>middle-drag or ctrl-drag to tilt</span>
-        <span>scroll to zoom</span>
-      </span>
     </div>
   )
 }
