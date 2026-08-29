@@ -196,11 +196,19 @@ export function floodAgreementLayer(
   visible: boolean,
   opacity: number
 ): RasterLayer | null {
-  if (!flood?.agreement_uri || isZeroExtent(flood.extent)) return null
+  /*
+    Either raster is enough to draw the layer. The guard tested the coloured
+    image alone, which was right while that was the only one -- and became a
+    layer silently dropped the moment a run carried its counts and not its
+    colours, which is a state the store can produce.
+  */
+  const values = flood?.agreement_values_uri || ""
+  const coloured = flood?.agreement_uri || ""
+  if (!flood || (!coloured && !values) || isZeroExtent(flood.extent)) return null
   return {
     id: "flood",
     title: "Flood agreement",
-    uri: flood.agreement_uri,
+    uri: coloured,
     extent: flood.extent,
     opacity,
     order: 365,
@@ -213,7 +221,7 @@ export function floodAgreementLayer(
       run made before this existed, or one whose values file could not be read.
       `classes` is how many products voted, which is the top of the scale.
     */
-    valuesUri: flood.agreement_values_uri || undefined,
+    valuesUri: values || undefined,
     classes: flood.products.length || undefined,
   }
 }

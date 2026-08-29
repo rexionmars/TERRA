@@ -659,7 +659,13 @@ export function MapSurface({
         clipped: false,
       })
     }
-    if (floodOverlay?.uri && !isZeroExtent(floodOverlay.extent)) {
+    // Either raster draws it: a stored run can carry the counts without the
+    // colours, and the scalar path does not need the image at all.
+    if (
+      (floodOverlay?.uri || floodOverlay?.valuesUri) &&
+      floodOverlay &&
+      !isZeroExtent(floodOverlay.extent)
+    ) {
       out.push({
         id: "flood",
         url: floodOverlay.uri,
