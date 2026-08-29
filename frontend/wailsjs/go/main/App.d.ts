@@ -22,6 +22,8 @@ export function AnalyzeSolarSiting(arg1:analysis.SolarSitingRequest):Promise<ana
 
 export function AnalyzeSolarTerrain(arg1:analysis.SolarTerrainRequest):Promise<analysis.SolarTerrainAnalysis>;
 
+export function AnalyzeSurfaceModel(arg1:analysis.SurfaceModelRequest):Promise<analysis.SurfaceModel>;
+
 export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterAnalysis>;
 
 export function AnalyzeWind(arg1:analysis.WindRequest):Promise<analysis.WindAnalysis>;

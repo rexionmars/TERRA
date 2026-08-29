@@ -42,7 +42,16 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import "@/lib/maplibreWorker"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Layers, Minus, Mountain, Pencil, Plus, Spline, Trash2 } from "lucide-react"
+import {
+  Layers,
+  Minus,
+  Mountain,
+  Pencil,
+  Plus,
+  Spline,
+  Trash2,
+  Waves,
+} from "lucide-react"
 import {
   Map as MapLibreMap,
   Marker,
@@ -59,6 +68,11 @@ import {
   registerScalarRaster,
   unregisterScalarRaster,
 } from "@/components/map/scalarTiles"
+import {
+  ElevationPanel,
+  hypsometricRamp,
+  type SurfaceState,
+} from "@/components/map/ElevationLayer"
 import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
 import {
   HILLSHADE_LAYER,
@@ -86,6 +100,7 @@ import {
   ringCentroid,
 } from "@/lib/geometry"
 import { isZeroExtent } from "@/lib/mapLayers"
+import { AnalyzeSurfaceModel } from "../../../wailsjs/go/main/App"
 import { publishMapPose } from "@/lib/mapPose"
 import { paletteColor } from "@/lib/palettes"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -163,8 +178,14 @@ interface RawOverlay {
   smooth: boolean
   /** Whether the swipe cut applies. Water and flood stay whole; see MapView. */
   clipped: boolean
-  /** Values raster and its scale, where the run produced one. */
-  values?: { url: string; classes: number }
+  /**
+   * Values raster, where the product wrote one.
+   *
+   * `classes` gives a flat band per integer; `continuous` is a ramp handed in
+   * whole. A field is one or the other and never both: a count terraced is
+   * correct and a surface terraced is a boundary the measurement does not have.
+   */
+  values?: { url: string; classes?: number; continuous?: unknown[] }
 }
 
 export function MapSurface({
@@ -209,6 +230,13 @@ export function MapSurface({
   const [fitAoiNonce, setFitAoiNonce] = useState(0)
   const [handleRatio, setHandleRatio] = useState(swipeRatio)
   const [relief, setRelief] = useState(false)
+  /*
+    The surface over the drawn area, read on request and never automatically.
+    A DEM fetch is a network read of a catalogue; doing it because an area
+    changed would spend it on every edit of a polygon.
+  */
+  const [surface, setSurface] = useState<SurfaceState>({ at: "idle" })
+  const [surfaceOpen, setSurfaceOpen] = useState(false)
 
   const { level } = useCameraNavigation(mapRef.current, ready)
   /*
@@ -625,6 +653,22 @@ export function MapSurface({
   */
   const raw = useMemo<RawOverlay[]>(() => {
     const out: RawOverlay[] = []
+    if (surface.at === "read" && surface.reading.values_uri) {
+      out.push({
+        id: "surface",
+        url: "",
+        bounds: surface.reading.extent,
+        opacity: 0.85,
+        smooth: false,
+        clipped: true,
+        values: {
+          url: surface.reading.values_uri,
+          // A continuous field, so the ramp is an interpolation over the whole
+          // decoded range rather than a band per value.
+          continuous: hypsometricRamp(surface.reading.value_full_scale),
+        },
+      })
+    }
     if (compositionVisible) {
       out.push({
         id: "composition",
@@ -681,6 +725,12 @@ export function MapSurface({
             : undefined,
       })
     }
+    /*
+      Above the products and below the outline. It is the ground they were
+      measured on, so a classification or a flood extent read against it has to
+      stay legible over it -- which is why it is drawn UNDER them and not on
+      top. The order is the array; see mapOverlays.ts.
+    */
     if (predictionVisible) {
       out.push({
         id: "prediction",
@@ -774,9 +824,13 @@ export function MapSurface({
           products agree" and "three products agree" states neither.
         */
         if (o.values) {
-          const colours = Array.from({ length: o.values.classes }, (_, i) =>
-            paletteColor("blues", (i + 1) / o.values!.classes)
-          )
+          const colour =
+            o.values.continuous ??
+            discretePalette(
+              Array.from({ length: o.values.classes ?? 1 }, (_, i) =>
+                paletteColor("blues", (i + 1) / (o.values!.classes ?? 1))
+              )
+            )
           const tiles = await registerScalarRaster(
             o.id,
             o.values.url,
@@ -788,7 +842,7 @@ export function MapSurface({
               url: o.url,
               bounds: o.bounds,
               opacity: o.opacity,
-              scalar: { tiles, colour: discretePalette(colours) },
+              scalar: { tiles, colour },
             })
             continue
           }
@@ -998,6 +1052,20 @@ export function MapSurface({
           >
             <Mountain className="size-4" strokeWidth={1.5} />
           </MapButton>
+          {/*
+            Beside relief because the two are one subject seen two ways: relief
+            lifts the ground, this colours its height. Relief is a global
+            mosaic for looking at; this is Copernicus GLO-30 read over the
+            drawn area, which is the surface the terrain products here are
+            actually computed on.
+          */}
+          <MapButton
+            label="Elevation"
+            active={surfaceOpen}
+            onClick={() => setSurfaceOpen((v) => !v)}
+          >
+            <Waves className="size-4" strokeWidth={1.5} />
+          </MapButton>
         </MapBar>
         <MapBar>
           <MapButton label="Zoom in" onClick={() => mapRef.current?.zoomIn()}>
@@ -1044,6 +1112,34 @@ export function MapSurface({
           </MapBar>
         )}
       </div>
+
+      {surfaceOpen && (
+        <ElevationPanel
+          className="absolute right-14 top-3 z-[1000]"
+          state={surface}
+          canRead={!!aoiGeometry}
+          onRead={async () => {
+            if (!aoiGeometry) return
+            setSurface({ at: "reading" })
+            try {
+              const reading = await AnalyzeSurfaceModel({
+                polygon_geojson: aoiGeometry as never,
+                area_id: "",
+                aoi_label: aoiName,
+                run_label: "",
+                project_id: "",
+                aoi_id: "",
+              } as never)
+              setSurface({ at: "read", reading: reading as never })
+            } catch (e) {
+              setSurface({
+                at: "failed",
+                reason: e instanceof Error ? e.message : String(e),
+              })
+            }
+          }}
+        />
+      )}
 
       {swipeActive && (
         <SwipeDivider

@@ -4360,6 +4360,128 @@ def action_predict(req, work_dir):
 # the `return` at the foot of each kept it from running on into the prediction
 # path. It also puts the set of actions on one screen, which is the set
 # backend/sidecar.go is written against.
+# ------------------------------------------------------------------ elevation
+#
+# THE SURFACE ITSELF, AS ITS OWN SUBJECT.
+#
+# Copernicus GLO-30 is already fetched by two products here -- solar.py reads it
+# for horizons and dem.py reads it for the flood envelope -- and in both it is
+# an input nobody looks at. A reader cannot see the ground a run was computed
+# on, which is the one thing every terrain figure in this application depends
+# on.
+#
+# IT IS A SURFACE MODEL, NOT A TERRAIN MODEL, and the payload says so rather
+# than leaving it to be inferred. GLO-30 is TanDEM-X: it measures the first
+# reflective surface, so a closed forest reports canopy top and a city reports
+# roofs. Every product downstream inherits that -- HAND over a DSM in forest
+# carries canopy height into the height above drainage -- and naming it here is
+# where a reader can first see it.
+#
+# NO BUFFER. solar_terrain widens its window so a ridge outside the AOI can
+# shade pixels inside it; nothing here is cast from anywhere. The window is the
+# AOI, and the figures are over exactly what is drawn.
+# The top of the decoded range the scalar protocol carries. The decoding is
+# r + g/256 + b/65536, whose supremum is 256; 255 leaves the top of the ramp on
+# a whole number and inside the range rather than at its edge.
+VALUE_FULL_SCALE = 255.0
+
+
+def action_surface_model(req, work_dir):
+    import composite as comp
+    import numpy as np
+    import rasterio
+    import solar as solar_mod
+
+    configure_gdal_for_cog()
+    if not req.get('polygon_geojson'):
+        fail('no polygon provided (polygon_geojson required)')
+    polygon = polygon_from_geojson(req['polygon_geojson'])
+
+    emit_progress(10, 'fetching Copernicus DEM GLO-30')
+    try:
+        dem_path = solar_mod.fetch_dem(polygon, Path(work_dir) / 'surface.tif')
+    except Exception as e:
+        fail(f'DEM fetch failed: {e}')
+
+    emit_progress(60, 'reading the surface')
+    with rasterio.open(dem_path) as src:
+        elevation = src.read(1).astype('float32')
+        profile = src.profile
+        nodata = src.nodata
+
+    # dem.py's threshold, for its reason: SRTM writes -32768 into voids and ALOS
+    # writes -9999, and neither is always declared as the COG's nodata. The
+    # lowest bare land on Earth is near -430 m.
+    void = ~np.isfinite(elevation) | (elevation < -1000.0)
+    if nodata is not None:
+        void |= elevation == nodata
+    measured = elevation[~void]
+    if measured.size == 0:
+        fail('the DEM window is entirely void over this area')
+
+    lo = float(np.min(measured))
+    hi = float(np.max(measured))
+
+    emit_progress(85, 'writing the surface raster')
+    # The values, for the map to colour with an expression rather than for the
+    # sidecar to colour once. Positional base-256, which is what
+    # frontend/src/components/map/scalarTiles.ts decodes as
+    #
+    #     value = r + g/256 + b/65536
+    #
+    # THE DECODED RANGE IS [0, 256), and that is what sets the encoding rather
+    # than any choice about elevation. Metres do not fit: a window with 900 m of
+    # relief would wrap. Centimetres do not either. So the surface is carried
+    # NORMALISED to the window's own relief, 0 at its floor and 255 at its
+    # ceiling, and `floor_m` and `relief_m` below are what turn a decoded value
+    # back into metres.
+    #
+    # The fraction channels are not spare precision: at 255 steps a 3000 m
+    # window would quantise to 12 m, which a hypsometric ramp would show as
+    # terracing. Carrying the fraction puts the step at relief/65536 -- under
+    # 5 cm on that same window.
+    span = max(hi - lo, 1e-6)
+    normalised = np.clip((elevation - lo) / span, 0.0, 1.0) * VALUE_FULL_SCALE
+    packed = np.rint(normalised * 65536.0).astype('uint32')
+    packed = np.clip(packed, 0, 0xFFFFFF)
+    rgba = np.zeros((*elevation.shape, 4), dtype=np.uint8)
+    rgba[..., 0] = (packed >> 16) & 0xFF
+    rgba[..., 1] = (packed >> 8) & 0xFF
+    rgba[..., 2] = packed & 0xFF
+    rgba[..., 3] = np.where(void, 0, 255).astype(np.uint8)
+    values_png = Path(work_dir) / 'surface_values.png'
+    comp.write_rgba_png(rgba, values_png)
+
+    emit_progress(100, f'{hi - lo:.0f} m of relief')
+    sys.stdout.write(json.dumps({'surface_model': {
+        # Named, not implied. See the note above this function.
+        'model_kind': 'DSM',
+        'source': 'Copernicus DEM GLO-30 (cop-dem-glo-30)',
+        'native_resolution_m': 30.0,
+        'values_png': str(values_png),
+        'extent': comp.extent_from_profile(profile),
+        'floor_m': lo,
+        'ceiling_m': hi,
+        # The relief of the window, which is what a hypsometric ramp is scaled
+        # to and the one figure that says whether this ground is flat.
+        'relief_m': hi - lo,
+        'mean_m': float(np.mean(measured)),
+        'measured_cells': int(measured.size),
+        'void_cells': int(void.sum()),
+        # A decoded value v is floor_m + v * relief_m / VALUE_FULL_SCALE. The
+        # map needs the three of them together; none can be guessed from the
+        # image, and a legend that guessed would be a legend in the wrong units.
+        'value_full_scale': VALUE_FULL_SCALE,
+        'notes': [
+            'Copernicus GLO-30 is a surface model: it measures the first '
+            'reflective surface, so closed forest reports canopy top and built '
+            'ground reports roofs. It is not bare earth.',
+            'The window is the AOI itself, with no buffer, so every figure '
+            'here is over exactly the polygon drawn.',
+        ],
+    }}))
+
+
 ACTIONS = {
     'ping': action_ping,
     'lulc': action_lulc,
@@ -4376,6 +4498,7 @@ ACTIONS = {
     'wind_resource': action_wind_resource,
     'flood_envelope': action_flood_envelope,
     'water': action_water,
+    'surface_model': action_surface_model,
     'render_composite': action_render_composite,
     'predict': action_predict,
 }
