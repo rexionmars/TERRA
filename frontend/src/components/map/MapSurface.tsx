@@ -42,7 +42,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import "@/lib/maplibreWorker"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Layers, Minus, Pencil, Plus, Spline, Trash2 } from "lucide-react"
+import { Layers, Minus, Mountain, Pencil, Plus, Spline, Trash2 } from "lucide-react"
 import {
   Map as MapLibreMap,
   Marker,
@@ -54,6 +54,11 @@ import {
   type AoiContextMenuState,
 } from "@/components/AoiContextMenu"
 import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
+import {
+  HILLSHADE_LAYER,
+  addTerrainSources,
+  setTerrainEnabled,
+} from "@/components/map/terrain"
 import { useAreaDrawing } from "@/components/map/useAreaDrawing"
 import { SwipeDivider } from "@/components/map/SwipeDivider"
 import {
@@ -121,7 +126,12 @@ export interface MapSurfaceProps {
   onClearArea: () => void
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
   bottomRightSlot?: React.ReactNode
-  onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
+  onCreditChange?: (c: {
+    kind: BasemapKind
+    date: string | null
+    /** Whether the elevation mosaic is on screen, and so must be credited. */
+    terrain?: boolean
+  }) => void
 }
 
 /** What the caller asked for, before smoothing and the swipe cut are applied. */
@@ -177,6 +187,7 @@ export function MapSurface({
   const [swipeDragging, setSwipeDragging] = useState(false)
   const [fitAoiNonce, setFitAoiNonce] = useState(0)
   const [handleRatio, setHandleRatio] = useState(swipeRatio)
+  const [relief, setRelief] = useState(false)
 
   const { level } = useCameraNavigation(mapRef.current, ready)
   /*
@@ -367,6 +378,27 @@ export function MapSurface({
 
   // ---- basemap and its credit --------------------------------------------
 
+  /*
+    The DEM and its shading, added once. Under the overlays and above the
+    basemap: the shading is there to give the imagery form, and a run's raster
+    is a measurement drawn ON that ground rather than another surface to light.
+  */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    addTerrainSources(map, map.getLayer(AOI_LINE) ? AOI_LINE : undefined)
+  }, [ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setTerrainEnabled(map, relief)
+    return () => {
+      // The map may already be gone on unmount; only turn it off if it is not.
+      if (mapRef.current) setTerrainEnabled(mapRef.current, false)
+    }
+  }, [relief, ready])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -424,8 +456,11 @@ export function MapSurface({
   }, [basemap, ready])
 
   useEffect(() => {
-    onCreditChange?.({ kind: basemap, date: dateLabel })
-  }, [basemap, dateLabel, onCreditChange])
+    // `terrain` travels with the basemap credit because the elevation mosaic is
+    // a second source on screen, from a different provider, and only while the
+    // relief is drawn. See components/map/terrain.ts.
+    onCreditChange?.({ kind: basemap, date: dateLabel, terrain: relief })
+  }, [basemap, dateLabel, relief, onCreditChange])
 
   // ---- the area outline, its colour and its label -------------------------
 
@@ -882,6 +917,21 @@ export function MapSurface({
             onClick={clearDrawing}
           >
             <Trash2 className="size-4" strokeWidth={1.5} />
+          </MapButton>
+        </MapBar>
+        <MapBar>
+          {/*
+            Relief, off by default. It costs a DEM tile per view and a mesh per
+            tile, and the ground it draws is a global mosaic rather than the
+            DEMs an analysis ran on -- terrain.ts carries that distinction and
+            the credit that keeps it visible.
+          */}
+          <MapButton
+            label="Relief"
+            active={relief}
+            onClick={() => setRelief((r) => !r)}
+          >
+            <Mountain className="size-4" strokeWidth={1.5} />
           </MapButton>
         </MapBar>
         <MapBar>

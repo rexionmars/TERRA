@@ -22,6 +22,7 @@ import {
   WindowToggleMaximise,
   Quit,
 } from "../../wailsjs/runtime/runtime"
+import { ELEVATION_CREDIT } from "@/components/map/terrain"
 import { mapPose, subscribeMapPose } from "@/lib/mapPose"
 import type { LayoutMode, PredictResult } from "@/lib/types"
 import {
@@ -87,7 +88,7 @@ interface TitleBarProps {
    * moved rather than went: the links each licence asks for are rendered as
    * real anchors from the table in lib/basemaps.
    */
-  credit?: { kind: BasemapKind; date: string | null }
+  credit?: { kind: BasemapKind; date: string | null; terrain?: boolean }
 }
 
 /**
@@ -286,6 +287,18 @@ export function TitleBar({
                       <Credit part={c} />
                     </span>
                   ))}
+                  {/*
+                    Only while relief is drawn, because only then is a second
+                    provider on screen. It is also what keeps the elevation
+                    mosaic distinct from the DEMs an analysis was computed on --
+                    see components/map/terrain.ts.
+                  */}
+                  {credit.terrain && (
+                    <span>
+                      {" \u2014 "}
+                      <Credit part={ELEVATION_CREDIT} />
+                    </span>
+                  )}
                 </span>
               </>
             )}

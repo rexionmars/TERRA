@@ -951,6 +951,8 @@ function AppBody(props: {
   const [credit, setCredit] = useState<{
     kind: BasemapKind
     date: string | null
+    /** Relief on: a second provider is on screen and is credited with it. */
+    terrain?: boolean
   }>({ kind: "esri", date: null })
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
 
