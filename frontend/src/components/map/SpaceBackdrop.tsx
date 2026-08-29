@@ -26,8 +26,19 @@ import { useEffect, useRef } from "react"
 
 import { cn } from "@/lib/utils"
 
-/** Deep blue rather than black: black reads as an unpainted hole. */
-const SPACE = "#060a14"
+/**
+ * Neutral, and darker than the chassis.
+ *
+ * This was a deep blue, on the argument that flat black reads as an unpainted
+ * hole. Asked for as dark instead, and the argument survives the change: what
+ * keeps it from reading as a hole is that it is not FLAT -- the wash and the
+ * stars below do that work, and the hue was never the part doing it.
+ *
+ * Still not `--p-ink`. Space that matches the panel around it makes the globe
+ * an object on a surface rather than a view through one, so this sits clearly
+ * below the chassis instead of level with it.
+ */
+const SPACE = "#0b0b0c"
 
 /** One star per this many square pixels, which is about 150 on a full screen. */
 const AREA_PER_STAR = 6000
@@ -89,8 +100,9 @@ export function SpaceBackdrop({ className }: { className?: string }) {
         h / 2,
         Math.max(w, h) * 0.62
       )
-      glow.addColorStop(0, "rgba(70, 110, 170, 0.16)")
-      glow.addColorStop(0.55, "rgba(40, 66, 110, 0.06)")
+      // Neutral, so the field lifts toward the middle without taking a hue.
+      glow.addColorStop(0, "rgba(150, 152, 158, 0.11)")
+      glow.addColorStop(0.55, "rgba(120, 122, 128, 0.045)")
       glow.addColorStop(1, "rgba(0, 0, 0, 0)")
       ctx.fillStyle = glow
       ctx.fillRect(0, 0, w, h)
@@ -109,11 +121,11 @@ export function SpaceBackdrop({ className }: { className?: string }) {
         const bright = t * t * t
         const radius = 0.35 + bright * 1.15
         const alpha = 0.18 + bright * 0.62
-        // A cool cast on the brighter ones, which is the only colour here.
-        const tint = 226 + Math.round(bright * 24)
+        // White, not tinted. A star's colour was the last blue left in here.
+        const tone = 228 + Math.round(bright * 27)
         ctx.beginPath()
         ctx.arc(x, y, radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${tint}, ${tint}, 255, ${alpha.toFixed(3)})`
+        ctx.fillStyle = `rgba(${tone}, ${tone}, ${tone}, ${alpha.toFixed(3)})`
         ctx.fill()
       }
     }
