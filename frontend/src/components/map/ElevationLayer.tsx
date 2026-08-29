@@ -35,6 +35,8 @@ export interface SurfaceReading {
   relief_m: number
   mean_m: number
   value_full_scale: number
+  /** Below this a cell is absent: outside the polygon, or a void. */
+  value_floor: number
   measured_cells: number
   void_cells: number
   notes: string[]
@@ -62,18 +64,34 @@ export type SurfaceState =
  * would state a boundary the measurement does not have. `discretePalette` is
  * for the counts and classes that do.
  */
-export function hypsometricRamp(fullScale: number): unknown[] {
+export function hypsometricRamp(floor: number, fullScale: number): unknown[] {
   const out: unknown[] = ["interpolate", ["linear"], ["elevation"]]
+  /*
+    Transparent below the floor, and that is not decoration.
+
+    The scalar protocol answers every tile it is asked for, including the ones
+    on the other side of the planet, and outside the raster it writes the
+    reserved value. Painting that with the bottom of the ramp is what put a
+    hypsometric wash over the whole world -- the ramp cannot tell "the valley
+    floor" from "no ground here" unless one value is kept apart for it.
+  */
+  out.push(0, "rgba(0,0,0,0)")
+  out.push(floor - 0.001, "rgba(0,0,0,0)")
   const steps = 12
   for (let i = 0; i <= steps; i++) {
-    out.push((i / steps) * fullScale, paletteColor("viridis", i / steps))
+    const t = i / steps
+    out.push(floor + t * (fullScale - floor), paletteColor("viridis", t))
   }
   return out
 }
 
 /** A decoded value back into metres. The three figures are all needed. */
 export function metresFor(reading: SurfaceReading, value: number): number {
-  return reading.floor_m + (value * reading.relief_m) / reading.value_full_scale
+  const span = reading.value_full_scale - reading.value_floor
+  return (
+    reading.floor_m +
+    ((value - reading.value_floor) * reading.relief_m) / (span || 1)
+  )
 }
 
 /**
@@ -163,6 +181,8 @@ function Reading({
   reading: SurfaceReading
   onRead: () => void
 }) {
+  // The window is the polygon's bounding box; the figures are the polygon.
+  // What falls between the two is counted here rather than dropped.
   const total = reading.measured_cells + reading.void_cells
   const voidPct = total > 0 ? (reading.void_cells / total) * 100 : 0
   return (
@@ -193,7 +213,7 @@ function Reading({
         <Row label="Mean" value={`${reading.mean_m.toFixed(0)} m`} />
         <Row label="Cell" value={`${reading.native_resolution_m.toFixed(0)} m`} />
         <Row
-          label="Void"
+          label="Outside"
           value={
             reading.void_cells === 0
               ? "none"

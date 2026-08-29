@@ -52,6 +52,11 @@ type SurfaceModel struct {
 	ReliefM        float64 `json:"relief_m"`
 	MeanM          float64 `json:"mean_m"`
 	ValueFullScale float64 `json:"value_full_scale"`
+	// The decoded value the surface starts at. Below it a cell is absent --
+	// outside the polygon, or a void in the product. Zero is not free here the
+	// way it is on a count: on a continuous surface it is a legitimate
+	// elevation, so one value is reserved and the ramp is transparent under it.
+	ValueFloor float64 `json:"value_floor"`
 	// How much of the window is measurement and how much is void fill. Reported
 	// rather than silently dropped: a window that is half void has a mean that
 	// describes half a place.

@@ -4380,10 +4380,26 @@ def action_predict(req, work_dir):
 # NO BUFFER. solar_terrain widens its window so a ridge outside the AOI can
 # shade pixels inside it; nothing here is cast from anywhere. The window is the
 # AOI, and the figures are over exactly what is drawn.
-# The top of the decoded range the scalar protocol carries. The decoding is
+# The decoded range the scalar protocol carries. The decoding is
 # r + g/256 + b/65536, whose supremum is 256; 255 leaves the top of the ramp on
 # a whole number and inside the range rather than at its edge.
 VALUE_FULL_SCALE = 255.0
+
+# ZERO MEANS ABSENT, AND THE SURFACE STARTS AT ONE.
+#
+# The protocol writes 0 for every cell outside the raster it was given -- a tile
+# on the other side of the world is still a tile it has to answer. On a count
+# that is free, because 0 is already "no product called this flooded". On a
+# continuous surface it is not: 0 is a legitimate elevation, the window's own
+# floor, so an unmasked ramp painted the whole planet the colour of the valley
+# bottom.
+#
+# One value is therefore reserved. The surface occupies [1, 255] and the ramp
+# is transparent below 1, which costs one part in 254 of the range -- under
+# 1 cm on a 2 km window, and nothing at all next to the 65536 steps the
+# fraction channels carry.
+VALUE_ABSENT = 0.0
+VALUE_FLOOR = 1.0
 
 
 def action_surface_model(req, work_dir):
@@ -4408,6 +4424,7 @@ def action_surface_model(req, work_dir):
         elevation = src.read(1).astype('float32')
         profile = src.profile
         nodata = src.nodata
+        transform = src.transform
 
     # dem.py's threshold, for its reason: SRTM writes -32768 into voids and ALOS
     # writes -9999, and neither is always declared as the COG's nodata. The
@@ -4415,7 +4432,19 @@ def action_surface_model(req, work_dir):
     void = ~np.isfinite(elevation) | (elevation < -1000.0)
     if nodata is not None:
         void |= elevation == nodata
-    measured = elevation[~void]
+
+    # THE POLYGON, NOT ITS BOUNDING BOX. fetch_dem returns a rectangular window
+    # because that is what a raster window is; the figures below and the raster
+    # written for the map are both over the shape that was drawn. Without this
+    # a diagonal AOI reports the surface of a rectangle several times its area,
+    # which is the mistake the flood payload's reporting mask exists to avoid.
+    from rasterio.features import geometry_mask
+    inside = ~geometry_mask(
+        [polygon.__geo_interface__], out_shape=elevation.shape,
+        transform=transform, invert=False,
+    )
+    absent = void | ~inside
+    measured = elevation[~absent]
     if measured.size == 0:
         fail('the DEM window is entirely void over this area')
 
@@ -4441,14 +4470,19 @@ def action_surface_model(req, work_dir):
     # terracing. Carrying the fraction puts the step at relief/65536 -- under
     # 5 cm on that same window.
     span = max(hi - lo, 1e-6)
-    normalised = np.clip((elevation - lo) / span, 0.0, 1.0) * VALUE_FULL_SCALE
+    fraction = np.clip((elevation - lo) / span, 0.0, 1.0)
+    normalised = VALUE_FLOOR + fraction * (VALUE_FULL_SCALE - VALUE_FLOOR)
+    # Absent cells carry the reserved value rather than a clamped elevation.
+    normalised = np.where(absent, VALUE_ABSENT, normalised)
     packed = np.rint(normalised * 65536.0).astype('uint32')
     packed = np.clip(packed, 0, 0xFFFFFF)
     rgba = np.zeros((*elevation.shape, 4), dtype=np.uint8)
     rgba[..., 0] = (packed >> 16) & 0xFF
     rgba[..., 1] = (packed >> 8) & 0xFF
     rgba[..., 2] = packed & 0xFF
-    rgba[..., 3] = np.where(void, 0, 255).astype(np.uint8)
+    # Alpha is for a reader opening the file, not for the decoder: MapLibre's
+    # DEM unpacking reads RGB only, which is why absence had to be a value.
+    rgba[..., 3] = np.where(absent, 0, 255).astype(np.uint8)
     values_png = Path(work_dir) / 'surface_values.png'
     comp.write_rgba_png(rgba, values_png)
 
@@ -4467,11 +4501,14 @@ def action_surface_model(req, work_dir):
         'relief_m': hi - lo,
         'mean_m': float(np.mean(measured)),
         'measured_cells': int(measured.size),
-        'void_cells': int(void.sum()),
-        # A decoded value v is floor_m + v * relief_m / VALUE_FULL_SCALE. The
-        # map needs the three of them together; none can be guessed from the
-        # image, and a legend that guessed would be a legend in the wrong units.
+        'void_cells': int(absent.sum()),
+        # A decoded value v carries metres as
+        #   floor_m + (v - value_floor) * relief_m / (value_full_scale - value_floor)
+        # and v below value_floor is absent. The map needs all of them; none
+        # can be guessed from the image, and a legend that guessed would be a
+        # legend in the wrong units over the wrong ground.
         'value_full_scale': VALUE_FULL_SCALE,
+        'value_floor': VALUE_FLOOR,
         'notes': [
             'Copernicus GLO-30 is a surface model: it measures the first '
             'reflective surface, so closed forest reports canopy top and built '

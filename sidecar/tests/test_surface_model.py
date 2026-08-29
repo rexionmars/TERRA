@@ -19,12 +19,17 @@ import numpy as np
 import pytest
 
 VALUE_FULL_SCALE = 255.0
+VALUE_ABSENT = 0.0
+VALUE_FLOOR = 1.0
 
 
-def pack(elevation, lo, hi):
+def pack(elevation, lo, hi, absent=None):
     """The lines action_surface_model runs, over a window small enough to read."""
     span = max(hi - lo, 1e-6)
-    normalised = np.clip((elevation - lo) / span, 0.0, 1.0) * VALUE_FULL_SCALE
+    fraction = np.clip((elevation - lo) / span, 0.0, 1.0)
+    normalised = VALUE_FLOOR + fraction * (VALUE_FULL_SCALE - VALUE_FLOOR)
+    if absent is not None:
+        normalised = np.where(absent, VALUE_ABSENT, normalised)
     packed = np.clip(np.rint(normalised * 65536.0).astype("uint32"), 0, 0xFFFFFF)
     return (
         ((packed >> 16) & 0xFF).astype(np.uint8),
@@ -35,7 +40,8 @@ def pack(elevation, lo, hi):
 
 def decode(r, g, b, lo, hi):
     value = r * 1.0 + g / 256.0 + b / 65536.0
-    return lo + value * (hi - lo) / VALUE_FULL_SCALE
+    span = VALUE_FULL_SCALE - VALUE_FLOOR
+    return lo + (value - VALUE_FLOOR) * (hi - lo) / span
 
 
 @pytest.mark.parametrize(
@@ -63,8 +69,36 @@ def test_the_ends_of_the_window_are_the_ends_of_the_range():
     lo, hi = 100.0, 900.0
     r, g, b = pack(np.array([[lo, hi]], dtype="float32"), lo, hi)
     value = r * 1.0 + g / 256.0 + b / 65536.0
-    assert value[0, 0] == pytest.approx(0.0)
+    assert value[0, 0] == pytest.approx(VALUE_FLOOR)
     assert value[0, 1] == pytest.approx(VALUE_FULL_SCALE)
+
+
+def test_absence_is_a_value_the_floor_cannot_be_confused_with():
+    """
+    Why one value is reserved, and what it cost when it was not.
+
+    The scalar protocol answers every tile it is asked for, and outside the
+    raster it writes zero. On a count that is free -- zero already means no
+    product called the cell flooded. On a continuous surface it is not: zero
+    was a legitimate elevation, the window's own floor, so the ramp painted the
+    whole planet the colour of the valley bottom.
+
+    The surface therefore starts at VALUE_FLOOR, and the gap between absence
+    and the lowest measured ground is what the map's ramp is transparent
+    across.
+    """
+    lo, hi = 300.0, 451.0
+    elevation = np.array([[lo, (lo + hi) / 2, hi]], dtype="float32")
+    absent = np.array([[True, False, False]])
+    r, g, b = pack(elevation, lo, hi, absent=absent)
+    value = r * 1.0 + g / 256.0 + b / 65536.0
+
+    assert value[0, 0] == pytest.approx(VALUE_ABSENT)
+    # The lowest measured cell sits at the floor, not at absence, so no ground
+    # can be mistaken for no ground.
+    assert value[0, 1] > VALUE_FLOOR
+    assert value[0, 2] == pytest.approx(VALUE_FULL_SCALE)
+    assert VALUE_ABSENT < VALUE_FLOOR
 
 
 def test_a_single_channel_would_terrace_a_mountain_window():
@@ -78,7 +112,8 @@ def test_a_single_channel_would_terrace_a_mountain_window():
     lo, hi = 0.0, 3000.0
     elevation = np.array([[1500.0, 1505.0]], dtype="float32")
     r, _, _ = pack(elevation, lo, hi)
-    red_only = lo + r.astype(float) * (hi - lo) / VALUE_FULL_SCALE
+    span = VALUE_FULL_SCALE - VALUE_FLOOR
+    red_only = lo + (r.astype(float) - VALUE_FLOOR) * (hi - lo) / span
     assert abs(red_only[0, 0] - red_only[0, 1]) < 1e-9  # indistinguishable
     r2, g2, b2 = pack(elevation, lo, hi)
     full = decode(r2.astype(float), g2.astype(float), b2.astype(float), lo, hi)

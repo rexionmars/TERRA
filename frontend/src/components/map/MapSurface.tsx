@@ -665,7 +665,10 @@ export function MapSurface({
           url: surface.reading.values_uri,
           // A continuous field, so the ramp is an interpolation over the whole
           // decoded range rather than a band per value.
-          continuous: hypsometricRamp(surface.reading.value_full_scale),
+          continuous: hypsometricRamp(
+            surface.reading.value_floor,
+            surface.reading.value_full_scale
+          ),
         },
       })
     }
@@ -768,6 +771,10 @@ export function MapSurface({
     confidenceVisible,
     overlayOpacity,
     swipeActive,
+    // The surface reading. Its absence here is why the panel filled with
+    // figures and the map stayed bare: the memo did not recompute, so the
+    // layer was never in the stack that syncOverlays reconciles.
+    surface,
   ])
 
   /*

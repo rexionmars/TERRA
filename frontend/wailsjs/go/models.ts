@@ -5509,6 +5509,7 @@ export namespace analysis {
 	    relief_m: number;
 	    mean_m: number;
 	    value_full_scale: number;
+	    value_floor: number;
 	    measured_cells: number;
 	    void_cells: number;
 	    notes: string[];
@@ -5531,6 +5532,7 @@ export namespace analysis {
 	        this.relief_m = source["relief_m"];
 	        this.mean_m = source["mean_m"];
 	        this.value_full_scale = source["value_full_scale"];
+	        this.value_floor = source["value_floor"];
 	        this.measured_cells = source["measured_cells"];
 	        this.void_cells = source["void_cells"];
 	        this.notes = source["notes"];
