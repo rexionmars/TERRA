@@ -37,6 +37,7 @@ import functools
 import numpy as np
 import pandas as pd
 
+import dem
 from terra import stac
 
 POWER_BASE = "https://power.larc.nasa.gov/api/temporal"
@@ -971,9 +972,9 @@ def horizon_enclosure(horizon: np.ndarray) -> dict:
     }
 
 
-def fetch_dem(polygon, out_path, buffer_m: float = 0.0) -> str:
+def fetch_dem(polygon, out_path, buffer_m: float = 0.0, progress=None) -> str:
     """
-    Copernicus DEM GLO-30 window covering the AOI.
+    Copernicus DEM GLO-30 window covering the AOI, merged across every tile.
 
     Served as a COG from the same Planetary Computer catalogue Sentinel-2 comes
     from, so this needs no new imagery infrastructure.
@@ -981,43 +982,50 @@ def fetch_dem(polygon, out_path, buffer_m: float = 0.0) -> str:
     `buffer_m` widens the window so terrain outside the AOI can still cast onto
     pixels inside it. Without it, a ridge just beyond the boundary is invisible
     and the pixels it shades are reported as unshaded.
+
+    TWO FAILURES THIS NO LONGER HAS. It read `items[0]`, so an AOI crossing a
+    one-degree Copernicus tile boundary received terrain covering part of
+    itself, plausible on screen and wrong in a direction nothing revealed. And
+    it searched by the AOI rather than by the buffered window, so a tile
+    intersecting only the buffer ring was never returned and the shading band
+    the buffer exists to provide had a hole in exactly the place it mattered.
+    dem.read_merged is the reader that already got both right for the flood
+    envelope; this now goes through it.
+
+    Coverage is not required. Copernicus publishes no tile over the sea, so a
+    coastal area has a legitimate gap; those cells arrive as NaN, the fraction
+    is reported through `progress`, and the chain downstream already reads a
+    cell with no elevation as ground a plant cannot stand on.
     """
     import rasterio
-    from rasterio.windows import from_bounds
+    from shapely.geometry import box
 
-    items = stac.search(DEM_COLLECTION, intersects=polygon)
+    bounds = dem.buffer_bounds(polygon.bounds, buffer_m)
+    items = stac.search(DEM_COLLECTION, intersects=box(*bounds))
     if not items:
         raise RuntimeError("no Copernicus DEM tile covers this AOI")
 
-    minx, miny, maxx, maxy = polygon.bounds
-    if buffer_m > 0:
-        lat_mid = 0.5 * (miny + maxy)
-        dlat = buffer_m / 111_320.0
-        dlon = buffer_m / max(111_320.0 * np.cos(np.radians(lat_mid)), 1.0)
-        minx, miny, maxx, maxy = minx - dlon, miny - dlat, maxx + dlon, maxy + dlat
-    bounds = (minx, miny, maxx, maxy)
+    array, transform, crs = dem.read_merged(
+        [item.assets["data"].href for item in items],
+        bounds,
+        progress=progress,
+        require_coverage=False,
+    )
 
-    with rasterio.open(items[0].assets["data"].href) as src:
-        # Clip to the tile before reading. `read` silently drops the part of a
-        # window that falls outside, while `window_transform` does not, so an
-        # unclipped window near a tile edge would georeference the raster to the
-        # wrong corner.
-        window = from_bounds(*bounds, transform=src.transform).intersection(
-            rasterio.windows.Window(0, 0, src.width, src.height)
-        )
-        data = src.read(1, window=window)
-        profile = src.profile.copy()
-        profile.update(
-            height=data.shape[0],
-            width=data.shape[1],
-            transform=src.window_transform(window),
-            driver="GTiff",
-            compress="lzw",
-        )
-    if data.size == 0:
-        raise RuntimeError("Copernicus DEM window is empty for this AOI")
-    with rasterio.open(out_path, "w", **profile) as dst:
-        dst.write(data, 1)
+    with rasterio.open(
+        out_path,
+        "w",
+        driver="GTiff",
+        height=array.shape[0],
+        width=array.shape[1],
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
+        nodata=float("nan"),
+        compress="lzw",
+    ) as dst:
+        dst.write(array, 1)
     return str(out_path)
 
 

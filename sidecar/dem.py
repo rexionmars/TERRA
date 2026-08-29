@@ -284,29 +284,21 @@ def resample_onto(array, grid, reference):
 # --------------------------------------------------------------------- reading
 
 
-def _require_coverage(target, tile_bounds, tol=1e-6):
-    """
-    Refuse a window the tiles do not fill, before spending the read on it.
+# Below this, the difference is the geometry library rounding rather than a gap.
+COVERAGE_TOL = 1e-6
 
-    A missing tile does not fail: merge writes NaN where nothing covered, and
-    NaN propagates into the flow accumulation as a hole in the drainage network,
-    which produces a HAND that is wrong over a region rather than absent over
-    it. Named here, the failure says which fraction of the window arrived.
-    """
+
+def missing_fraction(target, tile_bounds):
+    """The share of `target`, from 0 to 1, that no tile covers."""
     from shapely.geometry import box
     from shapely.ops import unary_union
 
     want = box(*target)
     have = unary_union([box(*b) for b in tile_bounds])
-    missing = want.difference(have).area / want.area
-    if missing > tol:
-        raise RuntimeError(
-            f"the catalogue returned {len(tile_bounds)} tiles, which leave "
-            f"{missing * 100:.1f} percent of the requested window uncovered"
-        )
+    return want.difference(have).area / want.area
 
 
-def read_merged(sources, bounds, progress=None):
+def read_merged(sources, bounds, progress=None, require_coverage=True):
     """
     Merge every source over `bounds` and return (array, transform, crs).
 
@@ -316,6 +308,15 @@ def read_merged(sources, bounds, progress=None):
     resampled onto the first one's, which is the correct fallback for the one
     case it arises in: Copernicus tiles change longitude spacing at 50 degrees
     of latitude, so an AOI straddling that parallel merges two spacings.
+
+    `require_coverage` refuses a window the tiles do not fill. The flood
+    envelope needs that: merge writes NaN where nothing covered, NaN propagates
+    into the flow accumulation as a hole in the drainage network, and the HAND
+    that results is wrong over a region rather than absent over it. The terrain
+    read behind solar siting passes False, because Copernicus publishes no tile
+    over the sea, so a coastal area has a legitimate gap and the chain
+    downstream already treats a cell with no elevation as unsuitable ground.
+    The gap is reported through `progress` rather than passed over in silence.
 
     float32, not float64. It halves the 40 MB a 1e7 cell window costs, and a
     DEM has no elevation float32 cannot hold: at 9000 m its spacing is 1 mm,
@@ -351,7 +352,19 @@ def read_merged(sources, bounds, progress=None):
             )
 
         target = snap_bounds(bounds, opened[0].transform)
-        _require_coverage(target, [d.bounds for d in opened])
+        missing = missing_fraction(target, [d.bounds for d in opened])
+        if missing > COVERAGE_TOL:
+            if require_coverage:
+                raise RuntimeError(
+                    f"the catalogue returned {len(opened)} tiles, which leave "
+                    f"{missing * 100:.1f} percent of the requested window "
+                    "uncovered"
+                )
+            if progress:
+                progress(
+                    f"{missing * 100:.1f} percent of this window has no tile; "
+                    "those cells read as no data"
+                )
 
         array, transform = rio_merge(
             opened,

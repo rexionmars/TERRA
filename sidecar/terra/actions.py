@@ -1400,7 +1400,10 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     centroid = polygon.centroid
     stage('dem', 'fetching Copernicus DEM GLO-30')
     try:
-        dem_path = solar_mod.fetch_dem(polygon, Path(work_dir) / 'dem.tif')
+        dem_path = solar_mod.fetch_dem(
+            polygon, Path(work_dir) / 'dem.tif',
+            progress=lambda msg: protocol.emit_progress(-1, msg),
+        )
     except Exception as e:
         protocol.fail(f'DEM fetch failed: {e}')
     with rasterio.open(dem_path) as src:
@@ -2329,6 +2332,7 @@ def action_solar_terrain(req, work_dir):
         dem_path = solar_mod.fetch_dem(
             polygon, Path(work_dir) / 'dem.tif',
             buffer_m=solar_mod.HORIZON_MAX_DIST_M,
+            progress=lambda msg: protocol.emit_progress(-1, msg),
         )
     except Exception as e:
         protocol.fail(f'DEM fetch failed: {e}')
