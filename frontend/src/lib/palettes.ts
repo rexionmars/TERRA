@@ -95,3 +95,30 @@ export function paletteGradient(name: PaletteName): string {
     .map((c, i) => `${c} ${((i / n) * 100).toFixed(2)}%`)
     .join(", ")})`
 }
+
+/**
+ * The colour a ramp gives to t in [0,1], as the renderer computes it.
+ *
+ * `sidecar/composite.py:_lerp_cmap` is the definition, and this is that
+ * function: segment index `min(floor(t*n), n-1)`, then a linear blend to the
+ * next stop. Written out rather than approximated with the nearest stop,
+ * because a legend that disagrees with its raster is the fault this file's
+ * header exists to record -- and a paint expression built from these is a
+ * legend that IS the raster.
+ */
+export function paletteColor(name: PaletteName, t: number): string {
+  const stops = PALETTE_STOPS[name]
+  const n = stops.length - 1
+  const clamped = Math.min(1, Math.max(0, t))
+  const idx = Math.min(Math.floor(clamped * n), n - 1)
+  const f = clamped * n - idx
+  const a = hexToRgb(stops[idx])
+  const b = hexToRgb(stops[idx + 1])
+  const mix = (i: number) => Math.round(a[i] + (b[i] - a[i]) * f)
+  return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const v = parseInt(hex.slice(1), 16)
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255]
+}
