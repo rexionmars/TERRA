@@ -241,6 +241,17 @@ export function MapSurface({
       },
     })
     mapRef.current = map
+    /*
+      DEV ONLY, and kept rather than removed. A map's state -- what its sources
+      hold, where its camera is, which layers exist in what order -- is not
+      reachable from the DOM, and the drawing bug below was found only by
+      reading it: the geometry that came out named a camera the map was not at.
+      A handle costs nothing in a build that strips it and is the difference
+      between measuring this surface and guessing at it.
+    */
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __map?: MapLibreMap }).__map = map
+    }
 
     const subs: Subscription[] = []
     subs.push(map.on("load", () => setReady(true)))
@@ -741,27 +752,53 @@ export function MapSurface({
     })
     draw.start()
     drawRef.current = draw
+    // See the map handle above; the draw store is likewise unreachable from
+    // the DOM, and its snapshot is what told the vertices apart.
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __draw?: TerraDraw }).__draw = draw
+    }
 
     const emit = () => {
-      const features = draw.getSnapshot().filter((f) => f.geometry.type === "Polygon")
+      const features = draw
+        .getSnapshot()
+        .filter((f) => f.geometry.type === "Polygon")
       const last = features[features.length - 1]
       onDrawnRef.current(last ? (last.geometry as GeoJSONGeometry) : null)
     }
+
     /*
       ONE AREA AT A TIME, which is the map screen's rule and not terra-draw's:
-      a second polygon replaces the first rather than joining it, so what the
-      run reads is never ambiguous.
+      a second polygon replaces the first rather than joining it, so what a run
+      reads is never ambiguous. By id, from the event, rather than by position
+      in the snapshot -- the store also holds the closing point and the
+      selection handles, and "everything but the last one" removed whichever of
+      those happened to sort last.
     */
-    draw.on("finish", () => {
-      const features = draw.getSnapshot()
-      const extra = features.slice(0, -1).map((f) => f.id!)
-      if (extra.length) draw.removeFeatures(extra)
+    draw.on("finish", (id) => {
+      const others = draw
+        .getSnapshot()
+        .filter((f) => f.id !== id)
+        .map((f) => f.id!)
+      if (others.length) draw.removeFeatures(others)
       emit()
       setDrawMode("idle")
       draw.setMode("select")
     })
+
+    /*
+      NOT ON EVERY UPDATE, and this is the one that had to be found by watching
+      it: terra-draw fires `change` with "update" on each vertex of a polygon
+      still being drawn. Emitting those put a half-drawn shape into the
+      application's state, the effect below then saw the draw store disagreeing
+      with it and called clear(), and the drawing was wiped on its third click
+      and silently restarted. What came out was a two-point sliver.
+
+      So: the finished shape on `finish`, an edited one only while the select
+      mode owns it, and a removal whenever one happens.
+    */
     draw.on("change", (_ids, type) => {
-      if (type === "delete" || type === "update") emit()
+      if (type === "delete") return emit()
+      if (type === "update" && draw.getMode() === "select") emit()
     })
 
     return () => {
@@ -780,6 +817,9 @@ export function MapSurface({
   useEffect(() => {
     const draw = drawRef.current
     if (!draw) return
+    // Never while a shape is being drawn. The store is mid-edit and the
+    // application's copy is by definition older than it.
+    if (draw.getModeState() === "drawing") return
     const current = draw.getSnapshot()
     const currentGeom = current.length
       ? (current[current.length - 1].geometry as GeoJSONGeometry)
