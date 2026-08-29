@@ -19,7 +19,7 @@
  */
 import { useMemo } from "react"
 
-import { GlobeSurface } from "@/components/globe/GlobeSurface"
+import { GLOBE_BASEMAP, GlobeSurface } from "@/components/globe/GlobeSurface"
 import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
 import { Credit } from "@/components/TitleBar"
 import { basemapByKind } from "@/lib/basemaps"
@@ -91,7 +91,9 @@ export function GlobeScreen({
     return out
   }, [savedAois, projects, areas])
 
-  const imagery = basemapByKind("eox")
+  // The same constant the surface builds its source from, so the credit names
+  // the imagery that is actually on screen.
+  const imagery = basemapByKind(GLOBE_BASEMAP)
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">

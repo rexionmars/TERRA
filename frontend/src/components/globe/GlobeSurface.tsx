@@ -59,9 +59,31 @@ import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 setWorkerUrl(maplibreWorkerUrl)
 
 import type { GlobeArea } from "@/components/globe/globeArea"
-import { basemapByKind } from "@/lib/basemaps"
+import { basemapByKind, type BasemapKind } from "@/lib/basemaps"
 import { onPaletteChange } from "@/lib/paletteWatch"
 import { cn } from "@/lib/utils"
+
+/**
+ * The imagery the globe draws, named once so the surface and the credit
+ * beneath it cannot disagree about which one it is.
+ *
+ * ESRI, WHICH IS WHAT THE MAP ALREADY OPENS ON. This was s2cloudless, and the
+ * choice cost twice over. Measured against the same six tiles, z8 through z13:
+ * EOX answers in 801 ms on average, Esri in 142 ms. And s2cloudless is a 10 m
+ * product, so its imagery stops at z14 -- past that a reader turns the wheel
+ * and the picture does not sharpen, because there is nothing further to fetch.
+ * Esri carries five more levels.
+ *
+ * s2cloudless is not worse; it is a different thing. It is one cloud-free
+ * Sentinel-2 mosaic of a stated year, which is what makes it the right ground
+ * for reading a classification against on the map screen, where it is offered.
+ * This screen is for finding where the work is, and for that the faster and
+ * deeper basemap is the one that answers.
+ */
+export const GLOBE_BASEMAP: BasemapKind = "esri"
+
+/** Where the camera opens: the whole planet, with Brazil facing the reader. */
+const START_ZOOM = 1.6
 
 const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
@@ -94,6 +116,15 @@ function toFeatureCollection(areas: readonly GlobeArea[]) {
   }
 }
 
+/**
+ * The deepest level this imagery actually has. Past it MapLibre magnifies the
+ * last real one, which looks identical to a slow network from the outside.
+ */
+const NATIVE_MAX = (() => {
+  const b = basemapByKind(GLOBE_BASEMAP)
+  return b.maxNativeZoom ?? b.maxZoom
+})()
+
 export function GlobeSurface({
   areas,
   onPickArea,
@@ -111,6 +142,19 @@ export function GlobeSurface({
   const mapRef = useRef<MapLibreMap | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  /*
+    THE TWO THINGS A READER CANNOT OTHERWISE TELL APART.
+
+    Turning the wheel and seeing no change has two causes with one appearance:
+    tiles still in flight, and imagery that has no finer level to give. Without
+    a word from the surface they are the same event, and the reader's next move
+    -- wait, or stop turning -- depends on which it is.
+
+    The zoom figure alone answers a third of it: it moves while the picture
+    does not, which says the gesture registered.
+  */
+  const [zoom, setZoom] = useState(START_ZOOM)
+  const [busy, setBusy] = useState(false)
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
@@ -120,7 +164,7 @@ export function GlobeSurface({
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    const imagery = basemapByKind("eox")
+    const imagery = basemapByKind(GLOBE_BASEMAP)
     let map: MapLibreMap
     try {
       map = new MapLibreMap({
@@ -138,7 +182,7 @@ export function GlobeSurface({
         */
         attributionControl: false,
         center: [-51.4, -23.4],
-        zoom: 1.6,
+        zoom: START_ZOOM,
         style: {
           version: 8,
           // The projection, in force on the first frame. See the file's note.
@@ -300,6 +344,22 @@ export function GlobeSurface({
       })
     )
     subs.push(
+      map.on("zoom", () => {
+        // Rounded before it is stored, so a pinch settles into about ten state
+        // changes per level instead of one per frame.
+        const z = Math.round(map.getZoom() * 10) / 10
+        setZoom((prev) => (prev === z ? prev : z))
+      })
+    )
+    /*
+      `dataloading` fires per request and `idle` when nothing is outstanding
+      and nothing is animating, which is exactly the pair this needs. Setting
+      the same value again is free -- React bails out of a re-render when the
+      state is unchanged -- so no throttling is warranted here.
+    */
+    subs.push(map.on("dataloading", () => setBusy(true)))
+    subs.push(map.on("idle", () => setBusy(false)))
+    subs.push(
       map.on("mouseenter", AREA_FILL, () => {
         map.getCanvas().style.cursor = "pointer"
       })
@@ -361,6 +421,25 @@ export function GlobeSurface({
         className="h-full w-full"
         style={{ background: "rgb(var(--p-ink))" }}
       />
+      {/*
+        Bottom left, in the studio status bar's idiom and at its weight: this
+        answers a question a reader holds while looking at the imagery, and
+        anything heavier would compete with the imagery for the answer.
+      */}
+      {ready && !failure && (
+        <div className="telemetry pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span className="tabular-nums text-foreground">z{zoom.toFixed(1)}</span>
+          {busy ? (
+            <span>loading imagery</span>
+          ) : zoom > NATIVE_MAX ? (
+            /* Not an error. The imagery ends and the picture is magnified from
+               its last real level, which is what a map does; saying so is the
+               difference between a limit and a fault. */
+            <span>magnified past z{NATIVE_MAX}, the finest this imagery has</span>
+          ) : null}
+        </div>
+      )}
+
       {onOpenMapHere && ready && !failure && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
           {/*
