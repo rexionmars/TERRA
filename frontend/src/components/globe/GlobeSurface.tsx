@@ -38,6 +38,7 @@ import {
   CameraControls,
   useCameraNavigation,
 } from "@/components/map/cameraNavigation"
+import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
 import { basemapByKind, type BasemapKind } from "@/lib/basemaps"
 import { onPaletteChange } from "@/lib/paletteWatch"
 import { cn } from "@/lib/utils"
@@ -385,9 +386,9 @@ export function GlobeSurface({
   return (
     <div className={cn("relative min-h-0 min-w-0", className)}>
       {/*
-        Space is painted here. MapLibre forces an alpha context and clears each
-        frame to transparent, and its own stylesheet sets no background, so the
-        colour behind the planet is whatever CSS puts on this element.
+        Space is drawn by the backdrop below, not by a colour on this element.
+        It used to be `--p-ink`, the chassis colour, which made the globe read
+        as an object on a panel rather than a view through one.
 
         SIZED BY h-full, NOT BY `absolute inset-0`, AND THE DIFFERENCE IS NOT
         STYLISTIC. MapLibre puts `.maplibregl-map` on this element and its own
@@ -405,11 +406,13 @@ export function GlobeSurface({
         Filling by height instead leaves the library's `position: relative`
         harmless, because nothing here depends on which one it is.
       */}
-      <div
-        ref={hostRef}
-        className="h-full w-full"
-        style={{ background: "rgb(var(--p-ink))" }}
-      />
+      <SpaceBackdrop />
+      {/*
+        Above the backdrop by document order, and transparent: MapLibre forces
+        an alpha context and clears each frame, so what is behind this element
+        is what shows around the planet.
+      */}
+      <div ref={hostRef} className="h-full w-full" />
       {/*
         Bottom left, in the studio status bar's idiom and at its weight: this
         answers a question a reader holds while looking at the imagery, and

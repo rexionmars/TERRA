@@ -56,6 +56,7 @@ import {
   AoiContextMenu,
   type AoiContextMenuState,
 } from "@/components/AoiContextMenu"
+import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
 import { SwipeDivider } from "@/components/map/SwipeDivider"
 import {
   CameraControls,
@@ -329,6 +330,17 @@ export function MapSurface({
     onViewChangeRef.current(pose())
 
     return () => {
+      /*
+        THE DRAW STORE LETS GO FIRST, and the order is not incidental. React
+        runs cleanups in the order their effects were declared, so this one --
+        the map's -- runs before the drawing effect's below. Removing the map
+        first left terra-draw's adapter writing into sources that no longer
+        existed: `Cannot read properties of undefined (reading 'setData')`,
+        thrown out of stop() on every navigation away from this screen, which
+        the error boundary caught as the whole window failing.
+      */
+      drawRef.current?.stop()
+      drawRef.current = null
       for (const s of subs) s.unsubscribe()
       map.remove()
       mapRef.current = null
@@ -850,8 +862,11 @@ export function MapSurface({
     })
 
     return () => {
-      draw.stop()
-      drawRef.current = null
+      // Only if the map's own cleanup has not already done it; see there.
+      if (drawRef.current === draw) {
+        draw.stop()
+        drawRef.current = null
+      }
     }
   }, [ready])
 
@@ -924,6 +939,12 @@ export function MapSurface({
         and the container collapses to zero height. See GlobeSurface, where that
         cost an afternoon.
       */}
+      {/*
+        Visible only where the planet does not fill the frame, which on this
+        screen is the zoomed-out end where the projection is a sphere. At
+        working zooms nothing of it shows.
+      */}
+      <SpaceBackdrop />
       <div ref={hostRef} className="h-full w-full" />
 
       {/* The map's own controls, in the app's chrome rather than the library's. */}
