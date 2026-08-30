@@ -100,7 +100,6 @@ import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
-import { BoardAreaModal } from "@/components/whiteboard/BoardAreaModal"
 import { ConfidenceLegend } from "@/components/ConfidenceLegend"
 import { statusPanelInset } from "@/components/analysisPrimitives"
 import {
@@ -386,7 +385,6 @@ export function MapScreen(props: MapScreenProps) {
    * Only from the board: on the map the drawing tool is already there, and a
    * modal over it would be a second map over the one that has one.
    */
-  const [drawingArea, setDrawingArea] = useState(false)
   /**
    * The detail band's height, in rem, which the reader can drag.
    *
@@ -987,7 +985,6 @@ export function MapScreen(props: MapScreenProps) {
       activeExample={props.activeExample}
       areaLabel={props.areaLabel}
       onImportPolygon={props.onImportPolygon}
-      onDrawArea={() => setDrawingArea(true)}
       onClearArea={props.onClearArea}
       start={props.start}
       end={props.end}
@@ -1282,6 +1279,14 @@ export function MapScreen(props: MapScreenProps) {
                 application cannot come to hold two ideas of what the area is.
               */
               onUseArea={props.onAdoptAreaGeometry ?? props.onPolygonDrawn}
+              /*
+                And the same handler again for the globe, which DRAWS rather
+                than adopts. `onUseArea` cannot carry a removal -- it takes a
+                geometry, not a geometry or nothing -- and clearing the shape is
+                half of what a drawing tool does.
+              */
+              customPolygon={props.customPolygon}
+              onPolygonDrawn={props.onPolygonDrawn}
               savedAois={props.savedAois}
               activeAoiId={props.activeAoiId}
               onActivateSavedAoi={props.onActivateSavedAoi}
@@ -1510,20 +1515,6 @@ export function MapScreen(props: MapScreenProps) {
           />
         ) : null}
       </AnimatePresence>
-
-      {drawingArea && (
-        <BoardAreaModal
-          /*
-            Opens where the work is: the view the map was left at, so the shape
-            is drawn over the ground already being looked at rather than over
-            the world.
-          */
-          view={props.initialView ?? { lat: -26.23, lon: -52.67, zoom: 12 }}
-          polygon={props.customPolygon}
-          onPolygonDrawn={props.onPolygonDrawn}
-          onClose={() => setDrawingArea(false)}
-        />
-      )}
 
       <DataCubeModal
         open={!!props.dataCubeOpen}

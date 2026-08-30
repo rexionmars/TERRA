@@ -301,7 +301,11 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
       and a board carrying this AND a canopy on its stand pane is at three.
     */
     gl: true,
-    hint: "Every drawn area on the planet, from the world down into the imagery",
+    // Was "Every drawn area on the planet, from the world down into the
+    // imagery", which described a surface that could only be read. It draws
+    // now, and the type menu is where someone looking for a way to make an
+    // area will be looking.
+    hint: "Draw an area on the planet, over the catalog already on it",
   },
   {
     id: "canopyParams",

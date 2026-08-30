@@ -2,10 +2,11 @@
  * Drawing one area on a MapLibre map, with terra-draw.
  *
  * A HOOK BECAUSE THERE ARE TWO SURFACES. The work map draws an area, and so
- * does the board's own modal, which exists so an area can be drawn without
- * leaving the board. Under Leaflet the second imported the first's control;
- * with the control now being a store, a mode and four handlers, a second copy
- * would be a second answer to what "one area" means.
+ * does the studio's globe, which is how an area is drawn without leaving the
+ * board. The second used to be a dialog holding a map of its own; it is a
+ * planet in the arrangement now, and the reason for the hook did not change
+ * with it -- the control is a store, a mode and four handlers, and a second
+ * copy would be a second answer to what "one area" means.
  *
  * WHAT IT CARRIES that terra-draw does not:
  *

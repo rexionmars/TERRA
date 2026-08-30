@@ -33,7 +33,6 @@ import {
   Sun,
   Trash2,
   Upload,
-  PenTool,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { DateField } from "@/components/ui/DateField"
@@ -190,8 +189,6 @@ export interface BoardRunGraphProps {
   /** Display name of the active custom AOI (drawn / drawn 2 / renamed). */
   areaLabel?: string
   onImportPolygon: () => void
-  /** Opens a map to draw one on; absent where the caller offers no such map. */
-  onDrawArea?: () => void
   onClearArea: () => void
 
   start: string
@@ -323,19 +320,15 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
             ? props.activeExample || props.areaLabel || "drawn"
             : "none"}
         </span>
+        {/*
+          TWO VERBS, NOT THREE. The third was a pencil that opened a dialog
+          holding a second map to draw on, which existed because the only place
+          to draw was the work map and reaching it meant closing the board the
+          area was being drawn for. The studio has a planet in its own
+          arrangement now, and the drawing tools are on it -- so the card is
+          left with the two acts that are about a shape it already has.
+        */}
         <div className="flex items-center gap-0.5">
-          {/*
-            First of the three, because it is the one that MAKES an area: the
-            other two act on one that exists.
-          */}
-          {props.onDrawArea && (
-            <IconAction
-              icon={PenTool}
-              title="Draw an area on a map"
-              disabled={busy}
-              onClick={props.onDrawArea}
-            />
-          )}
           <IconAction
             icon={Upload}
             title="Import a polygon"

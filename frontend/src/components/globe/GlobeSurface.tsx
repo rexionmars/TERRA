@@ -23,7 +23,7 @@
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useRef, useState } from "react"
-import { Globe2, TriangleAlert } from "lucide-react"
+import { Globe2, Mountain, Pencil, Spline, TriangleAlert, Trash2 } from "lucide-react"
 import {
   Map as MapLibreMap,
   type GeoJSONSource,
@@ -34,6 +34,15 @@ import {
 import "@/lib/maplibreWorker"
 
 import type { GlobeArea } from "@/components/globe/globeArea"
+import { MapBar, MapButton } from "@/components/map/MapChrome"
+import {
+  ELEVATION_CREDIT,
+  addTerrainSources,
+  setTerrainEnabled,
+} from "@/components/map/terrain"
+import { Credit } from "@/components/TitleBar"
+import { useAreaDrawing } from "@/components/map/useAreaDrawing"
+import type { GeoJSONGeometry } from "@/lib/types"
 import {
   CameraControls,
   useCameraNavigation,
@@ -61,6 +70,23 @@ import { cn } from "@/lib/utils"
  * deeper basemap is the one that answers.
  */
 export const GLOBE_BASEMAP: BasemapKind = "esri"
+
+/*
+  THE SHAPE BEING DRAWN GETS ITS OWN SOURCE, not a feature in the catalog's.
+
+  The catalog is what exists: areas and projects that have been saved, drawn in
+  the accent, pressable to open. A shape under the pointer is none of those --
+  it is not saved, pressing it must not activate anything, and it has to be
+  told apart from the ring it may be about to replace. Sharing a source would
+  also put it under the AREA_FILL click handler, so finishing a polygon would
+  land on it as a press.
+
+  White rather than the accent, which is what DrawMap already draws with: the
+  colour says "in hand" against a field where saved is orange.
+*/
+const SHAPE_SOURCE = "draw-shape"
+const SHAPE_FILL = "draw-shape-fill"
+const SHAPE_LINE = "draw-shape-line"
 
 /** Where the camera opens: the whole planet, with Brazil facing the reader. */
 const START_ZOOM = 1.6
@@ -108,20 +134,44 @@ const NATIVE_MAX = (() => {
 export function GlobeSurface({
   areas,
   onPickArea,
-  onOpenMapHere,
+  polygon = null,
+  onPolygonDrawn,
   className,
 }: {
   areas: readonly GlobeArea[]
   /** An area was pressed. Its id, as given in `areas`. */
   onPickArea: (id: string) => void
-  /** The reader asked for the work map at the place they are looking at. */
-  onOpenMapHere?: (at: { lon: number; lat: number }) => void
+  /**
+   * The area in hand, which the drawing store is kept equal to.
+   *
+   * Read whether or not this surface can draw: a shape set from a search, an
+   * import or the outliner is still the shape the reader is working on, and a
+   * globe that showed the saved catalog but not the current area would be
+   * missing the one outline they are here about.
+   */
+  polygon?: GeoJSONGeometry | null
+  /**
+   * A shape was drawn, edited or removed. ABSENT MEANS THIS GLOBE CANNOT DRAW,
+   * and the tools are withheld rather than shown refusing.
+   */
+  onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  /*
+    RELIEF, OFF BY DEFAULT, for the reason terrain.ts states: a DEM tile per
+    view and a mesh per tile, in an application with a written history of
+    paying for graphics it did not ask for.
+
+    It earns more here than on the work map. A sphere already shows the shape
+    of a coastline and the curve of the limb; what it cannot show flat is why
+    a valley is where it is, and lifting the ground at exaggeration 1 is what
+    turns a picture of a place into the ground the areas are drawn on.
+  */
+  const [relief, setRelief] = useState(false)
   /*
     THE TWO THINGS A READER CANNOT OTHERWISE TELL APART.
 
@@ -134,6 +184,28 @@ export function GlobeSurface({
     does not, which says the gesture registered.
   */
   const { level } = useCameraNavigation(mapRef.current, ready)
+
+  /*
+    THE SAME HOOK THE WORK MAP USES, which is the whole reason this is a small
+    change. `useAreaDrawing` carries the one-area rule, when a finished shape
+    is reported and the sync with the copy held outside; a second answer to
+    what drawing an area means is what it exists to prevent.
+
+    The map is handed over only where there is somewhere to report to. The hook
+    itself is called unconditionally -- it is a hook -- and does nothing with a
+    null map, which is how a globe that only shows the catalog stays one.
+  */
+  const drawnRef = useRef(onPolygonDrawn)
+  drawnRef.current = onPolygonDrawn
+  const canDraw = !!onPolygonDrawn
+  const { mode, setMode, clear, stop } = useAreaDrawing({
+    map: canDraw ? mapRef.current : null,
+    ready,
+    polygon,
+    onPolygonDrawn: (geom) => drawnRef.current?.(geom),
+  })
+  const stopRef = useRef(stop)
+  stopRef.current = stop
   const [zoom, setZoom] = useState(START_ZOOM)
   const [busy, setBusy] = useState(false)
 
@@ -217,6 +289,10 @@ export function GlobeSurface({
               type: "geojson",
               data: toFeatureCollection(areas),
             },
+            [SHAPE_SOURCE]: {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+            },
           },
           layers: [
             /*
@@ -248,6 +324,24 @@ export function GlobeSurface({
               type: "line",
               source: AREA_SOURCE,
               paint: { "line-color": "#ED8744", "line-width": 1.5 },
+            },
+            /*
+              ABOVE the catalog, because it is what is being worked on. And
+              stroked rather than left as a fill: DrawMap records that a closed
+              polygon with no line of its own vanishes the moment it is
+              finished, which reads as the drawing having failed.
+            */
+            {
+              id: SHAPE_FILL,
+              type: "fill",
+              source: SHAPE_SOURCE,
+              paint: { "fill-color": "#ffffff", "fill-opacity": 0.12 },
+            },
+            {
+              id: SHAPE_LINE,
+              type: "line",
+              source: SHAPE_SOURCE,
+              paint: { "line-color": "#ffffff", "line-width": 1.5 },
             },
           ],
         },
@@ -365,6 +459,11 @@ export function GlobeSurface({
     return () => {
       window.clearTimeout(watchdog)
       stopPaletteWatch()
+      // Before the map goes. React runs effect cleanups in the order their
+      // effects were declared, so terra-draw's adapter would otherwise write
+      // into sources belonging to a map that has already been removed -- see
+      // the note on `stop` in useAreaDrawing.
+      stopRef.current()
       for (const s of subs) s.unsubscribe()
       map.remove()
       mapRef.current = null
@@ -382,6 +481,46 @@ export function GlobeSurface({
     const src = map.getSource<GeoJSONSource>(AREA_SOURCE)
     void src?.setData(toFeatureCollection(areas))
   }, [areas, ready])
+
+  /*
+    The DEM and its shading, added once the style exists and inserted UNDER the
+    catalog: an outline is about where work is and hillshade is the ground it
+    is on, so shading over the ring would be the ground drawn on top of the
+    thing it is under.
+  */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    addTerrainSources(map, map.getLayer(AREA_FILL) ? AREA_FILL : undefined)
+  }, [ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    setTerrainEnabled(map, relief)
+    return () => {
+      // The lift is a property of the map, not of this effect's run: left on
+      // through an unmount the next style load inherits a terrain whose source
+      // is gone.
+      if (mapRef.current) setTerrainEnabled(mapRef.current, false)
+    }
+  }, [relief, ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const src = map.getSource<GeoJSONSource>(SHAPE_SOURCE)
+    void src?.setData(
+      polygon
+        ? {
+            type: "FeatureCollection",
+            features: [
+              { type: "Feature", properties: {}, geometry: polygon as never },
+            ],
+          }
+        : { type: "FeatureCollection", features: [] }
+    )
+  }, [polygon, ready])
 
   return (
     <div className={cn("relative min-h-0 min-w-0", className)}>
@@ -429,6 +568,22 @@ export function GlobeSurface({
                difference between a limit and a fault. */
             <span>magnified past z{NATIVE_MAX}, the finest this imagery has</span>
           ) : null}
+          {/*
+            NOT DECORATIVE AND NOT OPTIONAL. terrain.ts states the rule: the
+            mosaic is assembled from national and mission datasets whose
+            licences ask to be named, and naming it is also what keeps it
+            distinct from the DEMs an analysis ran on -- a reader must not take
+            the shading under a flood envelope for the surface that envelope
+            was derived from.
+
+            `pointer-events-auto` on the credit alone, because the line around
+            it is a readout that must not take the pointer off the planet.
+          */}
+          {relief && (
+            <span className="pointer-events-auto opacity-80">
+              <Credit part={ELEVATION_CREDIT} />
+            </span>
+          )}
         </div>
       )}
 
@@ -440,27 +595,51 @@ export function GlobeSurface({
         />
       )}
 
-      {onOpenMapHere && ready && !failure && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
+      {/*
+        TOP RIGHT, NOT BOTTOM RIGHT WHERE DrawMap PUTS THEM. That corner is the
+        camera's on this surface, and two bars stacked there would be one column
+        of six glyphs with a seam somewhere in the middle -- which reads as one
+        instrument rather than two. Opposite corners keep "where am I looking"
+        and "what am I drawing" apart.
+      */}
+      {ready && !failure && (
+        <MapBar className="app-no-drag absolute right-3 top-3 z-[400] flex flex-col">
           {/*
-            NOT ABOUT DETAIL ANY MORE. The old button said this was as close as
-            the imagery went, which was true of a single stitched world image
-            and is not true here: the globe zooms into the same tiles the map
-            does. What the work map still has that this does not is the tools --
-            drawing an area, the overlays, the comparison -- so that is what it
-            offers now.
+            Relief first, and above the drawing tools rather than in a bar of
+            its own: this surface has one column of chrome at this corner, and
+            a second bar beside it would be two instruments for one hand. It
+            leads because it is about the ground, and the tools below it are
+            about what is put on the ground.
           */}
-          <button
-            type="button"
-            onClick={() => {
-              const c = mapRef.current?.getCenter()
-              if (c) onOpenMapHere({ lon: c.lng, lat: c.lat })
-            }}
-            className="panel pointer-events-auto rounded-sm px-2.5 py-1.5 text-body text-foreground shadow-lg transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          <MapButton
+            label="Relief"
+            active={relief}
+            onClick={() => setRelief((r) => !r)}
           >
-            Open the work map here
-          </button>
-        </div>
+            <Mountain className="size-4" strokeWidth={1.5} />
+          </MapButton>
+          {canDraw && (
+            <>
+              <MapButton
+                label="Draw an area"
+                active={mode === "draw"}
+                onClick={() => setMode((m) => (m === "draw" ? "idle" : "draw"))}
+              >
+                <Pencil className="size-4" strokeWidth={1.5} />
+              </MapButton>
+              <MapButton
+                label="Edit the area"
+                active={mode === "edit"}
+                onClick={() => setMode((m) => (m === "edit" ? "idle" : "edit"))}
+              >
+                <Spline className="size-4" strokeWidth={1.5} />
+              </MapButton>
+              <MapButton label="Delete the area" onClick={clear}>
+                <Trash2 className="size-4" strokeWidth={1.5} />
+              </MapButton>
+            </>
+          )}
+        </MapBar>
       )}
       {(!ready || failure) && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">

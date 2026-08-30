@@ -384,6 +384,8 @@ export function BoardSurface({
   retainedRuns = [],
   legendSources,
   onUseArea,
+  customPolygon = null,
+  onPolygonDrawn,
   savedAois = [],
   activeAoiId,
   onActivateSavedAoi,
@@ -443,6 +445,21 @@ export function BoardSurface({
    * Saved catalog entries go through onActivateSavedAoi instead.
    */
   onUseArea?: (geom: GeoJSONGeometry) => void
+  /**
+   * The area in hand, so the globe can show it and edit it.
+   *
+   * Distinct from the catalog in `savedAois`: that is what has been kept, this
+   * is what is being worked on, and the globe draws them differently for the
+   * same reason the work map does.
+   */
+  customPolygon?: GeoJSONGeometry | null
+  /**
+   * A shape was drawn on, edited on or cleared from the globe.
+   *
+   * Takes a null, which is what separates it from `onUseArea`: that one adopts
+   * an existing geometry and cannot mean "there is no area now". Drawing can.
+   */
+  onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
   /** Drawn / imported AOIs kept in the catalog (not only the active one). */
   savedAois?: import("@/lib/savedAois").SavedAoi[]
   activeAoiId?: string
@@ -3327,9 +3344,14 @@ export function BoardSurface({
       are not in scope here. Pressing one activates it exactly as the
       outliner's own list does -- one behaviour for "use this area", not two.
 
-      No "open the work map here": there is no map on this screen to open, and
-      a control that navigated out of the studio from inside an area would be
-      the only one that did.
+      AND THE AREA IS DRAWN HERE, which is what the board's own drawing modal
+      used to be for. That modal existed because the only place to draw was the
+      work map and reaching it meant closing the board the area was being drawn
+      for -- a round trip through the surface you are trying to add to. It
+      answered that with a second map inside a dialog, over the board, which
+      was a second map to explain and a dialog to dismiss. This is a planet
+      already in the arrangement, and the drawing is the same `useAreaDrawing`
+      the work map uses, so there is no second answer to what an area is.
     */
     globe: (
       <Suspense
@@ -3343,6 +3365,8 @@ export function BoardSurface({
           className="h-full w-full"
           areas={globeAreas}
           onPickArea={(id) => onActivateSavedAoi?.(id.slice(id.indexOf(":") + 1))}
+          polygon={customPolygon}
+          onPolygonDrawn={onPolygonDrawn}
         />
       </Suspense>
     ),
