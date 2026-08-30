@@ -280,6 +280,20 @@ type FloodAnalysis struct {
 	// Empty when the rendering could not be read, in which case the numbers
 	// still stand and only the map is missing.
 	AgreementURI string `json:"agreement_uri,omitempty"`
+	// The same crop again, carrying the COUNTS rather than their colours: the
+	// count in the red channel, one per byte, and alpha marking the reporting
+	// mask. A server-side path, like AgreementPNG.
+	//
+	// It exists so the map can colour the raster from an expression instead of
+	// drawing a finished image. AgreementPNG's palette, and which counts it
+	// draws at all, were decided in the sidecar; a reader who wants a different
+	// ramp, or wants only the cells three products agree on, would otherwise
+	// have to run the analysis again to see it.
+	AgreementValuesPNG string `json:"agreement_values_png"`
+	// AgreementValuesPNG as a data URI, for the reason AgreementURI is one.
+	// Empty when the file could not be read, in which case the map falls back
+	// to the coloured overlay and only the palette control is missing.
+	AgreementValuesURI string `json:"agreement_values_uri,omitempty"`
 }
 
 // NDates reports the number of dates behind the envelope, which is zero.

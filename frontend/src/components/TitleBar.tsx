@@ -22,10 +22,11 @@ import {
   WindowToggleMaximise,
   Quit,
 } from "../../wailsjs/runtime/runtime"
+import { ELEVATION_CREDIT } from "@/components/map/terrain"
 import { mapPose, subscribeMapPose } from "@/lib/mapPose"
 import type { LayoutMode, PredictResult } from "@/lib/types"
 import {
-  LEAFLET_CREDIT,
+  MAPLIBRE_CREDIT,
   basemapByKind,
   type BasemapKind,
   type CreditPart,
@@ -87,7 +88,7 @@ interface TitleBarProps {
    * moved rather than went: the links each licence asks for are rendered as
    * real anchors from the table in lib/basemaps.
    */
-  credit?: { kind: BasemapKind; date: string | null }
+  credit?: { kind: BasemapKind; date: string | null; terrain?: boolean }
 }
 
 /**
@@ -278,7 +279,7 @@ export function TitleBar({
                 {/* Not telemetry, so it is not in the mono face the readings
                     use -- it is a sentence about who the imagery belongs to. */}
                 <span className="hidden max-w-[26rem] truncate font-sans normal-case xl:inline">
-                  <Credit part={LEAFLET_CREDIT} />
+                  <Credit part={MAPLIBRE_CREDIT} />
                   {credit.date ? ` \u00b7 imagery ${credit.date}` : ""}
                   {basemapByKind(credit.kind).credit.map((c, i) => (
                     <span key={c.label}>
@@ -286,6 +287,18 @@ export function TitleBar({
                       <Credit part={c} />
                     </span>
                   ))}
+                  {/*
+                    Only while relief is drawn, because only then is a second
+                    provider on screen. It is also what keeps the elevation
+                    mosaic distinct from the DEMs an analysis was computed on --
+                    see components/map/terrain.ts.
+                  */}
+                  {credit.terrain && (
+                    <span>
+                      {" \u2014 "}
+                      <Credit part={ELEVATION_CREDIT} />
+                    </span>
+                  )}
                 </span>
               </>
             )}

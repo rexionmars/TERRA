@@ -25,6 +25,8 @@
  * where there is width for axes and a histogram, is where the library earns its
  * place.
  */
+import { PALETTE_STOPS } from "@/lib/palettes"
+import { rampStop } from "@/components/analysisPrimitives"
 import { cn } from "@/lib/utils"
 import type {
   LULCAgreement,
@@ -50,6 +52,18 @@ import type {
  * Ink is kept low deliberately (Tufte 1983): hairlines, no fills, no rounded
  * corners, no gridlines between ticks.
  */
+/**
+ * The marker's radius, in pixels, and the axis's own inset.
+ *
+ * One number rather than two: the track is inset by exactly what a marker
+ * overhangs, so a class at 0 or at 100 is drawn whole, and the axis is inset
+ * by the same amount so the marks sit on the scale they are measured against.
+ */
+const MARK_R = 4
+
+/** The interval's end serifs. Tall enough to read as a bound, no taller. */
+const SERIF_PX = 5
+
 function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
   // Null is not zero. A class the reference never sampled has no producer's
   // accuracy at all, and a mark at the origin would read as total failure
@@ -78,77 +92,105 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
         </span>
       </span>
       {/*
-        A viewBox in data units: x is the percentage itself, so no arithmetic
-        maps value to position. preserveAspectRatio="none" lets the row stretch
-        horizontally while non-scaling-stroke keeps every line one hairline
-        wide -- without it, stretching would thicken the verticals and leave
-        the horizontals thin.
+        POSITIONED IN CSS, not in a stretched SVG.
+
+        This was an `svg viewBox="0 0 100 12"` with preserveAspectRatio="none",
+        so that x could be the percentage itself and no arithmetic mapped value
+        to position. The cost was not visible in the source and was the whole
+        legibility fault on screen: the row renders about six hundred pixels
+        wide and twelve tall, so x was scaled roughly six times and y not at
+        all, and `circle r=2.2` came out an ellipse thirteen pixels across and
+        two high. Every marker on this chart was a flat lozenge.
+
+        non-scaling-stroke, which is here for the lines, does not help: it holds
+        a stroke's WIDTH, not a shape's geometry.
+
+        Percentages of an inset track do the same job with none of that. A
+        marker is a div, so it is round because it is round.
       */}
-      <svg
-        viewBox="0 0 100 12"
-        preserveAspectRatio="none"
-        className="h-3 w-full overflow-visible"
-        role="img"
-        aria-label={marks
-          .map(
-            (m) =>
-              `${m.kind} ${m.v!.toFixed(1)} percent${
-                m.ci ? `, 95% CI ${m.ci[0].toFixed(0)} to ${m.ci[1].toFixed(0)}` : ""
-              }`
-          )
-          .join("; ")}
-      >
-        {marks.map((m, k) => {
-          const y = marks.length === 1 ? 6 : k === 0 ? 3.5 : 8.5
-          const lo = m.ci ? Math.max(0, m.ci[0]) : null
-          const hi = m.ci ? Math.min(100, m.ci[1]) : null
-          return (
-            <g key={m.kind}>
-              {lo != null && hi != null && (
-                <>
-                  <line
-                    x1={lo}
-                    x2={hi}
-                    y1={y}
-                    y2={y}
-                    stroke={c.color}
-                    strokeWidth={1}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  {/* Serifs, so the interval reads as bounded rather than as a
-                      line that happens to stop. */}
-                  {[lo, hi].map((x) => (
-                    <line
-                      key={x}
-                      x1={x}
-                      x2={x}
-                      y1={y - 2}
-                      y2={y + 2}
-                      stroke={c.color}
-                      strokeWidth={1}
-                      vectorEffect="non-scaling-stroke"
+      <div className="relative h-5 w-full">
+        {/*
+          Inset by the marker's own radius at both ends, so a class at 0 or at
+          100 is drawn whole rather than half outside the column. The axis
+          below is inset to match, or the marks would sit against a scale they
+          are not measured on.
+        */}
+        <div
+          className="absolute inset-y-0"
+          style={{ left: MARK_R, right: MARK_R }}
+          role="img"
+          aria-label={marks
+            .map(
+              (m) =>
+                `${m.kind} ${m.v!.toFixed(1)} percent${
+                  m.ci
+                    ? `, 95% CI ${m.ci[0].toFixed(0)} to ${m.ci[1].toFixed(0)}`
+                    : ""
+                }`
+            )
+            .join("; ")}
+        >
+          {marks.map((m, k) => {
+            /*
+              Two baselines, far enough apart that a pair with equal values is
+              two marks rather than one thicker one. Soybean reads 78 and 79 on
+              a real run, which is the case this spacing is for.
+            */
+            const top =
+              marks.length === 1 ? "50%" : k === 0 ? "28%" : "72%"
+            const lo = m.ci ? Math.max(0, m.ci[0]) : null
+            const hi = m.ci ? Math.min(100, m.ci[1]) : null
+            return (
+              <div key={m.kind}>
+                {lo != null && hi != null && (
+                  <>
+                    <div
+                      className="absolute h-px -translate-y-1/2"
+                      style={{
+                        left: `${lo}%`,
+                        width: `${Math.max(0, hi - lo)}%`,
+                        top,
+                        background: c.color,
+                      }}
                     />
-                  ))}
-                </>
-              )}
-              {/*
-                Producer's filled, user's open. The pair is told apart by fill
-                rather than by colour, leaving the class colour to mean the
-                class.
-              */}
-              <circle
-                cx={m.v!}
-                cy={y}
-                r={2.2}
-                fill={k === 0 ? c.color : "rgb(var(--p-surface))"}
-                stroke={c.color}
-                strokeWidth={1}
-                vectorEffect="non-scaling-stroke"
-              />
-            </g>
-          )
-        })}
-      </svg>
+                    {/* Serifs, so the interval reads as bounded rather than as
+                        a line that happens to stop. */}
+                    {[lo, hi].map((x) => (
+                      <div
+                        key={x}
+                        className="absolute w-px -translate-y-1/2"
+                        style={{
+                          left: `${x}%`,
+                          top,
+                          height: SERIF_PX,
+                          background: c.color,
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+                {/*
+                  Producer's filled, user's open. The pair is told apart by fill
+                  rather than by colour, leaving the class colour to mean the
+                  class.
+                */}
+                <div
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                  style={{
+                    left: `${m.v}%`,
+                    top,
+                    width: MARK_R * 2,
+                    height: MARK_R * 2,
+                    background:
+                      k === 0 ? c.color : "rgb(var(--p-surface))",
+                    border: `1px solid ${c.color}`,
+                  }}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </li>
   )
 }
@@ -156,7 +198,13 @@ function AccuracyRow({ c }: { c: LULCClassAccuracy }) {
 /** The shared axis, drawn once beneath the rows it governs. */
 function AccuracyAxis() {
   return (
-    <div className="relative mt-1 h-3 w-full">
+    <div
+      className="relative mt-1 h-3"
+      // Inset by the marker's radius, like the rows above: an axis running the
+      // full width would put its 0 and its 100 at coordinates no mark can
+      // reach, and every reading would look shifted inward.
+      style={{ marginLeft: MARK_R, marginRight: MARK_R }}
+    >
       <div
         className="absolute inset-x-0 top-0 border-t"
         style={{ borderColor: "rgb(var(--p-line-strong) / 0.45)" }}
@@ -249,6 +297,43 @@ export function ClassAccuracyChart({
  * gaps and rounding: a rounded segment with a gap beside it is a stylistic bar
  * chart, and this is a partition of a fixed total.
  */
+/*
+  THE RAMP THESE READINGS ARE PAINTED IN, and it is not the chassis accent.
+
+  Every intensity here used to be `rgb(var(--p-accent) / alpha)`: the brand
+  colour, faded. Two things were wrong with it and only one is a matter of
+  taste. DESIGN.md holds that the scientific ramps answer to the data rather
+  than to the chassis, and an accent that changes takes every confusion matrix
+  in the application with it -- but the measurable fault is that FADING ONE HUE
+  BY ALPHA IS NOT A PERCEPTUALLY UNIFORM SCALE. Equal steps in the number are
+  not equal steps to the eye, which is the exact failure perceptually uniform
+  colormaps exist to remove, and a confusion matrix is read by comparing cells.
+
+  inferno, because this application already answers this question that way:
+  EnergyModelSection paints its sequential magnitudes with it and its diverging
+  ones with rdbu_r. It is generated from sidecar/composite.py and guarded byte
+  for byte by test_palette_sync.py, so a swatch here is a colour the renderer
+  defines rather than one transcribed.
+
+  It also starts near-black, which a dark chassis needs: a ramp that starts
+  light would put its low end above the panel and read the scale backwards.
+
+  WHERE THE LABEL FLIPS is measured, not chosen. Against the dark theme's own
+  text and ink, light type wins on inferno's stops up to t=0.50 and dark type
+  from t=0.56 -- 4.08 against 2.90 at the first, 3.31 against 3.58 at the
+  second. The 0.55 already in this file was calibrated for the accent and lands
+  inside that crossing, which is why it did not have to move.
+
+  A LIMIT WORTH STATING: at the crossing itself neither label clears WCAG's 4.5
+  for text -- the best available is about 3.6. That is inherent to drawing a
+  number on a continuous ramp, is the same on viridis (3.35 against 3.53), and
+  is why every cell also carries its value in a title.
+*/
+const READING_RAMP = PALETTE_STOPS.inferno
+
+/** Where a cell's own label stops being light and starts being dark. */
+const LABEL_FLIP = 0.55
+
 export function DisagreementBar({ a }: { a: LULCAgreement }) {
   const quantity = Math.max(0, a.quantity_disagreement_pct)
   const allocation = Math.max(0, a.allocation_disagreement_pct)
@@ -258,7 +343,21 @@ export function DisagreementBar({ a }: { a: LULCAgreement }) {
   const agree = Math.max(0, Math.min(100, a.overall_pct))
   const total = agree + quantity + allocation || 100
   const parts = [
-    { key: "agree", label: "agreement", v: agree, fill: "rgb(var(--p-accent))" },
+    {
+      key: "agree",
+      label: "agreement",
+      v: agree,
+      /*
+        A PARTITION, so not a ramp: three parts of a fixed total, and the two
+        disagreement terms are already told apart by hatching rather than by a
+        colour that would have to mean something.
+
+        The agreed share takes the ramp's top stop all the same, so this bar
+        and the block grid beside it speak one language: what is agreement
+        there is agreement here, in the same colour, rather than in the brand's.
+      */
+      fill: READING_RAMP[READING_RAMP.length - 1],
+    },
     {
       key: "quantity",
       label: "quantity",
@@ -313,13 +412,21 @@ export function DisagreementBar({ a }: { a: LULCAgreement }) {
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(45)"
           >
-            <rect width="2" height="2" fill="rgb(var(--p-accent) / 0.18)" />
+            {/* The agreed share behind the hatch, so the two disagreement
+                terms read as that share interrupted rather than as a third
+                colour. Faint, because what carries here is the ruling. */}
+            <rect
+              width="2"
+              height="2"
+              fill={READING_RAMP[READING_RAMP.length - 1]}
+              opacity={0.18}
+            />
             <line
               x1="0"
               y1="0"
               x2="0"
               y2="2"
-              stroke="rgb(var(--p-accent))"
+              stroke={READING_RAMP[READING_RAMP.length - 1]}
               strokeWidth="1"
             />
           </pattern>
@@ -489,7 +596,7 @@ export function ConfusionMatrix({
                         style={{
                           background:
                             cell > 0
-                              ? `rgb(var(--p-accent) / ${0.15 + t * 0.65})`
+                              ? rampStop(READING_RAMP, t)
                               : "rgb(var(--p-line) / 0.08)",
                           boxShadow: diag
                             ? "inset 0 0 0 1px rgb(var(--p-line-strong) / 0.9)"
@@ -499,7 +606,7 @@ export function ConfusionMatrix({
                       >
                         <span
                           className={
-                            t > 0.55 ? "text-background" : "text-foreground"
+                            t > LABEL_FLIP ? "text-background" : "text-foreground"
                           }
                         >
                           {cell > 0 ? cell.toLocaleString() : "·"}
@@ -601,7 +708,7 @@ export function BlockAgreementPair({
                           background:
                             v == null
                               ? "rgb(var(--p-line) / 0.12)"
-                              : `rgb(var(--p-accent) / ${0.12 + (v / 100) * 0.7})`,
+                              : rampStop(READING_RAMP, v / 100),
                         }}
                         title={
                           cell == null
@@ -784,14 +891,19 @@ export function ReferenceConfusionPair({
                           <div
                             className={cn(
                               "telemetry flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-[2px] px-0.5",
-                              diag && "ring-1 ring-primary/50"
+                              // The same mark the other matrix uses. One said
+                              // the accent and one said the boundary token, so
+                              // two readings of the same thing disagreed about
+                              // what a diagonal looks like.
+                              diag &&
+                                "ring-1 ring-[rgb(var(--p-line-strong)/0.9)]"
                             )}
                             style={{
                               background:
                                 v == null
                                   ? "transparent"
                                   : v > 0
-                                    ? `rgb(var(--p-accent) / ${0.15 + t * 0.65})`
+                                    ? rampStop(READING_RAMP, t)
                                     : "rgb(var(--p-line) / 0.08)",
                             }}
                             title={
@@ -803,7 +915,7 @@ export function ReferenceConfusionPair({
                             <span
                               className={cn(
                                 "telemetry",
-                                t > 0.55 ? "text-background" : "text-foreground"
+                                t > LABEL_FLIP ? "text-background" : "text-foreground"
                               )}
                             >
                               {v == null ? "" : v >= 0.5 ? v.toFixed(0) : "·"}

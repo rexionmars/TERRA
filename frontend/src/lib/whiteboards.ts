@@ -17,6 +17,8 @@ import {
   GetWhiteboard,
   ListWhiteboards,
   SaveWhiteboard,
+  DeleteWhiteboard,
+  RenameWhiteboard,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
 import type { BoardSnapshot } from "@/components/whiteboard/boardMemory"
@@ -26,6 +28,30 @@ export type Whiteboard = store.Whiteboard
 /** A board's own name is a label; a run's place in it is a member. */
 export async function listWhiteboards(): Promise<Whiteboard[]> {
   return (await ListWhiteboards()) as unknown as Whiteboard[]
+}
+
+/**
+ * Renames a board without touching its arrangement.
+ *
+ * Distinct from a save under another name, which is what the studio's own menu
+ * offers: that one writes the arrangement CURRENTLY on screen under the name
+ * given, and can only be aimed at the board that is open. This changes the
+ * label on a stored board and nothing else, which is the operation a list of
+ * boards needs and the only one that can be aimed at a board that is not open.
+ */
+export async function renameWhiteboard(id: string, name: string): Promise<void> {
+  await RenameWhiteboard(id, name)
+}
+
+/**
+ * Removes a board and the members that place its runs.
+ *
+ * THE RUNS THEMSELVES SURVIVE. A board is an arrangement of runs, not a
+ * container for them: deleting one takes the arrangement and leaves every run
+ * in the hub, listed and openable, exactly as a run that was never on a board.
+ */
+export async function deleteWhiteboard(id: string): Promise<void> {
+  await DeleteWhiteboard(id)
 }
 
 /**

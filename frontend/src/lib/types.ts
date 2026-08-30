@@ -846,6 +846,14 @@ export interface WaterDate {
 }
 
 export interface WaterAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. Anything telling the reader the run was
+   * saved has to read it.
+   */
+  run_id?: string
   index: WaterIndex
   threshold_method: string
   threshold_fixed: number
@@ -892,6 +900,14 @@ export interface SolarMonth {
 }
 
 export interface SolarAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. Anything telling the reader the run was
+   * saved has to read it.
+   */
+  run_id?: string
   lon: number
   lat: number
   resource: {
@@ -2216,4 +2232,17 @@ export interface FloodAnalysis {
    * in which case the numbers still stand and only the map is missing.
    */
   agreement_uri?: string
+  /**
+   * The same crop carrying the COUNTS rather than their colours, as a data
+   * URI: the count in the red channel, one per byte, alpha marking the
+   * reporting mask.
+   *
+   * It exists so the map can colour the raster from an expression rather than
+   * draw a finished image -- agreement_uri's palette, and which counts it
+   * draws at all, were decided in the sidecar. Absent when the file could not
+   * be read, in which case the map draws agreement_uri and only the palette
+   * control is missing.
+   */
+  agreement_values_uri?: string
+  agreement_values_png?: string
 }
