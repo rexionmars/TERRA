@@ -225,6 +225,10 @@ def disagreement(resolved_day: float | None, plateau_day: float | None,
         return {"comparable": False,
                 "why": "falta a idade, o platô, o green-up ou a duração da estação"}
 
+    # The four are not None past the guard above; mypy cannot see that
+    # through the dict the guard returns.
+    assert resolved_day is not None and plateau_day is not None
+    assert days_since_greenup is not None and season_days is not None
     p_helios = float(resolved_day) / float(plateau_day)
     p_field = float(days_since_greenup) / float(season_days)
     delta = p_helios - p_field

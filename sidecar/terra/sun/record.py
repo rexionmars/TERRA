@@ -12,6 +12,8 @@ the canopy has no use for a regression.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -48,10 +50,10 @@ def linear_trend(values: pd.Series) -> tuple[float, float]:
 
 def monthly_climatology(daily: pd.DataFrame) -> list[dict]:
     """Mean daily GHI, DNI, DHI and clearness index by calendar month."""
-    out = []
+    out: list[dict[str, Any]] = []
     by_month = daily.groupby(daily.index.month)
     for month, block in by_month:
-        row = {"month": int(month)}
+        row: dict[str, Any] = {"month": int(month)}
         for key, name in (
             ("ALLSKY_SFC_SW_DWN", "ghi"),
             ("ALLSKY_SFC_SW_DNI", "dni"),

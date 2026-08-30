@@ -153,11 +153,12 @@ jobs:
         run: ruff check .
 
       - name: Mypy
-        # Strict by module, and the list only grows. Checking the whole package
-        # would report 25 errors in code nobody has annotated yet, which is how
-        # a type check becomes a step people learn to ignore.
+        # The whole package at the default level, and strict on the modules
+        # pyproject.toml lists. The default level does not ask for annotations;
+        # it asks that the ones that exist do not contradict what is inferred,
+        # which all 65 modules now satisfy.
         working-directory: sidecar
-        run: mypy terra/protocol.py terra/registry.py terra/cli.py terra/stac.py
+        run: mypy terra
 
       - name: Import contracts
         # The layers the migration was carried out to make true. Run from the

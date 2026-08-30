@@ -317,7 +317,7 @@ def feature_shift_table(
     imp = fp_a.get("feature_importances") or fp_b.get("feature_importances")
     gap = b[:d] - a[:d]
     weight = np.asarray(imp, dtype=np.float64)[:d] if imp else np.ones(d)
-    rows = [
+    rows: list[dict[str, Any]] = [
         {
             "feature": names[i] if i < len(names) else f"f{i}",
             "z_a": float(round(float(a[i]), 3)),
@@ -328,7 +328,7 @@ def feature_shift_table(
         }
         for i in range(d)
     ]
-    rows.sort(key=lambda r: -abs(r["gap_sd"]))
+    rows.sort(key=lambda r: -abs(float(r["gap_sd"])))
     return rows[:top]
 
 
@@ -591,8 +591,8 @@ def compare_fingerprints(
     index features carry 99.7% of a raw distance and the sixteen reflectance
     features none of it.
     """
-    mag = cva_magnitude(fp_a.get("mean") or [], fp_b.get("mean") or [])
-    mag = float(round(mag, 6)) if math.isfinite(mag) else None
+    raw = cva_magnitude(fp_a.get("mean") or [], fp_b.get("mean") or [])
+    mag = float(round(raw, 6)) if math.isfinite(raw) else None
     mag_sd = None
     if standardised:
         v = cva_magnitude(za, zb)

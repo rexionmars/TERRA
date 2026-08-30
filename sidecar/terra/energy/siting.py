@@ -13,6 +13,7 @@ regulator has ruled on.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -46,7 +47,7 @@ EXCLUDED_COVER = (3, 9, 24, 33, 46, 47, 48)
 CROPLAND_COVER = (20, 39, 40, 41, 62)
 
 
-SUITABILITY_LEGEND = [
+SUITABILITY_LEGEND: list[dict[str, Any]] = [
     {"code": 0, "name": "Excluded - protected or occupied cover", "color": "#4d4d4d"},
     {"code": 1, "name": "Excluded - slope above the limit", "color": "#8c510a"},
     {"code": 2, "name": "Restrictive - slope near the limit", "color": "#dfc27d"},

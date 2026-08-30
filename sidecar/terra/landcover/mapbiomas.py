@@ -7,6 +7,7 @@ and as an attachment to classification results when a MapBiomas raster is availa
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import rasterio
@@ -122,7 +123,7 @@ def composition_from_array(arr: np.ndarray, px_ha: float) -> list[dict]:
     if labels.size == 0:
         return []
     ids, counts = np.unique(labels, return_counts=True)
-    rows = []
+    rows: list[dict[str, Any]] = []
     for cid, n in zip(ids.tolist(), counts.tolist(), strict=True):
         cid = int(cid)
         rows.append({

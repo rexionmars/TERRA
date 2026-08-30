@@ -770,7 +770,10 @@ def shear_sensitivity(df: pd.DataFrame, alpha_bulk: float, hub_height_m: float,
     for z0 in lengths:
         entries.append((alpha_from_roughness(z0), z0))
 
-    for alpha, z0 in entries:
+    # `roughness`, not `z0`: the loop above binds z0 to a length and this one
+    # binds it to a length OR None, for the measured entry that has no
+    # roughness behind it.
+    for alpha, roughness in entries:
         if not np.isfinite(alpha):
             continue
         key = round(float(alpha), 6)
@@ -782,11 +785,11 @@ def shear_sensitivity(df: pd.DataFrame, alpha_bulk: float, hub_height_m: float,
         power = turbine_power(v_eq)
         rows.append({
             "shear_exponent": _round(float(alpha), 4),
-            "roughness_length_m": None if z0 is None else z0,
+            "roughness_length_m": None if roughness is None else roughness,
             # The roughness column beside it already states the length, and
             # every derived row uses the same profile, so the repeated clause
             # said nothing the table did not.
-            "basis": "measured" if z0 is None else "log profile",
+            "basis": "measured" if roughness is None else "log profile",
             "hub_speed_ms": _round(float(v_hub.mean()), 4),
             "capacity_factor_pct": _round(capacity_factor(power), 3),
             "annual_energy_mwh": _round(annual_energy_mwh(power), 1),

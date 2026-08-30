@@ -50,6 +50,11 @@ ignore_missing_imports = true
 # Strict by module, widening as modules are written or moved. The list only
 # grows: a module joins it in the commit that touches it. Demanding strict over
 # 10,000 lines of numpy at once produces a check that gets switched off.
+#
+# The whole package is checked at the DEFAULT level, which is a different and
+# cheaper thing: it does not ask for annotations, it asks that the annotations
+# and inferences that exist do not contradict each other. All 65 modules pass
+# it, so the CI step guards the package rather than four modules of it.
 module = ["terra.protocol", "terra.registry", "terra.cli", "terra.stac"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

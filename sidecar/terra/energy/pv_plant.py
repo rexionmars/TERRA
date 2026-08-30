@@ -24,6 +24,8 @@ lifetime-mean yield cannot be read against a year-one exceedance band.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -899,7 +901,7 @@ BOLINGER_ENERGY_GWH_HA_TRACKING = 0.97
 # Ong et al. (2013) Table 5: change in land-use intensity of one-axis tracking
 # relative to fixed tilt against site direct normal irradiation. Negative means
 # tracking uses less land per unit of energy.
-ONG_TABLE5 = (
+ONG_TABLE5: tuple[dict[str, Any], ...] = (
     {"site": "Seattle", "dni_kwh_m2_year": 1112, "land_use_change_pct": -0.6},
     {"site": "Newark", "dni_kwh_m2_year": 1263, "land_use_change_pct": 0.7},
     {"site": "Jacksonville", "dni_kwh_m2_year": 1507, "land_use_change_pct": -4.9},
@@ -1051,7 +1053,7 @@ def tracking_comparison(
     # site value alone understates the spread: where the wind field is near
     # zero the cell temperature saturates and the tracker's higher irradiance
     # barely moves it, so the transfer is measured across wind assumptions.
-    transfer = [{
+    transfer: list[dict[str, Any]] = [{
         "wind": "series as supplied",
         "performance_ratio_fixed": round(float(pr_fixed), 6),
         "performance_ratio_tracker": round(float(pr_track), 6),
@@ -1077,7 +1079,7 @@ def tracking_comparison(
             "performance_ratio_tracker": round(float(pb), 6),
             "difference_pct": round(100.0 * (pb / pa - 1.0), 4),
         })
-    deltas = [row["difference_pct"] for row in transfer]
+    deltas: list[float] = [float(row["difference_pct"]) for row in transfer]
 
     dni_year = _annual(df["dni"], n_years)
     published = _published_land_use(dni_year)
@@ -1212,7 +1214,7 @@ def _published_land_use(dni_kwh_m2_year: float) -> dict:
         r["dni_kwh_m2_year"] - float(dni_kwh_m2_year)
     ))
     nearest = sorted(ordered[:3], key=lambda r: r["dni_kwh_m2_year"])
-    band = [r["land_use_change_pct"] for r in nearest]
+    band: list[float] = [float(r["land_use_change_pct"]) for r in nearest]
 
     return {
         "bolinger_2022": {
@@ -1353,7 +1355,7 @@ def generation_profile(
             )
         table.append({"month": m, "mean_ac_w_kwp": row})
 
-    monthly = []
+    monthly: list[dict[str, Any]] = []
     for m in range(1, 13):
         sel = month == m
         n_hours = int(sel.sum())
@@ -1440,7 +1442,7 @@ FLEET_DC_AC_RATIO = BOLINGER_SAMPLE_MW_DC / BOLINGER_SAMPLE_MW_AC
 # site area. The paper's own worked example, not a measured median.
 BUILDABLE_FRACTION = 0.75
 
-CAPACITY_DENSITY_BASES = {
+CAPACITY_DENSITY_BASES: dict[str, dict[str, Any]] = {
     "bolinger_fixed_direct": {
         "mw_per_acre": BOLINGER_MW_DC_ACRE_FIXED,
         "units": "dc",
