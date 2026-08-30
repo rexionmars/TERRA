@@ -18,7 +18,7 @@ from shapely.ops import transform as shp_transform
 # Extended MapBiomas Coleção 10 legend (classes seen on PR farms + study targets).
 # Shared with the classification path so both render a class id identically;
 # see class_palette.py.
-from class_palette import (
+from terra.landcover.palette import (
     MAPBIOMAS_COLORS,  # noqa: E402,F401
     MAPBIOMAS_LEGEND,  # noqa: E402,F401
 )

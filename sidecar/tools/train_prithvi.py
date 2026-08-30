@@ -36,9 +36,9 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 SIDECAR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SIDECAR))
 
-import prithvi  # noqa: E402
 from terra import actions  # noqa: E402
 from terra.imagery import sentinel2  # noqa: E402
+from terra.landcover import prithvi as prithvi  # noqa: E402
 
 warnings.filterwarnings("ignore")
 

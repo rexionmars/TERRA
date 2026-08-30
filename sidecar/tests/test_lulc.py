@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import lulc
+from terra.landcover import mapbiomas as lulc
 
 
 def test_hex_to_rgb():

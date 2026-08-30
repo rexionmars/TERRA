@@ -64,15 +64,14 @@ SOJA_CLASS_ID = 39
 # Class metadata used for labels and the overlay palette (MapBiomas classes,
 # English labels). Shared with the reference path so a prediction and the
 # MapBiomas map it is compared against use one palette; see class_palette.py.
-from class_palette import (  # noqa: E402
-    CLASSIFIER_COLORS as MAPBIOMAS_COLORS,
-    CLASSIFIER_LEGEND as MAPBIOMAS_LEGEND,
-)
-
 # The stdin/stdout/stderr contract, and the two readers every numeric
 # request parameter goes through.
 from terra import protocol  # noqa: E402
 from terra.imagery import cog, indices, sentinel2  # noqa: E402
+from terra.landcover.palette import (  # noqa: E402
+    CLASSIFIER_COLORS as MAPBIOMAS_COLORS,
+    CLASSIFIER_LEGEND as MAPBIOMAS_LEGEND,
+)
 
 # --- Polygon / study area --------------------------------------------------
 
@@ -394,7 +393,7 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
     protocol.require_torch("The Temporal Transformer")
     import torch
 
-    import temporal_transformer as tt
+    from terra.landcover import temporal_transformer as tt
 
     ckpt_path = Path(model_dir) / "tt_mapbiomas.pt"
     if not ckpt_path.exists():
@@ -818,7 +817,7 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
     # prithvi imports torch on the way in, so the same absence surfaces here as
     # an unexplained traceback rather than as a missing package.
     protocol.require_torch("Prithvi-EO 2.0")
-    import prithvi as pv
+    from terra.landcover import prithvi as pv
 
     rf_path = model_dir / f'prithvi_rf_{mode}.joblib'
     sc_path = model_dir / f'prithvi_scaler_{mode}.joblib'
@@ -1045,8 +1044,8 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     import rasterio
     from rasterio.features import geometry_mask
 
-    import lulc as lulc_mod
     from terra.energy import siting as siting_mod
+    from terra.landcover import mapbiomas as lulc_mod
     from terra.terrain import dem as terrain_dem, slope as terrain_slope
 
     def stage(name, msg):
@@ -1154,7 +1153,7 @@ def action_ping(req, work_dir):
 def action_lulc(req, work_dir):
     protocol.emit_progress(10, 'resolving MapBiomas for AOI')
     try:
-        import lulc as lulc_mod
+        from terra.landcover import mapbiomas as lulc_mod
         lulc = lulc_mod.analyze_from_request(req)
     except Exception as e:
         protocol.fail(f'LULC analysis failed: {e}')
@@ -1167,7 +1166,7 @@ def action_lulc(req, work_dir):
 def action_domain_shift(req, work_dir):
     protocol.emit_progress(20, 'comparing domain fingerprints')
     try:
-        import domain_shift as ds_mod
+        from terra.landcover import domain_shift as ds_mod
         fp_a = req.get('fingerprint_a')
         fp_b = req.get('fingerprint_b')
         if not isinstance(fp_a, dict) or not isinstance(fp_b, dict):
@@ -1191,7 +1190,7 @@ def action_domain_shift(req, work_dir):
 def action_domain_shift_cohort(req, work_dir):
     protocol.emit_progress(10, 'comparing domain fingerprints')
     try:
-        import domain_shift as ds_mod
+        from terra.landcover import domain_shift as ds_mod
         source = req.get('source')
         targets = req.get('targets')
         if not isinstance(source, dict):
@@ -3620,7 +3619,7 @@ def action_predict(req, work_dir):
     soja_mask = None
     mb_map = None
     try:
-        import lulc as lulc_mod
+        from terra.landcover import mapbiomas as lulc_mod
         if mapbiomas_path and Path(mapbiomas_path).exists():
             resolved_mb = mapbiomas_path
         elif lulc_mod.polygon_in_brazil(polygon):
@@ -3742,7 +3741,7 @@ def action_predict(req, work_dir):
 
     domain_fingerprint = None
     try:
-        import domain_shift as ds_mod
+        from terra.landcover import domain_shift as ds_mod
         ndvi_vals = None
         if ndvi_mean_map is not None and ndvi_valid is not None:
             ndvi_vals = ndvi_mean_map[ndvi_valid]
@@ -3836,7 +3835,7 @@ def action_predict(req, work_dir):
     if mapbiomas_path and Path(mapbiomas_path).exists():
         protocol.emit_progress(96, 'analyzing MapBiomas land cover / land use')
         try:
-            import lulc as lulc_mod
+            from terra.landcover import mapbiomas as lulc_mod
             # Prefer native MapBiomas clip for composition; attach pred-vs-ref
             # when the reprojected reference grid is available.
             ref_grid = mb_map if mb_map is not None else None
