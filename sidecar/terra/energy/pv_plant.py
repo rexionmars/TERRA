@@ -1,10 +1,10 @@
 """
-Solar energy analysis beyond the point resource: where the energy is lost,
-what tracking changes, when it is generated, and what the suitable area
-supports.
+The plant, above the array: where the energy is lost, what tracking changes,
+when it is generated, and what the suitable area supports.
 
-Consumes what terra/energy/pv.py already produces (the hourly frame, the plane-of-array
-transposition, the PVWatts chain) and adds no data source of its own.
+pv.py is one array of 1 kWp; this is what a plant made of them produces. It
+consumes the hourly frame, the plane-of-array transposition and the PVWatts
+chain that module already computes, and adds no data source of its own.
 
 ONE APPLIED PERFORMANCE RATIO. resolve_performance_ratio is the only place a
 performance ratio is decided, and every other function here takes the resolved

@@ -2326,7 +2326,7 @@ def action_energy_model(req, work_dir):
         record as sun_record,
     )
     from terra.terrain import slope as terrain_slope
-    import energy as energy_mod
+    from terra.energy import pv_plant as energy_mod
     from datetime import date as _date
 
     if not req.get('polygon_geojson'):

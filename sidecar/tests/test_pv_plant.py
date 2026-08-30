@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import energy
+from terra.energy import pv_plant as energy
 from terra.energy import pv as pv_mod, seasons as seasons_mod
 from terra.sun import (
     position as sun_position,
@@ -161,7 +161,7 @@ def test_modelled_factors_telescope_into_the_performance_ratio():
     # Not exact zero: the residual is a difference of products, so its last bit
     # depends on the order the platform BLAS multiplies them. It came out at
     # -1.1e-16 on CI numpy against 0.0 here, which is one ULP and not a defect.
-    # energy.py declares the tolerance the module itself checks against, and the
+    # pv_plant declares the tolerance the module itself checks against, and the
     # two assertions either side of this one already use it.
     assert abs(f["telescoping_residual"]) <= energy.TELESCOPING_TOLERANCE
     assert abs(

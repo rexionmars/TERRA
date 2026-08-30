@@ -134,7 +134,7 @@ def test_request_number_carries_a_zero_degradation_rate_through():
     which on the lifetime-mean basis multiplied every energy figure by 0.94224
     instead of 1.0, 5.78 percent low, with nothing on screen saying so.
     """
-    import energy
+    from terra.energy import pv_plant as energy
 
     rate = protocol.request_number(
         {"degradation_rate_per_year": 0.0}, "degradation_rate_per_year",
