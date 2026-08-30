@@ -355,8 +355,6 @@ func (a *App) RenderComposite(req analysis.CompositeRequest) (*analysis.Composit
 	return runner.RenderComposite(a.ctx, req)
 }
 
-// AnalyzeWater maps surface water over a period from spectral water indices.
-// Descriptive: a thresholded index, with no model and no trained legend.
 // AnalyzeSurfaceModel returns the Copernicus surface over one area.
 //
 // It does not persist a run. The other products record one because they are
@@ -373,6 +371,8 @@ func (a *App) AnalyzeSurfaceModel(
 	return runner.AnalyzeSurfaceModel(a.ctx, req)
 }
 
+// AnalyzeWater maps surface water over a period from spectral water indices.
+// Descriptive: a thresholded index, with no model and no trained legend.
 func (a *App) AnalyzeWater(req analysis.WaterRequest) (*analysis.WaterAnalysis, error) {
 	runner := a.currentRunner()
 	if runner == nil {

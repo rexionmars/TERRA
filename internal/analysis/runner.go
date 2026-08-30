@@ -938,10 +938,6 @@ func promoteExportFile(src, basename string) (string, error) {
 	return dest, nil
 }
 
-// AnalyzeWater maps surface water over a period from spectral water indices.
-//
-// Descriptive: the result is a thresholded index, so it carries none of the
-// fixed-legend domain-shift limitation that applies to the classifier.
 // AnalyzeSurfaceModel fetches the Copernicus surface over one area.
 //
 // Shorter than its neighbours because the product is: GLO-30 is one static
@@ -1012,6 +1008,10 @@ func (r *Runner) AnalyzeSurfaceModel(
 	return wrapped.SurfaceModel, nil
 }
 
+// AnalyzeWater maps surface water over a period from spectral water indices.
+//
+// Descriptive: the result is a thresholded index, so it carries none of the
+// fixed-legend domain-shift limitation that applies to the classifier.
 func (r *Runner) AnalyzeWater(ctx context.Context, req WaterRequest) (*WaterAnalysis, error) {
 	if _, err := os.Stat(r.sidecar); err != nil {
 		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
