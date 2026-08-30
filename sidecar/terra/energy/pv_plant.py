@@ -1960,3 +1960,53 @@ def plant_energy(
         ),
         "thresholds": thresholds,
     }
+
+
+# --- The assumptions every figure in the response was computed under ---------
+
+
+def assumptions(ratio, density, *, reporting_basis, degradation_rate,
+                analysis_period, module_type, gamma_pdc, gcr_fixed,
+                gcr_tracker, density_basis, shading_applied, shading_derate):
+    """
+    The block repeated at the top level of the response.
+
+    It is a restatement, and that is the point: a reader who sees only one
+    figure still sees the assumption that produced it. Because it is a
+    restatement it can disagree with the record it was taken from, which is
+    the failure this being one function rather than twenty dict entries makes
+    checkable.
+
+    ONE APPLIED RATIO. resolve_performance_ratio is where a ratio is decided,
+    and everything here echoes that record rather than recomputing anything
+    from it. Three products computing a yield from three different ratios
+    would disagree on the same screen with no visible cause.
+    """
+    return {
+        'performance_ratio_applied': float(ratio['applied']),
+        'performance_ratio_source': ratio['applied_source'],
+        'performance_ratio_modelled': round(float(ratio['modelled']), 6),
+        'performance_ratio_derived': round(float(ratio['derived']), 6),
+        'reporting_basis': reporting_basis,
+        'degradation_factor': float(ratio['degradation_factor']),
+        'degradation_rate_per_year': float(degradation_rate),
+        'analysis_period_years': int(analysis_period),
+        'module_type': module_type,
+        'gamma_pdc_per_c': float(gamma_pdc),
+        'transposition_model': pv_mod.TRANSPOSITION_MODEL,
+        'albedo': float(pv_mod.ALBEDO),
+        'gcr_fixed': gcr_fixed,
+        'gcr_tracker': gcr_tracker,
+        'capacity_density_basis': density_basis,
+        'capacity_density_mw_dc_per_ha': round(
+            float(density['value_mw_dc_per_ha']), 6),
+        'shading_applied': shading_applied,
+        'shading_derate': shading_derate,
+        'note': (
+            'Every energy figure in this response was computed at '
+            'the applied performance ratio and the reporting basis '
+            'stated here. A figure copied out of this response '
+            'without them is not interpretable.'
+        ),
+    }
+

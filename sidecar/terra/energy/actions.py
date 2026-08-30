@@ -143,33 +143,20 @@ def solar_resource(req, work_dir):
     yield_year = poa_year * pr_applied
 
     protocol.emit_progress(100, 'done')
+    summary = pv_mod.summarise_point(
+        best, horizontal, tolerance, azimuth,
+        yield_year=yield_year, pr_applied=pr_applied, pr_source=pr_source,
+        pr_modelled=pr_modelled, n_years=n_years,
+    )
     sys.stdout.write(json.dumps({
         'solar': {
             'lon': lon, 'lat': lat,
             'resource': resource,
-            'geometry': {
-                'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
-                'optimal_poa_kwh_m2_year': round(float(best['poa_kwh_m2_year']), 1),
-                'surface_azimuth_deg': azimuth,
-                'gain_over_horizontal_pct': (
-                    round(float(100.0 * (best['poa_kwh_m2_year'] / horizontal - 1.0)), 2)
-                    if horizontal else 0.0
-                ),
-                'tilt_tolerance': tolerance,
-            },
-            'pv': {
-                'specific_yield_kwh_kwp_year': round(float(yield_year), 1),
-                'performance_ratio': round(float(pr_applied), 4),
-                'performance_ratio_source': pr_source,
-                'performance_ratio_modelled': round(float(pr_modelled), 4),
-                'capacity_factor_pct': round(float(100.0 * yield_year / 8760.0), 2),
-                'hourly_years': int(n_years),
-            },
+            **summary,
             'grid_note': sun_power.GRID_NOTE,
-            # Which POWER series this run read and when it was
-            # fetched. Without it a cached run and a fetched run
-            # are indistinguishable to the caller, and POWER
-            # reprocesses historical data.
+            # Which POWER series this run read and when it was fetched. Without
+            # it a cached run and a fetched run are indistinguishable to the
+            # caller, and POWER reprocesses historical data.
             'power_provenance': {
                 'daily': daily_provenance,
                 'hourly': hourly_provenance,
@@ -806,33 +793,19 @@ def energy_model(req, work_dir):
             },
             # Repeated at the top level so a reader who sees only one
             # figure still sees the assumption that produced it.
-            'assumptions': {
-                'performance_ratio_applied': float(ratio['applied']),
-                'performance_ratio_source': ratio['applied_source'],
-                'performance_ratio_modelled': round(float(ratio['modelled']), 6),
-                'performance_ratio_derived': round(float(ratio['derived']), 6),
-                'reporting_basis': reporting_basis,
-                'degradation_factor': float(ratio['degradation_factor']),
-                'degradation_rate_per_year': float(degradation_rate),
-                'analysis_period_years': int(analysis_period),
-                'module_type': module_type,
-                'gamma_pdc_per_c': float(gamma_pdc),
-                'transposition_model': pv_mod.TRANSPOSITION_MODEL,
-                'albedo': float(pv_mod.ALBEDO),
-                'gcr_fixed': gcr_fixed,
-                'gcr_tracker': gcr_tracker,
-                'capacity_density_basis': density_basis,
-                'capacity_density_mw_dc_per_ha': round(
-                    float(density['value_mw_dc_per_ha']), 6),
-                'shading_applied': shading_applied,
-                'shading_derate': shading_derate,
-                'note': (
-                    'Every energy figure in this response was computed at '
-                    'the applied performance ratio and the reporting basis '
-                    'stated here. A figure copied out of this response '
-                    'without them is not interpretable.'
-                ),
-            },
+            'assumptions': energy_mod.assumptions(
+                ratio, density,
+                reporting_basis=reporting_basis,
+                degradation_rate=degradation_rate,
+                analysis_period=analysis_period,
+                module_type=module_type,
+                gamma_pdc=gamma_pdc,
+                gcr_fixed=gcr_fixed,
+                gcr_tracker=gcr_tracker,
+                density_basis=density_basis,
+                shading_applied=shading_applied,
+                shading_derate=shading_derate,
+            ),
         }
     }))
     sys.stdout.flush()

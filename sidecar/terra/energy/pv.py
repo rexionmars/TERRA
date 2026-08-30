@@ -250,3 +250,49 @@ def modelled_performance_ratio(p_ac: pd.Series, poa_global: pd.Series) -> float:
     e_ac = float(p_ac.sum()) / 1000.0
     e_ref = float(poa_global.sum()) / 1000.0 * (PDC0_W / 1000.0)
     return float(e_ac / e_ref) if e_ref > 0 else float("nan")
+
+
+# --- What a point resource is reported as ------------------------------------
+
+
+HOURS_PER_YEAR = 8760.0
+
+
+def summarise_point(best, horizontal, tolerance, azimuth, *, yield_year,
+                    pr_applied, pr_source, pr_modelled, n_years):
+    """
+    The geometry and yield figures a point resource is reported by.
+
+    They were computed inside the payload literal of the solar_resource
+    action, where the gain over horizontal, the capacity factor and the
+    division that produces both were unreachable by any test.
+
+    `horizontal` is the plane-of-array total on a flat surface. Zero is
+    possible -- a polar winter, or a record that returned no radiation -- and
+    the gain is reported as zero rather than raising, because a run that got
+    that far has a resource answer worth returning and the division is the only
+    thing that cannot be done.
+    """
+    return {
+        'geometry': {
+            'optimal_tilt_deg': round(float(best['tilt_deg']), 1),
+            'optimal_poa_kwh_m2_year': round(float(best['poa_kwh_m2_year']), 1),
+            'surface_azimuth_deg': azimuth,
+            'gain_over_horizontal_pct': (
+                round(float(100.0 * (best['poa_kwh_m2_year'] / horizontal - 1.0)), 2)
+                if horizontal else 0.0
+            ),
+            'tilt_tolerance': tolerance,
+        },
+        'pv': {
+            'specific_yield_kwh_kwp_year': round(float(yield_year), 1),
+            'performance_ratio': round(float(pr_applied), 4),
+            'performance_ratio_source': pr_source,
+            'performance_ratio_modelled': round(float(pr_modelled), 4),
+            # Yield per kWp over the hours in a year, which is what makes a
+            # site comparable with a plant of any size.
+            'capacity_factor_pct': round(float(100.0 * yield_year / HOURS_PER_YEAR), 2),
+            'hourly_years': int(n_years),
+        },
+    }
+
