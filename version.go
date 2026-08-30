@@ -4,7 +4,7 @@ import "strings"
 
 // AppVersion is the product SemVer without a "v" prefix.
 // Override at link time: go build -ldflags "-X main.AppVersion=0.4.0"
-var AppVersion = "0.4.0"
+var AppVersion = "0.4.0" // x-release-please-version
 
 // GetAppVersion returns the embedded product version for the UI (What's New, About).
 func (a *App) GetAppVersion() string {

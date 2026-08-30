@@ -39,12 +39,22 @@ export const BRAND_TAGLINE = "earth observation"
  * splash still, which made it change from launch to launch as the rotation
  * advanced -- a name that moves is not a name, it is a caption.
  *
- * The stills carry names from the same set, and the one this release is named
- * for is featured on the first launch after an update (FEATURED_STILL in
- * splashBackground.ts). That is a deliberate correspondence, not a dependency:
- * the release keeps this name whichever photograph the rotation happens to
- * land on.
+ * IT DOES NOT DESCRIBE WHAT SHIPPED. The name is drawn from a set -- what is
+ * observable from orbit -- the way Sonoma is drawn from places in California,
+ * and Mojave brought no desert features. docs/RELEASING.md carries the
+ * argument: a name that has to describe a theme cannot be given to a release
+ * of thirty refactors, so it either lies or holds the release until a theme
+ * arrives. The changelog describes the release.
  *
- * Bump it with AppVersion in version.go -- see docs/RELEASING.md.
+ * It equals FEATURED_STILL in splashBackground.ts, and check-version.ts fails
+ * when it does not -- they disagreed once, silently, and the splash would have
+ * printed one release's name over another release's photograph. What the name
+ * does NOT follow is the rotation: whichever still a given launch lands on,
+ * the release keeps this name.
+ *
+ * IT BELONGS TO THE MINOR LINE. A MINOR takes the next name from the set; a
+ * PATCH keeps the one it has, the way 14.0 through 14.7 are all Sonoma. So
+ * this is edited less often than AppVersion in version.go, not with it --
+ * see docs/RELEASING.md.
  */
-export const RELEASE_NAME = "Amazon"
+export const RELEASE_NAME = "Stockpile"
