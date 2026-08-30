@@ -164,7 +164,7 @@ disk fails the build.
 |---|---|---|---|
 | `v0.1.0` | 2026-06-27 | — | — |
 | `v0.2.0` | 2026-07-31 | 51 | — |
-| `v0.3.0` | 2026-08-16 | 383 | — |
+| `v0.3.0` | 2026-08-16 | 383 | Ember |
 | `v0.4.0` | 2026-08-22 | 60 | Amazon |
 
 THIS TABLE WAS TWO RELEASES STALE when the trigger above was written: it said

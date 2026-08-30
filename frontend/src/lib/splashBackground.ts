@@ -53,18 +53,21 @@ export type SplashStill = {
  */
 export const SPLASH_STILLS: SplashStill[] = [
   {
-    name: "Amazon",
-    path: "/terra-splash-images/amazon.webp",
-    subject: "a river winding through closed rainforest canopy, from altitude",
+    name: "Stockpile",
+    path: "/terra-splash-images/stockpile.webp",
+    subject:
+      "a coal stockyard from directly above, with the stacker-reclaimer that " +
+      "grades it and the benches its passes have cut",
     /*
-      Pexels, which asks for no attribution, and the upload it came from was
-      not recorded when the file arrived. The site rather than the photograph,
-      which is as far back as this entry can point -- a URL invented to fill
-      the field would be worse than an honest one that stops here.
+      Pexels, which asks for no attribution. The upload id survived in the
+      filename this time -- pexels-kelly-6595788 -- so this entry can point
+      further back than the last one could: the site plus the id, which is
+      enough to find the original again without inventing a URL that may not
+      resolve.
     */
-    source: "https://www.pexels.com",
-    photographer: "",
-    since: "0.4.0",
+    source: "https://www.pexels.com — upload 6595788",
+    photographer: "Kelly",
+    since: "0.5.0",
   },
 ]
 
@@ -77,7 +80,7 @@ export const SPLASH_STILLS: SplashStill[] = [
  * show; the rest walk the others, so featuring a still neither discards them
  * nor makes the code name decorative.
  */
-export const FEATURED_STILL = "Amazon"
+export const FEATURED_STILL = "Stockpile"
 
 /** Paths alone, for the places that only need to load them. */
 export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)
