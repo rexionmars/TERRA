@@ -8,9 +8,6 @@ built in another order is a matrix the head reads as different measurements.
 
 from __future__ import annotations
 
-import json
-import sys
-
 import numpy as np
 
 from terra.imagery import indices, sentinel2
@@ -45,7 +42,7 @@ def compute_index_features(time_series):
     return np.array(features)
 
 
-def build_feature_matrix(products, polygon, ref_prof, n_dates_model):
+def build_feature_matrix(products, polygon, ref_prof, n_dates_model, note=None):
     """
     Build the (N_pixels, 80) feature matrix from a list of products, matching
     the training pipeline. Returns (feature_matrix, valid_mask_2d) or (None, None).
@@ -69,7 +66,8 @@ def build_feature_matrix(products, polygon, ref_prof, n_dates_model):
             band_lists['B04'].append(red_r)
             band_lists['B08'].append(nir_r)
         except Exception as e:
-            sys.stderr.write(json.dumps({'progress': -1, 'msg': f'band error: {e}'}) + '\n')
+            if note:
+                note(f'band error: {e}')
             continue
     if len(ndvi_list) == 0:
         return None, None

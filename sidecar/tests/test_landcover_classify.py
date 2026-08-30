@@ -61,7 +61,7 @@ def matrix(monkeypatch):
     """build_feature_matrix answering from a value the test sets."""
     state = {'rows': np.ones((SHAPE[0] * SHAPE[1], 80))}
 
-    def build(products, polygon, ref_profile, n_dates):
+    def build(products, polygon, ref_profile, n_dates, note=None):
         if state['rows'] is None:
             return None, None
         return state['rows'], np.ones(SHAPE, dtype=bool)
@@ -158,5 +158,50 @@ def test_progress_is_the_callers_and_the_run_writes_to_no_stream(matrix, capsys)
     )
 
     assert [pct for pct, _ in seen] == [55, 90]
+    captured = capsys.readouterr()
+    assert captured.out == '' and captured.err == ''
+
+
+def test_a_missing_artifact_is_raised_by_name(tmp_path):
+    """
+    Reporting it is the action's. A module that exits cannot be called by a
+    test, which is why the four exits in this module became two exceptions.
+    """
+    pytest.importorskip('torch')
+
+    with pytest.raises(classify.ArtifactMissing, match='Temporal Transformer'):
+        classify.classify_temporal_transformer(
+            [product(1)], polygon=None, ref_profile=None, model_dir=tmp_path)
+
+
+def test_an_absent_optional_package_is_raised_rather_than_exited():
+    """
+    require_torch called sys.exit, so every path that needed the package ended
+    the process from inside a product module. terra/cli.py turns this into the
+    same message and the same status.
+    """
+    from terra import protocol
+
+    if __import__('importlib.util', fromlist=['util']).find_spec('torch'):
+        pytest.skip('torch is installed in this interpreter')
+    with pytest.raises(protocol.MissingDependency, match='PyTorch'):
+        protocol.require_torch('the Temporal Transformer')
+
+
+def test_a_band_that_cannot_be_read_is_noted_and_not_written(matrix, capsys):
+    """
+    The note is the caller's. Written to stderr from inside the module, a
+    skipped band would reach the user through a stream this module does not
+    own, and no test asserting silence could pass.
+    """
+    said = []
+
+    classify.run(
+        [product(1)], polygon=None, ref_profile=None,
+        kind='spectral', mode='single', model_dir=None,
+        artifacts=(Forest(), Scaler(), Encoder()), n_dates_model=22,
+        note=said.append,
+    )
+
     captured = capsys.readouterr()
     assert captured.out == '' and captured.err == ''

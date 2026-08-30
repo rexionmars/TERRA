@@ -23,11 +23,17 @@ def main() -> None:
     action = req.get('action', registry.DEFAULT_ACTION)
     work_dir = Path(req.get('work_dir', '.'))
     work_dir.mkdir(parents=True, exist_ok=True)
-    registry.resolve(action)(req, work_dir)
+    try:
+        registry.resolve(action)(req, work_dir)
+    except protocol.MissingDependency as e:
+        # Raised from wherever the optional package was needed, which is a
+        # product module: those do not end the process, and this is where the
+        # process is owned.
+        protocol.fail(str(e))
 
 
 # Lightweight health check used by the desktop boot footer.
-def ping(req, work_dir):
+def ping(req: protocol.Request, work_dir: Path) -> None:
     sys.stdout.write(json.dumps({
         'ok': True,
         'python': sys.version.split()[0],

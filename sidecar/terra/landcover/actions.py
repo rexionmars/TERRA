@@ -187,8 +187,7 @@ def predict(req, work_dir):
             soja_mask = mb_map == features.SOJA_CLASS_ID
             protocol.emit_progress(20, f'soja reference pixels: {int(np.sum(soja_mask))}')
     except Exception as e:
-        sys.stderr.write(json.dumps({'progress': -1, 'msg': f'mapbiomas error: {e}'}) + '\n')
-        sys.stderr.flush()
+        protocol.emit_progress(-1, f'mapbiomas error: {e}')
         mb_map = None
         soja_mask = None
 
@@ -200,8 +199,9 @@ def predict(req, work_dir):
             artifacts=(rf_model, scaler, label_encoder) if model_kind == 'spectral' else None,
             n_dates_model=n_dates_model, soja_mask=soja_mask,
             progress=protocol.emit_progress,
+            note=lambda msg: protocol.emit_progress(-1, msg),
         )
-    except classify.NoValidData as e:
+    except (classify.NoValidData, classify.ArtifactMissing) as e:
         protocol.fail(str(e))
     classification_map = prediction.classification
     confidence_map = prediction.confidence
@@ -226,7 +226,8 @@ def predict(req, work_dir):
 
     (vi_series, vi_series_crop, vi_dates, ndvi_means, ndvi_mean_map,
      ndvi_valid, true_color_rgba) = lc_series.compute_aoi_vi_series(
-        products, polygon, ref_profile, crop_mask=crop_pixels
+        products, polygon, ref_profile, crop_mask=crop_pixels,
+        note=lambda msg: protocol.emit_progress(-1, msg),
     )
     phenology = pheno.phenology_metrics(ndvi_means, vi_dates) if vi_dates else {
         'sos_doy': None, 'pos_doy': None, 'eos_doy': None, 'los_days': None,
@@ -256,31 +257,23 @@ def predict(req, work_dir):
             ),
         )
     except Exception as e:
-        sys.stderr.write(json.dumps({
-            'progress': -1, 'msg': f'domain fingerprint skipped: {e}'
-        }) + '\n')
-        sys.stderr.flush()
+        protocol.emit_progress(-1, f'domain fingerprint skipped: {e}')
 
     protocol.emit_progress(91, 'measuring spectral response per class')
     spectra = None
     try:
-        spectra = lc_spectra.class_spectra(products, polygon, ref_profile,
-                                classification_map)
+        spectra = lc_spectra.class_spectra(
+            products, polygon, ref_profile, classification_map,
+            note=lambda msg: protocol.emit_progress(-1, msg))
     except Exception as e:
-        sys.stderr.write(json.dumps({
-            'progress': -1, 'msg': f'class spectra skipped: {e}'
-        }) + '\n')
-        sys.stderr.flush()
+        protocol.emit_progress(-1, f'class spectra skipped: {e}')
 
     limit = None
     if spectra is not None:
         try:
-            limit = lc_spectra.library_limit(spectra)
+            limit = lc_spectra.library_limit(spectra, note=lambda msg: protocol.emit_progress(-1, msg))
         except Exception as e:
-            sys.stderr.write(json.dumps({
-                'progress': -1, 'msg': f'library comparison skipped: {e}'
-            }) + '\n')
-            sys.stderr.flush()
+            protocol.emit_progress(-1, f'library comparison skipped: {e}')
 
     protocol.emit_progress(92, 'writing overlay and GeoTIFF')
     overlay_png = work_dir / 'overlay.png'
@@ -364,10 +357,7 @@ def predict(req, work_dir):
                 if agreement is not None:
                     lulc_payload['agreement'] = agreement
         except Exception as e:
-            sys.stderr.write(json.dumps({
-                'progress': -1, 'msg': f'lulc analysis skipped: {e}'
-            }) + '\n')
-            sys.stderr.flush()
+            protocol.emit_progress(-1, f'lulc analysis skipped: {e}')
 
     lon_min, lon_max, lat_min, lat_max = ref_grid.get_map_extent(ref_profile)
 

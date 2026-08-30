@@ -10,8 +10,6 @@ as a sentence rather than as an exit status.
 
 from __future__ import annotations
 
-import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,7 +45,8 @@ def classify_from_features(feature_matrix, valid_mask, model, scaler, label_enco
     return classification_map, confidence_map
 
 
-def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
+def classify_temporal_transformer(products, polygon, ref_profile, model_dir,
+                                  note=None):
     """Classify with the mestrado Temporal Transformer (T×6 reflectance)."""
     protocol.require_torch("The Temporal Transformer")
     import torch
@@ -56,7 +55,8 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
 
     ckpt_path = Path(model_dir) / "tt_mapbiomas.pt"
     if not ckpt_path.exists():
-        protocol.fail(f"Temporal Transformer checkpoint missing: {ckpt_path.name}")
+        raise ArtifactMissing(
+            f"Temporal Transformer checkpoint missing: {ckpt_path.name}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device.type == "cpu" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -82,10 +82,11 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
                 bands.append(np.clip(sentinel2.as_trained(arr), 0, 1).astype(np.float32))
             frames.append(np.stack(bands, axis=0))
         except Exception as e:
-            sys.stderr.write(json.dumps({"progress": -1, "msg": f"TT band error: {e}"}) + "\n")
+            if note:
+                note(f"TT band error: {e}")
             continue
     if not frames:
-        protocol.fail("no valid Sentinel-2 frames for Temporal Transformer")
+        raise NoValidData("no valid Sentinel-2 frames for Temporal Transformer")
 
     stack = np.stack(frames, axis=0)  # (T, 6, H, W)
     stack = tt.pad_temporal(stack, tt.NUM_FRAMES)
@@ -93,7 +94,7 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
     valid = stack[:, 2].mean(axis=0) > 0  # mean red > 0
     rows, cols = np.where(valid)
     if rows.size == 0:
-        protocol.fail("no valid pixels for Temporal Transformer")
+        raise NoValidData("no valid pixels for Temporal Transformer")
 
     x = np.stack([stack[:, :, r, c] for r, c in zip(rows, cols)], axis=0).astype(np.float32)
     x = np.clip(x, 0.0, 1.0)
@@ -145,7 +146,9 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
     le_path = model_dir / 'prithvi_label_encoder.joblib'
     for p in (rf_path, sc_path, le_path):
         if not p.exists():
-            protocol.fail(f'Prithvi model artifact missing: {p.name}. Train it with train_prithvi.py')
+            raise ArtifactMissing(
+                f'Prithvi model artifact missing: {p.name}. '
+                'Train it with train_prithvi.py')
     rf = joblib.load(rf_path)
     sc = joblib.load(sc_path)
     le = joblib.load(le_path)
@@ -192,6 +195,10 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
 
 class NoValidData(RuntimeError):
     """No product in the set produced a usable feature row over the area."""
+
+
+class ArtifactMissing(RuntimeError):
+    """A model artifact this path needs is not in the model directory."""
 
 
 @dataclass
@@ -246,7 +253,8 @@ def _retention_row(target, cumulative, polygon, ref_profile, class_map, soja_mas
 
 
 def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=None,
-        artifacts=None, n_dates_model=None, soja_mask=None, progress=None) -> Prediction:
+        artifacts=None, n_dates_model=None, soja_mask=None, progress=None,
+        note=None) -> Prediction:
     """
     Run whichever of the three paths `kind` names, over one set of products.
 
@@ -272,7 +280,7 @@ def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=N
     if kind == 'temporal_transformer':
         say(40, f'building Temporal Transformer stack ({len(products)} dates)')
         class_map, confidence = classify_temporal_transformer(
-            products, polygon, ref_profile, model_dir)
+            products, polygon, ref_profile, model_dir, note=note)
         return Prediction(class_map, confidence, [], None)
 
     model, scaler, label_encoder = artifacts
@@ -286,7 +294,7 @@ def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=N
                 f"temporal stack {index + 1}/{total} "
                 f"({target['date'].strftime('%Y-%m-%d')})")
             matrix, valid = features.build_feature_matrix(
-                cumulative, polygon, ref_profile, n_dates_model)
+                cumulative, polygon, ref_profile, n_dates_model, note=note)
             if matrix is None:
                 continue
             class_map, _ = classify_from_features(
@@ -297,7 +305,7 @@ def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=N
         say(40, f'building features ({len(products)} dates)')
 
     matrix, valid = features.build_feature_matrix(
-        products, polygon, ref_profile, n_dates_model)
+        products, polygon, ref_profile, n_dates_model, note=note)
     if matrix is None:
         raise NoValidData('no valid Sentinel-2 data for the selected area')
     if mode != 'temporal':

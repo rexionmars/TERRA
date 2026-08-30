@@ -8,15 +8,12 @@ It is what the run band and the canopy both read the season out of.
 
 from __future__ import annotations
 
-import json
-import sys
-
 import numpy as np
 
 from terra.imagery import indices, sentinel2
 
 
-def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None):
+def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None, note=None):
     """Mean ± std NDVI/EVI/SAVI per date; also spatial NDVI temporal mean.
 
     Also keeps reflectance for the peak-NDVI scene so we can write a true-color
@@ -100,7 +97,8 @@ def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None):
                         }
                     )
         except Exception as e:
-            sys.stderr.write(json.dumps({"progress": -1, "msg": f"VI series: {e}"}) + "\n")
+            if note:
+                note(f"VI series: {e}")
             continue
 
     ndvi_mean_map = None

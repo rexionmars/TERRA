@@ -35,6 +35,10 @@ def fail(msg: str) -> None:
     sys.exit(1)
 
 
+class MissingDependency(RuntimeError):
+    """An optional package this path needs is not in this interpreter."""
+
+
 def require_torch(product: str) -> None:
     """
     Fail with an explanation when PyTorch is absent.
@@ -48,14 +52,20 @@ def require_torch(product: str) -> None:
 
     Named here rather than inlined because two products need it, and a check
     that exists in one place is a check the other forgets.
+
+    It RAISES rather than exits, because the modules that call it are product
+    modules and a module that exits cannot be called by a test. terra/cli.py
+    turns MissingDependency into the same message and the same exit status it
+    used to produce here.
     """
     try:
         import torch  # noqa: F401
-    except ImportError:
-        fail(f'{product} needs PyTorch, which is not installed in this '
-             f'environment. Install it there, or choose the Random Forest '
-             f'model, which needs nothing further. '
-             f'Settings > System reports what each interpreter has.')
+    except ImportError as e:
+        raise MissingDependency(
+            f'{product} needs PyTorch, which is not installed in this '
+            f'environment. Install it there, or choose the Random Forest '
+            f'model, which needs nothing further. '
+            f'Settings > System reports what each interpreter has.') from e
 
 
 # --- Request parameters ----------------------------------------------------

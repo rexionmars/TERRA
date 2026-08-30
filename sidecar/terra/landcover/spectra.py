@@ -11,7 +11,6 @@ between them is the thing being reported.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -40,7 +39,7 @@ BAND_WAVELENGTH_NM = {
 SPECTRUM_MIN_PIXELS = 30
 
 
-def class_spectra(products, polygon, ref_profile, classification_map,
+def class_spectra(products, polygon, ref_profile, classification_map, note=None,
                   min_pixels=SPECTRUM_MIN_PIXELS):
     """
     Mean surface reflectance per band, per predicted class, on one acquisition.
@@ -77,10 +76,8 @@ def class_spectra(products, polygon, ref_profile, classification_map,
             bands[name] = sentinel2.load_reflectance_to_reference_grid(
                 scene, name, polygon, ref_profile, resolution=resolution)
         except Exception as e:
-            sys.stderr.write(json.dumps({
-                'progress': -1, 'msg': f'spectrum band {name} skipped: {e}'
-            }) + '\n')
-            sys.stderr.flush()
+            if note:
+                note(f'spectrum band {name} skipped: {e}')
     if not bands:
         return None
 
@@ -161,7 +158,7 @@ def spectral_angle(a, b):
         float(np.linalg.norm(u - v)), float(np.linalg.norm(u + v))))
 
 
-def library_limit(spectra):
+def library_limit(spectra, note=None):
     """
     Each predicted class against a leaf-level library spectrum, and the limit
     that comparison runs into.
@@ -193,10 +190,8 @@ def library_limit(spectra):
     try:
         reference = json.loads(SOYBEAN_REFERENCE.read_text())['reference']
     except Exception as e:
-        sys.stderr.write(json.dumps({
-            'progress': -1, 'msg': f'library reference unavailable: {e}'
-        }) + '\n')
-        sys.stderr.flush()
+        if note:
+            note(f'library reference unavailable: {e}')
         return None
 
     leaf = {b['band']: float(b['reflectance']) for b in reference['bands']}

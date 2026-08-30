@@ -481,14 +481,18 @@ def solar_siting(req, work_dir):
     cropland = tuple(req.get('cropland_cover') or siting_mod.CROPLAND_COVER)
 
     siting_pct = {'dem': 10, 'slope': 35, 'cover': 55, 'classes': 80}
-    sited = siting_mod.compute_siting(
-        polygon, work_dir, slope_acceptable, slope_restrictive,
-        excluded, cropland,
-        mapbiomas_path=mb_source.resolve_mapbiomas_path(
-            req.get('mapbiomas_path'), polygon, Path(work_dir)
-        ),
-        progress=lambda st, msg: protocol.emit_progress(siting_pct[st], msg),
-    )
+    try:
+        sited = siting_mod.compute_siting(
+            polygon, work_dir, slope_acceptable, slope_restrictive,
+            excluded, cropland,
+            mapbiomas_path=mb_source.resolve_mapbiomas_path(
+                req.get('mapbiomas_path'), polygon, Path(work_dir)
+            ),
+            progress=lambda st, msg: protocol.emit_progress(siting_pct[st], msg),
+            note=lambda msg: protocol.emit_progress(-1, msg),
+        )
+    except siting_mod.SitingFailed as e:
+        protocol.fail(str(e))
     suit = sited['suitability']
     slope = sited['slope']
     stats = sited['classes']
@@ -771,14 +775,18 @@ def energy_model(req, work_dir):
         excluded = tuple(req.get('excluded_cover') or siting_mod.EXCLUDED_COVER)
         cropland = tuple(req.get('cropland_cover') or siting_mod.CROPLAND_COVER)
         siting_pct = {'dem': 88, 'slope': 91, 'cover': 93, 'classes': 96}
-        sited = siting_mod.compute_siting(
-            polygon, work_dir, slope_acceptable, slope_restrictive,
-            excluded, cropland,
-            mapbiomas_path=mb_source.resolve_mapbiomas_path(
-                req.get('mapbiomas_path'), polygon, Path(work_dir)
-            ),
-            progress=lambda st, msg: protocol.emit_progress(siting_pct[st], msg),
-        )
+        try:
+            sited = siting_mod.compute_siting(
+                polygon, work_dir, slope_acceptable, slope_restrictive,
+                excluded, cropland,
+                mapbiomas_path=mb_source.resolve_mapbiomas_path(
+                    req.get('mapbiomas_path'), polygon, Path(work_dir)
+                ),
+                progress=lambda st, msg: protocol.emit_progress(siting_pct[st], msg),
+            note=lambda msg: protocol.emit_progress(-1, msg),
+            )
+        except siting_mod.SitingFailed as e:
+            protocol.fail(str(e))
         suitability = sited['suitability']
         pixel_area_ha = sited['pixel_area_ha']
         class_areas = sited['classes']

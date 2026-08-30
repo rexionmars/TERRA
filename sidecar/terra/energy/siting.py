@@ -16,8 +16,8 @@ from pathlib import Path
 
 import numpy as np
 
-from terra import protocol
 from terra.imagery import grid
+
 
 # ----------------------------------------------------------------- suitability
 #
@@ -27,6 +27,10 @@ from terra.imagery import grid
 # permanent preservation areas and municipal zoning require the CAR and local
 # legislation, which this analysis does not consult. Both are request
 # parameters, and every response repeats the values it used.
+class SitingFailed(RuntimeError):
+    """The siting classes could not be produced over this area."""
+
+
 SLOPE_ACCEPTABLE_DEG = 10.0
 
 
@@ -118,7 +122,8 @@ SITING_STAGES = ('dem', 'slope', 'cover', 'classes')
 
 
 def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
-                   excluded, cropland, mapbiomas_path, progress=None):
+                   excluded, cropland, mapbiomas_path, progress=None,
+                   note=None):
     """
     Photovoltaic siting classes on the Copernicus DEM grid, with class areas.
 
@@ -150,10 +155,10 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     try:
         dem_path = terrain_dem.fetch_file(
             polygon, Path(work_dir) / 'dem.tif',
-            progress=lambda msg: protocol.emit_progress(-1, msg),
+            progress=note,
         )
     except Exception as e:
-        protocol.fail(f'DEM fetch failed: {e}')
+        raise SitingFailed(f'DEM fetch failed: {e}') from e
     with rasterio.open(dem_path) as src:
         elevation = src.read(1).astype(float)
         dem_transform = src.transform
@@ -173,7 +178,7 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
             np.ones_like(slope),
         )
     except Exception as e:
-        protocol.fail(f'MapBiomas land cover unavailable: {e}')
+        raise SitingFailed(f'MapBiomas land cover unavailable: {e}') from e
 
     inside = ~geometry_mask(
         [polygon.__geo_interface__], out_shape=slope.shape,
@@ -181,7 +186,7 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     )
     valid = inside & np.isfinite(slope)
     if not valid.any():
-        protocol.fail('the DEM window does not overlap the AOI')
+        raise SitingFailed('the DEM window does not overlap the AOI')
 
     stage('classes', 'siting classes')
     suit = suitability_map(
