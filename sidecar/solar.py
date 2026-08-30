@@ -37,36 +37,14 @@ import functools
 import numpy as np
 import pandas as pd
 
+# horizon_angles sectors the sky the same way beam_energy_histogram does,
+# and the two counts have to agree; see terra/sun/position.py.
+from terra.sun.position import N_HORIZON_AZIMUTHS
 
-POWER_BASE = "https://power.larc.nasa.gov/api/temporal"
-POWER_COMMUNITY = "RE"
-POWER_TIME_STANDARD = "UTC"
 
-# POWER writes this for a missing value. Left in place it would sink a
-# climatology by hundreds of units, so it becomes NaN on read.
-FILL_VALUE = -999.0
 
-DAILY_PARAMS = [
-    "ALLSKY_SFC_SW_DWN",   # GHI
-    "CLRSKY_SFC_SW_DWN",   # GHI under a clear sky
-    "ALLSKY_SFC_SW_DNI",   # DNI
-    "ALLSKY_SFC_SW_DIFF",  # DHI
-    "ALLSKY_KT",           # clearness index as published by POWER
-    "T2M",
-    "WS2M",
-]
-HOURLY_PARAMS = [
-    "ALLSKY_SFC_SW_DWN",
-    "CLRSKY_SFC_SW_DWN",
-    "ALLSKY_SFC_SW_DNI",
-    "ALLSKY_SFC_SW_DIFF",
-    "T2M",
-    "WS2M",
-]
 
-# Hourly values are hour-averaged fluxes labelled by the hour they begin, so
-# solar geometry is evaluated at the mid-point of the interval.
-HOUR_LABEL_OFFSET_MIN = 30
+
 
 # PV reference array and model coefficients.
 PDC0_W = 1000.0              # 1 kWp, so the result is a specific yield
@@ -98,201 +76,27 @@ TILT_SWEEP_DEG = (0.0, 45.0, 0.5)
 # reference, which includes the loss terms this chain omits.
 REFERENCE_PERFORMANCE_RATIO = 0.80
 
-# The radiation grid is 1 degree, so requests are keyed on the cell rather than
-# on the exact centroid: neighbouring AOIs resolve to the same series.
-GRID_DECIMALS = 2
-
-GRID_NOTE = (
-    "Radiation is resolved on a 1 degree grid, so the whole AOI falls in one "
-    "cell and no structure within it is resolved. Meteorology comes from a "
-    "0.5 by 0.625 degree grid."
-)
 
 
-def grid_key(lon: float, lat: float) -> tuple[float, float]:
-    """Coordinate rounded to the cell a POWER request resolves to."""
-    return (round(float(lon), GRID_DECIMALS), round(float(lat), GRID_DECIMALS))
 
 
-def _request(url: str, retries: int = 3, timeout: int = 300) -> dict:
-    """One POWER call, retried on transport errors with a widening pause."""
-    last: Exception | None = None
-    for attempt in range(retries):
-        try:
-            with urllib.request.urlopen(url, timeout=timeout) as fh:
-                return json.load(fh)
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            last = exc
-            time.sleep(2 * (attempt + 1))
-    raise RuntimeError(f"NASA POWER request failed after {retries} attempts: {last}")
 
 
-def build_url(
-    temporal: str,
-    lon: float,
-    lat: float,
-    params: list[str],
-    start: str,
-    end: str,
-) -> str:
-    return (
-        f"{POWER_BASE}/{temporal}/point?"
-        f"parameters={','.join(params)}"
-        f"&community={POWER_COMMUNITY}"
-        f"&longitude={lon}&latitude={lat}"
-        f"&start={start}&end={end}"
-        f"&format=JSON&time-standard={POWER_TIME_STANDARD}"
-    )
 
 
-def to_frame(payload: dict, temporal: str) -> pd.DataFrame:
-    """POWER payload to a time-indexed frame, with fill values as NaN."""
-    param = payload["properties"]["parameter"]
-    df = pd.DataFrame(param)
-    fmt = "%Y%m%d" if temporal == "daily" else "%Y%m%d%H"
-    df.index = pd.to_datetime(df.index, format=fmt, utc=(temporal == "hourly"))
-    df.index.name = "time"
-    return df.replace(FILL_VALUE, np.nan).sort_index()
 
 
-def fetch(
-    temporal: str,
-    lon: float,
-    lat: float,
-    start: str,
-    end: str,
-    progress=None,
-) -> pd.DataFrame:
-    """
-    A POWER series, requested one year at a time.
-
-    Chunked by whole years so a failure costs one year rather than the whole
-    period, following the reference client.
-    """
-    params = DAILY_PARAMS if temporal == "daily" else HOURLY_PARAMS
-    y0, y1 = int(start[:4]), int(end[:4])
-    frames = []
-    total = y1 - y0 + 1
-    for i, year in enumerate(range(y0, y1 + 1)):
-        s = f"{year}0101"
-        e = f"{year}1231"
-        if progress:
-            progress(i, total, year)
-        payload = _request(build_url(temporal, lon, lat, params, s, e))
-        frames.append(to_frame(payload, temporal))
-    if not frames:
-        raise RuntimeError("NASA POWER returned no data for this period")
-    return pd.concat(frames).sort_index()
 
 
-def annual_totals(daily: pd.DataFrame, column: str = "ALLSKY_SFC_SW_DWN") -> pd.Series:
-    """
-    Annual sums over complete calendar years only.
-
-    A partial year would read as a low one and would bias both the spread and
-    the trend.
-    """
-    s = daily[column].dropna()
-    if s.empty:
-        return pd.Series(dtype=float)
-    counts = s.groupby(s.index.year).count()
-    complete = counts[counts >= 365].index
-    return s[s.index.year.isin(complete)].groupby(lambda t: t.year).sum()
 
 
-def linear_trend(values: pd.Series) -> tuple[float, float]:
-    """
-    Least-squares slope per year and its two-sided p-value.
-
-    Returns (0, 1) for fewer than three points, which reads as no detectable
-    trend rather than as a fitted one.
-    """
-    if values.size < 3:
-        return 0.0, 1.0
-    from scipy import stats
-
-    res = stats.linregress(values.index.astype(float), values.values.astype(float))
-    return float(res.slope), float(res.pvalue)
 
 
-def monthly_climatology(daily: pd.DataFrame) -> list[dict]:
-    """Mean daily GHI, DNI, DHI and clearness index by calendar month."""
-    out = []
-    by_month = daily.groupby(daily.index.month)
-    for month, block in by_month:
-        row = {"month": int(month)}
-        for key, name in (
-            ("ALLSKY_SFC_SW_DWN", "ghi"),
-            ("ALLSKY_SFC_SW_DNI", "dni"),
-            ("ALLSKY_SFC_SW_DIFF", "dhi"),
-            ("ALLSKY_KT", "kt"),
-        ):
-            v = block[key].mean() if key in block else np.nan
-            row[name] = None if pd.isna(v) else round(float(v), 4)
-        out.append(row)
-    return out
 
 
-def clear_sky_index(daily: pd.DataFrame) -> float | None:
-    """
-    All-sky over clear-sky irradiation: how much of the available resource the
-    atmosphere actually delivered.
-    """
-    if "ALLSKY_SFC_SW_DWN" not in daily or "CLRSKY_SFC_SW_DWN" not in daily:
-        return None
-    allsky = daily["ALLSKY_SFC_SW_DWN"].sum()
-    clear = daily["CLRSKY_SFC_SW_DWN"].sum()
-    if not clear or pd.isna(clear) or clear <= 0:
-        return None
-    return round(float(allsky / clear), 4)
 
 
-def prepare_hourly(hourly: pd.DataFrame, lat: float, lon: float, elevation: float):
-    """
-    Hourly irradiance and solar position on a shared index.
 
-    Geometry is evaluated at the mid-point of each interval because POWER
-    labels an hour-averaged flux by the hour it begins.
-    """
-    import pvlib
-
-    df = pd.DataFrame(
-        {
-            "ghi": hourly["ALLSKY_SFC_SW_DWN"],
-            "dni": hourly["ALLSKY_SFC_SW_DNI"],
-            "dhi": hourly["ALLSKY_SFC_SW_DIFF"],
-            "temp_air": hourly["T2M"],
-            "wind": hourly["WS2M"],
-            # The clear-sky reference, kept rather than dropped: it is already
-            # in HOURLY_PARAMS and already fetched, and ghi/clrsky is the
-            # hourly clearness -- how much of the available sun actually
-            # arrived. Nothing downstream had it, so every consumer that wanted
-            # to say whether an hour was overcast had to do without, and the
-            # column was being paid for and thrown away.
-            #
-            # NOT in the dropna subset: an hour with no clear-sky reference is
-            # still a usable hour of irradiance, and dropping it would shrink
-            # every existing series for the sake of a column they do not read.
-            #
-            # OPTIONAL, and that is not defensiveness for its own sake. The
-            # on-disk POWER cache has no expiry by design, so a series written
-            # before this parameter was requested is still read today and has no
-            # such column; requiring it turned a working cache into a KeyError.
-            # Callers that construct a frame directly -- every test in this
-            # module among them -- are the same case.
-            **(
-                {"clrsky": hourly["CLRSKY_SFC_SW_DWN"]}
-                if "CLRSKY_SFC_SW_DWN" in hourly
-                else {}
-            ),
-        }
-    ).dropna(subset=["ghi", "dni", "dhi"])
-    mid = df.index + pd.Timedelta(minutes=HOUR_LABEL_OFFSET_MIN)
-    solpos = pvlib.solarposition.get_solarposition(
-        mid, lat, lon, altitude=elevation
-    )
-    solpos.index = df.index
-    return df, solpos
 
 
 def transpose(df: pd.DataFrame, solpos: pd.DataFrame, tilt: float, azimuth: float):
@@ -560,7 +364,6 @@ def interpolate_poa(
 # 1.1 to 1.3 per cent of the annual beam over the study areas and up to 19 per
 # cent in valley bottoms, so leaving it out overstates exactly the pixels a
 # siting map should be most careful about.
-N_HORIZON_AZIMUTHS = 16
 # The research searches 60 pixels on a 27 x 30 m grid, about 1.7 km. Carried in
 # metres because the DEM window here is in geographic degrees and its pixel size
 # varies with latitude.
@@ -606,238 +409,16 @@ def horizon_angles(
     return horizon, az_deg
 
 
-def doy_window_mask(index, centre_date, half_width_days: int = 21):
-    """
-    Hours whose day of year lies within `half_width_days` of `centre_date`.
-
-    NOT `season_mask`, which is further down this module and selects by NAMED
-    season from a month table. This one centres on a date the caller observed,
-    which is what a dated question needs and what a fixed set of months cannot
-    express.
-
-    WHY A RECORD IS NOT A SKY. A multi-year hourly record answers "what sun does
-    this cell get", and averaging all of it answers a question nobody asked: the
-    sun of no particular time. For anything dated -- a canopy observed on one
-    Sentinel-2 pass, a yield on one harvest -- the season is the larger term.
-    Measured on this project's own cached POWER records, faPAR varies by 0.068
-    across months at one site against 0.016 across the entire latitude range of
-    Brazil, so a whole-record average is wrong by four times the geographic
-    signal it was assembled to capture.
-
-    Kept as a day-of-year window rather than a date range so the other years in
-    the record still contribute. One February in one year is a few hundred
-    daylight hours and a thin histogram; three Februaries is a sky.
-
-    The window wraps at the new year, which is not a detail in the southern
-    hemisphere: the December-January window covers the peak of the Brazilian
-    summer crop, and a naive `abs(doy - centre)` would cut it in half and keep
-    the wrong half.
-
-    Returns a boolean array, or None when there is no date to centre on -- the
-    caller then keeps the whole record and says that it did.
-    """
-    if centre_date is None:
-        return None
-    try:
-        centre = pd.Timestamp(str(centre_date)[:10]).dayofyear
-    except (ValueError, TypeError):
-        return None
-
-    half = int(half_width_days)
-    if half <= 0 or half >= 183:
-        return None
-
-    doy = np.asarray(index.dayofyear, dtype=float)
-    gap = np.abs(doy - float(centre))
-    gap = np.minimum(gap, 366.0 - gap)
-    return gap <= half
 
 
-def mean_beam_direction(df, solpos) -> dict | None:
-    """
-    The DNI-weighted mean direction of the beam, as azimuth and elevation.
-
-    WHY A VECTOR MEAN AND NOT A MEAN OF ANGLES. Averaging azimuths is averaging
-    a circular quantity, and the average of 350 and 10 degrees is 180 -- the
-    exact opposite of the answer. Summing unit vectors weighted by the energy
-    that arrived along each and taking the direction of the sum is the only
-    form that survives the wrap.
-
-    This is the single direction that best represents what the march actually
-    integrated, so a scene lit from here is lit by the same sun the number came
-    from. It is not solar noon and should not be labelled as such: it sits
-    toward the hours that carried the energy.
-
-    Returns None when no hour of the record has the sun up with usable beam.
-    """
-    elev = np.radians(90.0 - solpos["apparent_zenith"].to_numpy())
-    az = np.radians(solpos["azimuth"].to_numpy())
-    dni = df["dni"].to_numpy()
-    up = (elev > 0) & np.isfinite(dni) & (dni > 0)
-    if not up.any():
-        return None
-
-    w = dni[up]
-    ce = np.cos(elev[up])
-    # East-north-up, matching the azimuth convention pvlib returns: measured
-    # clockwise from north.
-    x = float(np.sum(w * ce * np.sin(az[up])))
-    y = float(np.sum(w * ce * np.cos(az[up])))
-    z = float(np.sum(w * np.sin(elev[up])))
-    horizontal = float(np.hypot(x, y))
-    if horizontal <= 0 and z <= 0:
-        return None
-    return {
-        "azimuth_deg": float(np.degrees(np.arctan2(x, y)) % 360.0),
-        "elevation_deg": float(np.degrees(np.arctan2(z, horizontal))),
-        # How concentrated the beam was in direction. Near 1 the sun effectively
-        # came from one place all season; low means the energy was spread across
-        # the sky and a single direction represents it poorly.
-        "concentration": float(np.sqrt(x * x + y * y + z * z) / np.sum(w)),
-    }
 
 
-def representative_day(df):
-    """
-    The date in `df` whose daily beam total is the median of the record given.
-
-    A REAL DAY RATHER THAN AN AVERAGED ONE, and the difference matters near the
-    equator. Averaging hour-of-day across a window degenerates exactly where
-    this application's AOIs are: at latitude -4.5 the noon sun passes within ten
-    degrees of the zenith for much of the year, azimuth swings tens of degrees
-    in half an hour there, and a per-hour mean of azimuth produces a direction
-    no sun ever occupied. Picking one actual day avoids the whole class.
-
-    The median by beam total rather than the mean or the brightest: a window
-    holds clear days and overcast ones, and the median is the day a reader would
-    call typical.
-
-    Returns None for an empty record.
-    """
-    if df is None or len(df) == 0:
-        return None
-    totals = df["dni"].groupby(df.index.date).sum()
-    totals = totals[np.isfinite(totals.to_numpy())]
-    if len(totals) == 0:
-        return None
-    order = totals.sort_values()
-    return order.index[len(order) // 2]
 
 
-def sun_track(df, solpos, day=None) -> list[dict]:
-    """
-    One day of sun, hour by hour: where it was and what arrived.
-
-    This is what a viewer needs in order to draw the sun rather than assume it.
-    Hours with the sun below the horizon are left out, because a scene has
-    nothing to do with them and their azimuth is not meaningful to a renderer.
-
-    `clearness` is the hour's global irradiance over its clear-sky reference:
-    1.0 is a cloudless hour, and low values are the overcast ones a scene should
-    render as flat and hazy. Absent when the clear-sky column is not carried.
-
-    HOURS ARE UTC, which is why the field says so in its name. This module asks
-    POWER for `time-standard=UTC` explicitly because the API's default is Local
-    Solar Time, and a consumer that assumed the label meant local would place
-    the sun three hours wrong for a Brazilian AOI -- at this project's own cell
-    solar noon lands at 15h UTC. A renderer should drive itself from azimuth and
-    elevation and treat the hour as a caption; nothing here depends on the label.
-    """
-    if df is None or len(df) == 0:
-        return []
-    if day is None:
-        day = representative_day(df)
-    if day is None:
-        return []
-
-    mask = np.asarray(df.index.date) == day
-    d, s = df[mask], solpos[mask]
-    elev = 90.0 - s["apparent_zenith"].to_numpy()
-    up = elev > 0
-    has_clear = "clrsky" in d.columns
-
-    out = []
-    for i in np.flatnonzero(up):
-        row = {
-            "hour_utc": int(d.index[i].hour),
-            "azimuth_deg": float(s["azimuth"].to_numpy()[i]),
-            "elevation_deg": float(elev[i]),
-            "dni": float(d["dni"].to_numpy()[i]),
-            "dhi": float(d["dhi"].to_numpy()[i]),
-            "ghi": float(d["ghi"].to_numpy()[i]),
-        }
-        # THE DIFFUSE SHARE IS COMPUTED HERE, CLAMPED, rather than left as
-        # dhi/ghi for a consumer to divide.
-        #
-        # The ratio is not bounded by 1 in this record and the excess is not
-        # small: over three years at this project's cell it reaches 1.531, and
-        # 4.2 percent of daylight hours exceed 1. Those hours have a median
-        # elevation of 3.3 degrees and none above 14.7, and POWER's own
-        # components do not close there -- (DHI + DNI cos z) / GHI has a median
-        # of 1.17 across them. It is a grazing-sun artefact in the source, most
-        # likely the hour-averaged fluxes disagreeing with geometry evaluated at
-        # the interval mid-point when the sun crosses the horizon inside the
-        # hour.
-        #
-        # Clamped at the source because every consumer would otherwise have to
-        # know this. A renderer that clamps still draws something sensible, but
-        # a caption reading "120% diffuse" is a number no one can defend, and
-        # the caption is exactly what a viewer of this array would write.
-        if row["ghi"] > 0:
-            row["diffuse_share"] = float(min(max(row["dhi"] / row["ghi"], 0.0), 1.0))
-        if has_clear:
-            clear = float(d["clrsky"].to_numpy()[i])
-            if np.isfinite(clear) and clear > 0:
-                row["clearness"] = float(min(row["ghi"] / clear, 1.0))
-        out.append(row)
-    return out
 
 
-def clearness(df) -> float | None:
-    """
-    Global irradiance over its clear-sky reference, across the whole record.
-
-    How much of the sun that was available actually arrived: 1.0 is a cloudless
-    record, and the difference from 1 is cloud. Measured over the cell this was
-    developed against, a 21-day window runs 0.743 in February against 0.927 in
-    October -- the same site, two visibly different skies.
-    """
-    if df is None or len(df) == 0 or "clrsky" not in df.columns:
-        return None
-    ghi = df["ghi"].to_numpy()
-    clear = df["clrsky"].to_numpy()
-    ok = np.isfinite(ghi) & np.isfinite(clear) & (clear > 0)
-    if not ok.any():
-        return None
-    total = float(np.sum(clear[ok]))
-    return float(np.sum(ghi[ok]) / total) if total > 0 else None
 
 
-def beam_energy_histogram(
-    df,
-    solpos,
-    n_azimuths: int = N_HORIZON_AZIMUTHS,
-    elev_step: float = 1.0,
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Beam energy binned over (solar azimuth, solar elevation).
-
-    Pre-aggregating turns the per-pixel shading step into a table lookup instead
-    of an hourly loop over every pixel.
-    """
-    elevation = 90.0 - solpos["apparent_zenith"].to_numpy()
-    azimuth = solpos["azimuth"].to_numpy()
-    dni = df["dni"].to_numpy()
-    up = (elevation > 0) & np.isfinite(dni)
-
-    az_bins = np.linspace(0, 360, n_azimuths + 1)
-    el_edges = np.arange(0.0, 90.0 + elev_step, elev_step)
-    az_idx = np.clip(np.digitize(azimuth[up], az_bins) - 1, 0, n_azimuths - 1)
-    el_idx = np.clip(np.digitize(elevation[up], el_edges) - 1, 0, len(el_edges) - 2)
-
-    hist = np.zeros((n_azimuths, len(el_edges) - 1), dtype=float)
-    np.add.at(hist, (az_idx, el_idx), dni[up])
-    return hist, el_edges
 
 
 def shading_loss_fraction(
@@ -865,19 +446,6 @@ def shading_loss_fraction(
     return np.clip(blocked / total, 0.0, 1.0)
 
 
-def beam_fraction(df) -> float:
-    """
-    Share of the horizontal irradiation carried by the beam component.
-
-    Shading removes beam energy only, so the loss fraction is scaled by this
-    before it is applied to a plane-of-array total. The published shading layer
-    stays unscaled, which is what the research reports.
-    """
-    ghi = float(np.nansum(df["ghi"].to_numpy()))
-    dhi = float(np.nansum(df["dhi"].to_numpy()))
-    if ghi <= 0:
-        return 0.0
-    return float(np.clip((ghi - dhi) / ghi, 0.0, 1.0))
 
 
 # Below this mean horizon there is no enclosure to measure. Derived from the

@@ -1745,7 +1745,7 @@ def _applied_shading_derate(
     overstates the loss by the diffuse share. Measured at the reference site,
     where the beam share is 0.6425, a 3 percent mean beam loss gives 0.98072
     applied against 0.97000 unscaled, so every capacity-class energy figure was
-    1.09 percent low whenever the user enabled shading. solar.beam_fraction
+    1.09 percent low whenever the user enabled shading. sun_record.beam_fraction
     already computes the share and the terrain response already carries it, so
     the correction is a conversion, not a new assumption.
 

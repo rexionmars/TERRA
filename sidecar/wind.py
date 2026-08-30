@@ -38,12 +38,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-import solar
+from terra.sun import nasa_power as sun_power
 
-POWER_BASE = solar.POWER_BASE
-POWER_COMMUNITY = solar.POWER_COMMUNITY
-POWER_TIME_STANDARD = solar.POWER_TIME_STANDARD
-FILL_VALUE = solar.FILL_VALUE
+POWER_BASE = sun_power.POWER_BASE
+POWER_COMMUNITY = sun_power.POWER_COMMUNITY
+POWER_TIME_STANDARD = sun_power.POWER_TIME_STANDARD
+FILL_VALUE = sun_power.FILL_VALUE
 
 # Wind, direction and the two air-density inputs. The hourly endpoint accepts
 # 20 parameters per request, so these travel in one call per year.
@@ -361,7 +361,7 @@ def fetch(lon: float, lat: float, start: str, end: str, progress=None) -> pd.Dat
         # Deliberately the solar client's retry loop rather than a second copy,
         # so the two blocks cannot drift apart in how they handle a transport
         # failure against the same endpoint.
-        payload = solar._request(build_url(lon, lat, f"{year}0101", f"{year}1231"))
+        payload = sun_power.request(build_url(lon, lat, f"{year}0101", f"{year}1231"))
         frames.append(to_frame(payload))
     if not frames:
         raise RuntimeError("NASA POWER returned no data for this period")

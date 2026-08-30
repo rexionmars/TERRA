@@ -760,17 +760,17 @@ def test_analysis_touches_no_network():
     the frame it returns, which is what makes the chain testable offline and
     keeps a re-analysis from re-requesting the record.
     """
-    import solar
+    from terra.sun import nasa_power as sun_power
 
-    original = solar._request
-    solar._request = lambda url: (_ for _ in ()).throw(
+    original = sun_power.request
+    sun_power.request = lambda url: (_ for _ in ()).throw(
         AssertionError(f"analysis requested {url}")
     )
     try:
         out = wind.assess(_frame(_year_of_speeds(), alpha=0.16), -53.54, -25.10)
         assert out["hub"]["gross_capacity_factor_pct"] is not None
     finally:
-        solar._request = original
+        sun_power.request = original
 
 
 def test_project_conventions_are_labelled_as_conventions():

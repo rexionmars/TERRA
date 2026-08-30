@@ -889,7 +889,7 @@ def power_cache_dir(req):
 
 
 # NASA POWER serves the radiation parameters on a 1 degree grid; see
-# solar.GRID_NOTE, which states it beside every solar response.
+# sun_power.GRID_NOTE, which states it beside every solar response.
 POWER_RADIATION_STEP_DEG = 1.0
 
 
@@ -898,13 +898,13 @@ def power_cell_key(lon, lat):
     The pair of grid cells a POWER point request resolves to, as a cache key.
 
     A POWER response is determined by the cell the point falls in on BOTH grids
-    it serves: radiation on 1 degree (solar.GRID_NOTE) and meteorology on the
+    it serves: radiation on 1 degree (sun_power.GRID_NOTE) and meteorology on the
     MERRA-2 0.5 by 0.625 degree grid (wind.grid_key). Keying on either grid
     alone does not hold, because 0.625 does not divide 1.0, so two points inside
     one MERRA-2 longitude cell can straddle a radiation cell boundary. The key
     is the pair, which is the conservative intersection.
 
-    solar.grid_key rounds to 0.01 degrees, which is about 1 km and far finer
+    sun_power.grid_key rounds to 0.01 degrees, which is about 1 km and far finer
     than either grid. Keying the cache on that produced a miss for two AOIs
     that resolve to identical series and each paid the fetch, so the reuse the
     cache states it guarantees did not hold.
@@ -1377,7 +1377,7 @@ def action_canopy_mesh(req, work_dir):
 #
 # THE SUN IS THE AOI'S OWN, when a location is given. canopy_field's six
 # REFERENCE_SUNS exist to cross-validate a shader and are not solar geometry;
-# solar.prepare_hourly turns the POWER record for this cell into real (azimuth,
+# sun_position.prepare_hourly turns the POWER record for this cell into real (azimuth,
 # elevation) with the beam energy that arrived at each, and the march is
 # weighted by that instead of by six arbitrary directions. Without a location
 # the reference suns still answer, and the payload says which was used.
@@ -1577,8 +1577,12 @@ def action_canopy_from_aoi(req, work_dir):
     if lat is not None and lon is not None:
         protocol.emit_progress(70, 'reading the solar record for this cell')
         try:
-            import solar as solar_mod
-            cell_lon, cell_lat = solar_mod.grid_key(float(lon), float(lat))
+            from terra.sun import (
+                position as sun_position,
+                nasa_power as sun_power,
+                record as sun_record,
+            )
+            cell_lon, cell_lat = sun_power.grid_key(float(lon), float(lat))
             last_year = _dt.date.today().year - 1
             years = int(req.get('hourly_years', 3))
             start = f'{last_year - years + 1}0101'
@@ -1586,12 +1590,12 @@ def action_canopy_from_aoi(req, work_dir):
             hourly, provenance = cached_power_series(
                 power_cache_dir(req),
                 'hourly', cell_lon, cell_lat, start, end,
-                solar_mod.HOURLY_PARAMS,
-                lambda progress: solar_mod.fetch(
+                sun_power.HOURLY_PARAMS,
+                lambda progress: sun_power.fetch(
                     'hourly', cell_lon, cell_lat, start, end,
                     progress=progress),
             )
-            df, solpos = solar_mod.prepare_hourly(
+            df, solpos = sun_position.prepare_hourly(
                 hourly, cell_lat, cell_lon, float(req.get('elevation', 0.0)))
 
             # THE SEASON, WHICH IS THE LARGEST THING THIS BLOCK DECIDES.
@@ -1610,13 +1614,13 @@ def action_canopy_from_aoi(req, work_dir):
             # and the other years still contribute through the day-of-year
             # window, so a February canopy is lit by three Februaries.
             window_days = int(req.get('sun_window_days', 21))
-            season = solar_mod.doy_window_mask(
+            season = sun_record.doy_window_mask(
                 df.index, (lit_row or {}).get('date'), window_days)
             if season is not None and bool(season.any()):
                 df, solpos = df[season], solpos[season]
             else:
                 window_days = None
-            energy, el_edges = solar_mod.beam_energy_histogram(df, solpos)
+            energy, el_edges = sun_position.beam_energy_histogram(df, solpos)
             # The diffuse share of what arrives, from the record rather than
             # assumed: a canopy lit by the beam alone is lit by a fraction
             # of a clear day and by almost nothing under cloud.
@@ -1628,8 +1632,8 @@ def action_canopy_from_aoi(req, work_dir):
             # passes within ten degrees of the zenith, azimuth swings tens
             # of degrees in half an hour there, and averaging it produces a
             # direction no sun ever occupied.
-            track_day = solar_mod.representative_day(df)
-            track = solar_mod.sun_track(df, solpos, track_day)
+            track_day = sun_position.representative_day(df)
+            track = sun_position.sun_track(df, solpos, track_day)
             payload['sun'] = {
                 'source': 'power',
                 'cell': [cell_lat, cell_lon],
@@ -1657,8 +1661,8 @@ def action_canopy_from_aoi(req, work_dir):
                 # lit from it is lit by the same sun the faPAR came from.
                 # `track` is one real day, hour by hour, for a viewer that
                 # wants to move the sun rather than fix it.
-                'direction': solar_mod.mean_beam_direction(df, solpos),
-                'clearness': solar_mod.clearness(df),
+                'direction': sun_position.mean_beam_direction(df, solpos),
+                'clearness': sun_record.clearness(df),
                 'track_date': (
                     str(track_day) if track_day is not None else None),
                 'track': track,
@@ -1812,13 +1816,18 @@ def action_list_datacube(req, work_dir):
 # Solar resource and photovoltaic yield at the AOI centroid (no imagery).
 def action_solar_resource(req, work_dir):
     import solar as solar_mod
+    from terra.sun import (
+        position as sun_position,
+        nasa_power as sun_power,
+        record as sun_record,
+    )
     from datetime import date as _date
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
-    lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+    lon, lat = sun_power.grid_key(centroid.x, centroid.y)
 
     clim_years = protocol.request_positive(req, 'climatology_years', 30, int)
     hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
@@ -1839,8 +1848,8 @@ def action_solar_resource(req, work_dir):
     try:
         daily, daily_provenance = cached_power_series(
             cache, 'daily', lon, lat, clim_start, clim_end,
-            solar_mod.DAILY_PARAMS,
-            lambda progress: solar_mod.fetch(
+            sun_power.DAILY_PARAMS,
+            lambda progress: sun_power.fetch(
                 'daily', lon, lat, clim_start, clim_end, progress=progress
             ),
             progress=lambda i, n, y: protocol.emit_progress(
@@ -1850,10 +1859,10 @@ def action_solar_resource(req, work_dir):
     except Exception as e:
         protocol.fail(f'NASA POWER daily request failed: {e}')
 
-    annual = solar_mod.annual_totals(daily)
+    annual = sun_record.annual_totals(daily)
     if annual.empty:
         protocol.fail('NASA POWER returned no complete year for this point')
-    slope, pvalue = solar_mod.linear_trend(annual)
+    slope, pvalue = sun_record.linear_trend(annual)
     resource = {
         'ghi_annual_kwh_m2': round(float(annual.mean()), 1),
         'ghi_std': round(float(annual.std(ddof=1)), 1) if annual.size > 1 else 0.0,
@@ -1866,16 +1875,16 @@ def action_solar_resource(req, work_dir):
         'n_years': int(annual.size),
         'trend_per_year': round(slope, 3),
         'trend_p_value': round(pvalue, 4),
-        'clear_sky_index': solar_mod.clear_sky_index(daily),
-        'monthly': solar_mod.monthly_climatology(daily),
+        'clear_sky_index': sun_record.clear_sky_index(daily),
+        'monthly': sun_record.monthly_climatology(daily),
     }
 
     protocol.emit_progress(42, f'NASA POWER hourly, {hourly_years} years')
     try:
         hourly, hourly_provenance = cached_power_series(
             cache, 'hourly', lon, lat, hourly_start, hourly_end,
-            solar_mod.HOURLY_PARAMS,
-            lambda progress: solar_mod.fetch(
+            sun_power.HOURLY_PARAMS,
+            lambda progress: sun_power.fetch(
                 'hourly', lon, lat, hourly_start, hourly_end,
                 progress=progress,
             ),
@@ -1886,7 +1895,7 @@ def action_solar_resource(req, work_dir):
     except Exception as e:
         protocol.fail(f'NASA POWER hourly request failed: {e}')
 
-    df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
+    df, solpos = sun_position.prepare_hourly(hourly, lat, lon, 0.0)
     if df.empty:
         protocol.fail('NASA POWER returned no usable hourly record for this point')
     n_years = max(len(set(df.index.year)), 1)
@@ -1949,7 +1958,7 @@ def action_solar_resource(req, work_dir):
                 'capacity_factor_pct': round(float(100.0 * yield_year / 8760.0), 2),
                 'hourly_years': int(n_years),
             },
-            'grid_note': solar_mod.GRID_NOTE,
+            'grid_note': sun_power.GRID_NOTE,
             # Which POWER series this run read and when it was
             # fetched. Without it a cached run and a fetched run
             # are indistinguishable to the caller, and POWER
@@ -1966,6 +1975,11 @@ def action_solar_resource(req, work_dir):
 # Terrain-resolved plane-of-array irradiation over the AOI.
 def action_solar_terrain(req, work_dir):
     import solar as solar_mod
+    from terra.sun import (
+        position as sun_position,
+        nasa_power as sun_power,
+        record as sun_record,
+    )
     from terra.terrain import dem as terrain_dem, slope as terrain_slope
     import composite as comp
     import rasterio
@@ -1976,7 +1990,7 @@ def action_solar_terrain(req, work_dir):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
-    lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+    lon, lat = sun_power.grid_key(centroid.x, centroid.y)
     hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
     last_year = _date.today().year - 1
 
@@ -2032,8 +2046,8 @@ def action_solar_terrain(req, work_dir):
     try:
         hourly, hourly_provenance = cached_power_series(
             power_cache_dir(req), 'hourly', lon, lat,
-            hourly_start, hourly_end, solar_mod.HOURLY_PARAMS,
-            lambda progress: solar_mod.fetch(
+            hourly_start, hourly_end, sun_power.HOURLY_PARAMS,
+            lambda progress: sun_power.fetch(
                 'hourly', lon, lat, hourly_start, hourly_end,
                 progress=progress,
             ),
@@ -2044,7 +2058,7 @@ def action_solar_terrain(req, work_dir):
     except Exception as e:
         protocol.fail(f'NASA POWER hourly request failed: {e}')
 
-    df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, float(np.nanmean(elevation)))
+    df, solpos = sun_position.prepare_hourly(hourly, lat, lon, float(np.nanmean(elevation)))
     if df.empty:
         protocol.fail('NASA POWER returned no usable hourly record for this point')
     n_years = max(len(set(df.index.year)), 1)
@@ -2053,7 +2067,7 @@ def action_solar_terrain(req, work_dir):
     if season not in solar_mod.SEASONS and season not in ('anisotropy', 'shading'):
         protocol.fail(f'unknown season: {season}')
 
-    beam_share = solar_mod.beam_fraction(df)
+    beam_share = sun_record.beam_fraction(df)
 
     # Whether the terrain encloses the site enough for the diffuse loss to
     # be a figure rather than noise. Read off the horizon already traced, so
@@ -2087,7 +2101,7 @@ def action_solar_terrain(req, work_dir):
         yrs = solar_mod.season_years(df.index, name)
         tbl = solar_mod.build_poa_lookup(sub, sp, max(yrs, 1e-6))
         raw = solar_mod.interpolate_poa(slope, aspect, tbl)
-        hist, edges = solar_mod.beam_energy_histogram(sub, sp)
+        hist, edges = sun_position.beam_energy_histogram(sub, sp)
         loss = solar_mod.shading_loss_fraction(horizon, hist, edges)
         attenuated = raw * (1.0 - loss * beam_share)
         if svf_loss is not None:
@@ -2302,6 +2316,11 @@ def action_solar_siting(req, work_dir):
 # that action has already been run for this cell.
 def action_energy_model(req, work_dir):
     import solar as solar_mod
+    from terra.sun import (
+        position as sun_position,
+        nasa_power as sun_power,
+        record as sun_record,
+    )
     from terra.terrain import slope as terrain_slope
     import energy as energy_mod
     from datetime import date as _date
@@ -2310,7 +2329,7 @@ def action_energy_model(req, work_dir):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
-    lon, lat = solar_mod.grid_key(centroid.x, centroid.y)
+    lon, lat = sun_power.grid_key(centroid.x, centroid.y)
 
     clim_years = protocol.request_positive(req, 'climatology_years', 30, int)
     hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
@@ -2382,8 +2401,8 @@ def action_energy_model(req, work_dir):
     try:
         daily, daily_provenance = cached_power_series(
             cache, 'daily', lon, lat, clim_start, clim_end,
-            solar_mod.DAILY_PARAMS,
-            lambda progress: solar_mod.fetch(
+            sun_power.DAILY_PARAMS,
+            lambda progress: sun_power.fetch(
                 'daily', lon, lat, clim_start, clim_end, progress=progress
             ),
             progress=lambda i, n, y: protocol.emit_progress(
@@ -2393,7 +2412,7 @@ def action_energy_model(req, work_dir):
     except Exception as e:
         protocol.fail(f'NASA POWER daily request failed: {e}')
 
-    annual = solar_mod.annual_totals(daily)
+    annual = sun_record.annual_totals(daily)
     if annual.empty:
         protocol.fail('NASA POWER returned no complete year for this point')
 
@@ -2401,8 +2420,8 @@ def action_energy_model(req, work_dir):
     try:
         hourly, hourly_provenance = cached_power_series(
             cache, 'hourly', lon, lat, hourly_start, hourly_end,
-            solar_mod.HOURLY_PARAMS,
-            lambda progress: solar_mod.fetch(
+            sun_power.HOURLY_PARAMS,
+            lambda progress: sun_power.fetch(
                 'hourly', lon, lat, hourly_start, hourly_end,
                 progress=progress,
             ),
@@ -2415,7 +2434,7 @@ def action_energy_model(req, work_dir):
 
     # Elevation 0.0 as solar_resource does, so the two actions run on one
     # chain and cannot report different plane-of-array totals for one AOI.
-    df, solpos = solar_mod.prepare_hourly(hourly, lat, lon, 0.0)
+    df, solpos = sun_position.prepare_hourly(hourly, lat, lon, 0.0)
     if df.empty:
         protocol.fail('NASA POWER returned no usable hourly record for this point')
     n_years = max(len(set(df.index.year)), 1)
@@ -2552,7 +2571,7 @@ def action_energy_model(req, work_dir):
             # fraction of the plane-of-array total; without it the loss
             # would be applied on the wrong base and every capacity-class
             # energy figure would be low by the diffuse share of it.
-            beam_share=float(solar_mod.beam_fraction(df)),
+            beam_share=float(sun_record.beam_fraction(df)),
             suitability=suitability,
             pixel_area_ha=(
                 None if pixel_area_ha is None else float(pixel_area_ha)
@@ -2585,7 +2604,7 @@ def action_energy_model(req, work_dir):
             'capacity_density': density,
             'plant': plant,
             'reporting_basis': reporting_basis,
-            'grid_note': solar_mod.GRID_NOTE,
+            'grid_note': sun_power.GRID_NOTE,
             # Which POWER series this run read and when it was
             # fetched. Without it a cached run and a fetched run
             # are indistinguishable to the caller, and POWER

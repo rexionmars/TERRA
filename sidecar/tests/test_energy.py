@@ -23,6 +23,11 @@ import pytest
 
 import energy
 import solar
+from terra.sun import (
+    position as sun_position,
+    nasa_power as sun_power,
+    record as sun_record,
+)
 
 
 SITE_LAT = -25.0
@@ -45,7 +50,7 @@ def _synthetic_site() -> dict:
     import pvlib
 
     index = pd.date_range("2021-01-01", "2022-12-31 23:00", freq="h", tz="UTC")
-    mid = index + pd.Timedelta(minutes=solar.HOUR_LABEL_OFFSET_MIN)
+    mid = index + pd.Timedelta(minutes=sun_position.HOUR_LABEL_OFFSET_MIN)
     solpos = pvlib.solarposition.get_solarposition(mid, SITE_LAT, SITE_LON)
     clear = pvlib.clearsky.simplified_solis(solpos["apparent_elevation"])
 
@@ -70,7 +75,7 @@ def _synthetic_site() -> dict:
         index=index,
     )
 
-    df, solpos = solar.prepare_hourly(hourly, SITE_LAT, SITE_LON, 0.0)
+    df, solpos = sun_position.prepare_hourly(hourly, SITE_LAT, SITE_LON, 0.0)
     n_years = float(len(set(df.index.year)))
     tilt, azimuth = 25.0, 0.0
     poa = solar.transpose(df, solpos, tilt, azimuth)
@@ -1202,16 +1207,16 @@ REFERENCE_DAILY = REFERENCE_DIR / "power_daily_B_1996_2025.parquet"
 REFERENCE_LAT, REFERENCE_LON = -25.74386918888456, -53.5050376824829
 
 # The cell the shipped actions resolve that centroid to. Both solar_resource
-# and energy_model call solar.grid_key on the polygon centroid and hand the
-# ROUNDED pair to solar.prepare_hourly, so the solar position, and with it the
+# and energy_model call sun_power.grid_key on the polygon centroid and hand the
+# ROUNDED pair to sun_position.prepare_hourly, so the solar position, and with it the
 # transposition, is evaluated at the cell rather than at the centroid. Evaluated
 # at the centroid this fixture reports 1884.6204 against the 1884.6070 the
 # shipped chain returns on the identical hourly series: the global horizontal
 # sum is a column total and matches to the last digit under both, so the whole
-# difference is the solar position. Routing the fixture through solar.grid_key
+# difference is the solar position. Routing the fixture through sun_power.grid_key
 # is what stops the pinned figures and the shipped ones from being two
 # different quantities under one label.
-REFERENCE_CELL_LON, REFERENCE_CELL_LAT = solar.grid_key(
+REFERENCE_CELL_LON, REFERENCE_CELL_LAT = sun_power.grid_key(
     REFERENCE_LON, REFERENCE_LAT
 )
 
@@ -1225,7 +1230,7 @@ requires_reference_series = pytest.mark.skipif(
 def _reference_site() -> dict:
     hourly = pd.read_parquet(REFERENCE_HOURLY)
     daily = pd.read_parquet(REFERENCE_DAILY)
-    df, solpos = solar.prepare_hourly(
+    df, solpos = sun_position.prepare_hourly(
         hourly, REFERENCE_CELL_LAT, REFERENCE_CELL_LON, 0.0
     )
     n_years = float(len(set(df.index.year)))
@@ -1240,7 +1245,7 @@ def _reference_site() -> dict:
         "frame": frame,
         "n_years": n_years,
         "tilt": best["tilt_deg"],
-        "annual_totals": solar.annual_totals(daily),
+        "annual_totals": sun_record.annual_totals(daily),
         "ratio": energy.resolve_performance_ratio(frame, n_years),
     }
 
@@ -1248,8 +1253,8 @@ def _reference_site() -> dict:
 @requires_reference_series
 def test_the_reference_chain_is_evaluated_where_the_shipped_actions_evaluate_it():
     """
-    solar_resource and energy_model both hand solar.prepare_hourly the cell
-    solar.grid_key returns, not the polygon centroid. Evaluated at the centroid
+    solar_resource and energy_model both hand sun_position.prepare_hourly the cell
+    sun_power.grid_key returns, not the polygon centroid. Evaluated at the centroid
     this fixture pins 1884.6204, which no shipped action produces; the cell the
     stored Propriedade B run resolved to gives 1884.6070, and that is the figure
     the run recorded.
@@ -1259,11 +1264,11 @@ def test_the_reference_chain_is_evaluated_where_the_shipped_actions_evaluate_it(
     disagreement looked like a transposition defect and was not one.
     """
     site = _reference_site()
-    assert (REFERENCE_CELL_LON, REFERENCE_CELL_LAT) == solar.grid_key(
+    assert (REFERENCE_CELL_LON, REFERENCE_CELL_LAT) == sun_power.grid_key(
         REFERENCE_LON, REFERENCE_LAT
     )
     hourly = pd.read_parquet(REFERENCE_HOURLY)
-    centroid_df, centroid_solpos = solar.prepare_hourly(
+    centroid_df, centroid_solpos = sun_position.prepare_hourly(
         hourly, REFERENCE_LAT, REFERENCE_LON, 0.0
     )
     n_years = site["n_years"]

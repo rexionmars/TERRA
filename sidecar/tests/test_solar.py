@@ -6,6 +6,11 @@ import numpy as np
 import pandas as pd
 
 import solar
+from terra.sun import (
+    position as sun_position,
+    nasa_power as sun_power,
+    record as sun_record,
+)
 
 
 def test_fill_value_becomes_nan():
@@ -24,13 +29,13 @@ def test_fill_value_becomes_nan():
             }
         }
     }
-    df = solar.to_frame(payload, "daily")
+    df = sun_power.to_frame(payload, "daily")
     assert np.isnan(df["ALLSKY_SFC_SW_DWN"].iloc[1])
     assert df["ALLSKY_SFC_SW_DWN"].iloc[0] == 5.5
 
 
 def test_request_url_carries_the_required_parameters():
-    url = solar.build_url(
+    url = sun_power.build_url(
         "daily", -53.54, -25.1, ["ALLSKY_SFC_SW_DWN"], "20240101", "20241231"
     )
     assert url.startswith("https://power.larc.nasa.gov/api/temporal/daily/point?")
@@ -44,8 +49,8 @@ def test_grid_key_rounds_to_the_cell():
     The radiation grid is 1 degree, so nearby AOIs must resolve to the same
     request and reuse the same series.
     """
-    a = solar.grid_key(-53.53612, -25.09721)
-    b = solar.grid_key(-53.53588, -25.09744)
+    a = sun_power.grid_key(-53.53612, -25.09721)
+    b = sun_power.grid_key(-53.53588, -25.09744)
     assert a == b
 
 
@@ -55,21 +60,21 @@ def test_annual_totals_drops_incomplete_years():
     partial = pd.date_range("2024-01-01", "2024-03-31", freq="D")
     idx = full.append(partial)
     df = pd.DataFrame({"ALLSKY_SFC_SW_DWN": np.ones(len(idx))}, index=idx)
-    out = solar.annual_totals(df)
+    out = sun_record.annual_totals(df)
     assert list(out.index) == [2023]
     assert out.loc[2023] == 365.0
 
 
 def test_linear_trend_reports_no_trend_for_too_few_points():
     s = pd.Series([1.0, 2.0], index=[2020, 2021])
-    slope, p = solar.linear_trend(s)
+    slope, p = sun_record.linear_trend(s)
     assert slope == 0.0 and p == 1.0
 
 
 def test_linear_trend_recovers_a_known_slope():
     years = np.arange(2000, 2030)
     s = pd.Series(1000.0 + 2.0 * (years - 2000), index=years)
-    slope, p = solar.linear_trend(s)
+    slope, p = sun_record.linear_trend(s)
     assert abs(slope - 2.0) < 1e-6
     assert p < 0.01
 
@@ -83,13 +88,13 @@ def test_clear_sky_index_is_a_ratio_below_one():
         },
         index=idx,
     )
-    assert abs(solar.clear_sky_index(df) - (15.0 / 24.0)) < 1e-9
+    assert abs(sun_record.clear_sky_index(df) - (15.0 / 24.0)) < 1e-9
 
 
 def test_clear_sky_index_absent_without_the_clear_sky_series():
     idx = pd.date_range("2024-01-01", periods=2, freq="D")
     df = pd.DataFrame({"ALLSKY_SFC_SW_DWN": [4.0, 5.0]}, index=idx)
-    assert solar.clear_sky_index(df) is None
+    assert sun_record.clear_sky_index(df) is None
 
 
 def test_monthly_climatology_covers_every_month_present():
@@ -103,7 +108,7 @@ def test_monthly_climatology_covers_every_month_present():
         },
         index=idx,
     )
-    rows = solar.monthly_climatology(df)
+    rows = sun_record.monthly_climatology(df)
     assert [r["month"] for r in rows] == list(range(1, 13))
     assert all(r["ghi"] is not None for r in rows)
 
@@ -133,8 +138,8 @@ def test_modelled_performance_ratio_handles_no_irradiance():
 
 def test_grid_note_states_both_grids():
     """Every response carries this; it must name the resolution it describes."""
-    assert "1 degree" in solar.GRID_NOTE
-    assert "0.5" in solar.GRID_NOTE
+    assert "1 degree" in sun_power.GRID_NOTE
+    assert "0.5" in sun_power.GRID_NOTE
 
 
 # --------------------------------------------------------------- render scale
@@ -310,7 +315,7 @@ def test_shading_loss_is_zero_without_relief_and_positive_with_it():
         "azimuth": np.tile(np.linspace(0, 359, 24), 10),
     }, index=idx)
 
-    hist, edges = solar.beam_energy_histogram(df, solpos)
+    hist, edges = sun_position.beam_energy_histogram(df, solpos)
     assert hist.sum() > 0
 
     flat = solar.shading_loss_fraction(
@@ -326,8 +331,8 @@ def test_shading_loss_is_zero_without_relief_and_positive_with_it():
 
 def test_beam_fraction_is_the_direct_share_of_the_horizontal_total():
     df = pd.DataFrame({"ghi": [100.0, 100.0], "dhi": [30.0, 30.0]})
-    assert abs(solar.beam_fraction(df) - 0.7) < 1e-9
-    assert solar.beam_fraction(pd.DataFrame({"ghi": [0.0], "dhi": [0.0]})) == 0.0
+    assert abs(sun_record.beam_fraction(df) - 0.7) < 1e-9
+    assert sun_record.beam_fraction(pd.DataFrame({"ghi": [0.0], "dhi": [0.0]})) == 0.0
 
 
 def _uniform_horizon(deg: float, n: int = 36, shape=(4, 4)) -> np.ndarray:
@@ -428,7 +433,7 @@ def test_doy_window_keeps_the_same_season_in_every_year():
     ESTAÇÃO sem jogar fora os outros anos do registro.
     """
     idx = _three_years()
-    m = solar.doy_window_mask(idx, "2026-02-19", 21)
+    m = sun_record.doy_window_mask(idx, "2026-02-19", 21)
     assert m.sum() > 3000, "a janela deveria somar as três estações"
     assert set(idx[m].year) == {2023, 2024, 2025}
     assert set(idx[m].month) <= {1, 2, 3}
@@ -443,7 +448,7 @@ def test_the_window_wraps_at_the_new_year():
     um `abs(doy - centro)` ingênuo a cortaria ao meio guardando o lado errado.
     """
     idx = _three_years()
-    m = solar.doy_window_mask(idx, "2025-12-28", 21)
+    m = sun_record.doy_window_mask(idx, "2025-12-28", 21)
     months = set(idx[m].month)
     assert 12 in months and 1 in months, f"a janela não deu a volta: {months}"
     assert len(set(idx[m].dayofyear)) == 43
@@ -453,11 +458,11 @@ def test_no_date_means_no_window_rather_than_an_arbitrary_one():
     """Uma resposta, não uma falha: o chamador então usa o registro inteiro
     e diz que usou."""
     idx = _three_years()
-    assert solar.doy_window_mask(idx, None, 21) is None
-    assert solar.doy_window_mask(idx, "não é uma data", 21) is None
+    assert sun_record.doy_window_mask(idx, None, 21) is None
+    assert sun_record.doy_window_mask(idx, "não é uma data", 21) is None
     # Meia-largura que cobriria o ano todo não é uma janela.
-    assert solar.doy_window_mask(idx, "2026-02-19", 200) is None
-    assert solar.doy_window_mask(idx, "2026-02-19", 0) is None
+    assert sun_record.doy_window_mask(idx, "2026-02-19", 200) is None
+    assert sun_record.doy_window_mask(idx, "2026-02-19", 0) is None
 
 
 def test_the_window_is_not_the_named_season_helper():
@@ -465,10 +470,10 @@ def test_the_window_is_not_the_named_season_helper():
     segunda foi escrita depois -- sem este teste um `def` sombreia o outro em
     silêncio, que é exatamente o que aconteceu ao escrever esta."""
     idx = _three_years()
-    assert solar.doy_window_mask(idx, "2026-02-19", 21).sum() != \
+    assert sun_record.doy_window_mask(idx, "2026-02-19", 21).sum() != \
         solar.season_mask(idx, "summer").sum() if "summer" in solar.SEASONS \
         else True
-    assert solar.doy_window_mask.__code__.co_argcount == 3
+    assert sun_record.doy_window_mask.__code__.co_argcount == 3
     assert solar.season_mask.__code__.co_argcount == 2
 
 
@@ -505,7 +510,7 @@ def test_mean_beam_direction_is_a_vector_mean_not_an_angle_mean():
     solpos = pd.DataFrame(
         {"apparent_zenith": [45.0, 45.0], "azimuth": [350.0, 10.0]}, index=idx
     )
-    got = solar.mean_beam_direction(df, solpos)
+    got = sun_position.mean_beam_direction(df, solpos)
     assert got is not None
     # O norte, e não o sul.
     assert min(got["azimuth_deg"], 360 - got["azimuth_deg"]) < 1.0, got
@@ -518,7 +523,7 @@ def test_mean_beam_direction_leans_towards_the_energy():
     solpos = pd.DataFrame(
         {"apparent_zenith": [45.0, 45.0], "azimuth": [90.0, 270.0]}, index=idx
     )
-    got = solar.mean_beam_direction(df, solpos)
+    got = sun_position.mean_beam_direction(df, solpos)
     assert 260.0 < got["azimuth_deg"] < 280.0, got
 
 
@@ -530,15 +535,15 @@ def test_a_sun_that_never_rises_has_no_direction():
         {"apparent_zenith": [120.0, 130.0, 140.0], "azimuth": [0.0, 10.0, 20.0]},
         index=idx,
     )
-    assert solar.mean_beam_direction(df, solpos) is None
-    assert solar.sun_track(df, solpos) == []
+    assert sun_position.mean_beam_direction(df, solpos) is None
+    assert sun_position.sun_track(df, solpos) == []
 
 
 def test_sun_track_drops_the_hours_the_sun_is_down():
     """Uma cena não tem o que fazer com elas, e o azimute ali não significa
     nada para um renderizador."""
     df, solpos = _clear_day()
-    track = solar.sun_track(df, solpos)
+    track = sun_position.sun_track(df, solpos)
     assert track, "o dia inteiro caiu fora"
     assert all(r["elevation_deg"] > 0 for r in track)
     # O rótulo diz o padrão de hora, porque assumir local põe o sol três horas
@@ -548,19 +553,19 @@ def test_sun_track_drops_the_hours_the_sun_is_down():
 
 def test_sun_track_carries_clearness_when_the_clear_sky_column_survived():
     df, solpos = _clear_day()
-    track = solar.sun_track(df, solpos)
+    track = sun_position.sun_track(df, solpos)
     assert any("clearness" in r for r in track)
     assert all(0.0 <= r["clearness"] <= 1.0 for r in track if "clearness" in r)
     # Sem a coluna não há invenção de valor.
-    bare = solar.sun_track(df.drop(columns=["clrsky"]), solpos)
+    bare = sun_position.sun_track(df.drop(columns=["clrsky"]), solpos)
     assert bare and all("clearness" not in r for r in bare)
 
 
 def test_clearness_is_what_arrived_over_what_was_available():
     df, _ = _clear_day()
-    got = solar.clearness(df)
+    got = sun_record.clearness(df)
     assert got is not None and 0.0 < got <= 1.0
-    assert solar.clearness(df.drop(columns=["clrsky"])) is None
+    assert sun_record.clearness(df.drop(columns=["clrsky"])) is None
 
 
 def test_representative_day_is_the_median_and_not_the_brightest():
@@ -568,9 +573,9 @@ def test_representative_day_is_the_median_and_not_the_brightest():
     idx = pd.date_range("2025-02-01", periods=72, freq="h")
     dni = np.concatenate([np.full(24, 100.0), np.full(24, 900.0), np.full(24, 500.0)])
     df = pd.DataFrame({"dni": dni}, index=idx)
-    got = solar.representative_day(df)
+    got = sun_position.representative_day(df)
     assert str(got) == "2025-02-03", got
-    assert solar.representative_day(df.iloc[:0]) is None
+    assert sun_position.representative_day(df.iloc[:0]) is None
 
 
 def test_prepare_hourly_survives_a_cache_written_before_clear_sky_was_asked_for():
@@ -592,17 +597,17 @@ def test_prepare_hourly_survives_a_cache_written_before_clear_sky_was_asked_for(
         },
         index=idx,
     )
-    df, solpos = solar.prepare_hourly(old, -4.5, -42.5, 0.0)
+    df, solpos = sun_position.prepare_hourly(old, -4.5, -42.5, 0.0)
     assert "clrsky" not in df.columns
     assert len(df) == 6 and len(solpos) == 6
     # E o que depende da coluna responde ausência em vez de levantar.
-    assert solar.clearness(df) is None
-    assert all("clearness" not in r for r in solar.sun_track(df, solpos))
+    assert sun_record.clearness(df) is None
+    assert all("clearness" not in r for r in sun_position.sun_track(df, solpos))
 
     new = old.assign(CLRSKY_SFC_SW_DWN=np.linspace(1, 1000, 6))
-    df2, _ = solar.prepare_hourly(new, -4.5, -42.5, 0.0)
+    df2, _ = sun_position.prepare_hourly(new, -4.5, -42.5, 0.0)
     assert "clrsky" in df2.columns
-    assert solar.clearness(df2) is not None
+    assert sun_record.clearness(df2) is not None
 
 
 def test_diffuse_share_is_clamped_because_the_record_is_not_bounded_by_one():
@@ -628,7 +633,7 @@ def test_diffuse_share_is_clamped_because_the_record_is_not_bounded_by_one():
         {"apparent_zenith": [89.0, 30.0, 88.0], "azimuth": [80.0, 180.0, 280.0]},
         index=idx,
     )
-    track = solar.sun_track(df, solpos)
+    track = sun_position.sun_track(df, solpos)
     shares = [r["diffuse_share"] for r in track]
     assert shares[0] == 1.0, f"a hora rasante saiu como {shares[0]}"
     assert all(0.0 <= s <= 1.0 for s in shares)
@@ -643,5 +648,5 @@ def test_an_hour_with_no_global_has_no_diffuse_share():
     solpos = pd.DataFrame(
         {"apparent_zenith": [89.0], "azimuth": [80.0]}, index=idx
     )
-    track = solar.sun_track(df, solpos)
+    track = sun_position.sun_track(df, solpos)
     assert track and "diffuse_share" not in track[0]

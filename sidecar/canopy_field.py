@@ -747,7 +747,7 @@ def light_under_sun(canopy, hist, el_edges, *, dhi_share=0.0,
                     min_share=1e-4):
     """faPAR under a measured sun, and the coefficient the canopy behaves as.
 
-    `hist` is `solar.beam_energy_histogram`: beam energy per (azimuth sector,
+    `hist` is `sun_position.beam_energy_histogram`: beam energy per (azimuth sector,
     elevation band) over the record. Every bin carrying a meaningful share of
     the year is marched and the results are combined in proportion to the energy
     that actually arrived from it -- which is the difference between this and
