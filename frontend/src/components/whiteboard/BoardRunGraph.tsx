@@ -38,7 +38,12 @@ import {
 import { useCallback, useEffect, useState } from "react"
 import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"
-import { MODEL_OPTIONS, type ClassifyMode } from "@/lib/classifyOptions"
+import {
+  MODEL_OPTIONS,
+  MODE_OPTIONS,
+  modeBlockedBy,
+  type ClassifyMode,
+} from "@/lib/classifyOptions"
 import type { BoardToolId } from "@/lib/mapTools"
 import { methodBrief } from "@/lib/methodBrief"
 import type { RunLogEntry } from "@/lib/runLog"
@@ -86,22 +91,32 @@ function Choice({
   label,
   chosen,
   disabled,
+  blockedBy,
   onPick,
 }: {
   label: string
   chosen: boolean
   disabled?: boolean
+  /**
+   * Why this one cannot be picked, if it cannot.
+   *
+   * Carried separately from `disabled`, which is the whole card going quiet
+   * while a run is on. A rule that refuses an option has something to say and
+   * a busy surface does not.
+   */
+  blockedBy?: string | null
   onPick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onPick}
-      disabled={disabled}
+      disabled={disabled || !!blockedBy}
+      title={blockedBy ?? undefined}
       className={cn(
         "inline-flex h-[1.375rem] shrink-0 items-center rounded-sm px-1.5 text-meta transition-colors",
         "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-        disabled
+        disabled || blockedBy
           ? "cursor-not-allowed text-muted-foreground/40"
           : chosen
             ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
@@ -417,6 +432,29 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           </option>
         ))}
       </select>
+    ),
+
+    mode: (
+      /*
+        Choices rather than the header's radio, and this is the correction as
+        much as the move is: `modeBlockedBy` says cumulative retention runs on
+        Random Forest, ControlPanel has honoured that since it was written, and
+        StudioHeaderRadio has no refused state to honour it with -- so the
+        studio let a reader pick a mode the model does not produce. Here the
+        rule both disables the option and says why.
+      */
+      <div className="flex flex-wrap gap-1">
+        {MODE_OPTIONS.map((o) => (
+          <Choice
+            key={o.id}
+            label={o.label}
+            chosen={props.mode === o.id}
+            disabled={busy}
+            blockedBy={modeBlockedBy(o.id, props.modelKind)}
+            onPick={() => props.onModeChange(o.id)}
+          />
+        ))}
+      </div>
     ),
 
     product: (

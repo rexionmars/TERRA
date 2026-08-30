@@ -27,6 +27,7 @@ import {
   Network,
   Package,
   Pentagon,
+  Repeat,
   SunSnow,
   type LucideIcon,
 } from "lucide-react"
@@ -36,6 +37,7 @@ export type RunNodeId =
   | "area"
   | "period"
   | "model"
+  | "mode"
   | "product"
   | "record"
   | "season"
@@ -82,6 +84,7 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   area: { id: "area", label: "Area", icon: Pentagon, h: 74 },
   period: { id: "period", label: "Period", icon: CalendarRange, h: 168 },
   model: { id: "model", label: "Model", icon: Network, h: 74 },
+  mode: { id: "mode", label: "Mode", icon: Repeat, h: 74 },
   product: { id: "product", label: "Product", icon: Package, h: 78 },
   record: { id: "record", label: "Record", icon: History, h: 78 },
   season: { id: "season", label: "Season", icon: SunSnow, h: 116 },
@@ -138,12 +141,27 @@ export function runGraph(
   }
 
   if (tool === "classify") {
+    /*
+      THE MODEL HAS TWO EDGES AND BOTH ARE TRUE. It is an input to the run like
+      the area and the period, and it also GATES the mode: cumulative retention
+      is a Random Forest procedure, so under the other two models the temporal
+      mode is not a choice -- see modeBlockedBy in lib/classifyOptions.ts. The
+      edge into the mode card is that rule drawn.
+    */
     return {
-      nodes: [at("area", 0), at("period", 0), at("model", 0), at("run", 1)],
+      nodes: [
+        at("area", 0),
+        at("period", 0),
+        at("model", 0),
+        at("mode", 1),
+        at("run", 2),
+      ],
       edges: [
         ["area", "run"],
         ["period", "run"],
         ["model", "run"],
+        ["model", "mode"],
+        ["mode", "run"],
       ],
     }
   }

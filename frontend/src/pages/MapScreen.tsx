@@ -1,10 +1,8 @@
 import {
-  Clock,
   Droplet,
   Grid2x2,
   Image as ImageIcon,
   type LucideIcon,
-  Map as MapGlyph,
 } from "lucide-react"
 import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
@@ -51,9 +49,7 @@ import {
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
 import { BoardRunGraph, TOOL_ICON } from "@/components/whiteboard/BoardRunGraph"
-import { StudioHeaderRadio } from "@/components/whiteboard/StudioHeaderControls"
 import { StudioLoading } from "@/components/whiteboard/StudioLoading"
-import { MODE_OPTIONS } from "@/lib/classifyOptions"
 import { BOARD_TOOLS } from "@/lib/mapTools"
 import {
   BOARD_DETAIL_REM,
@@ -930,20 +926,22 @@ export function MapScreen(props: MapScreenProps) {
         )}
       </>
     ),
-    options: bandTool === "classify" ? (
-      <StudioHeaderRadio
-        value={props.mode}
-        onChange={props.onModeChange}
-        options={MODE_OPTIONS.map((m) => ({
-          id: m.id,
-          // The short name is written; the detail is what the pointer adds,
-          // since "Map" on its own does not say that it is the full stack.
-          label: m.label,
-          title: `${m.label} — ${m.detail}`,
-          icon: m.id === "single" ? MapGlyph : Clock,
-        }))}
-      />
-    ) : null,
+    /*
+      THE MODE MOVED INTO THE GRAPH and is not offered twice.
+
+      It was a header radio beside the tool tabs, which put a run's INPUT in
+      the row that chooses which product is in view -- and the two are
+      different questions. Every other input the run reads is a card now, so
+      the mode being the one left in the header made the header look like part
+      of the form.
+
+      The correction it carries is the reason it could not simply be restyled.
+      `modeBlockedBy` refuses the temporal mode under a model that cannot
+      produce it, and `StudioHeaderRadio` has no refused state -- it draws a
+      chosen half and an unchosen half and nothing else -- so the studio was
+      offering a mode the run would not honour. A card can say why.
+    */
+    options: null,
   }
 
   /*
