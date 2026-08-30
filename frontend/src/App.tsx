@@ -1842,7 +1842,7 @@ function AppBody(props: {
         const seen = solarSeenRef.current
         if (ev.progress >= 0) seen.progress = ev.progress
         if (ev.msg) seen.message = ev.msg
-        solarDispatch({
+      solarDispatch({
           type: "run/progress",
           progress: seen.progress,
           message: seen.message,
@@ -1912,6 +1912,7 @@ function AppBody(props: {
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
       waterAoiRef.current = aoiSignature
+      setCurrentRunId(res.run_id || null)
       setWater(res)
       setShowWaterOverlay(true)
       notifySuccess(
@@ -1975,6 +1976,7 @@ function AppBody(props: {
       // Result and AOI signature in one action. Assigned separately, the
       // invalidation effect above can observe the fresh result against the old
       // signature and drop what was just produced.
+      setCurrentRunId(res.run_id || null)
       solarDispatch({
         type: "result/set",
         product: "resource",
@@ -2023,6 +2025,7 @@ function AppBody(props: {
       const res = (await AnalyzeSolarTerrain(
         req as never
       )) as unknown as SolarTerrainAnalysis
+      setCurrentRunId(res.run_id || null)
       solarDispatch({
         type: "result/set",
         product: "terrain",
@@ -2064,6 +2067,7 @@ function AppBody(props: {
       const res = (await AnalyzeSolarSiting(
         req as never
       )) as unknown as SolarSitingAnalysis
+      setCurrentRunId(res.run_id || null)
       solarDispatch({
         type: "result/set",
         product: "siting",
@@ -2169,6 +2173,7 @@ function AppBody(props: {
       const res = (await AnalyzeEnergyModel(
         req as never
       )) as unknown as EnergyModelAnalysis
+      setCurrentRunId(res.run_id || null)
       solarDispatch({
         type: "result/set",
         product: "energy",
@@ -2219,6 +2224,7 @@ function AppBody(props: {
         roughness_band_m: [w.roughnessLowM, w.roughnessHighM],
       }
       const res = (await AnalyzeWind(req as never)) as unknown as WindAnalysis
+      setCurrentRunId(res.run_id || null)
       windDispatch({ type: "result/set", result: res, aoiSignature })
       // Never stated beside the photovoltaic capacity factor and never without
       // the qualifier: this figure is gross of every plant loss, rests on an
@@ -2288,6 +2294,7 @@ function AppBody(props: {
       // against the AOI this run was made on rather than dropping the reading
       // it has just been handed.
       floodAoiRef.current = runAoi
+      setCurrentRunId(res.run_id || null)
       setFlood(res)
       // The qualifier travels with the figure, here as everywhere: a contested
       // share quoted without it reads as a published reproducibility range
@@ -2386,6 +2393,20 @@ function AppBody(props: {
       props.setResult(res)
       // The row the backend just wrote. Compositions made from here attach to
       // it; empty when nothing was saved, which leaves them project-level.
+      /*
+        THE RUN THIS STATE SHOWS. All seven products set it now; only the
+        classification did.
+
+        Stage one gave every product a run id and nothing on this side picked
+        it up -- the standalone handlers read `res.run_id` solely to decide
+        whether their toast said "(saved)". So a board opened over a solar,
+        water, wind or flood run received `result.run_id || "current"` as the
+        sentinel and refused to save, reporting that none of its areas carried
+        a run while the raster of one sat on it.
+
+        Null where the save was refused. That is saveRun withdrawing its claim
+        to have written a row, not an id going missing.
+      */
       setCurrentRunId(res.run_id || null)
       props.setShowPredictionOverlay(true)
       if (!props.analysisLabel?.trim()) {
@@ -2554,7 +2575,7 @@ function AppBody(props: {
         // reason a live run records them together: assigned separately, the
         // invalidation effect can run against the old signature and drop the
         // results that were just restored.
-        solarDispatch({
+      solarDispatch({
           type: "results/restore",
           results: {
             resource: res.solar ?? null,
@@ -3190,6 +3211,16 @@ function AppBody(props: {
       }
       return {
         ...(props.result ?? EMPTY_RESULT),
+        /*
+          Whatever produced this state, not only a classification.
+
+          The spread above supplies `run_id` from `props.result`, which a
+          standalone product never sets -- so this object described a solar or
+          flood run and carried no id for it, and every reader of
+          `result.run_id` was told there was none. `currentRunId` is set by all
+          seven handlers and by opening a saved run, so it answers for each.
+        */
+        run_id: currentRunId ?? "",
         water,
         solar: r.resource,
         solar_terrain: r.terrain,
@@ -3203,7 +3234,7 @@ function AppBody(props: {
         flood,
       }
     },
-    [props.result, water, solar.results, wind.result, flood]
+    [props.result, water, solar.results, wind.result, flood, currentRunId]
   )
 
   /**

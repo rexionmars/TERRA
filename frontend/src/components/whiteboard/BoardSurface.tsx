@@ -1116,8 +1116,23 @@ export function BoardSurface({
     is calling the area; and a generic last, because a row with no name cannot
     be told from a row that failed to load.
   */
+  /*
+    THE FALLBACKS COULD NOT BE REACHED, and that is what put "run-untitled" on
+    screen beside a raster whose area had a name.
+
+    `displayRunLabel("")` answers "run-untitled" -- a value, not an absence --
+    so the `|| title` beside it never ran. Every row whose run the list could
+    not answer for was called the same thing, whatever the map called its
+    ground. The run label is asked for only when there IS one now, which is
+    what the chain always meant to say.
+
+    Reachable in two ways still. The list has not refreshed yet, or the run's
+    save was refused and it has no id to be found by -- and in both the ground
+    is the honest answer.
+  */
+  const liveRunLabel = runs.find((r) => r.id === runId)?.label?.trim()
   const liveTitle =
-    displayRunLabel(runs.find((r) => r.id === runId)?.label ?? "") ||
+    (liveRunLabel ? displayRunLabel(liveRunLabel) : "") ||
     title ||
     "Unnamed area"
 
@@ -1216,9 +1231,11 @@ export function BoardSurface({
           `run-<name>`. So a solar run over "drawn 2" reads "run-drawn-2"
           rather than sharing a placeholder with every other.
 
-          It matters most for the products that carry no row of their own:
-          only water records a run_id on its payload, so solar and flood would
-          otherwise be permanently anonymous.
+          It mattered most for the products that carried no id of their own:
+          water was the only one recording a run_id on its payload, so solar
+          and flood were otherwise permanently anonymous. All seven carry one
+          now, so this is the answer for a run the list has not caught up with
+          rather than for a whole class of product.
         */
         title:
           displayRunLabel(
