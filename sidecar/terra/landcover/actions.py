@@ -17,10 +17,9 @@ import joblib
 import numpy as np
 
 from terra import protocol
-from terra.imagery import cog, indices, sentinel2
+from terra.imagery import cog, sentinel2
 from terra.mapbiomas import (
     CLASSIFIER_COLORS as MAPBIOMAS_COLORS,
-    CLASSIFIER_LEGEND as MAPBIOMAS_LEGEND,
 )
 
 
@@ -193,82 +192,24 @@ def predict(req, work_dir):
         mb_map = None
         soja_mask = None
 
-    temporal = []
-    confidence_map = None
-    # Spectral RF feature rows become the domain fingerprint; Prithvi / TT fall
-    # back to an NDVI-only fingerprint after the VI series is computed.
-    feature_matrix_for_fingerprint = None
-
-    if model_kind == 'prithvi':
-        classification_map, confidence_map = classify.classify_prithvi(
-            products, polygon, ref_profile, model_dir, prithvi_mode
+    try:
+        prediction = classify.run(
+            products, polygon, ref_profile,
+            kind=model_kind, mode=mode, model_dir=model_dir,
+            prithvi_mode=prithvi_mode,
+            artifacts=(rf_model, scaler, label_encoder) if model_kind == 'spectral' else None,
+            n_dates_model=n_dates_model, soja_mask=soja_mask,
+            progress=protocol.emit_progress,
         )
-    elif model_kind == 'temporal_transformer':
-        protocol.emit_progress(40, f'building Temporal Transformer stack ({len(products)} dates)')
-        classification_map, confidence_map = classify.classify_temporal_transformer(
-            products, polygon, ref_profile, model_dir
-        )
-    elif mode == 'temporal':
-        n = len(products)
-        for idx in range(n):
-            cumulative = products[:idx + 1]
-            target = products[idx]
-            date_str = target['date'].strftime('%Y-%m-%d')
-            pct = 20 + int(70 * (idx + 1) / n)
-            protocol.emit_progress(pct, f'temporal stack {idx + 1}/{n} ({date_str})')
-
-            fm, vmask = features.build_feature_matrix(cumulative, polygon, ref_profile, n_dates_model)
-            if fm is None:
-                continue
-            cls_map, conf_map = classify.classify_from_features(fm, vmask, rf_model, scaler, label_encoder)
-
-            # NDVI of the target date over the soja reference pixels.
-            soja_ndvi_mean = None
-            soja_ret = None
-            dominant = None
-            if soja_mask is not None:
-                try:
-                    red = sentinel2.load_reflectance_to_reference_grid(target, 'B04', polygon, ref_profile)
-                    nir = sentinel2.load_reflectance_to_reference_grid(target, 'B08', polygon, ref_profile)
-                    ndvi_map = indices.calculate_ndvi(nir, red)
-                    sv = ndvi_map[soja_mask & (ndvi_map != 0)]
-                    soja_ndvi_mean = float(np.mean(sv)) if sv.size > 0 else None
-                except Exception:
-                    pass
-                soja_preds = cls_map[soja_mask & (cls_map >= 0)]
-                if soja_preds.size > 0:
-                    up, pc = np.unique(soja_preds, return_counts=True)
-                    dist = {int(c): int(v) for c, v in zip(up, pc)}
-                    dom_id = int(up[np.argmax(pc)])
-                    dominant = MAPBIOMAS_LEGEND.get(dom_id, str(dom_id))
-                    soja_ret = round(100.0 * dist.get(features.SOJA_CLASS_ID, 0) / soja_preds.size, 1)
-
-            temporal.append({
-                'date': date_str,
-                'n_dates_stack': len(cumulative),
-                'soja_ndvi_mean': (round(soja_ndvi_mean, 4) if soja_ndvi_mean is not None else None),
-                'soja_retention_pct': soja_ret,
-                'dominant': dominant,
-            })
-
-        # Final map = full cumulative stack (last iteration).
-        fm, vmask = features.build_feature_matrix(products, polygon, ref_profile, n_dates_model)
-        if fm is None:
-            protocol.fail('no valid Sentinel-2 data for the selected area')
-        feature_matrix_for_fingerprint = fm
-        classification_map, confidence_map = classify.classify_from_features(
-            fm, vmask, rf_model, scaler, label_encoder
-        )
-    else:
-        protocol.emit_progress(40, f'building features ({len(products)} dates)')
-        fm, vmask = features.build_feature_matrix(products, polygon, ref_profile, n_dates_model)
-        if fm is None:
-            protocol.fail('no valid Sentinel-2 data for the selected area')
-        feature_matrix_for_fingerprint = fm
-        protocol.emit_progress(80, 'classifying')
-        classification_map, confidence_map = classify.classify_from_features(
-            fm, vmask, rf_model, scaler, label_encoder
-        )
+    except classify.NoValidData as e:
+        protocol.fail(str(e))
+    classification_map = prediction.classification
+    confidence_map = prediction.confidence
+    temporal = prediction.temporal
+    # Spectral RF feature rows become the domain fingerprint; Prithvi and the
+    # Temporal Transformer have none and fall back to an NDVI-only fingerprint
+    # after the VI series is computed.
+    feature_matrix_for_fingerprint = prediction.feature_matrix
 
     protocol.emit_progress(88, 'computing vegetation index series and phenology')
     from terra import phenology as pheno

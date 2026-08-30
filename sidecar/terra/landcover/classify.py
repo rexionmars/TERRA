@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import joblib
 import numpy as np
 
 from terra import protocol
-from terra.imagery import sentinel2
+from terra.imagery import indices, sentinel2
+from terra.landcover import features
 from terra.mapbiomas import (
     CLASSIFIER_COLORS as MAPBIOMAS_COLORS,
     CLASSIFIER_LEGEND as MAPBIOMAS_LEGEND,
@@ -183,3 +185,123 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
     conf_map = np.zeros((height, width), dtype=np.float32)
     conf_map[rows, cols] = conf
     return cls_map, conf_map
+
+
+# --- Running one of the three paths over a set of products ------------------
+
+
+class NoValidData(RuntimeError):
+    """No product in the set produced a usable feature row over the area."""
+
+
+@dataclass
+class Prediction:
+    """What a model path produced, whichever of the three it was."""
+
+    classification: np.ndarray
+    confidence: np.ndarray | None
+    # One row per date, for the temporal mode only: what the cumulative stack
+    # said about the soja reference pixels as dates were added.
+    temporal: list[dict]
+    # The spectral path's feature rows, which the domain fingerprint is taken
+    # from. Prithvi and the Temporal Transformer have none, and fall back to an
+    # NDVI-only fingerprint the caller computes later.
+    feature_matrix: np.ndarray | None
+
+
+def _retention_row(target, cumulative, polygon, ref_profile, class_map, soja_mask):
+    """What one cumulative stack said about the reference soja pixels."""
+    date_str = target['date'].strftime('%Y-%m-%d')
+    soja_ndvi_mean = None
+    retention = None
+    dominant = None
+    if soja_mask is not None:
+        try:
+            red = sentinel2.load_reflectance_to_reference_grid(
+                target, 'B04', polygon, ref_profile)
+            nir = sentinel2.load_reflectance_to_reference_grid(
+                target, 'B08', polygon, ref_profile)
+            ndvi = indices.calculate_ndvi(nir, red)
+            values = ndvi[soja_mask & (ndvi != 0)]
+            soja_ndvi_mean = float(np.mean(values)) if values.size else None
+        except Exception:
+            pass
+        predicted = class_map[soja_mask & (class_map >= 0)]
+        if predicted.size:
+            ids, counts = np.unique(predicted, return_counts=True)
+            distribution = {int(c): int(v) for c, v in zip(ids, counts)}
+            dominant = MAPBIOMAS_LEGEND.get(int(ids[np.argmax(counts)]),
+                                            str(int(ids[np.argmax(counts)])))
+            retention = round(
+                100.0 * distribution.get(features.SOJA_CLASS_ID, 0) / predicted.size, 1
+            )
+    return {
+        'date': date_str,
+        'n_dates_stack': len(cumulative),
+        'soja_ndvi_mean': (round(soja_ndvi_mean, 4)
+                           if soja_ndvi_mean is not None else None),
+        'soja_retention_pct': retention,
+        'dominant': dominant,
+    }
+
+
+def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=None,
+        artifacts=None, n_dates_model=None, soja_mask=None, progress=None) -> Prediction:
+    """
+    Run whichever of the three paths `kind` names, over one set of products.
+
+    All three emit the same classes, so what comes back is comparable whichever
+    ran. `progress(percent, message)` is the caller's, and NoValidData is
+    raised rather than the process exited: deciding a run cannot continue is
+    the action's, not this function's.
+
+    The temporal mode is the spectral path run once per cumulative stack, which
+    is what produces the retention series. Its final map is the full stack, so
+    a temporal run and a single run over the same products classify the same
+    pixels; only the series is extra.
+    """
+    def say(percent, message):
+        if progress:
+            progress(percent, message)
+
+    if kind == 'prithvi':
+        class_map, confidence = classify_prithvi(
+            products, polygon, ref_profile, model_dir, prithvi_mode)
+        return Prediction(class_map, confidence, [], None)
+
+    if kind == 'temporal_transformer':
+        say(40, f'building Temporal Transformer stack ({len(products)} dates)')
+        class_map, confidence = classify_temporal_transformer(
+            products, polygon, ref_profile, model_dir)
+        return Prediction(class_map, confidence, [], None)
+
+    model, scaler, label_encoder = artifacts
+    temporal = []
+    if mode == 'temporal':
+        total = len(products)
+        for index in range(total):
+            cumulative = products[:index + 1]
+            target = products[index]
+            say(20 + int(70 * (index + 1) / total),
+                f"temporal stack {index + 1}/{total} "
+                f"({target['date'].strftime('%Y-%m-%d')})")
+            matrix, valid = features.build_feature_matrix(
+                cumulative, polygon, ref_profile, n_dates_model)
+            if matrix is None:
+                continue
+            class_map, _ = classify_from_features(
+                matrix, valid, model, scaler, label_encoder)
+            temporal.append(_retention_row(
+                target, cumulative, polygon, ref_profile, class_map, soja_mask))
+    else:
+        say(40, f'building features ({len(products)} dates)')
+
+    matrix, valid = features.build_feature_matrix(
+        products, polygon, ref_profile, n_dates_model)
+    if matrix is None:
+        raise NoValidData('no valid Sentinel-2 data for the selected area')
+    if mode != 'temporal':
+        say(80, 'classifying')
+    class_map, confidence = classify_from_features(
+        matrix, valid, model, scaler, label_encoder)
+    return Prediction(class_map, confidence, temporal, matrix)
