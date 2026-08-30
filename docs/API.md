@@ -29,7 +29,7 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 | `ListAreaRuns(areaID, limit)` | Runs measured on one ground |
 | `LoadAnalysis(runID)` | Reload a saved `PredictResult` (overlays as data URIs) |
 
-### Projects, areas and boards
+### Projects, areas and studios
 
 The hierarchy is **project › area › run**. A project holds the grounds worked on
 it; an area holds the runs measured over it. Deleting an area takes its runs and
@@ -44,8 +44,9 @@ cascade is written where the delete is, in `internal/store/`.
 | `ListAreas(projectID)` | The grounds of one project, oldest first |
 | `CreateArea(projectID, name, polygonGeoJSON)` | One drawn ground. An empty name is minted as `drawn`, `drawn 2`, … against what the project already holds |
 | `GetArea` / `UpdateArea` / `DeleteArea` | One ground. `UpdateArea` writes every column it is given |
-| `ListWhiteboards(projectID)` | Boards of one project; `""` gives every board |
-| `SaveWhiteboard` | Refuses a member whose run belongs to another project |
+| `ListStudios(projectID)` | Studios of one project; `""` gives every studio |
+| `GetStudio` / `RenameStudio` / `DeleteStudio` | One studio. Deleting takes the arrangement, never the runs |
+| `SaveStudio` | Writes the arrangement whole; refuses a member whose run belongs to another project |
 
 ### Auth and preferences (local SQLite)
 
@@ -85,7 +86,7 @@ cascade is written where the delete is, in `internal/store/`.
 - `polygon_geojson` is required: it is the only way a request names a ground.
   It was one of two — `area_id` selected one of three embedded example areas —
   and that field is gone. `area_id` on a request now means something else: the
-  catalogued ground the run is OF, so the board can keep an area and its runs
+  catalogued ground the run is OF, so a studio can keep an area and its runs
   as one subject.
 - `mode`: `"single"` or `"temporal"` (temporal soybean retention requires spectral RF).
 - `model_kind`: `"spectral"` | `"temporal_transformer"` | `"prithvi"`.

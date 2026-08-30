@@ -20,10 +20,10 @@ import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalShell } from "@/components/ui/ModalShell"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import {
-  deleteWhiteboard,
-  renameWhiteboard,
-  type Whiteboard,
-} from "@/lib/whiteboards"
+  deleteStudio,
+  renameStudio,
+  type Studio,
+} from "@/lib/studios"
 import { cn } from "@/lib/utils"
 
 export function StudioManager({
@@ -33,7 +33,7 @@ export function StudioManager({
   onChanged,
   onOpenDeleted,
 }: {
-  boards: readonly Whiteboard[]
+  boards: readonly Studio[]
   /** The board currently on screen, which cannot be deleted from under it. */
   openId: string | null
   onDismiss: () => void
@@ -50,7 +50,7 @@ export function StudioManager({
 }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
-  const [pendingDelete, setPendingDelete] = useState<Whiteboard | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Studio | null>(null)
   const [busy, setBusy] = useState(false)
 
   // Escape leaves the field before it leaves the dialog: a reader abandoning a
@@ -68,14 +68,14 @@ export function StudioManager({
     return () => window.removeEventListener("keydown", onKey, true)
   }, [editing])
 
-  const commitRename = async (board: Whiteboard) => {
+  const commitRename = async (board: Studio) => {
     const next = draft.trim()
     setEditing(null)
     // An unchanged name is not a rename, and an empty one is not a name.
     if (!next || next === board.name) return
     setBusy(true)
     try {
-      await renameWhiteboard(board.id, next)
+      await renameStudio(board.id, next)
       await onChanged()
       notifySuccess("Studio renamed", next)
     } catch (e) {
@@ -85,10 +85,10 @@ export function StudioManager({
     }
   }
 
-  const commitDelete = async (board: Whiteboard) => {
+  const commitDelete = async (board: Studio) => {
     setBusy(true)
     try {
-      await deleteWhiteboard(board.id)
+      await deleteStudio(board.id)
       await onChanged()
       setPendingDelete(null)
       if (board.id === openId) onOpenDeleted(board.id)

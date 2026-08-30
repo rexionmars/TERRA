@@ -397,6 +397,92 @@ func (s *Store) dropColumn(table, column string) error {
 }
 
 /*
+renameTable and renameColumn move a name that has changed, and say nothing when
+there is nothing under the old one.
+
+Asked of the schema rather than of the version, for the reason dropColumn and
+addColumns both give: a file created fresh by this build already carries the new
+names, so an unconditional rename would fail on exactly the files that are
+already correct.
+
+A FILE CAN HOLD BOTH, and it is not a hypothetical: every schema block here is
+CREATE TABLE IF NOT EXISTS, so any build that ran those before the rename was
+written left an empty `studios` beside a populated `whiteboards`. That happened
+on this author's own database during the rename.
+
+An EMPTY destination is dropped and the rename proceeds. It was made by a CREATE
+and holds nothing, so there is nothing to weigh against the rows in the source;
+refusing instead would leave the work unreachable behind a store that will not
+open, which is worse than either name.
+
+A destination with ROWS is refused. Two populated tables for one thing is a
+question about which is the work, and this cannot answer it -- so it says which
+pair is involved and stops, rather than picking one.
+*/
+func (s *Store) renameTable(from, to string) error {
+	var have, want int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name = ?`, from,
+	).Scan(&have); err != nil {
+		return fmt.Errorf("inspect %s: %w", from, err)
+	}
+	if have == 0 {
+		return nil
+	}
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name = ?`, to,
+	).Scan(&want); err != nil {
+		return fmt.Errorf("inspect %s: %w", to, err)
+	}
+	if want > 0 {
+		var rows int
+		if err := s.db.QueryRow(
+			fmt.Sprintf("SELECT COUNT(1) FROM %s", to),
+		).Scan(&rows); err != nil {
+			return fmt.Errorf("inspect %s rows: %w", to, err)
+		}
+		if rows > 0 {
+			return fmt.Errorf(
+				"cannot rename %s to %s: both exist and %s holds %d row(s)", from, to, to, rows)
+		}
+		if _, err := s.db.Exec("DROP TABLE " + to); err != nil {
+			return fmt.Errorf("drop empty %s: %w", to, err)
+		}
+	}
+	// Identifiers cannot be bound; both arguments are literals from this file.
+	if _, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", from, to)); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", from, to, err)
+	}
+	return nil
+}
+
+func (s *Store) renameColumn(table, from, to string) error {
+	var have, want int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`, table, from,
+	).Scan(&have); err != nil {
+		return fmt.Errorf("inspect %s: %w", table, err)
+	}
+	if have == 0 {
+		return nil
+	}
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`, table, to,
+	).Scan(&want); err != nil {
+		return fmt.Errorf("inspect %s: %w", table, err)
+	}
+	if want > 0 {
+		return fmt.Errorf("cannot rename %s.%s to %s: both exist", table, from, to)
+	}
+	if _, err := s.db.Exec(
+		fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", table, from, to),
+	); err != nil {
+		return fmt.Errorf("rename %s.%s to %s: %w", table, from, to, err)
+	}
+	return nil
+}
+
+/*
 discardPreAreaData empties the domain tables once, when a database written
 before areas existed is opened by a build that has them.
 
@@ -472,8 +558,8 @@ func (s *Store) discardPreAreaData() error {
 	// Children first, so a failure part way leaves no row pointing at one that
 	// is already gone.
 	for _, stmt := range []string{
-		`DELETE FROM whiteboard_members`,
-		`DELETE FROM whiteboards`,
+		`DELETE FROM studio_members`,
+		`DELETE FROM studios`,
 		`DELETE FROM project_overlays`,
 		`DELETE FROM inference_runs`,
 		`DELETE FROM areas`,
@@ -503,6 +589,45 @@ func (s *Store) migrate() error {
 	at, err := s.userVersion()
 	if err != nil {
 		return err
+	}
+	/*
+		THE NAME THIS THING IS CALLED. `whiteboard` became `studio`.
+
+		FIRST, BEFORE ANY CREATE TABLE. The schema blocks below are
+		`CREATE TABLE IF NOT EXISTS studios`, so running them against a file
+		that still holds `whiteboards` would make an empty table beside the
+		populated one -- and the rename would then fail with "both exist",
+		correctly, having been made impossible a few lines earlier. Every
+		reader would find the empty one.
+
+		Not gated on the version, like the drops below and for the same reason:
+		a number can be raised without the work, and a file that slipped through
+		such a window is one no later gate reopens. The helpers ask the schema,
+		so on a database already renamed this is three queries and nothing else.
+
+		The index names go untouched. An index is not addressed by name from
+		anywhere in this package, so renaming them would be churn with no
+		reader; the CREATE INDEX IF NOT EXISTS statements below add the new
+		names, and the old ones are dropped here so a file does not carry two
+		indexes over one column.
+	*/
+	if err := s.renameTable("whiteboards", "studios"); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	if err := s.renameTable("whiteboard_members", "studio_members"); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	if err := s.renameColumn("studio_members", "whiteboard_id", "studio_id"); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	for _, idx := range []string{
+		"idx_whiteboards_user_updated",
+		"idx_whiteboard_members_whiteboard",
+		"idx_whiteboards_project",
+	} {
+		if _, err := s.db.Exec("DROP INDEX IF EXISTS " + idx); err != nil {
+			return fmt.Errorf("migrate: drop index %s: %w", idx, err)
+		}
 	}
 	schema := `
 CREATE TABLE IF NOT EXISTS users (
@@ -638,8 +763,8 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 			return fmt.Errorf("migrate overlay run index: %w", err)
 		}
 	}
-	if _, err := s.db.Exec(whiteboardSchema); err != nil {
-		return fmt.Errorf("migrate whiteboards: %w", err)
+	if _, err := s.db.Exec(studioSchema); err != nil {
+		return fmt.Errorf("migrate studios: %w", err)
 	}
 	/*
 		Ownership becomes a chain: a project holds areas, an area holds runs, and
@@ -651,7 +776,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 		could carry it survives the line above. Written the other way round, every
 		pre-existing run would report itself as belonging to an area with no id.
 
-		This block ALTERs whiteboards, so it sits after the CREATE that
+		This block ALTERs studios, so it sits after the CREATE that
 		guarantees the table -- the same order the gated blocks above keep.
 	*/
 	if at < 3 {
@@ -663,8 +788,8 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 				`ALTER TABLE inference_runs ADD COLUMN area_id TEXT NOT NULL DEFAULT ''`},
 			{"project_overlays", "area_id",
 				`ALTER TABLE project_overlays ADD COLUMN area_id TEXT NOT NULL DEFAULT ''`},
-			{"whiteboards", "project_id",
-				`ALTER TABLE whiteboards ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`},
+			{"studios", "project_id",
+				`ALTER TABLE studios ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`},
 			// Which ground the reader was last on in this project. Per-project
 			// state, so it belongs on the project rather than growing the
 			// preferences blob this change exists to shrink.
@@ -676,7 +801,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 		for _, stmt := range []string{
 			`CREATE INDEX IF NOT EXISTS idx_runs_area_created ON inference_runs(area_id, created_at DESC)`,
 			`CREATE INDEX IF NOT EXISTS idx_project_overlays_area ON project_overlays(area_id)`,
-			`CREATE INDEX IF NOT EXISTS idx_whiteboards_project ON whiteboards(project_id, updated_at DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_studios_project ON studios(project_id, updated_at DESC)`,
 		} {
 			if _, err := s.db.Exec(stmt); err != nil {
 				return fmt.Errorf("migrate area indexes: %w", err)
@@ -1366,7 +1491,7 @@ func (s *Store) DeleteRun(userID, runID string) error {
 		The references this row leaves behind, which it used to leave dangling.
 
 		A board member naming a deleted run survived as a row pointing at
-		nothing. GetWhiteboard compensates -- it LEFT JOINs and reports the gap
+		nothing. GetStudio compensates -- it LEFT JOINs and reports the gap
 		as Missing -- and that reporting stays, because a board saved with a run
 		that is later deleted genuinely has a gap and a reader should be told.
 		What does not need to stay is the row: the member is removed here, so the
@@ -1378,7 +1503,7 @@ func (s *Store) DeleteRun(userID, runID string) error {
 		run it was made under, and its own comment already defines empty as
 		"belongs to the project" rather than "belongs to nothing".
 	*/
-	if _, err := tx.Exec(`DELETE FROM whiteboard_members WHERE run_id = ?`, runID); err != nil {
+	if _, err := tx.Exec(`DELETE FROM studio_members WHERE run_id = ?`, runID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(

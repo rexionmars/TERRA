@@ -35,7 +35,7 @@ import { Plus, Search } from "lucide-react"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { datesByMonth, runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
-import { StudioPopover } from "@/components/whiteboard/StudioPopover"
+import { StudioPopover } from "@/components/studio/StudioPopover"
 import { cn } from "@/lib/utils"
 
 export function RunPicker({
@@ -162,7 +162,7 @@ export function RunPicker({
                   ? "No run matches that."
                   : runs.length === 0
                     ? "No saved runs yet."
-                    : "Every saved run is already on the board."}
+                    : "Every saved run is already in the studio."}
               </p>
             ) : (
               groups.map((g) => (

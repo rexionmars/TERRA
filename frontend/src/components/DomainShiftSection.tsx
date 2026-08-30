@@ -1,5 +1,5 @@
 /**
- * Domain Shift diagnosis panel for Compare analyses (and whiteboard summary).
+ * Domain Shift diagnosis panel for Compare analyses (and studio summary).
  *
  * Metrics follow the study-guide distances: KL on NDVI histograms, CVA
  * magnitude (and red–NIR angle), RBF MMD on feature samples, F1 / outside-

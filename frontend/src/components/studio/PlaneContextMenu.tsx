@@ -30,7 +30,7 @@ import {
   Maximize,
   Trash2,
 } from "lucide-react"
-import { StudioMenuItem, StudioMenuRule } from "@/components/whiteboard/StudioPopover"
+import { StudioMenuItem, StudioMenuRule } from "@/components/studio/StudioPopover"
 
 export interface PlaneContextTarget {
   areaId: string
@@ -177,7 +177,7 @@ export function PlaneContextMenu({
         label={target.soloed ? "Show every plane" : "Hide every other plane"}
         title={
           target.soloed
-            ? "Bring the rest of the board back"
+            ? "Bring the rest of the studio back"
             : "Leave this one visible and hide the rest"
         }
         onSelect={() => {
@@ -203,8 +203,8 @@ export function PlaneContextMenu({
           <StudioMenuRule />
           <StudioMenuItem
             icon={Trash2}
-            label="Remove from the board"
-            title="The run keeps it; the board stops drawing it"
+            label="Remove from the studio"
+            title="The run keeps it; the studio stops drawing it"
             onSelect={() => {
               onRemove()
               onClose()

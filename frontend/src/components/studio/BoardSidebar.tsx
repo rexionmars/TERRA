@@ -60,7 +60,7 @@ import { BOARD_LEFT_REM } from "@/lib/boardPartition"
  * The outliner in the editor this follows has the same switch, and for the
  * same reason: a scene and the data behind it are two different questions, and
  * a column that answered both at once would answer neither at the width it
- * has. "Scene" is what is on the board and can be arranged; "Data" is what the
+ * has. "Scene" is what is in the studio and can be arranged; "Data" is what the
  * run produced, drawn or not, and what can be exported or dropped.
  */
 /*
@@ -77,7 +77,7 @@ export type OutlinerMode = "scene" | "data" | "areas"
  * One geometry the board is working on.
  *
  * The tree lists what is DRAWN and the data tab lists what a run PRODUCED;
- * neither answers "which pieces of ground are on this board". An area with no
+ * neither answers "which pieces of ground are in this studio". An area with no
  * rasters yet appears in neither, and it is the one you are about to run on.
  */
 export interface AreaInfo {
@@ -1147,7 +1147,7 @@ export function BoardSidebar({
                     }}
                     tabIndex={-1}
                     aria-label={`Remove ${row.title} from the board`}
-                    title="Remove from the board"
+                    title="Remove from the studio"
                     className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
                   >
                     <Minus className="size-3.5" />
@@ -1171,7 +1171,7 @@ export function BoardSidebar({
                         areas.find((a) => a.id === row.areaId)?.layers.length ?? 0
                       return n
                         ? `Take this area and its ${n} rasters off the board`
-                        : "Take this area off the board"
+                        : "Take this area out of the studio"
                     })()}
                     className="shrink-0 rounded-sm text-muted-foreground/50 transition-colors hover:text-foreground"
                   >
@@ -1563,7 +1563,7 @@ function SceneToggle({
       }}
       aria-pressed={inScene}
       aria-label={`${inScene ? "Remove" : "Add"} ${title}`}
-      title={inScene ? "Remove from the board" : "Add to the board"}
+      title={inScene ? "Remove from the studio" : "Add to the studio"}
       className={cn(
         "shrink-0 rounded-sm transition-colors",
         "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",

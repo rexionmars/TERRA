@@ -20,13 +20,13 @@
  * stops working -- an empty slot follows the selection and says so.
  */
 import { Pin, PinOff } from "lucide-react"
-import type { PredictionCompareSide } from "@/components/whiteboard/BoardSolarDetail"
+import type { PredictionCompareSide } from "@/components/studio/BoardSolarDetail"
 import {
   StudioMenuGroup,
   StudioMenuItem,
   StudioPopover,
-} from "@/components/whiteboard/StudioPopover"
-import { StudioHeaderPopoverButton } from "@/components/whiteboard/StudioHeaderControls"
+} from "@/components/studio/StudioPopover"
+import { StudioHeaderPopoverButton } from "@/components/studio/StudioHeaderControls"
 import { cn } from "@/lib/utils"
 
 export interface ComparePins {

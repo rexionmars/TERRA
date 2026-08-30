@@ -68,15 +68,15 @@ func hasColumn(t *testing.T, s *Store, table, column string) bool {
 // here rather than derived from the schema string, so that a column dropped
 // from migrate fails this test instead of agreeing with itself.
 var expectedColumns = map[string][]string{
-	"users":              {"id", "email", "display_name", "password_hash", "avatar_path", "created_at", "updated_at"},
-	"sessions":           {"token", "user_id", "expires_at"},
-	"preferences":        {"user_id", "default_model", "overlay_opacity", "theme", "extras_json"},
-	"inference_runs":     {"id", "user_id", "created_at", "model_kind", "period_start", "period_end", "polygon_geojson", "status", "summary_json", "overlay_relpath", "n_dates", "result_json", "assets_relpath", "label", "project_id", "kind", "area_id"},
-	"projects":           {"id", "user_id", "name", "notes", "created_at", "updated_at", "last_area_id"},
-	"project_overlays":   {"id", "project_id", "kind", "title", "meta_json", "png_relpath", "tif_relpath", "created_at", "run_id", "area_id"},
-	"whiteboards":        {"id", "user_id", "name", "created_at", "updated_at", "view_json", "project_id"},
-	"whiteboard_members": {"id", "whiteboard_id", "run_id", "position", "name", "state_json"},
-	"areas":              {"id", "project_id", "user_id", "name", "polygon_geojson", "notes", "created_at", "updated_at"},
+	"users":            {"id", "email", "display_name", "password_hash", "avatar_path", "created_at", "updated_at"},
+	"sessions":         {"token", "user_id", "expires_at"},
+	"preferences":      {"user_id", "default_model", "overlay_opacity", "theme", "extras_json"},
+	"inference_runs":   {"id", "user_id", "created_at", "model_kind", "period_start", "period_end", "polygon_geojson", "status", "summary_json", "overlay_relpath", "n_dates", "result_json", "assets_relpath", "label", "project_id", "kind", "area_id"},
+	"projects":         {"id", "user_id", "name", "notes", "created_at", "updated_at", "last_area_id"},
+	"project_overlays": {"id", "project_id", "kind", "title", "meta_json", "png_relpath", "tif_relpath", "created_at", "run_id", "area_id"},
+	"studios":          {"id", "user_id", "name", "created_at", "updated_at", "view_json", "project_id"},
+	"studio_members":   {"id", "studio_id", "run_id", "position", "name", "state_json"},
+	"areas":            {"id", "project_id", "user_id", "name", "polygon_geojson", "notes", "created_at", "updated_at"},
 }
 
 func assertCurrentShape(t *testing.T, s *Store) {
@@ -119,7 +119,7 @@ func TestFreshDatabaseReachesCurrentVersion(t *testing.T) {
 
 /*
 A database as the version-less build left it: every additive column applied,
-user_version never written, whiteboards not yet invented.
+user_version never written, studios not yet invented.
 
 Built statement by statement rather than by calling migrate and then resetting
 the version, because what has to be reproduced is the old file, not this build's

@@ -56,7 +56,7 @@ export function DeleteProject(arg1:string):Promise<void>;
 
 export function DeleteProjectOverlay(arg1:string):Promise<void>;
 
-export function DeleteWhiteboard(arg1:string):Promise<void>;
+export function DeleteStudio(arg1:string):Promise<void>;
 
 export function ExportBackup():Promise<string>;
 
@@ -78,7 +78,7 @@ export function GetPreferences():Promise<store.Preferences>;
 
 export function GetProject(arg1:string):Promise<store.Project>;
 
-export function GetWhiteboard(arg1:string):Promise<store.Whiteboard>;
+export function GetStudio(arg1:string):Promise<store.Studio>;
 
 export function InspectEnvironment():Promise<main.EnvironmentState>;
 
@@ -102,7 +102,7 @@ export function ListProjects():Promise<Array<store.Project>>;
 
 export function ListRuns(arg1:number):Promise<Array<store.InferenceRun>>;
 
-export function ListWhiteboards(arg1:string):Promise<Array<store.Whiteboard>>;
+export function ListStudios(arg1:string):Promise<Array<store.Studio>>;
 
 export function LoadAnalysis(arg1:string):Promise<analysis.PredictResult>;
 
@@ -120,7 +120,7 @@ export function PurgeOrphanedRunAssets():Promise<store.PurgeResult>;
 
 export function Register(arg1:string,arg2:string,arg3:string):Promise<store.User>;
 
-export function RenameWhiteboard(arg1:string,arg2:string):Promise<void>;
+export function RenameStudio(arg1:string,arg2:string):Promise<void>;
 
 export function RenderComposite(arg1:analysis.CompositeRequest):Promise<analysis.CompositeResult>;
 
@@ -134,7 +134,7 @@ export function SavePreferences(arg1:store.Preferences):Promise<void>;
 
 export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<store.ProjectOverlay>;
 
-export function SaveWhiteboard(arg1:store.Whiteboard):Promise<store.Whiteboard>;
+export function SaveStudio(arg1:store.Studio):Promise<store.Studio>;
 
 export function SetAvatar(arg1:string):Promise<store.User>;
 

@@ -30,7 +30,7 @@ import { useMemo, useRef, useState } from "react"
 import { useTheme } from "next-themes"
 import { Info } from "lucide-react"
 
-import { StudioPopover } from "@/components/whiteboard/StudioPopover"
+import { StudioPopover } from "@/components/studio/StudioPopover"
 
 import type { LibraryClass, PredictResult } from "@/lib/types"
 import type { ThemeName } from "@/lib/contrast"

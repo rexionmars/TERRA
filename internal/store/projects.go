@@ -123,10 +123,10 @@ func (s *Store) DeleteProject(userID, projectID string) error {
 		sql  string
 		args []any
 	}{
-		{`DELETE FROM whiteboard_members WHERE whiteboard_id IN
-		   (SELECT id FROM whiteboards WHERE project_id = ?)`, []any{projectID}},
-		{`DELETE FROM whiteboards WHERE project_id = ?`, []any{projectID}},
-		{`DELETE FROM whiteboard_members WHERE run_id IN
+		{`DELETE FROM studio_members WHERE studio_id IN
+		   (SELECT id FROM studios WHERE project_id = ?)`, []any{projectID}},
+		{`DELETE FROM studios WHERE project_id = ?`, []any{projectID}},
+		{`DELETE FROM studio_members WHERE run_id IN
 		   (SELECT id FROM inference_runs WHERE project_id = ?)`, []any{projectID}},
 		{`DELETE FROM project_overlays WHERE project_id = ?`, []any{projectID}},
 		{`DELETE FROM inference_runs WHERE project_id = ? AND user_id = ?`,

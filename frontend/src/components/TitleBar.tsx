@@ -55,7 +55,7 @@ interface TitleBarProps {
    * bar's rule against per-page navigation icons.
    */
   /**
-   * Where the map screen hangs its whiteboard toggle.
+   * Where the map screen hangs its studio toggle.
    *
    * A host element handed BACK, rather than a ReactNode taken in like
    * `projectSwitcher`. What that button reads -- whether the board is up,
@@ -368,7 +368,7 @@ export function TitleBar({
         )}
 
         {/*
-          The whiteboard toggle, between the account and the layout switch.
+          The studio toggle, between the account and the layout switch.
 
           Up here rather than on the surfaces that used to carry it, because
           those two mounts each had a layout they could not serve: the island's

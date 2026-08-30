@@ -1,7 +1,7 @@
 /**
  * Saving a board and opening one again.
  *
- * The store keeps a whiteboard as a name, a view and a list of members, each
+ * The store keeps a studio as a name, a view and a list of members, each
  * naming a run. What none of that says is how the board was ARRANGED -- where
  * areas sat, what was renamed, what was dropped to a base level -- and the
  * store is deliberately incurious about it: those fields are the surface's
@@ -14,16 +14,16 @@
  * to a field that is missing is the default, not a crash.
  */
 import {
-  GetWhiteboard,
-  ListWhiteboards,
-  SaveWhiteboard,
-  DeleteWhiteboard,
-  RenameWhiteboard,
+  GetStudio,
+  ListStudios,
+  SaveStudio,
+  DeleteStudio,
+  RenameStudio,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
-import type { BoardSnapshot } from "@/components/whiteboard/boardMemory"
+import type { BoardSnapshot } from "@/components/studio/boardMemory"
 
-export type Whiteboard = store.Whiteboard
+export type Studio = store.Studio
 
 /**
  * The boards of one project, most recently saved first.
@@ -36,8 +36,8 @@ export type Whiteboard = store.Whiteboard
  * Boards saved before boards had projects come back here too. They carry no
  * project, and hiding them would be indistinguishable from having lost them.
  */
-export async function listWhiteboards(projectId?: string | null): Promise<Whiteboard[]> {
-  return (await ListWhiteboards(projectId ?? "")) as unknown as Whiteboard[]
+export async function listStudios(projectId?: string | null): Promise<Studio[]> {
+  return (await ListStudios(projectId ?? "")) as unknown as Studio[]
 }
 
 /**
@@ -49,8 +49,8 @@ export async function listWhiteboards(projectId?: string | null): Promise<Whiteb
  * label on a stored board and nothing else, which is the operation a list of
  * boards needs and the only one that can be aimed at a board that is not open.
  */
-export async function renameWhiteboard(id: string, name: string): Promise<void> {
-  await RenameWhiteboard(id, name)
+export async function renameStudio(id: string, name: string): Promise<void> {
+  await RenameStudio(id, name)
 }
 
 /**
@@ -60,8 +60,8 @@ export async function renameWhiteboard(id: string, name: string): Promise<void> 
  * container for them: deleting one takes the arrangement and leaves every run
  * in the hub, listed and openable, exactly as a run that was never on a board.
  */
-export async function deleteWhiteboard(id: string): Promise<void> {
-  await DeleteWhiteboard(id)
+export async function deleteStudio(id: string): Promise<void> {
+  await DeleteStudio(id)
 }
 
 /**
@@ -73,12 +73,12 @@ export async function deleteWhiteboard(id: string): Promise<void> {
  * members: it is one document describing one board, and splitting it would
  * mean reassembling it correctly on the way back.
  */
-export async function saveWhiteboard(
+export async function saveStudio(
   name: string,
   snapshot: BoardSnapshot,
   id?: string,
   projectId?: string | null
-): Promise<Whiteboard> {
+): Promise<Studio> {
   const payload = {
     id: id ?? "",
     user_id: "",
@@ -90,18 +90,18 @@ export async function saveWhiteboard(
     member_count: snapshot.runIds.length,
     members: snapshot.runIds.map((runId, i) => ({
       id: "",
-      whiteboard_id: id ?? "",
+      studio_id: id ?? "",
       run_id: runId,
       position: i,
       name: "",
       state_json: "{}",
     })),
   }
-  return (await SaveWhiteboard(payload as never)) as unknown as Whiteboard
+  return (await SaveStudio(payload as never)) as unknown as Studio
 }
 
-export interface OpenedWhiteboard {
-  board: Whiteboard
+export interface OpenedStudio {
+  board: Studio
   snapshot: BoardSnapshot | null
   /** Members whose run has been deleted; their rasters cannot be drawn. */
   missingRunIds: string[]
@@ -114,8 +114,8 @@ export interface OpenedWhiteboard {
  * store makes that distinction on purpose, and swallowing it here would turn
  * a two-area board into a one-area board with nothing saying so.
  */
-export async function openWhiteboard(id: string): Promise<OpenedWhiteboard> {
-  const board = (await GetWhiteboard(id)) as unknown as Whiteboard
+export async function openStudio(id: string): Promise<OpenedStudio> {
+  const board = (await GetStudio(id)) as unknown as Studio
   return {
     board,
     snapshot: parseSnapshot(board.view_json),

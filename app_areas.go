@@ -4,7 +4,7 @@ package main
 The areas API, thin over internal/store.
 
 Every method here resolves the effective user and hands through, the way
-app_projects.go and app_whiteboards.go do. The rules that matter -- an area
+app_projects.go and app_studios.go do. The rules that matter -- an area
 belongs to a project, its user is the project's, deleting it takes the runs of
 it -- live in the store, where a test reaches them without a running
 application.

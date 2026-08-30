@@ -32,7 +32,7 @@ export interface WaterPanelProps {
   /**
    * Dismiss, where there is somewhere to dismiss to.
    *
-   * Optional now that a third container exists: the whiteboard's column IS
+   * Optional now that a third container exists: the studio's column IS
    * the container, so a panel inside it has nothing to fold back against, and
    * PanelShell already hides the button rather than rendering one that does
    * nothing when pressed.

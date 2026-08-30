@@ -23,7 +23,7 @@ export const MAP_TOOLS: readonly MapTool[] = [
 ]
 
 /**
- * The tools the whiteboard's band offers, which is MAP_TOOLS plus solar.
+ * The tools the studio's band offers, which is MAP_TOOLS plus solar.
  *
  * A separate table, and deliberately NOT a fourth MapToolId. `MapToolId` is the
  * map's product table and it feeds more than the band: the navigation column

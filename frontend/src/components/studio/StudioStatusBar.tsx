@@ -22,7 +22,7 @@
  * purpose: the only thing it had to say was a run's stage, and that is drawn
  * in the run's own card now.
  */
-import type { BoardStats } from "@/components/whiteboard/boardScene"
+import type { BoardStats } from "@/components/studio/boardScene"
 import { useSyncExternalStore } from "react"
 import {
   TELEMETRY_FIGURES,

@@ -111,9 +111,9 @@ func TestDeleteAreaTakesItsRuns(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(assets, "prediction.png"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveWhiteboard(Whiteboard{
+	if _, err := s.SaveStudio(Studio{
 		UserID: LocalUserID, Name: "A board",
-		Members: []WhiteboardMember{{RunID: run.ID}},
+		Members: []StudioMember{{RunID: run.ID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestDeleteAreaTakesItsRuns(t *testing.T) {
 	}
 	var members int
 	if err := s.db.QueryRow(
-		`SELECT COUNT(1) FROM whiteboard_members WHERE run_id = ?`, run.ID,
+		`SELECT COUNT(1) FROM studio_members WHERE run_id = ?`, run.ID,
 	).Scan(&members); err != nil {
 		t.Fatal(err)
 	}

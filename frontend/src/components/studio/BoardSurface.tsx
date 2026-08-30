@@ -1,5 +1,5 @@
 /**
- * The whiteboard: areas lifted off their coordinates.
+ * The studio: areas lifted off their coordinates.
  *
  * On a cartographic map two AOI analyses cannot be placed side by side --
  * they are at different points on Earth. Freeing the rasters from their
@@ -22,8 +22,8 @@ import {
 import { motion } from "motion/react"
 import { Copy, Save, Settings2 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
-import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
-import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
+import type { LayerPatch } from "@/components/studio/BoardSidebar"
+import type { OutlinerMode } from "@/components/studio/BoardSidebar"
 import {
   BoardSidebar,
   type AreaInfo,
@@ -31,29 +31,29 @@ import {
   rowTarget,
   sceneKey,
   stackRow,
-} from "@/components/whiteboard/BoardSidebar"
-import { BoardStatsBar } from "@/components/whiteboard/BoardStatsBar"
+} from "@/components/studio/BoardSidebar"
+import { BoardStatsBar } from "@/components/studio/BoardStatsBar"
 import {
   BoardSolarDetail,
 
   type BoardDetailFocus,
   type PredictionCompareSide,
-} from "@/components/whiteboard/BoardSolarDetail"
+} from "@/components/studio/BoardSolarDetail"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import {
   ErrorBoundary,
   PanelErrorFallback,
 } from "@/components/ErrorBoundary"
-import { ConfusionMatrix } from "@/components/whiteboard/AgreementCharts"
+import { ConfusionMatrix } from "@/components/studio/AgreementCharts"
 import {
   CompareSlots,
   SourceSlot,
   resolveComparePair,
-} from "@/components/whiteboard/CompareSlots"
+} from "@/components/studio/CompareSlots"
 import {
   DomainShiftEditor,
   type DomainShiftMode,
-} from "@/components/whiteboard/DomainShiftEditor"
+} from "@/components/studio/DomainShiftEditor"
 import {
   compareClassMaps,
   sampleClassAtUv,
@@ -68,7 +68,7 @@ import { modelLabel, runAssets } from "@/lib/runAssets"
 import type { CardGroup } from "@/lib/boardLayout"
 import { layoutGroups } from "@/lib/boardLayout"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
-import { RunPicker } from "@/components/whiteboard/RunPicker"
+import { RunPicker } from "@/components/studio/RunPicker"
 import {
   CURRENT_AREA,
   boardIsDirty,
@@ -80,7 +80,7 @@ import {
   renameBoardArea,
   snapshotBoard,
   writeBoardMemory,
-} from "@/components/whiteboard/boardMemory"
+} from "@/components/studio/boardMemory"
 import { useAuth } from "@/lib/auth"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
@@ -98,8 +98,8 @@ import {
   compareOverallDeltaTable,
   compareShareDeltaTable,
 } from "@/lib/compareTables"
-import { saveWhiteboard, type Whiteboard } from "@/lib/whiteboards"
-import { StudioManager } from "@/components/whiteboard/StudioManager"
+import { saveStudio, type Studio } from "@/lib/studios"
+import { StudioManager } from "@/components/studio/StudioManager"
 import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
@@ -107,12 +107,12 @@ import type {
   ModelKind,
   PredictResult,
 } from "@/lib/types"
-import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
+import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
   createBoard,
   tokenColor,
   type BoardStats,
-} from "@/components/whiteboard/boardScene"
+} from "@/components/studio/boardScene"
 import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
@@ -154,19 +154,19 @@ import {
   StudioArea,
   type AreaHeaderSlots,
   type StudioEditorMode,
-} from "@/components/whiteboard/StudioArea"
+} from "@/components/studio/StudioArea"
 import {
   StudioMenuGroup,
   StudioMenuItem,
   StudioMenuRule,
   StudioPopover,
-} from "@/components/whiteboard/StudioPopover"
+} from "@/components/studio/StudioPopover"
 import {
   StudioHeaderMenu,
   StudioHeaderPopoverButton,
   StudioHeaderRule,
   StudioHeaderToggle,
-} from "@/components/whiteboard/StudioHeaderControls"
+} from "@/components/studio/StudioHeaderControls"
 import { NumberField } from "@/components/ui/NumberField"
 import {
   Box,
@@ -194,27 +194,27 @@ import {
   Tag,
   X,
 } from "lucide-react"
-import { StudioAreaTree } from "@/components/whiteboard/StudioAreaTree"
+import { StudioAreaTree } from "@/components/studio/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import {
   CanopyEditor,
   type CanopyMode,
-} from "@/components/whiteboard/CanopyEditor"
-import { CanopyRunBar } from "@/components/whiteboard/CanopyRunBar"
-import { CanopyWorkflowProvider } from "@/components/whiteboard/canopyWorkflow"
-import { BrushEditor } from "@/components/whiteboard/BrushEditor"
+} from "@/components/studio/CanopyEditor"
+import { CanopyRunBar } from "@/components/studio/CanopyRunBar"
+import { CanopyWorkflowProvider } from "@/components/studio/canopyWorkflow"
+import { BrushEditor } from "@/components/studio/BrushEditor"
 import {
   LibraryLimitEditor,
   type LibraryLimitMode,
-} from "@/components/whiteboard/LibraryLimitEditor"
-import { SpectraEditor } from "@/components/whiteboard/SpectraEditor"
-import { SeparabilityEditor } from "@/components/whiteboard/SeparabilityEditor"
-import { StudioTables } from "@/components/whiteboard/StudioTables"
-import { StudioLoading } from "@/components/whiteboard/StudioLoading"
+} from "@/components/studio/LibraryLimitEditor"
+import { SpectraEditor } from "@/components/studio/SpectraEditor"
+import { SeparabilityEditor } from "@/components/studio/SeparabilityEditor"
+import { StudioTables } from "@/components/studio/StudioTables"
+import { StudioLoading } from "@/components/studio/StudioLoading"
 import {
   PlaneContextMenu,
   type PlaneContextTarget,
-} from "@/components/whiteboard/PlaneContextMenu"
+} from "@/components/studio/PlaneContextMenu"
 import {
   mergePreferenceExtras,
   parsePreferenceExtras,
@@ -226,7 +226,7 @@ import {
 import {
   STATUS_BAR_PX,
   StudioStatusBar,
-} from "@/components/whiteboard/StudioStatusBar"
+} from "@/components/studio/StudioStatusBar"
 import { DomainShiftSection } from "@/components/DomainShiftSection"
 
 /**
@@ -409,9 +409,9 @@ export function BoardSurface({
   title,
   activeProjectId,
   activeProjectName,
-  whiteboards = [],
-  onOpenWhiteboard,
-  onWhiteboardsMenu,
+  studios = [],
+  onOpenStudio,
+  onStudiosMenu,
   onClose,
 }: {
   /**
@@ -523,10 +523,10 @@ export function BoardSurface({
   /** Its name, shown in the studio's own block: the title bar's switcher is
    *  withheld while the studio is up, so nothing else on screen says it. */
   activeProjectName?: string | null
-  whiteboards?: readonly Whiteboard[]
-  onOpenWhiteboard?: (board: Whiteboard) => void
+  studios?: readonly Studio[]
+  onOpenStudio?: (board: Studio) => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
-  onWhiteboardsMenu?: () => void | Promise<void>
+  onStudiosMenu?: () => void | Promise<void>
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -838,15 +838,15 @@ export function BoardSurface({
    * clears the store before it writes -- so a switch is where unsaved work
    * goes silently. Held here until the reader has said what to do with it.
    */
-  const [pendingOpen, setPendingOpen] = useState<Whiteboard | null>(null)
-  const openBoard = (board: Whiteboard) => {
+  const [pendingOpen, setPendingOpen] = useState<Studio | null>(null)
+  const openBoard = (board: Studio) => {
     if (board.id === savedId) return
     if (boardIsDirty()) setPendingOpen(board)
-    else onOpenWhiteboard?.(board)
+    else onOpenStudio?.(board)
   }
 
   /*
-    Runs a whiteboard named that are not on the board yet.
+    Runs a studio named that are not on the board yet.
 
     Opening a saved board restores the arrangement immediately -- it is plain
     data -- but its rasters have to be fetched, and fetching belongs here where
@@ -917,7 +917,7 @@ export function BoardSurface({
       notifyError(
         "Still opening this studio",
         new Error(
-          "its runs are still being fetched, and saving now would store the board without them"
+          "its runs are still being fetched, and saving now would store the studio without them"
         )
       )
       return
@@ -996,14 +996,14 @@ export function BoardSurface({
           records runs, this one has none, and nothing has been lost.
         */
         notifyError(
-          "Nothing for a board to record",
+          "Nothing for a studio to record",
           new Error(
-            "a board is the runs arranged on it, and none of these areas carries one yet. A composition is not a run -- it is saved with the project and comes back with it -- so run a classification, water, solar or flood analysis here, or add an existing run from the outliner, and the board will have something to arrange"
+            "a studio is the runs arranged in it, and none of these areas carries one yet. A composition is not a run -- it is saved with the project and comes back with it -- so run a classification, water, solar or flood analysis here, or add an existing run from the outliner, and the studio will have something to arrange"
           )
         )
         return
       }
-      const board = await saveWhiteboard(
+      const board = await saveStudio(
         trimmed,
         // The run the map's area belongs to, so its keys are rewritten to the
         // id that area will carry when the board is opened again.
@@ -1169,7 +1169,7 @@ export function BoardSurface({
       Runs the map has finished with, as areas of their own.
 
       They are the same shape as a picker-loaded run on purpose: there is one
-      kind of "run on the board", whether it arrived by being chosen or by
+      kind of "run in the studio", whether it arrived by being chosen or by
       being what the map was showing a moment ago. A run the picker has since
       loaded wins, since that one carries its full record; these carry only
       what the live result had.
@@ -3382,7 +3382,7 @@ export function BoardSurface({
                 icon={Layers2}
                 label="Overlays"
                 open={overlayMenu}
-                title="What is drawn over the board"
+                title="What is drawn over the studio"
               />
             )}
           >
@@ -3735,7 +3735,7 @@ export function BoardSurface({
         uv={probeUv}
         blockedBy={
           predictionPicks.length >= 2
-            ? "Two predictions are selected, so the board is comparing them and there is no single plane to read. Select one."
+            ? "Two predictions are selected, so the studio is comparing them and there is no single plane to read. Select one."
             : null
         }
       />
@@ -3818,7 +3818,7 @@ export function BoardSurface({
     ) : (
       <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
         {availableSides.length < 2
-          ? "Add a second run to the board to read one classification against another."
+          ? "Add a second run to the studio to read one classification against another."
           : "Pick two prediction planes, or pin them to the A and B slots above."}
       </p>
     ),
@@ -3834,7 +3834,7 @@ export function BoardSurface({
         1100. What this excludes is the MAP, not the application -- the board
         is a working surface, so the controls have to stay within reach of it.
         Covering them turned it into a modal takeover, which is not what a
-        whiteboard is.
+        studio is.
 
         Opaque, because the map keeps rendering underneath as a sibling and a
         translucent scrim would leave tiles moving behind the rasters.
@@ -3971,7 +3971,7 @@ export function BoardSurface({
           title={<>Delete “{pendingDelete.title}”?</>}
           subtitle={
             pendingDelete.kind === "run"
-              ? "This cannot be undone. The run leaves the analysis list, its project and the exports, and its rasters come off the board."
+              ? "This cannot be undone. The run leaves the analysis list, its project and the exports, and its rasters come out of the studio."
               : "This cannot be undone. The geometry is not stored anywhere else, and a shape redrawn by hand is a different shape — runs made over it cannot be compared with runs made over this one."
           }
           confirmLabel={
@@ -4001,14 +4001,14 @@ export function BoardSurface({
           onConfirm={() => {
             const board = pendingOpen
             setPendingOpen(null)
-            onOpenWhiteboard?.(board)
+            onOpenStudio?.(board)
           }}
         />
       )}
 
       {managing && (
         <StudioManager
-          boards={whiteboards}
+          boards={studios}
           openId={savedId}
           onDismiss={() => setManaging(false)}
           /*
@@ -4017,7 +4017,7 @@ export function BoardSurface({
             with. Awaited, so the dialog shows the result of its own act.
           */
           onChanged={async () => {
-            await onWhiteboardsMenu?.()
+            await onStudiosMenu?.()
           }}
           /*
             THE BOARD ON SCREEN OUTLIVED ITS RECORD.
@@ -4234,7 +4234,7 @@ export function BoardSurface({
               // Refreshed as it opens: a board saved from another window, or
               // one saved here a moment ago, should be in the list rather than
               // in the list next time.
-              if (next) onWhiteboardsMenu?.()
+              if (next) onStudiosMenu?.()
               setBoardMenu(next)
             }}
             surface={surfaceRef.current}
@@ -4245,11 +4245,11 @@ export function BoardSurface({
                 {...p}
                 ref={p.ref as React.Ref<HTMLButtonElement>}
                 type="button"
-                disabled={!onOpenWhiteboard}
+                disabled={!onOpenStudio}
                 className="app-no-drag flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta transition-colors hover:brightness-125 disabled:cursor-default"
                 style={{ background: "rgb(var(--p-surface-raised))" }}
                 title={
-                  onOpenWhiteboard
+                  onOpenStudio
                     ? `${savedName ?? title} — open another studio`
                     : savedName
                       ? `${savedName} — ${title}`
@@ -4263,7 +4263,7 @@ export function BoardSurface({
                 <span className="truncate text-foreground">
                   {savedName ?? title}
                 </span>
-                {onOpenWhiteboard ? (
+                {onOpenStudio ? (
                   <ChevronDown
                     className="size-2.5 shrink-0 opacity-60"
                     strokeWidth={2}
@@ -4273,8 +4273,8 @@ export function BoardSurface({
             )}
           >
             <StudioMenuGroup label="Studios">
-              {whiteboards.length ? (
-                whiteboards.map((b) => (
+              {studios.length ? (
+                studios.map((b) => (
                   <StudioMenuItem
                     key={b.id}
                     icon={Layers}
@@ -4326,7 +4326,7 @@ export function BoardSurface({
               delete needs a confirmation. Only offered where there is
               something to manage.
             */}
-            {whiteboards.length > 0 && (
+            {studios.length > 0 && (
               <StudioMenuItem
                 icon={Settings2}
                 label="Manage studios…"
@@ -4351,7 +4351,7 @@ export function BoardSurface({
               disabled={saving || loadingRun}
               title={
                 loadingRun
-                  ? "Still fetching this board's runs; saving now would store it without them"
+                  ? "Still fetching this studio's runs; saving now would store it without them"
                   : savedName
                     ? `Save over "${savedName}"`
                     : "Save this studio under a name"

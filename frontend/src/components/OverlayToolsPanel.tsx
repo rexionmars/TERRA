@@ -29,7 +29,7 @@ export interface OverlayToolsPanelProps {
   /**
    * Where the drawer's right edge sits, when the default would be covered.
    *
-   * The whiteboard's right column occupies the corner this opens into. A
+   * The studio's right column occupies the corner this opens into. A
    * readout that duplicates the column is withheld there; this is a tool, so
    * it moves instead of disappearing.
    */
@@ -320,7 +320,7 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
         <motion.div
           className={cn(
             "panel app-no-drag absolute z-[1100] flex w-[19rem] flex-col overflow-hidden rounded-md",
-            // right-14 unless a caller moves it: the whiteboard's right column
+            // right-14 unless a caller moves it: the studio's right column
             // stands where this would otherwise open, and a tool drawer is
             // pushed clear rather than withheld.
             insetRight ? undefined : "right-14",

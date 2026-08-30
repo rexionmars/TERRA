@@ -18,7 +18,7 @@ import { BOARD_RIGHT_REM } from "@/lib/boardPartition"
 import {
   ClassAccuracyChart,
   DisagreementBar,
-} from "@/components/whiteboard/AgreementCharts"
+} from "@/components/studio/AgreementCharts"
 
 export interface StatsEntry {
   /**

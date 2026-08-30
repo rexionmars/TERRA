@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
-import type { Whiteboard } from "@/lib/whiteboards"
+import type { Studio } from "@/lib/studios"
 
 /** Width of the run list, and what deciding to flip it is measured against. */
 const SUBMENU_W = 248
@@ -28,8 +28,8 @@ export function ProjectSwitcher({
   projects,
   activeProjectId,
   runs,
-  whiteboards,
-  onOpenWhiteboard,
+  studios,
+  onOpenStudio,
   onMenuOpen,
   onSelect,
   onCreate,
@@ -61,12 +61,12 @@ export function ProjectSwitcher({
    * what it exists for, so filing it under one would make its own purpose the
    * exception.
    */
-  whiteboards: Whiteboard[]
-  onOpenWhiteboard: (board: Whiteboard) => void
+  studios: Studio[]
+  onOpenStudio: (board: Studio) => void
   /**
    * The menu is opening.
    *
-   * Whiteboards are saved from the board, which this menu knows nothing about,
+   * Studios are saved from the board, which this menu knows nothing about,
    * so the list is refreshed when it is about to be read rather than kept in
    * step by something watching for saves.
    */
@@ -239,21 +239,21 @@ export function ProjectSwitcher({
               })
             )}
           </div>
-          {whiteboards.length > 0 && (
+          {studios.length > 0 && (
             <>
               <hr className="hairline" />
               <p className="px-2.5 pb-0.5 pt-2 text-[9px] uppercase tracking-wide text-muted-foreground">
                 Studios
               </p>
               <div className="max-h-40 overflow-y-auto">
-                {whiteboards.map((b) => (
+                {studios.map((b) => (
                   <button
                     key={b.id}
                     type="button"
                     className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] hover:bg-secondary/50"
                     onClick={() => {
                       setOpen(false)
-                      onOpenWhiteboard(b)
+                      onOpenStudio(b)
                     }}
                   >
                     <Layers3 className="size-3 shrink-0 text-muted-foreground" />

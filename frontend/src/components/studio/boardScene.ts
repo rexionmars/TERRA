@@ -1,5 +1,5 @@
 /**
- * The whiteboard's WebGL scene.
+ * The studio's WebGL scene.
  *
  * ONE OF TWO MODULES IN THIS APPLICATION THAT IMPORT `three`; the other is
  * canopyScene.ts. It said "the only one" until the canopy editor landed, and

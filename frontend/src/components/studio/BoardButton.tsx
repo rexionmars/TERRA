@@ -1,5 +1,5 @@
 /**
- * The control that opens the whiteboard.
+ * The control that opens the studio.
  *
  * A SEPARATE FILE FROM THE BOARD ON PURPOSE. BoardSurface imports boardScene,
  * which imports `three`; anything that imports BoardSurface statically pulls

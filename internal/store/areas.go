@@ -22,7 +22,7 @@ that might not exist, the project it landed in was whichever one happened to be
 active, and every reader that needed to get from a run back to its ground did it
 by comparing polygon rings.
 
-The schema lives here rather than in store.go for the reason whiteboardSchema
+The schema lives here rather than in store.go for the reason studioSchema
 does: the statements that make a subject belong with the subject, and migrate()
 reads as the order they are applied in rather than as their content.
 */
@@ -291,7 +291,7 @@ Its runs go, and their rasters with them, because a run is a measurement of this
 ground and means nothing without it. So do the board members naming those runs
 and the compositions filed under the area. None of that happens on its own:
 foreign keys here are declared and never enforced, so every cascade in this
-package is written where the delete is -- DeleteProject and DeleteWhiteboard
+package is written where the delete is -- DeleteProject and DeleteStudio
 each say the same.
 
 The row directories are removed after the transaction commits, in the order
@@ -332,7 +332,7 @@ func (s *Store) DeleteArea(userID, areaID string) error {
 		sql  string
 		args []any
 	}{
-		{`DELETE FROM whiteboard_members WHERE run_id IN
+		{`DELETE FROM studio_members WHERE run_id IN
 		   (SELECT id FROM inference_runs WHERE area_id = ?)`, []any{areaID}},
 		{`DELETE FROM project_overlays WHERE area_id = ?`, []any{areaID}},
 		{`DELETE FROM inference_runs WHERE area_id = ?`, []any{areaID}},

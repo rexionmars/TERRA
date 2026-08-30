@@ -1,5 +1,5 @@
 /**
- * Prediction / solar / brush readout on the whiteboard.
+ * Prediction / solar / brush readout on the studio.
  *
  * Default placement is the foot band above the run controls — legends and
  * multi-AOI land-cover stats live in the right sidebar (BoardStatsBar). The
@@ -25,7 +25,7 @@ import {
   AgreementDelta,
   BlockAgreementPair,
   ReferenceConfusionPair,
-} from "@/components/whiteboard/AgreementCharts"
+} from "@/components/studio/AgreementCharts"
 import { PlotSwipeView } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import type { BrushRadiusPx, ClassMapCompare, ClassProbeSample } from "@/lib/boardProbe"

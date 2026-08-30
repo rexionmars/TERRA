@@ -102,8 +102,8 @@ export function DeleteProjectOverlay(arg1) {
   return window['go']['main']['App']['DeleteProjectOverlay'](arg1);
 }
 
-export function DeleteWhiteboard(arg1) {
-  return window['go']['main']['App']['DeleteWhiteboard'](arg1);
+export function DeleteStudio(arg1) {
+  return window['go']['main']['App']['DeleteStudio'](arg1);
 }
 
 export function ExportBackup() {
@@ -146,8 +146,8 @@ export function GetProject(arg1) {
   return window['go']['main']['App']['GetProject'](arg1);
 }
 
-export function GetWhiteboard(arg1) {
-  return window['go']['main']['App']['GetWhiteboard'](arg1);
+export function GetStudio(arg1) {
+  return window['go']['main']['App']['GetStudio'](arg1);
 }
 
 export function InspectEnvironment() {
@@ -194,8 +194,8 @@ export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
 }
 
-export function ListWhiteboards(arg1) {
-  return window['go']['main']['App']['ListWhiteboards'](arg1);
+export function ListStudios(arg1) {
+  return window['go']['main']['App']['ListStudios'](arg1);
 }
 
 export function LoadAnalysis(arg1) {
@@ -230,8 +230,8 @@ export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }
 
-export function RenameWhiteboard(arg1, arg2) {
-  return window['go']['main']['App']['RenameWhiteboard'](arg1, arg2);
+export function RenameStudio(arg1, arg2) {
+  return window['go']['main']['App']['RenameStudio'](arg1, arg2);
 }
 
 export function RenderComposite(arg1) {
@@ -258,8 +258,8 @@ export function SaveProjectOverlay(arg1) {
   return window['go']['main']['App']['SaveProjectOverlay'](arg1);
 }
 
-export function SaveWhiteboard(arg1) {
-  return window['go']['main']['App']['SaveWhiteboard'](arg1);
+export function SaveStudio(arg1) {
+  return window['go']['main']['App']['SaveStudio'](arg1);
 }
 
 export function SetAvatar(arg1) {

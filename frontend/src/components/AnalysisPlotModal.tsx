@@ -259,7 +259,7 @@ function PlotViewport({
 }
 
 /**
- * Exported rather than copied: the whiteboard compares two rasters through the
+ * Exported rather than copied: the studio compares two rasters through the
  * same control, and a second clip-path swipe is a second place for the two to
  * disagree about which side is which.
  */

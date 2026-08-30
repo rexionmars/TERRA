@@ -19,8 +19,8 @@
  */
 import { useEffect, useState } from "react"
 import { DomainShiftSection } from "@/components/DomainShiftSection"
-import { DomainCohort } from "@/components/whiteboard/DomainCohort"
-import type { PredictionCompareSide } from "@/components/whiteboard/BoardSolarDetail"
+import { DomainCohort } from "@/components/studio/DomainCohort"
+import type { PredictionCompareSide } from "@/components/studio/BoardSolarDetail"
 import { cohortDomainShift } from "@/lib/domainShift"
 import type { DomainShiftCohort } from "@/lib/types"
 
@@ -103,7 +103,7 @@ export function DomainShiftEditor({
         {!source ? (
           <p className="flex h-full items-center justify-center px-4 text-center text-meta text-muted-foreground">
             {available.length < 2
-              ? "Add at least two runs to the board to measure a cohort against a source."
+              ? "Add at least two runs to the studio to measure a cohort against a source."
               : "Choose the source area — the region the model was fitted on — from the header."}
           </p>
         ) : !targets.length ? (

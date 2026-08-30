@@ -1,19 +1,19 @@
 package store
 
 /*
-A whiteboard is a working surface for areas, saved by name.
+A studio is a working surface for areas, saved by name.
 
 Two analyses of areas at different points on Earth cannot be placed side by
 side on a map: the map puts them where they are, which is hundreds of
 kilometres apart. Lifting the rasters off their coordinates is what makes the
-whiteboard possible, and the arrangement that results -- which runs, in what
+studio possible, and the arrangement that results -- which runs, in what
 order, named how, sitting where -- is not derivable from anything else. It is a
 document, so it is stored as one.
 
 What is NOT stored here is any raster. A member names a run and the run owns
-its own files; a whiteboard that copied them would be a second set to keep in
+its own files; a studio that copied them would be a second set to keep in
 step with the first, and would grow without bound as the same run appeared in
-several whiteboards.
+several studios.
 */
 
 import (
@@ -24,8 +24,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Whiteboard is several runs placed beside one another on the isolate board.
-type Whiteboard struct {
+// Studio is several runs placed beside one another on the isolate board.
+type Studio struct {
 	ID     string `json:"id"`
 	UserID string `json:"user_id"`
 	/*
@@ -34,7 +34,7 @@ type Whiteboard struct {
 		A board used to belong to the user alone, so the menu offered every
 		board ever saved regardless of which project was open, and nothing
 		stopped a board mixing runs from several. Under Project > Areas > Runs
-		a board is one project's reading of its own work, and SaveWhiteboard
+		a board is one project's reading of its own work, and SaveStudio
 		refuses a member whose run belongs elsewhere.
 
 		Empty on a board saved before this column existed. Those are listed
@@ -55,15 +55,15 @@ type Whiteboard struct {
 	*/
 	ViewJSON string `json:"view_json,omitempty"`
 	/** Filled by Get, and by List only as a count -- see MemberCount. */
-	Members     []WhiteboardMember `json:"members,omitempty"`
-	MemberCount int                `json:"member_count"`
+	Members     []StudioMember `json:"members,omitempty"`
+	MemberCount int            `json:"member_count"`
 }
 
-// WhiteboardMember is one run's place in a whiteboard.
-type WhiteboardMember struct {
-	ID           string `json:"id"`
-	WhiteboardID string `json:"whiteboard_id"`
-	RunID        string `json:"run_id"`
+// StudioMember is one run's place in a studio.
+type StudioMember struct {
+	ID       string `json:"id"`
+	StudioID string `json:"studio_id"`
+	RunID    string `json:"run_id"`
 	/** Order on the board, left to right. */
 	Position int `json:"position"`
 	/*
@@ -89,15 +89,15 @@ type WhiteboardMember struct {
 		but SQLite enforces them only with `PRAGMA foreign_keys = ON`, which
 		this connection does not set -- so a deleted run leaves its members
 		behind, and always has for project overlays too. Reading them out is a
-		choice: a whiteboard that silently lost a side would look like a
-		whiteboard of one thing, and the user would have no way to tell that
+		choice: a studio that silently lost a side would look like a
+		studio of one thing, and the user would have no way to tell that
 		from having built it that way.
 	*/
 	Missing bool `json:"missing,omitempty"`
 }
 
-const whiteboardSchema = `
-CREATE TABLE IF NOT EXISTS whiteboards (
+const studioSchema = `
+CREATE TABLE IF NOT EXISTS studios (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -105,30 +105,30 @@ CREATE TABLE IF NOT EXISTS whiteboards (
   updated_at TEXT NOT NULL,
   view_json TEXT NOT NULL DEFAULT '{}'
 );
-CREATE INDEX IF NOT EXISTS idx_whiteboards_user_updated
-  ON whiteboards(user_id, updated_at DESC);
-CREATE TABLE IF NOT EXISTS whiteboard_members (
+CREATE INDEX IF NOT EXISTS idx_studios_user_updated
+  ON studios(user_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS studio_members (
   id TEXT PRIMARY KEY,
-  whiteboard_id TEXT NOT NULL REFERENCES whiteboards(id) ON DELETE CASCADE,
+  studio_id TEXT NOT NULL REFERENCES studios(id) ON DELETE CASCADE,
   run_id TEXT NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
   name TEXT NOT NULL DEFAULT '',
   state_json TEXT NOT NULL DEFAULT '{}'
 );
-CREATE INDEX IF NOT EXISTS idx_whiteboard_members_whiteboard
-  ON whiteboard_members(whiteboard_id, position);
+CREATE INDEX IF NOT EXISTS idx_studio_members_studio
+  ON studio_members(studio_id, position);
 `
 
 /*
-SaveWhiteboard writes an arrangement whole, creating it if it is new.
+SaveStudio writes an arrangement whole, creating it if it is new.
 
 Members are replaced rather than merged, because a board is saved as it stands:
-a member removed from the board is removed from the whiteboard, and reconciling
+a member removed from the board is removed from the studio, and reconciling
 two lists would need the caller to say which of the two it meant. The rows are
 rewritten in one transaction so a failure halfway does not leave an arrangement
 that is half of one save and half of another.
 */
-func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
+func (s *Store) SaveStudio(c Studio) (*Studio, error) {
 	if c.UserID == "" {
 		return nil, ErrInvalidInput
 	}
@@ -155,7 +155,7 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 			c.CreatedAt = ts
 		}
 		if _, err := tx.Exec(
-			`INSERT INTO whiteboards
+			`INSERT INTO studios
 			 (id, user_id, project_id, name, created_at, updated_at, view_json)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			c.ID, c.UserID, c.ProjectID, c.Name, c.CreatedAt, c.UpdatedAt, c.ViewJSON,
@@ -164,7 +164,7 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 		}
 	} else {
 		res, err := tx.Exec(
-			`UPDATE whiteboards SET project_id = ?, name = ?, updated_at = ?, view_json = ?
+			`UPDATE studios SET project_id = ?, name = ?, updated_at = ?, view_json = ?
 			 WHERE id = ? AND user_id = ?`,
 			c.ProjectID, c.Name, c.UpdatedAt, c.ViewJSON, c.ID, c.UserID,
 		)
@@ -177,12 +177,12 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 			return nil, ErrNotFound
 		}
 		if err := tx.QueryRow(
-			`SELECT created_at FROM whiteboards WHERE id = ?`, c.ID,
+			`SELECT created_at FROM studios WHERE id = ?`, c.ID,
 		).Scan(&c.CreatedAt); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(
-			`DELETE FROM whiteboard_members WHERE whiteboard_id = ?`, c.ID,
+			`DELETE FROM studio_members WHERE studio_id = ?`, c.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -197,7 +197,7 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 		/*
 			The run must be this user's, and must belong to the project this
 			board is of. Without foreign keys enforced, nothing else would stop
-			a whiteboard naming a row it has no claim to, and the board would
+			a studio naming a row it has no claim to, and the board would
 			then load and draw it.
 
 			The project half is checked only when this board has a project and
@@ -220,16 +220,16 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 			return nil, ErrInvalidInput
 		}
 		m.ID = uuid.NewString()
-		m.WhiteboardID = c.ID
+		m.StudioID = c.ID
 		m.Position = i
 		if m.StateJSON == "" {
 			m.StateJSON = "{}"
 		}
 		if _, err := tx.Exec(
-			`INSERT INTO whiteboard_members
-			 (id, whiteboard_id, run_id, position, name, state_json)
+			`INSERT INTO studio_members
+			 (id, studio_id, run_id, position, name, state_json)
 			 VALUES (?, ?, ?, ?, ?, ?)`,
-			m.ID, m.WhiteboardID, m.RunID, m.Position, m.Name, m.StateJSON,
+			m.ID, m.StudioID, m.RunID, m.Position, m.Name, m.StateJSON,
 		); err != nil {
 			return nil, err
 		}
@@ -242,7 +242,7 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 }
 
 /*
-ListWhiteboards returns the arrangements of one project, most recently saved
+ListStudios returns the arrangements of one project, most recently saved
 first.
 
 An empty projectID returns every board the user has, which is what the storage
@@ -254,7 +254,7 @@ Boards carrying no project are returned alongside a project's own. They predate
 the column, and a board that cannot be found is indistinguishable from one that
 was lost.
 */
-func (s *Store) ListWhiteboards(userID, projectID string) ([]Whiteboard, error) {
+func (s *Store) ListStudios(userID, projectID string) ([]Studio, error) {
 	if userID == "" {
 		return nil, ErrInvalidInput
 	}
@@ -266,8 +266,8 @@ func (s *Store) ListWhiteboards(userID, projectID string) ([]Whiteboard, error) 
 	rows, err := s.db.Query(
 		`SELECT c.id, c.user_id, COALESCE(c.project_id,''), c.name, c.created_at,
 		        c.updated_at, c.view_json,
-		        (SELECT COUNT(1) FROM whiteboard_members m WHERE m.whiteboard_id = c.id)
-		 FROM whiteboards c
+		        (SELECT COUNT(1) FROM studio_members m WHERE m.studio_id = c.id)
+		 FROM studios c
 		 WHERE `+where+`
 		 ORDER BY c.updated_at DESC`,
 		args...,
@@ -278,9 +278,9 @@ func (s *Store) ListWhiteboards(userID, projectID string) ([]Whiteboard, error) 
 	defer rows.Close()
 	// Never nil: an empty list serialises as [] rather than null, which the
 	// frontend would have to guard on every call site.
-	out := []Whiteboard{}
+	out := []Studio{}
 	for rows.Next() {
-		var c Whiteboard
+		var c Studio
 		if err := rows.Scan(
 			&c.ID, &c.UserID, &c.ProjectID, &c.Name, &c.CreatedAt, &c.UpdatedAt,
 			&c.ViewJSON, &c.MemberCount,
@@ -292,15 +292,15 @@ func (s *Store) ListWhiteboards(userID, projectID string) ([]Whiteboard, error) 
 	return out, rows.Err()
 }
 
-// GetWhiteboard returns one arrangement with its members, in board order.
-func (s *Store) GetWhiteboard(userID, id string) (*Whiteboard, error) {
+// GetStudio returns one arrangement with its members, in board order.
+func (s *Store) GetStudio(userID, id string) (*Studio, error) {
 	if userID == "" || id == "" {
 		return nil, ErrInvalidInput
 	}
-	var c Whiteboard
+	var c Studio
 	err := s.db.QueryRow(
 		`SELECT id, user_id, COALESCE(project_id,''), name, created_at, updated_at, view_json
-		 FROM whiteboards WHERE id = ? AND user_id = ?`,
+		 FROM studios WHERE id = ? AND user_id = ?`,
 		id, userID,
 	).Scan(&c.ID, &c.UserID, &c.ProjectID, &c.Name, &c.CreatedAt, &c.UpdatedAt, &c.ViewJSON)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -311,14 +311,14 @@ func (s *Store) GetWhiteboard(userID, id string) (*Whiteboard, error) {
 	}
 	/*
 		Left join, so a member whose run has been deleted still comes back --
-		marked, not dropped. See WhiteboardMember.Missing.
+		marked, not dropped. See StudioMember.Missing.
 	*/
 	rows, err := s.db.Query(
-		`SELECT m.id, m.whiteboard_id, m.run_id, m.position, m.name, m.state_json,
+		`SELECT m.id, m.studio_id, m.run_id, m.position, m.name, m.state_json,
 		        r.id IS NULL
-		 FROM whiteboard_members m
+		 FROM studio_members m
 		 LEFT JOIN inference_runs r ON r.id = m.run_id
-		 WHERE m.whiteboard_id = ?
+		 WHERE m.studio_id = ?
 		 ORDER BY m.position ASC`,
 		c.ID,
 	)
@@ -326,11 +326,11 @@ func (s *Store) GetWhiteboard(userID, id string) (*Whiteboard, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	c.Members = []WhiteboardMember{}
+	c.Members = []StudioMember{}
 	for rows.Next() {
-		var m WhiteboardMember
+		var m StudioMember
 		if err := rows.Scan(
-			&m.ID, &m.WhiteboardID, &m.RunID, &m.Position, &m.Name,
+			&m.ID, &m.StudioID, &m.RunID, &m.Position, &m.Name,
 			&m.StateJSON, &m.Missing,
 		); err != nil {
 			return nil, err
@@ -344,8 +344,8 @@ func (s *Store) GetWhiteboard(userID, id string) (*Whiteboard, error) {
 	return &c, nil
 }
 
-// RenameWhiteboard changes the name without reading or rewriting the members.
-func (s *Store) RenameWhiteboard(userID, id, name string) error {
+// RenameStudio changes the name without reading or rewriting the members.
+func (s *Store) RenameStudio(userID, id, name string) error {
 	if userID == "" || id == "" {
 		return ErrInvalidInput
 	}
@@ -354,7 +354,7 @@ func (s *Store) RenameWhiteboard(userID, id, name string) error {
 		return ErrInvalidInput
 	}
 	res, err := s.db.Exec(
-		`UPDATE whiteboards SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+		`UPDATE studios SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
 		name, nowISO(), id, userID,
 	)
 	if err != nil {
@@ -367,14 +367,14 @@ func (s *Store) RenameWhiteboard(userID, id, name string) error {
 }
 
 /*
-DeleteWhiteboard removes an arrangement and its members.
+DeleteStudio removes an arrangement and its members.
 
 The members are deleted here rather than left to the cascade the schema
 declares: this connection does not turn foreign keys on, so that clause never
 fires and the rows would stay behind, invisible and attached to an id that no
 longer resolves.
 */
-func (s *Store) DeleteWhiteboard(userID, id string) error {
+func (s *Store) DeleteStudio(userID, id string) error {
 	if userID == "" || id == "" {
 		return ErrInvalidInput
 	}
@@ -385,7 +385,7 @@ func (s *Store) DeleteWhiteboard(userID, id string) error {
 	defer func() { _ = tx.Rollback() }()
 
 	res, err := tx.Exec(
-		`DELETE FROM whiteboards WHERE id = ? AND user_id = ?`, id, userID,
+		`DELETE FROM studios WHERE id = ? AND user_id = ?`, id, userID,
 	)
 	if err != nil {
 		return err
@@ -394,7 +394,7 @@ func (s *Store) DeleteWhiteboard(userID, id string) error {
 		return ErrNotFound
 	}
 	if _, err := tx.Exec(
-		`DELETE FROM whiteboard_members WHERE whiteboard_id = ?`, id,
+		`DELETE FROM studio_members WHERE studio_id = ?`, id,
 	); err != nil {
 		return err
 	}

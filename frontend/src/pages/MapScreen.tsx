@@ -47,8 +47,8 @@ import {
 } from "@/lib/mapTools"
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
-import { BoardRunGraph, TOOL_ICON } from "@/components/whiteboard/BoardRunGraph"
-import { StudioLoading } from "@/components/whiteboard/StudioLoading"
+import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph"
+import { StudioLoading } from "@/components/studio/StudioLoading"
 import { BOARD_TOOLS } from "@/lib/mapTools"
 import {
   BOARD_DETAIL_REM,
@@ -67,7 +67,7 @@ import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
-import { BoardButton } from "@/components/whiteboard/BoardButton"
+import { BoardButton } from "@/components/studio/BoardButton"
 
 /*
   Lazy, and reached only from here. BoardSurface imports the scene, which
@@ -75,11 +75,11 @@ import { BoardButton } from "@/components/whiteboard/BoardButton"
   loads with the map screen.
 */
 const BoardSurface = lazy(() =>
-  import("@/components/whiteboard/BoardSurface").then((m) => ({
+  import("@/components/studio/BoardSurface").then((m) => ({
     default: m.BoardSurface,
   }))
 )
-const prefetchBoard = () => void import("@/components/whiteboard/BoardSurface")
+const prefetchBoard = () => void import("@/components/studio/BoardSurface")
 
 /**
  * The run band's height, in rem.
@@ -112,7 +112,7 @@ export interface MapScreenProps {
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
   /**
-   * Switch the shell layout. Used when the whiteboard opens: Sidebar and
+   * Switch the shell layout. Used when the studio opens: Sidebar and
    * column leaves the navigation column beside the board's own column, so the
    * board forces Dock (workspace) for as long as it is up.
    */
@@ -121,7 +121,7 @@ export interface MapScreenProps {
     opts?: { persist?: boolean }
   ) => void
   /**
-   * The title bar's host for this screen's whiteboard toggle.
+   * The title bar's host for this screen's studio toggle.
    *
    * An element rather than a callback, because the button has to be DRAWN up
    * there while the state it reads stays down here. `board` is local to this
@@ -236,20 +236,20 @@ export interface MapScreenProps {
    * A request to open the board, bumped each time one arrives.
    *
    * A nonce rather than a boolean: the board's open state is this screen's, and
-   * a flag would fire only on its first change -- opening the same whiteboard
+   * a flag would fire only on its first change -- opening the same studio
    * twice in a row has to work.
    */
   openBoardNonce?: number
-  /** Saved whiteboards, for the studio's own title block. */
-  whiteboards?: import("@/lib/whiteboards").Whiteboard[]
-  onOpenWhiteboard?: (board: import("@/lib/whiteboards").Whiteboard) => void
+  /** Saved studios, for the studio's own title block. */
+  studios?: import("@/lib/studios").Studio[]
+  onOpenStudio?: (board: import("@/lib/studios").Studio) => void
   /** Called when the studio's board menu opens, to refresh the list. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
     can wait for it. The menu that opens on hover does not and ignores it; the
     manage dialog does, since it shows the result of its own rename or delete.
   */
-  onWhiteboardsMenu?: () => void | Promise<void>
+  onStudiosMenu?: () => void | Promise<void>
   onNewClassification: () => void
   onViewDataCube: () => void
   dataCubeLoading?: boolean
@@ -419,7 +419,7 @@ export function MapScreen(props: MapScreenProps) {
    * Whether the studio was asked for by name rather than toggled onto what is
    * on screen.
    *
-   * A saved whiteboard and the opening-surface preference both arrive as the
+   * A saved studio and the opening-surface preference both arrive as the
    * nonce, and both mean the same thing: this reader wants the studio, not the
    * studio OF something.
    */
@@ -551,7 +551,7 @@ export function MapScreen(props: MapScreenProps) {
   }, [boardOpen, reportBoardOpen])
 
   /*
-    The whiteboard and "Sidebar and column" fight for the left edge: the shell
+    The studio and "Sidebar and column" fight for the left edge: the shell
     keeps AppNav while the board draws its own 15rem column. Dock (workspace)
     already clears the navigation column, which is the arrangement the board
     was drawn for. Remember the mode we left so closing the board puts it back
@@ -843,7 +843,7 @@ export function MapScreen(props: MapScreenProps) {
   }
 
   /**
-   * The whiteboard's Run tab: which product, and its own parameters.
+   * The studio's Run tab: which product, and its own parameters.
    *
    * The SAME panels the map screen docks, in a third container. They were kept
    * off the board to avoid a second place to set a period -- which was right
@@ -1078,7 +1078,7 @@ export function MapScreen(props: MapScreenProps) {
       }
     >
       {/*
-        The whiteboard toggle, drawn into the title bar.
+        The studio toggle, drawn into the title bar.
 
         Portalled rather than passed up because of where the state is: `board`
         below is this screen's, and the bar belongs to the shell. This keeps the
@@ -1249,7 +1249,7 @@ export function MapScreen(props: MapScreenProps) {
                 studio in the first place; keying by it turns a second request
                 into the mount the restore path already expects.
               */
-              key={`whiteboard-${nonce}`}
+              key={`studio-${nonce}`}
               /*
                 The band's height, and the two gestures that change it. Clamped
                 here rather than in the band: the reservation --map-foot is
@@ -1351,9 +1351,9 @@ export function MapScreen(props: MapScreenProps) {
                 props.areaLabel ||
                 ""
               }
-              whiteboards={props.whiteboards}
-              onOpenWhiteboard={props.onOpenWhiteboard}
-              onWhiteboardsMenu={props.onWhiteboardsMenu}
+              studios={props.studios}
+              onOpenStudio={props.onOpenStudio}
+              onStudiosMenu={props.onStudiosMenu}
               onClose={() => setBoard(false)}
             />
           </Suspense>

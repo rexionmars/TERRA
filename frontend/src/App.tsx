@@ -7,12 +7,12 @@ import {
   setStudioTelemetry,
 } from "@/lib/studioTelemetry"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
-import type { Whiteboard } from "@/lib/whiteboards"
-import { listWhiteboards, openWhiteboard } from "@/lib/whiteboards"
+import type { Studio } from "@/lib/studios"
+import { listStudios, openStudio } from "@/lib/studios"
 import {
   restoreBoard,
   writeBoardMemory,
-} from "@/components/whiteboard/boardMemory"
+} from "@/components/studio/boardMemory"
 import { AccentLab } from "@/components/AccentLab"
 import { useTheme } from "next-themes"
 import {
@@ -719,13 +719,13 @@ function AppBody(props: {
   const [loadingRun, setLoadingRun] = useState(false)
 
   /**
-   * Saved whiteboards, and the request to open one.
+   * Saved studios, and the request to open one.
    *
    * The nonce is how the map screen is told to open its board: the board's
    * open state is that screen's, and a boolean would only fire the first time
-   * -- opening the same whiteboard twice in a row has to work.
+   * -- opening the same studio twice in a row has to work.
    */
-  const [whiteboards, setWhiteboards] = useState<Whiteboard[]>([])
+  const [studios, setStudios] = useState<Studio[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
   /*
     A request to show a restored energy result, counted rather than flagged.
@@ -763,7 +763,7 @@ function AppBody(props: {
   /*
     THE SURFACE THE SESSION OPENS ON, asked for once and not again.
 
-    The same nonce a saved whiteboard uses, because it means the same thing: the
+    The same nonce a saved studio uses, because it means the same thing: the
     studio was asked for BY NAME rather than toggled over what happens to be on
     screen. That distinction is what lets it open with an empty board -- the
     toggle refuses that, and should, since a press with nothing to work on has
@@ -783,7 +783,7 @@ function AppBody(props: {
     }
   }, [prefs])
   /**
-   * The title bar's host element for the map screen's whiteboard toggle.
+   * The title bar's host element for the map screen's studio toggle.
    *
    * A DOM node, not a board state. The button is drawn in the bar because the
    * bar is above the board in both layouts, and the two surfaces that used to
@@ -816,26 +816,26 @@ function AppBody(props: {
     would put the boards of every project in front of a reader who has said
     nothing about which one they mean.
   */
-  const refreshWhiteboards = useCallback(async () => {
+  const refreshStudios = useCallback(async () => {
     if (!activeProjectId) {
-      setWhiteboards([])
+      setStudios([])
       return
     }
     try {
-      setWhiteboards(await listWhiteboards(activeProjectId))
+      setStudios(await listStudios(activeProjectId))
     } catch {
       // A board list that cannot be read is an empty menu section, not an
       // error in front of whatever the user was actually doing.
     }
   }, [activeProjectId])
   useEffect(() => {
-    void refreshWhiteboards()
-  }, [refreshWhiteboards])
+    void refreshStudios()
+  }, [refreshStudios])
 
   /**
    * Put these runs on the board and show it.
    *
-   * NAMED RATHER THAN NEW. This is exactly what opening a saved whiteboard has
+   * NAMED RATHER THAN NEW. This is exactly what opening a saved studio has
    * always done, and it was written inline inside that one handler: hand the
    * run ids to the board's own memory, go to the map the board sits over, and
    * bump the nonce that opens it. Every surface that wants to send a reader to
@@ -859,10 +859,10 @@ function AppBody(props: {
     [goMap]
   )
 
-  const handleOpenWhiteboard = useCallback(
-    async (board: Whiteboard) => {
+  const handleOpenStudio = useCallback(
+    async (board: Studio) => {
       try {
-        const opened = await openWhiteboard(board.id)
+        const opened = await openStudio(board.id)
         if (!opened.snapshot) {
           notifyError(
             "Could not read this studio",
@@ -1038,7 +1038,7 @@ function AppBody(props: {
   /*
     `persist: false` applies a layout for this session without storing it.
 
-    The whiteboard forces Dock while it is up -- the two fight for the left
+    The studio forces Dock while it is up -- the two fight for the left
     edge -- and puts the previous one back on close. That is an arrangement the
     surface requires, not a choice the reader made, and writing it to
     preferences turned "open the studio, quit" into a silent edit of the Map
@@ -1196,7 +1196,7 @@ function AppBody(props: {
     [solarDispatch]
   )
   /**
-   * A solar row on the whiteboard, translated into the store's own vocabulary.
+   * A solar row on the studio, translated into the store's own vocabulary.
    *
    * The board says which raster changed and how; only this file knows that
    * `terrain` answers to showTerrain/terrainOpacity. Handing the map screen the
@@ -3356,7 +3356,7 @@ function AppBody(props: {
       <TitleBar
         view={props.view}
         /*
-          Handed back so the map screen can portal its whiteboard toggle up
+          Handed back so the map screen can portal its studio toggle up
           here. What App holds is WHERE the button goes; whether the board is
           open stays in the screen, which is the only place it can stay without
           surviving a trip to another screen.
@@ -3384,9 +3384,9 @@ function AppBody(props: {
               projects={projects}
               activeProjectId={activeProjectId}
               runs={runs}
-              whiteboards={whiteboards}
-              onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
-              onMenuOpen={() => void refreshWhiteboards()}
+              studios={studios}
+              onOpenStudio={(b) => void handleOpenStudio(b)}
+              onMenuOpen={() => void refreshStudios()}
               busy={loadingRun}
               onSelect={(id) => void activateProject(id)}
               onCreate={() => void handleCreateProject()}
@@ -3625,9 +3625,9 @@ function AppBody(props: {
                     and a name that cannot be changed from where it is shown is
                     a readout pretending to be a control.
                   */
-                  whiteboards={whiteboards}
-                  onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
-                  onWhiteboardsMenu={refreshWhiteboards}
+                  studios={studios}
+                  onOpenStudio={(b) => void handleOpenStudio(b)}
+                  onStudiosMenu={refreshStudios}
                   onCloseResult={() => {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)

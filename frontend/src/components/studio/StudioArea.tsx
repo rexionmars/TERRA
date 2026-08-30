@@ -45,8 +45,8 @@ import {
   StudioMenuItem,
   StudioMenuRule,
   StudioPopover,
-} from "@/components/whiteboard/StudioPopover"
-import { StudioHeaderPopoverButton } from "@/components/whiteboard/StudioHeaderControls"
+} from "@/components/studio/StudioPopover"
+import { StudioHeaderPopoverButton } from "@/components/studio/StudioHeaderControls"
 import { cn } from "@/lib/utils"
 
 /** The header's height, which the canvas has to clear to sit under its area. */
