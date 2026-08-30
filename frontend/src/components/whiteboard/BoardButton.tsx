@@ -18,15 +18,20 @@
 import { Layers3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+/*
+  IT COULD BE DISABLED, AND THAT WAS THE WRONG ANSWER. With no raster on screen
+  and no AOI it greyed out, on the reasoning that an empty board is a dead end.
+  It was, while the studio could only ARRANGE runs -- but it has a globe to draw
+  on and a run graph to run from now, so an empty studio is where work starts.
+  Greyed out, it meant the only way in was to do the work outside first, which
+  is the opposite of what that surface is for.
+*/
 export function BoardButton({
   active,
-  disabled,
   onClick,
   onPrefetch,
 }: {
   active: boolean
-  /** No raster on screen: an empty board is a dead end, so it says so. */
-  disabled?: boolean
   onClick: () => void
   /** Warms the board's chunk on hover, so the click does not wait on a fetch. */
   onPrefetch?: () => void
@@ -36,15 +41,8 @@ export function BoardButton({
       type="button"
       onClick={onClick}
       onPointerEnter={onPrefetch}
-      disabled={disabled}
       aria-pressed={active}
-      title={
-        disabled
-          ? "Nothing to work on: draw an area or run something first"
-          : active
-            ? "Close the studio"
-            : "Open the studio for this area"
-      }
+      title={active ? "Close the studio" : "Open the studio"}
       className={cn(
         // The bar's own vocabulary, matching the account and layout buttons it
         // sits between: 1.75rem square, borderless, painted on the bar itself.
@@ -53,10 +51,9 @@ export function BoardButton({
         // as something that fell in from elsewhere.
         "app-no-drag flex h-7 w-7 items-center justify-center rounded-sm transition-colors",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-        "disabled:cursor-not-allowed disabled:opacity-40",
         active
           ? "bg-surface-raised text-foreground"
-          : "text-muted-foreground enabled:hover:bg-surface-raised/70 enabled:hover:text-foreground"
+          : "text-muted-foreground hover:bg-surface-raised/70 hover:text-foreground"
       )}
     >
       <Layers3 className="size-4" strokeWidth={1.75} />

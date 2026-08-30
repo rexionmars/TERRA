@@ -63,7 +63,6 @@ import { rasterLayers } from "@/lib/mapLayers"
 import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
 import { useRunLog } from "@/lib/runLog"
-import { boardHoldsOtherAreas } from "@/components/whiteboard/boardMemory"
 import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
@@ -421,17 +420,13 @@ export function MapScreen(props: MapScreenProps) {
    *
    * A saved whiteboard and the opening-surface preference both arrive as the
    * nonce, and both mean the same thing: this reader wants the studio, not the
-   * studio OF something. The emptiness rule below is what that has to survive
-   * -- it exists so a board with nothing left in it stops covering the map,
-   * and at the start of a session there has never been anything in it.
+   * studio OF something.
    */
-  const [boardAsked, setBoardAsked] = useState(false)
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
     if (nonce > 0) {
       setBoard(true)
-      setBoardAsked(true)
       // What the two toggle handlers do inline. This path skipped it, and with
       // the island withheld there is no longer a button on screen to shut a
       // drawer that opened before the board did.
@@ -518,37 +513,26 @@ export function MapScreen(props: MapScreenProps) {
    * the map's own panel has one slider for the pair.
    */
   /**
-   * Whether the board is actually up.
+   * Whether the board is actually up. The state, and nothing else.
    *
-   * Not `board` on its own, and the difference was a dead end you could
-   * reach in two clicks. The board used to mount on there being a VISIBLE
-   * raster, and its own sidebar can hide every one of them -- so pressing the
-   * stack's eye unmounted the surface that held the control, while `board`
-   * stayed true and kept the search field and the overlay tools button hidden.
-   * No board, no way back into it (its button reads the same condition and had
-   * gone disabled), and no overlay tools to turn a layer back on.
+   * IT USED TO REQUIRE SOMETHING TO SHOW: a visible raster, or another area
+   * the board had fetched, or an AOI on the map, or the nonce that opens a
+   * studio by name. The rule existed because an empty board was a dead end --
+   * a surface that could only ARRANGE runs, mounted over a map, with nothing
+   * on it and no way to put anything there.
    *
-   * The condition is whether there is a raster to lift AT ALL -- from this run
-   * OR from another the board has fetched. The second half was missing, and
-   * discarding the current result closed a board that still held a second
-   * area: the map screen can only see its own layers, and the board's other
-   * areas are not among them. Everything that hides while the board is up
-   * reads this same value, so there is no state where the board is gone and
-   * what it replaced is still hidden.
+   * That stopped being true when the studio gained a globe to draw on and a
+   * run graph to run from. An empty studio is now where work starts, not a
+   * screen you have to back out of, and the nonce exception -- which existed
+   * precisely because "a studio opened by name stands with nothing on it" --
+   * was the rule already admitting its own case.
    *
-   * `boardAsked` is the exception, and only that: a studio opened by name --
-   * a saved whiteboard, or a session that opens on it by preference -- stands
-   * with nothing on it, because that is the state it necessarily starts in and
-   * its own run band draws an area and starts a run without leaving it. The
-   * rule above still governs the toggle, which is a gesture over what is on
-   * screen rather than a request for the surface itself.
+   * The dead end the old rule was itself written to close is closed by this
+   * too: the sidebar's eye can hide every layer, and under the old condition
+   * that unmounted the surface holding the control, taking the search field,
+   * the overlay tools and the button back in with it.
    */
-  const boardOpen =
-    board &&
-    (boardLayers.length > 0 ||
-      boardHoldsOtherAreas() ||
-      props.hasArea ||
-      boardAsked)
+  const boardOpen = board
 
   /*
     Reported to the title bar, which withholds the map's latitude, longitude,
@@ -1105,15 +1089,6 @@ export function MapScreen(props: MapScreenProps) {
         createPortal(
           <BoardButton
             active={boardOpen}
-            /*
-              An entry can be refused; an exit cannot. `boardOpen` is also true
-              when the board holds ANOTHER area's rasters, which neither term
-              below covers -- so without the first clause the board could be up,
-              carrying a second area, with its only toggle greyed out.
-            */
-            disabled={
-              !boardOpen && !boardLayers.length && !props.hasArea && !boardAsked
-            }
             onClick={() =>
               setBoard((o) => {
                 // Closing the overlay drawer on the way in: the sidebar carries

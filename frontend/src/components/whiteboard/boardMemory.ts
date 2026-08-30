@@ -140,26 +140,6 @@ export function keptObject<T extends object>(key: string, initial: () => T): T {
 }
 
 /**
- * Whether the board is holding an area other than the map's own run.
- *
- * The map screen decides whether to mount the board, and it can only see its
- * OWN layers -- so discarding the current result emptied that list and closed
- * a board that still had a second area on it, with a raster the user had gone
- * and fetched. Read at render rather than subscribed to: the moment that
- * matters is a render of the map screen, since it is the map screen's own
- * state that changes when a result is discarded.
- */
-export function boardHoldsOtherAreas(): boolean {
-  const added = kept.get("added") as
-    | Record<string, readonly string[]>
-    | undefined
-  if (!added) return false
-  return Object.entries(added).some(
-    ([areaId, ids]) => areaId !== CURRENT_AREA && ids.length > 0
-  )
-}
-
-/**
  * Rewrite every key that names one area so that it names another.
  *
  * THE OTHER HALF OF WHAT `snapshotBoard` DOES ON THE WAY OUT. A board is
