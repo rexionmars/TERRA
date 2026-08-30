@@ -1289,6 +1289,8 @@ export function MapScreen(props: MapScreenProps) {
               customPolygon={props.customPolygon}
               onPolygonDrawn={props.onPolygonDrawn}
               catalogAreas={props.areas}
+              initialView={props.initialView}
+              onViewChange={props.onViewChange}
               activeProjectId={props.activeProjectId}
               activeProjectName={props.activeProjectName}
               activeAreaId={props.activeAreaId}

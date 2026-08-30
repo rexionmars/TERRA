@@ -407,6 +407,8 @@ export function BoardSurface({
   smooth,
   onSmoothChange,
   title,
+  initialView = null,
+  onViewChange,
   activeProjectId,
   activeProjectName,
   studios = [],
@@ -519,6 +521,10 @@ export function BoardSurface({
    * A board used to belong to the user alone, so the menu offered every board
    * ever saved and nothing stopped one holding runs from several projects.
    */
+  /** Where the globe opens, and where it reports being left. The work map's
+   *  own memory, shared: two would lose a pan to whichever wrote last. */
+  initialView?: { lat: number; lon: number; zoom: number } | null
+  onViewChange?: (v: { lat: number; lon: number; zoom: number }) => void
   activeProjectId?: string | null
   /** Its name, shown in the studio's own block: the title bar's switcher is
    *  withheld while the studio is up, so nothing else on screen says it. */
@@ -3591,6 +3597,14 @@ export function BoardSurface({
           onPickArea={(id) => onActivateArea?.(id.slice(id.indexOf(":") + 1))}
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
+          /*
+            The same memory the work map keeps. The globe opened over Brazil at
+            zoom 1.6 every time, however far the reader had travelled on it,
+            while the map beside it came back where it was left -- and the two
+            show the same planet.
+          */
+          initialView={initialView}
+          onViewChange={onViewChange}
         />
       </Suspense>
     ),

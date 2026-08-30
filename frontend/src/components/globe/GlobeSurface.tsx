@@ -101,8 +101,18 @@ const SHAPE_SOURCE = "draw-shape"
 const SHAPE_FILL = "draw-shape-fill"
 const SHAPE_LINE = "draw-shape-line"
 
-/** Where the camera opens: the whole planet, with Brazil facing the reader. */
+/*
+  Where the camera opens when nothing says otherwise: the whole planet, with
+  Brazil facing the reader.
+
+  A FALLBACK, NOT THE OPENING. It was the opening: the globe was built with
+  these two hard-coded, so it came back to the same point over Brazil every
+  time however far the reader had travelled on it, while the work map beside it
+  restored where it was left. `initialView` is what the session remembers, and
+  these are what a session with no memory gets.
+*/
 const START_ZOOM = 1.6
+const START_CENTER: [number, number] = [-51.4, -23.4]
 
 const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
@@ -149,6 +159,8 @@ export function GlobeSurface({
   onPickArea,
   polygon = null,
   onPolygonDrawn,
+  initialView = null,
+  onViewChange,
   className,
 }: {
   areas: readonly GlobeArea[]
@@ -168,10 +180,28 @@ export function GlobeSurface({
    * and the tools are withheld rather than shown refusing.
    */
   onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
+  /**
+   * Where to open, when the session remembers.
+   *
+   * Read once, at mount, as the work map reads its own: a prop that moved the
+   * camera on every change would fight the reader's hand.
+   */
+  initialView?: { lat: number; lon: number; zoom: number } | null
+  /**
+   * Where the reader moved it to.
+   *
+   * The SAME memory the work map writes, deliberately. Two would mean a pan
+   * made here was lost on the way back to the map, or the reverse, depending
+   * on which committed last -- which is the argument that put both map screens
+   * on one already.
+   */
+  onViewChange?: (v: { lat: number; lon: number; zoom: number }) => void
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const viewChangeRef = useRef(onViewChange)
+  viewChangeRef.current = onViewChange
   const [failure, setFailure] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   /*
@@ -231,7 +261,7 @@ export function GlobeSurface({
   })
   const stopRef = useRef(stop)
   stopRef.current = stop
-  const [zoom, setZoom] = useState(START_ZOOM)
+  const [zoom, setZoom] = useState(initialView?.zoom ?? START_ZOOM)
   const [busy, setBusy] = useState(false)
 
   const pickAreaRef = useRef(onPickArea)
@@ -259,8 +289,10 @@ export function GlobeSurface({
           link, since MapOptions.attributionControl is merged by shallow spread.
         */
         attributionControl: false,
-        center: [-51.4, -23.4],
-        zoom: START_ZOOM,
+        center: initialView
+          ? [initialView.lon, initialView.lat]
+          : START_CENTER,
+        zoom: initialView?.zoom ?? START_ZOOM,
         /*
           85, not the 60 this defaults to. Sixty is a map's ceiling, set so a
           mercator plane never reaches its own horizon; on a sphere the horizon
@@ -458,6 +490,24 @@ export function GlobeSurface({
         // changes per level instead of one per frame.
         const z = Math.round(map.getZoom() * 10) / 10
         setZoom((prev) => (prev === z ? prev : z))
+      })
+    )
+    /*
+      Reported on moveend rather than on move: the session's memory of where it
+      was left is a fact about where a gesture ENDED, and one write per frame of
+      a drag would be several hundred writes for one of them.
+
+      Through a ref, because the map is built once and this effect closes over
+      the callback it was given at mount.
+    */
+    subs.push(
+      map.on("moveend", () => {
+        const c = map.getCenter()
+        viewChangeRef.current?.({
+          lat: c.lat,
+          lon: c.lng,
+          zoom: map.getZoom(),
+        })
       })
     )
     /*
