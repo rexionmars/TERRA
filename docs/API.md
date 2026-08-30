@@ -39,7 +39,8 @@ cascade is written where the delete is, in `internal/store/`.
 
 | Method | Description |
 |--------|-------------|
-| `ListProjects` / `CreateProject` / `DeleteProject` | Workspaces |
+| `ListProjects` / `CreateProject` / `DeleteProject` | Workspaces. A listing carries `area_count`, `run_count` and `overlay_count` |
+| `SetProjectLastArea(projectID, areaID)` | Which ground to resume on. `""` clears it |
 | `ListAreas(projectID)` | The grounds of one project, oldest first |
 | `CreateArea(projectID, name, polygonGeoJSON)` | One drawn ground. An empty name is minted as `drawn`, `drawn 2`, … against what the project already holds |
 | `GetArea` / `UpdateArea` / `DeleteArea` | One ground. `UpdateArea` writes every column it is given |

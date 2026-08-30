@@ -197,17 +197,20 @@ export function geometryCentroid(
 }
 
 /**
- * AOI geometry of a project, or null when it has none.
+ * A stored `polygon_geojson` column as geometry, or null when it cannot be read.
  *
- * It also accepted a project storing an `area_id` referencing one of the three
- * embedded example areas, resolved against a list passed in. Those are gone,
- * and a project now holds the polygon or nothing. Projects created from the hub
- * start with nothing, so the absent case is normal rather than exceptional.
+ * NAMED FOR A ROW IT NO LONGER READS. It was `resolveProjectGeometry`, and
+ * resolved a project's AOI -- an inline polygon or a reference to one of three
+ * embedded example areas. A project has no geometry now, and its only callers
+ * pass RUN rows, which have always stored their polygon this way.
+ *
+ * Null for a column that is empty or holds text this cannot parse. A run whose
+ * ground cannot be recovered is shown without one rather than refused.
  */
-export function resolveProjectGeometry(project: {
+export function polygonFromRow(row: {
   polygon_geojson?: string
 }): GeoJSONGeometry | null {
-  const raw = project.polygon_geojson?.trim()
+  const raw = row.polygon_geojson?.trim()
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as GeoJSONGeometry

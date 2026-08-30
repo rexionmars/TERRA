@@ -694,9 +694,20 @@ export interface Project {
   notes?: string
   created_at: string
   updated_at: string
-  polygon_geojson?: string
-  area_id?: string
-  label?: string
+  /**
+   * The ground the reader was last on in this project.
+   *
+   * A cursor, not a property: it says where to resume. It replaces
+   * `polygon_geojson`, `area_id` and `label`, which gave the project a
+   * geometry of its own — one shape for a workspace holding as many grounds as
+   * a reader draws, written from whatever happened to be on the map.
+   *
+   * An id that no longer resolves means no cursor. Deleting an area clears it
+   * on every project pointing at it.
+   */
+  last_area_id?: string
+  /** Grounds this project holds. Counted by the listing query. */
+  area_count?: number
   run_count?: number
   overlay_count?: number
 }

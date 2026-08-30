@@ -266,6 +266,10 @@ export function SetAvatar(arg1) {
   return window['go']['main']['App']['SetAvatar'](arg1);
 }
 
+export function SetProjectLastArea(arg1, arg2) {
+  return window['go']['main']['App']['SetProjectLastArea'](arg1, arg2);
+}
+
 export function SetRunProject(arg1, arg2) {
   return window['go']['main']['App']['SetRunProject'](arg1, arg2);
 }
@@ -280,10 +284,6 @@ export function UpdateProfile(arg1) {
 
 export function UpdateProject(arg1) {
   return window['go']['main']['App']['UpdateProject'](arg1);
-}
-
-export function UpdateProjectAOI(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['UpdateProjectAOI'](arg1, arg2, arg3, arg4);
 }
 
 export function UpdateProjectRunLabels(arg1, arg2) {

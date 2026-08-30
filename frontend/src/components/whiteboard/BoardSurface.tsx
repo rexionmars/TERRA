@@ -87,7 +87,7 @@ import type { LonLat } from "@/lib/geometry"
 import {
   geometryAreaHectares,
   polygonOuterRing,
-  resolveProjectGeometry,
+  polygonFromRow,
   sameGround,
 } from "@/lib/geometry"
 import { notifyError, notifySuccess } from "@/lib/notify"
@@ -2038,7 +2038,7 @@ export function BoardSurface({
       retainedRuns.flatMap(({ id }) => {
         const rec = runs.find((r) => r.id === id)
         if (!rec) return []
-        const geom = resolveProjectGeometry({ polygon_geojson: rec.polygon_geojson })
+        const geom = polygonFromRow({ polygon_geojson: rec.polygon_geojson })
         const ring = geom ? polygonOuterRing(geom) : null
         return ring ? [[id, ring] as const] : []
       })
@@ -2047,7 +2047,7 @@ export function BoardSurface({
       extraRuns.flatMap(({ run }) => {
         // The run stores the polygon it was asked for; one without a stored
         // shape simply keeps the rectangle.
-        const geom = resolveProjectGeometry({ polygon_geojson: run.polygon_geojson })
+        const geom = polygonFromRow({ polygon_geojson: run.polygon_geojson })
         const ring = geom ? polygonOuterRing(geom) : null
         return ring ? [[run.id, ring] as const] : []
       })

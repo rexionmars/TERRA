@@ -119,17 +119,33 @@ const (
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.
 type Project struct {
-	ID             string `json:"id"`
-	UserID         string `json:"user_id"`
-	Name           string `json:"name"`
-	Notes          string `json:"notes,omitempty"`
-	CreatedAt      string `json:"created_at"`
-	UpdatedAt      string `json:"updated_at"`
-	PolygonGeoJSON string `json:"polygon_geojson,omitempty"`
-	AreaID         string `json:"area_id,omitempty"`
-	Label          string `json:"label,omitempty"`
-	RunCount       int    `json:"run_count,omitempty"`
-	OverlayCount   int    `json:"overlay_count,omitempty"`
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	Name      string `json:"name"`
+	Notes     string `json:"notes,omitempty"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	/*
+		The ground the reader was last on in this project.
+
+		A CURSOR, NOT A PROPERTY. It says where to resume, and a project whose
+		last area has been deleted simply resumes nowhere -- DeleteArea clears
+		it rather than leaving it pointing at a row that is gone.
+
+		It replaces three columns that tried to give the project a geometry of
+		its own: polygon_geojson, area_id and label. One shape per project
+		cannot describe a reader working several fields, and it was written
+		from whatever happened to be on the map, so a project holding a dozen
+		grounds showed a single line naming one of them. Areas carry the shapes
+		now, and this carries only which of them was open.
+	*/
+	LastAreaID string `json:"last_area_id,omitempty"`
+	// How many grounds this project holds, beside the runs and compositions
+	// under them. Counted by the listing query, so the hub can size a project
+	// without loading its areas one card at a time.
+	AreaCount    int `json:"area_count,omitempty"`
+	RunCount     int `json:"run_count,omitempty"`
+	OverlayCount int `json:"overlay_count,omitempty"`
 }
 
 // ProjectOverlay is a persisted composition (or similar) asset under a project.
@@ -278,7 +294,7 @@ below it. The number says how far migrate has taken a database; it does not by
 itself say which columns a table has, and addColumns explains why those two are
 not the same question here.
 */
-const schemaVersion = 4
+const schemaVersion = 5
 
 // userVersion reads the version SQLite keeps in the database header.
 func (s *Store) userVersion() (int, error) {
@@ -685,6 +701,26 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 	if at < 4 {
 		if err := s.dropColumn("inference_runs", "aoi_id"); err != nil {
 			return fmt.Errorf("migrate: drop aoi_id: %w", err)
+		}
+	}
+	/*
+		The three columns that gave a project a geometry of its own.
+
+		polygon_geojson, area_id and label were written from whatever was on
+		the map while the project was open, and read back as the project's
+		"AOI" -- one shape for a workspace that now holds as many grounds as a
+		reader draws. last_area_id replaced all three with the only question
+		they were still answering: which ground to resume on.
+
+		Dropped rather than left, for the reason the aoi_id drop gives: a column
+		nothing writes always reads its default and will disagree with the table
+		one day. None of the three is indexed.
+	*/
+	if at < 5 {
+		for _, col := range []string{"polygon_geojson", "area_id", "label"} {
+			if err := s.dropColumn("projects", col); err != nil {
+				return fmt.Errorf("migrate: %w", err)
+			}
 		}
 	}
 	/*

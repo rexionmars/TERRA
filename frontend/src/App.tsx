@@ -26,7 +26,7 @@ import {
   SaveProjectOverlay,
   ListProjectOverlays,
   GetProject,
-  UpdateProjectAOI,
+  SetProjectLastArea,
   CreateProject,
   ListAreas,
   CreateArea,
@@ -1369,42 +1369,6 @@ function AppBody(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only follow prefs extras
   }, [prefs, prefs?.extras_json, persistActiveProjectId])
 
-  const syncProjectAoi = useCallback(
-    async (projectId: string, labelOverride?: string) => {
-      const renamed = (labelOverride ?? props.analysisLabel)?.trim()
-      let label = renamed ?? ""
-      if (!label && props.customPolygon) {
-        // Keep an existing project label; never clobber a rename with "Custom AOI".
-        try {
-          const p = (await GetProject(projectId)) as unknown as Project
-          label =
-            p.label?.trim() ||
-            parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
-            "Custom AOI"
-        } catch {
-          label =
-            parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
-            "Custom AOI"
-        }
-      }
-      const poly = props.customPolygon ? JSON.stringify(props.customPolygon) : ""
-      try {
-        await UpdateProjectAOI(projectId, "", poly, label)
-        if (label) void persistAoiLabel(label)
-        await refreshProjects()
-      } catch {
-        /* best-effort */
-      }
-    },
-    [
-      props.customPolygon,
-      props.analysisLabel,
-      prefs?.extras_json,
-      persistAoiLabel,
-      refreshProjects,
-    ]
-  )
-
   /*
     Every result the screens can be holding, dropped together.
 
@@ -1490,17 +1454,30 @@ function AppBody(props: {
       }
       try {
         const p = (await GetProject(id)) as unknown as Project
-        const savedLabel =
-          p.label?.trim() ||
-          parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
-          ""
-        if (userInitiated && p.polygon_geojson) {
-          const polygon = parseRunPolygon(p.polygon_geojson)
-          props.setCustomPolygon(polygon)
-          const label = savedLabel || p.name
-          props.setAnalysisLabel(label)
-          void persistAoiLabel(label)
-          const centroid = geometryCentroid(polygon)
+        /*
+          THE GROUND THE READER WAS LAST ON, not the project's own shape.
+
+          A project used to carry one polygon and one label, written from
+          whatever was on the map, and opening it put that back. A project
+          working several fields therefore always reopened on one of them, and
+          which one depended on the order things had been done in. It carries a
+          cursor now -- last_area_id -- into the areas it owns.
+
+          An id that resolves to nothing is treated as no cursor: an area
+          deleted since has DeleteArea clear this column, so the only way to
+          reach that is a row that never existed, and reopening on nothing is
+          the honest answer to it.
+        */
+        const rows = await ListAreas(id)
+        const opened = toAreas(rows)
+        const resume =
+          opened.find((a) => a.id === p.last_area_id) ?? opened[0] ?? null
+        if (userInitiated && resume) {
+          props.setActiveAreaId(resume.id)
+          props.setCustomPolygon(resume.geometry)
+          props.setAnalysisLabel(resume.name)
+          void persistAoiLabel(resume.name)
+          const centroid = geometryCentroid(resume.geometry)
           if (centroid) {
             props.setFlyTo({
               lat: centroid[1],
@@ -1525,10 +1502,9 @@ function AppBody(props: {
           made over a different field drew a raster off the edge of the view
           the same action had just flown to.
         */
-        // From the project, not from the branch above, which only runs when
-        // the user asked for this.
-        const openedGeom = parseRunPolygon(p.polygon_geojson ?? "")
-        const openedAoi = geometryBounds(openedGeom)
+        // From the ground being resumed on, not from the branch above, which
+        // only runs when the user asked for this.
+        const openedAoi = resume ? geometryBounds(resume.geometry) : null
         const inView = openedAoi
           ? scopeCompositionsToView(gallery, null, {
               lon_min: openedAoi.lonMin,
@@ -1727,7 +1703,6 @@ function AppBody(props: {
             raster_tif: res.raster_tif,
           }
           await SaveProjectOverlay(reqSave as never)
-          await syncProjectAoi(activeProjectId)
           await refreshProjects()
         } catch (e) {
           notifyError("Composition applied, but save to project failed", e)
@@ -2417,7 +2392,9 @@ function AppBody(props: {
         props.setAnalysisLabel(req.label)
       }
       if (activeProjectId) {
-        await syncProjectAoi(activeProjectId, req.label)
+        // The project's own counts change; its geometry does not, because it
+        // has none. This used to write the map's polygon and label onto the
+        // project row alongside the refresh.
         await refreshProjects()
       }
       /*
@@ -2554,12 +2531,13 @@ function AppBody(props: {
         props.setShowPredictionOverlay(true)
         if (isModelKind(run.model_kind)) props.setModelKind(run.model_kind)
         const extras = parsePreferenceExtras(prefs?.extras_json)
-        const project = projects.find(
-          (p) => p.id === (run.project_id || activeProjectId || "")
-        )
+        // The ground the run was measured on names it, where the project's own
+        // AOI label used to. A run of a ground in another project resolves to
+        // nothing here and falls through to what its summary froze at predict.
+        const runArea = props.areas.find((a) => a.id === run.area_id)
         const displayLabel = resolveAoiDisplayLabel({
           analysisLabel: props.analysisLabel,
-          projectLabel: project?.label,
+          areaName: runArea?.name,
           prefsAoiLabel: extras.aoi_label,
           summaryAoiLabel: aoiLabelFromRunSummary(run.summary),
         })
@@ -2768,30 +2746,6 @@ function AppBody(props: {
     [goEnergy, startNewClassification]
   )
 
-  const applyAoiRename = useCallback(
-    async (label: string) => {
-      const next = label.trim()
-      if (!next) return
-      props.setAnalysisLabel(next)
-      void persistAoiLabel(next)
-      if (activeProjectId) {
-        try {
-          await syncProjectAoi(activeProjectId, next)
-          await refreshProjects()
-        } catch {
-          /* best-effort */
-        }
-      }
-    },
-    [
-      activeProjectId,
-      persistAoiLabel,
-      props.setAnalysisLabel,
-      refreshProjects,
-      syncProjectAoi,
-    ]
-  )
-
   const areaLabel = useMemo(() => {
     if (props.analysisLabel) return props.analysisLabel
     return props.customPolygon ? "Custom AOI" : undefined
@@ -2888,6 +2842,9 @@ function AppBody(props: {
         props.setAnalysisLabel(entry.name)
         setComposition(null)
         setShowCompositionOverlay(true)
+        // A ground just drawn is the ground being worked on, so the project
+        // resumes here. Best effort, as in activateArea.
+        void SetProjectLastArea(activeProjectId, entry.id).catch(() => {})
         return entry
       } catch (e) {
         notifyError("Could not save the area", e)
@@ -3061,12 +3018,22 @@ function AppBody(props: {
       props.setAnalysisLabel(entry.name)
       setComposition(null)
       setShowCompositionOverlay(true)
+      /*
+        Recorded on the project so opening it again resumes on this ground.
+
+        Best effort: failing to remember where a reader was is worth nothing in
+        front of the action they actually took, which has already happened.
+      */
+      if (activeProjectId) {
+        void SetProjectLastArea(activeProjectId, entry.id).catch(() => {})
+      }
     },
     [
       props.areas,
       props.setActiveAreaId,
       props.setCustomPolygon,
       props.setAnalysisLabel,
+      activeProjectId,
     ]
   )
 
@@ -3123,6 +3090,30 @@ function AppBody(props: {
       refreshAreas,
       activeProjectId,
     ]
+  )
+
+  /*
+    Renaming what is on the map renames the AREA it is.
+
+    It used to write the new name onto the PROJECT, as projects.label, because
+    that is where a name for the map's shape lived. A project working several
+    fields then carried one of their names, and renaming a second field
+    overwrote the first. The name belongs to the ground, and the ground is a
+    row that can hold it.
+
+    With nothing catalogued on the map -- a geometry adopted from an opened run
+    -- there is no row to rename, so the label stays a session-local display
+    name. That is what it was for every shape before areas existed.
+  */
+  const applyAoiRename = useCallback(
+    async (label: string) => {
+      const next = label.trim()
+      if (!next) return
+      props.setAnalysisLabel(next)
+      void persistAoiLabel(next)
+      if (props.activeAreaId) await renameArea(props.activeAreaId, next)
+    },
+    [props.activeAreaId, persistAoiLabel, props.setAnalysisLabel, renameArea]
   )
 
   const deleteArea = useCallback(

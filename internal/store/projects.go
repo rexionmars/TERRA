@@ -38,10 +38,9 @@ func (s *Store) CreateProject(p Project) (*Project, error) {
 	p.UpdatedAt = ts
 	_, err := s.db.Exec(
 		`INSERT INTO projects
-		 (id, user_id, name, notes, created_at, updated_at, polygon_geojson, area_id, label)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, p.UserID, p.Name, p.Notes, p.CreatedAt, p.UpdatedAt,
-		p.PolygonGeoJSON, p.AreaID, p.Label,
+		 (id, user_id, name, notes, created_at, updated_at, last_area_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.UserID, p.Name, p.Notes, p.CreatedAt, p.UpdatedAt, p.LastAreaID,
 	)
 	if err != nil {
 		return nil, err
@@ -61,10 +60,9 @@ func (s *Store) UpdateProject(userID string, p Project) (*Project, error) {
 	}
 	p.UpdatedAt = nowISO()
 	res, err := s.db.Exec(
-		`UPDATE projects SET name = ?, notes = ?, updated_at = ?,
-		 polygon_geojson = ?, area_id = ?, label = ?
+		`UPDATE projects SET name = ?, notes = ?, updated_at = ?, last_area_id = ?
 		 WHERE id = ? AND user_id = ?`,
-		p.Name, p.Notes, p.UpdatedAt, p.PolygonGeoJSON, p.AreaID, p.Label, p.ID, userID,
+		p.Name, p.Notes, p.UpdatedAt, p.LastAreaID, p.ID, userID,
 	)
 	if err != nil {
 		return nil, err
@@ -174,7 +172,8 @@ func (s *Store) ListProjects(userID string) ([]Project, error) {
 	}
 	rows, err := s.db.Query(
 		`SELECT p.id, p.user_id, p.name, p.notes, p.created_at, p.updated_at,
-		        p.polygon_geojson, p.area_id, p.label,
+		        COALESCE(p.last_area_id,''),
+		        (SELECT COUNT(1) FROM areas a WHERE a.project_id = p.id) AS area_count,
 		        (SELECT COUNT(1) FROM inference_runs r WHERE r.project_id = p.id) AS run_count,
 		        (SELECT COUNT(1) FROM project_overlays o WHERE o.project_id = p.id) AS overlay_count
 		 FROM projects p
@@ -191,7 +190,7 @@ func (s *Store) ListProjects(userID string) ([]Project, error) {
 		var p Project
 		if err := rows.Scan(
 			&p.ID, &p.UserID, &p.Name, &p.Notes, &p.CreatedAt, &p.UpdatedAt,
-			&p.PolygonGeoJSON, &p.AreaID, &p.Label, &p.RunCount, &p.OverlayCount,
+			&p.LastAreaID, &p.AreaCount, &p.RunCount, &p.OverlayCount,
 		); err != nil {
 			return nil, err
 		}
@@ -208,7 +207,8 @@ func (s *Store) GetProject(userID, projectID string) (*Project, error) {
 	var p Project
 	err := s.db.QueryRow(
 		`SELECT p.id, p.user_id, p.name, p.notes, p.created_at, p.updated_at,
-		        p.polygon_geojson, p.area_id, p.label,
+		        COALESCE(p.last_area_id,''),
+		        (SELECT COUNT(1) FROM areas a WHERE a.project_id = p.id) AS area_count,
 		        (SELECT COUNT(1) FROM inference_runs r WHERE r.project_id = p.id) AS run_count,
 		        (SELECT COUNT(1) FROM project_overlays o WHERE o.project_id = p.id) AS overlay_count
 		 FROM projects p
@@ -216,7 +216,7 @@ func (s *Store) GetProject(userID, projectID string) (*Project, error) {
 		projectID, userID,
 	).Scan(
 		&p.ID, &p.UserID, &p.Name, &p.Notes, &p.CreatedAt, &p.UpdatedAt,
-		&p.PolygonGeoJSON, &p.AreaID, &p.Label, &p.RunCount, &p.OverlayCount,
+		&p.LastAreaID, &p.AreaCount, &p.RunCount, &p.OverlayCount,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound

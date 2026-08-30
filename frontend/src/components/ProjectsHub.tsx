@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactNode } from "react"
 import { FolderKanban, Inbox, Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Project } from "@/lib/types"
-import { resolveProjectGeometry } from "@/lib/geometry"
 import { ProjectFolderCard } from "@/components/ProjectFolderCard"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhostDense, btnIcon, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
@@ -42,11 +41,9 @@ export function ProjectsHub({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return projects
-    return projects.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.label?.toLowerCase().includes(q) ?? false)
-    )
+    // By name alone. It also matched `p.label`, the project's AOI name, which
+    // no longer exists: a project has grounds, and each carries its own name.
+    return projects.filter((p) => p.name.toLowerCase().includes(q))
   }, [projects, query])
 
   const selectedProject =
@@ -295,7 +292,6 @@ export function ProjectsHub({
                   <li key={p.id} className="min-h-[10.5rem]">
                     <ProjectFolderCard
                       project={p}
-                      geometry={resolveProjectGeometry(p)}
                       onOpen={() => onOpenProject(p.id)}
                       selected={selection === p.id}
                       className="h-full min-h-[10.5rem]"

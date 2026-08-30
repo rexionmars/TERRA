@@ -6057,9 +6057,8 @@ export namespace store {
 	    notes?: string;
 	    created_at: string;
 	    updated_at: string;
-	    polygon_geojson?: string;
-	    area_id?: string;
-	    label?: string;
+	    last_area_id?: string;
+	    area_count?: number;
 	    run_count?: number;
 	    overlay_count?: number;
 	
@@ -6075,9 +6074,8 @@ export namespace store {
 	        this.notes = source["notes"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
-	        this.polygon_geojson = source["polygon_geojson"];
-	        this.area_id = source["area_id"];
-	        this.label = source["label"];
+	        this.last_area_id = source["last_area_id"];
+	        this.area_count = source["area_count"];
 	        this.run_count = source["run_count"];
 	        this.overlay_count = source["overlay_count"];
 	    }
