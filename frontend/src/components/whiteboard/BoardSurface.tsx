@@ -1136,9 +1136,33 @@ export function BoardSurface({
           The live entry above has always asked the list; so does this one now.
         */
         deletable: runs.some((x) => x.id === r.id),
+        /*
+          THE RUN'S NAME, AND THE GROUND'S WHERE NO RUN ROW ANSWERS.
+
+          This tree lists runs, so a run label is right here -- unlike the
+          scene tree beside it, which lists ground. What was wrong is who was
+          asked: `runs.find` is given an AREA id since retained runs began
+          being filed under the ground, finds nothing, and `displayRunLabel`
+          answers an empty label with "run-untitled". Every retained run was
+          therefore called the same thing, and two of them could not be told
+          apart.
+
+          The ground's name is the honest second answer, and
+          `displayRunLabel` already knows how to make a run name out of one --
+          its own legacy branch does exactly this, turning an area name into
+          `run-<name>`. So a solar run over "drawn 2" reads "run-drawn-2"
+          rather than sharing a placeholder with every other.
+
+          It matters most for the products that carry no row of their own:
+          only water records a run_id on its payload, so solar and flood would
+          otherwise be permanently anonymous.
+        */
         title:
-          displayRunLabel(runs.find((x) => x.id === r.id)?.label ?? "") ||
-          "Previous run",
+          displayRunLabel(
+            runs.find((x) => x.id === r.id)?.label ??
+              savedAois.find((a) => a.id === r.id)?.name ??
+              ""
+          ) || "Previous run",
         model: runModel(r.id),
         period:
           r.result.date_range?.length === 2
