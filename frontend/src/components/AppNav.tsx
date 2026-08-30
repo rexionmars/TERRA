@@ -206,7 +206,27 @@ export function AppNav({
           <NavItem
             id="settings"
             active={screen === "auth" || screen === "profile"}
-            label={user ? "Settings" : "Sign in"}
+            /*
+              WHO IS SIGNED IN, not where the entry leads.
+
+              Every other entry in this column names a destination, and this
+              one names a person, which is the same shape the account control
+              takes in the applications this column is modelled on: the row is
+              read as "you", and settings is what you get when you press
+              yourself. The avatar beside it already said so and the word did
+              not.
+
+              The stored name is trimmed and falls back to the destination,
+              because a row that renders as an empty string beside an avatar is
+              a row with no label at all -- and the field that feeds it is only
+              guarded at the point of save, not in the database.
+            */
+            label={user ? user.display_name.trim() || "Settings" : "Sign in"}
+            /*
+              The label truncates at 13.5rem and a truncated name is a name you
+              cannot read. The title carries the whole of it.
+            */
+            title={user?.display_name.trim() || undefined}
             onClick={() => (user ? goProfile() : goAuth())}
             icon={
               user?.avatar_uri ? (
@@ -229,6 +249,7 @@ function NavItem({
   id,
   active,
   label,
+  title,
   onClick,
   icon,
   badge,
@@ -239,6 +260,8 @@ function NavItem({
   id: string
   active: boolean
   label: string
+  /** The whole label, for a row narrow enough to truncate it. */
+  title?: string
   onClick: () => void
   icon: ReactNode
   badge?: boolean
@@ -267,6 +290,7 @@ function NavItem({
         <button
           type="button"
           onClick={onClick}
+          title={title}
           // aria-current names the destination in view for a screen reader,
           // which the previous rail conveyed with a background colour alone.
           aria-current={active ? "page" : undefined}
