@@ -279,6 +279,34 @@ export function AuthProvider({
     setScreen(settingsReturnTo)
   }, [settingsReturnTo])
 
+  /*
+    THE PLAIN DESTINATIONS, EACH WITH ONE IDENTITY FOR THE LIFE OF THE PROVIDER.
+
+    These were arrow literals written inside the context value below, which
+    means they were rebuilt every time that memo recomputed -- and it recomputes
+    on `runs`, on `projects`, on `prefs`, on `screen`. A consumer is entitled
+    to put a callback from a context into a dependency array; that is what
+    dependency arrays are for. These could not be put in one, because they were
+    a different function on every recomputation and any effect depending on one
+    re-ran forever.
+
+    That is not hypothetical. ProfilePage's account effect held `goAuth` and
+    called `refreshRuns`, so it ran, set `runs`, rebuilt this memo, got a new
+    `goAuth`, and ran again -- and each pass re-seeded the display name field
+    from the stored value, which is why the name could be typed into but never
+    changed.
+
+    `setScreen` is a state setter and React guarantees its identity, so the
+    dependency lists are empty and these are built once. `goProfile` above
+    cannot join them: it reads `user` and `screen` to decide where to land and
+    what to record, so its identity properly follows those.
+  */
+  const goMap = useCallback(() => setScreen("map"), [])
+  const goAuth = useCallback(() => setScreen("auth"), [])
+  const goAnalysis = useCallback(() => setScreen("analysis"), [])
+  const goEnergy = useCallback(() => setScreen("energy"), [])
+  const goFlood = useCallback(() => setScreen("flood"), [])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -287,12 +315,12 @@ export function AuthProvider({
       projects,
       loading,
       screen,
-      goMap: () => setScreen("map"),
-      goAuth: () => setScreen("auth"),
+      goMap,
+      goAuth,
       goProfile,
-      goAnalysis: () => setScreen("analysis"),
-      goEnergy: () => setScreen("energy"),
-      goFlood: () => setScreen("flood"),
+      goAnalysis,
+      goEnergy,
+      goFlood,
       settingsPage,
       consumeSettingsPage,
       settingsReturnTo,
@@ -319,7 +347,12 @@ export function AuthProvider({
       consumeSettingsPage,
       settingsReturnTo,
       leaveSettings,
+      goMap,
+      goAuth,
       goProfile,
+      goAnalysis,
+      goEnergy,
+      goFlood,
       login,
       register,
       logout,

@@ -198,14 +198,41 @@ export function ProfilePage({
   const savePrefsTimer = useRef<number | null>(null)
   const prefsDraftRef = useRef({ theme: "dark" })
 
+  /*
+    THREE JOBS, THREE EFFECTS. They were one, and the one ran whenever any of
+    the three had reason to -- which is how refreshing the run list came to
+    overwrite what was being typed into the display name field.
+
+    Gating them apart is what fixes it, and the stable `goAuth` in lib/auth.tsx
+    is what stops the loop that made it constant rather than occasional. Either
+    alone would leave the other half standing: a stable callback still lets an
+    avatar upload discard a half-typed name, and split effects still spin if
+    the callback they depend on is rebuilt on every context recomputation.
+  */
+
+  /** Signed out with settings open: there is nothing here to show. */
   useEffect(() => {
-    if (!user) {
-      goAuth()
-      return
-    }
-    setName(user.display_name)
+    if (!user) goAuth()
+  }, [user, goAuth])
+
+  /*
+    The stored name SEEDS the field, and replaces what is in it only when the
+    stored name itself changes.
+
+    Keyed on the string rather than on `user`, which is a fresh object after
+    every save -- of the name, of an avatar, of anything. Keyed on the object,
+    uploading a photo mid-edit would have reverted the half-typed name to the
+    one on disk.
+  */
+  const storedName = user?.display_name ?? ""
+  useEffect(() => {
+    setName(storedName)
+  }, [storedName])
+
+  /* Once, on arrival. `refreshRuns` is stable, so this is a mount effect. */
+  useEffect(() => {
     void refreshRuns()
-  }, [user, goAuth, refreshRuns])
+  }, [refreshRuns])
 
   useEffect(() => {
     if (!prefs) return
