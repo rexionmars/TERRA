@@ -23,7 +23,6 @@ import {
   LogIn,
   Map as MapIcon,
   UserRound,
-  Globe2,
   Waves,
   Zap,
 } from "lucide-react"
@@ -87,7 +86,6 @@ export function AppNav({
     goAnalysis,
     goEnergy,
     goFlood,
-    goGlobe,
   } = useAuth()
 
   const onMap = screen === "map"
@@ -192,19 +190,6 @@ export function AppNav({
           label="Flood envelope"
           onClick={goFlood}
           icon={<Waves className="size-4" />}
-        />
-        {/* Globe2 rather than a pin or a folded map: this destination is
-            about the planet and the others are about a place on it, and a
-            sphere is the only glyph here that cannot be read as the map. See
-            lib/navigation.ts, which carries the same group for the dock
-            layout's bar -- the two lists are written separately and a screen
-            added to one and not the other makes them disagree. */}
-        <NavItem
-          id="globe"
-          active={screen === "globe"}
-          label="Globe"
-          onClick={goGlobe}
-          icon={<Globe2 className="size-4" />}
         />
         <NavItem
           id="analysis"

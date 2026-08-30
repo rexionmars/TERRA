@@ -126,15 +126,6 @@ const EnergyScreen = lazy(() =>
 )
 /* Same argument: the flood screen is not reachable from the map, and it pulls
    the reading, its legend and the setup panel with it. */
-/*
-  Lazy like every screen but the map. It reaches three -- the globe scene, the
-  world stitcher and three.js -- and a reader who never opens it should not pay
-  for the last of those, which is 628KB on its own.
-*/
-const GlobeScreen = lazy(() =>
-  import("@/pages/GlobeScreen").then((m) => ({ default: m.GlobeScreen }))
-)
-
 const FloodScreen = lazy(() =>
   import("@/pages/FloodScreen").then((m) => ({ default: m.FloodScreen }))
 )
@@ -666,7 +657,6 @@ function AppBody(props: {
     goMap,
     goEnergy,
     goFlood,
-    goGlobe,
     goProfile,
     runs,
     projects,
@@ -2933,46 +2923,6 @@ function AppBody(props: {
     ]
   )
 
-  /*
-    THE HANDOFF: the globe presses an area, the map opens on it.
-
-    Three acts, because activating and arriving are separate today and neither
-    implies the other. `activateSavedAoi` sets the polygon, the label and the
-    catalog selection and issues no fly at all -- which is right for a list
-    beside the map, where the reader can already see where they are, and wrong
-    from a globe, where the map would open wherever it was left.
-
-    The fly carries a nonce for the reason BoardAreaModal states: the same
-    coordinates must be flyable twice, so the value has to change for the
-    effect that consumes it to run again.
-
-    ZOOM IS NOT OURS TO CHOOSE. FlyToController arrives at 14, a literal, and
-    its export comment says the controller is shared precisely so there is one
-    answer to how far the map zooms on arrival. Coming from a whole planet that
-    is a long jump, and it is still the application's single answer rather than
-    a second one introduced here.
-  */
-  const openFromGlobe = useCallback(
-    (kind: "aoi" | "project", id: string) => {
-      if (kind === "project") {
-        // The project path already sets the ground and flies where it can; it
-        // is the same act the hub performs, so it is not reimplemented here.
-        void activateProject(id, { userInitiated: true })
-        goMap()
-        return
-      }
-      const entry = props.savedAois.find((a) => a.id === id)
-      if (!entry) return
-      activateSavedAoi(entry.id)
-      const centre = geometryCentroid(entry.geometry)
-      if (centre) {
-        props.setFlyTo({ lat: centre[1], lon: centre[0], key: Date.now() })
-      }
-      goMap()
-    },
-    [activateProject, activateSavedAoi, goMap, props.savedAois, props.setFlyTo]
-  )
-
   /** Put a run's stored polygon on the map without adding a catalog entry. */
   const adoptAreaGeometry = useCallback(
     (geom: GeoJSONGeometry | null) => {
@@ -3153,8 +3103,6 @@ function AppBody(props: {
         goEnergy()
       } else if (groupId === "flood") {
         goFlood()
-      } else if (groupId === "globe") {
-        goGlobe()
       } else if (groupId === "analysis") {
         openProjectHub()
       } else {
@@ -3162,7 +3110,7 @@ function AppBody(props: {
         goMap()
       }
     },
-    [goEnergy, goFlood, goGlobe, openProjectHub, goMap]
+    [goEnergy, goFlood, openProjectHub, goMap]
   )
 
   const analysisPolygonGeoJSON = useMemo(() => {
@@ -3534,39 +3482,6 @@ function AppBody(props: {
                   tab={energyTab}
                   onTabChange={setEnergyTab}
                 />
-                </Suspense>
-              </motion.div>
-            )}
-            {screen === "globe" && (
-              <motion.div
-                key="screen-globe"
-                className="absolute inset-0 min-h-0"
-                initial={{ opacity: 0, x: 18 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <Suspense fallback={<ScreenLoading />}>
-                  <GlobeScreen
-                    savedAois={props.savedAois}
-                    projects={projects}
-                    areas={props.areas}
-                    onOpenArea={openFromGlobe}
-                    /*
-                      A place is not an area: nothing is activated and no label
-                      is set, because the reader named a spot on a planet and
-                      not a thing to work on. The map arrives there and they
-                      draw, which is the same act the search field performs.
-                    */
-                    onOpenPlace={(at) => {
-                      props.setFlyTo({
-                        lat: at.lat,
-                        lon: at.lon,
-                        key: Date.now(),
-                      })
-                      goMap()
-                    }}
-                  />
                 </Suspense>
               </motion.div>
             )}
