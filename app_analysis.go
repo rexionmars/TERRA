@@ -280,7 +280,7 @@ func (a *App) AnalyzeSolarTerrain(req analysis.SolarTerrainRequest) (*analysis.S
 	if err != nil {
 		return nil, err
 	}
-	res.RunID = a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label,
+	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
 		req.RunLabel, req.ProjectID, req.AoiID, "solar_terrain", res.Season, res,
 		res.OverlayURI, res.NDates())
 	return res, nil
@@ -296,7 +296,7 @@ func (a *App) AnalyzeSolarSiting(req analysis.SolarSitingRequest) (*analysis.Sol
 	if err != nil {
 		return nil, err
 	}
-	res.RunID = a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label,
+	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
 		req.RunLabel, req.ProjectID, req.AoiID, "solar_siting", "siting", res,
 		res.OverlayURI, 0)
 	return res, nil

@@ -10,7 +10,6 @@ package analysis
 // is 0.5 by 0.625 degrees, so the request resolves to the cell the AOI centroid
 // falls in and the response reports that cell centre, not the centroid.
 type WindRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	RecordYears    int              `json:"record_years,omitempty"`
 	// Project convention, user-editable. No turbine has been selected for any

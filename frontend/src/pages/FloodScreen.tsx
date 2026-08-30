@@ -48,7 +48,7 @@ import { floodRequestBlocker, type FloodParams } from "@/components/flood/floodS
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import type { BasemapKind } from "@/lib/basemaps"
 import { floodAgreementLayer } from "@/lib/mapLayers"
-import type { Area, FloodAnalysis, GeoJSONGeometry, LayoutMode } from "@/lib/types"
+import type { FloodAnalysis, GeoJSONGeometry, LayoutMode } from "@/lib/types"
 
 /**
  * The scope of the analysis, stated before a run as well as after one.
@@ -100,8 +100,6 @@ export interface FloodScreenProps {
   onNavigate: (groupId: string, itemId?: string) => void
 
   hasArea: boolean
-  areas: Area[]
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   onImportPolygon: () => void
@@ -191,7 +189,6 @@ export function FloodScreen(props: FloodScreenProps) {
     >
       <AoiSection
         note={AOI_NOTE}
-        activeExample={props.activeExample}
         hasArea={props.hasArea}
         hasCustomPolygon={!!props.customPolygon}
         onImportPolygon={props.onImportPolygon}
@@ -240,8 +237,6 @@ export function FloodScreen(props: FloodScreenProps) {
       */}
       <MapSurface
         initialView={props.initialView}
-        areas={props.areas}
-        activeExample={props.activeExample}
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
         flyTo={props.flyTo}

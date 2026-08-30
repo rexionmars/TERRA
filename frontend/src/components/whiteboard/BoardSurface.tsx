@@ -2021,23 +2021,16 @@ export function BoardSurface({
       retainedRuns.flatMap(({ id }) => {
         const rec = runs.find((r) => r.id === id)
         if (!rec) return []
-        const geom = resolveProjectGeometry(
-          { polygon_geojson: rec.polygon_geojson },
-          []
-        )
+        const geom = resolveProjectGeometry({ polygon_geojson: rec.polygon_geojson })
         const ring = geom ? polygonOuterRing(geom) : null
         return ring ? [[id, ring] as const] : []
       })
     ),
     ...Object.fromEntries(
       extraRuns.flatMap(({ run }) => {
-        // The run stores the polygon it was asked for; there is no area
-        // catalogue to fall back to here, and a run without a stored shape
-        // simply keeps the rectangle.
-        const geom = resolveProjectGeometry(
-          { polygon_geojson: run.polygon_geojson },
-          []
-        )
+        // The run stores the polygon it was asked for; one without a stored
+        // shape simply keeps the rectangle.
+        const geom = resolveProjectGeometry({ polygon_geojson: run.polygon_geojson })
         const ring = geom ? polygonOuterRing(geom) : null
         return ring ? [[run.id, ring] as const] : []
       })

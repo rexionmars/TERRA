@@ -32,7 +32,6 @@ import type { MapToolId } from "@/lib/mapTools"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import type {
-  Area,
   InferenceRun,
   PredictResult,
   Project,
@@ -337,10 +336,7 @@ const tabPanelId = (id: ProjectTab) => `project-panel-${id}`
 interface AnalysisPageProps {
   result: PredictResult | null
   modelKind: string
-  /** Embedded example areas, for resolving project AOIs stored as area_id. */
-  areas?: Area[]
   areaLabel?: string
-  areaId?: string
   /** Current AOI polygon as GeoJSON text (geometry or Feature). */
   polygonGeoJSON?: string
   loadingRun?: boolean
@@ -369,9 +365,7 @@ type CompareState = {
 export function AnalysisPage({
   result,
   modelKind,
-  areas,
   areaLabel,
-  areaId,
   polygonGeoJSON,
   loadingRun,
   onOpenRun,
@@ -864,7 +858,6 @@ export function AnalysisPage({
       <div className="app-no-drag relative flex h-full min-h-0 flex-col overflow-hidden">
         <ProjectsHub
           projects={projects}
-          areas={areas}
           unassignedCount={unassignedCount}
           selection={hubSelection}
           creating={creating}
@@ -1233,7 +1226,6 @@ export function AnalysisPage({
       const dest = await ExportResearchPack(
         {
           model_kind: modelKind,
-          area_id: areaId ?? "",
           aoi_label: areaLabel?.trim() || "",
           polygon_geojson: polygonGeoJSON?.trim() || "",
         },
@@ -1448,7 +1440,7 @@ export function AnalysisPage({
 
       <PageBody>
         <div className="flex w-full flex-col gap-3 p-4">
-          {lulc && <LulcSection lulc={lulc} areaId={areaId} />}
+          {lulc && <LulcSection lulc={lulc} />}
 
           {hasClassification && (
             <section className="rounded-sm border border-border bg-secondary/50 p-4">
@@ -1878,7 +1870,6 @@ export function AnalysisPage({
           result={result}
           modelKind={modelKind}
           areaLabel={areaLabel}
-          areaId={areaId}
           polygonGeoJSON={polygonGeoJSON}
           onClose={() => setPackOpen(false)}
         />

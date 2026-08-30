@@ -35,7 +35,6 @@ package analysis
 // exactly the AOI, an inset margin of 0 cells for no inset ring. A plain
 // float64 would send each of those defaults as an explicit zero.
 type FloodRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	// The products to compare, by dem.COLLECTIONS id. Empty selects the
 	// four-product default set. Fewer than two the sidecar refuses: one product

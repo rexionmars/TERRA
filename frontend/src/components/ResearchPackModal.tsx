@@ -69,14 +69,12 @@ export function ResearchPackModal({
   result,
   modelKind,
   areaLabel,
-  areaId,
   polygonGeoJSON,
   onClose,
 }: {
   result: PredictResult
   modelKind: string
   areaLabel?: string
-  areaId?: string
   /** AOI as GeoJSON text, the same value the exporter receives. */
   polygonGeoJSON?: string
   onClose: () => void
@@ -102,7 +100,6 @@ export function ResearchPackModal({
       ["schema_version", "1"],
       ["exported_at", "set when the pack is written"],
       ["model_kind", modelKind || ""],
-      ["area_id", areaId ?? ""],
       ["aoi_label", areaLabel?.trim() ?? ""],
       ["n_dates", String(result.n_dates ?? 0)],
       ["date_range", (result.date_range ?? []).join(" → ")],
@@ -114,7 +111,7 @@ export function ResearchPackModal({
           : "",
       ],
     ]
-  }, [result, modelKind, areaId, areaLabel])
+  }, [result, modelKind, areaLabel])
 
   const entries = useMemo((): PackEntry[] => {
     if (!result) return []
@@ -164,7 +161,6 @@ export function ResearchPackModal({
       const dest = await ExportResearchPack(
         {
           model_kind: modelKind,
-          area_id: areaId ?? "",
           aoi_label: areaLabel?.trim() || "",
           polygon_geojson: polygonGeoJSON?.trim() || "",
         },

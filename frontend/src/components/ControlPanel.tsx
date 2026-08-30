@@ -23,7 +23,6 @@ import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { PanelShell } from "@/components/ui/PanelShell"
 
 interface ControlPanelProps {
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   hasArea: boolean
   onClearArea: () => void
@@ -57,7 +56,6 @@ interface ControlPanelProps {
 export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
   function ControlPanel(props, ref) {
   const {
-    activeExample,
     customPolygon,
     hasArea,
     onClearArea,
@@ -133,11 +131,7 @@ export const ControlPanel = forwardRef<HTMLDivElement, ControlPanelProps>(
           ) : (
             <Pencil className="size-3.5" />
           )}
-          {hasArea
-            ? activeExample
-              ? `Example ${activeExample} loaded`
-              : "Area defined"
-            : "No area defined"}
+          {hasArea ? "Area defined" : "No area defined"}
         </div>
 
       </Section>

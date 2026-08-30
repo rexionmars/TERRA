@@ -1,4 +1,4 @@
-import type { Area, GeoJSONGeometry } from "@/lib/types"
+import type { GeoJSONGeometry } from "@/lib/types"
 
 /** Coordinate pair in GeoJSON axis order: [lon, lat]. */
 export type LonLat = [number, number]
@@ -199,44 +199,25 @@ export function geometryCentroid(
 /**
  * AOI geometry of a project, or null when it has none.
  *
- * A project stores either an inline polygon or a reference to an embedded
- * example area, and projects created from the hub start with neither, so the
- * absent case is normal rather than exceptional.
+ * It also accepted a project storing an `area_id` referencing one of the three
+ * embedded example areas, resolved against a list passed in. Those are gone,
+ * and a project now holds the polygon or nothing. Projects created from the hub
+ * start with nothing, so the absent case is normal rather than exceptional.
  */
-export function resolveProjectGeometry(
-  project: { polygon_geojson?: string; area_id?: string },
-  areas: Area[]
-): GeoJSONGeometry | null {
+export function resolveProjectGeometry(project: {
+  polygon_geojson?: string
+}): GeoJSONGeometry | null {
   const raw = project.polygon_geojson?.trim()
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as GeoJSONGeometry
-      if (parsed?.type === "Polygon" || parsed?.type === "MultiPolygon") {
-        return parsed
-      }
-    } catch {
-      /* stored text is opaque; fall through to the area reference */
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as GeoJSONGeometry
+    if (parsed?.type === "Polygon" || parsed?.type === "MultiPolygon") {
+      return parsed
     }
-  }
-  const areaId = project.area_id?.trim()
-  if (areaId) {
-    return areas.find((a) => a.id === areaId)?.geometry ?? null
+  } catch {
+    /* stored text is opaque */
   }
   return null
-}
-
-/**
- * True when `activeExample` names an area that is present in `areas`.
- *
- * Requests send either an area id or an inline polygon, never both, so this
- * guard decides which branch applies. A stale id that no longer resolves falls
- * back to the drawn polygon rather than referencing a missing area.
- */
-export function usesExampleArea(
-  activeExample: string,
-  areas: Area[]
-): boolean {
-  return !!activeExample && areas.some((a) => a.id === activeExample)
 }
 
 /** Ray-cast point-in-polygon (lon/lat), for AOI right-click hit testing. */

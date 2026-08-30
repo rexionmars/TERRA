@@ -21,21 +21,9 @@ export interface GeoJSONGeometry {
   coordinates: number[][][]
 }
 
-export interface Area {
-  id: string
-  label: string
-  kml_name: string
-  approximate: boolean
-  centroid: number[]
-  bounds: Bounds
-  mapbiomas: string
-  geometry: GeoJSONGeometry
-}
-
 export type ModelKind = "spectral" | "prithvi" | "temporal_transformer"
 
 export interface PredictRequest {
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   start: string
   end: string
@@ -326,7 +314,6 @@ export interface LULCAnalysis {
 }
 
 export interface LULCRequest {
-  area_id: string
   polygon_geojson?: GeoJSONGeometry | null
   mapbiomas_path?: string
 }
@@ -748,7 +735,6 @@ export interface SaveProjectOverlayRequest {
 }
 
 export interface DataCubeRequest {
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   start: string
   end: string
@@ -778,7 +764,6 @@ export type CompositeKind = "rgb" | "index"
 export type CompositeIndex = "ndvi" | "ndwi" | "ndmi" | "evi"
 
 export interface CompositeRequest {
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   start: string
   end: string
@@ -877,7 +862,6 @@ export interface WaterAnalysis {
 }
 
 export interface WaterRequest {
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   start: string
   end: string
@@ -977,7 +961,6 @@ export interface SolarRequest {
   label?: string
   run_label?: string
   project_id?: string
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   climatology_years: number
   hourly_years: number
@@ -1064,7 +1047,6 @@ export interface SolarTerrainRequest {
   label?: string
   run_label?: string
   project_id?: string
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   hourly_years: number
   /**
@@ -1126,7 +1108,6 @@ export interface SolarSitingRequest {
   label?: string
   run_label?: string
   project_id?: string
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   slope_acceptable_deg: number
   slope_restrictive_deg: number
@@ -1157,7 +1138,6 @@ export interface EnergyModelRequest {
   label?: string
   run_label?: string
   project_id?: string
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   climatology_years: number
   hourly_years: number
@@ -1744,7 +1724,6 @@ export interface WindRequest {
   label?: string
   run_label?: string
   project_id?: string
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   record_years: number
   hub_height_m?: number | null
@@ -1984,7 +1963,6 @@ export interface WindAnalysis {
  * explicit 0 asks for a different analysis than the one intended.
  */
 export interface FloodRequest {
-  area_id: string
   polygon_geojson: GeoJSONGeometry | null
   /**
    * The products to compare, by DEM collection id. Absent selects the

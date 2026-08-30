@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { FolderKanban, Inbox, Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Area, Project } from "@/lib/types"
+import type { Project } from "@/lib/types"
 import { resolveProjectGeometry } from "@/lib/geometry"
 import { ProjectFolderCard } from "@/components/ProjectFolderCard"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
@@ -11,7 +11,6 @@ export type ProjectsHubSelection = "all" | "unassigned" | string
 
 export function ProjectsHub({
   projects,
-  areas,
   unassignedCount,
   selection,
   creating,
@@ -25,8 +24,6 @@ export function ProjectsHub({
   children,
 }: {
   projects: Project[]
-  /** Embedded example areas, to resolve a project stored as an area_id. */
-  areas?: Area[]
   unassignedCount: number
   selection: ProjectsHubSelection
   creating: boolean
@@ -298,7 +295,7 @@ export function ProjectsHub({
                   <li key={p.id} className="min-h-[10.5rem]">
                     <ProjectFolderCard
                       project={p}
-                      geometry={resolveProjectGeometry(p, areas ?? [])}
+                      geometry={resolveProjectGeometry(p)}
                       onOpen={() => onOpenProject(p.id)}
                       selected={selection === p.id}
                       className="h-full min-h-[10.5rem]"

@@ -38,7 +38,6 @@ import {
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
-  Area,
   LayoutMode,
   PredictResult,
   PredictRequest,
@@ -89,7 +88,6 @@ import {
 import {
   geometryBounds,
   geometryCentroid,
-  usesExampleArea,
 } from "@/lib/geometry"
 import { ProjectSwitcher } from "@/components/ProjectSwitcher"
 import { resolveCompositionMeta } from "@/lib/compositeCatalog"
@@ -204,63 +202,48 @@ function isModelKind(v: string): v is ModelKind {
   return v === "spectral" || v === "prithvi" || v === "temporal_transformer"
 }
 
-/** Restore AOI from a saved run's polygon_geojson (GeoJSON or {"area_id":"..."}). */
-function parseRunPolygon(
-  raw: string,
-  areas: Area[]
-): { exampleId: string; polygon: GeoJSONGeometry | null } {
-  const empty = { exampleId: "", polygon: null as GeoJSONGeometry | null }
-  if (!raw?.trim()) return empty
+/*
+  The ground a saved run was measured on, read back from its polygon_geojson.
+
+  It also accepted `{"area_id":"A"}` there, because saveRun used to write that
+  when a request named an embedded example instead of drawing a shape -- a
+  geometry column holding something that is not geometry, resolved on the way
+  out by looking the id up in a list. Both ends of that are gone: nothing writes
+  the shape, and the schema-3 migration emptied every run that could still
+  carry it.
+
+  Returns null for anything it cannot read, malformed rows included. A run whose
+  ground cannot be recovered is shown without one rather than refused.
+*/
+function parseRunPolygon(raw: string): GeoJSONGeometry | null {
+  if (!raw?.trim()) return null
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
-    if (typeof parsed.area_id === "string") {
-      const area = areas.find((a) => a.id === parsed.area_id)
-      if (area) return { exampleId: area.id, polygon: area.geometry }
-      return empty
-    }
     if (parsed.type === "Polygon" || parsed.type === "MultiPolygon") {
-      return { exampleId: "", polygon: parsed as unknown as GeoJSONGeometry }
+      return parsed as unknown as GeoJSONGeometry
     }
     if (parsed.type === "Feature") {
       const geom = (parsed as { geometry?: GeoJSONGeometry }).geometry
-      if (geom?.type === "Polygon" || geom?.type === "MultiPolygon") {
-        return { exampleId: "", polygon: geom }
-      }
+      if (geom?.type === "Polygon" || geom?.type === "MultiPolygon") return geom
     }
     if (parsed.type === "FeatureCollection") {
       const features = (parsed as { features?: { geometry?: GeoJSONGeometry }[] }).features
       const geom = features?.find(
         (f) => f.geometry?.type === "Polygon" || f.geometry?.type === "MultiPolygon"
       )?.geometry
-      if (geom) return { exampleId: "", polygon: geom }
+      if (geom) return geom
     }
   } catch {
     /* ignore malformed */
   }
-  return empty
+  return null
 }
 
 function App() {
   const period = useMemo(defaultPeriod, [])
-  /*
-    EMPTY, AND ABOUT TO GO. These were the three embedded example areas -- A, B
-    and C -- loaded from geojson files beside the binary and offered as a second
-    way to name a ground: a run pointed either at an example or at a drawn
-    shape, and every reader had to handle both. That second path is one of the
-    duplications this change exists to remove, so the examples are gone and
-    nothing fills this list.
-
-    The state and the `activeExample` beside it survive one more step because
-    they are threaded through about a hundred places, and unpicking that in the
-    same commit as the removal would hide the removal inside it. Read from an
-    empty list, every one of those reads answers "no example", which is the
-    behaviour the application now has.
-  */
-  const [areas] = useState<Area[]>([])
   const [customPolygon, setCustomPolygon] = useState<GeoJSONGeometry | null>(null)
   const [savedAois, setSavedAois] = useState<SavedAoi[]>([])
   const [activeAoiId, setActiveAoiId] = useState<string | undefined>()
-  const [activeExample, setActiveExample] = useState<string>("")
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; key: number } | null>(null)
   const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({
     lat: -14.5,
@@ -575,11 +558,10 @@ function App() {
     }
   }, [])
 
-  const hasArea = !!customPolygon || !!activeExample
+  const hasArea = !!customPolygon
 
   const clearArea = () => {
     setCustomPolygon(null)
-    setActiveExample("")
     setAnalysisLabel(undefined)
     setActiveAoiId(undefined)
   }
@@ -627,7 +609,6 @@ function App() {
         const entry = createSavedAoi(geom, savedAois, file.name.replace(/\.[^.]+$/, ""))
         setSavedAois((prev) => [...prev, entry])
         setActiveAoiId(entry.id)
-        setActiveExample("")
         setCustomPolygon(geom)
         setAnalysisLabel(entry.name)
         notifySuccess(`Polygon saved as “${entry.name}”.`)
@@ -647,8 +628,6 @@ function App() {
         <div className="app-shell-enter h-full w-full">
           <WhatsNewGate />
           <AppBody
-            areas={areas}
-            activeExample={activeExample}
             customPolygon={customPolygon}
             savedAois={savedAois}
             activeAoiId={activeAoiId}
@@ -679,7 +658,6 @@ function App() {
             setCustomPolygon={setCustomPolygon}
             setSavedAois={setSavedAois}
             setActiveAoiId={setActiveAoiId}
-            setActiveExample={setActiveExample}
             setFlyTo={setFlyTo}
             setStart={setStart}
             setEnd={setEnd}
@@ -717,8 +695,6 @@ function App() {
 }
 
 function AppBody(props: {
-  areas: Area[]
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   savedAois: SavedAoi[]
   activeAoiId?: string
@@ -749,7 +725,6 @@ function AppBody(props: {
   setCustomPolygon: (g: GeoJSONGeometry | null) => void
   setSavedAois: Dispatch<SetStateAction<SavedAoi[]>>
   setActiveAoiId: (id: string | undefined) => void
-  setActiveExample: (id: string) => void
   setFlyTo: (v: { lat: number; lon: number; key: number } | null) => void
   setStart: (v: string) => void
   setEnd: (v: string) => void
@@ -1200,11 +1175,7 @@ function AppBody(props: {
     whether it covers the area at all.
   */
   const visibleAoi = useMemo(() => {
-    const geom =
-      props.customPolygon ??
-      props.areas.find((a) => a.id === props.activeExample)?.geometry ??
-      null
-    const b = geometryBounds(geom)
+    const b = geometryBounds(props.customPolygon)
     return b
       ? {
           lon_min: b.lonMin,
@@ -1213,7 +1184,7 @@ function AppBody(props: {
           lat_max: b.latMax,
         }
       : null
-  }, [props.customPolygon, props.activeExample, props.areas])
+  }, [props.customPolygon])
 
   const scopedCompositions = useMemo(
     () => scopeCompositionsToView(compositionGallery, currentRunId, visibleAoi),
@@ -1439,42 +1410,25 @@ function AppBody(props: {
 
   const syncProjectAoi = useCallback(
     async (projectId: string, labelOverride?: string) => {
-      const useExample = usesExampleArea(props.activeExample, props.areas)
       const renamed = (labelOverride ?? props.analysisLabel)?.trim()
-      let label = renamed
-      if (!label) {
-        if (useExample) {
+      let label = renamed ?? ""
+      if (!label && props.customPolygon) {
+        // Keep an existing project label; never clobber a rename with "Custom AOI".
+        try {
+          const p = (await GetProject(projectId)) as unknown as Project
           label =
-            props.areas.find((a) => a.id === props.activeExample)?.label ||
-            props.activeExample
-        } else if (props.customPolygon) {
-          // Keep an existing project label; never clobber a rename with "Custom AOI".
-          try {
-            const p = (await GetProject(projectId)) as unknown as Project
-            label =
-              p.label?.trim() ||
-              parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
-              "Custom AOI"
-          } catch {
-            label =
-              parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
-              "Custom AOI"
-          }
-        } else {
-          label = ""
+            p.label?.trim() ||
+            parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
+            "Custom AOI"
+        } catch {
+          label =
+            parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
+            "Custom AOI"
         }
       }
-      let poly = ""
-      if (!useExample && props.customPolygon) {
-        poly = JSON.stringify(props.customPolygon)
-      }
+      const poly = props.customPolygon ? JSON.stringify(props.customPolygon) : ""
       try {
-        await UpdateProjectAOI(
-          projectId,
-          useExample ? props.activeExample : "",
-          poly,
-          label
-        )
+        await UpdateProjectAOI(projectId, "", poly, label)
         if (label) void persistAoiLabel(label)
         await refreshProjects()
       } catch {
@@ -1482,8 +1436,6 @@ function AppBody(props: {
       }
     },
     [
-      props.activeExample,
-      props.areas,
       props.customPolygon,
       props.analysisLabel,
       prefs?.extras_json,
@@ -1581,20 +1533,13 @@ function AppBody(props: {
           p.label?.trim() ||
           parsePreferenceExtras(prefs?.extras_json).aoi_label?.trim() ||
           ""
-        if (userInitiated && p.area_id) {
-          props.setActiveExample(p.area_id)
-          props.setCustomPolygon(null)
+        if (userInitiated && p.polygon_geojson) {
+          const polygon = parseRunPolygon(p.polygon_geojson)
+          props.setCustomPolygon(polygon)
           const label = savedLabel || p.name
           props.setAnalysisLabel(label)
           void persistAoiLabel(label)
-        } else if (userInitiated && p.polygon_geojson) {
-          const aoi = parseRunPolygon(p.polygon_geojson, props.areas)
-          props.setActiveExample(aoi.exampleId)
-          props.setCustomPolygon(aoi.polygon)
-          const label = savedLabel || p.name
-          props.setAnalysisLabel(label)
-          void persistAoiLabel(label)
-          const centroid = geometryCentroid(aoi.polygon)
+          const centroid = geometryCentroid(polygon)
           if (centroid) {
             props.setFlyTo({
               lat: centroid[1],
@@ -1619,11 +1564,9 @@ function AppBody(props: {
           made over a different field drew a raster off the edge of the view
           the same action had just flown to.
         */
-        // From the project, not from the branch above: the AOI arrives either
-        // as an example area or as a saved polygon, and only one of those runs.
-        const openedGeom = p.area_id
-          ? (props.areas.find((a) => a.id === p.area_id)?.geometry ?? null)
-          : parseRunPolygon(p.polygon_geojson ?? "", props.areas).polygon
+        // From the project, not from the branch above, which only runs when
+        // the user asked for this.
+        const openedGeom = parseRunPolygon(p.polygon_geojson ?? "")
         const openedAoi = geometryBounds(openedGeom)
         const inView = openedAoi
           ? scopeCompositionsToView(gallery, null, {
@@ -1645,9 +1588,7 @@ function AppBody(props: {
       props.clearRetainedRuns,
       persistAoiLabel,
       prefs?.extras_json,
-      props.areas,
       props.setActiveAoiId,
-      props.setActiveExample,
       props.setCustomPolygon,
       props.setAnalysisLabel,
       props.setFlyTo,
@@ -1666,11 +1607,7 @@ function AppBody(props: {
 
   const handleCreateProjectFromAoi = useCallback(async () => {
     const hint =
-      props.analysisLabel ||
-      (props.activeExample
-        ? props.areas.find((a) => a.id === props.activeExample)?.label
-        : null) ||
-      (props.customPolygon ? "Custom AOI" : "New field")
+      props.analysisLabel || (props.customPolygon ? "Custom AOI" : "New field")
     const name = window.prompt("Project name", hint)
     if (!name?.trim()) return
     try {
@@ -1687,8 +1624,6 @@ function AppBody(props: {
     refreshProjects,
     syncProjectAoi,
     props.analysisLabel,
-    props.activeExample,
-    props.areas,
     props.customPolygon,
   ])
 
@@ -1709,14 +1644,12 @@ function AppBody(props: {
       notifyError("Set the acquisition period.")
       return
     }
-    if (!props.customPolygon && !props.activeExample) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
-    const useExample = usesExampleArea(props.activeExample, props.areas)
     const req: DataCubeRequest = {
-      area_id: useExample ? props.activeExample : "",
-      polygon_geojson: useExample ? null : props.customPolygon,
+      polygon_geojson: props.customPolygon,
       start: props.start,
       end: props.end,
       max_cloud: props.maxCloud,
@@ -1751,14 +1684,12 @@ function AppBody(props: {
       notifyError("Set the acquisition period.")
       return
     }
-    if (!props.customPolygon && !props.activeExample) {
+    if (!props.customPolygon) {
       notifyError("Define an area first.")
       return
     }
-    const useExample = usesExampleArea(props.activeExample, props.areas)
     const req: CompositeRequest = {
-      area_id: useExample ? props.activeExample : "",
-      polygon_geojson: useExample ? null : props.customPolygon,
+      polygon_geojson: props.customPolygon,
       start: props.start,
       end: props.end,
       max_cloud: props.maxCloud,
@@ -1847,12 +1778,12 @@ function AppBody(props: {
 
   /**
    * Identity of the AOI currently on the map. Changes whenever the drawn
-   * polygon or the selected example changes.
+   * polygon changes.
    */
-  const aoiSignature = useMemo(() => {
-    if (props.activeExample) return `area:${props.activeExample}`
-    return props.customPolygon ? `poly:${JSON.stringify(props.customPolygon)}` : ""
-  }, [props.activeExample, props.customPolygon])
+  const aoiSignature = useMemo(
+    () => (props.customPolygon ? `poly:${JSON.stringify(props.customPolygon)}` : ""),
+    [props.customPolygon]
+  )
 
   /** The AOI the current water result was computed over. */
   const waterAoiRef = useRef<string>("")
@@ -1882,7 +1813,7 @@ function AppBody(props: {
     over one window, so once the AOI moves the reading describes ground that is
     no longer on the map. Compared against the AOI the run was made on rather
     than cleared at each call site, because the AOI changes from drawing, from
-    loading an example, from opening a project and from restoring a run.
+    drawing, from opening a project and from restoring a run.
   */
   useEffect(() => {
     if (!flood) return
@@ -2013,9 +1944,8 @@ function AppBody(props: {
       notifyError("Set the acquisition period.")
       return
     }
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     setWaterRunning(true)
@@ -2024,15 +1954,9 @@ function AppBody(props: {
     props.setProgress(0)
     props.setProgressMsg("starting")
     try {
-      const aoiLabel =
-        props.analysisLabel?.trim() ||
-        (useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : undefined) ||
-        (useExample ? props.activeExample : "Custom AOI")
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
       const req: WaterRequest = {
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
         start: props.start,
         end: props.end,
         max_cloud: props.maxCloud,
@@ -2075,9 +1999,8 @@ function AppBody(props: {
   }
 
   const handleRunSolar = async () => {
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     const p = solar.params
@@ -2093,12 +2016,7 @@ function AppBody(props: {
     }
     startSolarRun("resource")
     try {
-      const aoiLabel =
-        props.analysisLabel?.trim() ||
-        (useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : undefined) ||
-        (useExample ? props.activeExample : "Custom AOI")
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
       const req: SolarRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
@@ -2107,8 +2025,7 @@ function AppBody(props: {
         // same ground is drawn once per drawing plus once per run.
         aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
         climatology_years: p.climatologyYears,
         hourly_years: p.hourlyYears,
         surface_azimuth: p.surfaceAzimuth,
@@ -2144,19 +2061,13 @@ function AppBody(props: {
   }
 
   const handleRunSolarTerrain = async () => {
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     startSolarRun("terrain")
     try {
-      const aoiLabel =
-        props.analysisLabel?.trim() ||
-        (useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : undefined) ||
-        (useExample ? props.activeExample : "Custom AOI")
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
       const req: SolarTerrainRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
@@ -2165,8 +2076,7 @@ function AppBody(props: {
         // same ground is drawn once per drawing plus once per run.
         aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
         hourly_years: solar.params.hourlyYears,
         season: solar.params.season,
       }
@@ -2192,19 +2102,13 @@ function AppBody(props: {
   }
 
   const handleRunSolarSiting = async () => {
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     startSolarRun("siting")
     try {
-      const aoiLabel =
-        props.analysisLabel?.trim() ||
-        (useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : undefined) ||
-        (useExample ? props.activeExample : "Custom AOI")
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
       const req: SolarSitingRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
@@ -2213,8 +2117,7 @@ function AppBody(props: {
         // same ground is drawn once per drawing plus once per run.
         aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
         slope_acceptable_deg: solar.params.slopeAcceptableDeg,
         slope_restrictive_deg: solar.params.slopeRestrictiveDeg,
       }
@@ -2243,9 +2146,8 @@ function AppBody(props: {
   }
 
   const handleRunEnergyModel = async () => {
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     // Same field and same range check as the resource run: one performance
@@ -2272,12 +2174,7 @@ function AppBody(props: {
     }
     startSolarRun("energy")
     try {
-      const aoiLabel =
-        props.analysisLabel?.trim() ||
-        (useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : undefined) ||
-        (useExample ? props.activeExample : "Custom AOI")
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
       const req: EnergyModelRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
@@ -2286,8 +2183,7 @@ function AppBody(props: {
         // same ground is drawn once per drawing plus once per run.
         aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
         climatology_years: p.climatologyYears,
         hourly_years: p.hourlyYears,
         surface_azimuth: p.surfaceAzimuth,
@@ -2353,9 +2249,8 @@ function AppBody(props: {
   }
 
   const handleRunWind = async () => {
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     const w = wind.params
@@ -2367,12 +2262,7 @@ function AppBody(props: {
     }
     startWindRun()
     try {
-      const aoiLabel =
-        props.analysisLabel?.trim() ||
-        (useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : undefined) ||
-        (useExample ? props.activeExample : "Custom AOI")
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
       const req: WindRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
@@ -2381,8 +2271,7 @@ function AppBody(props: {
         // same ground is drawn once per drawing plus once per run.
         aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
         record_years: w.recordYears,
         hub_height_m: w.hubHeightM,
         calm_threshold_ms: w.calmThresholdMS,
@@ -2426,9 +2315,8 @@ function AppBody(props: {
    * reading reports back.
    */
   const handleRunFlood = async () => {
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     const blocker = floodRequestBlocker(floodParams, true)
@@ -2440,19 +2328,13 @@ function AppBody(props: {
     setFloodRun({ active: true, progress: 0, message: "starting" })
     const runAoi = aoiSignature
     try {
-      const aoiLabel =
-        props.analysisLabel?.trim() ||
-        (useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : undefined) ||
-        (useExample ? props.activeExample : "Custom AOI")
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
       const req: FloodRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
         aoi_id: props.activeAoiId,
         project_id: activeProjectId || undefined,
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
         dem_ids: floodParams.demIds,
         reference_threshold_m: floodParams.referenceThresholdM,
         drainage_km2: floodParams.drainageKm2,
@@ -2497,14 +2379,12 @@ function AppBody(props: {
       notifyError("Set the acquisition period.")
       return
     }
-    if (!props.customPolygon && !props.activeExample) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
-    const useExample = usesExampleArea(props.activeExample, props.areas)
     const req: DataCubeRequest = {
-      area_id: useExample ? props.activeExample : "",
-      polygon_geojson: useExample ? null : props.customPolygon,
+      polygon_geojson: props.customPolygon,
       start: props.start,
       end: props.end,
       max_cloud: props.maxCloud,
@@ -2532,8 +2412,8 @@ function AppBody(props: {
       notifyError("Set the acquisition period.")
       return
     }
-    if (!props.customPolygon && !props.activeExample) {
-      notifyError("Define an area: draw, search, or load an example.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     props.setRunning(true)
@@ -2543,16 +2423,9 @@ function AppBody(props: {
     // fails now costs the reader nothing, where it used to cost them the map.
     props.retainRun(props.result)
     props.setResult(null)
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    const aoiLabel =
-      props.analysisLabel?.trim() ||
-      (useExample
-        ? props.areas.find((a) => a.id === props.activeExample)?.label
-        : undefined) ||
-      (useExample ? props.activeExample : "Custom AOI")
+    const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
     const req: PredictRequest = {
-      area_id: useExample ? props.activeExample : "",
-      polygon_geojson: useExample ? null : props.customPolygon,
+      polygon_geojson: props.customPolygon,
       start: props.start,
       end: props.end,
       max_cloud: props.maxCloud,
@@ -2607,25 +2480,19 @@ function AppBody(props: {
   }
 
   const handleAnalyzeLULC = async () => {
-    const useExample = usesExampleArea(props.activeExample, props.areas)
-    if (!useExample && !props.customPolygon) {
-      notifyError("Draw a polygon or select example A/B/C.")
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
       return
     }
     props.setLulcRunning(true)
     props.setProgress(0)
-    props.setProgressMsg(
-      useExample ? "analyzing MapBiomas" : "fetching MapBiomas COG"
-    )
+    props.setProgressMsg("fetching MapBiomas COG")
     try {
       const lulc = (await AnalyzeLULC({
-        area_id: useExample ? props.activeExample : "",
-        polygon_geojson: useExample ? null : props.customPolygon,
+        polygon_geojson: props.customPolygon,
       } as never)) as unknown as LULCAnalysis
       if (!props.analysisLabel?.trim()) {
-        const label = useExample
-          ? props.areas.find((a) => a.id === props.activeExample)?.label
-          : "Custom AOI"
+        const label = "Custom AOI"
         props.setAnalysisLabel(label)
       }
       const mapUri = lulc.map_uri ?? ""
@@ -2733,18 +2600,13 @@ function AppBody(props: {
         })
         props.setAnalysisLabel(displayLabel)
         if (displayLabel) void persistAoiLabel(displayLabel)
-        const aoi = parseRunPolygon(run.polygon_geojson, props.areas)
-        props.setActiveExample(aoi.exampleId)
-        props.setCustomPolygon(aoi.polygon)
+        const polygon = parseRunPolygon(run.polygon_geojson)
+        props.setCustomPolygon(polygon)
         // A water or solar run carries its raster in the same field a live run
         // uses, so opening one puts the overlay back on the map. The AOI it was
         // measured on is recorded first, otherwise the invalidation effect sees
         // a mismatch and drops the raster that was just restored.
-        const restoredAoi = aoi.exampleId
-          ? `area:${aoi.exampleId}`
-          : aoi.polygon
-            ? `poly:${JSON.stringify(aoi.polygon)}`
-            : ""
+        const restoredAoi = polygon ? `poly:${JSON.stringify(polygon)}` : ""
         // Results and the AOI they were computed over in one action, for the
         // reason a live run records them together: assigned separately, the
         // invalidation effect can run against the old signature and drop the
@@ -2787,7 +2649,7 @@ function AppBody(props: {
         } else {
           setFlood(null)
         }
-        const centroid = geometryCentroid(aoi.polygon)
+        const centroid = geometryCentroid(polygon)
         if (centroid) {
           props.setFlyTo({
             lat: centroid[1],
@@ -2835,12 +2697,10 @@ function AppBody(props: {
       goFlood,
       solarDispatch,
       windDispatch,
-      props.areas,
       props.analysisLabel,
       props.setResult,
       props.setModelKind,
       props.setAnalysisLabel,
-      props.setActiveExample,
       props.setCustomPolygon,
       props.setFlyTo,
       persistAoiLabel,
@@ -2969,11 +2829,8 @@ function AppBody(props: {
 
   const areaLabel = useMemo(() => {
     if (props.analysisLabel) return props.analysisLabel
-    if (props.activeExample) {
-      return props.areas.find((a) => a.id === props.activeExample)?.label
-    }
     return props.customPolygon ? "Custom AOI" : undefined
-  }, [props.analysisLabel, props.activeExample, props.areas, props.customPolygon])
+  }, [props.analysisLabel, props.customPolygon])
 
   /**
    * The one progress pair the dock's solar panel reads.
@@ -3055,7 +2912,6 @@ function AppBody(props: {
         (active && JSON.stringify(active.geometry) === shape)
       ) {
         props.setCustomPolygon(geom)
-        props.setActiveExample("")
         if (active) props.setAnalysisLabel(active.name)
         return
       }
@@ -3069,7 +2925,6 @@ function AppBody(props: {
       props.setSavedAois((prev) => [...prev, entry])
       props.setActiveAoiId(entry.id)
       props.setCustomPolygon(geom)
-      props.setActiveExample("")
       props.setAnalysisLabel(entry.name)
       setComposition(null)
       setShowCompositionOverlay(true)
@@ -3080,7 +2935,6 @@ function AppBody(props: {
       props.setSavedAois,
       props.setActiveAoiId,
       props.setCustomPolygon,
-      props.setActiveExample,
       props.setAnalysisLabel,
     ]
   )
@@ -3091,7 +2945,6 @@ function AppBody(props: {
       if (!entry) return
       props.setActiveAoiId(entry.id)
       props.setCustomPolygon(entry.geometry)
-      props.setActiveExample("")
       props.setAnalysisLabel(entry.name)
       setComposition(null)
       setShowCompositionOverlay(true)
@@ -3100,7 +2953,6 @@ function AppBody(props: {
       props.savedAois,
       props.setActiveAoiId,
       props.setCustomPolygon,
-      props.setActiveExample,
       props.setAnalysisLabel,
     ]
   )
@@ -3115,14 +2967,12 @@ function AppBody(props: {
         return
       }
       props.setCustomPolygon(geom)
-      props.setActiveExample("")
       props.setActiveAoiId(undefined)
       setComposition(null)
       setShowCompositionOverlay(true)
     },
     [
       props.setCustomPolygon,
-      props.setActiveExample,
       props.setActiveAoiId,
       props.setAnalysisLabel,
     ]
@@ -3340,14 +3190,10 @@ function AppBody(props: {
     [goEnergy, goFlood, openProjectHub, goMap]
   )
 
-  const analysisPolygonGeoJSON = useMemo(() => {
-    if (props.customPolygon) return JSON.stringify(props.customPolygon)
-    if (props.activeExample) {
-      const geom = props.areas.find((a) => a.id === props.activeExample)?.geometry
-      if (geom) return JSON.stringify(geom)
-    }
-    return ""
-  }, [props.customPolygon, props.activeExample, props.areas])
+  const analysisPolygonGeoJSON = useMemo(
+    () => (props.customPolygon ? JSON.stringify(props.customPolygon) : ""),
+    [props.customPolygon]
+  )
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
@@ -3500,8 +3346,6 @@ function AppBody(props: {
                   layoutMode={layoutMode}
                   onLayoutModeChange={changeLayoutMode}
                   onNavigate={navigateTo}
-                  areas={props.areas}
-                  activeExample={props.activeExample}
                   customPolygon={props.customPolygon}
                   flyTo={props.flyTo}
                   result={props.result}
@@ -3689,8 +3533,6 @@ function AppBody(props: {
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }
                   hasArea={props.hasArea}
-                  areas={props.areas}
-                  activeExample={props.activeExample}
                   customPolygon={props.customPolygon}
                   onPolygonDrawn={handlePolygonDrawn}
                   onImportPolygon={props.onImportPolygon}
@@ -3739,8 +3581,6 @@ function AppBody(props: {
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }
                   hasArea={props.hasArea}
-                  areas={props.areas}
-                  activeExample={props.activeExample}
                   customPolygon={props.customPolygon}
                   onPolygonDrawn={handlePolygonDrawn}
                   onImportPolygon={props.onImportPolygon}
@@ -3773,10 +3613,8 @@ function AppBody(props: {
                 <Suspense fallback={<ScreenLoading />}>
                 <AnalysisPage
                   result={resultWithWater}
-                  areas={props.areas}
                   modelKind={props.modelKind}
                   areaLabel={areaLabel}
-                  areaId={props.activeExample || undefined}
                   polygonGeoJSON={analysisPolygonGeoJSON}
                   loadingRun={loadingRun}
                   onOpenRun={openSavedAnalysis}

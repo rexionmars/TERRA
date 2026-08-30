@@ -905,7 +905,6 @@ export namespace analysis {
 	    }
 	}
 	export class CompositeRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -924,7 +923,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -993,7 +991,6 @@ export namespace analysis {
 		}
 	}
 	export class DataCubeRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -1007,7 +1004,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -3190,7 +3186,6 @@ export namespace analysis {
 	}
 	
 	export class EnergyModelRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    climatology_years?: number;
 	    hourly_years?: number;
@@ -3225,7 +3220,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.climatology_years = source["climatology_years"];
 	        this.hourly_years = source["hourly_years"];
@@ -3575,7 +3569,6 @@ export namespace analysis {
 	
 	
 	export class FloodRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    dem_ids?: string[];
 	    thresholds_m?: number[];
@@ -3594,7 +3587,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.dem_ids = source["dem_ids"];
 	        this.thresholds_m = source["thresholds_m"];
@@ -3923,7 +3915,6 @@ export namespace analysis {
 	
 	
 	export class LULCRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    mapbiomas_path?: string;
 	
@@ -3933,7 +3924,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.mapbiomas_path = source["mapbiomas_path"];
 	    }
@@ -4159,7 +4149,6 @@ export namespace analysis {
 	
 	
 	export class PredictRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -4180,7 +4169,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -5292,7 +5280,6 @@ export namespace analysis {
 	}
 	export class ResearchExportMeta {
 	    model_kind: string;
-	    area_id: string;
 	    aoi_label: string;
 	    polygon_geojson: string;
 	
@@ -5303,7 +5290,6 @@ export namespace analysis {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.model_kind = source["model_kind"];
-	        this.area_id = source["area_id"];
 	        this.aoi_label = source["aoi_label"];
 	        this.polygon_geojson = source["polygon_geojson"];
 	    }
@@ -5314,7 +5300,6 @@ export namespace analysis {
 	
 	
 	export class SolarRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    climatology_years?: number;
 	    hourly_years?: number;
@@ -5331,7 +5316,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.climatology_years = source["climatology_years"];
 	        this.hourly_years = source["hourly_years"];
@@ -5365,7 +5349,6 @@ export namespace analysis {
 	
 	
 	export class SolarSitingRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    slope_acceptable_deg?: number;
 	    slope_restrictive_deg?: number;
@@ -5382,7 +5365,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.slope_acceptable_deg = source["slope_acceptable_deg"];
 	        this.slope_restrictive_deg = source["slope_restrictive_deg"];
@@ -5416,7 +5398,6 @@ export namespace analysis {
 	
 	
 	export class SolarTerrainRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    hourly_years?: number;
 	    season?: string;
@@ -5431,7 +5412,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.hourly_years = source["hourly_years"];
 	        this.season = source["season"];
@@ -5522,7 +5502,6 @@ export namespace analysis {
 		}
 	}
 	export class SurfaceModelRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    aoi_label: string;
 	    run_label: string;
@@ -5533,7 +5512,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.aoi_label = source["aoi_label"];
 	        this.run_label = source["run_label"];
@@ -5563,7 +5541,6 @@ export namespace analysis {
 	
 	
 	export class WaterRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -5581,7 +5558,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -5622,7 +5598,6 @@ export namespace analysis {
 	
 	
 	export class WindRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    record_years?: number;
 	    hub_height_m?: number;
@@ -5640,7 +5615,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.record_years = source["record_years"];
 	        this.hub_height_m = source["hub_height_m"];

@@ -237,7 +237,6 @@ func BuildResearchPackZIP(meta analysis.ResearchExportMeta, result *analysis.Pre
 		"schema_version":  researchExportSchemaVersion,
 		"exported_at":     time.Now().UTC().Format(time.RFC3339),
 		"model_kind":      strings.TrimSpace(meta.ModelKind),
-		"area_id":         strings.TrimSpace(meta.AreaID),
 		"aoi_label":       strings.TrimSpace(meta.AoiLabel),
 		"n_dates":         result.NDates,
 		"date_range":      result.DateRange,

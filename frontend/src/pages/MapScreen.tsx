@@ -8,7 +8,6 @@ import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } fro
 import { createPortal } from "react-dom"
 import { AnimatePresence } from "motion/react"
 import type {
-  Area,
   CompositionOverlay,
   CompositeIndex,
   CompositeKind,
@@ -141,8 +140,6 @@ export interface MapScreenProps {
   onBoardOpenChange?: (open: boolean) => void
   /** Go to another destination, for the dock layout's bar. */
   onNavigate: (groupId: string, itemId?: string) => void
-  areas: Area[]
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   flyTo: { lat: number; lon: number; key: number } | null
   result: PredictResult | null
@@ -770,7 +767,6 @@ export function MapScreen(props: MapScreenProps) {
           <ControlPanel
             key="classify"
             placement={placement}
-            activeExample={props.activeExample}
             customPolygon={props.customPolygon}
             hasArea={props.hasArea}
             onClearArea={props.onClearArea}
@@ -1012,7 +1008,6 @@ export function MapScreen(props: MapScreenProps) {
         onIndexChange: props.onWaterIndexChange,
       }}
       hasArea={props.hasArea}
-      activeExample={props.activeExample}
       areaLabel={props.areaLabel}
       onImportPolygon={props.onImportPolygon}
       onClearArea={props.onClearArea}
@@ -1135,8 +1130,6 @@ export function MapScreen(props: MapScreenProps) {
 
       <MapSurface
         initialView={props.initialView}
-        areas={props.areas}
-        activeExample={props.activeExample}
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
         flyTo={props.flyTo}
@@ -1343,15 +1336,13 @@ export function MapScreen(props: MapScreenProps) {
                 window that was asked for.
               */
               /*
-                What was actually drawn, or the example area it stands for.
-                The board outlines the AREA rather than the raster's box, and
-                a box around an area claims ground the analysis never saw.
+                What was actually drawn. The board outlines the AREA rather
+                than the raster's box, and a box around an area claims ground
+                the analysis never saw.
               */
               aoiPolygon={
                 polygonOuterRing(
                   props.customPolygon ??
-                    props.areas.find((a) => a.id === props.activeExample)
-                      ?.geometry ??
                     ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
                 ) ?? undefined
               }

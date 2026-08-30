@@ -28,10 +28,11 @@ type savedRun struct {
 	kind      string
 	modelKind string
 
-	// Where the run was made. The polygon wins; the area id is recorded as a
-	// reference when the request named a catalogued area instead of drawing
-	// a shape.
-	areaID  string
+	// Where the run was made. A polygon, always: the alternative was an
+	// embedded example's id, and when a request came that way this wrote
+	// `{"area_id":"A"}` into the polygon column -- a geometry field holding
+	// something no reader of geometry can parse. The examples are gone and so
+	// is the branch.
 	polygon *analysis.GeoJSONGeometry
 
 	// What the run is called. aoiLabel names the ground and arrives already
@@ -126,8 +127,6 @@ func (a *App) saveRun(run savedRun) string {
 		if b, err := json.Marshal(run.polygon); err == nil {
 			poly = string(b)
 		}
-	} else if run.areaID != "" {
-		poly = fmt.Sprintf(`{"area_id":%q}`, run.areaID)
 	}
 
 	runLabel := strings.TrimSpace(run.runLabel)
@@ -211,7 +210,6 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 		kind: store.RunKindWater,
 		// No model produced this: the index name carries the method instead.
 		modelKind:   res.Index,
-		areaID:      req.AreaID,
 		polygon:     req.PolygonGeoJSON,
 		aoiLabel:    label,
 		runLabel:    req.RunLabel,
@@ -254,7 +252,6 @@ func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnal
 		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
 		modelKind: "NASA POWER",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
@@ -278,7 +275,7 @@ func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnal
 // persistSolarRaster saves a solar map run and writes its overlay to disk, so
 // reopening the run puts the raster back rather than only its numbers.
 func (a *App) persistSolarRaster(
-	areaID string, poly *analysis.GeoJSONGeometry,
+	poly *analysis.GeoJSONGeometry,
 	label, runLabel, projectID, aoiID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
 ) string {
@@ -289,7 +286,6 @@ func (a *App) persistSolarRaster(
 	return a.saveRun(savedRun{
 		kind:      store.RunKindSolar,
 		modelKind: "NASA POWER",
-		areaID:    areaID,
 		polygon:   poly,
 		aoiLabel:  l,
 		runLabel:  runLabel,
@@ -323,7 +319,6 @@ func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analys
 		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
 		modelKind: "NASA POWER",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
@@ -367,7 +362,6 @@ func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysi
 		kind: store.RunKindWind,
 		// No model produced this; the source is the product that did.
 		modelKind: "NASA POWER MERRA-2",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
@@ -481,7 +475,6 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 		// No model produced this; the terrain index and the catalogue the DEMs
 		// were read from are the method.
 		modelKind: "HAND over Planetary Computer DEM",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
@@ -534,11 +527,10 @@ func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.Predict
 	if res == nil {
 		return ""
 	}
-	label := aoiLabel(req.Label, req.AreaID)
+	label := aoiLabel(req.Label)
 	runID := a.saveRun(savedRun{
 		kind:        store.RunKindClassification,
 		modelKind:   req.ModelKind,
-		areaID:      req.AreaID,
 		polygon:     req.PolygonGeoJSON,
 		aoiLabel:    label,
 		runLabel:    req.RunLabel,
@@ -552,7 +544,6 @@ func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.Predict
 			"date_range":      res.DateRange,
 			"n_dates":         res.NDates,
 			"mean_confidence": res.MeanConfidence,
-			"area_id":         req.AreaID,
 			"aoi_label":       label,
 			"has_reference":   res.ReferenceURI != "",
 			"has_ndvi_mean":   res.NDVIMeanURI != "",

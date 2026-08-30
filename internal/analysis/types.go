@@ -1,17 +1,5 @@
 package analysis
 
-// Area is an embedded study-area polygon shown in the area selector.
-type Area struct {
-	ID          string          `json:"id"`
-	Label       string          `json:"label"`
-	KMLName     string          `json:"kml_name"`
-	Approximate bool            `json:"approximate"`
-	Centroid    []float64       `json:"centroid"`
-	Bounds      Bounds          `json:"bounds"`
-	MapBiomas   string          `json:"mapbiomas"`
-	Geometry    GeoJSONGeometry `json:"geometry"`
-}
-
 // Bounds is the lon/lat bounding box of an area or raster.
 type Bounds struct {
 	LonMin float64 `json:"lon_min"`
@@ -29,9 +17,8 @@ type GeoJSONGeometry struct {
 // PredictRequest is the request issued from the frontend. Imagery is fetched
 // on demand from the Sentinel-2 STAC catalog (cloud COGs); no local download.
 type PredictRequest struct {
-	// AreaID selects an embedded area (A/B/C). Mutually exclusive with PolygonGeoJSON.
-	AreaID string `json:"area_id"`
-	// PolygonGeoJSON is an explicit geometry (used when AreaID is empty).
+	// PolygonGeoJSON is the ground to run over, and the only way a request
+	// names one.
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	// Start and End bound the acquisition window (YYYY-MM-DD).
 	Start string `json:"start"`
@@ -398,14 +385,12 @@ type LULCAnalysis struct {
 
 // LULCRequest selects an embedded area (or explicit polygon + MapBiomas path).
 type LULCRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	MapBiomasPath  string           `json:"mapbiomas_path,omitempty"`
 }
 
 // DataCubeRequest lists Sentinel-2 scenes for an AOI before Classify.
 type DataCubeRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	Start          string           `json:"start"`
 	End            string           `json:"end"`
@@ -435,7 +420,6 @@ type DataCubeResult struct {
 
 // CompositeRequest renders an RGB composite or spectral index for one scene.
 type CompositeRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	Start          string           `json:"start"`
 	End            string           `json:"end"`
@@ -815,14 +799,12 @@ type ProgressEvent struct {
 // ResearchExportMeta accompanies a PredictResult when building a research ZIP.
 type ResearchExportMeta struct {
 	ModelKind      string `json:"model_kind"`
-	AreaID         string `json:"area_id"`
 	AoiLabel       string `json:"aoi_label"`
 	PolygonGeoJSON string `json:"polygon_geojson"` // raw GeoJSON geometry or Feature
 }
 
 // WaterRequest selects an AOI and period for surface water / flood mapping.
 type WaterRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	Start          string           `json:"start"`
 	End            string           `json:"end"`
@@ -924,7 +906,6 @@ type waterSidecarPayload struct {
 // SolarRequest selects an AOI for solar resource analysis. The radiation grid
 // is 1 degree, so the request resolves to the cell the AOI centroid falls in.
 type SolarRequest struct {
-	AreaID           string           `json:"area_id"`
 	PolygonGeoJSON   *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	ClimatologyYears int              `json:"climatology_years,omitempty"`
 	HourlyYears      int              `json:"hourly_years,omitempty"`
@@ -1051,7 +1032,6 @@ type SolarAnalysis struct {
 
 // SolarTerrainRequest maps plane-of-array irradiation over the AOI terrain.
 type SolarTerrainRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	HourlyYears    int              `json:"hourly_years,omitempty"`
 	// "annual", "winter", "summer", "winter_crop", "anisotropy" for the
@@ -1188,7 +1168,6 @@ type solarTerrainSidecarPayload struct {
 
 // SolarSitingRequest selects an AOI and the siting conventions to apply.
 type SolarSitingRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	// Conventions, not verified legal restrictions. Zero applies the default,
 	// and the response repeats what was used.

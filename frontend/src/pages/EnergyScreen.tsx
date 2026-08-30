@@ -82,7 +82,7 @@ import type {
   WindParams,
   WindState,
 } from "@/lib/energyState"
-import type { Area, GeoJSONGeometry } from "@/lib/types"
+import type { GeoJSONGeometry } from "@/lib/types"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
 import { cn } from "@/lib/utils"
 
@@ -143,8 +143,6 @@ export interface EnergyScreenProps {
   // so requiring a visit to the classification panel to draw one would make a
   // classification a precondition of an analysis that needs none.
   hasArea: boolean
-  areas: Area[]
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   onImportPolygon: () => void
@@ -437,8 +435,6 @@ export function EnergyScreen(props: EnergyScreenProps) {
   const mapRegion = (
     <MapSurface
         initialView={props.initialView}
-        areas={props.areas}
-        activeExample={props.activeExample}
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
         flyTo={props.flyTo}
@@ -477,7 +473,6 @@ export function EnergyScreen(props: EnergyScreenProps) {
       />
       <AoiSection
         note={AOI_NOTE_SOLAR}
-        activeExample={props.activeExample}
         hasArea={props.hasArea}
         hasCustomPolygon={!!props.customPolygon}
         onImportPolygon={props.onImportPolygon}
@@ -532,7 +527,6 @@ export function EnergyScreen(props: EnergyScreenProps) {
     <>
       <AoiSection
         note={AOI_NOTE_WIND}
-        activeExample={props.activeExample}
         hasArea={props.hasArea}
         hasCustomPolygon={!!props.customPolygon}
         onImportPolygon={props.onImportPolygon}

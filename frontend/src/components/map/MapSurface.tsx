@@ -106,7 +106,6 @@ import { publishMapPose } from "@/lib/mapPose"
 import { paletteColor } from "@/lib/palettes"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import type {
-  Area,
   Bounds,
   CompositionOverlay,
   GeoJSONGeometry,
@@ -121,8 +120,6 @@ const AOI_LINE = "aoi-line"
 
 export interface MapSurfaceProps {
   initialView?: { lat: number; lon: number; zoom: number } | null
-  areas: Area[]
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   flyTo: { lat: number; lon: number; key: number } | null
@@ -191,8 +188,6 @@ interface RawOverlay {
 
 export function MapSurface({
   initialView = null,
-  areas,
-  activeExample,
   customPolygon,
   onPolygonDrawn,
   flyTo,
@@ -265,25 +260,16 @@ export function MapSurface({
   )
 
   /*
-    Custom first, then the named example: MapView's precedence, kept because it
-    decides the outline, the label, the right-click target and what "fit to
-    area" fits.
+    The drawn shape decides the outline, the label, the right-click target and
+    what "fit to area" fits. A named example area used to come second in that
+    precedence; there are no example areas now.
   */
-  const aoiGeometry = useMemo(() => {
-    if (customPolygon) return customPolygon
-    if (activeExample) {
-      return areas.find((a) => a.id === activeExample)?.geometry ?? null
-    }
-    return null
-  }, [customPolygon, activeExample, areas])
+  const aoiGeometry = customPolygon
 
   const aoiName = useMemo(() => {
     if (areaLabel?.trim()) return areaLabel.trim()
-    if (activeExample) {
-      return areas.find((a) => a.id === activeExample)?.label ?? "AOI"
-    }
     return customPolygon ? "Custom AOI" : ""
-  }, [areaLabel, activeExample, areas, customPolygon])
+  }, [areaLabel, customPolygon])
 
   // ---- the map ------------------------------------------------------------
 
@@ -1168,7 +1154,7 @@ export function MapSurface({
           menu={aoiMenu}
           areaName={aoiName || "AOI"}
           schemeId={scheme.id}
-          canClear={!!customPolygon || !!activeExample}
+          canClear={!!customPolygon}
           onClose={() => setAoiMenu(null)}
           onRename={onAreaLabelChange}
           onSchemeChange={onAoiContourSchemeChange}

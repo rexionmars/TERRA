@@ -15,7 +15,6 @@ package analysis
 // request, the payload key, the stored run and the exported manifest all name
 // the same thing. It is not a claim about the method.
 type EnergyModelRequest struct {
-	AreaID           string           `json:"area_id"`
 	PolygonGeoJSON   *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	ClimatologyYears int              `json:"climatology_years,omitempty"`
 	HourlyYears      int              `json:"hourly_years,omitempty"`

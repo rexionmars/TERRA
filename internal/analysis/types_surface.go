@@ -25,7 +25,6 @@ is where a reader meets that fact rather than inferring it.
 // fields existed and were never read, which is why the one caller could pass
 // empty strings for both without consequence.
 type SurfaceModelRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	AoiLabel       string           `json:"aoi_label"`
 	RunLabel       string           `json:"run_label"`

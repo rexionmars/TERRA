@@ -304,7 +304,6 @@ export interface BoardRunGraphProps {
   }
 
   hasArea: boolean
-  activeExample: string
   /** Display name of the active custom AOI (drawn / drawn 2 / renamed). */
   areaLabel?: string
   onImportPolygon: () => void
@@ -462,9 +461,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
             props.hasArea ? "text-foreground" : "text-muted-foreground"
           )}
         >
-          {props.hasArea
-            ? props.activeExample || props.areaLabel || "drawn"
-            : "none"}
+          {props.hasArea ? props.areaLabel || "drawn" : "none"}
         </span>
         {/*
           TWO VERBS, NOT THREE. The third was a pencil that opened a dialog
