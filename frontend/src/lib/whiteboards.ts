@@ -25,9 +25,19 @@ import type { BoardSnapshot } from "@/components/whiteboard/boardMemory"
 
 export type Whiteboard = store.Whiteboard
 
-/** A board's own name is a label; a run's place in it is a member. */
-export async function listWhiteboards(): Promise<Whiteboard[]> {
-  return (await ListWhiteboards()) as unknown as Whiteboard[]
+/**
+ * The boards of one project, most recently saved first.
+ *
+ * SCOPED, because a menu that offered every board the user had ever saved is
+ * what let one project's runs be arranged onto another's board. Passing no
+ * project returns all of them, which is what a storage view wants and what a
+ * board menu never does.
+ *
+ * Boards saved before boards had projects come back here too. They carry no
+ * project, and hiding them would be indistinguishable from having lost them.
+ */
+export async function listWhiteboards(projectId?: string | null): Promise<Whiteboard[]> {
+  return (await ListWhiteboards(projectId ?? "")) as unknown as Whiteboard[]
 }
 
 /**
@@ -66,11 +76,13 @@ export async function deleteWhiteboard(id: string): Promise<void> {
 export async function saveWhiteboard(
   name: string,
   snapshot: BoardSnapshot,
-  id?: string
+  id?: string,
+  projectId?: string | null
 ): Promise<Whiteboard> {
   const payload = {
     id: id ?? "",
     user_id: "",
+    project_id: projectId ?? "",
     name,
     created_at: "",
     updated_at: "",

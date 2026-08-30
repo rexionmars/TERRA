@@ -194,8 +194,8 @@ export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
 }
 
-export function ListWhiteboards() {
-  return window['go']['main']['App']['ListWhiteboards']();
+export function ListWhiteboards(arg1) {
+  return window['go']['main']['App']['ListWhiteboards'](arg1);
 }
 
 export function LoadAnalysis(arg1) {

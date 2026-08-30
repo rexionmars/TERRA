@@ -171,7 +171,7 @@ func TestSaveWhiteboardRejectsForeignRun(t *testing.T) {
 		t.Fatalf("saving another user's run: err = %v, want ErrNotFound", err)
 	}
 	// And nothing was left behind by the attempt.
-	list, err := s.ListWhiteboards(LocalUserID)
+	list, err := s.ListWhiteboards(LocalUserID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestListWhiteboardsCountsAndOrders(t *testing.T) {
 	seedRun(t, s, "run-a", LocalUserID)
 	seedRun(t, s, "run-b", LocalUserID)
 
-	if list, err := s.ListWhiteboards(LocalUserID); err != nil || list == nil {
+	if list, err := s.ListWhiteboards(LocalUserID, ""); err != nil || list == nil {
 		t.Fatalf("empty list: %v %v (want a non-nil empty slice)", list, err)
 	}
 
@@ -282,7 +282,7 @@ func TestListWhiteboardsCountsAndOrders(t *testing.T) {
 	if err := s.RenameWhiteboard(LocalUserID, older.ID, "Older, touched"); err != nil {
 		t.Fatal(err)
 	}
-	list, err := s.ListWhiteboards(LocalUserID)
+	list, err := s.ListWhiteboards(LocalUserID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,5 +303,103 @@ func TestListWhiteboardsCountsAndOrders(t *testing.T) {
 	// arrangements has no use for every member of each.
 	if byID[newer.ID].Members != nil {
 		t.Errorf("list returned members: %+v", byID[newer.ID].Members)
+	}
+}
+
+/*
+A board belongs to a project, and only arranges that project's runs.
+
+Both halves matter and neither is enforced by the database: foreign keys here
+are declared and never turned on, so the only thing keeping a board from
+naming another project's run is the check in SaveWhiteboard, and the only thing
+keeping the menu from offering another project's board is the filter in
+ListWhiteboards. A board that quietly mixes projects is how one project came to
+show fifty-eight runs from several fields.
+*/
+func TestWhiteboardBelongsToItsProject(t *testing.T) {
+	s := openTestStore(t)
+	mine := seedProject(t, s, "Tocantins")
+	other := seedProject(t, s, "Piaui")
+
+	runIn := func(p *Project, id string) string {
+		t.Helper()
+		if _, err := s.SaveRun(InferenceRun{
+			ID: id, UserID: LocalUserID, CreatedAt: nowISO(),
+			ModelKind: "spectral", Status: "ok",
+			PolygonGeoJSON: someGround, ProjectID: p.ID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	ours := runIn(mine, "run-ours")
+	theirs := runIn(other, "run-theirs")
+
+	board, err := s.SaveWhiteboard(Whiteboard{
+		UserID: LocalUserID, ProjectID: mine.ID, Name: "Field notes",
+		Members: []WhiteboardMember{{RunID: ours}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if board.ProjectID != mine.ID {
+		t.Errorf("board project is %q, want %q", board.ProjectID, mine.ID)
+	}
+
+	// The run of another project is refused, and the board is left as it was.
+	if _, err := s.SaveWhiteboard(Whiteboard{
+		ID: board.ID, UserID: LocalUserID, ProjectID: mine.ID, Name: "Field notes",
+		Members: []WhiteboardMember{{RunID: ours}, {RunID: theirs}},
+	}); !errors.Is(err, ErrInvalidInput) {
+		t.Errorf("saving another project's run returned %v, want ErrInvalidInput", err)
+	}
+	if got, err := s.GetWhiteboard(LocalUserID, board.ID); err != nil {
+		t.Fatal(err)
+	} else if len(got.Members) != 1 || got.Members[0].RunID != ours {
+		t.Errorf("the refused save changed the board: %d member(s)", len(got.Members))
+	}
+
+	// The menu of the other project does not offer it.
+	if list, err := s.ListWhiteboards(LocalUserID, other.ID); err != nil {
+		t.Fatal(err)
+	} else if len(list) != 0 {
+		t.Errorf("another project's menu offers %d board(s)", len(list))
+	}
+	if list, err := s.ListWhiteboards(LocalUserID, mine.ID); err != nil {
+		t.Fatal(err)
+	} else if len(list) != 1 || list[0].ID != board.ID {
+		t.Errorf("the project's own menu listed %d board(s)", len(list))
+	}
+}
+
+// A board saved before boards had projects stays reachable: it is offered
+// alongside the open project's own, and re-saving it is not refused. Hiding it
+// would be indistinguishable from having lost it.
+func TestProjectlessWhiteboardStaysReachable(t *testing.T) {
+	s := openTestStore(t)
+	p := seedProject(t, s, "Tocantins")
+	if _, err := s.SaveRun(InferenceRun{
+		ID: "run-old", UserID: LocalUserID, CreatedAt: nowISO(),
+		ModelKind: "spectral", Status: "ok", PolygonGeoJSON: someGround,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	old, err := s.SaveWhiteboard(Whiteboard{
+		UserID: LocalUserID, Name: "Before projects",
+		Members: []WhiteboardMember{{RunID: "run-old"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := s.ListWhiteboards(LocalUserID, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != old.ID {
+		t.Fatalf("a projectless board is not offered: %d board(s)", len(list))
+	}
+	if list[0].ProjectID != "" {
+		t.Errorf("board project is %q, want empty", list[0].ProjectID)
 	}
 }

@@ -406,6 +406,7 @@ export function BoardSurface({
   smooth,
   onSmoothChange,
   title,
+  activeProjectId,
   whiteboards = [],
   onOpenWhiteboard,
   onWhiteboardsMenu,
@@ -510,6 +511,13 @@ export function BoardSurface({
    * could only ever name it. Absent where the caller offers no catalog, in
    * which case the block stays a readout.
    */
+  /**
+   * The project this board is of, written on save.
+   *
+   * A board used to belong to the user alone, so the menu offered every board
+   * ever saved and nothing stopped one holding runs from several projects.
+   */
+  activeProjectId?: string | null
   whiteboards?: readonly Whiteboard[]
   onOpenWhiteboard?: (board: Whiteboard) => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
@@ -946,17 +954,18 @@ export function BoardSurface({
             THE LIVE AREA NEEDS THE SAME LOOKUP, and it was the one place not
             getting it.
 
-            Its id here is `result.run_id || "current"`, and only a
-            classification fills that field: a solar, water or flood run leaves
-            it on the sentinel, which the filter below drops. So the commonest
-            board of all -- draw an area, run one product, save -- had exactly
-            one member and lost it.
+            Its id here is `result.run_id || "current"`. That was the sentinel
+            for every product but the classification, because only the
+            classification returned the id of the run it had written -- so the
+            commonest board of all, draw an area and run one product and save,
+            had exactly one member and lost it to the filter below. All six
+            products return their run id now.
 
-            The run exists; it is simply not on the result. It records its
-            `area_id`, so the ground answers for it the way it does for every
-            other area. The explicit id still wins when it is a real one, since
-            a classification names the run it is showing more precisely than
-            the ground can.
+            The fallback stays, for the case that is left: a run whose save
+            failed returns no id, having withdrawn the claim to have saved. The
+            ground still answers when it can. The explicit id wins when it is a
+            real one, since a run names itself more precisely than its ground
+            can when two runs share a field.
           */
           runId:
             a.id === live
@@ -994,7 +1003,8 @@ export function BoardSurface({
         // The run the map's area belongs to, so its keys are rewritten to the
         // id that area will carry when the board is opened again.
         snapshotBoard(members, runId, live),
-        savedId ?? undefined
+        savedId ?? undefined,
+        activeProjectId
       )
       setSavedId(board.id)
       setSavedName(board.name)
@@ -1345,10 +1355,11 @@ export function BoardSurface({
     map's. This is that moment for the live board rather than for a saved one.
 
     KEYED ON THE AREA LEAVING, NOT ON THE RUN ID. It watched `runId`, which is
-    `result.run_id || "current"` -- so a run that produced only a standalone
-    product never moved it off the sentinel and this never fired, and even for
-    a classification the id it compared was not the one the board files areas
-    under. `live` IS that id: `liveAreaId` answers with the ground whenever the
+    `result.run_id || "current"` -- and at the time only a classification
+    filled that field, so a run that produced a standalone product never moved
+    it off the sentinel and this never fired. Every product fills it now, but
+    the id it compared was never the one the board files areas under, which is
+    the half of that defect the sentinel was only hiding. `live` IS that id: `liveAreaId` answers with the ground whenever the
     ground is known, which is what the retained entry is now keyed by too.
     Three names for one area was why a retained run arrived on the board with
     nothing on it.

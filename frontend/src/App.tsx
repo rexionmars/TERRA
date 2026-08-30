@@ -331,11 +331,11 @@ function App() {
      * The board's own id for the ground this run was over.
      *
      * THREE IDENTITIES HAD TO BE MADE ONE. The board keys its live area by the
-     * GROUND -- `liveAreaId` returns the AOI id whenever it knows it -- while
-     * `runId` reaching it is `result.run_id || "current"`, which a standalone
-     * product leaves as the sentinel, and this function keyed what it kept by
-     * the run. Three names for one area, so the retained entry and the area it
-     * came from could never find each other: the entry appeared in the data
+     * GROUND -- `liveAreaId` returns the area id whenever it knows it -- while
+     * `runId` reaching it is `result.run_id || "current"`, which every product
+     * but the classification then left on the sentinel, and this function
+     * keyed what it kept by the run. Three names for one area, so the retained
+     * entry and the area it came from could never find each other: the entry appeared in the data
      * tree as a run to add by hand, and the planes that had been on the board
      * were not carried over to it.
      *
@@ -802,14 +802,32 @@ function AppBody(props: {
   const [boardSlotHost, setBoardSlotHost] = useState<HTMLDivElement | null>(
     null
   )
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+
+  /*
+    The boards of the open project.
+
+    SCOPED, because the menu offered every board ever saved regardless of which
+    project was open -- which is how a board came to hold runs from several. It
+    reloads when the project changes for the same reason: a menu left showing
+    the previous project's boards is the same offer by a slower route.
+
+    With no project open there is no menu to fill. Listing everything there
+    would put the boards of every project in front of a reader who has said
+    nothing about which one they mean.
+  */
   const refreshWhiteboards = useCallback(async () => {
+    if (!activeProjectId) {
+      setWhiteboards([])
+      return
+    }
     try {
-      setWhiteboards(await listWhiteboards())
+      setWhiteboards(await listWhiteboards(activeProjectId))
     } catch {
       // A board list that cannot be read is an empty menu section, not an
       // error in front of whatever the user was actually doing.
     }
-  }, [])
+  }, [activeProjectId])
   useEffect(() => {
     void refreshWhiteboards()
   }, [refreshWhiteboards])
@@ -1101,7 +1119,6 @@ function AppBody(props: {
   const [dataCubeLoading, setDataCubeLoading] = useState(false)
   const [dataCubeError, setDataCubeError] = useState<string | null>(null)
   const [dataCubeResult, setDataCubeResult] = useState<DataCubeResult | null>(null)
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
 
   const [composition, setComposition] = useState<CompositionOverlay | null>(null)
   /** Session gallery of applied compositions (newest first); map shows `composition`. */
@@ -3426,6 +3443,7 @@ function AppBody(props: {
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MapScreen
+                  activeProjectId={activeProjectId}
                   retainedRuns={props.retainedRuns}
                   onDropRetainedRun={props.onDropRetainedRun}
                   onCreditChange={setCredit}

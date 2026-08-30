@@ -102,7 +102,7 @@ export function ListProjects():Promise<Array<store.Project>>;
 
 export function ListRuns(arg1:number):Promise<Array<store.InferenceRun>>;
 
-export function ListWhiteboards():Promise<Array<store.Whiteboard>>;
+export function ListWhiteboards(arg1:string):Promise<Array<store.Whiteboard>>;
 
 export function LoadAnalysis(arg1:string):Promise<analysis.PredictResult>;
 

@@ -26,8 +26,22 @@ import (
 
 // Whiteboard is several runs placed beside one another on the isolate board.
 type Whiteboard struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+	/*
+		The project this board arranges.
+
+		A board used to belong to the user alone, so the menu offered every
+		board ever saved regardless of which project was open, and nothing
+		stopped a board mixing runs from several. Under Project > Areas > Runs
+		a board is one project's reading of its own work, and SaveWhiteboard
+		refuses a member whose run belongs elsewhere.
+
+		Empty on a board saved before this column existed. Those are listed
+		with the ones of the open project rather than hidden, because a board
+		that cannot be found is indistinguishable from one that was lost.
+	*/
+	ProjectID string `json:"project_id,omitempty"`
 	Name      string `json:"name"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
@@ -122,6 +136,7 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 	if c.Name == "" {
 		return nil, ErrInvalidInput
 	}
+	c.ProjectID = strings.TrimSpace(c.ProjectID)
 	if c.ViewJSON == "" {
 		c.ViewJSON = "{}"
 	}
@@ -140,17 +155,18 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 			c.CreatedAt = ts
 		}
 		if _, err := tx.Exec(
-			`INSERT INTO whiteboards (id, user_id, name, created_at, updated_at, view_json)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
-			c.ID, c.UserID, c.Name, c.CreatedAt, c.UpdatedAt, c.ViewJSON,
+			`INSERT INTO whiteboards
+			 (id, user_id, project_id, name, created_at, updated_at, view_json)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			c.ID, c.UserID, c.ProjectID, c.Name, c.CreatedAt, c.UpdatedAt, c.ViewJSON,
 		); err != nil {
 			return nil, err
 		}
 	} else {
 		res, err := tx.Exec(
-			`UPDATE whiteboards SET name = ?, updated_at = ?, view_json = ?
+			`UPDATE whiteboards SET project_id = ?, name = ?, updated_at = ?, view_json = ?
 			 WHERE id = ? AND user_id = ?`,
-			c.Name, c.UpdatedAt, c.ViewJSON, c.ID, c.UserID,
+			c.ProjectID, c.Name, c.UpdatedAt, c.ViewJSON, c.ID, c.UserID,
 		)
 		if err != nil {
 			return nil, err
@@ -179,19 +195,29 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 			return nil, ErrInvalidInput
 		}
 		/*
-			The run must be this user's. Without foreign keys enforced, nothing
-			else would stop a whiteboard naming a row it has no claim to, and
-			the board would then load and draw it.
+			The run must be this user's, and must belong to the project this
+			board is of. Without foreign keys enforced, nothing else would stop
+			a whiteboard naming a row it has no claim to, and the board would
+			then load and draw it.
+
+			The project half is checked only when this board has a project and
+			the run has one. A board saved before boards had projects carries
+			none, and refusing to re-save it would leave a reader unable to
+			touch work they can plainly see.
 		*/
-		var owner string
+		var owner, runProject string
 		err := tx.QueryRow(
-			`SELECT user_id FROM inference_runs WHERE id = ?`, m.RunID,
-		).Scan(&owner)
+			`SELECT user_id, COALESCE(project_id,'') FROM inference_runs WHERE id = ?`,
+			m.RunID,
+		).Scan(&owner, &runProject)
 		if errors.Is(err, sql.ErrNoRows) || (err == nil && owner != c.UserID) {
 			return nil, ErrNotFound
 		}
 		if err != nil {
 			return nil, err
+		}
+		if c.ProjectID != "" && runProject != "" && runProject != c.ProjectID {
+			return nil, ErrInvalidInput
 		}
 		m.ID = uuid.NewString()
 		m.WhiteboardID = c.ID
@@ -215,18 +241,36 @@ func (s *Store) SaveWhiteboard(c Whiteboard) (*Whiteboard, error) {
 	return &c, nil
 }
 
-// ListWhiteboards returns the user's arrangements, most recently saved first.
-func (s *Store) ListWhiteboards(userID string) ([]Whiteboard, error) {
+/*
+ListWhiteboards returns the arrangements of one project, most recently saved
+first.
+
+An empty projectID returns every board the user has, which is what the storage
+and backup views want. The board menu passes the open project, because a menu
+offering boards belonging to other projects is what let one project's runs be
+arranged onto another's board.
+
+Boards carrying no project are returned alongside a project's own. They predate
+the column, and a board that cannot be found is indistinguishable from one that
+was lost.
+*/
+func (s *Store) ListWhiteboards(userID, projectID string) ([]Whiteboard, error) {
 	if userID == "" {
 		return nil, ErrInvalidInput
 	}
+	where, args := "c.user_id = ?", []any{userID}
+	if p := strings.TrimSpace(projectID); p != "" {
+		where += " AND (c.project_id = ? OR COALESCE(c.project_id,'') = '')"
+		args = append(args, p)
+	}
 	rows, err := s.db.Query(
-		`SELECT c.id, c.user_id, c.name, c.created_at, c.updated_at, c.view_json,
+		`SELECT c.id, c.user_id, COALESCE(c.project_id,''), c.name, c.created_at,
+		        c.updated_at, c.view_json,
 		        (SELECT COUNT(1) FROM whiteboard_members m WHERE m.whiteboard_id = c.id)
 		 FROM whiteboards c
-		 WHERE c.user_id = ?
+		 WHERE `+where+`
 		 ORDER BY c.updated_at DESC`,
-		userID,
+		args...,
 	)
 	if err != nil {
 		return nil, err
@@ -238,7 +282,7 @@ func (s *Store) ListWhiteboards(userID string) ([]Whiteboard, error) {
 	for rows.Next() {
 		var c Whiteboard
 		if err := rows.Scan(
-			&c.ID, &c.UserID, &c.Name, &c.CreatedAt, &c.UpdatedAt,
+			&c.ID, &c.UserID, &c.ProjectID, &c.Name, &c.CreatedAt, &c.UpdatedAt,
 			&c.ViewJSON, &c.MemberCount,
 		); err != nil {
 			return nil, err
@@ -255,10 +299,10 @@ func (s *Store) GetWhiteboard(userID, id string) (*Whiteboard, error) {
 	}
 	var c Whiteboard
 	err := s.db.QueryRow(
-		`SELECT id, user_id, name, created_at, updated_at, view_json
+		`SELECT id, user_id, COALESCE(project_id,''), name, created_at, updated_at, view_json
 		 FROM whiteboards WHERE id = ? AND user_id = ?`,
 		id, userID,
-	).Scan(&c.ID, &c.UserID, &c.Name, &c.CreatedAt, &c.UpdatedAt, &c.ViewJSON)
+	).Scan(&c.ID, &c.UserID, &c.ProjectID, &c.Name, &c.CreatedAt, &c.UpdatedAt, &c.ViewJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

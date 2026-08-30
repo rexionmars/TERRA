@@ -53,8 +53,9 @@ export const CURRENT_AREA = "current"
  * own run as a second, empty area over the same field. Two drawings and two
  * runs made four areas, which is what a reader counted and reported.
  *
- * The sentinel keeps its one real job: an area with no run and no catalogued
- * AOI -- an example area, an adopted geometry, a studio opened on nothing.
+ * The sentinel keeps its one real job: an area with no run and no area of its
+ * own -- an adopted geometry, a studio opened on nothing, a run whose save
+ * failed and therefore has no id to be known by.
  * `snapshotBoard` is told which id the live area is carrying rather than
  * assuming this one, since it is now rarely the answer.
  */

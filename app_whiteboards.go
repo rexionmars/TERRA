@@ -26,14 +26,15 @@ func (a *App) SaveWhiteboard(c store.Whiteboard) (*store.Whiteboard, error) {
 	return st.SaveWhiteboard(c)
 }
 
-// ListWhiteboards returns the user's arrangements, most recent first, with a
-// member count rather than the members themselves.
-func (a *App) ListWhiteboards() ([]store.Whiteboard, error) {
+// ListWhiteboards returns one project's arrangements, most recent first, with a
+// member count rather than the members themselves. An empty projectID returns
+// every board the user has, which is what the storage view asks for.
+func (a *App) ListWhiteboards(projectID string) ([]store.Whiteboard, error) {
 	st := a.currentStore()
 	if st == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}
-	return st.ListWhiteboards(a.effectiveUserID())
+	return st.ListWhiteboards(a.effectiveUserID(), projectID)
 }
 
 // GetWhiteboard returns one arrangement with its members in board order.
