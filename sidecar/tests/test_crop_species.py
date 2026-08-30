@@ -79,19 +79,22 @@ def test_the_mosaic_is_not_crop_for_the_purpose_of_masking():
     medida, soja cobria 50% e mosaico 42%, então com ele a máscara pegaria 92%
     da área e a média ficaria praticamente onde estava.
     """
-    assert 21 not in cs.CROP_CLASSES
-    assert 39 in cs.CROP_CLASSES
+    from terra import mapbiomas as mb_source
+    assert 21 not in mb_source.CROP_CLASSES
+    assert 39 in mb_source.CROP_CLASSES
 
 
 def test_crop_mask_selects_only_crop_pixels():
     import numpy as np
+
+    from terra import mapbiomas as mb_source
 
     m = np.array([
         [39, 21, -1],   # soja, mosaico, sem predição
         [41, 15, 20],   # temporárias, pastagem, cana
         [24, 46, 3],    # urbano, café, floresta
     ])
-    got = cs.crop_mask(m)
+    got = mb_source.crop_mask(m)
     assert got.sum() == 4
     assert got[0, 0] and got[1, 0] and got[1, 2] and got[2, 1]
     # -1 é o que classify_from_features escreve onde não houve predição, e não
@@ -104,4 +107,6 @@ def test_an_aoi_with_no_cropland_masks_nothing():
     """Uma resposta, não uma falha: nem toda AOI tem lavoura."""
     import numpy as np
 
-    assert not cs.crop_mask(np.array([[15, 24], [3, 33]])).any()
+    from terra import mapbiomas as mb_source
+
+    assert not mb_source.crop_mask(np.array([[15, 24], [3, 33]])).any()

@@ -10,13 +10,8 @@ import joblib
 import numpy as np
 import pytest
 
-from terra import (
-    actions,
-    aoi,  # noqa: F401
-    protocol,
-    registry,
-)
-from terra.flood import envelope as flood_mod
+from terra import aoi, protocol, registry
+from terra.flood import actions as flood_actions, envelope as flood_mod
 from terra.imagery import (
     grid,  # noqa: F401
     indices,
@@ -370,7 +365,7 @@ def test_class_spectra_is_absent_rather_than_empty_when_nothing_is_classified(
 
 
 class _Transform:
-    """The affine fields actions.py reads, without pulling in rasterio."""
+    """The affine fields the actions read, without pulling in rasterio."""
 
     def __init__(self, a, e, f):
         self.a, self.e, self.f = a, e, f
@@ -584,7 +579,7 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
     reads = _flood_reads()
     monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: reads)
 
-    actions.action_flood_envelope(
+    flood_actions.flood_envelope(
         {
             "polygon_geojson": {
                 "type": "Polygon",
@@ -679,7 +674,7 @@ def _flood_run(tmp_path, monkeypatch, capsys, coordinates):
     from terra.terrain import dem
 
     monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: _flood_reads())
-    actions.action_flood_envelope(
+    flood_actions.flood_envelope(
         {
             "polygon_geojson": {"type": "Polygon", "coordinates": [coordinates]},
             "drainage_km2": 0.02,
@@ -811,7 +806,7 @@ def test_the_flood_envelope_refuses_an_aoi_it_cannot_hold_in_memory(capsys):
     reading them at a resolution none of them has changes that measurement.
     """
     with pytest.raises(SystemExit):
-        actions.action_flood_envelope(
+        flood_actions.flood_envelope(
             {
                 "polygon_geojson": {
                     "type": "Polygon",
@@ -840,7 +835,7 @@ def test_the_renamed_ring_parameter_is_refused_under_its_old_name(capsys):
     from inside the AOI polygon.
     """
     with pytest.raises(SystemExit):
-        actions.action_flood_envelope(
+        flood_actions.flood_envelope(
             {
                 "polygon_geojson": {
                     "type": "Polygon",
@@ -857,7 +852,7 @@ def test_the_renamed_ring_parameter_is_refused_under_its_old_name(capsys):
 
 def test_the_flood_envelope_needs_two_products_and_says_which_exist(capsys):
     with pytest.raises(SystemExit):
-        actions.action_flood_envelope(
+        flood_actions.flood_envelope(
             {
                 "polygon_geojson": {
                     "type": "Polygon",
@@ -917,7 +912,7 @@ def test_the_agreement_colouring_leaves_the_cells_no_product_calls_wet_clear():
 
 
 def test_the_flood_envelope_is_registered_under_the_name_the_shell_sends():
-    assert registry.resolve("flood_envelope") is actions.action_flood_envelope
+    assert registry.resolve("flood_envelope") is flood_actions.flood_envelope
 
 
 FLOOD_FIXTURE = (

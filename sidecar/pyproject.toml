@@ -71,10 +71,10 @@ type = "layers"
 layers = [
     "terra.cli",
     "terra.registry",
-    "terra.actions",
-    "terra.energy | terra.water | terra.flood | terra.canopy | terra.landcover",
+    "terra.energy | terra.water | terra.flood | terra.canopy | terra.landcover | terra.scenes",
     "terra.imagery | terra.terrain | terra.sun",
-    "terra.stac",
+    "terra.stac | terra.mapbiomas",
+    "terra.aoi | terra.phenology",
     "terra.protocol",
 ]
 
@@ -87,10 +87,15 @@ modules = [
     "terra.flood",
     "terra.canopy",
     "terra.landcover",
+    "terra.scenes",
 ]
 
 [[tool.importlinter.contracts]]
 name = "The sun service knows nothing about the products that read it"
 type = "forbidden"
 source_modules = ["terra.sun"]
-forbidden_modules = ["terra.energy", "terra.actions", "terra.registry", "terra.cli"]
+forbidden_modules = [
+    "terra.energy",
+    "terra.registry",
+    "terra.cli",
+]

@@ -24,3 +24,13 @@ def main() -> None:
     work_dir = Path(req.get('work_dir', '.'))
     work_dir.mkdir(parents=True, exist_ok=True)
     registry.resolve(action)(req, work_dir)
+
+
+# Lightweight health check used by the desktop boot footer.
+def ping(req, work_dir):
+    sys.stdout.write(json.dumps({
+        'ok': True,
+        'python': sys.version.split()[0],
+        'sidecar': 'infer.py',
+    }))
+    sys.stdout.flush()

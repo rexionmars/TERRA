@@ -17,8 +17,9 @@ from shapely.ops import transform as shp_transform
 
 # Extended MapBiomas Coleção 10 legend (classes seen on PR farms + study targets).
 # Shared with the classification path so both render a class id identically;
-# see terra/landcover/palette.py.
-from terra.landcover.palette import (  # noqa: E402,F401
+# see terra/mapbiomas.py.
+from terra import mapbiomas as mb_source  # noqa: E402
+from terra.mapbiomas import (  # noqa: E402,F401
     MAPBIOMAS_COLORS,
     MAPBIOMAS_LEGEND,
     hex_to_rgb,
@@ -68,83 +69,15 @@ GROUP_ORDER = [
 
 TARGET_COMPARE = [3, 21, 25, 39, 41]
 
-# MapBiomas Brazil Collection 10 (2023) COG — same source as download_mapbiomas_farms.py
-MAPBIOMAS_COG_URL = (
-    "https://storage.googleapis.com/mapbiomas-public/"
-    "initiatives/brasil/collection_10/lulc/coverage/"
-    "brazil_coverage_2023.tif"
-)
-
-# Approximate continental Brazil envelope (WGS84).
-BRAZIL_BOUNDS = (-74.0, -34.0, -28.0, 6.0)
-BUFFER_DEG = 0.01
 
 
-def _configure_gdal_for_cog():
-    import os
-
-    os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-    os.environ.setdefault("CPL_VSIL_CURL_ALLOWED_EXTENSIONS", ".tif,.TIF,.tiff")
-    os.environ.setdefault("GDAL_HTTP_MULTIRANGE", "YES")
-    os.environ.setdefault("GDAL_HTTP_MERGE_CONSECUTIVE_RANGES", "YES")
-    os.environ.setdefault("VSI_CACHE", "TRUE")
 
 
-def polygon_in_brazil(polygon) -> bool:
-    minx, miny, maxx, maxy = polygon.bounds
-    bminx, bminy, bmaxx, bmaxy = BRAZIL_BOUNDS
-    return not (maxx < bminx or minx > bmaxx or maxy < bminy or miny > bmaxy)
 
 
-def fetch_mapbiomas_window(polygon, work_dir: Path, buffer_deg: float = BUFFER_DEG) -> Path:
-    """Stream a MapBiomas COG window for the AOI and write a local GeoTIFF."""
-    from rasterio.windows import from_bounds
-
-    if not polygon_in_brazil(polygon):
-        raise ValueError(
-            "MapBiomas Brazil coverage only — AOI is outside Brazil "
-            "(lon/lat bounds do not intersect the country)."
-        )
-
-    _configure_gdal_for_cog()
-    work_dir = Path(work_dir)
-    work_dir.mkdir(parents=True, exist_ok=True)
-    out_path = work_dir / "mapbiomas_aoi_2023.tif"
-
-    bounds = polygon.bounds
-    bbox = (
-        bounds[0] - buffer_deg,
-        bounds[1] - buffer_deg,
-        bounds[2] + buffer_deg,
-        bounds[3] + buffer_deg,
-    )
-
-    with rasterio.open(MAPBIOMAS_COG_URL) as src:
-        window = from_bounds(*bbox, transform=src.transform)
-        data = src.read(1, window=window)
-        win_transform = src.window_transform(window)
-        profile = src.profile.copy()
-        profile.update(
-            height=data.shape[0],
-            width=data.shape[1],
-            transform=win_transform,
-            driver="GTiff",
-            compress="lzw",
-        )
-
-    if data.size == 0 or not np.any(data > 0):
-        raise ValueError("No MapBiomas pixels in the AOI window (empty download).")
-
-    with rasterio.open(out_path, "w", **profile) as dst:
-        dst.write(data, 1)
-    return out_path
 
 
-def resolve_mapbiomas_path(mapbiomas_path, polygon, work_dir: Path) -> str:
-    """Use a local raster when present; otherwise fetch the Brazil COG window."""
-    if mapbiomas_path and Path(mapbiomas_path).exists():
-        return str(mapbiomas_path)
-    return str(fetch_mapbiomas_window(polygon, work_dir))
+
 
 
 def pixel_area_ha(res, lat: float) -> float:
@@ -722,5 +655,7 @@ def analyze_from_request(req: dict) -> dict:
     work_dir = Path(req.get("work_dir") or ".")
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    mb = resolve_mapbiomas_path(req.get("mapbiomas_path"), polygon, work_dir)
+    mb = mb_source.resolve_mapbiomas_path(
+        req.get("mapbiomas_path"), polygon, work_dir
+    )
     return analyze_mapbiomas(mb, polygon, work_dir=work_dir)

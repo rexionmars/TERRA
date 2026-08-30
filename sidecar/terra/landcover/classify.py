@@ -19,7 +19,7 @@ import numpy as np
 
 from terra import protocol
 from terra.imagery import sentinel2
-from terra.landcover.palette import (
+from terra.mapbiomas import (
     CLASSIFIER_COLORS as MAPBIOMAS_COLORS,
     CLASSIFIER_LEGEND as MAPBIOMAS_LEGEND,
 )

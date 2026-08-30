@@ -9,7 +9,10 @@ the sidecar together, and one of them is optional in installations that still
 have to answer every other action.
 
 Before this table existed the same property was carried by 55 deferred imports
-written by hand inside function bodies. It now has one place to be correct.
+written by hand inside function bodies. It now has one place to be correct, and
+since the actions moved into their slices it carries more than laziness: an
+action name maps to the product that answers it, and adding a product is one
+directory and one line here.
 """
 
 from __future__ import annotations
@@ -23,23 +26,23 @@ from terra.protocol import Request
 Action = Callable[[Request, Path], None]
 
 ACTIONS: dict[str, str] = {
-    'ping': 'terra.actions:action_ping',
-    'lulc': 'terra.actions:action_lulc',
-    'domain_shift': 'terra.actions:action_domain_shift',
-    'domain_shift_cohort': 'terra.actions:action_domain_shift_cohort',
-    'canopy_field': 'terra.actions:action_canopy_field',
-    'canopy_mesh': 'terra.actions:action_canopy_mesh',
-    'canopy_from_aoi': 'terra.actions:action_canopy_from_aoi',
-    'list_datacube': 'terra.actions:action_list_datacube',
-    'solar_resource': 'terra.actions:action_solar_resource',
-    'solar_terrain': 'terra.actions:action_solar_terrain',
-    'solar_siting': 'terra.actions:action_solar_siting',
-    'energy_model': 'terra.actions:action_energy_model',
-    'wind_resource': 'terra.actions:action_wind_resource',
-    'flood_envelope': 'terra.actions:action_flood_envelope',
-    'water': 'terra.actions:action_water',
-    'render_composite': 'terra.actions:action_render_composite',
-    'predict': 'terra.actions:action_predict',
+    'ping': 'terra.cli:ping',
+    'predict': 'terra.landcover.actions:predict',
+    'lulc': 'terra.landcover.actions:lulc',
+    'domain_shift': 'terra.landcover.actions:domain_shift',
+    'domain_shift_cohort': 'terra.landcover.actions:domain_shift_cohort',
+    'water': 'terra.water.actions:water',
+    'flood_envelope': 'terra.flood.actions:flood_envelope',
+    'solar_resource': 'terra.energy.actions:solar_resource',
+    'solar_terrain': 'terra.energy.actions:solar_terrain',
+    'solar_siting': 'terra.energy.actions:solar_siting',
+    'energy_model': 'terra.energy.actions:energy_model',
+    'wind_resource': 'terra.energy.actions:wind_resource',
+    'canopy_field': 'terra.canopy.actions:canopy_field',
+    'canopy_mesh': 'terra.canopy.actions:canopy_mesh',
+    'canopy_from_aoi': 'terra.canopy.actions:canopy_from_aoi',
+    'list_datacube': 'terra.scenes.actions:list_datacube',
+    'render_composite': 'terra.scenes.actions:render_composite',
 }
 
 DEFAULT_ACTION = 'predict'

@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import rasterio
 
-from terra.landcover.palette import CLASSIFIER_COLORS as MAPBIOMAS_COLORS, hex_to_rgb
+from terra.mapbiomas import CLASSIFIER_COLORS as MAPBIOMAS_COLORS, hex_to_rgb
 
 
 def write_confidence_png(confidence_map, valid_mask, out_path):
