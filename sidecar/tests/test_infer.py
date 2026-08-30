@@ -12,6 +12,7 @@ import pytest
 
 from terra import actions, protocol, registry
 from terra.imagery import indices, sentinel2
+from terra.sun import cache as power_cache
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
 
@@ -178,7 +179,7 @@ def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
     b = (-53.5362, -25.5)
     assert sun_power.request_point(*a) != sun_power.request_point(*b)
     assert sun_power.meteorology_cell(*a) == sun_power.meteorology_cell(*b)
-    assert actions.power_cell_key(*a) == actions.power_cell_key(*b)
+    assert power_cache.power_cell_key(*a) == power_cache.power_cell_key(*b)
 
     # Both grids have to agree, because 0.625 does not divide 1.0: these two
     # points share one MERRA-2 longitude cell and straddle the boundary between
@@ -186,7 +187,7 @@ def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
     # would return one series under two different radiation cells.
     c, d = (-53.6, -25.5), (-53.45, -25.5)
     assert sun_power.meteorology_cell(*c) == sun_power.meteorology_cell(*d)
-    assert actions.power_cell_key(*c) != actions.power_cell_key(*d)
+    assert power_cache.power_cell_key(*c) != power_cache.power_cell_key(*d)
 
 
 def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
@@ -207,15 +208,15 @@ def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
 
     args = (tmp_path, "hourly", -53.5048, -25.7434, "20160101", "20251231",
             ["ALLSKY_SFC_SW_DWN"])
-    first, first_provenance = actions.cached_power_series(*args, fetch)
+    first, first_provenance = power_cache.cached_power_series(*args, fetch)
     assert calls == [1]
     assert first_provenance["source"] == "fetch"
     assert first_provenance["fetched_utc"].endswith("+00:00")
-    assert first_provenance["cell_key"] == actions.power_cell_key(
+    assert first_provenance["cell_key"] == power_cache.power_cell_key(
         -53.5048, -25.7434
     )
 
-    second, second_provenance = actions.cached_power_series(*args, fetch)
+    second, second_provenance = power_cache.cached_power_series(*args, fetch)
     assert calls == [1]
     assert second.equals(first)
     assert second_provenance["source"] == "cache"
@@ -227,7 +228,7 @@ def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
     # A stored file with no stamp reports an unknown fetch date, not a fresh one.
     for stamp in tmp_path.glob("*.parquet.json"):
         stamp.unlink()
-    _, third_provenance = actions.cached_power_series(*args, fetch)
+    _, third_provenance = power_cache.cached_power_series(*args, fetch)
     assert calls == [1]
     assert third_provenance["source"] == "cache"
     assert third_provenance["fetched_utc"] is None
@@ -249,7 +250,7 @@ def test_the_cached_power_series_is_reused_across_the_cell_not_the_centroid():
     with tempfile.TemporaryDirectory() as d:
         cache = Path(d)
         for lon, lat in ((-53.5048, -25.7434), (-53.5362, -25.5)):
-            actions.cached_power_series(
+            power_cache.cached_power_series(
                 cache, "hourly", lon, lat, "20160101", "20251231",
                 ["ALLSKY_SFC_SW_DWN"], fetch,
             )
