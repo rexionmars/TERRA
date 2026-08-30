@@ -1668,6 +1668,27 @@ export function BoardSurface({
   )
     // Last, so a dismissal outranks every reason an area would otherwise stay.
     .filter((a) => !dismissedAreas.includes(a.id))
+    /*
+      ORDERED BY WHEN THE GROUND WAS DRAWN, not by which one is live.
+
+      The list above is assembled live-area-first, then the catalog, then the
+      retained runs -- an order that says something true about how it is BUILT
+      and nothing a reader wants. Selecting another area made it the live one
+      and lifted it to the top, so every row below it moved: the tree
+      rearranged itself as an answer to a question nobody asked, and picking
+      between two areas meant re-finding both each time.
+
+      The catalog's own order is the stable one, because it is the order the
+      grounds were made in and nothing a selection can change. An area with no
+      catalogued ground -- a run loaded from the picker, an adopted geometry --
+      sorts after them, keeping the relative order it was assembled in.
+    */
+    .map((a, i) => {
+      const rank = savedAois.findIndex((s) => s.id === a.id)
+      return { a, key: rank === -1 ? savedAois.length + i : rank }
+    })
+    .sort((x, y) => x.key - y.key)
+    .map(({ a }) => a)
 
   /*
     Which rasters are planes on the board, keyed by area and scene id together.
