@@ -920,23 +920,74 @@ export function BoardSurface({
         it was saved is not part of that. An area whose run was never saved has
         no id to record and is left out rather than saved as a hole.
       */
+      /*
+        A MEMBER IS A RUN, AND AN AREA ID IS NOT ONE -- but it now names one.
+
+        Areas the map has moved on from are filed under the GROUND they were
+        over, so `a.id` is a catalogued area id for every one of them. The
+        filter below drops those, on the sound reasoning that an area id stored
+        as a member reopens as nothing. With retention keyed by the ground that
+        stopped meaning "a drawing with no run on it" and started meaning
+        "every area but the live one", so a board with two finished runs on it
+        refused to save at all: nothing survived the filter.
+
+        The run each ground carries is already known -- `aoiOfRun` matches runs
+        to areas by `aoi_id`, or by ring equality for rows written before that
+        column -- so it is inverted here rather than guessed at. A ground with
+        no run behind it still resolves to nothing and is still dropped, which
+        is the case the filter was written for.
+      */
+      const runOfGround = new Map<string, string>()
+      for (const [rid, aid] of aoiOfRun) {
+        if (!runOfGround.has(aid)) runOfGround.set(aid, rid)
+      }
       const members = areas
         .map((a) => ({
-          runId: a.id === live ? runId : a.id,
+          /*
+            THE LIVE AREA NEEDS THE SAME LOOKUP, and it was the one place not
+            getting it.
+
+            Its id here is `result.run_id || "current"`, and only a
+            classification fills that field: a solar, water or flood run leaves
+            it on the sentinel, which the filter below drops. So the commonest
+            board of all -- draw an area, run one product, save -- had exactly
+            one member and lost it.
+
+            The run exists; it is simply not on the result. It records its
+            `aoi_id`, so the ground answers for it the way it does for every
+            other area. The explicit id still wins when it is a real one, since
+            a classification names the run it is showing more precisely than
+            the ground can.
+          */
+          runId:
+            a.id === live
+              ? runId !== "current"
+                ? runId
+                : (runOfGround.get(live) ?? runId)
+              : (runOfGround.get(a.id) ?? a.id),
           layerIds: a.layers.map((l) => l.id),
         }))
-        // A member is a RUN. The live area answers with the run it is showing;
-        // a catalogued drawing with nothing on it answers with its own id,
-        // which is an area and not a run, and would be stored as a member that
-        // reopens as nothing.
         .filter(
           (m) => m.runId && m.runId !== "current" && !isSavedAoiId(m.runId)
         )
       if (!members.length) {
+        /*
+          THE OLD WORDING SENT A READER BACK TO WHAT HAD JUST FAILED.
+
+          It said "run something", and a reader who had just applied a
+          composition had. A composition is not a run and never becomes one:
+          `RenderComposite` on the Go side records no row, and says why -- it
+          is a rendering, reproducible from its request, where the other
+          products are measurements returned to and compared. It is saved as a
+          project overlay instead, which is why it survives without a board.
+
+          So the refusal now says what is true and what is safe: the board
+          records runs, this one has none, and nothing has been lost.
+        */
         notifyError(
-          "Nothing to save in this studio",
+          "Nothing for a board to record",
           new Error(
-            "a board is the runs arranged on it, and none of these areas is a saved run yet — run something, or add a run from the outliner, before saving"
+            "a board is the runs arranged on it, and none of these areas carries one yet. A composition is not a run -- it is saved with the project and comes back with it -- so run a classification, water, solar or flood analysis here, or add an existing run from the outliner, and the board will have something to arrange"
           )
         )
         return
