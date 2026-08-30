@@ -20,7 +20,7 @@ import json
 import numpy as np
 import pytest
 
-import flood
+from terra.flood import envelope as flood
 from terra.terrain import hand
 
 DX = DY = 30.0

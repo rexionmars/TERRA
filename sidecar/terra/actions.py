@@ -2908,7 +2908,7 @@ def action_flood_envelope(req, work_dir):
     # the terrain chain; at module scope every action would pay those imports,
     # and one missing dependency would fail the sidecar for every product
     # instead of for this one.
-    import flood as flood_mod
+    from terra.flood import envelope as flood_mod
     from terra.imagery import composite as comp
     from terra.terrain import dem as dem_mod
 
@@ -3234,8 +3234,8 @@ def action_flood_envelope(req, work_dir):
 
 # Surface water / flood mapping from spectral water indices (no model).
 def action_water(req, work_dir):
-    import water as water_mod
     from terra.imagery import composite as comp
+    from terra.water import indices as water_mod
 
     cog.configure()
     start = req.get('start')

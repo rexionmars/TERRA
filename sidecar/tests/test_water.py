@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import water
+from terra.water import indices as water
 
 
 def test_index_formulas_match_the_published_definitions():
