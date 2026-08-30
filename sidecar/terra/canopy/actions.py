@@ -253,100 +253,27 @@ def canopy_from_aoi(req, work_dir):
     density = 1.0 / (inter_row * inter_plant)
 
     try:
-        from terra import phenology as phen
-        from terra.canopy import lai_ndvi, lai_to_age
+        from terra.canopy import from_series, lai_to_age
     except ImportError as e:
         protocol.fail(f'the canopy bridge is unavailable: {e}')
 
-    # Ordinal days for the smoother, which is by DATE and not by position:
-    # a cloud-screened series is irregular, and a window counted in samples
-    # averages across whatever survived.
-    import datetime as _dt
     try:
-        ordinals = [
-            _dt.date.fromisoformat(d[:10]).toordinal() if d else None
-            for d in dates
-        ]
-    except ValueError as e:
-        protocol.fail(f'a date in the series is not ISO-8601: {e}')
-    if any(o is None for o in ordinals):
-        protocol.fail('every observation needs a date for the smoother to use')
-
-    protocol.emit_progress(20, 'inverting NDVI to leaf area index')
-    try:
-        inverted = lai_ndvi.invert_series(ndvi, days=ordinals)
-    except Exception as e:
-        protocol.fail(f'the NDVI inversion failed: {e}')
-
-    protocol.emit_progress(35, 'labelling phenological states')
-    state_ids = phen.assign_states_from_ndvi(np.asarray(ndvi, dtype=float))
-    state_slugs = {
-        phen.STATE_SOIL: 'soil', phen.STATE_GREENUP: 'greenup',
-        phen.STATE_MATURE: 'mature', phen.STATE_SENESCENCE: 'senescence',
-        phen.STATE_FALLOW: 'fallow',
-    }
-    states = [state_slugs.get(int(s), 'soil') for s in state_ids]
-
-    # THE INDEPENDENT AGE, COUNTED FROM ITS OWN CYCLE'S GREEN-UP.
-    #
-    # A year of Brazilian cropland holds more than one cycle -- a summer
-    # crop and a safrinha, or a crop followed by a cover -- and taking the
-    # first green-up of the whole series dates every later cycle from the
-    # start of the file. Measured on a real AOI: the July and August 2026
-    # observations were handed 344 days of age because the series begins
-    # green in August 2025, when their own cycle had started weeks earlier.
-    cycle_ids = phen.cycle_of(state_ids)
-    cycle_list = phen.cycles(state_ids)
-    greenup_by_cycle = {
-        k: ordinals[c['greenup']] for k, c in enumerate(cycle_list)
-    }
-
-    protocol.emit_progress(50, 'matching leaf area to an age')
-    try:
-        resolved = lai_to_age.resolve_series(
-            inverted['lai'], density, species_name,
-            states=states, dates=dates)
+        reading = from_series.read(
+            ndvi, dates, species_name, density, progress=protocol.emit_progress)
+    except from_series.UndatedObservation as e:
+        protocol.fail(str(e))
     except lai_to_age.LadderError as e:
         protocol.fail(str(e))
+    except Exception as e:
+        protocol.fail(f'the NDVI inversion failed: {e}')
+    import datetime as _dt
 
-    # THE LADDER IS A GROWTH CURVE AND A SEASON IS NOT.
-    #
-    # Helios plants only grow: leaf area rises with age and never falls, so
-    # the ladder has no age for a canopy that is shedding. Past the peak the
-    # inversion still answers -- a declining LAI matches a young plant -- but
-    # the answer means "a plant carrying this much leaf", not "a canopy of
-    # this age", and the two stop being the same thing.
-    #
-    # Left uncompared, that shows up as a disagreement growing to a hundred
-    # days by the end of the season, which reads as the competition defect
-    # and is not it. So the peak splits the series: before it the two ages
-    # are measuring the same thing and their difference is informative;
-    # after it the row says it is declining and offers no age comparison.
-    lai_values = list(inverted['lai'])
-    peak_index = int(np.nanargmax(lai_values)) if lai_values else 0
-    # A duração da estação, para normalizar o progresso do campo contra o
-    # do Helios. Do próprio NDVI, que é onde ela é observável.
-    season_days = float(phen.phenology_metrics(ndvi, dates).get('los_days') or 0.0)
-    for i, (row, o) in enumerate(zip(resolved, ordinals)):
-        k = int(cycle_ids[i])
-        start = greenup_by_cycle.get(k)
-        since = None if start is None else float(o - start)
-        row['cycle'] = k if k >= 0 else None
-        row['days_since_greenup'] = since
-        row['declining'] = i > peak_index
-        if row['declining']:
-            row['age_check'] = {
-                'comparable': False,
-                'why': ('a série já passou do pico e está perdendo folha; a '
-                        'escada só cresce, então a idade que ela devolve é a '
-                        'de uma planta com esta área foliar, não a deste '
-                        'dossel'),
-            }
-        else:
-            row['age_check'] = lai_to_age.disagreement(
-                row.get('day'), row.get('plateau_day'), since, season_days)
+    inverted = reading.inverted
+    states = reading.states
+    resolved = reading.resolved
+    cycle_list = reading.cycles
 
-    usable = [r for r in resolved if r.get('day') is not None]
+    usable = reading.usable
     payload = {
         'species': species_name,
         'density': density,
@@ -368,21 +295,13 @@ def canopy_from_aoi(req, work_dir):
             None if not suggestion else suggestion.get('confidence')),
         'lai': inverted,
         'states': states,
-        'phenology': phen.phenology_metrics(ndvi, dates),
+        'phenology': reading.phenology,
         'resolved': resolved,
         'n_usable': len(usable),
         # The cycles the season was split into. More than one means the
         # window covers more than one crop, and every age below is measured
         # from its own cycle rather than from the start of the record.
-        'cycles': [
-            {
-                'start': dates[c['start']],
-                'end': dates[c['end']],
-                'greenup': dates[c['greenup']],
-                'n': c['end'] - c['start'] + 1,
-            }
-            for c in cycle_list
-        ],
+        'cycles': cycle_list,
         'sun': {'source': 'reference'},
     }
 
@@ -398,7 +317,7 @@ def canopy_from_aoi(req, work_dir):
     # has its peak AT the plateau, where the ladder returns no age at all,
     # and the naive `max` then silently fell through to the first usable
     # row: LAI 0.10 lit instead of 3.75.
-    lit_row = max(usable, key=lambda r: r['lai'], default=None)
+    lit_row = reading.lit_row
 
     # The AOI's own sun, when there is a point to ask POWER about.
     lat, lon = req.get('lat'), req.get('lon')
