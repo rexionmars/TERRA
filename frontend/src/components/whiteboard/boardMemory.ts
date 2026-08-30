@@ -229,7 +229,19 @@ export interface BoardSnapshot {
   gap: number
   links: boolean
   labels: boolean
+  /**
+   * Where the run editor's cards were dragged to, by node id.
+   *
+   * Not renamed on the way in or out, unlike `places` and `planePlaces`. Those
+   * are keyed by an area or a scene, which are per-run and have to be rewritten
+   * to the run a board reopens as; these are keyed by what a card IS -- area,
+   * period, model -- and there is one run editor, not one per area.
+   */
+  nodePlaces: Record<string, { x: number; y: number }>
 }
+
+/** The key the run editor's card placements live under. */
+export const RUN_NODE_PLACES = "runNodePlaces"
 
 /**
  * @param areas Each area on the board, by the RUN it will be reopened as, with
@@ -342,6 +354,10 @@ export function snapshotBoard(
     gap: readBoardMemory("gap", 0.1),
     links: readBoardMemory("links", false),
     labels: readBoardMemory("labels", false),
+    nodePlaces: readBoardMemory<Record<string, { x: number; y: number }>>(
+      RUN_NODE_PLACES,
+      {}
+    ),
   }
 }
 
@@ -363,6 +379,7 @@ export function restoreBoard(snap: BoardSnapshot): void {
   writeBoardMemory("gap", snap.gap)
   writeBoardMemory("links", snap.links)
   writeBoardMemory("labels", snap.labels)
+  writeBoardMemory(RUN_NODE_PLACES, snap.nodePlaces)
   Object.assign(
     keptObject<Record<string, { x: number; z: number }>>("places", () => ({})),
     snap.places

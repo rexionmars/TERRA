@@ -1,0 +1,612 @@
+/**
+ * What to run on the board's area, drawn as the graph it is.
+ *
+ * This replaces the run BAND, which was a row of groups separated by rules,
+ * scrolling sideways, with the action pinned at its right end. That shape was
+ * right for the 4rem foot it was written for and wrong for the studio area it
+ * ended up in: `placement="area"` centred a low strip in a tall rectangle, so
+ * the height went to nothing and the rules were drawing separations that
+ * separate surfaces make better.
+ *
+ * WHAT IT MUST NOT DUPLICATE IS STILL PROTECTED ELSEWHERE. The models, the
+ * modes and the rule between them come from lib/classifyOptions.ts, the
+ * seasons from lib/solarOptions.ts, and every value is the map screen's own
+ * state passed straight through. Two renderings of one set of choices is a
+ * design decision; two copies of the choices would be a bug waiting for
+ * someone to add a model.
+ *
+ * The reasoning that belonged to the individual controls came with them: the
+ * calendar opens from a portal because a transformed ancestor would otherwise
+ * carry it, the monthly toggle is boxed rather than native because the theme
+ * does not own platform chrome, and the model stays a menu because "Random
+ * Forest" and "Temporal Transformer" are names rather than pictures.
+ */
+import {
+  ArrowDown,
+  Check,
+  Droplet,
+  Grid2x2,
+  Image as ImageIcon,
+  Loader2,
+  type LucideIcon,
+  Play,
+  Sun,
+  Trash2,
+  Upload,
+  PenTool,
+} from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { DateField } from "@/components/ui/DateField"
+import { NumberField } from "@/components/ui/NumberField"
+import { MODEL_OPTIONS, type ClassifyMode } from "@/lib/classifyOptions"
+import type { BoardToolId } from "@/lib/mapTools"
+import { methodBrief } from "@/lib/methodBrief"
+import type { RunLogEntry } from "@/lib/runLog"
+import { SOLAR_SEASONS } from "@/lib/solarOptions"
+import type { ModelKind, SolarSeason } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import {
+  markBoardDirty,
+  readBoardMemory,
+  RUN_NODE_PLACES,
+  writeBoardMemory,
+} from "./boardMemory"
+import { MethodPanel } from "./MethodPanel"
+import { NodeCanvas, type CanvasNode } from "./NodeCanvas"
+import { defaultPlaces, runGraph, type Place, type RunNodeId } from "./runGraph"
+
+/**
+ * One glyph per product, exported so the area header names them the same.
+ *
+ * The same glyphs the board's tree uses for the rasters each tool produces,
+ * because a tool and its output are one subject.
+ */
+export const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
+  classify: Grid2x2,
+  compose: ImageIcon,
+  water: Droplet,
+  solar: Sun,
+}
+
+/**
+ * One of a set of choices.
+ *
+ * Plain words rather than bordered cards: a border per option spends height on
+ * edges, and the chosen one takes the same raised plate the board's tree uses
+ * for its active row, so the two surfaces agree about what "chosen" looks like.
+ *
+ * The RING carries the chosen state, not the fill and not an underline. The
+ * fill is a hue mark only -- accent-dim measures 1.35 on ink -- so it cannot
+ * carry the state alone: the ring clears 3.88 against its own plate and 5.23
+ * against the ink outside. An accent hairline under the cell was tried and
+ * dropped, because that exact rule is the board tree's drop indicator. One
+ * idiom, one meaning.
+ */
+function Choice({
+  label,
+  chosen,
+  disabled,
+  onPick,
+}: {
+  label: string
+  chosen: boolean
+  disabled?: boolean
+  onPick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      disabled={disabled}
+      className={cn(
+        "inline-flex h-[1.375rem] shrink-0 items-center rounded-sm px-1.5 text-meta transition-colors",
+        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+        disabled
+          ? "cursor-not-allowed text-muted-foreground/40"
+          : chosen
+            ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
+            : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
+/** The header of a card: its glyph and its name, in the band's own vocabulary. */
+function Head({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <>
+      <Icon className="size-3 shrink-0 text-muted-foreground" strokeWidth={2} />
+      <span className="eyebrow !text-[9px] truncate">{label}</span>
+    </>
+  )
+}
+
+/** A small square action, the shape the area card's three verbs take. */
+function IconAction({
+  icon: Icon,
+  title,
+  disabled,
+  onClick,
+}: {
+  icon: LucideIcon
+  title: string
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-surface-raised/60 hover:text-foreground disabled:opacity-40"
+    >
+      <Icon className="size-3" />
+    </button>
+  )
+}
+
+export interface BoardRunGraphProps {
+  tool: BoardToolId | null
+
+  /**
+   * Everything the solar tool needs, or absent where it cannot be run.
+   *
+   * One object rather than nine loose props, because they arrive and leave
+   * together: a graph with no way to start a solar run must not offer solar
+   * cards, and absence is how it says so.
+   */
+  solar?: {
+    product: "terrain" | "siting"
+    onProductChange: (p: "terrain" | "siting") => void
+    hourlyYears: number
+    onHourlyYearsChange: (v: number) => void
+    season: SolarSeason
+    onSeasonChange: (s: SolarSeason) => void
+    slopeAcceptableDeg: number
+    slopeRestrictiveDeg: number
+    onSlopeChange: (acceptable: number, restrictive: number) => void
+  }
+
+  hasArea: boolean
+  activeExample: string
+  /** Display name of the active custom AOI (drawn / drawn 2 / renamed). */
+  areaLabel?: string
+  onImportPolygon: () => void
+  /** Opens a map to draw one on; absent where the caller offers no such map. */
+  onDrawArea?: () => void
+  onClearArea: () => void
+
+  start: string
+  end: string
+  onStartChange: (v: string) => void
+  onEndChange: (v: string) => void
+  maxCloud: number
+  onMaxCloudChange: (v: number) => void
+  monthlyBest: boolean
+  onMonthlyBestChange: (v: boolean) => void
+
+  modelKind: ModelKind
+  onModelKindChange: (m: ModelKind) => void
+  mode: ClassifyMode
+  onModeChange: (m: ClassifyMode) => void
+
+  /** The chosen tool's own run, already resolved by the map screen. */
+  runLabel: string
+  running: boolean
+  progress: number
+  progressMsg: string
+  canRun: boolean
+  blockedBy?: string
+  onRun: () => void
+  /** Land cover, which is a second action of the classification tool alone. */
+  onAnalyzeLULC?: () => void
+  lulcRunning?: boolean
+
+  /**
+   * What the run has said, for the method panel's second half.
+   *
+   * Passed in rather than accumulated here because the same log is drawn in
+   * the stats column, and two accumulations of one stream would be two
+   * accounts of one run.
+   */
+  runLog?: RunLogEntry[]
+  /** The studio surface the method panel is portalled into and clamped inside. */
+  surface?: HTMLElement | null
+}
+
+/**
+ * Where the cards have been dragged to, kept across a close and into a save.
+ *
+ * The same treatment areas and planes already get -- see `places` and
+ * `planePlaces` in boardMemory -- because it is the same kind of value: an
+ * arrangement someone made by hand, which is lost work if it is thrown away
+ * with the board.
+ *
+ * The VIEW is deliberately not kept. Where the field is panned to is a reading
+ * position, like a scroll offset, and the canvas fits itself to the graph
+ * whenever the set of cards changes -- so a reopened board shows the whole
+ * graph rather than wherever it was last looked at.
+ */
+function useKeptPlaces() {
+  const [places, setPlaces] = useState<Record<string, Place>>(() =>
+    readBoardMemory<Record<string, Place>>(RUN_NODE_PLACES, {})
+  )
+  useEffect(() => {
+    writeBoardMemory(RUN_NODE_PLACES, places)
+  }, [places])
+
+  const move = useCallback((id: string, at: Place) => {
+    setPlaces((prev) => ({ ...prev, [id]: at }))
+    markBoardDirty()
+  }, [])
+
+  return [places, move] as const
+}
+
+export function BoardRunGraph(props: BoardRunGraphProps) {
+  const busy = props.running
+  const [places, move] = useKeptPlaces()
+
+  const graph = runGraph(props.tool, props.solar ? props.solar.product : null)
+
+  /*
+    What the chosen tool will actually do, resolved from the SAME props the
+    cards are bound to. Derived rather than held: a brief kept in state would
+    be one more thing that can disagree with the graph it describes.
+  */
+  const brief =
+    props.tool &&
+    methodBrief({
+      tool: props.tool,
+      modelKind: props.modelKind,
+      start: props.start,
+      end: props.end,
+      maxCloud: props.maxCloud,
+      monthlyBest: props.monthlyBest,
+      solar: props.solar && {
+        product: props.solar.product,
+        hourlyYears: props.solar.hourlyYears,
+        // The label rather than the id, since the panel is read and the id is
+        // stored. SOLAR_SEASONS is the one place that pairing lives.
+        season:
+          SOLAR_SEASONS.find((o) => o.id === props.solar?.season)?.label ??
+          props.solar.season,
+        slopeAcceptableDeg: props.solar.slopeAcceptableDeg,
+        slopeRestrictiveDeg: props.solar.slopeRestrictiveDeg,
+      },
+    })
+
+  if (!graph) {
+    return (
+      <div className="flex h-full w-full items-center justify-center px-4">
+        <p className="text-body text-muted-foreground">
+          Pick a product above to set up a run.
+        </p>
+      </div>
+    )
+  }
+
+  const body: Record<RunNodeId, React.ReactNode> = {
+    area: (
+      <>
+        {/*
+          Loud when there is an area and quiet when there is not. It is a
+          readout rather than a field, so it takes no box -- but it is part of
+          what Run will do, so demoting it wholesale would hide the answer.
+          What is quiet is the ABSENCE.
+        */}
+        <span
+          className={cn(
+            "telemetry truncate text-meta",
+            props.hasArea ? "text-foreground" : "text-muted-foreground"
+          )}
+        >
+          {props.hasArea
+            ? props.activeExample || props.areaLabel || "drawn"
+            : "none"}
+        </span>
+        <div className="flex items-center gap-0.5">
+          {/*
+            First of the three, because it is the one that MAKES an area: the
+            other two act on one that exists.
+          */}
+          {props.onDrawArea && (
+            <IconAction
+              icon={PenTool}
+              title="Draw an area on a map"
+              disabled={busy}
+              onClick={props.onDrawArea}
+            />
+          )}
+          <IconAction
+            icon={Upload}
+            title="Import a polygon"
+            disabled={busy}
+            onClick={props.onImportPolygon}
+          />
+          <IconAction
+            icon={Trash2}
+            title="Clear the area"
+            disabled={busy || !props.hasArea}
+            onClick={props.onClearArea}
+          />
+        </div>
+      </>
+    ),
+
+    period: (
+      <>
+        {/*
+          Stacked with the arrow between them rather than side by side. Two ISO
+          dates and an arrow need about 250px on one line and the card is 208;
+          down the card each date has the width to be read without truncating,
+          which is the whole reason to hold it in a card at all.
+        */}
+        <DateField value={props.start} disabled={busy} onChange={props.onStartChange} />
+        <ArrowDown
+          className="size-3 self-center text-muted-foreground"
+          strokeWidth={1.75}
+        />
+        <DateField value={props.end} disabled={busy} onChange={props.onEndChange} />
+        <NumberField
+          label="Cloud"
+          value={props.maxCloud}
+          min={0}
+          max={100}
+          step={5}
+          format={(v) => `${Math.round(v)}%`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("%", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          disabled={busy}
+          onChange={(v) => props.onMaxCloudChange(Math.round(v))}
+        />
+        {/*
+          A boxed toggle rather than a native checkbox, which was the one
+          control here drawing platform chrome -- at a size and colour the
+          theme does not own. It joins the vocabulary instead: the same 22px
+          height and the same boundary as the fields above it, lit with the
+          accent when it is on, like a chosen cell.
+        */}
+        <button
+          type="button"
+          onClick={() => props.onMonthlyBestChange(!props.monthlyBest)}
+          disabled={busy}
+          aria-pressed={props.monthlyBest}
+          title="Keep only the best scene of each month"
+          className={cn(
+            "flex h-[1.375rem] items-center gap-1 rounded-sm px-2 text-meta transition-colors inset-ring-1",
+            "focus-visible:outline-none focus-visible:inset-ring-ring",
+            busy
+              ? "cursor-not-allowed inset-ring-line text-muted-foreground/40"
+              : props.monthlyBest
+                ? "bg-accent-dim text-accent-quiet inset-ring-accent"
+                : "text-muted-foreground inset-ring-line-strong hover:text-foreground"
+          )}
+        >
+          <Check
+            className={cn("size-3 shrink-0", props.monthlyBest ? "" : "opacity-0")}
+            strokeWidth={2.25}
+          />
+          best/month
+        </button>
+      </>
+    ),
+
+    model: (
+      /*
+        A menu, not three buttons. The guidelines expand an enum into buttons
+        where its members can be glyphed and leave it a dropdown where they
+        cannot -- and "Random Forest", "Temporal Transformer" and "Prithvi-EO
+        2.0" are names, not pictures.
+      */
+      <select
+        value={props.modelKind}
+        disabled={busy}
+        onChange={(e) => props.onModelKindChange(e.target.value as ModelKind)}
+        title={MODEL_OPTIONS.find((m) => m.id === props.modelKind)?.detail}
+        className="field-input h-[1.375rem] w-full px-1 text-meta"
+      >
+        {MODEL_OPTIONS.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+    ),
+
+    product: (
+      <div className="flex flex-wrap gap-1">
+        <Choice
+          label="Irradiation"
+          chosen={props.solar?.product === "terrain"}
+          disabled={busy}
+          onPick={() => props.solar?.onProductChange("terrain")}
+        />
+        <Choice
+          label="Siting"
+          chosen={props.solar?.product === "siting"}
+          disabled={busy}
+          onPick={() => props.solar?.onProductChange("siting")}
+        />
+      </div>
+    ),
+
+    record: props.solar ? (
+      <NumberField
+        label="Hourly"
+        value={props.solar.hourlyYears}
+        min={3}
+        max={20}
+        step={1}
+        disabled={busy}
+        format={(v) => `${Math.round(v)} yr`}
+        parse={(t) => {
+          const v = parseFloat(t.replace("yr", "").trim())
+          return Number.isFinite(v) ? v : null
+        }}
+        onChange={(v) => props.solar?.onHourlyYearsChange(Math.round(v))}
+      />
+    ) : null,
+
+    season: (
+      /*
+        Choices rather than a select. Six short labels wrap into a card at this
+        width, and each one is then a target rather than a row inside a menu
+        that has to be opened to see what the options are.
+      */
+      <div className="flex flex-wrap gap-1">
+        {SOLAR_SEASONS.map((o) => (
+          <Choice
+            key={o.id}
+            label={o.label}
+            chosen={props.solar?.season === o.id}
+            disabled={busy}
+            onPick={() => props.solar?.onSeasonChange(o.id)}
+          />
+        ))}
+      </div>
+    ),
+
+    slope: props.solar ? (
+      <>
+        <NumberField
+          label="Acceptable"
+          value={props.solar.slopeAcceptableDeg}
+          min={1}
+          max={45}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)}°`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("°", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.solar?.onSlopeChange(
+              Math.round(v),
+              props.solar.slopeRestrictiveDeg
+            )
+          }
+        />
+        <NumberField
+          label="Restrictive"
+          value={props.solar.slopeRestrictiveDeg}
+          min={1}
+          max={45}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)}°`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("°", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.solar?.onSlopeChange(
+              props.solar.slopeAcceptableDeg,
+              Math.round(v)
+            )
+          }
+        />
+      </>
+    ) : null,
+
+    run: (
+      <>
+        <button
+          type="button"
+          onClick={props.onRun}
+          disabled={!props.canRun || busy}
+          /*
+            The progress message is the button's tooltip rather than a second
+            line: it changes several times a second, and a line that reflows on
+            every change costs more attention than it returns.
+          */
+          title={
+            !props.canRun ? props.blockedBy : busy ? props.progressMsg : undefined
+          }
+          className={cn(
+            "flex w-full items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-meta transition-colors",
+            "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+            !props.canRun || busy
+              ? "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
+              : "bg-accent text-accent-foreground hover:opacity-90"
+          )}
+        >
+          {busy ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Play className="size-3.5" />
+          )}
+          {props.runLabel}
+        </button>
+
+        {/*
+          The progress track, drawn only while running: one at rest would
+          assert that a run exists.
+        */}
+        {busy && (
+          <div className="h-px w-full overflow-hidden bg-line-strong/30">
+            <div
+              className="h-full bg-accent transition-[width]"
+              style={{ width: `${Math.round(props.progress * 100)}%` }}
+              role="progressbar"
+              aria-valuenow={Math.round(props.progress * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${props.runLabel} progress`}
+            />
+          </div>
+        )}
+
+        <div className="flex items-center gap-1">
+          {/*
+            Not disabled while running -- that is when the trace inside it is
+            being written, and shutting the door on the log at the moment it
+            fills would be the opposite of the point.
+          */}
+          {brief && (
+            <MethodPanel
+              brief={brief}
+              runLog={props.runLog ?? []}
+              running={busy}
+              surface={props.surface}
+            />
+          )}
+          {props.tool === "classify" && props.onAnalyzeLULC && (
+            <button
+              type="button"
+              onClick={props.onAnalyzeLULC}
+              disabled={busy || !props.hasArea || props.lulcRunning}
+              className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm bg-surface-raised/40 px-2 py-1 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:opacity-40"
+            >
+              {props.lulcRunning && <Loader2 className="size-3 animate-spin" />}
+              Land cover
+            </button>
+          )}
+        </div>
+      </>
+    ),
+  }
+
+  const fallback = defaultPlaces(graph)
+  const nodes: CanvasNode[] = graph.nodes.map((spec) => ({
+    id: spec.id,
+    place: places[spec.id] ?? fallback[spec.id],
+    h: spec.h,
+    accent: spec.id === "run",
+    header:
+      spec.id === "run" && props.tool ? (
+        <Head icon={TOOL_ICON[props.tool]} label={props.runLabel} />
+      ) : (
+        <Head icon={spec.icon} label={spec.label} />
+      ),
+    children: body[spec.id],
+  }))
+
+  return <NodeCanvas nodes={nodes} edges={graph.edges} onMove={move} />
+}

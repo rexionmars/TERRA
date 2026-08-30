@@ -1,7 +1,7 @@
 /**
  * What to grow and what to read, along the foot of the simulation workspace.
  *
- * The canopy's half of what `BoardRunBar` is for the classification products:
+ * The canopy's half of what the run editor is for the classification products:
  * one band, set once, that every panel in the workspace answers from. The run
  * band holds an area, a period and a model and the viewport, the outliner, the
  * properties column and the tables show what came of it; this holds a species,

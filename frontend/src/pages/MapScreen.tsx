@@ -3,8 +3,8 @@ import {
   Droplet,
   Grid2x2,
   Image as ImageIcon,
-  Map as MapGlyph,
   type LucideIcon,
+  Map as MapGlyph,
 } from "lucide-react"
 import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
@@ -50,11 +50,11 @@ import {
 } from "@/lib/mapTools"
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
-import { BoardRunBar, TOOL_ICON } from "@/components/whiteboard/BoardRunBar"
-import { StudioLoading } from "@/components/whiteboard/StudioLoading"
+import { BoardRunGraph, TOOL_ICON } from "@/components/whiteboard/BoardRunGraph"
 import { StudioHeaderRadio } from "@/components/whiteboard/StudioHeaderControls"
-import { BOARD_TOOLS } from "@/lib/mapTools"
+import { StudioLoading } from "@/components/whiteboard/StudioLoading"
 import { MODE_OPTIONS } from "@/lib/classifyOptions"
+import { BOARD_TOOLS } from "@/lib/mapTools"
 import {
   BOARD_DETAIL_REM,
   BOARD_LEFT_REM,
@@ -955,14 +955,15 @@ export function MapScreen(props: MapScreenProps) {
     and progress are the map screen's.
   */
   const runBarNode = (
-    <BoardRunBar
+    <BoardRunGraph
+      /*
+        The tool is READ here and changed in the header above, which is the
+        only place it was ever changed from. The band declared an
+        `onToolChange` and never called it: its tab strip had already moved to
+        `runBarHeader`, where the handler also syncs `leftPanel` for the map's
+        dock. A prop nothing calls is a second way in that does not exist.
+      */
       tool={bandTool}
-      onToolChange={(id) => {
-        setBoardTool(id)
-        // The map's dock and navigation read leftPanel, and solar is not
-        // one of their ids -- see BoardToolId in lib/mapTools.
-        if (isMapTool(id)) setLeftPanel(id)
-      }}
       solar={
         props.solarParams && props.onRunSolar
           ? {
@@ -1004,7 +1005,7 @@ export function MapScreen(props: MapScreenProps) {
       onModeChange={props.onModeChange}
       /*
         The chosen tool's own run, resolved once above for both the island
-        and this band. Two resolutions of "can this go" would be two
+        and this graph. Two resolutions of "can this go" would be two
         answers.
       */
       runLabel={boardRun.label}
@@ -1026,11 +1027,10 @@ export function MapScreen(props: MapScreenProps) {
       lulcRunning={props.lulcRunning}
       /*
         The same log the stats column draws, from the same resolved run. The
-        band's method panel reads it after the run as well as during, which is
-        when most of its questions are asked.
+        run card's method panel reads it after the run as well as during, which
+        is when most of its questions are asked.
       */
       runLog={runLog}
-      placement="area"
     />
   )
 

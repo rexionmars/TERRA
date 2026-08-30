@@ -68,8 +68,8 @@ import { BOARD_LEFT_REM } from "@/lib/boardPartition"
 
   A `tasks` mode held the run controls until the foot took them: one product's
   parameters already filled this column, and with solar and wind still to come
-  it would have become a scroll with no end. The band along the foot is wider
-  and was carrying a period timeline the board cannot read -- see BoardRunBar.
+  it would have become a scroll with no end. They have since moved on again,
+  from the foot into an area of their own -- see BoardRunGraph.
 */
 export type OutlinerMode = "scene" | "data" | "areas"
 

@@ -143,5 +143,6 @@ export function parseSnapshot(text: string | undefined): BoardSnapshot | null {
     gap: typeof raw.gap === "number" ? raw.gap : 0.1,
     links: raw.links === true,
     labels: raw.labels === true,
+    nodePlaces: raw.nodePlaces ?? {},
   }
 }

@@ -25,12 +25,12 @@ import {
   GitCompareArrows,
   ListTree,
   Ruler,
-  PanelBottom,
   SlidersHorizontal,
   Sprout,
   Table2,
   TreePine,
   Waves,
+  Workflow,
 } from "lucide-react"
 
 export type EditorId =
@@ -220,17 +220,25 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "runParams",
     label: "Run",
-    icon: PanelBottom,
     /*
-      28rem, down from 36. The tool tabs and the mode moved to this editor's
-      own header and the three model labels became one menu, so the body now
-      carries area, period and model rather than nine controls across. It
-      still scrolls sideways below that, which is what a run's parameters
-      should do rather than reflow into a shape a reader has to re-learn.
+      A graph rather than PanelBottom, which named the foot this editor used to
+      be a band along. It is a field of cards now and the glyph should say so
+      before the area is opened, not after.
     */
-    minRem: 28,
-    minRowRem: 3,
-    hint: "Area, period and model for the next run",
+    icon: Workflow,
+    /*
+      24rem across and 14 down, where it was 28 and 3.
+
+      The 3 was a band's floor: a strip of controls needs its own height and
+      nothing more. A field needs room for a graph to be a graph -- two columns
+      of cards is about 500px wide and the tallest column about 300 -- and
+      below roughly this the canvas is fitting the cards down to where their
+      own type stops being readable. Narrower than 24 it can still be panned,
+      which is why the width floor moved DOWN while the height floor moved up.
+    */
+    minRem: 24,
+    minRowRem: 14,
+    hint: "The area, period and model the next run is made of",
   },
   {
     id: "canopy",

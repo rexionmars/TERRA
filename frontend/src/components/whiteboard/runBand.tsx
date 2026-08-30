@@ -2,15 +2,17 @@
  * The shape a workflow's parameters take along the foot, named once.
  *
  * A workflow band is a row of small labelled groups with the action pinned at
- * its right end. `BoardRunBar` established it for the classification products
- * and the canopy band follows it, so a reader who has set an area, a period and
- * a model reads the second band as the same instrument with different values in
- * it -- rather than as a second design for the same job.
+ * its right end. The classification run bar established it and the canopy band
+ * followed, so a reader who had set an area, a period and a model read the
+ * second band as the same instrument with different values in it.
  *
- * Here rather than exported from BoardRunBar because both are callers now, and
- * a layout idiom that lives in one of its two users is a copy waiting to
- * happen. The reasoning inside each piece is the reasoning that was written
- * when the run band was measured; it is not restated per band.
+ * ONE CALLER NOW. The run bar this was extracted from has been replaced by
+ * `BoardRunGraph`, which draws the same choices as cards on a field rather
+ * than as groups along a strip -- the band shape was written for the 4rem foot
+ * and the run editor is an area. `CanopyRunBar` still stands in a band and
+ * still wants the idiom, so it stays here rather than folding back into its
+ * one user: the next workflow to take a foot should look like the last one,
+ * and that is easier to honour from a module than from another band's file.
  */
 import type { LucideIcon } from "lucide-react"
 
