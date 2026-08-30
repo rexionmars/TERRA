@@ -167,17 +167,17 @@ def test_request_positive_admits_zero_only_where_zero_is_a_value():
 
 def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
     """
-    The key used sun_power.grid_key, which rounds to 0.01 degrees, about 1 km. Two
+    The key used sun_power.request_point, which rounds to 0.01 degrees, about 1 km. Two
     AOIs inside one POWER cell then missed each other and each paid the roughly
     23 s hourly fetch, so the reuse the cache states it guarantees did not hold.
     """
     from terra.sun import nasa_power as sun_power
-    import wind
+    from terra.energy import wind  # noqa: F401
 
     a = (-53.5048, -25.7434)
     b = (-53.5362, -25.5)
-    assert sun_power.grid_key(*a) != sun_power.grid_key(*b)
-    assert wind.grid_key(*a) == wind.grid_key(*b)
+    assert sun_power.request_point(*a) != sun_power.request_point(*b)
+    assert sun_power.meteorology_cell(*a) == sun_power.meteorology_cell(*b)
     assert actions.power_cell_key(*a) == actions.power_cell_key(*b)
 
     # Both grids have to agree, because 0.625 does not divide 1.0: these two
@@ -185,7 +185,7 @@ def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
     # two 1 degree radiation cells, so keying on the meteorology grid alone
     # would return one series under two different radiation cells.
     c, d = (-53.6, -25.5), (-53.45, -25.5)
-    assert wind.grid_key(*c) == wind.grid_key(*d)
+    assert sun_power.meteorology_cell(*c) == sun_power.meteorology_cell(*d)
     assert actions.power_cell_key(*c) != actions.power_cell_key(*d)
 
 

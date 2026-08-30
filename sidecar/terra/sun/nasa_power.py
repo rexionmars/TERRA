@@ -80,9 +80,45 @@ GRID_NOTE = (
 )
 
 
-def grid_key(lon: float, lat: float) -> tuple[float, float]:
-    """Coordinate rounded to the cell a POWER request resolves to."""
+def request_point(lon: float, lat: float) -> tuple[float, float]:
+    """
+    The coordinate as a request carries it, rounded to GRID_DECIMALS.
+
+    NOT the cell the request resolves to, which is what this was called and
+    what its name said. 0.01 degrees is about 1 km and finer than either grid
+    POWER serves, so two points this separates can return the same series --
+    keying the on-disk cache on it produced a miss for two AOIs inside one
+    cell, and each paid the fetch the cache exists to avoid. terra/actions.py
+    power_cell_key is where the cell is decided; this only normalises the
+    coordinate so one AOI does not request under two spellings of its centroid.
+    """
     return (round(float(lon), GRID_DECIMALS), round(float(lat), GRID_DECIMALS))
+
+
+# MERRA-2 cell size. Finer than the 1 degree radiation grid this module's
+# radiation product resolves, so two nearby AOIs can legitimately return
+# different meteorology, and a cell-to-cell difference is still a difference
+# between reanalysis cells, not between sites.
+MERRA2_LON_STEP = 0.625
+MERRA2_LAT_STEP = 0.5
+
+
+def meteorology_cell(lon: float, lat: float) -> tuple[float, float]:
+    """
+    Centre of the MERRA-2 cell a POWER request resolves to.
+
+    Requests inside one cell return identical wind, temperature, pressure and
+    elevation, so this is both the cache key and the statement a response has
+    to carry about what the numbers describe.
+
+    It lives beside the radiation reader rather than beside the turbine because
+    the cache key is the intersection of BOTH grids -- 0.625 does not divide
+    1.0 -- and four of the five actions that key on it have no wind in them.
+    """
+    return (
+        round(round(float(lon) / MERRA2_LON_STEP) * MERRA2_LON_STEP, 6),
+        round(round(float(lat) / MERRA2_LAT_STEP) * MERRA2_LAT_STEP, 6),
+    )
 
 
 def request(url: str, retries: int = 3, timeout: int = 300) -> dict:

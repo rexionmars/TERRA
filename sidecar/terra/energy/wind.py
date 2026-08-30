@@ -57,12 +57,6 @@ DIAGNOSTIC_PARAMS = ["WS2M"]
 
 HOURLY_PARAMS = RESOURCE_PARAMS + DIAGNOSTIC_PARAMS
 
-# MERRA-2 cell size. Finer than the 1 degree radiation grid solar.py resolves,
-# so two nearby AOIs can legitimately return different wind, and a cell-to-cell
-# difference is still a difference between reanalysis cells, not between sites.
-MERRA2_LON_STEP = 0.625
-MERRA2_LAT_STEP = 0.5
-
 GRID_NOTE = (
     "Wind comes from a 0.5 by 0.625 degree MERRA-2 cell, so the whole AOI "
     "falls in one cell and no structure within it is resolved. Two AOIs in "
@@ -293,18 +287,6 @@ DIRECTION_CONVENTION_NOTE = (
 )
 
 
-def grid_key(lon: float, lat: float) -> tuple[float, float]:
-    """
-    Centre of the MERRA-2 cell a POWER request resolves to.
-
-    Requests inside one cell return identical wind, temperature, pressure and
-    elevation, so this is both the cache key and the statement a response has
-    to carry about what the numbers describe.
-    """
-    return (
-        round(round(float(lon) / MERRA2_LON_STEP) * MERRA2_LON_STEP, 6),
-        round(round(float(lat) / MERRA2_LAT_STEP) * MERRA2_LAT_STEP, 6),
-    )
 
 
 def build_url(lon: float, lat: float, start: str, end: str,
@@ -1056,7 +1038,7 @@ def assess(df: pd.DataFrame, lon: float, lat: float,
                            record_max_floor_ms, roughness_band_m)
 
     return {
-        "grid_cell_centre": list(grid_key(lon, lat)),
+        "grid_cell_centre": list(sun_power.meteorology_cell(lon, lat)),
         "grid_note": GRID_NOTE,
         "record_years": _round(n_years, 3),
         "qualifier": RESULT_QUALIFIER,

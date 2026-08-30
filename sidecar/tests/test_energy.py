@@ -1207,16 +1207,16 @@ REFERENCE_DAILY = REFERENCE_DIR / "power_daily_B_1996_2025.parquet"
 REFERENCE_LAT, REFERENCE_LON = -25.74386918888456, -53.5050376824829
 
 # The cell the shipped actions resolve that centroid to. Both solar_resource
-# and energy_model call sun_power.grid_key on the polygon centroid and hand the
+# and energy_model call sun_power.request_point on the polygon centroid and hand the
 # ROUNDED pair to sun_position.prepare_hourly, so the solar position, and with it the
 # transposition, is evaluated at the cell rather than at the centroid. Evaluated
 # at the centroid this fixture reports 1884.6204 against the 1884.6070 the
 # shipped chain returns on the identical hourly series: the global horizontal
 # sum is a column total and matches to the last digit under both, so the whole
-# difference is the solar position. Routing the fixture through sun_power.grid_key
+# difference is the solar position. Routing the fixture through sun_power.request_point
 # is what stops the pinned figures and the shipped ones from being two
 # different quantities under one label.
-REFERENCE_CELL_LON, REFERENCE_CELL_LAT = sun_power.grid_key(
+REFERENCE_CELL_LON, REFERENCE_CELL_LAT = sun_power.request_point(
     REFERENCE_LON, REFERENCE_LAT
 )
 
@@ -1254,7 +1254,7 @@ def _reference_site() -> dict:
 def test_the_reference_chain_is_evaluated_where_the_shipped_actions_evaluate_it():
     """
     solar_resource and energy_model both hand sun_position.prepare_hourly the cell
-    sun_power.grid_key returns, not the polygon centroid. Evaluated at the centroid
+    sun_power.request_point returns, not the polygon centroid. Evaluated at the centroid
     this fixture pins 1884.6204, which no shipped action produces; the cell the
     stored Propriedade B run resolved to gives 1884.6070, and that is the figure
     the run recorded.
@@ -1264,7 +1264,7 @@ def test_the_reference_chain_is_evaluated_where_the_shipped_actions_evaluate_it(
     disagreement looked like a transposition defect and was not one.
     """
     site = _reference_site()
-    assert (REFERENCE_CELL_LON, REFERENCE_CELL_LAT) == sun_power.grid_key(
+    assert (REFERENCE_CELL_LON, REFERENCE_CELL_LAT) == sun_power.request_point(
         REFERENCE_LON, REFERENCE_LAT
     )
     hourly = pd.read_parquet(REFERENCE_HOURLY)

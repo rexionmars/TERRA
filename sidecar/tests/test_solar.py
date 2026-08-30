@@ -49,8 +49,8 @@ def test_grid_key_rounds_to_the_cell():
     The radiation grid is 1 degree, so nearby AOIs must resolve to the same
     request and reuse the same series.
     """
-    a = sun_power.grid_key(-53.53612, -25.09721)
-    b = sun_power.grid_key(-53.53588, -25.09744)
+    a = sun_power.request_point(-53.53612, -25.09721)
+    b = sun_power.request_point(-53.53588, -25.09744)
     assert a == b
 
 

@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-import wind
+from terra.sun import nasa_power as sun_power
+from terra.energy import wind
 
 
 HOURLY_COLUMNS = ("WS2M", "WS10M", "WS50M", "WD10M", "WD50M", "T2M", "PS")
@@ -101,15 +102,15 @@ def test_grid_key_rounds_to_the_merra2_cell():
     resolve to the same request, or the response would report a difference
     between sites where there is only one series.
     """
-    a = wind.grid_key(-53.54, -25.10)
-    b = wind.grid_key(-53.5244, -25.1263)
-    c = wind.grid_key(-53.60, -25.05)
+    a = sun_power.meteorology_cell(-53.54, -25.10)
+    b = sun_power.meteorology_cell(-53.5244, -25.1263)
+    c = sun_power.meteorology_cell(-53.60, -25.05)
     assert a == b == c == (-53.75, -25.0)
 
 
 def test_grid_key_separates_cells_that_are_genuinely_different():
-    assert wind.grid_key(-53.20, -25.10) == (-53.125, -25.0)
-    assert wind.grid_key(-53.5048, -25.7434) == (-53.75, -25.5)
+    assert sun_power.meteorology_cell(-53.20, -25.10) == (-53.125, -25.0)
+    assert sun_power.meteorology_cell(-53.5048, -25.7434) == (-53.75, -25.5)
 
 
 def test_record_period_spans_whole_calendar_years():

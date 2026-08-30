@@ -899,19 +899,19 @@ def power_cell_key(lon, lat):
 
     A POWER response is determined by the cell the point falls in on BOTH grids
     it serves: radiation on 1 degree (sun_power.GRID_NOTE) and meteorology on the
-    MERRA-2 0.5 by 0.625 degree grid (wind.grid_key). Keying on either grid
+    MERRA-2 0.5 by 0.625 degree grid (sun_power.meteorology_cell). Keying on
     alone does not hold, because 0.625 does not divide 1.0, so two points inside
     one MERRA-2 longitude cell can straddle a radiation cell boundary. The key
     is the pair, which is the conservative intersection.
 
-    sun_power.grid_key rounds to 0.01 degrees, which is about 1 km and far finer
+    sun_power.request_point rounds to 0.01 degrees, about 1 km and far finer
     than either grid. Keying the cache on that produced a miss for two AOIs
     that resolve to identical series and each paid the fetch, so the reuse the
     cache states it guarantees did not hold.
     """
-    import wind as wind_mod
+    from terra.sun import nasa_power as sun_power
 
-    met_lon, met_lat = wind_mod.grid_key(lon, lat)
+    met_lon, met_lat = sun_power.meteorology_cell(lon, lat)
     rad_lon = round(round(float(lon) / POWER_RADIATION_STEP_DEG)
                     * POWER_RADIATION_STEP_DEG, 6)
     rad_lat = round(round(float(lat) / POWER_RADIATION_STEP_DEG)
@@ -1582,7 +1582,7 @@ def action_canopy_from_aoi(req, work_dir):
                 nasa_power as sun_power,
                 record as sun_record,
             )
-            cell_lon, cell_lat = sun_power.grid_key(float(lon), float(lat))
+            cell_lon, cell_lat = sun_power.request_point(float(lon), float(lat))
             last_year = _dt.date.today().year - 1
             years = int(req.get('hourly_years', 3))
             start = f'{last_year - years + 1}0101'
@@ -1827,7 +1827,7 @@ def action_solar_resource(req, work_dir):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
-    lon, lat = sun_power.grid_key(centroid.x, centroid.y)
+    lon, lat = sun_power.request_point(centroid.x, centroid.y)
 
     clim_years = protocol.request_positive(req, 'climatology_years', 30, int)
     hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
@@ -1990,7 +1990,7 @@ def action_solar_terrain(req, work_dir):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
-    lon, lat = sun_power.grid_key(centroid.x, centroid.y)
+    lon, lat = sun_power.request_point(centroid.x, centroid.y)
     hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
     last_year = _date.today().year - 1
 
@@ -2329,7 +2329,7 @@ def action_energy_model(req, work_dir):
         protocol.fail('no polygon provided (polygon_geojson required)')
     polygon = polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
-    lon, lat = sun_power.grid_key(centroid.x, centroid.y)
+    lon, lat = sun_power.request_point(centroid.x, centroid.y)
 
     clim_years = protocol.request_positive(req, 'climatology_years', 30, int)
     hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
@@ -2649,7 +2649,8 @@ def action_energy_model(req, work_dir):
 
 # Wind resource screening at the AOI centroid, from POWER hourly MERRA-2.
 def action_wind_resource(req, work_dir):
-    import wind as wind_mod
+    from terra.energy import wind as wind_mod
+    from terra.sun import nasa_power as sun_power
     from datetime import date as _date
 
     if not req.get('polygon_geojson'):
@@ -2658,7 +2659,7 @@ def action_wind_resource(req, work_dir):
     centroid = polygon.centroid
     # The MERRA-2 cell centre, not the centroid: the request resolves to a
     # cell and the response has to say which cell it describes.
-    lon, lat = wind_mod.grid_key(centroid.x, centroid.y)
+    lon, lat = sun_power.meteorology_cell(centroid.x, centroid.y)
 
     record_years = protocol.request_positive(
         req, 'record_years', wind_mod.RECORD_YEARS, int
