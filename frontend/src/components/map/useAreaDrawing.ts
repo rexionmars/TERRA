@@ -131,22 +131,70 @@ export function useAreaDrawing({
       const polys = draw
         .getSnapshot()
         .filter((f) => f.geometry.type === "Polygon")
+      /*
+        ONE AREA IS THIS HOOK'S INVARIANT, so two polygons is a state it is
+        PASSING THROUGH and never a state to report from.
+
+        Two surfaces run this hook at once -- the work map and the studio's
+        globe -- and the sync effect below puts the area the application holds
+        into each store. Drawing on one of them therefore starts from a store
+        that already has a polygon in it: the synced copy, plus the new one.
+
+        `finish` prunes the extra before it reports, so the finish path is
+        never in this state. The `change` listener is: terra-draw raises
+        "update" in select mode while both are present, this emitted, and the
+        line below takes the LAST polygon in the snapshot -- which in that
+        transient pair is not reliably the one being drawn. The application
+        received a geometry it had not asked about and filed it as a new area.
+
+        The trace that found it read `emit len=179 polys=2` immediately before
+        a catalog entry appeared, and `polys=1` on the report that followed.
+
+        Guarding on the geometry was the wrong fix and is why two attempts at
+        it changed nothing: the two reports carry DIFFERENT shapes, so no
+        comparison between them could ever have matched.
+      */
+      if (polys.length > 1) return
       const last = polys[polys.length - 1]
       onDrawnRef.current(last ? (last.geometry as GeoJSONGeometry) : null)
     }
 
     draw.on("finish", (id) => {
-      // By id from the event, not by position in the snapshot: the store also
-      // holds the closing point and the snapping point, and "everything but
-      // the last" removed whichever of those happened to sort last.
-      const others = draw
-        .getSnapshot()
-        .filter((f) => f.id !== id)
-        .map((f) => f.id!)
-      if (others.length) draw.removeFeatures(others)
+      /*
+        ONE FINISH, ONE REPORT, and the guard is what makes that true.
+
+        Everything this handler does to the store is housekeeping: dropping the
+        closing and snapping points the polygon mode leaves behind, and handing
+        the feature to the select mode. Each of those raises the same `change`
+        events a hand raises -- `removeFeatures` raises "delete" -- so the
+        listener below answered them, and one finished polygon was reported
+        two and three times.
+
+        Downstream that is not a repeated no-op. `handlePolygonDrawn` creates a
+        catalog entry per report, and every report in one batch reads the same
+        list, so they were named by `nextDrawnName` from the same starting
+        point: three entries called "drawn 2", identical geometry, three ids.
+        The board then listed each of them.
+
+        The report is made after the guard is released, deliberately: it is the
+        one thing here that IS news.
+      */
+      syncing.current = true
+      try {
+        // By id from the event, not by position in the snapshot: the store also
+        // holds the closing point and the snapping point, and "everything but
+        // the last" removed whichever of those happened to sort last.
+        const others = draw
+          .getSnapshot()
+          .filter((f) => f.id !== id)
+          .map((f) => f.id!)
+        if (others.length) draw.removeFeatures(others)
+        setMode("idle")
+        draw.setMode("select")
+      } finally {
+        syncing.current = false
+      }
       emit()
-      setMode("idle")
-      draw.setMode("select")
     })
 
     draw.on("change", (_ids, type) => {

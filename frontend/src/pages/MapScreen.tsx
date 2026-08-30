@@ -148,6 +148,8 @@ export interface MapScreenProps {
   result: PredictResult | null
   /** Results the map finished with, still placeable on the board. */
   retainedRuns: readonly { id: string; result: PredictResult }[]
+  /** Let go of one, which the board lists and cannot remove on its own. */
+  onDropRetainedRun?: (id: string) => void
   overlayOpacity: number
   showConfidence: boolean
   confidenceOnTop: boolean
@@ -1267,6 +1269,7 @@ export function MapScreen(props: MapScreenProps) {
               layers={boardLayers}
               assets={boardAssets}
               retainedRuns={props.retainedRuns}
+              onDropRetainedRun={props.onDropRetainedRun}
               /*
                 What this run's colours mean. Not derivable from the layers:
                 a layer is what is drawn, and class_stats, the water index and

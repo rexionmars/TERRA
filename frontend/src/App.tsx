@@ -308,14 +308,125 @@ function App() {
     board whose membership was saved.
   */
   const clearRetainedRuns = useCallback(() => setRetainedRuns([]), [])
-  const retainRun = useCallback((outgoing: PredictResult | null) => {
-    // A result with no classification is a water or solar payload the board
-    // reads from its own fields; nothing of it belongs to a scene.
-    if (!outgoing || !(outgoing.class_stats?.length || outgoing.overlay_uri)) {
+  /**
+   * What identifies a run's WORK, independently of what it is filed under.
+   *
+   * The recorded row first, since that is the run itself. A standalone product
+   * the store did not record leaves none, and then the raster it produced is
+   * the only thing that distinguishes it -- two runs cannot share an overlay,
+   * so its uri serves as an id for this purpose.
+   */
+  const runWorkKey = useCallback((r: PredictResult | null): string | null => {
+    if (!r) return null
+    return (
+      r.run_id ||
+      r.water?.run_id ||
+      r.overlay_uri ||
+      r.solar_terrain?.overlay_uri ||
+      r.solar_siting?.overlay_uri ||
+      null
+    )
+  }, [])
+
+  const retainRun = useCallback((
+    outgoing: PredictResult | null,
+    /**
+     * The board's own id for the ground this run was over.
+     *
+     * THREE IDENTITIES HAD TO BE MADE ONE. The board keys its live area by the
+     * GROUND -- `liveAreaId` returns the AOI id whenever it knows it -- while
+     * `runId` reaching it is `result.run_id || "current"`, which a standalone
+     * product leaves as the sentinel, and this function keyed what it kept by
+     * the run. Three names for one area, so the retained entry and the area it
+     * came from could never find each other: the entry appeared in the data
+     * tree as a run to add by hand, and the planes that had been on the board
+     * were not carried over to it.
+     *
+     * Given rather than derived, because only the caller knows which ground is
+     * being left. Falls back to the run row, then to an unsaved counter.
+     */
+    areaId?: string | null
+  ) => {
+    /*
+      ANY PRODUCT IS WORTH KEEPING, not only a classification.
+
+      This used to read: "a result with no classification is a water or solar
+      payload the board reads from its own fields; nothing of it belongs to a
+      scene." That was true of the LIVE area and of nothing else. The board
+      reads water and solar from its own props only while the map is still on
+      that ground; the moment the AOI moves, the aoiSignature effects clear
+      those stores and the props go empty. A solar run left the board the
+      instant a new area was drawn, and there was nothing to bring it back
+      because it had never been retained.
+
+      The board was already able to draw one: `legendByArea` in BoardSurface
+      builds a retained area's legends from `result.water`,
+      `result.solar_terrain` and `result.solar_siting` -- fields that exist on
+      every result. What was missing was a result reaching it.
+
+      So the test is whether the outgoing run produced ANYTHING. A result with
+      none of these is an empty shell from a run that never finished, and that
+      is the only case worth dropping.
+    */
+    const carries =
+      !!outgoing &&
+      (!!outgoing.class_stats?.length ||
+        !!outgoing.overlay_uri ||
+        !!outgoing.water ||
+        !!outgoing.solar_terrain ||
+        !!outgoing.solar_siting ||
+        !!outgoing.flood)
+    if (!outgoing || !carries) {
       return
     }
+    const work = runWorkKey(outgoing)
     setRetainedRuns((prev) => {
-      const id = outgoing.run_id || `unsaved:${prev.length + 1}`
+      /*
+        THE RECORDED ROW, WHEREVER IT WAS RECORDED.
+
+        `run_id` on the result is the classification's. A run that produced
+        only a standalone product leaves it empty, and the board then keys the
+        area as `unsaved:` -- which costs it the run record, so it is titled
+        "Previous run" and outlined as its raster's rectangle instead of its
+        real shape.
+
+        Water records its row on its own payload and says why: "the Go side
+        withdraws its claim to have saved by returning nothing". Reading it
+        here gives a retained water run its name and its outline back.
+
+        SolarTerrainAnalysis, SolarSitingAnalysis and FloodAnalysis carry no
+        such field, so those still retain as `unsaved:`. The asymmetry is in
+        the payloads rather than here, and closing it means the Go side
+        returning the row it wrote for them too.
+      */
+      const id =
+        areaId?.trim() ||
+        outgoing.run_id ||
+        outgoing.water?.run_id ||
+        `unsaved:${prev.length + 1}`
+      /*
+        ONE ENTRY PER RUN, WHATEVER IT WAS FILED UNDER.
+
+        Retention happens from the effect that watches the ground and from
+        three older call sites that name none, so one run could arrive twice
+        with two identities -- once under its recorded row, once under the area
+        it was over. Both were kept, and the board drew one raster as two areas
+        over one field: "drawn" beside "run-untitled", identical vertex count,
+        identical hectares.
+
+        THE GROUND WINS when it is offered. It is what the board files areas
+        under -- `liveAreaId` answers with it -- so an entry keyed by the run
+        is re-keyed rather than left to shadow the one that can be found.
+      */
+      const same = work
+        ? prev.findIndex((r) => runWorkKey(r.result) === work)
+        : -1
+      if (same >= 0) {
+        if (prev[same].id === id || !areaId?.trim()) return prev
+        const rekeyed = [...prev]
+        rekeyed[same] = { id, result: outgoing }
+        return rekeyed
+      }
       if (prev.some((r) => r.id === id)) return prev
       const next = [{ id, result: outgoing }, ...prev]
       if (next.length <= 3) return next
@@ -326,7 +437,21 @@ function App() {
       }
       return next.slice(0, 3)
     })
+  }, [runWorkKey])
+  /**
+   * Let go of a retained run, which the board could list and not remove.
+   *
+   * The studio's X drops a run from the board and leaves it on disk. It did
+   * that for runs added from the picker and could not for retained ones,
+   * because those live here and the board only receives them -- so a retained
+   * entry had no way off the board at all. It became visible when retention
+   * stopped being tied to two gestures: a reader now accumulates them by
+   * working, and an entry that cannot be dismissed accumulates forever.
+   */
+  const dropRetainedRun = useCallback((id: string) => {
+    setRetainedRuns((prev) => prev.filter((r) => r.id !== id))
   }, [])
+
   const [analysisLabel, setAnalysisLabel] = useState<string | undefined>()
   const [lulcRunning, setLulcRunning] = useState(false)
   const [booting, setBooting] = useState(true)
@@ -570,6 +695,7 @@ function App() {
             setResult={setResult}
             retainRun={retainRun}
             retainedRuns={retainedRuns}
+            onDropRetainedRun={dropRetainedRun}
             clearRetainedRuns={clearRetainedRuns}
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
@@ -638,8 +764,9 @@ function AppBody(props: {
   setProgressMsg: (v: string) => void
   setResult: (r: PredictResult | null) => void
   /** Archive the outgoing result before the live slot is emptied. */
-  retainRun: (outgoing: PredictResult | null) => void
+  retainRun: (outgoing: PredictResult | null, areaId?: string | null) => void
   retainedRuns: readonly { id: string; result: PredictResult }[]
+  onDropRetainedRun: (id: string) => void
   /** Drops them all, where what they are a memory of stops being the subject. */
   clearRetainedRuns: () => void
   setAnalysisLabel: (v: string | undefined) => void
@@ -2876,14 +3003,61 @@ function AppBody(props: {
    * second draw does not throw the first away; the new entry becomes active.
    * Passing null clears the active shape only (catalog stays).
    */
+  /**
+   * The last shape this handler turned into a catalog entry.
+   *
+   * A REF, BECAUSE STATE CANNOT ANSWER THIS. The check below compares against
+   * the active area, and when two reports of one drawing arrive in a single
+   * React batch the second still sees the activeAoiId the first has not
+   * committed yet -- so both create an entry, both name it from the same
+   * `savedAois`, and the catalog gets two areas with one name between them.
+   * That is exactly the pair reported. A ref is written synchronously and is
+   * therefore the only thing that can see the first report from inside the
+   * second.
+   */
+  const lastDrawnRef = useRef<string | null>(null)
+
   const handlePolygonDrawn = useCallback(
     (geom: GeoJSONGeometry | null) => {
       if (!geom) {
+        lastDrawnRef.current = null
         props.setCustomPolygon(null)
         props.setActiveAoiId(undefined)
         props.setAnalysisLabel(undefined)
         return
       }
+      /*
+        THE SAME GROUND IS THE SAME AREA, so reporting it again does not make
+        a second one.
+
+        Belt to useAreaDrawing's braces. That hook now reports a finished
+        polygon once, but it is not the only way in -- two map surfaces are
+        mounted at a time and either can report -- and the cost of a stray
+        second report is not a stray no-op: it is a catalog entry, named from
+        whatever `savedAois` looked like when the batch started, so a pair of
+        them arrive with one name between them.
+
+        Compared by geometry rather than by identity: the value that comes back
+        from the draw store is a fresh object every time and would never be the
+        one already held.
+      */
+      const shape = JSON.stringify(geom)
+      const active = props.savedAois.find((a) => a.id === props.activeAoiId)
+      if (
+        shape === lastDrawnRef.current ||
+        (active && JSON.stringify(active.geometry) === shape)
+      ) {
+        props.setCustomPolygon(geom)
+        props.setActiveExample("")
+        if (active) props.setAnalysisLabel(active.name)
+        return
+      }
+      lastDrawnRef.current = shape
+      /*
+        Retention is NOT done here. Setting `activeAoiId` below is what the
+        effect beside `resultWithWater` watches, and it keeps the outgoing
+        ground's work for every way of leaving it rather than for this one.
+      */
       const entry = createSavedAoi(geom, props.savedAois)
       props.setSavedAois((prev) => [...prev, entry])
       props.setActiveAoiId(entry.id)
@@ -2895,6 +3069,7 @@ function AppBody(props: {
     },
     [
       props.savedAois,
+      props.activeAoiId,
       props.setSavedAois,
       props.setActiveAoiId,
       props.setCustomPolygon,
@@ -3048,6 +3223,51 @@ function AppBody(props: {
     },
     [props.result, water, solar.results, wind.result, flood]
   )
+
+  /**
+   * The merged result, readable from callbacks declared above this memo.
+   *
+   * `handlePolygonDrawn` retains the outgoing run and is defined earlier in
+   * this component, so it cannot name `resultWithWater` in a dependency array
+   * -- the array is evaluated while the binding is still in its temporal dead
+   * zone. A ref is the idiom this file already uses for exactly that, and it
+   * is the correct one here for a second reason: what is retained must be what
+   * was on screen at the moment of the gesture, not what it was when the
+   * callback was last rebuilt.
+   */
+  const retainableRef = useRef<PredictResult | null>(null)
+  retainableRef.current = resultWithWater
+
+  /*
+    THE GROUND LEAVING IS WHAT TRIGGERS RETENTION, not any one gesture.
+
+    Retaining was bolted to `startNewClassification` and `backToAnalysesList`,
+    so every OTHER way of changing the active area lost the work on it: drawing
+    a new one, pressing one in the catalog, adopting a run's geometry, opening
+    a project. A reader clicking between two areas watched each one's rasters
+    disappear as they arrived at the other, with only the outlines alternating.
+
+    One effect instead of five call sites, and it catches the paths nobody has
+    enumerated yet: what matters is that the active area STOPPED being what it
+    was, not how.
+
+    THE PAIR IS HELD IN A REF, which is what makes the capture correct. The
+    products are cleared by the aoiSignature effects further down this file,
+    and effects run in declaration order across renders -- so reading state
+    here would be a race against them. The ref is written during render, so it
+    always holds the result as it was while the previous area was still the
+    active one.
+  */
+  const leavingRef = useRef<{
+    id: string | undefined
+    result: PredictResult | null
+  }>({ id: undefined, result: null })
+  useEffect(() => {
+    const leaving = leavingRef.current
+    leavingRef.current = { id: props.activeAoiId, result: resultWithWater }
+    if (!leaving.id || leaving.id === props.activeAoiId) return
+    props.retainRun(leaving.result, leaving.id)
+  }, [props.activeAoiId, resultWithWater, props.retainRun])
 
   /**
    * The hub, from wherever the click came from.
@@ -3237,6 +3457,7 @@ function AppBody(props: {
               >
                 <MapScreen
                   retainedRuns={props.retainedRuns}
+                  onDropRetainedRun={props.onDropRetainedRun}
                   onCreditChange={setCredit}
                   titleBarSlot={boardSlotHost}
                   onBoardOpenChange={setBoardOpen}

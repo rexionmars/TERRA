@@ -381,6 +381,7 @@ function isSoloed(
 export function BoardSurface({
   layers,
   retainedRuns = [],
+  onDropRetainedRun,
   legendSources,
   onUseArea,
   customPolygon = null,
@@ -427,6 +428,14 @@ export function BoardSurface({
    * made while logged out has no record to reload from.
    */
   retainedRuns?: readonly { id: string; result: PredictResult }[]
+  /**
+   * Let go of a retained run. Owned by the map screen, because the list is.
+   *
+   * Without it the X below could drop a run added from the picker and not one
+   * that arrived by being what the map was showing -- the same control, doing
+   * nothing on half the rows it was drawn on.
+   */
+  onDropRetainedRun?: (id: string) => void
   /**
    * What the CURRENT area's colours mean, for the legend.
    *
@@ -1094,13 +1103,35 @@ export function BoardSurface({
     ...retainedRuns
       .filter(
         (r) =>
-          r.id !== runId && !extraRuns.some((x) => x.run.id === r.id)
+          /*
+            AGAINST THE AREA AS WELL AS THE RUN, since retention began keying
+            what it keeps by the GROUND. `runId` is `result.run_id ||
+            "current"` and can never equal an area id, so returning to a
+            ground that had been left put its retained entry beside the live
+            one -- two entries claiming the same area, the stale one able to
+            answer `assetOf` for it.
+
+            `runId` stays in the test because the call sites that retain
+            without naming a ground still key by the run row.
+          */
+          r.id !== live &&
+          r.id !== runId &&
+          !extraRuns.some((x) => x.run.id === r.id)
       )
       .map((r) => ({
         areaId: r.id,
         runId: r.id,
-        // An unsaved run has no record behind it to delete.
-        deletable: !r.id.startsWith("unsaved:"),
+        /*
+          THERE IS A ROW TO DELETE, asked of the run list rather than of the id.
+
+          This tested `!id.startsWith("unsaved:")`, which was a proxy for the
+          same question while every retained entry was keyed by a run. Keying
+          them by the GROUND broke the proxy: an area id does not start with
+          that prefix, so the bin was drawn on rows with no record behind them
+          and deleting one asked the store to end a run that does not exist.
+          The live entry above has always asked the list; so does this one now.
+        */
+        deletable: runs.some((x) => x.id === r.id),
         title:
           displayRunLabel(runs.find((x) => x.id === r.id)?.label ?? "") ||
           "Previous run",
@@ -1237,23 +1268,57 @@ export function BoardSurface({
     has to have its membership materialised at the moment it stops being the
     map's. This is that moment for the live board rather than for a saved one.
 
-    Keyed on the run id leaving, and only ever filling an empty entry, so a
-    reader who has since removed a plane by hand does not have it put back.
+    KEYED ON THE AREA LEAVING, NOT ON THE RUN ID. It watched `runId`, which is
+    `result.run_id || "current"` -- so a run that produced only a standalone
+    product never moved it off the sentinel and this never fired, and even for
+    a classification the id it compared was not the one the board files areas
+    under. `live` IS that id: `liveAreaId` answers with the ground whenever the
+    ground is known, which is what the retained entry is now keyed by too.
+    Three names for one area was why a retained run arrived on the board with
+    nothing on it.
+
+    Only ever fills an empty entry, so a reader who has since removed a plane
+    by hand does not have it put back.
   */
   const lastLiveRun = useRef<string | null>(null)
-  // Read through a ref, because by the time the run id changes the `layers`
+  // Read through a ref, because by the time the area changes the `layers`
   // prop has ALREADY been emptied -- the whole defect being fixed here.
   const layersRef = useRef(layers)
   if (layers.length) layersRef.current = layers
+  /*
+    HELD UNTIL THE RETAINED ENTRY ARRIVES, because it arrives a render late.
+
+    Retention happens in an effect in App and this is an effect in a child of
+    it, and React runs a child's effects before its parent's. So on the render
+    where the area changes, this ran first and `retainedRuns` did not yet hold
+    the ground being left: the guard below sent it home, and it had already
+    forgotten which area to carry from. By the next render the area it wanted
+    was no longer the previous one and the window was gone -- the retained run
+    reached the board with nothing on it, which is what a reader saw as the
+    rasters not staying in the viewport.
+
+    So the carry is REMEMBERED at the moment of the change, when the outgoing
+    layers are still readable, and spent whenever the entry turns up. Cleared
+    on use, so it happens once.
+  */
+  const pendingCarry = useRef<{ id: string; ids: string[] } | null>(null)
   useEffect(() => {
     const previous = lastLiveRun.current
-    lastLiveRun.current = runId
-    if (!previous || previous === runId || previous === CURRENT_AREA) return
-    if (!retainedRuns.some((r) => r.id === previous)) return
-    const ids = layersRef.current.map((l) => l.id)
-    if (!ids.length) return
-    setAdded((prev) => (prev[previous]?.length ? prev : { ...prev, [previous]: ids }))
-  }, [runId, retainedRuns, setAdded])
+    if (previous !== live) {
+      lastLiveRun.current = live
+      if (previous && previous !== CURRENT_AREA) {
+        const ids = layersRef.current.map((l) => l.id)
+        pendingCarry.current = ids.length ? { id: previous, ids } : null
+      }
+    }
+    const pending = pendingCarry.current
+    if (!pending) return
+    if (!retainedRuns.some((r) => r.id === pending.id)) return
+    pendingCarry.current = null
+    setAdded((prev) =>
+      prev[pending.id]?.length ? prev : { ...prev, [pending.id]: pending.ids }
+    )
+  }, [live, retainedRuns, setAdded])
   /*
     THE LIVE AREA RE-RESOLVED, not replaced.
 
@@ -1459,9 +1524,22 @@ export function BoardSurface({
     no run yet, which is where the next one will happen.
   */
   const groundOnBoard = new Set(
-    assetRuns
-      .map((r) => aoiOfRun.get(r.runId))
-      .filter((id): id is string => !!id)
+    assetRuns.flatMap((r) => {
+      /*
+        A RUN NAMES ITS GROUND; AN AREA FILED UNDER ITS GROUND IS ONE ALREADY.
+
+        `aoiOfRun` answers run id -> area id, and asking it about an area id
+        returns nothing. That was harmless while every entry here was keyed by
+        a run, and became this set's blind spot the moment retained runs began
+        being keyed by the GROUND they were over: the lookup failed, the ground
+        never entered the set, and the filter below therefore listed the
+        catalogued drawing AS WELL as the area already holding it. One ground,
+        two rows, for every retained run on the board.
+      */
+      const ground =
+        aoiOfRun.get(r.runId) ?? (isSavedAoiId(r.areaId) ? r.areaId : null)
+      return ground ? [ground] : []
+    })
   )
 
   const areas = [
@@ -1535,7 +1613,26 @@ export function BoardSurface({
       .filter((r) => r.areaId !== live)
       .map((r) => ({
         id: r.areaId,
-        title: names[stackRow(r.areaId)] ?? r.title,
+        /*
+          THE GROUND'S NAME, and the run's only where there is no ground.
+
+          This tree lists ground and the data tree lists runs -- the live area
+          above resolves its title exactly this way, and `resolveAoiDisplayLabel`
+          states the rule outright: never use a run-* label for an area.
+
+          It read `r.title`, which for a retained entry is
+          `displayRunLabel(runs.find(...)?.label)`. Since retained runs began
+          being filed under the GROUND, that lookup asks the run list about an
+          area id and finds nothing -- and `displayRunLabel` answers an empty
+          label with the placeholder "run-untitled", which is not empty, so the
+          "Previous run" fallback beside it never ran. Every area the map had
+          moved on from was therefore renamed "run-untitled", however many
+          there were and whatever they had been called.
+        */
+        title:
+          names[stackRow(r.areaId)] ??
+          savedAois.find((a) => a.id === r.areaId)?.name ??
+          r.title,
         layers: applyOrder(r.areaId, extrasFor(r.areaId, 400)),
       })),
   ].filter(
@@ -1676,6 +1773,9 @@ export function BoardSurface({
   */
   const dropRun = (runId: string) => {
     setExtraRuns((prev) => prev.filter((x) => x.run.id !== runId))
+    // A retained run is held by the map screen, so dropping one is a request
+    // rather than a local edit. Harmless for a row that is not retained.
+    onDropRetainedRun?.(runId)
     setAdded((prev) => {
       const next = { ...prev }
       delete next[runId]
