@@ -1148,6 +1148,35 @@ export function ProfilePage({
             className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4"
             style={{ borderColor: "var(--border)" }}
           >
+            {/*
+              THE MARK, NOT THE ICON, AND THEY ARE TWO DIFFERENT IMAGES. The
+              icon is the wordless circle in frontend/public/terra-logo.png,
+              drawn by the title bar and the splash and generated into the
+              .icns and the .ico -- it is what the operating system shows when
+              it has 32 px to show it in. The mark is the hexagonal badge
+              carrying TERRA and EARTH OBSERVATION, which is what the README
+              opens with and what the LaTeX manual references. This paragraph
+              is the project speaking about itself as a project, to a reader
+              who might go and look at the repository, so it is the mark that
+              belongs beside it.
+
+              Copied to public/ rather than reached for across the repository:
+              docs/ is not under the Vite root and would need fs.allow widened
+              to serve from it. The icon is already carried twice for the same
+              reason -- build/appicon.png and public/terra-logo.png are one
+              file in two places -- so this follows a path the project already
+              takes rather than opening a new one.
+
+              alt="" because the badge says TERRA and the sentence beside it
+              says TERRA, and a screen reader announcing the name twice reads
+              as two things rather than one. The text carries the meaning; the
+              image is the signature on it.
+            */}
+            <img
+              src="/terra-mark.png"
+              alt=""
+              className="h-10 w-auto shrink-0 self-start object-contain"
+            />
             <p className="min-w-0 flex-1 text-meta leading-relaxed text-muted-foreground">
               TERRA is open source. If it is useful to you, a star helps other
               people find it, and sponsoring pays for the time that goes into it.
