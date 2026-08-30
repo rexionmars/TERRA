@@ -35,7 +35,7 @@ import { AnimatePresence } from "motion/react"
 import { useEffect, useRef, useState } from "react"
 import { ChartColumn, SlidersHorizontal } from "lucide-react"
 
-import { MapView } from "@/components/MapView"
+import { MapSurface } from "@/components/map/MapSurface"
 import { SearchBar } from "@/components/SearchBar"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
 import { PanelSection } from "@/components/ui/PanelSection"
@@ -238,7 +238,7 @@ export function FloodScreen(props: FloodScreenProps) {
         run and after it; the agreement raster is drawn over it once there is
         one, and its legend is in the result column.
       */}
-      <MapView
+      <MapSurface
         initialView={props.initialView}
         areas={props.areas}
         activeExample={props.activeExample}
@@ -262,6 +262,12 @@ export function FloodScreen(props: FloodScreenProps) {
                 uri: agreement.uri,
                 extent: agreement.extent,
                 opacity: agreement.opacity,
+                // The counts, where the run wrote them: with these the map
+                // paints from the measurement and colours it with an
+                // expression, and `uri` is the fallback for a run made before
+                // the values existed.
+                valuesUri: agreement.valuesUri,
+                classes: agreement.classes,
               }
             : null
         }

@@ -41,7 +41,7 @@ import {
   type ComponentProps,
   type Dispatch,
 } from "react"
-import { MapView } from "@/components/MapView"
+import { MapSurface } from "@/components/map/MapSurface"
 import { SearchBar } from "@/components/SearchBar"
 import { PanelSection } from "@/components/ui/PanelSection"
 import { AoiSection } from "@/components/energy/AoiSection"
@@ -435,7 +435,7 @@ export function EnergyScreen(props: EnergyScreenProps) {
   )
 
   const mapRegion = (
-    <MapView
+    <MapSurface
         initialView={props.initialView}
         areas={props.areas}
         activeExample={props.activeExample}

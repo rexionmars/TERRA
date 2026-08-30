@@ -126,6 +126,15 @@ const EnergyScreen = lazy(() =>
 )
 /* Same argument: the flood screen is not reachable from the map, and it pulls
    the reading, its legend and the setup panel with it. */
+/*
+  Lazy like every screen but the map. It reaches three -- the globe scene, the
+  world stitcher and three.js -- and a reader who never opens it should not pay
+  for the last of those, which is 628KB on its own.
+*/
+const GlobeScreen = lazy(() =>
+  import("@/pages/GlobeScreen").then((m) => ({ default: m.GlobeScreen }))
+)
+
 const FloodScreen = lazy(() =>
   import("@/pages/FloodScreen").then((m) => ({ default: m.FloodScreen }))
 )
@@ -296,6 +305,18 @@ function App() {
   const [retainedRuns, setRetainedRuns] = useState<
     readonly { id: string; result: PredictResult }[]
   >([])
+  /*
+    Forgotten, when what they are a memory OF is no longer the subject.
+
+    Retention is the map's affordance: the run it has moved on from stays in
+    hand so the board can still show it beside the new one. Nothing ever
+    dropped them, so they accumulated for the session and were injected into
+    every board that opened -- a run from one project, or from before a stored
+    board was opened, appearing as an area of that board. `assetRuns` adds them
+    to whatever is on screen, which is right for the live board and wrong for a
+    board whose membership was saved.
+  */
+  const clearRetainedRuns = useCallback(() => setRetainedRuns([]), [])
   const retainRun = useCallback((outgoing: PredictResult | null) => {
     // A result with no classification is a water or solar payload the board
     // reads from its own fields; nothing of it belongs to a scene.
@@ -558,6 +579,7 @@ function App() {
             setResult={setResult}
             retainRun={retainRun}
             retainedRuns={retainedRuns}
+            clearRetainedRuns={clearRetainedRuns}
             setAnalysisLabel={setAnalysisLabel}
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
@@ -627,6 +649,8 @@ function AppBody(props: {
   /** Archive the outgoing result before the live slot is emptied. */
   retainRun: (outgoing: PredictResult | null) => void
   retainedRuns: readonly { id: string; result: PredictResult }[]
+  /** Drops them all, where what they are a memory of stops being the subject. */
+  clearRetainedRuns: () => void
   setAnalysisLabel: (v: string | undefined) => void
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
@@ -642,6 +666,7 @@ function AppBody(props: {
     goMap,
     goEnergy,
     goFlood,
+    goGlobe,
     goProfile,
     runs,
     projects,
@@ -786,6 +811,12 @@ function AppBody(props: {
         }
         restoreBoard(opened.snapshot)
         /*
+          The map's retained runs go with it. A stored board is the runs it was
+          saved with; anything the map happened to be holding is not one of
+          them, and `assetRuns` would add it as an area of this board.
+        */
+        props.clearRetainedRuns()
+        /*
           The rasters are fetched by the board itself, where LoadAnalysis
           already lives. Members whose run has been deleted are left out with
           a word rather than silently: a board that opened with one side
@@ -811,7 +842,7 @@ function AppBody(props: {
         notifyError("Could not open this studio", e)
       }
     },
-    [openInStudio]
+    [openInStudio, props.clearRetainedRuns]
   )
 
   /**
@@ -920,6 +951,8 @@ function AppBody(props: {
   const [credit, setCredit] = useState<{
     kind: BasemapKind
     date: string | null
+    /** Relief on: a second provider is on screen and is credited with it. */
+    terrain?: boolean
   }>({ kind: "esri", date: null })
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
 
@@ -1335,6 +1368,34 @@ function AppBody(props: {
     ]
   )
 
+  /*
+    Every result the screens can be holding, dropped together.
+
+    ONE PLACE BECAUSE A PARTIAL COPY HAS ALREADY COST US ONE. The comment this
+    replaces recorded it: flood was added to `resultWithWater` and not to the
+    clearing, so the two disagreed about what a standalone product is -- the
+    payload counted a loaded envelope, the clearing did not remove it, and the
+    detail view rebuilt itself from the flood result the moment the reader asked
+    for the list. The list was then unreachable for the rest of the session.
+
+    A third caller was about to be written with the same shape and the same
+    chance of missing one, which is what turned three copies into this.
+
+    THE RETAIN IS NOT HERE. Two callers keep the run they are leaving so the
+    board can still show it; one does not, because it is leaving the project
+    that run belongs to. That is a decision about the caller's subject rather
+    than about what a result is, so it stays with them.
+  */
+  const clearAnalysisResults = useCallback(() => {
+    props.setResult(null)
+    setCurrentRunLabel(null)
+    setCurrentRunId(null)
+    setWater(null)
+    solarDispatch({ type: "results/clearAll" })
+    windDispatch({ type: "result/clear" })
+    setFlood(null)
+  }, [props.setResult, solarDispatch, windDispatch])
+
   const activateProject = useCallback(
     async (
       id: string | null,
@@ -1345,6 +1406,44 @@ function AppBody(props: {
       // must not: a session that begins with an AOI outline and an overlay the
       // user did not ask for in that session leaves them clearing both by hand.
       const userInitiated = opts?.userInitiated ?? true
+      /*
+        WHAT THE PREVIOUS PROJECT LEFT BEHIND, dropped before this one arrives.
+
+        Opening a project set the AOI, the label and the composition and cleared
+        nothing, so the run on the map, the standalone products beside it and
+        the catalogued AOI id all stayed -- every one of them belonging to the
+        project just left. The visible half is a raster from another field
+        sitting over the new one.
+
+        The half that is not visible is worse, because it reaches the studio.
+        The board receives `runId` as `result?.run_id || "current"` and resolves
+        the live area from it and from `activeAoiId`; carrying both across meant
+        the new project's ground opened under the OLD project's identity, and
+        that identity is the key to everything the board keeps per area -- the
+        name a reader typed, the layer order, what they removed, where they
+        dragged it. boardMemory.ts describes this failure and the work done to
+        end it; this path was still reaching it.
+
+        Read before persisting, since persisting is what moves the ref.
+
+        NOT ON RESTORE. A session resuming at its last project is not leaving
+        anything, and clearing there would drop the AOI that the same startup
+        restored from preferences a moment earlier.
+
+        NOT RETAINED, either, unlike the other two callers of the clear. They
+        keep the run they are leaving so the board can still show it; this is
+        leaving the project that run belongs to, and putting it on the next
+        project's board is the contamination being removed.
+      */
+      const leaving = activeProjectIdRef.current
+      if (userInitiated && leaving !== id) {
+        clearAnalysisResults()
+        // The retained ones too. Clearing the shown result while leaving the
+        // runs it moved on from in hand carries the previous project onto this
+        // one's boards by the other door.
+        props.clearRetainedRuns()
+        props.setActiveAoiId(undefined)
+      }
       await persistActiveProjectId(id)
       if (!id) {
         setComposition(null)
@@ -1417,10 +1516,13 @@ function AppBody(props: {
       }
     },
     [
+      clearAnalysisResults,
       persistActiveProjectId,
+      props.clearRetainedRuns,
       persistAoiLabel,
       prefs?.extras_json,
       props.areas,
+      props.setActiveAoiId,
       props.setActiveExample,
       props.setCustomPolygon,
       props.setAnalysisLabel,
@@ -1825,7 +1927,15 @@ function AppBody(props: {
       setWater(res)
       setShowWaterOverlay(true)
       notifySuccess(
-        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}% (saved).`,
+        /*
+          The word only where the run was actually recorded.
+
+          saveRun withdraws its claim to have saved by returning nothing, on
+          three failures it states -- and this said "(saved)" either way, which
+          is exactly the claim that comment exists to withdraw. A reader told a
+          run was saved goes looking for it in the hub.
+        */
+        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}%${res.run_id ? " (saved)" : ""}.`,
         undefined,
         { action: { label: "View analysis", onClick: () => goAnalysis() } }
       )
@@ -1897,7 +2007,8 @@ function AppBody(props: {
         be the only route, which is why it was here.
       */
       notifySuccess(
-        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees (saved).`
+        // See the water toast: the word is conditional for the same reason.
+        `Solar resource: ${res.resource.ghi_annual_kwh_m2.toFixed(0)} kWh/m2/yr, optimum tilt ${res.geometry.optimal_tilt_deg.toFixed(0)} degrees${res.run_id ? " (saved)" : ""}.`
       )
       void refreshRuns()
       void refreshProjects()
@@ -2347,12 +2458,21 @@ function AppBody(props: {
         await syncProjectAoi(activeProjectId, req.label)
         await refreshProjects()
       }
-      notifySuccess(`Classification complete — ${res.n_dates} scenes (saved).`, undefined, {
-        action: {
-          label: "View analysis",
-          onClick: () => goAnalysis(),
-        },
-      })
+      /*
+        The word AND the action, both conditional on the run existing.
+
+        "View analysis" opens the hub, and the hub lists rows -- so offering it
+        for a run that was never recorded sends the reader to look for
+        something that is not there. See the water toast for what withdraws the
+        claim.
+      */
+      notifySuccess(
+        `Classification complete — ${res.n_dates} scenes${res.run_id ? " (saved)" : ""}.`,
+        undefined,
+        res.run_id
+          ? { action: { label: "View analysis", onClick: () => goAnalysis() } }
+          : undefined
+      )
       void refreshRuns()
       void refreshProjects()
     } catch (e) {
@@ -2606,24 +2726,10 @@ function AppBody(props: {
     ]
   )
 
+
   const backToAnalysesList = useCallback(() => {
     props.retainRun(props.result)
-    props.setResult(null)
-    setCurrentRunLabel(null)
-    setCurrentRunId(null)
-    // The standalone products have to go too. The analysis payload is
-    // non-null whenever any of them is present, so clearing only the
-    // classification leaves the detail view up and the saved list unreachable.
-    setWater(null)
-    solarDispatch({ type: "results/clearAll" })
-    windDispatch({ type: "result/clear" })
-    // Flood is one of them. It was added to `resultWithWater` and not here, so
-    // the two disagreed about what a standalone product is: the payload counted
-    // a loaded envelope, this did not clear it, and the detail view therefore
-    // rebuilt itself from the flood result the moment this returned. The list
-    // was then unreachable for the rest of the session -- pressing the control
-    // again ran exactly the same no-op.
-    setFlood(null)
+    clearAnalysisResults()
     props.setShowPredictionOverlay(true)
     props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
@@ -2668,15 +2774,10 @@ function AppBody(props: {
    */
   const startNewClassification = useCallback(() => {
     props.retainRun(props.result)
-    props.setResult(null)
-    setCurrentRunLabel(null)
-    setCurrentRunId(null)
+    clearAnalysisResults()
     props.setShowPredictionOverlay(true)
     props.setSwipeCompare(false)
     props.setSwipeRatio(0.5)
-    setWater(null)
-    solarDispatch({ type: "results/clearAll" })
-    windDispatch({ type: "result/clear" })
     // Starting over drops the AOI, so the session composition must go with it:
     // otherwise the previous AOI's overlay stays painted over the empty map.
     // Saved compositions are reloaded from the project on reopen.
@@ -2830,6 +2931,46 @@ function AppBody(props: {
       props.setActiveExample,
       props.setAnalysisLabel,
     ]
+  )
+
+  /*
+    THE HANDOFF: the globe presses an area, the map opens on it.
+
+    Three acts, because activating and arriving are separate today and neither
+    implies the other. `activateSavedAoi` sets the polygon, the label and the
+    catalog selection and issues no fly at all -- which is right for a list
+    beside the map, where the reader can already see where they are, and wrong
+    from a globe, where the map would open wherever it was left.
+
+    The fly carries a nonce for the reason BoardAreaModal states: the same
+    coordinates must be flyable twice, so the value has to change for the
+    effect that consumes it to run again.
+
+    ZOOM IS NOT OURS TO CHOOSE. FlyToController arrives at 14, a literal, and
+    its export comment says the controller is shared precisely so there is one
+    answer to how far the map zooms on arrival. Coming from a whole planet that
+    is a long jump, and it is still the application's single answer rather than
+    a second one introduced here.
+  */
+  const openFromGlobe = useCallback(
+    (kind: "aoi" | "project", id: string) => {
+      if (kind === "project") {
+        // The project path already sets the ground and flies where it can; it
+        // is the same act the hub performs, so it is not reimplemented here.
+        void activateProject(id, { userInitiated: true })
+        goMap()
+        return
+      }
+      const entry = props.savedAois.find((a) => a.id === id)
+      if (!entry) return
+      activateSavedAoi(entry.id)
+      const centre = geometryCentroid(entry.geometry)
+      if (centre) {
+        props.setFlyTo({ lat: centre[1], lon: centre[0], key: Date.now() })
+      }
+      goMap()
+    },
+    [activateProject, activateSavedAoi, goMap, props.savedAois, props.setFlyTo]
   )
 
   /** Put a run's stored polygon on the map without adding a catalog entry. */
@@ -3012,6 +3153,8 @@ function AppBody(props: {
         goEnergy()
       } else if (groupId === "flood") {
         goFlood()
+      } else if (groupId === "globe") {
+        goGlobe()
       } else if (groupId === "analysis") {
         openProjectHub()
       } else {
@@ -3019,7 +3162,7 @@ function AppBody(props: {
         goMap()
       }
     },
-    [goEnergy, goFlood, openProjectHub, goMap]
+    [goEnergy, goFlood, goGlobe, openProjectHub, goMap]
   )
 
   const analysisPolygonGeoJSON = useMemo(() => {
@@ -3125,7 +3268,7 @@ function AppBody(props: {
             NOT mode="wait". Under it the leaving screen has to finish its exit
             before the arriving one is allowed to mount, so every change of
             screen was 240ms of an empty stage followed by the mount -- and the
-            mount is the expensive half, since a screen here builds leaflet, its
+            mount is the expensive half, since a screen here builds a map, its
             overlays and sometimes the studio. Serialised by construction, and
             felt as the transition being slow rather than as the animation being
             long.
@@ -3304,7 +3447,7 @@ function AppBody(props: {
                   */
                   whiteboards={whiteboards}
                   onOpenWhiteboard={(b) => void handleOpenWhiteboard(b)}
-                  onWhiteboardsMenu={() => void refreshWhiteboards()}
+                  onWhiteboardsMenu={refreshWhiteboards}
                   onCloseResult={() => {
                     props.setResult(null)
                     props.setShowPredictionOverlay(true)
@@ -3394,6 +3537,40 @@ function AppBody(props: {
                 </Suspense>
               </motion.div>
             )}
+            {screen === "globe" && (
+              <motion.div
+                key="screen-globe"
+                className="absolute inset-0 min-h-0"
+                initial={{ opacity: 0, x: 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Suspense fallback={<ScreenLoading />}>
+                  <GlobeScreen
+                    savedAois={props.savedAois}
+                    projects={projects}
+                    areas={props.areas}
+                    onOpenArea={openFromGlobe}
+                    /*
+                      A place is not an area: nothing is activated and no label
+                      is set, because the reader named a spot on a planet and
+                      not a thing to work on. The map arrives there and they
+                      draw, which is the same act the search field performs.
+                    */
+                    onOpenPlace={(at) => {
+                      props.setFlyTo({
+                        lat: at.lat,
+                        lon: at.lon,
+                        key: Date.now(),
+                      })
+                      goMap()
+                    }}
+                  />
+                </Suspense>
+              </motion.div>
+            )}
+
             {screen === "flood" && (
               <motion.div
                 key="screen-flood"

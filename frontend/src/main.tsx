@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "sonner"
-import "./components/leafletDrawPatch"
 import "./index.css"
 import App from "./App"
 import { AppErrorFallback, ErrorBoundary } from "./components/ErrorBoundary"
@@ -28,10 +27,21 @@ function dismissSplash(opts: { minMs?: number } = {}): void {
   requestAnimationFrame(() => requestAnimationFrame(finish))
 }
 
-// Note: React.StrictMode is intentionally omitted. Its development-only
-// double-mounting of effects re-initializes the imperative leaflet-draw control
-// twice, leaving two active draw handlers that corrupt the vertex count and
-// finish polygons prematurely.
+/*
+  React.StrictMode is omitted, and the reason it was omitted has gone.
+
+  It was leaflet-draw: StrictMode's development-only double-mounting
+  re-initialised that imperative control twice, leaving two draw handlers that
+  corrupted the vertex count and finished polygons early. leaflet-draw is no
+  longer in the application.
+
+  Left off rather than turned on, because turning it on is its own change and
+  needs its own verification: every imperative surface here would mount twice
+  in development -- two MapLibre maps per screen, two three.js scenes in the
+  studio, each building and disposing a WebGL context. That may be fine; it has
+  not been tested, and a flag that doubles the graphics work is not something to
+  flip while tidying up after a library.
+*/
 const container = document.getElementById("root")
 const root = createRoot(container!)
 

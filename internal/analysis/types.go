@@ -868,6 +868,14 @@ type WaterDate struct {
 // WaterAnalysis is a surface water / flood mapping result. Descriptive: a
 // thresholded spectral index, with no model and no trained legend.
 type WaterAnalysis struct {
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing -- see the
+	// comment there for the three failures that reach it -- and until this field
+	// existed the withdrawal had nowhere to go. The frontend told the reader the
+	// run was saved either way, which is the one thing that comment says must
+	// not happen.
+	RunID           string      `json:"run_id,omitempty"`
 	Index           string      `json:"index"`
 	ThresholdMethod string      `json:"threshold_method"`
 	ThresholdFixed  float64     `json:"threshold_fixed"`
@@ -1019,6 +1027,14 @@ type PowerProvenance struct {
 // SolarAnalysis is a solar resource result. Physics with no trained head, so it
 // carries no fixed legend and cannot fail on scene availability.
 type SolarAnalysis struct {
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing -- see the
+	// comment there for the three failures that reach it -- and until this field
+	// existed the withdrawal had nowhere to go. The frontend told the reader the
+	// run was saved either way, which is the one thing that comment says must
+	// not happen.
+	RunID    string        `json:"run_id,omitempty"`
 	Lon      float64       `json:"lon"`
 	Lat      float64       `json:"lat"`
 	Resource SolarResource `json:"resource"`

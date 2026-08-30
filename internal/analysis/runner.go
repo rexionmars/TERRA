@@ -938,6 +938,76 @@ func promoteExportFile(src, basename string) (string, error) {
 	return dest, nil
 }
 
+// AnalyzeSurfaceModel fetches the Copernicus surface over one area.
+//
+// Shorter than its neighbours because the product is: GLO-30 is one static
+// raster, so there is no period to select, no cloud limit to apply and no
+// stack to reduce. What it does share with them is the work directory, which
+// exists only until the values raster has been read into a data URI.
+func (r *Runner) AnalyzeSurfaceModel(
+	ctx context.Context, req SurfaceModelRequest,
+) (*SurfaceModel, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+
+	var polygon *GeoJSONGeometry
+	if req.AreaID != "" {
+		area, ok := r.loadArea(req.AreaID)
+		if !ok {
+			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
+		}
+		geom := area.Geometry
+		polygon = &geom
+	} else if req.PolygonGeoJSON != nil {
+		polygon = req.PolygonGeoJSON
+	} else {
+		return nil, fmt.Errorf("no area or polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-surface-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	sReq := sidecarRequest{
+		Action:         "surface_model",
+		ModelDir:       r.modelDir, // unused here, kept for schema
+		PolygonGeoJSON: polygon,
+		WorkDir:        workDir,
+	}
+	reqBytes, err := json.Marshal(sReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		SurfaceModel *SurfaceModel `json:"surface_model"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse surface model result: %w", err)
+	}
+	if wrapped.SurfaceModel == nil {
+		return nil, fmt.Errorf("sidecar returned empty surface model payload")
+	}
+	// The raster, read before the work directory goes. A failure here leaves
+	// the URI empty and the figures still stand; only the map is missing,
+	// which is the same bargain the flood rasters make.
+	if wrapped.SurfaceModel.ValuesPNG != "" {
+		if uri, uerr := pngToDataURI(wrapped.SurfaceModel.ValuesPNG); uerr == nil {
+			wrapped.SurfaceModel.ValuesURI = uri
+		}
+	}
+	wrapped.SurfaceModel.NormalizeNilSlices()
+	return wrapped.SurfaceModel, nil
+}
+
 // AnalyzeWater maps surface water over a period from spectral water indices.
 //
 // Descriptive: the result is a thresholded index, so it carries none of the
@@ -2014,6 +2084,14 @@ func (r *Runner) AnalyzeFlood(ctx context.Context, req FloodRequest) (*FloodAnal
 	if wrapped.Flood.AgreementPNG != "" {
 		if uri, uerr := pngToDataURI(wrapped.Flood.AgreementPNG); uerr == nil {
 			wrapped.Flood.AgreementURI = uri
+		}
+	}
+	// The values raster, on the same terms: a failure here leaves the field
+	// empty and the map draws the coloured overlay, which is what it drew
+	// before this existed. Nothing about the run depends on it.
+	if wrapped.Flood.AgreementValuesPNG != "" {
+		if uri, uerr := pngToDataURI(wrapped.Flood.AgreementValuesPNG); uerr == nil {
+			wrapped.Flood.AgreementValuesURI = uri
 		}
 	}
 	wrapped.Flood.NormalizeNilSlices()

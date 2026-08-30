@@ -15,6 +15,7 @@
 import {
   ChartColumn,
   Map as MapIcon,
+  Globe2,
   Waves,
   Zap,
   type LucideIcon,
@@ -29,7 +30,7 @@ export interface NavItem {
 
 export interface NavGroup {
   /** The screen this group is, so the active one is found by comparison. */
-  id: Extract<AppScreen, "map" | "energy" | "flood" | "analysis">
+  id: Extract<AppScreen, "map" | "energy" | "flood" | "globe" | "analysis">
   label: string
   icon: LucideIcon
   /**
@@ -74,6 +75,18 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     id: "flood",
     label: "Flood envelope",
     icon: Waves,
+    items: [],
+  },
+  {
+    // A globe rather than a pin or a map: the glyph has to say that this one
+    // is about the planet and the others are about a place on it, and the
+    // sphere is the only shape here that cannot be mistaken for the map.
+    //
+    // No children. It is one surface with one question -- where is the work --
+    // and a sub-tab would be a second answer to it.
+    id: "globe",
+    label: "Globe",
+    icon: Globe2,
     items: [],
   },
   {

@@ -20,6 +20,7 @@ import {
   Box,
   ChartSpline,
   Crosshair,
+  Globe2,
   LibraryBig,
   GitCompareArrows,
   ListTree,
@@ -46,6 +47,7 @@ export type EditorId =
   | "runParams"
   | "canopy"
   | "canopyParams"
+  | "globe"
 
 export interface StudioEditorMeta {
   id: EditorId
@@ -265,6 +267,33 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     // described the voxel view this editor replaced. A hint that outlives the
     // thing it describes sends a reader to the wrong area.
     hint: "A stand: specified and drawn, or the one an AOI's season implies",
+  },
+  {
+    id: "globe",
+    label: "Globe",
+    icon: Globe2,
+    /*
+      A sphere has to be wide enough to be one: below roughly this the planet
+      is smaller than the areas drawn on it, and the editor shows outlines
+      floating on a curve rather than where work is. Square-ish floors, because
+      unlike every figure here the subject is round and gains nothing from a
+      band.
+    */
+    minRem: 16,
+    minRowRem: 14,
+    /*
+      Unique. Two globes is two more contexts, not a comparison -- they would
+      show the same catalog at two camera angles.
+    */
+    unique: true,
+    /*
+      A context, and unlike the canopy's it is spent on mounting the area
+      rather than on entering a pane. With the viewport always holding one,
+      an area on this is the second of the two this file calls comfortable,
+      and a board carrying this AND a canopy on its stand pane is at three.
+    */
+    gl: true,
+    hint: "Every drawn area on the planet, from the world down into the imagery",
   },
   {
     id: "canopyParams",
