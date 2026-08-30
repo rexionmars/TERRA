@@ -3,7 +3,7 @@ Solar energy analysis beyond the point resource: where the energy is lost,
 what tracking changes, when it is generated, and what the suitable area
 supports.
 
-Consumes what solar.py already produces (the hourly frame, the plane-of-array
+Consumes what terra/energy/pv.py already produces (the hourly frame, the plane-of-array
 transposition, the PVWatts chain) and adds no data source of its own.
 
 ONE APPLIED PERFORMANCE RATIO. resolve_performance_ratio is the only place a
@@ -12,7 +12,7 @@ record rather than a literal. Three products computing a yield from three
 different ratios would disagree on the same screen with no visible cause.
 
 WHAT THE DEFAULT IS. The applied ratio still defaults to
-solar.REFERENCE_PERFORMANCE_RATIO, the value benchmarked against the Global
+pv_mod.REFERENCE_PERFORMANCE_RATIO, the value benchmarked against the Global
 Solar Atlas. The waterfall exists to make that number auditable, not to replace
 it: the derived ratio is reported next to it and the response carries both,
 each with its provenance.
@@ -27,7 +27,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-import solar
+from terra.energy import pv as pv_mod, seasons as seasons_mod
 
 # Citations carried with the numbers they produced, so a figure cannot be read
 # without its source.
@@ -114,7 +114,7 @@ TELESCOPING_TOLERANCE = 1e-9
 
 
 # PVWatts v5 module types and their DC power temperature coefficients.
-# solar.GAMMA_PDC = -0.0035 is the "Premium" selection. That is a choice of
+# pv_mod.GAMMA_PDC = -0.0035 is the "Premium" selection. That is a choice of
 # module type, not a measured property of this site, and it is the least
 # conservative of the crystalline options, so the selection is named in every
 # response and the alternatives are carried with it.
@@ -210,32 +210,32 @@ def apply_module_type(frame: pd.DataFrame, gamma_pdc: float) -> pd.DataFrame:
     """
     The frame re-evaluated at another module type's temperature coefficient.
 
-    solar.pv_yield_frame reads the module-level solar.GAMMA_PDC, so a selected
+    pv_mod.pv_yield_frame reads the module-level pv_mod.GAMMA_PDC, so a selected
     type reaches the chain only by recomputing the two steps that depend on the
     coefficient. Plane-of-array irradiance, the angle-of-incidence loss and the
     cell temperature are functions of geometry and meteorology, not of the
     coefficient, so they are carried through untouched and the two paths cannot
     disagree about them. Same pvlib calls and same array constants as
-    solar.pv_yield_frame, so the selected type is a re-evaluation of that chain
+    pv_mod.pv_yield_frame, so the selected type is a re-evaluation of that chain
     rather than a second one.
     """
     import pvlib
 
-    if abs(float(gamma_pdc) - float(solar.GAMMA_PDC)) < 1e-12:
+    if abs(float(gamma_pdc) - float(pv_mod.GAMMA_PDC)) < 1e-12:
         return frame
     out = frame.copy()
     out["p_dc"] = pvlib.pvsystem.pvwatts_dc(
-        frame["g_eff"], frame["temp_cell"], solar.PDC0_W, float(gamma_pdc)
+        frame["g_eff"], frame["temp_cell"], pv_mod.PDC0_W, float(gamma_pdc)
     )
     out["p_ac"] = pvlib.inverter.pvwatts(
         out["p_dc"],
-        solar.PDC0_W * solar.INVERTER_OVERSIZE_RATIO,
-        eta_inv_nom=solar.INVERTER_ETA_NOM,
+        pv_mod.PDC0_W * pv_mod.INVERTER_OVERSIZE_RATIO,
+        eta_inv_nom=pv_mod.INVERTER_ETA_NOM,
     )
     return out
 
 
-def module_type_assumption(gamma_pdc: float = solar.GAMMA_PDC) -> dict:
+def module_type_assumption(gamma_pdc: float = pv_mod.GAMMA_PDC) -> dict:
     """
     The module-type selection behind the DC temperature coefficient.
 
@@ -274,14 +274,14 @@ def modelled_factors(frame: pd.DataFrame, n_years: float) -> dict:
     The three factors the existing chain models, and the energies behind them.
 
     Each factor is a ratio of consecutive annual energy sums taken from one
-    solar.pv_yield_frame call, so the product telescopes into
-    solar.modelled_performance_ratio exactly. Energies are per kWp of the
-    reference array, so they are independent of solar.PDC0_W.
+    pv_mod.pv_yield_frame call, so the product telescopes into
+    pv_mod.modelled_performance_ratio exactly. Energies are per kWp of the
+    reference array, so they are independent of pv.PDC0_W.
 
     Denominator convention follows IEC 61724-1: the plane-of-array irradiation
     on the module plane, not the horizontal irradiation.
     """
-    kwp = solar.PDC0_W / 1000.0
+    kwp = pv_mod.PDC0_W / 1000.0
 
     def energy_irradiance(col: str) -> float:
         return float(frame[col].sum()) / 1000.0 / n_years
@@ -369,7 +369,7 @@ def resolve_performance_ratio(
     chain computes. The DERIVED ratio is the modelled ratio times the declared
     PVWatts v5 loss terms the chain does not model. The APPLIED ratio is what
     a yield is actually computed from, and it defaults to
-    solar.REFERENCE_PERFORMANCE_RATIO, the value benchmarked against the Global
+    pv_mod.REFERENCE_PERFORMANCE_RATIO, the value benchmarked against the Global
     Solar Atlas; a caller override replaces it and is recorded as such. The
     default is not changed by the presence of the derived ratio, because the
     derived one has no external benchmark.
@@ -426,7 +426,7 @@ def resolve_performance_ratio(
 
     modelled = factors["performance_ratio_modelled"]
     derived = modelled * declared_factor * optional_factor
-    reference = float(solar.REFERENCE_PERFORMANCE_RATIO)
+    reference = float(pv_mod.REFERENCE_PERFORMANCE_RATIO)
 
     if isinstance(override, (int, float)):
         applied = float(override)
@@ -511,7 +511,7 @@ def loss_waterfall(
     ghi_climatology_kwh_m2_year: float | None = None,
     climatology_window: str | None = None,
     wind_source: str = "NASA POWER WS2M (MERRA-2), 2 m above ground",
-    gamma_pdc: float = solar.GAMMA_PDC,
+    gamma_pdc: float = pv_mod.GAMMA_PDC,
 ) -> dict:
     """
     Stepwise account from horizontal irradiation to delivered AC energy per kWp.
@@ -611,7 +611,7 @@ def loss_waterfall(
     add(
         5, "Standard test condition conversion, irradiance to DC nameplate",
         1.0, e_geff, "kWh/kWp/yr", f["f_iam"], "unit_change", True,
-        f"definitional at solar.PDC0_W = {solar.PDC0_W:g} W and 1000 W/m2",
+        f"definitional at pv.PDC0_W = {pv_mod.PDC0_W:g} W and 1000 W/m2",
         "The unit changes here from kWh/m2/yr to kWh/kWp/yr. The rows are "
         "numerically continuous only because the reference array is rated at "
         "1000 W/m2.",
@@ -640,7 +640,7 @@ def loss_waterfall(
         7, "Inverter (PVWatts)",
         f["f_inverter"], e_ac, "kWh/kWp/yr", f["performance_ratio_modelled"],
         "modelled", True, SOURCE_DOBOS,
-        "The inverter oversizing factor solar.INVERTER_OVERSIZE_RATIO sets the "
+        "The inverter oversizing factor pv.INVERTER_OVERSIZE_RATIO sets the "
         "pvlib DC input limit; see its comment for what it does and does not "
         "mean.",
     )
@@ -763,14 +763,14 @@ def loss_waterfall(
             # a coefficient that produced none of the figures above it.
             "module_type": module_type_assumption(gamma_pdc),
             "albedo": {
-                "value": solar.ALBEDO,
+                "value": pv_mod.ALBEDO,
                 "source": (
                     f"{CONVENTION}; the pvlib get_total_irradiance default is "
                     "0.25, so this is a deliberate override"
                 ),
             },
             "transposition_model": {
-                "value": solar.TRANSPOSITION_MODEL,
+                "value": pv_mod.TRANSPOSITION_MODEL,
                 "source": SOURCE_PEREZ,
             },
             "wind_source": {
@@ -795,7 +795,7 @@ def loss_waterfall(
 #
 # The axis is horizontal and runs north-south, which is the configuration
 # Bolinger and Bolinger (2022) measure. axis_azimuth is measured east of north,
-# matching the convention solar.py already uses; for a symmetric rotation limit
+# matching the convention terra/energy/pv.py already uses; for a symmetric limit
 # 0 and 180 give identical surface orientations.
 AXIS_TILT_DEG = 0.0
 AXIS_AZIMUTH_DEG = 0.0
@@ -966,7 +966,7 @@ def tracking_comparison(
     gcr_tracker: float = GCR_TRACKER,
     max_angle_deg: float = TRACKER_MAX_ANGLE_DEG,
     solve_parity: bool = True,
-    gamma_pdc: float = solar.GAMMA_PDC,
+    gamma_pdc: float = pv_mod.GAMMA_PDC,
 ) -> dict:
     """
     Horizontal single-axis tracking against the fixed tilt, per kWp and per
@@ -987,16 +987,16 @@ def tracking_comparison(
     """
     _require_resolved(ratio)
     tilt_t, azim_t = tracker_orientation(solpos, gcr_tracker, max_angle_deg)
-    poa_track = solar.transpose(df, solpos, tilt_t, azim_t)
+    poa_track = pv_mod.transpose(df, solpos, tilt_t, azim_t)
 
     # Both configurations run on the module type the caller selected. Taking
-    # solar.pv_yield here instead would evaluate the tracker and the fixed
+    # pv_mod.pv_yield here instead would evaluate the tracker and the fixed
     # array at the default coefficient while the waterfall beside them used the
     # selected one, and the two performance ratios would disagree with nothing
     # on screen to explain it.
     def _p_ac(poa, tilt, azimuth):
         return apply_module_type(
-            solar.pv_yield_frame(poa, df, solpos, tilt, azimuth), gamma_pdc
+            pv_mod.pv_yield_frame(poa, df, solpos, tilt, azimuth), gamma_pdc
         )["p_ac"]
 
     p_ac_track = _p_ac(poa_track, tilt_t, azim_t)
@@ -1004,10 +1004,10 @@ def tracking_comparison(
 
     poa_fixed_year = _annual(poa_fixed["poa_global"], n_years)
     poa_track_year = _annual(poa_track["poa_global"], n_years)
-    pr_fixed = solar.modelled_performance_ratio(
+    pr_fixed = pv_mod.modelled_performance_ratio(
         p_ac_fixed, poa_fixed["poa_global"]
     )
-    pr_track = solar.modelled_performance_ratio(
+    pr_track = pv_mod.modelled_performance_ratio(
         p_ac_track, poa_track["poa_global"]
     )
 
@@ -1015,7 +1015,7 @@ def tracking_comparison(
     yield_track = specific_yield(poa_track_year, ratio)
     gain_kwp_pct = 100.0 * (yield_track / yield_fixed - 1.0)
 
-    # ONE YEAR LENGTH FOR THE ANNUAL ROW. solar.season_years divides the hours
+    # ONE YEAR LENGTH FOR THE ANNUAL ROW. seasons_mod.season_years divides the hours
     # in a season by a mean Gregorian year of 8766 hours, which returns 10.0014
     # rather than 10 for a whole ten-year record and made the annual seasonal
     # row report 1884.3 against the 1884.6 the per-kWp block reports for the
@@ -1024,17 +1024,17 @@ def tracking_comparison(
     # solar_resource action all divide by. The other rows keep the mean-year
     # convention: a season is not a calendar year and has no such count.
     seasons = []
-    for name in solar.SEASONS:
-        mask = solar.season_mask(df.index, name)
-        whole_year = list(solar.SEASONS[name]) == list(range(1, 13))
-        years = float(n_years) if whole_year else solar.season_years(
+    for name in seasons_mod.SEASONS:
+        mask = seasons_mod.season_mask(df.index, name)
+        whole_year = list(seasons_mod.SEASONS[name]) == list(range(1, 13))
+        years = float(n_years) if whole_year else seasons_mod.season_years(
             df.index, name
         )
         f_season = _annual(poa_fixed["poa_global"][mask], years)
         t_season = _annual(poa_track["poa_global"][mask], years)
         seasons.append({
             "season": name,
-            "months": list(solar.SEASONS[name]),
+            "months": list(seasons_mod.SEASONS[name]),
             "years": round(float(years), 5),
             "years_basis": (
                 "calendar years in the record"
@@ -1061,16 +1061,16 @@ def tracking_comparison(
         alt = df.copy()
         alt["wind"] = float(speed)
         a = apply_module_type(
-            solar.pv_yield_frame(poa_fixed, alt, solpos, fixed_tilt_deg,
+            pv_mod.pv_yield_frame(poa_fixed, alt, solpos, fixed_tilt_deg,
                                  fixed_azimuth_deg),
             gamma_pdc,
         )["p_ac"]
         b = apply_module_type(
-            solar.pv_yield_frame(poa_track, alt, solpos, tilt_t, azim_t),
+            pv_mod.pv_yield_frame(poa_track, alt, solpos, tilt_t, azim_t),
             gamma_pdc,
         )["p_ac"]
-        pa = solar.modelled_performance_ratio(a, poa_fixed["poa_global"])
-        pb = solar.modelled_performance_ratio(b, poa_track["poa_global"])
+        pa = pv_mod.modelled_performance_ratio(a, poa_fixed["poa_global"])
+        pb = pv_mod.modelled_performance_ratio(b, poa_track["poa_global"])
         transfer.append({
             "wind": f"fixed {speed:g} m/s",
             "performance_ratio_fixed": round(float(pa), 6),
@@ -1270,7 +1270,7 @@ def _parity_ground_coverage(
 
     def residual(gcr: float) -> float:
         tilt, azim = tracker_orientation(solpos, gcr, max_angle_deg)
-        poa = solar.transpose(df, solpos, tilt, azim)
+        poa = pv_mod.transpose(df, solpos, tilt, azim)
         y = specific_yield(_annual(poa["poa_global"], n_years), ratio)
         return gcr * y - target
 
@@ -1324,7 +1324,7 @@ def generation_profile(
     The hour axis is UTC unless an offset is supplied, in which case the shift
     is applied here and reported in the payload rather than left to the reader.
     """
-    kwp = solar.PDC0_W / 1000.0
+    kwp = pv_mod.PDC0_W / 1000.0
     index = frame.index
     offset_note = (
         f"Hours are {PROFILE_TIME_STANDARD}, labelled by the "
@@ -1431,7 +1431,7 @@ BOLINGER_SAMPLE_MW_DC = 35482.0
 BOLINGER_SAMPLE_MW_AC = 27001.0
 
 # Fleet direct-current to alternating-current ratio, used ONLY to convert a
-# published MW_AC density to MW_DC. It is not solar.INVERTER_OVERSIZE_RATIO:
+# published MW_AC density to MW_DC. It is not pv.INVERTER_OVERSIZE_RATIO:
 # that constant is a model-internal inverter sizing multiplier and the two are
 # unrelated quantities.
 FLEET_DC_AC_RATIO = BOLINGER_SAMPLE_MW_DC / BOLINGER_SAMPLE_MW_AC
@@ -1733,7 +1733,7 @@ def _applied_shading_derate(
     """
     The horizon shading derate converted from the beam basis to a yield basis.
 
-    solar.shading_loss_fraction returns the share of BEAM energy a pixel loses
+    poa_mod.shading_loss_fraction returns the share of BEAM energy a pixel loses
     to its own horizon, and the terrain product publishes that fraction
     unscaled, which is what the research figures report. A plane-of-array total
     carries beam and diffuse together, so a beam-basis loss L reduces the total

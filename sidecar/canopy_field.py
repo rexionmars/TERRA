@@ -699,7 +699,7 @@ def _canopy_azimuth(compass_deg, row_azimuth_deg=0.0):
     """A compass bearing, in the canopy's own frame.
 
     TWO CONVENTIONS MEET HERE AND NEITHER IS WRONG. Solar azimuth is clockwise
-    from north, which is what `solar.py` produces and what the aspect raster
+    from north, which is what `terra.sun.position` produces and what the aspect raster
     uses. `_sun` measures anticlockwise from the field's +x axis, because the
     field has no north -- it has a module with two axes.
 

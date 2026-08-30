@@ -511,7 +511,7 @@ def test_calm_near_surface_field_is_flagged():
 
     text = " ".join(quality["flags"])
     assert "97.0" in text
-    assert "sidecar/solar.py" in text, (
+    assert "terra/energy/pv.py" in text, (
         "the 2 m field is what the module temperature model is fed, so the "
         "flag must say the modelled performance ratio carries the same defect"
     )

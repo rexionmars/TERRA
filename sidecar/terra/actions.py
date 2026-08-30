@@ -1043,7 +1043,7 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     Stages are reported through progress(stage, message) with stage one of
     SITING_STAGES; each caller maps the stage onto its own progress scale.
     """
-    import solar as solar_mod
+    from terra.energy import siting as siting_mod
     from terra.terrain import dem as terrain_dem, slope as terrain_slope
     import lulc as lulc_mod
     import rasterio
@@ -1095,7 +1095,7 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
         protocol.fail('the DEM window does not overlap the AOI')
 
     stage('classes', 'siting classes')
-    suit = solar_mod.suitability_map(
+    suit = siting_mod.suitability_map(
         slope, mb, valid,
         slope_acceptable=slope_acceptable,
         slope_restrictive=slope_restrictive,
@@ -1107,7 +1107,7 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
         'suitability': suit,
         'slope': slope,
         'valid': valid,
-        'classes': solar_mod.suitability_stats(suit, px_area_ha),
+        'classes': siting_mod.suitability_stats(suit, px_area_ha),
         'pixel_area_ha': px_area_ha,
         'dem_transform': dem_transform,
         'dem_crs': dem_crs,
@@ -1815,7 +1815,7 @@ def action_list_datacube(req, work_dir):
 
 # Solar resource and photovoltaic yield at the AOI centroid (no imagery).
 def action_solar_resource(req, work_dir):
-    import solar as solar_mod
+    from terra.energy import pv as pv_mod
     from terra.sun import (
         position as sun_position,
         nasa_power as sun_power,
@@ -1901,7 +1901,7 @@ def action_solar_resource(req, work_dir):
     n_years = max(len(set(df.index.year)), 1)
 
     protocol.emit_progress(84, 'optimum tilt')
-    sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
+    sweep = pv_mod.sweep_tilt(df, solpos, azimuth, n_years)
     best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
     horizontal = next(
         (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
@@ -1921,13 +1921,13 @@ def action_solar_resource(req, work_dir):
             })
 
     protocol.emit_progress(92, 'photovoltaic yield')
-    poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
-    p_ac = solar_mod.pv_yield(poa, df, solpos, best['tilt_deg'], azimuth)
-    pr_modelled = solar_mod.modelled_performance_ratio(p_ac, poa['poa_global'])
+    poa = pv_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
+    p_ac = pv_mod.pv_yield(poa, df, solpos, best['tilt_deg'], azimuth)
+    pr_modelled = pv_mod.modelled_performance_ratio(p_ac, poa['poa_global'])
     pr_applied = (
         float(pr_override)
         if isinstance(pr_override, (int, float))
-        else solar_mod.REFERENCE_PERFORMANCE_RATIO
+        else pv_mod.REFERENCE_PERFORMANCE_RATIO
     )
     pr_source = 'user' if isinstance(pr_override, (int, float)) else 'reference'
     poa_year = float(poa['poa_global'].sum()) / 1000.0 / n_years
@@ -1974,7 +1974,11 @@ def action_solar_resource(req, work_dir):
 
 # Terrain-resolved plane-of-array irradiation over the AOI.
 def action_solar_terrain(req, work_dir):
-    import solar as solar_mod
+    from terra.energy import (
+        overlays as overlays_mod,
+        terrain_irradiance as poa_mod,
+        seasons as seasons_mod,
+    )
     from terra.sun import (
         position as sun_position,
         nasa_power as sun_power,
@@ -2001,7 +2005,7 @@ def action_solar_terrain(req, work_dir):
         # window before it is published.
         dem_path = terrain_dem.fetch_file(
             polygon, Path(work_dir) / 'dem.tif',
-            buffer_m=solar_mod.HORIZON_MAX_DIST_M,
+            buffer_m=poa_mod.HORIZON_MAX_DIST_M,
             progress=lambda msg: protocol.emit_progress(-1, msg),
         )
     except Exception as e:
@@ -2021,7 +2025,7 @@ def action_solar_terrain(req, work_dir):
     dx_m, dy_m = terrain_slope.pixel_size_m(buf_transform, lat)
     protocol.emit_progress(20, 'slope, aspect and horizon')
     slope, aspect = terrain_slope.horn_slope_aspect(elevation, dx_m, dy_m)
-    horizon, _ = solar_mod.horizon_angles(elevation, dx_m, dy_m)
+    horizon, _ = poa_mod.horizon_angles(elevation, dx_m, dy_m)
 
     # Crop back: the buffer exists so the horizon sees beyond the boundary,
     # not so the result reports on land the user did not ask about.
@@ -2064,7 +2068,7 @@ def action_solar_terrain(req, work_dir):
     n_years = max(len(set(df.index.year)), 1)
 
     season = (req.get('season') or 'annual').lower()
-    if season not in solar_mod.SEASONS and season not in ('anisotropy', 'shading'):
+    if season not in seasons_mod.SEASONS and season not in ('anisotropy', 'shading'):
         protocol.fail(f'unknown season: {season}')
 
     beam_share = sun_record.beam_fraction(df)
@@ -2073,9 +2077,9 @@ def action_solar_terrain(req, work_dir):
     # be a figure rather than noise. Read off the horizon already traced, so
     # the test costs nothing; below the threshold the sky view factor is a
     # rounding term and applying it would spend the arithmetic on noise.
-    enclosure = solar_mod.horizon_enclosure(horizon)
+    enclosure = poa_mod.horizon_enclosure(horizon)
     svf_loss = (
-        solar_mod.diffuse_loss_fraction(horizon)
+        poa_mod.diffuse_loss_fraction(horizon)
         if enclosure['encloses'] else None
     )
 
@@ -2094,15 +2098,15 @@ def action_solar_terrain(req, work_dir):
         The published shading layer stays the unscaled beam fraction, which
         is what the research figures report.
         """
-        m = solar_mod.season_mask(df.index, name)
+        m = seasons_mod.season_mask(df.index, name)
         sub, sp = df[m], solpos[m]
         if sub.empty:
             protocol.fail(f'no hourly record inside the {name} window')
-        yrs = solar_mod.season_years(df.index, name)
-        tbl = solar_mod.build_poa_lookup(sub, sp, max(yrs, 1e-6))
-        raw = solar_mod.interpolate_poa(slope, aspect, tbl)
+        yrs = seasons_mod.season_years(df.index, name)
+        tbl = poa_mod.build_poa_lookup(sub, sp, max(yrs, 1e-6))
+        raw = poa_mod.interpolate_poa(slope, aspect, tbl)
         hist, edges = sun_position.beam_energy_histogram(sub, sp)
-        loss = solar_mod.shading_loss_fraction(horizon, hist, edges)
+        loss = poa_mod.shading_loss_fraction(horizon, hist, edges)
         attenuated = raw * (1.0 - loss * beam_share)
         if svf_loss is not None:
             attenuated = attenuated * (1.0 - svf_loss * (1.0 - beam_share))
@@ -2126,13 +2130,13 @@ def action_solar_terrain(req, work_dir):
         _, shading_loss = _poa_for('annual')
         poa = shading_loss
         unit = 'fraction of beam blocked'
-    elif season in solar_mod.SEASON_PAIR:
+    elif season in overlays_mod.SEASON_PAIR:
         # The companion season is computed only so both land on one colour
         # domain. Their spatial spread differs by about a factor of ten, and
         # normalising each to its own range draws them at equal contrast.
         protocol.emit_progress(78, f'lookup [{season}]')
         poa, shading_loss = _poa_for(season)
-        other = solar_mod.SEASON_PAIR[season]
+        other = overlays_mod.SEASON_PAIR[season]
         protocol.emit_progress(85, f'lookup [{other}], shared colour scale')
         companion, _ = _poa_for(other)
         unit = 'kWh/m2 per season'
@@ -2152,10 +2156,10 @@ def action_solar_terrain(req, work_dir):
     if not valid.any():
         protocol.fail('the DEM window does not overlap the AOI')
 
-    scale = solar_mod.render_scale(season, poa, valid, companion, valid)
+    scale = overlays_mod.render_scale(season, poa, valid, companion, valid)
     png = Path(work_dir) / 'solar_poa.png'
     comp.write_rgba_png(
-        solar_mod.terrain_rgba(
+        overlays_mod.terrain_rgba(
             poa, valid, scale['min'], scale['max'], scale['palette']
         ),
         png,
@@ -2205,7 +2209,7 @@ def action_solar_terrain(req, work_dir):
                 round(float(100.0 * np.nanmax(shading_loss[valid])), 3)
                 if shading_loss is not None else None
             ),
-            'horizon_max_dist_m': float(solar_mod.HORIZON_MAX_DIST_M),
+            'horizon_max_dist_m': float(poa_mod.HORIZON_MAX_DIST_M),
             'beam_fraction': round(float(beam_share), 4),
             # The sky view factor and the threshold it was judged against.
             # Reported whether or not it was applied: "not applied" and
@@ -2241,7 +2245,7 @@ def action_solar_terrain(req, work_dir):
 
 # Photovoltaic siting from slope limits and land-cover eligibility.
 def action_solar_siting(req, work_dir):
-    import solar as solar_mod
+    from terra.energy import siting as siting_mod
     import composite as comp
     import rasterio
 
@@ -2254,13 +2258,13 @@ def action_solar_siting(req, work_dir):
     # Zero degrees is a limit the caller can mean: it accepts only ground
     # the DEM reports as flat. Absence selects the convention, not falsiness.
     slope_acceptable = protocol.request_number(
-        req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
+        req, 'slope_acceptable_deg', siting_mod.SLOPE_ACCEPTABLE_DEG
     )
     slope_restrictive = protocol.request_number(
-        req, 'slope_restrictive_deg', solar_mod.SLOPE_RESTRICTIVE_DEG
+        req, 'slope_restrictive_deg', siting_mod.SLOPE_RESTRICTIVE_DEG
     )
-    excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
-    cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
+    excluded = tuple(req.get('excluded_cover') or siting_mod.EXCLUDED_COVER)
+    cropland = tuple(req.get('cropland_cover') or siting_mod.CROPLAND_COVER)
 
     siting_pct = {'dem': 10, 'slope': 35, 'cover': 55, 'classes': 80}
     sited = compute_siting(
@@ -2277,7 +2281,7 @@ def action_solar_siting(req, work_dir):
     dem_profile = sited['dem_profile']
 
     png = Path(work_dir) / 'solar_siting.png'
-    comp.write_rgba_png(solar_mod.suitability_rgba(suit), png)
+    comp.write_rgba_png(siting_mod.suitability_rgba(suit), png)
     tif = Path(work_dir) / 'solar_siting.tif'
     prof = dem_profile.copy()
     prof.update(dtype='int16', count=1, compress='lzw', nodata=-1)
@@ -2315,7 +2319,7 @@ def action_solar_siting(req, work_dir):
 # Runs on the same POWER series as solar_resource, read from the cache when
 # that action has already been run for this cell.
 def action_energy_model(req, work_dir):
-    import solar as solar_mod
+    from terra.energy import pv as pv_mod, siting as siting_mod
     from terra.sun import (
         position as sun_position,
         nasa_power as sun_power,
@@ -2440,18 +2444,18 @@ def action_energy_model(req, work_dir):
     n_years = max(len(set(df.index.year)), 1)
 
     protocol.emit_progress(66, 'optimum tilt')
-    sweep = solar_mod.sweep_tilt(df, solpos, azimuth, n_years)
+    sweep = pv_mod.sweep_tilt(df, solpos, azimuth, n_years)
     best = max(sweep, key=lambda r: r['poa_kwh_m2_year'])
     horizontal = next(
         (r['poa_kwh_m2_year'] for r in sweep if abs(r['tilt_deg']) < 1e-9),
         best['poa_kwh_m2_year'],
     )
-    poa = solar_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
+    poa = pv_mod.transpose(df, solpos, best['tilt_deg'], azimuth)
     # The selected module type re-evaluates the two coefficient-dependent
     # steps of the chain, so every product below runs on the type the
     # response reports rather than on the module default.
     frame = energy_mod.apply_module_type(
-        solar_mod.pv_yield_frame(poa, df, solpos, best['tilt_deg'], azimuth),
+        pv_mod.pv_yield_frame(poa, df, solpos, best['tilt_deg'], azimuth),
         gamma_pdc,
     )
 
@@ -2534,19 +2538,19 @@ def action_energy_model(req, work_dir):
             suitability = src.read(1)
             dx_m, dy_m = terrain_slope.pixel_size_m(src.transform, centroid.y)
         pixel_area_ha = (dx_m * dy_m) / 10_000.0
-        class_areas = solar_mod.suitability_stats(suitability, pixel_area_ha)
+        class_areas = siting_mod.suitability_stats(suitability, pixel_area_ha)
     elif siting_classes:
         class_areas = siting_classes
     else:
         cog.configure()
         slope_acceptable = protocol.request_number(
-            req, 'slope_acceptable_deg', solar_mod.SLOPE_ACCEPTABLE_DEG
+            req, 'slope_acceptable_deg', siting_mod.SLOPE_ACCEPTABLE_DEG
         )
         slope_restrictive = protocol.request_number(
-            req, 'slope_restrictive_deg', solar_mod.SLOPE_RESTRICTIVE_DEG
+            req, 'slope_restrictive_deg', siting_mod.SLOPE_RESTRICTIVE_DEG
         )
-        excluded = tuple(req.get('excluded_cover') or solar_mod.EXCLUDED_COVER)
-        cropland = tuple(req.get('cropland_cover') or solar_mod.CROPLAND_COVER)
+        excluded = tuple(req.get('excluded_cover') or siting_mod.EXCLUDED_COVER)
+        cropland = tuple(req.get('cropland_cover') or siting_mod.CROPLAND_COVER)
         siting_pct = {'dem': 88, 'slope': 91, 'cover': 93, 'classes': 96}
         sited = compute_siting(
             polygon, work_dir, slope_acceptable, slope_restrictive,
@@ -2626,8 +2630,8 @@ def action_energy_model(req, work_dir):
                 'analysis_period_years': int(analysis_period),
                 'module_type': module_type,
                 'gamma_pdc_per_c': float(gamma_pdc),
-                'transposition_model': solar_mod.TRANSPOSITION_MODEL,
-                'albedo': float(solar_mod.ALBEDO),
+                'transposition_model': pv_mod.TRANSPOSITION_MODEL,
+                'albedo': float(pv_mod.ALBEDO),
                 'gcr_fixed': gcr_fixed,
                 'gcr_tracker': gcr_tracker,
                 'capacity_density_basis': density_basis,

@@ -72,7 +72,7 @@ class Product:
 
 # The order matters twice. The first entry defines the reference grid every
 # other product is compared on, and cop-dem-glo-30 is the one collection TERRA
-# already reads in production (solar.py), so the grid the envelope is measured
+# already reads in production (terra/energy), so the grid the envelope is measured
 # on is the grid the rest of the application already draws.
 COLLECTIONS = {
     "cop30": Product("cop30", "cop-dem-glo-30", 30.0, ("data",)),

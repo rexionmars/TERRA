@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 
 import energy
-import solar
+from terra.energy import pv as pv_mod, seasons as seasons_mod
 from terra.sun import (
     position as sun_position,
     nasa_power as sun_power,
@@ -78,9 +78,9 @@ def _synthetic_site() -> dict:
     df, solpos = sun_position.prepare_hourly(hourly, SITE_LAT, SITE_LON, 0.0)
     n_years = float(len(set(df.index.year)))
     tilt, azimuth = 25.0, 0.0
-    poa = solar.transpose(df, solpos, tilt, azimuth)
-    poa_horizontal = solar.transpose(df, solpos, 0.0, azimuth)
-    frame = solar.pv_yield_frame(poa, df, solpos, tilt, azimuth)
+    poa = pv_mod.transpose(df, solpos, tilt, azimuth)
+    poa_horizontal = pv_mod.transpose(df, solpos, 0.0, azimuth)
+    frame = pv_mod.pv_yield_frame(poa, df, solpos, tilt, azimuth)
     return {
         "df": df,
         "solpos": solpos,
@@ -173,12 +173,12 @@ def test_modelled_factors_telescope_into_the_performance_ratio():
 def test_modelled_factors_agree_with_the_ratio_solar_reports():
     """
     Two modules must not report two performance ratios for one frame. The
-    waterfall decomposition has to land on solar.modelled_performance_ratio,
+    waterfall decomposition has to land on pv_mod.modelled_performance_ratio,
     which is what the resource card already ships.
     """
     site = _synthetic_site()
     f = energy.modelled_factors(site["frame"], site["n_years"])
-    reported = solar.modelled_performance_ratio(
+    reported = pv_mod.modelled_performance_ratio(
         site["frame"]["p_ac"], site["frame"]["poa_global"]
     )
     assert abs(f["performance_ratio_modelled"] - reported) < 1e-12
@@ -224,7 +224,7 @@ def test_applied_ratio_defaults_to_the_benchmarked_reference():
     has no benchmark of its own.
     """
     ratio = _ratio()
-    assert ratio["applied"] == solar.REFERENCE_PERFORMANCE_RATIO
+    assert ratio["applied"] == pv_mod.REFERENCE_PERFORMANCE_RATIO
     assert ratio["applied_source"] == "reference"
     low, high = ratio["gsa_implied_band"]
     assert low <= ratio["reference"] <= high
@@ -235,7 +235,7 @@ def test_user_override_is_recorded_as_a_user_value():
     ratio = _ratio(override=0.77)
     assert ratio["applied"] == 0.77
     assert ratio["applied_source"] == "user"
-    assert ratio["reference"] == solar.REFERENCE_PERFORMANCE_RATIO
+    assert ratio["reference"] == pv_mod.REFERENCE_PERFORMANCE_RATIO
 
 
 def test_declared_losses_are_the_pvwatts_default_stack():
@@ -477,7 +477,7 @@ def test_delivered_reports_both_ratios_with_the_difference_between_them():
     ) < 1e-9
     assert delivered["reporting_basis"] == "year_one"
     assert wf["assumptions"]["module_type"]["module_type"] == "premium"
-    assert wf["assumptions"]["albedo"]["value"] == solar.ALBEDO
+    assert wf["assumptions"]["albedo"]["value"] == pv_mod.ALBEDO
 
 
 # Tracking
@@ -627,7 +627,7 @@ def test_seasonal_gain_is_reported_beside_the_annual_one():
         site["tilt"], site["azimuth"], _ratio(), solve_parity=False,
     )
     rows = {r["season"]: r for r in result["seasonal"]["rows"]}
-    assert set(rows) == set(solar.SEASONS)
+    assert set(rows) == set(seasons_mod.SEASONS)
     assert rows["summer"]["gain_pct"] > rows["annual"]["gain_pct"]
     assert rows["winter"]["gain_pct"] < rows["annual"]["gain_pct"]
 
@@ -720,7 +720,7 @@ def test_the_fleet_dc_ac_ratio_is_not_the_inverter_oversize_constant():
     density = energy.resolve_capacity_density("nrel_large_fixed_total")
     assert density["units"] == "ac"
     assert density["ac_to_dc_conversion_applied"] is True
-    assert energy.FLEET_DC_AC_RATIO != solar.INVERTER_OVERSIZE_RATIO
+    assert energy.FLEET_DC_AC_RATIO != pv_mod.INVERTER_OVERSIZE_RATIO
     assert abs(energy.FLEET_DC_AC_RATIO - 35482.0 / 27001.0) < 1e-12
     dc_denominated = energy.resolve_capacity_density("bolinger_fixed_direct")
     assert dc_denominated["ac_to_dc_conversion_applied"] is False
@@ -808,7 +808,7 @@ def test_an_empty_annual_record_is_refused():
 
 
 def _siting_stats(area4=121.4, area3=550.0, area2=28.4):
-    """Class areas in the shape solar.suitability_stats produces.
+    """Class areas in the shape siting_mod.suitability_stats produces.
 
     Classes 3 and 4 are both suitable ground and differ only in the land-use
     conflict, which is exactly the pair a total would silently merge.
@@ -922,7 +922,7 @@ def test_shading_is_reported_as_not_applied_when_it_was_not_computed():
 
 def test_the_shading_derate_is_scaled_from_the_beam_basis_to_the_yield():
     """
-    solar.shading_loss_fraction returns the share of BEAM energy the horizon
+    poa_mod.shading_loss_fraction returns the share of BEAM energy the horizon
     removes and the terrain product publishes it unscaled. A plane-of-array
     total is beam plus diffuse, so applying that fraction straight onto the
     alternating-current yield overstates the loss by the diffuse share. The
@@ -1039,7 +1039,7 @@ def test_the_module_type_is_named_as_a_selection_not_a_source():
     a source would read as a measured property of this site.
     """
     assumption = energy.module_type_assumption()
-    assert assumption["gamma_pdc_per_c"] == solar.GAMMA_PDC
+    assert assumption["gamma_pdc_per_c"] == pv_mod.GAMMA_PDC
     assert assumption["module_type"] == "premium"
     assert assumption["alternatives"]["standard"] == -0.0047
     assert assumption["alternatives"]["thin_film"] == -0.0020
@@ -1062,7 +1062,7 @@ def test_the_module_type_is_editable_because_a_request_field_reaches_the_chain()
     assert energy.module_type_assumption()["request_field"] == (
         energy.MODULE_TYPE_REQUEST_FIELD
     )
-    assert energy.resolve_module_type(None) == ("premium", solar.GAMMA_PDC)
+    assert energy.resolve_module_type(None) == ("premium", pv_mod.GAMMA_PDC)
     assert energy.resolve_module_type("STANDARD") == ("standard", -0.0047)
     with pytest.raises(ValueError):
         energy.resolve_module_type("perovskite")
@@ -1082,7 +1082,7 @@ def test_the_module_type_is_editable_because_a_request_field_reaches_the_chain()
         assert abs(ratio["factors"]["telescoping_residual"]) <= (
             energy.TELESCOPING_TOLERANCE
         )
-        if gamma == solar.GAMMA_PDC:
+        if gamma == pv_mod.GAMMA_PDC:
             assert moved["p_ac"].equals(frame["p_ac"])
         else:
             assert not moved["p_ac"].equals(frame["p_ac"])
@@ -1100,7 +1100,7 @@ def test_the_module_type_is_editable_because_a_request_field_reaches_the_chain()
 def test_the_tracking_comparison_runs_on_the_selected_module_type():
     """
     tracking_comparison built its own alternating-current series from
-    solar.pv_yield, which reads the module default. A caller who selected
+    pv_mod.pv_yield, which reads the module default. A caller who selected
     another type would have read a waterfall on one coefficient beside two
     performance ratios on another, on the same screen, with nothing saying so.
     """
@@ -1234,10 +1234,10 @@ def _reference_site() -> dict:
         hourly, REFERENCE_CELL_LAT, REFERENCE_CELL_LON, 0.0
     )
     n_years = float(len(set(df.index.year)))
-    sweep = solar.sweep_tilt(df, solpos, 0.0, n_years)
+    sweep = pv_mod.sweep_tilt(df, solpos, 0.0, n_years)
     best = max(sweep, key=lambda r: r["poa_kwh_m2_year"])
-    poa = solar.transpose(df, solpos, best["tilt_deg"], 0.0)
-    frame = solar.pv_yield_frame(poa, df, solpos, best["tilt_deg"], 0.0)
+    poa = pv_mod.transpose(df, solpos, best["tilt_deg"], 0.0)
+    frame = pv_mod.pv_yield_frame(poa, df, solpos, best["tilt_deg"], 0.0)
     return {
         "df": df,
         "solpos": solpos,
@@ -1274,7 +1274,7 @@ def test_the_reference_chain_is_evaluated_where_the_shipped_actions_evaluate_it(
     n_years = site["n_years"]
 
     def annual(df, solpos):
-        poa = solar.transpose(df, solpos, site["tilt"], 0.0)
+        poa = pv_mod.transpose(df, solpos, site["tilt"], 0.0)
         return float(poa["poa_global"].sum()) / 1000.0 / n_years
 
     def ghi(df):
@@ -1326,7 +1326,7 @@ def test_reference_site_reproduces_the_stored_yield_and_capacity_factor():
     """
     site = _reference_site()
     ghi_hourly = float(site["df"]["ghi"].sum()) / 1000.0 / site["n_years"]
-    horizontal = solar.transpose(site["df"], site["solpos"], 0.0, 0.0)
+    horizontal = pv_mod.transpose(site["df"], site["solpos"], 0.0, 0.0)
     waterfall = energy.loss_waterfall(
         site["frame"], ghi_hourly,
         float(horizontal["poa_global"].sum()) / 1000.0 / site["n_years"],
@@ -1378,7 +1378,7 @@ def test_reference_site_reproduces_the_stored_tracking_comparison():
 def test_the_annual_seasonal_row_and_the_per_kwp_block_agree_on_the_year():
     """
     Both report the annual fixed-tilt plane-of-array total for one array in one
-    payload. The seasonal block divided by solar.season_years, an 8766 hour
+    payload. The seasonal block divided by seasons_mod.season_years, an 8766 hour
     year that returns 10.0014 for a ten calendar year record, so the same
     quantity appeared twice as 1884.3 and 1884.6. The calendar-year count wins,
     because it is what the per-kWp block and the shipped solar_resource action

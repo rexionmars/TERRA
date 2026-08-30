@@ -241,7 +241,7 @@ export function SolarTerrainSection({
             The status panel used to print "drawn on the scale reported with
             the raster, not on this layer's own range" under every terrain
             result. `render_scale` shares a domain only between winter and
-            summer (sidecar/solar.py, SEASON_PAIR); for annual it returns
+            summer (terra/energy/overlays.py, SEASON_PAIR); for annual it returns
             basis "own", so the sentence denied exactly what the endpoints
             showed -- 1366 and 1607 beside figures reading Minimum 1366 and
             Maximum 1607. The payload has carried `basis` and `shared_with`

@@ -82,7 +82,8 @@ var researchTableColumns = map[string][]string{
 	// would assert a quantity two of the layers do not report.
 	//
 	// The two shading columns are the loss as a share of BEAM irradiation, not
-	// of the plane-of-array total (sidecar/solar.py shading_loss_fraction).
+	// of the plane-of-array total (terra/energy/terrain_irradiance.py
+	// shading_loss_fraction).
 	// beam_fraction sits beside them because it is the factor that converts one
 	// to the other; without it the pair reads as a loss of the total and
 	// overstates the effect on yield.
@@ -155,7 +156,7 @@ var researchTableColumns = map[string][]string{
 	//
 	// The capacity factor and the energy carry the same two qualifiers the
 	// manifest gives them, in the column names: gross of the losses listed in
-	// excluded_losses (sidecar/wind.py capacity_factor, "Gross of all losses"),
+	// excluded_losses (terra/energy/wind.py capacity_factor, "Gross of all losses"),
 	// and per turbine (annual_energy_mwh, "Per turbine only. Array wake losses
 	// are not modelled"). A bare capacity_factor_pct column read on its own is
 	// taken for a plant figure, which is the reading both qualifiers exist to

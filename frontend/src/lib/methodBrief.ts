@@ -283,7 +283,7 @@ function solarBrief(i: MethodInputs): MethodBrief {
 
   return {
     subtitle: "Plane-of-array irradiation over this area's terrain",
-    source: "sidecar/solar.py",
+    source: "sidecar/terra/energy",
     sections: [
       {
         title: "Record",

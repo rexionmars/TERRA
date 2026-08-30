@@ -12,7 +12,7 @@ Chain:
     IEA Task 37     published electrical power curve of the IEA-3.4-130
                     reference turbine, with a density normalisation
 
-STANDING OF THE RESULT. Unlike the photovoltaic chain in sidecar/solar.py,
+STANDING OF THE RESULT. Unlike the photovoltaic chain in terra/energy/pv.py,
 which is benchmarked against the Global Solar Atlas, nothing here is validated
 against an external wind reference. Every turbine-level figure is a screening
 indication, gross of wake and array losses, availability, electrical collection
@@ -151,7 +151,7 @@ CALM_2M_NOTE = (
 # than only the two values the band supplies. Each row states its roughness.
 SENSITIVITY_ROUGHNESS_M = (0.01, 0.40)
 
-# Mean Gregorian year. sidecar/solar.py divides by 8760 in its capacity-factor
+# Mean Gregorian year. terra/energy/pv.py divides by 8760 in its capacity-factor
 # denominator, so a user comparing the two blocks sees a 0.07 percent
 # difference. The solar constant is left alone: 8760 produced the capacity
 # factors already stored in saved runs, and changing it would alter them.
@@ -291,7 +291,7 @@ DIRECTION_CONVENTION_NOTE = (
 
 def build_url(lon: float, lat: float, start: str, end: str,
               params: list[str] | None = None) -> str:
-    """Hourly POWER point request, built the same way as sidecar/solar.py."""
+    """Hourly POWER point request, built the same way as terra/energy/pv.py."""
     names = HOURLY_PARAMS if params is None else params
     return (
         f"{POWER_BASE}/hourly/point?"
@@ -328,7 +328,7 @@ def fetch(lon: float, lat: float, start: str, end: str, progress=None) -> pd.Dat
     The hourly wind and air series, requested one calendar year at a time.
 
     Chunked so a failure costs one year rather than the whole period, following
-    sidecar/solar.py. This is the only function in the module that touches the
+    terra/energy/pv.py. This is the only function in the module that touches the
     network; everything below consumes the frame it returns.
 
     The whole-year chunking means a sub-year period is widened to the calendar
@@ -891,7 +891,7 @@ def data_quality(df: pd.DataFrame, lon: float, alpha_bulk: float,
             f"The 2 m field is below {float(calm_threshold_ms)} m/s in "
             f"{calm['2m']} percent of hours, with a record maximum of "
             f"{maxima.get('2m')} m/s. The 2 m level is not used here, but it "
-            "is the field sidecar/solar.py feeds to the module temperature "
+            "is the field terra/energy/pv.py feeds to the module temperature "
             "model, so a modelled performance ratio computed at this AOI "
             "carries the same defect. " + CALM_2M_NOTE
         )
@@ -931,7 +931,7 @@ def monthly_mean_speed(df: pd.DataFrame, column: str = "WS50M") -> list[dict]:
 
     Reported at 50 m, the highest measured level, so the seasonal shape carries
     no extrapolation. Its phase against the monthly irradiation from
-    sidecar/solar.py is the one complementarity statement this module can make
+    terra/energy/pv.py is the one complementarity statement this module can make
     from measured levels alone.
     """
     out = []
