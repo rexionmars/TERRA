@@ -46,15 +46,11 @@ Result (stdout, single JSON object):
 import json
 import sys
 import warnings
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import joblib
 import numpy as np
 import rasterio
-from pyproj import Transformer
-from rasterio.warp import Resampling, reproject
-from shapely.geometry import Polygon, shape
 
 warnings.filterwarnings('ignore')
 
@@ -74,34 +70,8 @@ from terra.landcover.palette import (  # noqa: E402
 
 # --- Polygon / study area --------------------------------------------------
 
-def polygon_from_geojson(geom):
-    """Build a shapely Polygon from a GeoJSON geometry dict."""
-    return shape(geom)
 
 
-def parse_kml_coordinates(kml_path, target_name=None):
-    """Extract polygon coordinates from a KML file (from the notebooks)."""
-    tree = ET.parse(kml_path)
-    root = tree.getroot()
-    ns = {
-        'kml': 'http://www.opengis.net/kml/2.2',
-        'gx': 'http://www.google.com/kml/ext/2.2',
-    }
-    for placemark in root.findall('.//kml:Placemark', ns):
-        name = placemark.find('kml:name', ns)
-        name_text = name.text if name is not None else 'Unknown'
-        if target_name and target_name.lower() not in name_text.lower():
-            continue
-        coords_elem = placemark.find('.//kml:coordinates', ns)
-        if coords_elem is not None:
-            coords_text = coords_elem.text.strip()
-            coords = []
-            for point in coords_text.split():
-                parts = point.split(',')
-                lon, lat = float(parts[0]), float(parts[1])
-                coords.append((lon, lat))
-            return {'name': name_text, 'coordinates': coords, 'polygon': Polygon(coords)}
-    return None
 
 
 # --- Feature engineering (matches feature_names.joblib) ---------------------
@@ -449,61 +419,12 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
 
 # --- MapBiomas (soja mask for temporal retention) --------------------------
 
-def reproject_mapbiomas_to_grid(mapbiomas_path, ref_profile, ref_band_data):
-    """Reproject a cached MapBiomas raster to the Sentinel-2 reference grid."""
-    with rasterio.open(mapbiomas_path) as src:
-        mb_data = src.read(1)
-        mb_transform = src.transform
-        mb_crs = src.crs
-    dst = np.zeros((ref_profile['height'], ref_profile['width']), dtype=np.uint8)
-    reproject(
-        source=mb_data.astype(np.uint8), destination=dst,
-        src_transform=mb_transform, src_crs=mb_crs,
-        dst_transform=ref_profile['transform'], dst_crs=ref_profile['crs'],
-        resampling=Resampling.nearest,
-    )
-    dst[~(ref_band_data > 0)] = 0
-    return dst
 
 
 # --- Georeferencing --------------------------------------------------------
 
-def reference_pixel_size_m(profile):
-    """
-    The side of one pixel of the reference grid, in metres.
-
-    Read off the grid rather than assumed. Every consumer that turns a pixel
-    count into an area needs this number, and the two that already do --
-    class_statistics for hectares and the brush probe in the studio -- each
-    carried their own copy of the literal 10.
-
-    NOT terra.terrain.slope.pixel_size_m, which converts DEGREES to metres for
-    DEM and would multiply this grid by 111320. The reference grid comes from a
-    Sentinel-2 COG in UTM, so its transform is already in metres; the
-    geographic branch below exists for a local product that is not, and is an
-    approximation at the grid's own latitude in the way that one is.
-    """
-    transform = profile['transform']
-    side = abs(float(transform.a))
-    crs = profile.get('crs')
-    if crs is not None and getattr(crs, 'is_geographic', False):
-        lat = float(transform.f) + 0.5 * float(transform.e) * profile['height']
-        return side * 111_320.0 * float(np.cos(np.radians(lat)))
-    return side
 
 
-def get_map_extent(profile):
-    """Compute the EPSG:4326 lat/lon extent from a raster profile (from notebooks)."""
-    t = profile['transform']
-    h, w = profile['height'], profile['width']
-    left = t.c
-    top = t.f
-    right = left + w * t.a
-    bottom = top + h * t.e
-    transformer = Transformer.from_crs(profile['crs'], 'EPSG:4326', always_xy=True)
-    lon_min, lat_min = transformer.transform(left, bottom)
-    lon_max, lat_max = transformer.transform(right, top)
-    return lon_min, lon_max, lat_min, lat_max
 
 
 def hex_to_rgb(hex_color):
@@ -877,105 +798,8 @@ def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
 
 
 
-SITING_STAGES = ('dem', 'slope', 'cover', 'classes')
 
 
-def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
-                   excluded, cropland, mapbiomas_path=None, progress=None):
-    """
-    Photovoltaic siting classes on the Copernicus DEM grid, with class areas.
-
-    Shared by the solar_siting action and by the plant-energy block of
-    energy_model, so a capacity figure and the raster that published the
-    area behind it come from one classification rather than from two that can
-    disagree.
-
-    Stages are reported through progress(stage, message) with stage one of
-    SITING_STAGES; each caller maps the stage onto its own progress scale.
-    """
-    import rasterio
-    from rasterio.features import geometry_mask
-
-    from terra.energy import siting as siting_mod
-    from terra.landcover import mapbiomas as lulc_mod
-    from terra.terrain import dem as terrain_dem, slope as terrain_slope
-
-    def stage(name, msg):
-        if progress:
-            progress(name, msg)
-
-    centroid = polygon.centroid
-    stage('dem', 'fetching Copernicus DEM GLO-30')
-    try:
-        dem_path = terrain_dem.fetch_file(
-            polygon, Path(work_dir) / 'dem.tif',
-            progress=lambda msg: protocol.emit_progress(-1, msg),
-        )
-    except Exception as e:
-        protocol.fail(f'DEM fetch failed: {e}')
-    with rasterio.open(dem_path) as src:
-        elevation = src.read(1).astype(float)
-        dem_transform = src.transform
-        dem_crs = src.crs
-        dem_profile = src.profile.copy()
-
-    dx_m, dy_m = terrain_slope.pixel_size_m(dem_transform, centroid.y)
-    stage('slope', 'slope and aspect')
-    slope, _aspect = terrain_slope.horn_slope_aspect(elevation, dx_m, dy_m)
-
-    stage('cover', 'MapBiomas land cover')
-    try:
-        mb_path = lulc_mod.resolve_mapbiomas_path(
-            mapbiomas_path, polygon, Path(work_dir)
-        )
-        mb = reproject_mapbiomas_to_grid(
-            mb_path,
-            {'transform': dem_transform, 'crs': dem_crs,
-             'height': slope.shape[0], 'width': slope.shape[1]},
-            np.ones_like(slope),
-        )
-    except Exception as e:
-        protocol.fail(f'MapBiomas land cover unavailable: {e}')
-
-    inside = ~geometry_mask(
-        [polygon.__geo_interface__], out_shape=slope.shape,
-        transform=dem_transform, invert=False
-    )
-    valid = inside & np.isfinite(slope)
-    if not valid.any():
-        protocol.fail('the DEM window does not overlap the AOI')
-
-    stage('classes', 'siting classes')
-    suit = siting_mod.suitability_map(
-        slope, mb, valid,
-        slope_acceptable=slope_acceptable,
-        slope_restrictive=slope_restrictive,
-        excluded_cover=excluded,
-        cropland_cover=cropland,
-    )
-    px_area_ha = (dx_m * dy_m) / 10_000.0
-    return {
-        'suitability': suit,
-        'slope': slope,
-        'valid': valid,
-        'classes': siting_mod.suitability_stats(suit, px_area_ha),
-        'pixel_area_ha': px_area_ha,
-        'dem_transform': dem_transform,
-        'dem_crs': dem_crs,
-        'dem_profile': dem_profile,
-        'thresholds': {
-            'slope_acceptable_deg': slope_acceptable,
-            'slope_restrictive_deg': slope_restrictive,
-            'excluded_cover': list(excluded),
-            'cropland_cover': list(cropland),
-            'note': (
-                'Project conventions, not verified legal restrictions. '
-                'Legal reserve, permanent preservation areas and municipal '
-                'zoning require the CAR and local legislation, which this '
-                'analysis does not consult.'
-            ),
-        },
-    }
 
 
 # --- Action handlers -------------------------------------------------------
@@ -1238,6 +1062,7 @@ def action_canopy_mesh(req, work_dir):
 # the age this action resolved.
 #
 def action_canopy_from_aoi(req, work_dir):
+    from terra.sun import cache as power_cache
     protocol.emit_progress(5, 'reading the vegetation index series')
 
     series = req.get('vi_series') or []
@@ -1250,7 +1075,6 @@ def action_canopy_from_aoi(req, work_dir):
     if req.get('class_stats'):
         try:
             from terra.canopy import species as crop_species
-            from terra.sun import cache as power_cache
             suggestion = crop_species.suggest(req['class_stats'])
         except Exception as e:
             suggestion = {'species': None, 'why': f'suggestion failed: {e}'}
@@ -1618,6 +1442,8 @@ def action_canopy_from_aoi(req, work_dir):
 
 # Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
 def action_list_datacube(req, work_dir):
+
+    from terra import aoi
     start = req.get('start')
     end = req.get('end')
     max_cloud = float(req.get('max_cloud', 100.0))
@@ -1626,9 +1452,9 @@ def action_list_datacube(req, work_dir):
     if not start or not end:
         protocol.fail('list_datacube requires start and end dates (YYYY-MM-DD)')
     if req.get('polygon_geojson'):
-        polygon = polygon_from_geojson(req['polygon_geojson'])
+        polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     elif req.get('kml_path'):
-        area = parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
+        area = aoi.parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
         if area is None:
             protocol.fail('polygon not found in KML')
         polygon = area['polygon']
@@ -1670,6 +1496,7 @@ def action_list_datacube(req, work_dir):
 def action_solar_resource(req, work_dir):
     from datetime import date as _date
 
+    from terra import aoi
     from terra.energy import pv as pv_mod
     from terra.sun import (
         cache as power_cache,
@@ -1680,7 +1507,7 @@ def action_solar_resource(req, work_dir):
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
-    polygon = polygon_from_geojson(req['polygon_geojson'])
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
     lon, lat = sun_power.request_point(centroid.x, centroid.y)
 
@@ -1833,12 +1660,13 @@ def action_solar_terrain(req, work_dir):
 
     import rasterio
 
+    from terra import aoi
     from terra.energy import (
         overlays as overlays_mod,
         seasons as seasons_mod,
         terrain_irradiance as poa_mod,
     )
-    from terra.imagery import composite as comp
+    from terra.imagery import composite as comp, grid as ref_grid
     from terra.sun import (
         cache as power_cache,
         nasa_power as sun_power,
@@ -1850,7 +1678,7 @@ def action_solar_terrain(req, work_dir):
     cog.configure()
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
-    polygon = polygon_from_geojson(req['polygon_geojson'])
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
     lon, lat = sun_power.request_point(centroid.x, centroid.y)
     hourly_years = protocol.request_positive(req, 'hourly_years', 10, int)
@@ -2031,7 +1859,7 @@ def action_solar_terrain(req, work_dir):
         dst.write(np.where(valid, poa, np.nan).astype('float32'), 1)
 
     vals = poa[valid]
-    lon_min, lon_max, lat_min, lat_max = get_map_extent(
+    lon_min, lon_max, lat_min, lat_max = ref_grid.get_map_extent(
         {'transform': dem_transform, 'crs': dem_crs,
          'height': poa.shape[0], 'width': poa.shape[1]}
     )
@@ -2106,13 +1934,15 @@ def action_solar_terrain(req, work_dir):
 def action_solar_siting(req, work_dir):
     import rasterio
 
+    from terra import aoi
     from terra.energy import siting as siting_mod
-    from terra.imagery import composite as comp
+    from terra.imagery import composite as comp, grid as ref_grid
+    from terra.landcover import mapbiomas as lulc_mod
 
     cog.configure()
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
-    polygon = polygon_from_geojson(req['polygon_geojson'])
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
 
     # Conventions, not verified legal restrictions. Echoed in the response.
     # Zero degrees is a limit the caller can mean: it accepts only ground
@@ -2127,9 +1957,12 @@ def action_solar_siting(req, work_dir):
     cropland = tuple(req.get('cropland_cover') or siting_mod.CROPLAND_COVER)
 
     siting_pct = {'dem': 10, 'slope': 35, 'cover': 55, 'classes': 80}
-    sited = compute_siting(
+    sited = siting_mod.compute_siting(
         polygon, work_dir, slope_acceptable, slope_restrictive,
-        excluded, cropland, mapbiomas_path=req.get('mapbiomas_path'),
+        excluded, cropland,
+        mapbiomas_path=lulc_mod.resolve_mapbiomas_path(
+            req.get('mapbiomas_path'), polygon, Path(work_dir)
+        ),
         progress=lambda st, msg: protocol.emit_progress(siting_pct[st], msg),
     )
     suit = sited['suitability']
@@ -2148,7 +1981,7 @@ def action_solar_siting(req, work_dir):
     with rasterio.open(tif, 'w', **prof) as dst:
         dst.write(suit.astype('int16'), 1)
 
-    lon_min, lon_max, lat_min, lat_max = get_map_extent(
+    lon_min, lon_max, lat_min, lat_max = ref_grid.get_map_extent(
         {'transform': dem_transform, 'crs': dem_crs,
          'height': slope.shape[0], 'width': slope.shape[1]}
     )
@@ -2181,7 +2014,9 @@ def action_solar_siting(req, work_dir):
 def action_energy_model(req, work_dir):
     from datetime import date as _date
 
+    from terra import aoi
     from terra.energy import pv as pv_mod, pv_plant as energy_mod, siting as siting_mod
+    from terra.landcover import mapbiomas as lulc_mod
     from terra.sun import (
         cache as power_cache,
         nasa_power as sun_power,
@@ -2192,7 +2027,7 @@ def action_energy_model(req, work_dir):
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
-    polygon = polygon_from_geojson(req['polygon_geojson'])
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
     lon, lat = sun_power.request_point(centroid.x, centroid.y)
 
@@ -2413,9 +2248,12 @@ def action_energy_model(req, work_dir):
         excluded = tuple(req.get('excluded_cover') or siting_mod.EXCLUDED_COVER)
         cropland = tuple(req.get('cropland_cover') or siting_mod.CROPLAND_COVER)
         siting_pct = {'dem': 88, 'slope': 91, 'cover': 93, 'classes': 96}
-        sited = compute_siting(
+        sited = siting_mod.compute_siting(
             polygon, work_dir, slope_acceptable, slope_restrictive,
-            excluded, cropland, mapbiomas_path=req.get('mapbiomas_path'),
+            excluded, cropland,
+            mapbiomas_path=lulc_mod.resolve_mapbiomas_path(
+                req.get('mapbiomas_path'), polygon, Path(work_dir)
+            ),
             progress=lambda st, msg: protocol.emit_progress(siting_pct[st], msg),
         )
         suitability = sited['suitability']
@@ -2516,12 +2354,13 @@ def action_energy_model(req, work_dir):
 def action_wind_resource(req, work_dir):
     from datetime import date as _date
 
+    from terra import aoi
     from terra.energy import wind as wind_mod
     from terra.sun import cache as power_cache, nasa_power as sun_power
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
-    polygon = polygon_from_geojson(req['polygon_geojson'])
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     centroid = polygon.centroid
     # The MERRA-2 cell centre, not the centroid: the request resolves to a
     # cell and the response has to say which cell it describes.
@@ -2624,137 +2463,12 @@ def action_wind_resource(req, work_dir):
     sys.stdout.flush()
 
 
-# The ceiling on one flood envelope run, in cells of the shared grid.
-#
-# Measured on this chain (hand.compute, one product, square grids from 300 by
-# 300 to 1200 by 1200 cells): 1.9 to 3.0 microseconds per cell, the rate rising
-# with grid size, and about 200 bytes of peak resident memory per cell, flat
-# across that range. Every product runs the chain on the shared grid, so four
-# products over N cells cost about 4 * 3e-6 * N seconds, and the peak holds one
-# chain's working set plus the elevation arrays, HAND fields and masks kept
-# across it, roughly 250 * N bytes.
-#
-# At 4e6 cells that is roughly 50 s of terrain chain and 1.0 GB resident, inside
-# a desktop application that is also holding a browser. Memory binds before time
-# and it binds steeply: 8e6 cells would ask for 1.9 GB, where the packaged
-# application on a 16 GB machine stops being slow and starts swapping.
-#
-# 4e6 cells of 30 m is a 60 km square, which after the 5 km buffer cap in
-# dem.recommended_buffer_m is an AOI of about 50 km on a side. Beyond that the
-# run is refused rather than quietly downsampled: this analysis measures
-# disagreement between DEM products, and reading them at a resolution none of
-# them has changes the quantity being measured. Measured over one 6 by 6 km
-# window at Propriedade B, moving COP90 onto the 30 m grid before the terrain
-# chain rather than after it moved its own 1 m extent by IoU 0.47, which is as
-# large as the product disagreement this payload exists to report.
-MAX_ENVELOPE_CELLS = 4_000_000
 
 
-def common_covered_window(arrays, max_trim):
-    """
-    The largest rectangle of the shared grid that every DEM product covers.
-
-    Returns (row_start, row_stop, col_start, col_stop), or None when trimming up
-    to `max_trim` cells from each border does not reach a rectangle they all
-    cover.
-
-    Each product is merged over a window snapped outward to its own cell
-    boundaries, so the windows differ by less than one of their own cells and a
-    product moved onto the reference grid can fall short of it at the border: on
-    a real 6 by 6 km read here, ALOS left one column of 203 cells uncovered.
-    Those cells arrive as NaN, and the terrain chain has no answer for a NaN --
-    the depression fill orders on elevation, so a void leaves the flow direction
-    of everything downstream of it undefined and the chain still returns a HAND
-    field, wrong over a region rather than absent over it.
-
-    `max_trim` is what separates that sliver from a hole in a product. The
-    sliver cannot exceed one cell of the coarsest product plus a rounding cell;
-    a void over water or in radar shadow can sit anywhere and be any size, and
-    peeling the window until it disappears would report a smaller area with
-    nothing on screen saying why. Past the bound this returns None and the
-    caller names the products that are missing elevation.
-    """
-    covered = None
-    for z in arrays:
-        finite = np.isfinite(z)
-        covered = finite if covered is None else (covered & finite)
-    height, width = covered.shape
-    r0, r1, c0, c1 = 0, height, 0, width
-    while r1 > r0 and c1 > c0:
-        block = covered[r0:r1, c0:c1]
-        if block.all():
-            return r0, r1, c0, c1
-        # The border line missing the most cells goes first. Peeling in a fixed
-        # order instead spends the whole allowance in the wrong direction: one
-        # uncovered column leaves every row incomplete, so a row-first rule
-        # trims max_trim rows off both ends before it reaches the column.
-        missing = [
-            int((~block[0]).sum()), int((~block[-1]).sum()),
-            int((~block[:, 0]).sum()), int((~block[:, -1]).sum()),
-        ]
-        worst = int(np.argmax(missing))
-        if missing[worst] == 0:
-            return None  # every border line is covered; the hole is inside
-        if worst == 0 and r0 < max_trim:
-            r0 += 1
-        elif worst == 1 and height - r1 < max_trim:
-            r1 -= 1
-        elif worst == 2 and c0 < max_trim:
-            c0 += 1
-        elif worst == 3 and width - c1 < max_trim:
-            c1 -= 1
-        else:
-            return None
-    return None
 
 
-def aoi_reporting_mask(polygon, grid):
-    """
-    The AOI polygon rasterised onto the shared grid: which cells are reported.
-
-    The polygon and not its bounding box. A user who draws an L-shaped AOI is
-    asking about the L, and a bounding box would put the notch back into every
-    area, count and IoU with nothing on screen saying it had.
-
-    A cell is inside when its CENTRE is inside the polygon -- rasterio's
-    default, all_touched left off. The alternative includes every cell the
-    boundary clips, which biases the reported area outward by half a cell all
-    the way round; with a centre rule the two errors cancel to first order.
-    """
-    from rasterio import features
-
-    return features.geometry_mask(
-        [polygon], out_shape=(grid.height, grid.width),
-        transform=grid.transform, invert=True,
-    )
 
 
-def agreement_rgba(counts, n_products, inside=None):
-    """
-    Colour the agreement raster: how many products call each cell flooded.
-
-    The blue ramp water.occurrence_to_rgba uses, on an absolute scale rather
-    than a percentile stretch, so the same colour means the same count in every
-    run and one legend describes them all. Cells no product calls flooded are
-    transparent rather than the palest tone of the ramp, which is what stops the
-    dry majority of a window from reading as a faint flood.
-
-    `inside` is the reporting mask. Cells outside it are transparent too, for
-    the same reason the payload does not count them: the terrain chain ran over
-    the AOI plus its buffer, and an overlay that covers more ground than the
-    figures beside it invites the reader to attribute those figures to it.
-    """
-    from terra.imagery import composite as comp
-
-    t = np.clip(counts.astype(np.float32) / max(int(n_products), 1), 0.0, 1.0)
-    rgb = comp._lerp_cmap(t, comp._BLUES)
-    height, width = counts.shape
-    rgba = np.zeros((height, width, 4), dtype=np.uint8)
-    for band in range(3):
-        rgba[..., band] = (rgb[..., band] * 255).astype(np.uint8)
-    drawn = counts > 0 if inside is None else (counts > 0) & inside
-    rgba[..., 3] = np.where(drawn, 255, 0).astype(np.uint8)
-    return rgba
 
 
 # HAND flood extent with the envelope of DEM products around it.
@@ -2764,6 +2478,7 @@ def action_flood_envelope(req, work_dir):
     # the terrain chain; at module scope every action would pay those imports,
     # and one missing dependency would fail the sidecar for every product
     # instead of for this one.
+    from terra import aoi
     from terra.flood import envelope as flood_mod
     from terra.imagery import composite as comp
     from terra.terrain import dem as dem_mod
@@ -2772,7 +2487,7 @@ def action_flood_envelope(req, work_dir):
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
-    polygon = polygon_from_geojson(req['polygon_geojson'])
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     if polygon.is_empty:
         protocol.fail('the AOI polygon is empty, so there is no window to read a DEM over')
 
@@ -2854,16 +2569,16 @@ def action_flood_envelope(req, work_dir):
     )
     reference_res_m = products[0].native_resolution_m
     window_cells = (window_w / reference_res_m) * (window_h / reference_res_m)
-    if window_cells > MAX_ENVELOPE_CELLS:
+    if window_cells > flood_mod.MAX_ENVELOPE_CELLS:
         admissible_km = (
-            reference_res_m * MAX_ENVELOPE_CELLS ** 0.5 - 2 * buffer_m
+            reference_res_m * flood_mod.MAX_ENVELOPE_CELLS ** 0.5 - 2 * buffer_m
         ) / 1000.0
         protocol.fail(
             f'this AOI is {aoi_w / 1000:.1f} by {aoi_h / 1000:.1f} km, which '
             f'with the {buffer_m:.0f} m buffer the terrain chain needs is '
             f'{window_cells / 1e6:.1f} million cells of {reference_res_m:.0f} m '
             f'for each of the {len(products)} DEM products. The flood envelope '
-            f'is limited to {MAX_ENVELOPE_CELLS / 1e6:.0f} million, about '
+            f'is limited to {flood_mod.MAX_ENVELOPE_CELLS / 1e6:.0f} million, about '
             f'{admissible_km:.0f} km on a side, because the chain holds roughly '
             f'250 bytes per cell at its peak. Draw a smaller AOI. The products '
             f'are read at their native resolution; reading them at a coarser '
@@ -2949,7 +2664,7 @@ def action_flood_envelope(req, work_dir):
     max_trim = int(
         round(max(p.native_resolution_m for p in products) / reference_res_m)
     ) + 1
-    covered = common_covered_window(arrays.values(), max_trim)
+    covered = flood_mod.common_covered_window(arrays.values(), max_trim)
     if covered is None:
         missing = ', '.join(
             f'{pid} {int((~np.isfinite(z)).sum())} cells'
@@ -2986,7 +2701,7 @@ def action_flood_envelope(req, work_dir):
     # AOI to be real terrain; the report covers the AOI itself. Rasterised
     # after the crop, so the mask is on the same grid the products were
     # compared on and not on the window that was requested.
-    aoi_mask = aoi_reporting_mask(polygon, grid)
+    aoi_mask = flood_mod.aoi_reporting_mask(polygon, grid)
 
     sources = {}
     for read in reads:
@@ -3041,7 +2756,7 @@ def action_flood_envelope(req, work_dir):
     ac0, ac1 = int(cols[0]), int(cols[-1]) + 1
     agreement_png = Path(work_dir) / 'flood_agreement.png'
     comp.write_rgba_png(
-        agreement_rgba(result.agreement[ar0:ar1, ac0:ac1], len(sources),
+        flood_mod.agreement_rgba(result.agreement[ar0:ar1, ac0:ac1], len(sources),
                        inside=aoi_mask[ar0:ar1, ac0:ac1]),
         agreement_png,
     )
@@ -3090,7 +2805,8 @@ def action_flood_envelope(req, work_dir):
 
 # Surface water / flood mapping from spectral water indices (no model).
 def action_water(req, work_dir):
-    from terra.imagery import composite as comp
+    from terra import aoi
+    from terra.imagery import composite as comp, grid as ref_grid
     from terra.water import indices as water_mod
 
     cog.configure()
@@ -3106,7 +2822,7 @@ def action_water(req, work_dir):
         protocol.fail('water requires start and end dates (YYYY-MM-DD)')
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
-    polygon = polygon_from_geojson(req['polygon_geojson'])
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
 
     protocol.emit_progress(10, 'querying STAC catalog (Planetary Computer)')
     try:
@@ -3198,7 +2914,7 @@ def action_water(req, work_dir):
     occ_png = Path(work_dir) / 'water_occurrence.png'
     comp.write_rgba_png(water_mod.occurrence_to_rgba(occ), occ_png)
 
-    lon_min, lon_max, lat_min, lat_max = get_map_extent(ref_profile)
+    lon_min, lon_max, lat_min, lat_max = ref_grid.get_map_extent(ref_profile)
     protocol.emit_progress(100, f'{len(series)} dates')
     sys.stdout.write(json.dumps({
         'water': {
@@ -3234,6 +2950,7 @@ def action_water(req, work_dir):
 
 # RGB / false-color composite or spectral index for one STAC scene.
 def action_render_composite(req, work_dir):
+    from terra import aoi
     from terra.imagery import composite as comp
 
     cog.configure()
@@ -3259,9 +2976,9 @@ def action_render_composite(req, work_dir):
     if not start or not end:
         protocol.fail('render_composite requires start and end dates (YYYY-MM-DD)')
     if req.get('polygon_geojson'):
-        polygon = polygon_from_geojson(req['polygon_geojson'])
+        polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     elif req.get('kml_path'):
-        area = parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
+        area = aoi.parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
         if area is None:
             protocol.fail('polygon not found in KML')
         polygon = area['polygon']
@@ -3393,6 +3110,8 @@ def action_render_composite(req, work_dir):
 # Land-cover classification over a Sentinel-2 time series: the action the
 # sidecar was written for, and the one an omitted `action` field asks for.
 def action_predict(req, work_dir):
+    from terra import aoi
+    from terra.imagery import grid as ref_grid
     model_dir = Path(req.get('model_dir', ''))
     source = req.get('source', 'stac')  # 'stac' (cloud COG) or 'local' (.SAFE)
     sentinel_dir = Path(req.get('sentinel_dir', '')) if req.get('sentinel_dir') else None
@@ -3413,9 +3132,9 @@ def action_predict(req, work_dir):
 
     # Resolve polygon from explicit geometry or KML path.
     if req.get('polygon_geojson'):
-        polygon = polygon_from_geojson(req['polygon_geojson'])
+        polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
     elif req.get('kml_path'):
-        area = parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
+        area = aoi.parse_kml_coordinates(Path(req['kml_path']), req.get('kml_target'))
         if area is None:
             protocol.fail('polygon not found in KML')
         polygon = area['polygon']
@@ -3485,7 +3204,7 @@ def action_predict(req, work_dir):
         else:
             resolved_mb = None
         if resolved_mb:
-            mb_map = reproject_mapbiomas_to_grid(resolved_mb, ref_profile, ref_band)
+            mb_map = ref_grid.reproject_to_reference(resolved_mb, ref_profile, ref_band)
             soja_mask = mb_map == SOJA_CLASS_ID
             protocol.emit_progress(20, f'soja reference pixels: {int(np.sum(soja_mask))}')
     except Exception as e:
@@ -3730,9 +3449,9 @@ def action_predict(req, work_dir):
             }) + '\n')
             sys.stderr.flush()
 
-    lon_min, lon_max, lat_min, lat_max = get_map_extent(ref_profile)
+    lon_min, lon_max, lat_min, lat_max = ref_grid.get_map_extent(ref_profile)
 
-    pixel_size_m = reference_pixel_size_m(ref_profile)
+    pixel_size_m = ref_grid.reference_pixel_size_m(ref_profile)
 
     result = {
         'extent': {

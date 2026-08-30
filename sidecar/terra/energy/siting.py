@@ -12,7 +12,12 @@ regulator has ruled on.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
+
+from terra import protocol
+from terra.imagery import grid
 
 # ----------------------------------------------------------------- suitability
 #
@@ -107,3 +112,105 @@ def suitability_stats(suit: np.ndarray, px_area_ha: float) -> list[dict]:
             "pct": round(float(100.0 * n / total), 2) if total else 0.0,
         })
     return rows
+
+
+SITING_STAGES = ('dem', 'slope', 'cover', 'classes')
+
+
+def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
+                   excluded, cropland, mapbiomas_path, progress=None):
+    """
+    Photovoltaic siting classes on the Copernicus DEM grid, with class areas.
+
+    Shared by the solar_siting action and by the plant-energy block of
+    energy_model, so a capacity figure and the raster that published the
+    area behind it come from one classification rather than from two that can
+    disagree.
+
+    Stages are reported through progress(stage, message) with stage one of
+    SITING_STAGES; each caller maps the stage onto its own progress scale.
+
+    `mapbiomas_path` is a resolved path, not a request parameter. Deciding
+    which raster covers this AOI, and fetching it if it is not on disk, is the
+    land-cover product's work, and a product that reaches into another product
+    to do it is the edge the independence contract exists to refuse. The action
+    resolves it and passes it here.
+    """
+    import rasterio
+    from rasterio.features import geometry_mask
+
+    from terra.terrain import dem as terrain_dem, slope as terrain_slope
+
+    def stage(name, msg):
+        if progress:
+            progress(name, msg)
+
+    centroid = polygon.centroid
+    stage('dem', 'fetching Copernicus DEM GLO-30')
+    try:
+        dem_path = terrain_dem.fetch_file(
+            polygon, Path(work_dir) / 'dem.tif',
+            progress=lambda msg: protocol.emit_progress(-1, msg),
+        )
+    except Exception as e:
+        protocol.fail(f'DEM fetch failed: {e}')
+    with rasterio.open(dem_path) as src:
+        elevation = src.read(1).astype(float)
+        dem_transform = src.transform
+        dem_crs = src.crs
+        dem_profile = src.profile.copy()
+
+    dx_m, dy_m = terrain_slope.pixel_size_m(dem_transform, centroid.y)
+    stage('slope', 'slope and aspect')
+    slope, _aspect = terrain_slope.horn_slope_aspect(elevation, dx_m, dy_m)
+
+    stage('cover', 'MapBiomas land cover')
+    try:
+        mb = grid.reproject_to_reference(
+            mapbiomas_path,
+            {'transform': dem_transform, 'crs': dem_crs,
+             'height': slope.shape[0], 'width': slope.shape[1]},
+            np.ones_like(slope),
+        )
+    except Exception as e:
+        protocol.fail(f'MapBiomas land cover unavailable: {e}')
+
+    inside = ~geometry_mask(
+        [polygon.__geo_interface__], out_shape=slope.shape,
+        transform=dem_transform, invert=False
+    )
+    valid = inside & np.isfinite(slope)
+    if not valid.any():
+        protocol.fail('the DEM window does not overlap the AOI')
+
+    stage('classes', 'siting classes')
+    suit = suitability_map(
+        slope, mb, valid,
+        slope_acceptable=slope_acceptable,
+        slope_restrictive=slope_restrictive,
+        excluded_cover=excluded,
+        cropland_cover=cropland,
+    )
+    px_area_ha = (dx_m * dy_m) / 10_000.0
+    return {
+        'suitability': suit,
+        'slope': slope,
+        'valid': valid,
+        'classes': suitability_stats(suit, px_area_ha),
+        'pixel_area_ha': px_area_ha,
+        'dem_transform': dem_transform,
+        'dem_crs': dem_crs,
+        'dem_profile': dem_profile,
+        'thresholds': {
+            'slope_acceptable_deg': slope_acceptable,
+            'slope_restrictive_deg': slope_restrictive,
+            'excluded_cover': list(excluded),
+            'cropland_cover': list(cropland),
+            'note': (
+                'Project conventions, not verified legal restrictions. '
+                'Legal reserve, permanent preservation areas and municipal '
+                'zoning require the CAR and local legislation, which this '
+                'analysis does not consult.'
+            ),
+        },
+    }

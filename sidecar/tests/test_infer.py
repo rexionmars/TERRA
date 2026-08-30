@@ -10,8 +10,18 @@ import joblib
 import numpy as np
 import pytest
 
-from terra import actions, protocol, registry
-from terra.imagery import indices, sentinel2
+from terra import (
+    actions,
+    aoi,  # noqa: F401
+    protocol,
+    registry,
+)
+from terra.flood import envelope as flood_mod
+from terra.imagery import (
+    grid,  # noqa: F401
+    indices,
+    sentinel2,
+)
 from terra.sun import cache as power_cache
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
@@ -63,7 +73,7 @@ def test_polygon_from_geojson():
             ]
         ],
     }
-    poly = actions.polygon_from_geojson(geom)
+    poly = aoi.polygon_from_geojson(geom)
     assert poly.is_valid
     assert poly.area > 0
 
@@ -374,7 +384,7 @@ def test_reference_pixel_size_reads_a_projected_grid_directly():
         "crs": _Crs(False),
         "height": 446,
     }
-    assert actions.reference_pixel_size_m(profile) == 10.0
+    assert grid.reference_pixel_size_m(profile) == 10.0
 
 
 def test_reference_pixel_size_converts_a_geographic_grid():
@@ -388,7 +398,7 @@ def test_reference_pixel_size_converts_a_geographic_grid():
         "crs": _Crs(True),
         "height": 100,
     }
-    metres = actions.reference_pixel_size_m(profile)
+    metres = grid.reference_pixel_size_m(profile)
     # 1e-4 degrees of longitude at the equator, where cos is 1.
     assert abs(metres - 11.132) < 1e-6
 
@@ -776,7 +786,7 @@ def test_the_flood_reporting_mask_follows_the_polygon_cell_by_cell():
     polygon = box(WINDOW_LON_MIN, WINDOW_LAT_MAX - 2.2 * CELL_DEG,
                   WINDOW_LON_MIN + 2.2 * CELL_DEG, WINDOW_LAT_MAX)
 
-    mask = actions.aoi_reporting_mask(polygon, grid)
+    mask = flood_mod.aoi_reporting_mask(polygon, grid)
 
     assert mask.shape == (WINDOW_ROWS, WINDOW_COLS)
     # Centres sit at 0.5, 1.5 and 2.5 cells: the first two are inside the
@@ -868,17 +878,17 @@ def test_the_common_window_trims_the_alignment_sliver_but_not_an_interior_void()
     sliver[:, -1] = np.nan
     # One column costs one column, not the four rows a row-first peel would
     # spend before reaching it.
-    assert actions.common_covered_window([full, sliver], 4) == (0, 6, 0, 7)
+    assert flood_mod.common_covered_window([full, sliver], 4) == (0, 6, 0, 7)
 
     holed = full.copy()
     holed[3, 4] = np.nan
-    assert actions.common_covered_window([full, holed], 4) is None
+    assert flood_mod.common_covered_window([full, holed], 4) is None
 
     # And a sliver wider than the alignment can explain is not a sliver.
     wide = full.copy()
     wide[:, -5:] = np.nan
-    assert actions.common_covered_window([full, wide], 4) is None
-    assert actions.common_covered_window([full, np.full((6, 8), np.nan)], 4) is None
+    assert flood_mod.common_covered_window([full, wide], 4) is None
+    assert flood_mod.common_covered_window([full, np.full((6, 8), np.nan)], 4) is None
 
 
 def test_the_agreement_colouring_leaves_the_cells_no_product_calls_wet_clear():
@@ -888,7 +898,7 @@ def test_the_agreement_colouring_leaves_the_cells_no_product_calls_wet_clear():
     a flood over the whole AOI at an opacity a reader reads as shallow water.
     """
     counts = np.array([[0, 1], [2, 4]], dtype=np.uint8)
-    rgba = actions.agreement_rgba(counts, 4)
+    rgba = flood_mod.agreement_rgba(counts, 4)
 
     assert rgba.shape == (2, 2, 4)
     assert rgba[0, 0, 3] == 0

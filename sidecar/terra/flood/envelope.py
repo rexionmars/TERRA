@@ -702,3 +702,136 @@ def _extreme(rows, key, pick):
     """min or max over the pair rows at one threshold, skipping the undefined."""
     values = [r[key] for r in rows if r[key] is not None]
     return pick(values) if values else None
+
+
+# The ceiling on one flood envelope run, in cells of the shared grid.
+#
+# Measured on this chain (hand.compute, one product, square grids from 300 by
+# 300 to 1200 by 1200 cells): 1.9 to 3.0 microseconds per cell, the rate rising
+# with grid size, and about 200 bytes of peak resident memory per cell, flat
+# across that range. Every product runs the chain on the shared grid, so four
+# products over N cells cost about 4 * 3e-6 * N seconds, and the peak holds one
+# chain's working set plus the elevation arrays, HAND fields and masks kept
+# across it, roughly 250 * N bytes.
+#
+# At 4e6 cells that is roughly 50 s of terrain chain and 1.0 GB resident, inside
+# a desktop application that is also holding a browser. Memory binds before time
+# and it binds steeply: 8e6 cells would ask for 1.9 GB, where the packaged
+# application on a 16 GB machine stops being slow and starts swapping.
+#
+# 4e6 cells of 30 m is a 60 km square, which after the 5 km buffer cap in
+# dem.recommended_buffer_m is an AOI of about 50 km on a side. Beyond that the
+# run is refused rather than quietly downsampled: this analysis measures
+# disagreement between DEM products, and reading them at a resolution none of
+# them has changes the quantity being measured. Measured over one 6 by 6 km
+# window at Propriedade B, moving COP90 onto the 30 m grid before the terrain
+# chain rather than after it moved its own 1 m extent by IoU 0.47, which is as
+# large as the product disagreement this payload exists to report.
+MAX_ENVELOPE_CELLS = 4_000_000
+
+
+def common_covered_window(arrays, max_trim):
+    """
+    The largest rectangle of the shared grid that every DEM product covers.
+
+    Returns (row_start, row_stop, col_start, col_stop), or None when trimming up
+    to `max_trim` cells from each border does not reach a rectangle they all
+    cover.
+
+    Each product is merged over a window snapped outward to its own cell
+    boundaries, so the windows differ by less than one of their own cells and a
+    product moved onto the reference grid can fall short of it at the border: on
+    a real 6 by 6 km read here, ALOS left one column of 203 cells uncovered.
+    Those cells arrive as NaN, and the terrain chain has no answer for a NaN --
+    the depression fill orders on elevation, so a void leaves the flow direction
+    of everything downstream of it undefined and the chain still returns a HAND
+    field, wrong over a region rather than absent over it.
+
+    `max_trim` is what separates that sliver from a hole in a product. The
+    sliver cannot exceed one cell of the coarsest product plus a rounding cell;
+    a void over water or in radar shadow can sit anywhere and be any size, and
+    peeling the window until it disappears would report a smaller area with
+    nothing on screen saying why. Past the bound this returns None and the
+    caller names the products that are missing elevation.
+    """
+    covered = None
+    for z in arrays:
+        finite = np.isfinite(z)
+        covered = finite if covered is None else (covered & finite)
+    height, width = covered.shape
+    r0, r1, c0, c1 = 0, height, 0, width
+    while r1 > r0 and c1 > c0:
+        block = covered[r0:r1, c0:c1]
+        if block.all():
+            return r0, r1, c0, c1
+        # The border line missing the most cells goes first. Peeling in a fixed
+        # order instead spends the whole allowance in the wrong direction: one
+        # uncovered column leaves every row incomplete, so a row-first rule
+        # trims max_trim rows off both ends before it reaches the column.
+        missing = [
+            int((~block[0]).sum()), int((~block[-1]).sum()),
+            int((~block[:, 0]).sum()), int((~block[:, -1]).sum()),
+        ]
+        worst = int(np.argmax(missing))
+        if missing[worst] == 0:
+            return None  # every border line is covered; the hole is inside
+        if worst == 0 and r0 < max_trim:
+            r0 += 1
+        elif worst == 1 and height - r1 < max_trim:
+            r1 -= 1
+        elif worst == 2 and c0 < max_trim:
+            c0 += 1
+        elif worst == 3 and width - c1 < max_trim:
+            c1 -= 1
+        else:
+            return None
+    return None
+
+
+def aoi_reporting_mask(polygon, grid):
+    """
+    The AOI polygon rasterised onto the shared grid: which cells are reported.
+
+    The polygon and not its bounding box. A user who draws an L-shaped AOI is
+    asking about the L, and a bounding box would put the notch back into every
+    area, count and IoU with nothing on screen saying it had.
+
+    A cell is inside when its CENTRE is inside the polygon -- rasterio's
+    default, all_touched left off. The alternative includes every cell the
+    boundary clips, which biases the reported area outward by half a cell all
+    the way round; with a centre rule the two errors cancel to first order.
+    """
+    from rasterio import features
+
+    return features.geometry_mask(
+        [polygon], out_shape=(grid.height, grid.width),
+        transform=grid.transform, invert=True,
+    )
+
+
+def agreement_rgba(counts, n_products, inside=None):
+    """
+    Colour the agreement raster: how many products call each cell flooded.
+
+    The blue ramp water.occurrence_to_rgba uses, on an absolute scale rather
+    than a percentile stretch, so the same colour means the same count in every
+    run and one legend describes them all. Cells no product calls flooded are
+    transparent rather than the palest tone of the ramp, which is what stops the
+    dry majority of a window from reading as a faint flood.
+
+    `inside` is the reporting mask. Cells outside it are transparent too, for
+    the same reason the payload does not count them: the terrain chain ran over
+    the AOI plus its buffer, and an overlay that covers more ground than the
+    figures beside it invites the reader to attribute those figures to it.
+    """
+    from terra.imagery import composite as comp
+
+    t = np.clip(counts.astype(np.float32) / max(int(n_products), 1), 0.0, 1.0)
+    rgb = comp._lerp_cmap(t, comp._BLUES)
+    height, width = counts.shape
+    rgba = np.zeros((height, width, 4), dtype=np.uint8)
+    for band in range(3):
+        rgba[..., band] = (rgb[..., band] * 255).astype(np.uint8)
+    drawn = counts > 0 if inside is None else (counts > 0) & inside
+    rgba[..., 3] = np.where(drawn, 255, 0).astype(np.uint8)
+    return rgba

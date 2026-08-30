@@ -36,7 +36,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 SIDECAR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SIDECAR))
 
-from terra import actions  # noqa: E402
+from terra import aoi  # noqa: E402
 from terra.imagery import sentinel2  # noqa: E402
 from terra.landcover import prithvi as prithvi  # noqa: E402
 
@@ -92,7 +92,7 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    area = actions.parse_kml_coordinates(Path(args.kml), None)
+    area = aoi.parse_kml_coordinates(Path(args.kml), None)
     if area is None:
         sys.exit("polygon not found in KML")
     polygon = area["polygon"]
