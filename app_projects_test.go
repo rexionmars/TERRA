@@ -585,10 +585,20 @@ func TestProjectCreateUpdateDelete(t *testing.T) {
 
 // Deleting a project detaches its runs rather than deleting them.
 //
-// A run is the expensive artefact -- a sidecar execution and its assets --
-// and the project is a folder over it. Deleting the folder must return the
-// runs to the unassigned list, not destroy them.
-func TestProjectDeleteDetachesRunsAndRemovesOverlays(t *testing.T) {
+/*
+Deleting a project deletes what is inside it.
+
+THIS TEST ASSERTED THE OPPOSITE AND WAS RIGHT TO, until ownership became a
+chain. It said a run is the expensive artefact and the project a folder over it,
+so deleting the folder should return the run to the unassigned list rather than
+destroy it. That reasoning depended on there BEING an unassigned list: somewhere
+a run could stand on its own.
+
+A project now holds areas and an area holds runs, so there is nowhere to detach
+to -- a run with no project is a run of no ground. The folder is not a label over
+the work any more; it is what the work is inside.
+*/
+func TestProjectDeleteRemovesItsRunsAndOverlays(t *testing.T) {
 	a := newTestApp(t)
 	p := mustCreateProject(t, a, "Doomed project")
 	runID := mustSaveRun(t, a, store.LocalUserID, "run-in-project")
@@ -605,19 +615,17 @@ func TestProjectDeleteDetachesRunsAndRemovesOverlays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	run, err := a.store.GetRun(store.LocalUserID, runID)
-	if err != nil {
-		t.Fatalf("the run was deleted with its project: %v", err)
+	if _, err := a.store.GetRun(store.LocalUserID, runID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("the run outlived its project: %v", err)
 	}
-	if run.ProjectID != "" {
-		t.Fatalf("the run still names project %q, which no longer exists", run.ProjectID)
-	}
+	// And it is not hiding in the unassigned list either, which is the state
+	// this deletion used to produce and the hierarchy no longer has.
 	unassigned, err := a.ListProjectRuns("", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(unassigned) != 1 || unassigned[0].ID != runID {
-		t.Fatalf("the detached run is not in the unassigned list (%d rows)", len(unassigned))
+	if len(unassigned) != 0 {
+		t.Fatalf("deleting the project left %d run(s) with no project", len(unassigned))
 	}
 	if _, err := os.Stat(pngAbs); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("the composition file outlived its project: %v", err)

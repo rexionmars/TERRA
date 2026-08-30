@@ -81,6 +81,17 @@ type InferenceRun struct {
 		A reader that finds it empty falls back to comparing geometry.
 	*/
 	AoiID string `json:"aoi_id,omitempty"`
+	/*
+		The area this run is OF, which supersedes AoiID above.
+
+		AoiID named a row in a JSON array inside preferences and could name one
+		that had been deleted; this names a row in `areas`, which cannot exist
+		outside a project. Both fields are here for as long as the frontend still
+		writes the old one, and AoiID goes when it stops -- two names for one
+		thing is the confusion this whole change exists to remove, and carrying
+		them together is a transition rather than a design.
+	*/
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // Run kinds. A classification comes from a model; a descriptive product such as
@@ -1097,12 +1108,12 @@ func (s *Store) SaveRun(run InferenceRun) (*InferenceRun, error) {
 		`INSERT INTO inference_runs
 		 (id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson, status,
 		  summary_json, overlay_relpath, n_dates, result_json, assets_relpath, label, project_id,
-		  kind, aoi_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  kind, aoi_id, area_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.UserID, run.CreatedAt, run.ModelKind, run.PeriodStart, run.PeriodEnd,
 		run.PolygonGeoJSON, run.Status, run.SummaryJSON, nullIfEmpty(run.OverlayRelPath), run.NDates,
 		run.ResultJSON, nullIfEmpty(run.AssetsRelPath), run.Label, nullIfEmpty(run.ProjectID),
-		run.Kind, run.AoiID,
+		run.Kind, run.AoiID, run.AreaID,
 	)
 	if err != nil {
 		return nil, err
@@ -1121,7 +1132,8 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,'')
+		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,''),
+		        COALESCE(area_id,'')
 		 FROM inference_runs WHERE user_id = ?
 		 ORDER BY created_at DESC LIMIT ?`,
 		userID, limit,
@@ -1137,6 +1149,7 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
 			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
+			&r.AreaID,
 		); err != nil {
 			return nil, err
 		}
@@ -1205,13 +1218,15 @@ func (s *Store) GetRun(userID, runID string) (*InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,'')
+		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,''),
+		        COALESCE(area_id,'')
 		 FROM inference_runs WHERE id = ? AND user_id = ?`,
 		runID, userID,
 	).Scan(
 		&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 		&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
 		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
+		&r.AreaID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -1238,13 +1253,46 @@ func (s *Store) DeleteRun(userID, runID string) error {
 	if err != nil {
 		return err
 	}
-	res, err := s.db.Exec(`DELETE FROM inference_runs WHERE id = ? AND user_id = ?`, runID, userID)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(`DELETE FROM inference_runs WHERE id = ? AND user_id = ?`, runID, userID)
 	if err != nil {
 		return err
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return ErrNotFound
+	}
+	/*
+		The references this row leaves behind, which it used to leave dangling.
+
+		A board member naming a deleted run survived as a row pointing at
+		nothing. GetWhiteboard compensates -- it LEFT JOINs and reports the gap
+		as Missing -- and that reporting stays, because a board saved with a run
+		that is later deleted genuinely has a gap and a reader should be told.
+		What does not need to stay is the row: the member is removed here, so the
+		gap is reported once, on the board that was saved with it, rather than
+		accumulating in a table nothing prunes.
+
+		An overlay's run_id is CLEARED rather than the overlay deleted. The
+		composition is still a real raster of real ground; what it loses is the
+		run it was made under, and its own comment already defines empty as
+		"belongs to the project" rather than "belongs to nothing".
+	*/
+	if _, err := tx.Exec(`DELETE FROM whiteboard_members WHERE run_id = ?`, runID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(
+		`UPDATE project_overlays SET run_id = NULL WHERE run_id = ?`, runID,
+	); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	_ = os.RemoveAll(s.RunsDir(runID))
 	if run.ProjectID != "" {

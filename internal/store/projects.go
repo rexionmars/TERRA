@@ -80,7 +80,18 @@ func (s *Store) UpdateProject(userID string, p Project) (*Project, error) {
 	return out, nil
 }
 
-// DeleteProject removes the project, detaches runs, and deletes overlay files.
+/*
+DeleteProject removes the project and everything inside it.
+
+IT USED TO DETACH THE RUNS -- `project_id = NULL` -- and that was right while a
+run could stand on its own. Under the chain a project holds areas and an area
+holds runs, so there is nowhere to detach TO: a run with no project is a run of
+no ground, which is the shape this change exists to remove. The runs go with the
+areas, and their rasters with them.
+
+A destructive change to a control that already read as destructive, and the one
+worth stating out loud: deleting a project now deletes the analyses in it.
+*/
 func (s *Store) DeleteProject(userID, projectID string) error {
 	if userID == "" || projectID == "" {
 		return ErrInvalidInput
@@ -103,23 +114,57 @@ func (s *Store) DeleteProject(userID, projectID string) error {
 		return ErrNotFound
 	}
 
-	if _, err := tx.Exec(
-		`UPDATE inference_runs SET project_id = NULL WHERE project_id = ? AND user_id = ?`,
-		projectID, userID,
-	); err != nil {
+	// Gathered before the rows go: afterwards nothing can say which run
+	// directories were this project's.
+	runDirs, err := runIDsOfProject(tx, projectID)
+	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM project_overlays WHERE project_id = ?`, projectID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`DELETE FROM projects WHERE id = ? AND user_id = ?`, projectID, userID); err != nil {
-		return err
+
+	for _, stmt := range []struct {
+		sql  string
+		args []any
+	}{
+		{`DELETE FROM whiteboard_members WHERE whiteboard_id IN
+		   (SELECT id FROM whiteboards WHERE project_id = ?)`, []any{projectID}},
+		{`DELETE FROM whiteboards WHERE project_id = ?`, []any{projectID}},
+		{`DELETE FROM whiteboard_members WHERE run_id IN
+		   (SELECT id FROM inference_runs WHERE project_id = ?)`, []any{projectID}},
+		{`DELETE FROM project_overlays WHERE project_id = ?`, []any{projectID}},
+		{`DELETE FROM inference_runs WHERE project_id = ? AND user_id = ?`,
+			[]any{projectID, userID}},
+		{`DELETE FROM areas WHERE project_id = ?`, []any{projectID}},
+		{`DELETE FROM projects WHERE id = ? AND user_id = ?`, []any{projectID, userID}},
+	} {
+		if _, err := tx.Exec(stmt.sql, stmt.args...); err != nil {
+			return err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 	_ = os.RemoveAll(s.ProjectsDir(projectID))
+	for _, id := range runDirs {
+		_ = os.RemoveAll(s.RunsDir(id))
+	}
 	return nil
+}
+
+func runIDsOfProject(tx *sql.Tx, projectID string) ([]string, error) {
+	rows, err := tx.Query(`SELECT id FROM inference_runs WHERE project_id = ?`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // ListProjects returns projects for the user (newest updated first) with counts.
@@ -203,7 +248,16 @@ func (s *Store) UpdateProjectRunLabels(userID, projectID, label string) (int64, 
 	return n, nil
 }
 
-// ListRunsByProject lists runs for a project. Empty projectID lists unassigned runs.
+/*
+ListRunsByProject lists runs for a project. Empty projectID lists unassigned runs.
+
+IT USED TO OMIT THE AREA. This query selected sixteen columns where ListRuns and
+GetRun select the run's whole row, and the one it left out was the link back to
+the ground -- so a run read through the project list came back claiming to be of
+no area at all, while the same run read any other way named one. The hub reads
+runs through here, which is why grouping them by ground was impossible from the
+screen where it matters most.
+*/
 func (s *Store) ListRunsByProject(userID, projectID string, limit int) ([]InferenceRun, error) {
 	if userID == "" {
 		userID = LocalUserID
@@ -220,7 +274,8 @@ func (s *Store) ListRunsByProject(userID, projectID string, limit int) ([]Infere
 			`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 			        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 			        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-			        COALESCE(project_id,''), COALESCE(kind,'classification')
+			        COALESCE(project_id,''), COALESCE(kind,'classification'),
+			        COALESCE(aoi_id,''), COALESCE(area_id,'')
 			 FROM inference_runs
 			 WHERE user_id = ? AND (project_id IS NULL OR project_id = '')
 			 ORDER BY created_at DESC LIMIT ?`,
@@ -231,7 +286,8 @@ func (s *Store) ListRunsByProject(userID, projectID string, limit int) ([]Infere
 			`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 			        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 			        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-			        COALESCE(project_id,''), COALESCE(kind,'classification')
+			        COALESCE(project_id,''), COALESCE(kind,'classification'),
+			        COALESCE(aoi_id,''), COALESCE(area_id,'')
 			 FROM inference_runs
 			 WHERE user_id = ? AND project_id = ?
 			 ORDER BY created_at DESC LIMIT ?`,
@@ -249,6 +305,7 @@ func (s *Store) ListRunsByProject(userID, projectID string, limit int) ([]Infere
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
 			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind,
+			&r.AoiID, &r.AreaID,
 		); err != nil {
 			return nil, err
 		}

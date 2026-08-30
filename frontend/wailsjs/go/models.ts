@@ -6047,6 +6047,7 @@ export namespace store {
 	    project_id?: string;
 	    kind?: string;
 	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new InferenceRun(source);
@@ -6071,6 +6072,7 @@ export namespace store {
 	        this.project_id = source["project_id"];
 	        this.kind = source["kind"];
 	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	}
 	export class Preferences {
