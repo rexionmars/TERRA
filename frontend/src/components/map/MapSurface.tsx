@@ -100,7 +100,7 @@ import {
   polygonOuterRing,
   ringCentroid,
 } from "@/lib/geometry"
-import { isZeroExtent } from "@/lib/mapLayers"
+import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { AnalyzeSurfaceModel } from "../../../wailsjs/go/main/App"
 import { publishMapPose } from "@/lib/mapPose"
 import { paletteColor } from "@/lib/palettes"
@@ -131,6 +131,19 @@ export interface MapSurfaceProps {
   showPredictionOverlay?: boolean
   showCompositionOverlay?: boolean
   composition?: CompositionOverlay | null
+  /**
+   * A plane sent here from the studio, drawn over the ground it measures.
+   *
+   * Distinct from every other overlay this surface takes, which arrive as the
+   * PRODUCT that made them -- a classification, a water envelope, a solar
+   * raster -- and are governed by that product's own switch. This one arrives
+   * already resolved, because the studio can hold rasters from runs the map is
+   * not showing and has no product on this side to be governed by.
+   *
+   * Drawn last of the rasters, above the rest: it was asked for by pointing at
+   * it, which is a more specific request than any standing switch.
+   */
+  sentToMap?: RasterLayer | null
   solarOverlays?:
     | { id: "terrain" | "siting"; uri: string; extent: Bounds; opacity?: number }[]
     | null
@@ -199,6 +212,7 @@ export function MapSurface({
   showPredictionOverlay = true,
   showCompositionOverlay = true,
   composition = null,
+  sentToMap = null,
   solarOverlays = null,
   waterOverlay = null,
   floodOverlay = null,
@@ -640,6 +654,18 @@ export function MapSurface({
   */
   const raw = useMemo<RawOverlay[]>(() => {
     const out: RawOverlay[] = []
+    if (sentToMap && !isZeroExtent(sentToMap.extent)) {
+      out.push({
+        id: `sent-${sentToMap.id}`,
+        url: sentToMap.uri,
+        bounds: sentToMap.extent,
+        opacity: sentToMap.opacity,
+        // The studio's own smoothing setting travels with the layer, so the
+        // class boundary drawn here is the one the reader was looking at.
+        smooth: sentToMap.smooth,
+        clipped: true,
+      })
+    }
     if (surface.at === "read" && surface.reading.values_uri) {
       out.push({
         id: "surface",
@@ -762,6 +788,7 @@ export function MapSurface({
     // figures and the map stayed bare: the memo did not recompute, so the
     // layer was never in the stack that syncOverlays reconciles.
     surface,
+    sentToMap,
   ])
 
   /*

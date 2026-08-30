@@ -27,6 +27,7 @@ import {
   Eye,
   EyeOff,
   Layers,
+  Map as MapIcon,
   Maximize,
   Trash2,
 } from "lucide-react"
@@ -51,6 +52,14 @@ export interface PlaneContextTarget {
    * one. The label says which way the entry goes.
    */
   soloed: boolean
+  /**
+   * Whether this plane is the one the map is currently drawing.
+   *
+   * A toggle, like solo beside it and for the same reason: sending eleven
+   * planes to the map and taking them back one at a time is not the shape of
+   * the gesture. The label says which way the entry goes.
+   */
+  onMap: boolean
 }
 
 export function PlaneContextMenu({
@@ -61,6 +70,7 @@ export function PlaneContextMenu({
   onToggleVisible,
   onSolo,
   onFit,
+  onSendToMap,
   onRemove,
 }: {
   target: PlaneContextTarget | null
@@ -73,6 +83,16 @@ export function PlaneContextMenu({
   onSolo: () => void
   /** Put the camera on this plane. */
   onFit: () => void
+  /**
+   * Draw this raster on the work map, over the ground it measures, or stop.
+   *
+   * The studio lifts rasters off their coordinates so two grounds hundreds of
+   * kilometres apart can be read side by side. That is what it is for, and it
+   * is also what it costs: a plane here answers "how do these compare" and
+   * cannot answer "where on the ground is this". Sending it back to the map is
+   * the second question, asked of the plane the reader is already pointing at.
+   */
+  onSendToMap: () => void
   onRemove: () => void
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -195,6 +215,20 @@ export function PlaneContextMenu({
         label="Zoom to fit this plane"
         onSelect={() => {
           onFit()
+          onClose()
+        }}
+      />
+      <StudioMenuItem
+        icon={MapIcon}
+        label={target.onMap ? "Take off the map" : "Send to the map"}
+        title={
+          target.onMap
+            ? "The work map stops drawing it; the studio keeps it"
+            : "Draw it on the work map, over the ground it measures"
+        }
+        checked={target.onMap}
+        onSelect={() => {
+          onSendToMap()
           onClose()
         }}
       />

@@ -407,6 +407,8 @@ export function BoardSurface({
   smooth,
   onSmoothChange,
   title,
+  sentToMap = null,
+  onSendToMap,
   initialView = null,
   onViewChange,
   activeProjectId,
@@ -521,6 +523,16 @@ export function BoardSurface({
    * A board used to belong to the user alone, so the menu offered every board
    * ever saved and nothing stopped one holding runs from several projects.
    */
+  /**
+   * The raster the work map is drawing on the studio's behalf, and the way to
+   * change it.
+   *
+   * Held by the caller rather than here: the map outlives the studio, so a
+   * raster sent to it has to survive the studio closing -- otherwise sending
+   * one and going to look at it would take it away on the way.
+   */
+  sentToMap?: RasterLayer | null
+  onSendToMap?: (layer: RasterLayer | null) => void
   /** Where the globe opens, and where it reports being left. The work map's
    *  own memory, shared: two would lose a pan to whichever wrote last. */
   initialView?: { lat: number; lon: number; zoom: number } | null
@@ -2778,6 +2790,10 @@ export function BoardSurface({
             // The same predicate the action uses: two copies of this rule
             // would let the label say one thing and the press do the other.
             soloed: isSoloed(areasRef.current, groupId, id),
+            // Compared by the layer's own id, not by the plane's: the map is
+            // sent a raster, and the same raster reached from a second area is
+            // the same thing on the ground.
+            onMap: sentToMap?.id === l.id,
           })
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
@@ -4457,6 +4473,26 @@ export function BoardSurface({
           planeMenu &&
           boardRef.current?.focusPlane(planeMenu.areaId, planeMenu.layerId)
         }
+        /*
+          The plane's raster, handed over resolved.
+
+          The map cannot be told "the third layer of area two": it has no
+          account of the studio's arrangement, and the run this plane belongs to
+          may not be the one the map is showing. What travels is the layer
+          itself -- image, extent, opacity and its smoothing setting -- which is
+          everything needed to draw it and nothing about where it sat here.
+        */
+        onSendToMap={() => {
+          if (!planeMenu || !onSendToMap) return
+          if (planeMenu.onMap) {
+            onSendToMap(null)
+            return
+          }
+          const layer = areas
+            .find((a) => a.id === planeMenu.areaId)
+            ?.layers.find((l) => l.id === planeMenu.layerId)
+          if (layer) onSendToMap(layer)
+        }}
         onRemove={() =>
           planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)
         }

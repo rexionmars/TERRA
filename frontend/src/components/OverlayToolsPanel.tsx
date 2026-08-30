@@ -11,6 +11,7 @@ import {
   ChevronUp,
   ImageIcon,
   Eye,
+  Layers3,
 } from "lucide-react"
 import { exportPng, exportTif, runAssets } from "@/lib/runAssets"
 import type {
@@ -26,6 +27,15 @@ import {
 import { cn } from "@/lib/utils"
 
 export interface OverlayToolsPanelProps {
+  /**
+   * A plane the studio sent to the map, and the way to take it off.
+   *
+   * Here as well as in the studio's own plane menu because the map outlives
+   * the studio: a raster left on it with its only control inside a closed
+   * surface is a mark the reader cannot lift.
+   */
+  sentToMap?: import("@/lib/mapLayers").RasterLayer | null
+  onSendToMap?: (layer: import("@/lib/mapLayers").RasterLayer | null) => void
   /**
    * Where the drawer's right edge sits, when the default would be covered.
    *
@@ -252,6 +262,8 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
     onComposeOpacityChange,
     aoiContourScheme,
     onAoiContourSchemeChange,
+    sentToMap = null,
+    onSendToMap,
   } = props
 
   /*
@@ -374,6 +386,45 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
             </Section>
 
             <hr className="hairline" />
+
+            {/*
+              THE SECOND WAY OUT, and the reason there is one.
+
+              A plane is sent here from the studio and taken back the same way,
+              which is the shape of that gesture -- but the map outlives the
+              studio, and a raster left on it with its only control inside a
+              surface the reader has closed is a mark they cannot lift. This
+              panel is titled for what is drawn over the map, so it is where
+              someone looks.
+
+              Only present while something is sent. An empty row explaining a
+              feature is a permanent cost paid for an occasional state.
+            */}
+            {sentToMap && onSendToMap && (
+              <>
+                <Section
+                  icon={<Layers3 className="size-3.5" />}
+                  title="Sent from the studio"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="min-w-0 flex-1 truncate text-[11px] text-foreground"
+                      title={sentToMap.title}
+                    >
+                      {sentToMap.title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSendToMap(null)}
+                      className="shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                    >
+                      Take off
+                    </button>
+                  </div>
+                </Section>
+                <hr className="hairline" />
+              </>
+            )}
 
             <Section icon={<Palette className="size-3.5" />} title="AOI palette">
               <div className="grid grid-cols-2 gap-1.5">

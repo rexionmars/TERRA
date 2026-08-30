@@ -59,7 +59,7 @@ import {
   clampDetail,
   partitionVars,
 } from "@/lib/boardPartition"
-import { rasterLayers } from "@/lib/mapLayers"
+import { rasterLayers, type RasterLayer } from "@/lib/mapLayers"
 import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
 import { useRunLog } from "@/lib/runLog"
@@ -198,6 +198,9 @@ export interface MapScreenProps {
   activeAreaId?: string
   activeProjectId?: string | null
   activeProjectName?: string | null
+  /** A studio plane the work map is drawing, and the way to change it. */
+  sentToMap?: RasterLayer | null
+  onSendToMap?: (layer: RasterLayer | null) => void
   onActivateArea?: (id: string) => void
   onRenameArea?: (id: string, name: string) => void
   onDeleteArea?: (id: string) => void
@@ -1106,6 +1109,7 @@ export function MapScreen(props: MapScreenProps) {
         )}
 
       <MapSurface
+        sentToMap={props.sentToMap}
         initialView={props.initialView}
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
@@ -1291,6 +1295,8 @@ export function MapScreen(props: MapScreenProps) {
               catalogAreas={props.areas}
               initialView={props.initialView}
               onViewChange={props.onViewChange}
+              sentToMap={props.sentToMap}
+              onSendToMap={props.onSendToMap}
               activeProjectId={props.activeProjectId}
               activeProjectName={props.activeProjectName}
               activeAreaId={props.activeAreaId}
@@ -1402,6 +1408,8 @@ export function MapScreen(props: MapScreenProps) {
         because the column repeats them.
       */}
       <OverlayToolsPanel
+        sentToMap={props.sentToMap}
+        onSendToMap={props.onSendToMap}
         /*
           The studio has no fixed right column any more -- the properties area
           is a fraction of the area tree and moves with a drag. Withheld
