@@ -1,7 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "leaflet/dist/leaflet.css";
-@import "leaflet-draw/dist/leaflet.draw.css";
 
 /*
   TERRA design system — docs/DESIGN.md
@@ -717,131 +715,6 @@
   );
 }
 
-.leaflet-container {
-  background: rgb(var(--p-ink));
-  font-family: var(--font-sans);
-}
-
-/*
-  Map toolbars (draw / edit / zoom).
-
-  The plate is more opaque than a panel deliberately. A panel is large, so an
-  18px blur has area to average over and the imagery underneath becomes texture.
-  These are 34px squares: the blur samples a patch small enough that a bright
-  green field stays bright green, and at 55 percent ink the buttons read as dark
-  green blobs rather than as chrome. The imagery still shows through, it just
-  stops deciding the hue.
-*/
-.leaflet-bar {
-  border: 1px solid rgb(var(--p-line) / 0.28) !important;
-  border-radius: var(--radius-md) !important;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.28) !important;
-  background: transparent !important;
-}
-.leaflet-control-zoom a,
-.leaflet-draw-toolbar a {
-  position: relative;
-  background-color: rgb(var(--p-ink) / 0.82) !important;
-  color: rgb(var(--p-text)) !important;
-  border-bottom: 1px solid rgb(var(--p-line) / 0.22) !important;
-  width: 2.125rem !important;
-  height: 2.125rem !important;
-  line-height: 2.125rem !important;
-  backdrop-filter: blur(18px) saturate(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.05);
-}
-.leaflet-control-zoom a:hover,
-.leaflet-draw-toolbar a:hover {
-  background-color: rgb(var(--p-surface-raised) / 0.92) !important;
-  color: rgb(var(--p-text)) !important;
-}
-
-/* These are anchors, so the base rule keyed on button and the ARIA roles does
-   not reach them, and they had no visible focus at all. */
-.leaflet-control-zoom a:focus-visible,
-.leaflet-draw-toolbar a:focus-visible,
-.leaflet-draw-actions a:focus-visible {
-  outline: 1px solid var(--ring);
-  outline-offset: -2px;
-}
-
-.leaflet-bar a:first-child {
-  border-top-left-radius: var(--radius-md) !important;
-  border-top-right-radius: var(--radius-md) !important;
-}
-.leaflet-bar a:last-child {
-  border-bottom: none !important;
-  border-bottom-left-radius: var(--radius-md) !important;
-  border-bottom-right-radius: var(--radius-md) !important;
-}
-.leaflet-bar a:first-child:last-child {
-  border-radius: var(--radius-md) !important;
-}
-
-/*
-  The draw icons.
-
-  leaflet-draw ships a spritesheet of dark glyphs drawn for a white button, and
-  nothing had ever replaced it -- so the three controls carried near-black icons
-  on a near-black plate. Masked rather than recoloured in the data URI, the way
-  the layers toggle below still does it: a mask takes its colour from CSS, so it
-  follows the theme and the hover state instead of pinning one literal hex that
-  is wrong in the light theme.
-
-  Lucide shapes, matching the icon set the rest of the application uses.
-*/
-.leaflet-draw-toolbar a {
-  background-image: none !important;
-}
-.leaflet-draw-toolbar a::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-color: rgb(var(--p-muted));
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: 1rem 1rem;
-  mask-size: 1rem 1rem;
-}
-.leaflet-draw-toolbar a:hover::before {
-  background-color: rgb(var(--p-text));
-}
-.leaflet-draw-toolbar a.leaflet-disabled::before {
-  opacity: 0.4;
-}
-
-/* pentagon */
-.leaflet-draw-draw-polygon::before {
-  -webkit-mask-image: var(--icon-polygon);
-  mask-image: var(--icon-polygon);
-}
-/* square-pen */
-.leaflet-draw-edit-edit::before {
-  -webkit-mask-image: var(--icon-edit);
-  mask-image: var(--icon-edit);
-}
-/* trash-2 */
-.leaflet-draw-edit-remove::before {
-  -webkit-mask-image: var(--icon-trash);
-  mask-image: var(--icon-trash);
-}
-.leaflet-draw-actions a {
-  background-color: rgb(var(--p-ink) / 0.75) !important;
-  color: rgb(var(--p-text)) !important;
-  border-radius: var(--radius-sm)!important;
-}
-
-/* Draw guides must paint above the in-progress polygon SVG */
-.leaflet-draw-guides {
-  pointer-events: none;
-  z-index: 650;
-}
-.leaflet-draw-guide-dash {
-  pointer-events: none;
-}
 .geosense-draw-vertex {
   background: rgb(var(--p-accent));
   border: 1px solid rgb(var(--p-ink));
@@ -851,64 +724,9 @@
   height: 10px !important;
 }
 
-/* Overlays stay nearest-neighbor; smooth mode reshapes class regions in the PNG. */
-.leaflet-image-layer.overlay-crisp {
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  filter: none;
-  transform: none;
-}
-
 .overlay-thumb-crisp {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-}
-
-/*
- * Basemap LayersControl — same glass panel chrome as left-dock / Overlay Tools
- * (replaces Leaflet’s default white square + raster icon).
- */
-.leaflet-top.leaflet-right .leaflet-control-layers {
-  margin: 10px 10px 0 0 !important;
-  background: var(--panel) !important;
-  border: 1px solid rgb(var(--p-line) / 0.28) !important;
-  border-radius: var(--radius-sm)!important;
-  box-shadow: none !important;
-  backdrop-filter: blur(18px) saturate(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.05);
-  color: var(--foreground);
-}
-.leaflet-control-layers-toggle {
-  width: 32px !important;
-  height: 32px !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z'/%3E%3Cpath d='m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65'/%3E%3Cpath d='m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65'/%3E%3C/svg%3E") !important;
-  background-size: 16px 16px !important;
-  background-repeat: no-repeat !important;
-  background-position: center !important;
-  background-color: transparent !important;
-  opacity: 0.85;
-}
-.leaflet-control-layers-toggle:hover {
-  opacity: 1;
-  background-color: rgb(var(--p-line) / 0.12) !important;
-}
-.leaflet-control-layers-expanded {
-  padding: 8px 10px !important;
-  min-width: 11rem;
-}
-.leaflet-control-layers-expanded .leaflet-control-layers-list,
-.leaflet-control-layers-expanded label,
-.leaflet-control-layers-expanded span {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-family: var(--font-sans);
-}
-.leaflet-control-layers-expanded label:hover,
-.leaflet-control-layers-expanded label:hover span {
-  color: var(--foreground);
-}
-.leaflet-control-layers-separator {
-  border-top-color: rgb(var(--p-line) / 0.28) !important;
 }
 
 /*
@@ -956,7 +774,7 @@ pre,
   -webkit-user-select: text;
 }
 
-/* Map swipe (imagery ↔ prediction) — handle sits above leaflet panes */
+/* Map swipe (imagery / prediction) — the handle sits above the map canvas */
 .map-swipe-handle {
   touch-action: none;
   user-select: none;
@@ -990,7 +808,7 @@ pre,
 }
 
 /* Confidence overlay legend — same ramp as sidecar write_confidence_png.
-   Sits in the bottom-right tool column, above draw/edit/zoom (leaflet ~200px). */
+   Sits in the bottom-right tool column, above the draw and zoom bars. */
 .confidence-legend {
   right: 10px;
   bottom: 15.25rem; /* clear gap above draw + edit + zoom stack */
@@ -1006,24 +824,6 @@ pre,
     rgb(128 230 159) 75%,
     rgb(255 255 128) 100%
   );
-}
-
-/*
-  Lifted clear of whatever is pinned to the foot of the map. The period track
-  spans the full width, and tile attribution is a licensing requirement rather
-  than chrome that may be covered.
-
-  --map-foot is the period track's exact height, in both layouts. Set generously
-  it leaves a strip of map between the two, and the attribution reads as a
-  rectangle floating over the imagery rather than as chrome docked to the track
-  below it.
-
-  Only what spans the full width belongs in it. The workspace layout's control
-  bar is an island at the left, so it is not counted here: adding it lifted this
-  attribution at the opposite edge, where nothing was ever in its way.
-*/
-.leaflet-bottom {
-  margin-bottom: var(--map-foot, 0px);
 }
 
 /*

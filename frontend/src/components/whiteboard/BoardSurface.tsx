@@ -10,7 +10,15 @@
  * pay for it until the board is opened; see BoardButton for the other
  * half of that boundary.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { motion } from "motion/react"
 import { Copy, Save, Settings2 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
@@ -120,6 +128,7 @@ import {
   type AreaId,
 } from "@/lib/boardAreas"
 import { STUDIO_EDITORS, studioEditor, type EditorId } from "@/lib/studioEditors"
+import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
 import type { LucideIcon } from "lucide-react"
 import {
   DEFAULT_WORKSPACE,
@@ -128,6 +137,19 @@ import {
 } from "@/lib/studioWorkspaces"
 
 /** The tab strip's height; the areas divide what is left below it. */
+/*
+  Lazy, for the reason MapScreen loads this file lazily: the surface imports
+  MapLibre and its stylesheet, which is 945 kB. Statically imported it would
+  land in the studio's chunk for every board, whether or not an area is ever
+  set to the globe. `toGlobeArea` above is pure and stays static, which is why
+  it lives in its own module.
+*/
+const GlobeSurface = lazy(() =>
+  import("@/components/globe/GlobeSurface").then((m) => ({
+    default: m.GlobeSurface,
+  }))
+)
+
 const WORKSPACE_BAR_PX = 28
 import {
   AREA_HEADER_PX,
@@ -3265,6 +3287,19 @@ export function BoardSurface({
     different panes. An editor's props depend on WHICH area is drawing it,
     which is what the argument is for.
   */
+  /*
+    The catalog as shapes on a planet. Only the saved areas: a board is about
+    one area's work and the catalog it was drawn from, and the hub's projects
+    are not in scope on this screen.
+  */
+  const globeAreas = useMemo<GlobeArea[]>(
+    () =>
+      savedAois
+        .map((a) => toGlobeArea(`aoi:${a.id}`, a.name, a.geometry))
+        .filter((a): a is GlobeArea => a !== null),
+    [savedAois]
+  )
+
   const renderEditor = (
     areaId: AreaId
   ): Partial<Record<EditorId, React.ReactNode>> => {
@@ -3284,6 +3319,33 @@ export function BoardSurface({
     })()
     const pair = sides ? predCompares[`${sides[0].areaId}|${sides[1].areaId}`] : null
     return {
+    /*
+      The catalog on the planet, inside the board.
+
+      The same surface the globe screen mounts, with the projects left out: a
+      board is about one area's work and its catalog, and the hub's projects
+      are not in scope here. Pressing one activates it exactly as the
+      outliner's own list does -- one behaviour for "use this area", not two.
+
+      No "open the work map here": there is no map on this screen to open, and
+      a control that navigated out of the studio from inside an area would be
+      the only one that did.
+    */
+    globe: (
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center text-meta text-muted-foreground">
+            Loading the globe
+          </div>
+        }
+      >
+        <GlobeSurface
+          className="h-full w-full"
+          areas={globeAreas}
+          onPickArea={(id) => onActivateSavedAoi?.(id.slice(id.indexOf(":") + 1))}
+        />
+      </Suspense>
+    ),
     outliner: (
           <BoardSidebar
             areaInfo={areaInfo}

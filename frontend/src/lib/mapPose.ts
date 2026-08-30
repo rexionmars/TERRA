@@ -2,7 +2,7 @@
  * Where the map is looking, published outside React.
  *
  * WHY THIS IS NOT STATE. The map reports its centre and zoom on every frame of
- * a pan -- that is what leaflet's `move` event is -- and the only thing in the
+ * a pan -- that is what the map's `move` event is -- and the only thing in the
  * application that reads the live value is the coordinate readout in the title
  * bar. Routing it through `useState` in App put a new object on the ROOT
  * component sixty times a second, and App's subtree is every screen the
@@ -28,7 +28,7 @@ export interface MapPose {
 let pose: MapPose | null = null
 const listeners = new Set<() => void>()
 
-/** Called from leaflet's move handler. Replaces the pose and wakes readers. */
+/** Called from the map's move handler. Replaces the pose and wakes readers. */
 export function publishMapPose(next: MapPose): void {
   pose = next
   for (const fn of listeners) fn()

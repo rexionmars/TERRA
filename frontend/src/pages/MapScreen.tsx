@@ -30,7 +30,12 @@ import {
   subscribePanelSelection,
 } from "@/lib/panelSelection"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
-import { MapView } from "@/components/MapView"
+/*
+  MapLibre, not Leaflet. The three screens that mount the work map share one
+  component, so they moved together; the studio's own drawing map is the last
+  Leaflet map left. See components/map/MapSurface.tsx.
+*/
+import { MapSurface } from "@/components/map/MapSurface"
 import { SearchBar } from "@/components/SearchBar"
 import { PeriodTimeline } from "@/components/PeriodTimeline"
 import { ControlPanel } from "@/components/ControlPanel"
@@ -1103,7 +1108,7 @@ export function MapScreen(props: MapScreenProps) {
           props.titleBarSlot
         )}
 
-      <MapView
+      <MapSurface
         initialView={props.initialView}
         areas={props.areas}
         activeExample={props.activeExample}
@@ -1137,8 +1142,9 @@ export function MapScreen(props: MapScreenProps) {
         onClearArea={props.onClearArea}
         onViewChange={props.onViewChange}
         onCreditChange={props.onCreditChange}
-        // Handed to Leaflet rather than positioned here: it joins the zoom and
-        // draw stack at the bottom-right, under them.
+        // Placed in the surface's own bottom-right stack, above the zoom and
+        // draw controls, so a panel opening no longer reads as something this
+        // button produced.
         bottomRightSlot={
           <>
             {/*

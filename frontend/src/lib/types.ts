@@ -2232,4 +2232,17 @@ export interface FloodAnalysis {
    * in which case the numbers still stand and only the map is missing.
    */
   agreement_uri?: string
+  /**
+   * The same crop carrying the COUNTS rather than their colours, as a data
+   * URI: the count in the red channel, one per byte, alpha marking the
+   * reporting mask.
+   *
+   * It exists so the map can colour the raster from an expression rather than
+   * draw a finished image -- agreement_uri's palette, and which counts it
+   * draws at all, were decided in the sidecar. Absent when the file could not
+   * be read, in which case the map draws agreement_uri and only the palette
+   * control is missing.
+   */
+  agreement_values_uri?: string
+  agreement_values_png?: string
 }

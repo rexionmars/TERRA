@@ -101,10 +101,10 @@ export const BOARD_DETAIL_COLLAPSED_REM = 1.25
 /**
  * What the map screen's own foot reserves when the studio is closed.
  *
- * The workspace bar's height. `--map-foot` is a contract with seven surfaces
+ * The workspace bar's height. `--map-foot` is a contract with eight surfaces
  * outside the studio -- the result, water, composition and energy panels, the
- * overlay tools, PanelShell and the workspace bar itself -- which lift
- * themselves off the foot by reading it. It therefore has a meaning on the
+ * overlay tools, PanelShell, the map surface's own control stack and the
+ * workspace bar itself -- which lift themselves off the foot by reading it. It therefore has a meaning on the
  * plain map screen too, and the partition emits it in both states rather than
  * only while the studio is open.
  */
