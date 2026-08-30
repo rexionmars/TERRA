@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from terra.landcover import mapbiomas as lulc
+from terra.landcover import mapbiomas as lulc, palette
 
 
 def test_hex_to_rgb():
-    assert lulc.hex_to_rgb("#006d2c") == (0, 109, 44)
-    assert lulc.hex_to_rgb("4292c6") == (66, 146, 198)
+    assert palette.hex_to_rgb("#006d2c") == (0, 109, 44)
+    assert palette.hex_to_rgb("4292c6") == (66, 146, 198)
 
 
 def test_pixel_area_ha_positive():

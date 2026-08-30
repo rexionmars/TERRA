@@ -17,10 +17,11 @@ from shapely.ops import transform as shp_transform
 
 # Extended MapBiomas Coleção 10 legend (classes seen on PR farms + study targets).
 # Shared with the classification path so both render a class id identically;
-# see class_palette.py.
-from terra.landcover.palette import (
-    MAPBIOMAS_COLORS,  # noqa: E402,F401
-    MAPBIOMAS_LEGEND,  # noqa: E402,F401
+# see terra/landcover/palette.py.
+from terra.landcover.palette import (  # noqa: E402,F401
+    MAPBIOMAS_COLORS,
+    MAPBIOMAS_LEGEND,
+    hex_to_rgb,
 )
 
 LULC_GROUP = {
@@ -151,11 +152,6 @@ def pixel_area_ha(res, lat: float) -> float:
     m_lat = 111_320.0
     m_lon = 111_320.0 * np.cos(np.deg2rad(lat))
     return (dx * m_lon) * (dy * m_lat) / 10_000.0
-
-
-def hex_to_rgb(h: str):
-    h = h.lstrip("#")
-    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
 
 def shannon_diversity(pcts) -> float:

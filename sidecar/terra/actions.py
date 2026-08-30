@@ -54,7 +54,6 @@ import rasterio
 
 warnings.filterwarnings('ignore')
 
-SOJA_CLASS_ID = 39
 
 # Class metadata used for labels and the overlay palette (MapBiomas classes,
 # English labels). Shared with the reference path so a prediction and the
@@ -76,345 +75,20 @@ from terra.landcover.palette import (  # noqa: E402
 
 # --- Feature engineering (matches feature_names.joblib) ---------------------
 
-def compute_index_features(time_series):
-    """Compute the 14 temporal features per index used by the trained model."""
-    features = []
-    for ts in time_series:
-        feat = []
-        feat.append(np.mean(ts))
-        feat.append(np.std(ts))
-        feat.append(np.max(ts))
-        feat.append(np.min(ts))
-        feat.append(np.max(ts) - np.min(ts))
-        feat.append(np.median(ts))
-        feat.append(np.argmax(ts))
-        feat.append(np.argmin(ts))
-        mid = len(ts) // 2
-        wet = np.mean(ts[:mid]) if mid > 0 else np.mean(ts)
-        dry = np.mean(ts[mid:]) if mid > 0 else np.mean(ts)
-        feat.append(wet)
-        feat.append(dry)
-        feat.append(wet - dry)
-        diff = np.diff(ts)
-        feat.append(np.mean(diff) if len(diff) > 0 else 0.0)
-        feat.append(np.max(diff) if len(diff) > 0 else 0.0)
-        feat.append(np.min(diff) if len(diff) > 0 else 0.0)
-        features.append(feat)
-    return np.array(features)
 
 
-def build_feature_matrix(products, polygon, ref_prof, n_dates_model):
-    """
-    Build the (N_pixels, 80) feature matrix from a list of products, matching
-    the training pipeline. Returns (feature_matrix, valid_mask_2d) or (None, None).
-    """
-    ndvi_list, evi_list, savi_list = [], [], []
-    band_lists = {'B02': [], 'B03': [], 'B04': [], 'B08': []}
-    for product in products:
-        try:
-            blue = sentinel2.load_band_to_reference_grid(product, 'B02', polygon, ref_prof)
-            green = sentinel2.load_band_to_reference_grid(product, 'B03', polygon, ref_prof)
-            red = sentinel2.load_band_to_reference_grid(product, 'B04', polygon, ref_prof)
-            nir = sentinel2.load_band_to_reference_grid(product, 'B08', polygon, ref_prof)
-            blue_r, green_r, red_r, nir_r = (
-                sentinel2.as_trained(blue), sentinel2.as_trained(green),
-                sentinel2.as_trained(red), sentinel2.as_trained(nir))
-            ndvi_list.append(indices.calculate_ndvi(nir_r, red_r))
-            evi_list.append(indices.calculate_evi(nir_r, red_r, blue_r))
-            savi_list.append(indices.calculate_savi(nir_r, red_r))
-            band_lists['B02'].append(blue_r)
-            band_lists['B03'].append(green_r)
-            band_lists['B04'].append(red_r)
-            band_lists['B08'].append(nir_r)
-        except Exception as e:
-            sys.stderr.write(json.dumps({'progress': -1, 'msg': f'band error: {e}'}) + '\n')
-            continue
-    if len(ndvi_list) == 0:
-        return None, None
-
-    ndvi_stack = np.array(ndvi_list)
-    evi_stack = np.array(evi_list)
-    savi_stack = np.array(savi_list)
-    band_stacks = {k: np.array(v) for k, v in band_lists.items()}
-
-    n_times, height, width = ndvi_stack.shape
-    ndvi_pixels = ndvi_stack.reshape(n_times, -1).T
-    evi_pixels = evi_stack.reshape(n_times, -1).T
-    savi_pixels = savi_stack.reshape(n_times, -1).T
-
-    valid_obs = np.sum(ndvi_pixels != 0, axis=1)
-    valid_mask_flat = valid_obs >= max(1, n_times * 0.5)
-
-    for arr in [ndvi_pixels, evi_pixels, savi_pixels]:
-        valid_arr = arr[valid_mask_flat]
-        for i in range(valid_arr.shape[0]):
-            ts = valid_arr[i]
-            zero_mask = ts == 0
-            if np.any(zero_mask) and np.any(~zero_mask):
-                ts[zero_mask] = np.interp(
-                    np.where(zero_mask)[0], np.where(~zero_mask)[0], ts[~zero_mask]
-                )
-                valid_arr[i] = ts
-        arr[valid_mask_flat] = valid_arr
-
-    all_features = []
-    for pixels in [ndvi_pixels, evi_pixels, savi_pixels]:
-        all_features.append(compute_index_features(pixels[valid_mask_flat]))
-    for band_name in ['B02', 'B03', 'B04', 'B08']:
-        stack = band_stacks[band_name]
-        band_pixels = stack.reshape(n_times, -1).T[valid_mask_flat]
-        band_mean = np.mean(band_pixels, axis=1)
-        band_std = np.std(band_pixels, axis=1)
-        band_max = np.max(band_pixels, axis=1)
-        band_min = np.min(band_pixels, axis=1)
-        all_features.append(np.column_stack([band_mean, band_std, band_max, band_min]))
-
-    ndvi_raw = ndvi_pixels[valid_mask_flat]
-    if n_times < n_dates_model:
-        pad = np.zeros((ndvi_raw.shape[0], n_dates_model - n_times))
-        ndvi_raw = np.hstack([ndvi_raw, pad])
-    elif n_times > n_dates_model:
-        ndvi_raw = ndvi_raw[:, -n_dates_model:]
-    all_features.append(ndvi_raw)
-
-    feature_matrix = np.hstack(all_features)
-    valid_mask_2d = valid_mask_flat.reshape(height, width)
-    return feature_matrix, valid_mask_2d
 
 
 # --- Classification --------------------------------------------------------
 
-def classify_from_features(feature_matrix, valid_mask, model, scaler, label_encoder):
-    """Apply the trained model; return (H,W) class map and confidence map."""
-    height, width = valid_mask.shape
-    classification_map = np.full((height, width), -1, dtype=np.int32)
-    confidence_map = np.zeros((height, width), dtype=np.float32)
-    X_scaled = scaler.transform(feature_matrix)
-    if hasattr(model, "predict_proba"):
-        proba = model.predict_proba(X_scaled)
-        conf = proba.max(axis=1).astype(np.float32)
-        pred_encoded = proba.argmax(axis=1)
-    else:
-        pred_encoded = model.predict(X_scaled)
-        conf = np.ones(len(pred_encoded), dtype=np.float32)
-    pred_classes = label_encoder.inverse_transform(pred_encoded)
-    rows, cols = np.where(valid_mask)
-    classification_map[rows, cols] = pred_classes
-    confidence_map[rows, cols] = conf
-    return classification_map, confidence_map
 
 
-def write_confidence_png(confidence_map, valid_mask, out_path):
-    """Write a single-band confidence overlay as RGBA (blue→cyan→yellow)."""
-    h, w = confidence_map.shape
-    rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    conf = np.clip(confidence_map, 0, 1)
-    mask = valid_mask & (conf > 0)
-    # Cool→hot ramp used by the map legend (keep in sync with ConfidenceLegend CSS).
-    r = np.clip((conf - 0.5) * 2.0, 0, 1)
-    g = np.clip(conf * 1.2, 0, 1)
-    b = np.clip(1.0 - conf * 0.5, 0, 1)
-    rgba[..., 0] = (r * 255).astype(np.uint8)
-    rgba[..., 1] = (g * 255).astype(np.uint8)
-    rgba[..., 2] = (b * 255).astype(np.uint8)
-    rgba[..., 3] = (conf * 200).astype(np.uint8)
-    rgba[~mask, 3] = 0
-    with rasterio.open(
-        out_path, "w", driver="PNG", height=h, width=w, count=4, dtype="uint8"
-    ) as dst:
-        for i in range(4):
-            dst.write(rgba[:, :, i], i + 1)
 
 
-def write_ndvi_mean_png(ndvi_mean, valid_mask, out_path):
-    """Write temporal-mean NDVI as RGBA using a yellow→green ramp."""
-    h, w = ndvi_mean.shape
-    rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    v = np.clip(ndvi_mean, 0.0, 1.0)
-    # YlGn-ish: low = #ffffcc, mid = #78c679, high = #006837
-    r = np.clip(1.0 - v * 0.85, 0, 1)
-    g = np.clip(0.80 + v * 0.15, 0, 1)
-    b = np.clip(0.45 * (1.0 - v), 0, 1)
-    rgba[..., 0] = (r * 255).astype(np.uint8)
-    rgba[..., 1] = (g * 255).astype(np.uint8)
-    rgba[..., 2] = (b * 255).astype(np.uint8)
-    rgba[..., 3] = 255
-    rgba[~valid_mask, 3] = 0
-    with rasterio.open(
-        out_path, "w", driver="PNG", height=h, width=w, count=4, dtype="uint8"
-    ) as dst:
-        for i in range(4):
-            dst.write(rgba[:, :, i], i + 1)
 
 
-def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None):
-    """Mean ± std NDVI/EVI/SAVI per date; also spatial NDVI temporal mean.
-
-    Also keeps reflectance for the peak-NDVI scene so we can write a true-color
-    AOI chip aligned to the same grid as the other overlays.
-
-    `crop_mask` ADDS A SECOND SERIES, it does not narrow the first.
-
-    An area mean over mixed cover is not the crop's index, and the gap is not
-    small: on a measured soybean AOI the peak read 0.314 with a standard
-    deviation of 0.190, which for a roughly even two-population mix puts the
-    crop pixels near 0.50 and everything else near 0.12. Anything downstream
-    that inverts that mean to a leaf area index -- which is what the canopy
-    reading does -- is answering for an average of soybean and bare ground.
-
-    Both are returned because they answer different questions and because the
-    AOI-wide one is what every existing export and figure already carries;
-    narrowing it in place would move numbers nobody asked to move.
-    """
-    from terra.imagery import composite as comp
-
-    series = []
-    crop_series = []
-    dates = []
-    ndvi_means = []
-    ndvi_stack = []
-    best_ndvi = -1.0
-    best_rgb = None  # (red, green, blue, valid_mask)
-    for product in products:
-        try:
-            blue = sentinel2.load_reflectance_to_reference_grid(product, "B02", polygon, ref_prof)
-            green = sentinel2.load_reflectance_to_reference_grid(product, "B03", polygon, ref_prof)
-            red = sentinel2.load_reflectance_to_reference_grid(product, "B04", polygon, ref_prof)
-            nir = sentinel2.load_reflectance_to_reference_grid(product, "B08", polygon, ref_prof)
-            ndvi = indices.calculate_ndvi(nir, red)
-            evi = indices.calculate_evi(nir, red, blue)
-            savi = indices.calculate_savi(nir, red)
-            valid = ndvi != 0
-            if not np.any(valid):
-                continue
-            date_str = product["date"].strftime("%Y-%m-%d")
-            dates.append(product["date"])
-            mean_ndvi = float(np.mean(ndvi[valid]))
-            ndvi_means.append(mean_ndvi)
-            ndvi_stack.append(ndvi.astype(np.float32))
-            if mean_ndvi > best_ndvi:
-                best_ndvi = mean_ndvi
-                best_rgb = (
-                    red.astype(np.float32),
-                    green.astype(np.float32),
-                    blue.astype(np.float32),
-                    valid,
-                )
-            series.append(
-                {
-                    "date": date_str,
-                    "ndvi_mean": round(mean_ndvi, 4),
-                    "ndvi_std": round(float(np.std(ndvi[valid])), 4),
-                    "evi_mean": round(float(np.mean(evi[valid])), 4),
-                    "evi_std": round(float(np.std(evi[valid])), 4),
-                    "savi_mean": round(float(np.mean(savi[valid])), 4),
-                    "savi_std": round(float(np.std(savi[valid])), 4),
-                }
-            )
-            if crop_mask is not None:
-                # Valid AND crop. A date whose crop pixels were all cloud drops
-                # out of this series while staying in the AOI-wide one, so the
-                # two can have different lengths and each carries its own dates.
-                on_crop = valid & crop_mask
-                n = int(np.count_nonzero(on_crop))
-                if n:
-                    crop_series.append(
-                        {
-                            "date": date_str,
-                            "ndvi_mean": round(float(np.mean(ndvi[on_crop])), 4),
-                            "ndvi_std": round(float(np.std(ndvi[on_crop])), 4),
-                            "evi_mean": round(float(np.mean(evi[on_crop])), 4),
-                            "evi_std": round(float(np.std(evi[on_crop])), 4),
-                            "savi_mean": round(float(np.mean(savi[on_crop])), 4),
-                            "savi_std": round(float(np.std(savi[on_crop])), 4),
-                            "n_pixels": n,
-                        }
-                    )
-        except Exception as e:
-            sys.stderr.write(json.dumps({"progress": -1, "msg": f"VI series: {e}"}) + "\n")
-            continue
-
-    ndvi_mean_map = None
-    valid_mask = None
-    if ndvi_stack:
-        stack = np.stack(ndvi_stack, axis=0)
-        # Mean over dates where NDVI != 0
-        nonzero = stack != 0
-        with np.errstate(invalid="ignore"):
-            ndvi_mean_map = np.where(
-                nonzero.any(axis=0),
-                stack.sum(axis=0) / np.maximum(nonzero.sum(axis=0), 1),
-                0.0,
-            ).astype(np.float32)
-        valid_mask = nonzero.any(axis=0)
-
-    true_color_rgba = None
-    if best_rgb is not None:
-        r, g, b, mask = best_rgb
-        true_color_rgba = comp.rgb_to_rgba(r, g, b, mask)
-
-    return (series, crop_series, dates, ndvi_means, ndvi_mean_map,
-            valid_mask, true_color_rgba)
 
 
-def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
-    """Classify with the mestrado Temporal Transformer (T×6 reflectance)."""
-    protocol.require_torch("The Temporal Transformer")
-    import torch
-
-    from terra.landcover import temporal_transformer as tt
-
-    ckpt_path = Path(model_dir) / "tt_mapbiomas.pt"
-    if not ckpt_path.exists():
-        protocol.fail(f"Temporal Transformer checkpoint missing: {ckpt_path.name}")
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device.type == "cpu" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        device = torch.device("mps")
-    model, scaler, classes = tt.load_checkpoint(ckpt_path, device=device)
-
-    band_specs = [
-        ("B02", "10m"),
-        ("B03", "10m"),
-        ("B04", "10m"),
-        ("B8A", "20m"),
-        ("B11", "20m"),
-        ("B12", "20m"),
-    ]
-    frames = []
-    for product in products:
-        bands = []
-        try:
-            for name, res in band_specs:
-                arr = sentinel2.load_band_to_reference_grid(
-                    product, name, polygon, ref_profile, resolution=res
-                )
-                bands.append(np.clip(sentinel2.as_trained(arr), 0, 1).astype(np.float32))
-            frames.append(np.stack(bands, axis=0))
-        except Exception as e:
-            sys.stderr.write(json.dumps({"progress": -1, "msg": f"TT band error: {e}"}) + "\n")
-            continue
-    if not frames:
-        protocol.fail("no valid Sentinel-2 frames for Temporal Transformer")
-
-    stack = np.stack(frames, axis=0)  # (T, 6, H, W)
-    stack = tt.pad_temporal(stack, tt.NUM_FRAMES)
-    t, c, height, width = stack.shape
-    valid = stack[:, 2].mean(axis=0) > 0  # mean red > 0
-    rows, cols = np.where(valid)
-    if rows.size == 0:
-        protocol.fail("no valid pixels for Temporal Transformer")
-
-    x = np.stack([stack[:, :, r, c] for r, c in zip(rows, cols)], axis=0).astype(np.float32)
-    x = np.clip(x, 0.0, 1.0)
-
-    protocol.emit_progress(70, f"Temporal Transformer inference ({len(x)} pixels)")
-    pred_idx, conf = tt.predict_pixels(model, scaler, x, device)
-    cls_map = np.full((height, width), -1, dtype=np.int32)
-    conf_map = np.zeros((height, width), dtype=np.float32)
-    cls_map[rows, cols] = classes[pred_idx]
-    conf_map[rows, cols] = conf.astype(np.float32)
-    return cls_map, conf_map
 
 
 # --- MapBiomas (soja mask for temporal retention) --------------------------
@@ -427,363 +101,26 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
 
 
 
-def hex_to_rgb(hex_color):
-    h = hex_color.lstrip('#')
-    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def write_overlay_png(classification_map, out_path):
-    """Write an RGBA PNG of the classification map using the MapBiomas palette."""
-    h, w = classification_map.shape
-    rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    for cls_id, hex_color in MAPBIOMAS_COLORS.items():
-        mask = classification_map == cls_id
-        if np.any(mask):
-            r, g, b = hex_to_rgb(hex_color)
-            rgba[mask] = [r, g, b, 255]
-    # invalid pixels stay fully transparent (alpha = 0)
-    with rasterio.open(
-        out_path, 'w', driver='PNG', height=h, width=w, count=4, dtype='uint8'
-    ) as dst:
-        for i in range(4):
-            dst.write(rgba[:, :, i], i + 1)
 
 
-def write_classification_tif(classification_map, ref_profile, out_path):
-    """Write the classification map as a georeferenced GeoTIFF (from notebooks)."""
-    tif_profile = {
-        'driver': 'GTiff',
-        'dtype': 'int16',
-        'width': ref_profile['width'],
-        'height': ref_profile['height'],
-        'count': 1,
-        'crs': ref_profile['crs'],
-        'transform': ref_profile['transform'],
-        'compress': 'lzw',
-        'nodata': -1,
-    }
-    with rasterio.open(out_path, 'w', **tif_profile) as dst:
-        dst.write(classification_map.astype(np.int16), 1)
 
 
-# The seven bands the application reads, and their central wavelengths.
-# Values from the Sentinel-2A spectral response functions (ESA, S2-SRF v3.1);
-# the two SWIR bands and B8A are 20 m products resampled onto the 10 m grid.
-TERRA_BANDS = (('B02', '10m'), ('B03', '10m'), ('B04', '10m'), ('B08', '10m'),
-               ('B8A', '20m'), ('B11', '20m'), ('B12', '20m'))
-BAND_WAVELENGTH_NM = {
-    'B02': 492.4, 'B03': 559.8, 'B04': 664.6, 'B08': 832.8,
-    'B8A': 864.7, 'B11': 1613.7, 'B12': 2202.4,
-}
-# Below this a class mean is a handful of pixels rather than a spectrum. The
-# class is dropped from the figure instead of drawn at an unstated precision.
-SPECTRUM_MIN_PIXELS = 30
 
 
-def class_spectra(products, polygon, ref_profile, classification_map,
-                  min_pixels=SPECTRUM_MIN_PIXELS):
-    """
-    Mean surface reflectance per band, per predicted class, on one acquisition.
-
-    What the domain-shift diagnostics beside it cannot say. MMD, KL and the
-    change-vector magnitude report THAT a distribution moved; a per-class
-    spectrum reports which band moved and in which direction.
-
-    ONE acquisition, not the series. The classification is temporal -- 80
-    features over up to 22 dates -- but reflectance is not, and averaging seven
-    bands across a season would mix phenological stages into a single curve
-    that describes no date. The scene at the middle of the period is used, the
-    same one the reference implementation in experiments/ measures, and it is
-    named in the payload so the figure is not read as a seasonal mean.
-
-    sentinel2.to_reflectance, not sentinel2.as_trained: this is REPORTED as a physical quantity, so
-    it carries the baseline 04.00 offset. The classifier that produced
-    classification_map consumed the uncorrected convention it was fitted under,
-    which is the seam documented on sentinel2.as_trained -- the labels come from one
-    space, the reflectance reported for them from the other.
-
-    Returns None when nothing can be measured, rather than an empty shell.
-    """
-    if not products or classification_map is None:
-        return None
-    valid = classification_map >= 0
-    if not valid.any():
-        return None
-
-    scene = products[len(products) // 2]
-    bands = {}
-    for name, resolution in TERRA_BANDS:
-        try:
-            bands[name] = sentinel2.load_reflectance_to_reference_grid(
-                scene, name, polygon, ref_profile, resolution=resolution)
-        except Exception as e:
-            sys.stderr.write(json.dumps({
-                'progress': -1, 'msg': f'spectrum band {name} skipped: {e}'
-            }) + '\n')
-            sys.stderr.flush()
-    if not bands:
-        return None
-
-    points = []
-    for cls_id in sorted({int(c) for c in np.unique(classification_map[valid])}):
-        selected = valid & (classification_map == cls_id)
-        for name, _ in TERRA_BANDS:
-            band = bands.get(name)
-            if band is None:
-                continue
-            pixels = band[selected & np.isfinite(band)]
-            if pixels.size < min_pixels:
-                continue
-            points.append({
-                'class_id': cls_id,
-                'name': MAPBIOMAS_LEGEND.get(cls_id, f'Class {cls_id}'),
-                'color': MAPBIOMAS_COLORS.get(cls_id, '#cccccc'),
-                'band': name,
-                'wavelength_nm': BAND_WAVELENGTH_NM[name],
-                'n_pixels': int(pixels.size),
-                'mean': float(round(float(np.mean(pixels)), 6)),
-                'sd': float(round(float(np.std(pixels)), 6)),
-                'p05': float(round(float(np.percentile(pixels, 5)), 6)),
-                'p95': float(round(float(np.percentile(pixels, 95)), 6)),
-            })
-    if not points:
-        return None
-    return {
-        'scene_date': scene['date'].strftime('%Y-%m-%d'),
-        'scene_id': str(scene.get('id', '')),
-        'n_scenes': len(products),
-        # Named rather than assumed. The indices reported elsewhere in this run
-        # come from the model's own convention; these do not.
-        'convention': 'BOA reflectance, baseline 04.00 offset applied',
-        'bands': [name for name, _ in TERRA_BANDS if name in bands],
-        'points': points,
-    }
 
 
-REFERENCE_DIR = Path(__file__).resolve().parent / 'reference'
-SOYBEAN_REFERENCE = REFERENCE_DIR / 'soybean_leaf_reference.json'
 
 
-def spectral_angle(a, b):
-    """
-    The angle between two spectra, in radians. Spectral Angle Mapper.
-
-    Scale-invariant, which is the whole reason it is the standard comparison: a
-    material in shade differs from the same material in sun by a multiplier,
-    and the angle ignores exactly that. What it cannot ignore is a change of
-    SHAPE, which is what the leaf-to-canopy difference turns out to be.
-    """
-    a = np.asarray(a, dtype=float)
-    b = np.asarray(b, dtype=float)
-    na = float(np.linalg.norm(a))
-    nb = float(np.linalg.norm(b))
-    if na <= 0 or nb <= 0:
-        return float('nan')
-
-    # The half-angle form, not arccos of the cosine.
-    #
-    # arccos has an infinite derivative at 1, which is exactly where the
-    # scale-invariance this function promises puts every shaded-material
-    # comparison. A rounding error of eps in the cosine emerges as sqrt(2*eps)
-    # in the angle, so the 2.2e-16 that dot() leaves on one platform and not on
-    # another became 2.1e-8 radians -- a spectrum reported as not quite
-    # identical to itself, on Linux but not on macOS.
-    #
-    # 2*atan2(|u - v|, |u + v|) over the unit vectors is conditioned evenly
-    # across the whole range: it returns 0 for parallel and pi for antiparallel
-    # without the clip that was hiding the loss. Checked against the previous
-    # form on non-degenerate pairs, the two agree to 3.3e-16.
-    u = a / na
-    v = b / nb
-    return float(2.0 * np.arctan2(
-        float(np.linalg.norm(u - v)), float(np.linalg.norm(u + v))))
 
 
-def library_limit(spectra):
-    """
-    Each predicted class against a leaf-level library spectrum, and the limit
-    that comparison runs into.
-
-    WHAT THIS IS FOR. A reader looking at a class called Soybean wants to know
-    whether the pixels under it reflect like soybean. This computes the angle
-    to a reference built from 1131 soybean leaf spectra, and reports the answer
-    the measurement actually gives -- which is that Soybean is NOT the closest
-    class to the soybean reference.
-
-    That is not a classification error. A library spectrum is leaf level and a
-    Sentinel-2 pixel is canopy: soil through the gaps and shadow between rows.
-    The ratio between the two is reported per band because it is the mechanism:
-    it is not constant, so the difference is not brightness. If it were, the
-    angle would be zero, since the angle is scale-invariant. Soil raises the
-    red while gaps and shadow lower the NIR, in opposite directions, and the
-    shape itself is distorted.
-
-    So a small angle here means CONSISTENCY, not identification, and nothing
-    downstream may label it otherwise.
-
-    The reference is vendored rather than fetched: it is 7 numbers derived from
-    a 28 MB package by experiments/spectral_response_and_offset.py, convolved
-    onto the ESA response functions. Fetching 28 MB at classify time to arrive
-    at 7 numbers would be a network dependency for a constant.
-    """
-    if not spectra or not spectra.get('points'):
-        return None
-    try:
-        reference = json.loads(SOYBEAN_REFERENCE.read_text())['reference']
-    except Exception as e:
-        sys.stderr.write(json.dumps({
-            'progress': -1, 'msg': f'library reference unavailable: {e}'
-        }) + '\n')
-        sys.stderr.flush()
-        return None
-
-    leaf = {b['band']: float(b['reflectance']) for b in reference['bands']}
-    bands = [b for b, _ in TERRA_BANDS if b in leaf]
-
-    by_class = {}
-    for p in spectra['points']:
-        by_class.setdefault(p['class_id'], {})[p['band']] = p
-
-    out = []
-    for class_id in sorted(by_class):
-        points = by_class[class_id]
-        # A class the scene could not measure in every band has no vector to
-        # compare; a partial one would be an angle in a different space.
-        if any(b not in points for b in bands):
-            continue
-        canopy = np.array([points[b]['mean'] for b in bands], dtype=float)
-        reference_vector = np.array([leaf[b] for b in bands], dtype=float)
-        canopy_norm = float(np.linalg.norm(canopy))
-        reference_norm = float(np.linalg.norm(reference_vector))
-        first = points[bands[0]]
-        out.append({
-            'class_id': class_id,
-            'name': first['name'],
-            'color': first['color'],
-            'angle_rad': round(spectral_angle(canopy, reference_vector), 6),
-            'bands': [
-                {
-                    'band': b,
-                    'wavelength_nm': points[b]['wavelength_nm'],
-                    'canopy': round(float(canopy[i]), 6),
-                    'leaf': round(float(reference_vector[i]), 6),
-                    # Canopy over leaf. Constant would mean brightness alone.
-                    'ratio': (
-                        round(float(canopy[i] / reference_vector[i]), 4)
-                        if reference_vector[i] > 0 else None
-                    ),
-                    # The unit vectors are what the angle actually compares,
-                    # so a reader can see the difference the angle sees.
-                    'unit_canopy': (
-                        round(float(canopy[i] / canopy_norm), 6)
-                        if canopy_norm > 0 else None
-                    ),
-                    'unit_leaf': (
-                        round(float(reference_vector[i] / reference_norm), 6)
-                        if reference_norm > 0 else None
-                    ),
-                }
-                for i, b in enumerate(bands)
-            ],
-        })
-    if not out:
-        return None
-    out.sort(key=lambda c: c['angle_rad'])
-    return {
-        'reference': {
-            'material': reference['material'],
-            'source': reference['source'],
-            'package_id': reference['package_id'],
-            'n_spectra': reference['n_spectra'],
-            'level': reference['level'],
-            'note': reference['note'],
-            'bands': reference['bands'],
-        },
-        'scene_date': spectra.get('scene_date', ''),
-        'classes': out,
-    }
 
 
-def class_statistics(classification_map):
-    """Build per-class statistics (pixels, pct, area_ha) at 10 m resolution."""
-    valid = classification_map[classification_map >= 0]
-    total = int(valid.size)
-    stats = []
-    if total == 0:
-        return stats
-    unique_pred, counts = np.unique(valid, return_counts=True)
-    for cls_id, count in zip(unique_pred, counts):
-        cls_id = int(cls_id)
-        stats.append({
-            'class_id': cls_id,
-            'name': MAPBIOMAS_LEGEND.get(cls_id, f'Class {cls_id}'),
-            'color': MAPBIOMAS_COLORS.get(cls_id, '#cccccc'),
-            'pixels': int(count),
-            'pct': float(round(100.0 * count / total, 2)),
-            'area_ha': float(round(count * 100.0 / 10000.0, 2)),
-        })
-    stats.sort(key=lambda s: s['pixels'], reverse=True)
-    return stats
 
 
 # --- Prithvi-EO 2.0 classification -----------------------------------------
 
-def classify_prithvi(products, polygon, ref_profile, model_dir, mode):
-    """
-    Classify a representative acquisition using frozen Prithvi-EO 2.0 embeddings
-    and the matching Random Forest head. mode is 'pixel' or 'patch'.
-    Returns a (H, W) map of MapBiomas class ids (-1 = invalid).
-    """
-    # prithvi imports torch on the way in, so the same absence surfaces here as
-    # an unexplained traceback rather than as a missing package.
-    protocol.require_torch("Prithvi-EO 2.0")
-    from terra.landcover import prithvi as pv
-
-    rf_path = model_dir / f'prithvi_rf_{mode}.joblib'
-    sc_path = model_dir / f'prithvi_scaler_{mode}.joblib'
-    le_path = model_dir / 'prithvi_label_encoder.joblib'
-    for p in (rf_path, sc_path, le_path):
-        if not p.exists():
-            protocol.fail(f'Prithvi model artifact missing: {p.name}. Train it with train_prithvi.py')
-    rf = joblib.load(rf_path)
-    sc = joblib.load(sc_path)
-    le = joblib.load(le_path)
-
-    target = products[len(products) // 2]
-    protocol.emit_progress(30, f'loading Prithvi bands ({target["date"].strftime("%Y-%m-%d")})')
-    bands = []
-    for name, res in [('B02', '10m'), ('B03', '10m'), ('B04', '10m'),
-                      ('B8A', '20m'), ('B11', '20m'), ('B12', '20m')]:
-        arr = sentinel2.load_band_to_reference_grid(target, name, polygon, ref_profile, resolution=res)
-        bands.append(np.clip(sentinel2.as_trained(arr), 0, 1))
-    band_stack = np.stack(bands, axis=0).astype(np.float32)
-
-    ref0 = bands[2]  # B04
-    valid = ref0 > 0
-    height, width = valid.shape
-    cls_map = np.full((height, width), -1, dtype=np.int32)
-
-    protocol.emit_progress(45, f'extracting Prithvi embeddings ({mode})')
-    if mode == 'patch':
-        emb_map = pv.embed_patches(band_stack, valid)
-        X = emb_map[valid]
-    else:
-        X = pv.embed_pixels(band_stack, valid)
-
-    protocol.emit_progress(85, 'classifying embeddings')
-    X_scaled = sc.transform(X)
-    if hasattr(rf, "predict_proba"):
-        proba = rf.predict_proba(X_scaled)
-        conf = proba.max(axis=1).astype(np.float32)
-        pred = le.inverse_transform(proba.argmax(axis=1))
-    else:
-        pred = le.inverse_transform(rf.predict(X_scaled))
-        conf = np.ones(len(pred), dtype=np.float32)
-    rows, cols = np.where(valid)
-    cls_map[rows, cols] = pred
-    conf_map = np.zeros((height, width), dtype=np.float32)
-    conf_map[rows, cols] = conf
-    return cls_map, conf_map
 
 
 # --- Main ------------------------------------------------------------------
@@ -3112,6 +2449,13 @@ def action_render_composite(req, work_dir):
 def action_predict(req, work_dir):
     from terra import aoi
     from terra.imagery import grid as ref_grid
+    from terra.landcover import (
+        classify,
+        features,
+        raster as lc_raster,
+        series as lc_series,
+        spectra as lc_spectra,
+    )
     model_dir = Path(req.get('model_dir', ''))
     source = req.get('source', 'stac')  # 'stac' (cloud COG) or 'local' (.SAFE)
     sentinel_dir = Path(req.get('sentinel_dir', '')) if req.get('sentinel_dir') else None
@@ -3205,7 +2549,7 @@ def action_predict(req, work_dir):
             resolved_mb = None
         if resolved_mb:
             mb_map = ref_grid.reproject_to_reference(resolved_mb, ref_profile, ref_band)
-            soja_mask = mb_map == SOJA_CLASS_ID
+            soja_mask = mb_map == features.SOJA_CLASS_ID
             protocol.emit_progress(20, f'soja reference pixels: {int(np.sum(soja_mask))}')
     except Exception as e:
         sys.stderr.write(json.dumps({'progress': -1, 'msg': f'mapbiomas error: {e}'}) + '\n')
@@ -3220,12 +2564,12 @@ def action_predict(req, work_dir):
     feature_matrix_for_fingerprint = None
 
     if model_kind == 'prithvi':
-        classification_map, confidence_map = classify_prithvi(
+        classification_map, confidence_map = classify.classify_prithvi(
             products, polygon, ref_profile, model_dir, prithvi_mode
         )
     elif model_kind == 'temporal_transformer':
         protocol.emit_progress(40, f'building Temporal Transformer stack ({len(products)} dates)')
-        classification_map, confidence_map = classify_temporal_transformer(
+        classification_map, confidence_map = classify.classify_temporal_transformer(
             products, polygon, ref_profile, model_dir
         )
     elif mode == 'temporal':
@@ -3237,10 +2581,10 @@ def action_predict(req, work_dir):
             pct = 20 + int(70 * (idx + 1) / n)
             protocol.emit_progress(pct, f'temporal stack {idx + 1}/{n} ({date_str})')
 
-            fm, vmask = build_feature_matrix(cumulative, polygon, ref_profile, n_dates_model)
+            fm, vmask = features.build_feature_matrix(cumulative, polygon, ref_profile, n_dates_model)
             if fm is None:
                 continue
-            cls_map, conf_map = classify_from_features(fm, vmask, rf_model, scaler, label_encoder)
+            cls_map, conf_map = classify.classify_from_features(fm, vmask, rf_model, scaler, label_encoder)
 
             # NDVI of the target date over the soja reference pixels.
             soja_ndvi_mean = None
@@ -3261,7 +2605,7 @@ def action_predict(req, work_dir):
                     dist = {int(c): int(v) for c, v in zip(up, pc)}
                     dom_id = int(up[np.argmax(pc)])
                     dominant = MAPBIOMAS_LEGEND.get(dom_id, str(dom_id))
-                    soja_ret = round(100.0 * dist.get(SOJA_CLASS_ID, 0) / soja_preds.size, 1)
+                    soja_ret = round(100.0 * dist.get(features.SOJA_CLASS_ID, 0) / soja_preds.size, 1)
 
             temporal.append({
                 'date': date_str,
@@ -3272,21 +2616,21 @@ def action_predict(req, work_dir):
             })
 
         # Final map = full cumulative stack (last iteration).
-        fm, vmask = build_feature_matrix(products, polygon, ref_profile, n_dates_model)
+        fm, vmask = features.build_feature_matrix(products, polygon, ref_profile, n_dates_model)
         if fm is None:
             protocol.fail('no valid Sentinel-2 data for the selected area')
         feature_matrix_for_fingerprint = fm
-        classification_map, confidence_map = classify_from_features(
+        classification_map, confidence_map = classify.classify_from_features(
             fm, vmask, rf_model, scaler, label_encoder
         )
     else:
         protocol.emit_progress(40, f'building features ({len(products)} dates)')
-        fm, vmask = build_feature_matrix(products, polygon, ref_profile, n_dates_model)
+        fm, vmask = features.build_feature_matrix(products, polygon, ref_profile, n_dates_model)
         if fm is None:
             protocol.fail('no valid Sentinel-2 data for the selected area')
         feature_matrix_for_fingerprint = fm
         protocol.emit_progress(80, 'classifying')
-        classification_map, confidence_map = classify_from_features(
+        classification_map, confidence_map = classify.classify_from_features(
             fm, vmask, rf_model, scaler, label_encoder
         )
 
@@ -3305,7 +2649,7 @@ def action_predict(req, work_dir):
         crop_pixels = None
 
     (vi_series, vi_series_crop, vi_dates, ndvi_means, ndvi_mean_map,
-     ndvi_valid, true_color_rgba) = compute_aoi_vi_series(
+     ndvi_valid, true_color_rgba) = lc_series.compute_aoi_vi_series(
         products, polygon, ref_profile, crop_mask=crop_pixels
     )
     phenology = pheno.phenology_metrics(ndvi_means, vi_dates) if vi_dates else {
@@ -3344,7 +2688,7 @@ def action_predict(req, work_dir):
     protocol.emit_progress(91, 'measuring spectral response per class')
     spectra = None
     try:
-        spectra = class_spectra(products, polygon, ref_profile,
+        spectra = lc_spectra.class_spectra(products, polygon, ref_profile,
                                 classification_map)
     except Exception as e:
         sys.stderr.write(json.dumps({
@@ -3355,7 +2699,7 @@ def action_predict(req, work_dir):
     limit = None
     if spectra is not None:
         try:
-            limit = library_limit(spectra)
+            limit = lc_spectra.library_limit(spectra)
         except Exception as e:
             sys.stderr.write(json.dumps({
                 'progress': -1, 'msg': f'library comparison skipped: {e}'
@@ -3369,14 +2713,14 @@ def action_predict(req, work_dir):
     ndvi_mean_png = work_dir / 'ndvi_mean.png'
     true_color_png = work_dir / 'true_color.png'
     reference_png = work_dir / 'reference.png'
-    write_overlay_png(classification_map, overlay_png)
-    write_classification_tif(classification_map, ref_profile, raster_tif)
+    lc_raster.write_overlay_png(classification_map, overlay_png)
+    lc_raster.write_classification_tif(classification_map, ref_profile, raster_tif)
     if confidence_map is None:
         confidence_map = (classification_map >= 0).astype(np.float32)
-    write_confidence_png(confidence_map, classification_map >= 0, confidence_png)
+    lc_raster.write_confidence_png(confidence_map, classification_map >= 0, confidence_png)
     ndvi_mean_path = ''
     if ndvi_mean_map is not None and ndvi_valid is not None:
-        write_ndvi_mean_png(ndvi_mean_map, ndvi_valid, ndvi_mean_png)
+        lc_raster.write_ndvi_mean_png(ndvi_mean_map, ndvi_valid, ndvi_mean_png)
         ndvi_mean_path = str(ndvi_mean_png)
     true_color_path = ''
     if true_color_rgba is not None:
@@ -3390,7 +2734,7 @@ def action_predict(req, work_dir):
         # Keep only known MapBiomas legend classes.
         known = np.isin(ref_cls, list(MAPBIOMAS_COLORS.keys()))
         ref_cls[~known] = -1
-        write_overlay_png(ref_cls, reference_png)
+        lc_raster.write_overlay_png(ref_cls, reference_png)
         reference_path = str(reference_png)
     mean_conf = float(confidence_map[classification_map >= 0].mean()) if np.any(classification_map >= 0) else 0.0
     # The floor this figure cannot go below.
@@ -3472,12 +2816,12 @@ def action_predict(req, work_dir):
             products[-1]['date'].strftime('%Y-%m-%d'),
         ],
         'pixel_size_m': round(pixel_size_m, 3),
-        'class_stats': class_statistics(classification_map),
+        'class_stats': classify.class_statistics(classification_map),
         # Seven bands on one acquisition, per predicted class. None when the
-        # scene could not be read; see class_spectra for why it is one date.
-        'class_spectra': spectra,
+        # scene could not be read; see lc_spectra.class_spectra for why it is one date.
+        'lc_spectra.class_spectra': spectra,
         # Each class against a leaf-level library, and the limit that runs into.
-        'library_limit': limit,
+        'lc_spectra.library_limit': limit,
         'temporal': temporal,
         'vi_series': vi_series,
         # The same dates averaged over crop pixels only. Empty when the AOI

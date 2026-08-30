@@ -22,6 +22,13 @@ from terra.imagery import (
     indices,
     sentinel2,
 )
+from terra.landcover import (  # noqa: F401
+    classify,
+    features,
+    raster as lc_raster,  # noqa: F401
+    series,
+    spectra as lc_spectra,  # noqa: F401
+)
 from terra.sun import cache as power_cache
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
@@ -56,7 +63,7 @@ def test_calculate_evi_and_savi_finite():
 def test_compute_index_features_shape():
     # 4 pixels × 6 timesteps
     ts = np.random.default_rng(0).random((4, 6))
-    feat = actions.compute_index_features(ts)
+    feat = features.compute_index_features(ts)
     assert feat.shape == (4, 14)
 
 
@@ -80,7 +87,7 @@ def test_polygon_from_geojson():
 
 def test_class_statistics():
     cmap = np.array([[39, 39, 3], [21, -1, 3]], dtype=np.int32)
-    stats = actions.class_statistics(cmap)
+    stats = classify.class_statistics(cmap)
     assert stats
     assert stats[0]["pixels"] >= stats[-1]["pixels"]
     total_pct = sum(s["pct"] for s in stats)
@@ -109,7 +116,7 @@ def test_classify_from_features_rf_smoke():
     # Mild random features in a plausible reflectance/index range
     X = rng.normal(loc=0.3, scale=0.1, size=(n_valid, n_feat))
 
-    cmap, conf = actions.classify_from_features(X, valid, model, scaler, label_encoder)
+    cmap, conf = classify.classify_from_features(X, valid, model, scaler, label_encoder)
     assert cmap.shape == (h, w)
     assert conf.shape == (h, w)
     assert cmap[0, 0] == -1
@@ -296,16 +303,16 @@ def test_class_spectra_reports_the_corrected_convention_not_the_trained_one(
     labelled "reflectance" that shows the first is off by the offset in every
     band.
     """
-    dn = {b: 1400 for b in actions.BAND_WAVELENGTH_NM}
+    dn = {b: 1400 for b in lc_spectra.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn)
     monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
     cmap = np.full((4, 4), 39, dtype=np.int32)
 
-    payload = actions.class_spectra(products, None, None, cmap, min_pixels=1)
+    payload = lc_spectra.class_spectra(products, None, None, cmap, min_pixels=1)
 
     assert payload is not None
     means = {p["band"]: p["mean"] for p in payload["points"]}
-    assert set(means) == set(actions.BAND_WAVELENGTH_NM)
+    assert set(means) == set(lc_spectra.BAND_WAVELENGTH_NM)
     for band, mean in means.items():
         assert abs(mean - 0.04) < 1e-9, band
     assert "offset applied" in payload["convention"]
@@ -316,11 +323,11 @@ def test_class_spectra_names_the_one_acquisition_it_measured(monkeypatch):
     The classification spans the period; the spectrum does not. Which scene it
     came from has to travel with it, or the curve reads as a seasonal mean.
     """
-    dn = {b: 1200 for b in actions.BAND_WAVELENGTH_NM}
+    dn = {b: 1200 for b in lc_spectra.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn, n=5)
     monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
 
-    payload = actions.class_spectra(
+    payload = lc_spectra.class_spectra(
         products, None, None, np.full((4, 4), 3, dtype=np.int32), min_pixels=1
     )
 
@@ -335,13 +342,13 @@ def test_class_spectra_drops_a_class_too_small_to_average(monkeypatch):
     Under the floor the mean is a handful of pixels. Dropping the class states
     less than drawing it at a precision the sample does not carry.
     """
-    dn = {b: 1500 for b in actions.BAND_WAVELENGTH_NM}
+    dn = {b: 1500 for b in lc_spectra.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn, shape=(10, 10))
     monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
     cmap = np.full((10, 10), 39, dtype=np.int32)
     cmap[0, :3] = 21  # three pixels, under the floor
 
-    payload = actions.class_spectra(products, None, None, cmap, min_pixels=30)
+    payload = lc_spectra.class_spectra(products, None, None, cmap, min_pixels=30)
 
     ids = {p["class_id"] for p in payload["points"]}
     assert ids == {39}
@@ -350,14 +357,14 @@ def test_class_spectra_drops_a_class_too_small_to_average(monkeypatch):
 def test_class_spectra_is_absent_rather_than_empty_when_nothing_is_classified(
     monkeypatch,
 ):
-    dn = {b: 1500 for b in actions.BAND_WAVELENGTH_NM}
+    dn = {b: 1500 for b in lc_spectra.BAND_WAVELENGTH_NM}
     products, loader = _spectra_products(dn)
     monkeypatch.setattr(sentinel2, "load_band_to_reference_grid", loader)
 
-    assert actions.class_spectra(
+    assert lc_spectra.class_spectra(
         products, None, None, np.full((4, 4), -1, dtype=np.int32)
     ) is None
-    assert actions.class_spectra(
+    assert lc_spectra.class_spectra(
         [], None, None, np.full((4, 4), 39, dtype=np.int32)
     ) is None
 
@@ -412,14 +419,14 @@ def test_spectral_angle_ignores_brightness_but_not_shape():
     whose shape differs must not return zero, or it could not measure anything.
     """
     leaf = [0.06, 0.13, 0.05, 0.47, 0.47, 0.32, 0.19]
-    assert actions.spectral_angle(leaf, leaf) == pytest.approx(0.0, abs=1e-9)
+    assert lc_spectra.spectral_angle(leaf, leaf) == pytest.approx(0.0, abs=1e-9)
     shaded = [v * 0.4 for v in leaf]
-    assert actions.spectral_angle(leaf, shaded) == pytest.approx(0.0, abs=1e-9)
+    assert lc_spectra.spectral_angle(leaf, shaded) == pytest.approx(0.0, abs=1e-9)
     # Red up and NIR down, which is what soil and row shadow do to a canopy.
     distorted = list(leaf)
     distorted[2] *= 1.7
     distorted[3] *= 0.49
-    assert actions.spectral_angle(leaf, distorted) > 0.1
+    assert lc_spectra.spectral_angle(leaf, distorted) > 0.1
 
 
 def test_spectral_angle_holds_scale_invariance_at_every_scale():
@@ -441,7 +448,7 @@ def test_spectral_angle_holds_scale_invariance_at_every_scale():
     for scale in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9,
                   1.1, 1.3, 1.7, 2.0, 3.0, 5.0, 10.0):
         scaled = [v * scale for v in leaf]
-        angle = actions.spectral_angle(leaf, scaled)
+        angle = lc_spectra.spectral_angle(leaf, scaled)
         assert angle == pytest.approx(0.0, abs=1e-12), (
             f"the same material at {scale}x brightness reads as {angle:.3e} rad "
             f"from itself; the angle is measuring illumination"
@@ -453,9 +460,9 @@ def test_library_limit_measures_the_leaf_to_canopy_distortion(tmp_path):
     The reported ratio is canopy over leaf, per band, and the angle is taken on
     the same seven bands the reference carries.
     """
-    reference = json.loads(actions.SOYBEAN_REFERENCE.read_text())["reference"]
+    reference = json.loads(lc_spectra.SOYBEAN_REFERENCE.read_text())["reference"]
     leaf = {b["band"]: b["reflectance"] for b in reference["bands"]}
-    bands = [b for b, _ in actions.TERRA_BANDS]
+    bands = [b for b, _ in lc_spectra.TERRA_BANDS]
 
     # A class that IS the reference, scaled: same shape, so angle zero.
     spectra = {
@@ -463,14 +470,14 @@ def test_library_limit_measures_the_leaf_to_canopy_distortion(tmp_path):
         "points": [
             {
                 "class_id": 39, "name": "Soybean", "color": "#f5b3c8",
-                "band": b, "wavelength_nm": actions.BAND_WAVELENGTH_NM[b],
+                "band": b, "wavelength_nm": lc_spectra.BAND_WAVELENGTH_NM[b],
                 "n_pixels": 1000, "mean": leaf[b] * 0.5,
                 "sd": 0.0, "p05": 0.0, "p95": 0.0,
             }
             for b in bands
         ],
     }
-    payload = actions.library_limit(spectra)
+    payload = lc_spectra.library_limit(spectra)
 
     assert payload is not None
     assert payload["reference"]["n_spectra"] == 1131
@@ -486,21 +493,21 @@ def test_library_limit_skips_a_class_missing_a_band():
     A partial vector is an angle in a different space, not a smaller one, so
     the class is dropped rather than compared on whatever bands it has.
     """
-    reference = json.loads(actions.SOYBEAN_REFERENCE.read_text())["reference"]
+    reference = json.loads(lc_spectra.SOYBEAN_REFERENCE.read_text())["reference"]
     leaf = {b["band"]: b["reflectance"] for b in reference["bands"]}
-    bands = [b for b, _ in actions.TERRA_BANDS][:-1]  # B12 absent
+    bands = [b for b, _ in lc_spectra.TERRA_BANDS][:-1]  # B12 absent
     spectra = {
         "points": [
             {
                 "class_id": 3, "name": "Forest Formation", "color": "#006400",
-                "band": b, "wavelength_nm": actions.BAND_WAVELENGTH_NM[b],
+                "band": b, "wavelength_nm": lc_spectra.BAND_WAVELENGTH_NM[b],
                 "n_pixels": 500, "mean": leaf[b],
                 "sd": 0.0, "p05": 0.0, "p95": 0.0,
             }
             for b in bands
         ],
     }
-    assert actions.library_limit(spectra) is None
+    assert lc_spectra.library_limit(spectra) is None
 
 
 # The flood envelope dispatcher.

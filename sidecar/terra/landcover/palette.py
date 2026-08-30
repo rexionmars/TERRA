@@ -71,3 +71,14 @@ CLASSIFIER_CLASS_IDS = (3, 21, 25, 39, 41)
 
 CLASSIFIER_LEGEND = {cid: MAPBIOMAS_LEGEND[cid] for cid in CLASSIFIER_CLASS_IDS}
 CLASSIFIER_COLORS = {cid: MAPBIOMAS_COLORS[cid] for cid in CLASSIFIER_CLASS_IDS}
+
+
+def hex_to_rgb(hex_color):
+    """The three channels of a #rrggbb literal.
+
+    One definition rather than the two this module was written to end: the
+    classification path and the reference path each carried their own, beside
+    their own colour table.
+    """
+    h = hex_color.lstrip('#')
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
