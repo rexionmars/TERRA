@@ -60,6 +60,15 @@ export function useAreaDrawing({
   stop: () => void
 } {
   const drawRef = useRef<TerraDraw | null>(null)
+  /**
+   * True while THIS hook is writing the store to match the shape held outside.
+   *
+   * `draw.clear()` and `draw.addFeatures()` raise the same `change` events a
+   * hand does, and the listener below cannot tell them apart -- so a sync would
+   * report itself back out as an edit. Emitting during one is how a shape
+   * arriving from elsewhere came to erase itself.
+   */
+  const syncing = useRef(false)
   const [mode, setMode] = useState<DrawMode>("idle")
   const onDrawnRef = useRef(onPolygonDrawn)
   onDrawnRef.current = onPolygonDrawn
@@ -101,6 +110,24 @@ export function useAreaDrawing({
     }
 
     const emit = () => {
+      /*
+        THE SYNC IS NOT AN EDIT, and this guard is what says so.
+
+        Two surfaces run this hook at once -- the work map and the studio's
+        globe, both mounted, both bound to the one area the application holds.
+        Finishing a shape on either one sets that area, which arrives at the
+        OTHER as a polygon its store does not have; the effect below then
+        clears the store to replace it, `clear()` raises `change` with
+        "delete", and this listener answered a synchronisation with
+        `onPolygonDrawn(null)`. The shape that had just been drawn was erased
+        by the surface that was only being told about it.
+
+        It was reachable before the globe drew, through search, import and
+        adopt -- any path that sets the area from outside a mounted map -- and
+        it is constant now. The rule is narrow: while this hook is writing the
+        store to match what it was given, the store has nothing to report.
+      */
+      if (syncing.current) return
       const polys = draw
         .getSnapshot()
         .filter((f) => f.geometry.type === "Polygon")
@@ -146,15 +173,27 @@ export function useAreaDrawing({
       ? (current[current.length - 1].geometry as GeoJSONGeometry)
       : null
     if (JSON.stringify(currentGeom) === JSON.stringify(polygon)) return
-    draw.clear()
-    if (polygon && polygon.type === "Polygon") {
-      draw.addFeatures([
-        {
-          type: "Feature",
-          properties: { mode: "polygon" },
-          geometry: polygon as never,
-        } as never,
-      ])
+    /*
+      Set for the whole replacement rather than per call, because it is the
+      pair that has to be silent: cleared and not yet refilled is a state this
+      hook passes THROUGH, and reporting from inside it would report an empty
+      store as an area that was removed. Restored in a finally so a throw in
+      addFeatures cannot leave the surface permanently unable to report.
+    */
+    syncing.current = true
+    try {
+      draw.clear()
+      if (polygon && polygon.type === "Polygon") {
+        draw.addFeatures([
+          {
+            type: "Feature",
+            properties: { mode: "polygon" },
+            geometry: polygon as never,
+          } as never,
+        ])
+      }
+    } finally {
+      syncing.current = false
     }
   }, [polygon])
 
@@ -166,7 +205,19 @@ export function useAreaDrawing({
     mode,
     setMode,
     clear: () => {
-      drawRef.current?.clear()
+      /*
+        The caller's clear IS an edit -- the reader pressed the bin -- so it
+        reports, and it reports EXPLICITLY rather than through the change
+        listener: the guard above silences that path, and a removal nobody
+        hears is a shape that stays in the application after it has left the
+        screen.
+      */
+      syncing.current = true
+      try {
+        drawRef.current?.clear()
+      } finally {
+        syncing.current = false
+      }
       onDrawnRef.current(null)
       setMode("idle")
     },
