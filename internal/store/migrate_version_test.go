@@ -14,7 +14,10 @@ user's analyses sitting in it.
 
 import (
 	"database/sql"
+	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -68,11 +71,12 @@ var expectedColumns = map[string][]string{
 	"users":              {"id", "email", "display_name", "password_hash", "avatar_path", "created_at", "updated_at"},
 	"sessions":           {"token", "user_id", "expires_at"},
 	"preferences":        {"user_id", "default_model", "overlay_opacity", "theme", "extras_json"},
-	"inference_runs":     {"id", "user_id", "created_at", "model_kind", "period_start", "period_end", "polygon_geojson", "status", "summary_json", "overlay_relpath", "n_dates", "result_json", "assets_relpath", "label", "project_id", "kind", "aoi_id"},
-	"projects":           {"id", "user_id", "name", "notes", "created_at", "updated_at", "polygon_geojson", "area_id", "label"},
-	"project_overlays":   {"id", "project_id", "kind", "title", "meta_json", "png_relpath", "tif_relpath", "created_at", "run_id"},
-	"whiteboards":        {"id", "user_id", "name", "created_at", "updated_at", "view_json"},
+	"inference_runs":     {"id", "user_id", "created_at", "model_kind", "period_start", "period_end", "polygon_geojson", "status", "summary_json", "overlay_relpath", "n_dates", "result_json", "assets_relpath", "label", "project_id", "kind", "aoi_id", "area_id"},
+	"projects":           {"id", "user_id", "name", "notes", "created_at", "updated_at", "polygon_geojson", "area_id", "label", "last_area_id"},
+	"project_overlays":   {"id", "project_id", "kind", "title", "meta_json", "png_relpath", "tif_relpath", "created_at", "run_id", "area_id"},
+	"whiteboards":        {"id", "user_id", "name", "created_at", "updated_at", "view_json", "project_id"},
 	"whiteboard_members": {"id", "whiteboard_id", "run_id", "position", "name", "state_json"},
+	"areas":              {"id", "project_id", "user_id", "name", "polygon_geojson", "notes", "created_at", "updated_at"},
 }
 
 func assertCurrentShape(t *testing.T, s *Store) {
@@ -237,35 +241,39 @@ func buildLegacyDatabase(t *testing.T, dbPath string) {
 	}
 }
 
-// The case the version alone cannot decide: a database carrying every column
-// and no version at all. Migrating it must succeed, must leave its rows where
-// they are, and must add what it genuinely lacks -- the whiteboard tables,
-// which did not exist when it was written.
+/*
+The case the version alone cannot decide: a database carrying every column and
+no version at all. Migrating it must succeed and must add what it genuinely
+lacks.
+
+THIS TEST USED TO ASSERT THE OPPOSITE OF WHAT IT ASSERTS NOW, and the inversion
+is the point rather than a weakening. It promised that rows written before the
+version existed survive migration. They no longer do: ownership became a chain
+-- a project holds areas, an area holds runs -- and there is no rule that turns
+a run naming a ground through a JSON array in preferences into a run inside an
+area without inventing which area it was of. Inventing it would read as work
+rather than as absence, which is the worse of the two failures.
+
+So the promise is now: the domain is emptied, the ACCOUNT is not, and a copy of
+what was there is left beside the database before anything is deleted. That last
+half is what makes the step recoverable by hand, and it is the half worth a test
+-- a discard whose snapshot silently failed is indistinguishable from one that
+worked until someone needs it.
+*/
 func TestLegacyDatabaseWithoutAVersionMigrates(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), dbFileName)
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, dbFileName)
 	buildLegacyDatabase(t, dbPath)
 
 	s := openStoreOnFile(t, dbPath)
+	s.dataDir = dir
 	if err := s.migrate(); err != nil {
 		t.Fatalf("migrating a database that already has every column: %v", err)
 	}
 	assertCurrentShape(t, s)
 
-	run, err := s.GetRun("user-legacy", "run-legacy")
-	if err != nil {
-		t.Fatalf("reading the run written before the version existed: %v", err)
-	}
-	if run.Label != "Soy, south block" {
-		t.Errorf("run label is %q, want %q", run.Label, "Soy, south block")
-	}
-	if run.Kind != RunKindWater {
-		t.Errorf("run kind is %q, want %q", run.Kind, RunKindWater)
-	}
-	if run.AoiID != "aoi-legacy" {
-		t.Errorf("run aoi_id is %q, want %q", run.AoiID, "aoi-legacy")
-	}
-	if run.ProjectID != "project-legacy" {
-		t.Errorf("run project_id is %q, want %q", run.ProjectID, "project-legacy")
+	if _, err := s.GetRun("user-legacy", "run-legacy"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("reading a discarded run returned %v, want ErrNotFound", err)
 	}
 
 	for _, c := range []struct {
@@ -273,10 +281,13 @@ func TestLegacyDatabaseWithoutAVersionMigrates(t *testing.T) {
 		want  int
 		what  string
 	}{
+		// The account survives. A theme and a window layout are not domain data,
+		// and losing them would be a second, unnecessary loss.
 		{`SELECT COUNT(1) FROM users WHERE id = 'user-legacy'`, 1, "the account"},
-		{`SELECT COUNT(1) FROM projects WHERE id = 'project-legacy'`, 1, "the project"},
-		{`SELECT COUNT(1) FROM inference_runs WHERE id = 'run-legacy'`, 1, "the run"},
-		{`SELECT COUNT(1) FROM project_overlays WHERE run_id = 'run-legacy'`, 1, "the composition"},
+		{`SELECT COUNT(1) FROM projects`, 0, "the projects"},
+		{`SELECT COUNT(1) FROM inference_runs`, 0, "the runs"},
+		{`SELECT COUNT(1) FROM project_overlays`, 0, "the compositions"},
+		{`SELECT COUNT(1) FROM areas`, 0, "the areas"},
 	} {
 		var n int
 		if err := s.db.QueryRow(c.query).Scan(&n); err != nil {
@@ -285,5 +296,21 @@ func TestLegacyDatabaseWithoutAVersionMigrates(t *testing.T) {
 		if n != c.want {
 			t.Errorf("%s: %d rows after migrating, want %d", c.what, n, c.want)
 		}
+	}
+
+	// The way back. Named by prefix rather than by stamp, since the stamp is
+	// the clock's and this test's business is that a copy exists at all.
+	found := false
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), dbFileName+".replaced-") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("no copy of the database was left beside it before the discard")
 	}
 }

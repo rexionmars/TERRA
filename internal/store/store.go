@@ -273,7 +273,7 @@ below it. The number says how far migrate has taken a database; it does not by
 itself say which columns a table has, and addColumns explains why those two are
 not the same question here.
 */
-const schemaVersion = 2
+const schemaVersion = 3
 
 // userVersion reads the version SQLite keeps in the database header.
 func (s *Store) userVersion() (int, error) {
@@ -343,6 +343,101 @@ func (s *Store) addColumns(adds []columnAdd) error {
 		}
 	}
 	return nil
+}
+
+/*
+discardPreAreaData empties the domain tables once, when a database written
+before areas existed is opened by a build that has them.
+
+THIS IS NOT A MIGRATION AND DOES NOT PRETEND TO BE. A run written before this
+version names its ground through inference_runs.aoi_id, which pointed into a
+JSON array in preferences and was validated by nothing; a project names one
+ground of its own; a board names runs and no project. There is no rule that
+turns those into a project holding areas holding runs without inventing which
+area a run was of, and a wrong answer there is worse than an empty database,
+because it reads as work rather than as absence.
+
+What survives is the account: users, sessions and preferences. Losing a theme
+and a window layout would be a second, unnecessary loss, and none of that is
+domain data.
+
+THE COPY IS TAKEN BEFORE THE FIRST DELETE, and the order is the whole safety
+property. VACUUM INTO is the same mechanism the backup path already trusts, and
+it cannot run inside a transaction -- which is also why the deletes come after
+it rather than sharing one. The asset directories are moved aside rather than
+removed, following the convention RestoreBackup uses for the same reason: the
+way back from an irreversible step should be a rename, not a restore.
+
+An ExportBackup archive was the alternative and is the wrong tool: it strips
+password hashes and session tokens, which is right for a file a user mails
+themselves and wrong for a rollback the application takes on its own, and it
+re-compresses every asset when the assets are exactly what the renames keep.
+*/
+func (s *Store) discardPreAreaData() error {
+	/*
+		Nothing to discard is the common case, and it must cost nothing.
+
+		Every fresh install reaches this step -- a database created a moment ago
+		reports version 0 -- and so does every launch after a user has emptied
+		their own work. Without this the first of those would leave a snapshot
+		file and a runs.replaced-* directory beside a database that never held a
+		row, which reads as damage where there was none.
+	*/
+	var rows int
+	if err := s.db.QueryRow(
+		`SELECT (SELECT COUNT(1) FROM inference_runs) + (SELECT COUNT(1) FROM projects)`,
+	).Scan(&rows); err != nil {
+		return fmt.Errorf("count what would be discarded: %w", err)
+	}
+	if rows == 0 {
+		return nil
+	}
+
+	stamp := time.Now().UTC().Format("20060102-150405")
+
+	snapshot := filepath.Join(s.dataDir, dbFileName+".replaced-"+stamp)
+	if _, err := s.db.Exec(`VACUUM INTO ?`, snapshot); err != nil {
+		return fmt.Errorf("copy the database before discarding it: %w", err)
+	}
+
+	// Moved, not deleted, and a failure here stops the discard: assets whose
+	// rows are about to go are unreachable afterwards, so losing the move means
+	// losing them for good.
+	for _, dir := range []string{"runs", "projects"} {
+		src := filepath.Join(s.dataDir, dir)
+		if _, err := os.Stat(src); err != nil {
+			continue
+		}
+		if err := os.Rename(src, src+".replaced-"+stamp); err != nil {
+			return fmt.Errorf("set aside %s: %w", dir, err)
+		}
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// Children first, so a failure part way leaves no row pointing at one that
+	// is already gone.
+	for _, stmt := range []string{
+		`DELETE FROM whiteboard_members`,
+		`DELETE FROM whiteboards`,
+		`DELETE FROM project_overlays`,
+		`DELETE FROM inference_runs`,
+		`DELETE FROM areas`,
+		`DELETE FROM projects`,
+		// The catalogue that is becoming a table. Left in place it would keep
+		// handing parsePreferenceExtras a list of areas that reference nothing.
+		`UPDATE preferences SET extras_json =
+		   COALESCE(json_remove(extras_json, '$.saved_aois', '$.active_aoi_id',
+		                        '$.active_project_id', '$.aoi_label'), '{}')`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("discard pre-area data: %w", err)
+		}
+	}
+	return tx.Commit()
 }
 
 /*
@@ -451,6 +546,11 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 	if _, err := s.db.Exec(projectSchema); err != nil {
 		return fmt.Errorf("migrate projects: %w", err)
 	}
+	// After projects, because an area references one. Unconditional like its
+	// neighbours; see areas.go for what the table is and why it exists.
+	if _, err := s.db.Exec(areaSchema); err != nil {
+		return fmt.Errorf("migrate areas: %w", err)
+	}
 	/*
 		Which run a composition was made under.
 
@@ -481,6 +581,48 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 	}
 	if _, err := s.db.Exec(whiteboardSchema); err != nil {
 		return fmt.Errorf("migrate whiteboards: %w", err)
+	}
+	/*
+		Ownership becomes a chain: a project holds areas, an area holds runs, and
+		a board is the runs of one project arranged.
+
+		The discard comes FIRST, and not only for safety. These columns are added
+		NOT NULL DEFAULT '' because SQLite refuses ADD COLUMN NOT NULL without a
+		default; the empty string is then unreachable only because no row that
+		could carry it survives the line above. Written the other way round, every
+		pre-existing run would report itself as belonging to an area with no id.
+
+		This block ALTERs whiteboards, so it sits after the CREATE that
+		guarantees the table -- the same order the gated blocks above keep.
+	*/
+	if at < 3 {
+		if err := s.discardPreAreaData(); err != nil {
+			return fmt.Errorf("migrate to areas: %w", err)
+		}
+		if err := s.addColumns([]columnAdd{
+			{"inference_runs", "area_id",
+				`ALTER TABLE inference_runs ADD COLUMN area_id TEXT NOT NULL DEFAULT ''`},
+			{"project_overlays", "area_id",
+				`ALTER TABLE project_overlays ADD COLUMN area_id TEXT NOT NULL DEFAULT ''`},
+			{"whiteboards", "project_id",
+				`ALTER TABLE whiteboards ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`},
+			// Which ground the reader was last on in this project. Per-project
+			// state, so it belongs on the project rather than growing the
+			// preferences blob this change exists to shrink.
+			{"projects", "last_area_id",
+				`ALTER TABLE projects ADD COLUMN last_area_id TEXT NOT NULL DEFAULT ''`},
+		}); err != nil {
+			return fmt.Errorf("migrate area links: %w", err)
+		}
+		for _, stmt := range []string{
+			`CREATE INDEX IF NOT EXISTS idx_runs_area_created ON inference_runs(area_id, created_at DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_project_overlays_area ON project_overlays(area_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_whiteboards_project ON whiteboards(project_id, updated_at DESC)`,
+		} {
+			if _, err := s.db.Exec(stmt); err != nil {
+				return fmt.Errorf("migrate area indexes: %w", err)
+			}
+		}
 	}
 	/*
 		Written last, so a failure anywhere above leaves the version where it
