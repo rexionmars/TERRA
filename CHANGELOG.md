@@ -13,66 +13,10 @@ The entries below it were written from the same history after the fact, which
 is why they are terser than the ones that follow.
 
 
-## Unreleased — not yet cut
-
-
-### Features
-
-- **map**: the surface model becomes a subject instead of an input (16fd47f)
-- **flood**: the agreement raster is a measurement on the map, not a picture (3192704)
-- **map**: a run's raster as a scalar field, painted by an expression (9cec408)
-- **map**: relief, and a raster that lies on the ground rather than over it (2290913)
-- **map**: space behind the planet, and the draw store lets go first (990c568)
-- **map**: one planet, one set of bindings, both surfaces (89adfab)
-- **map**: the work map moves to MapLibre (d88f8d7)
-- **globe**: Earth's own navigation, and a way back from it (cc4336b)
-- **globe**: the planet is a map, so a map library draws it (319402a)
-- **studio**: studios can be renamed and removed (499cb56)
-- **settings**: the studio's telemetry is switched on a figure at a time (87379ac)
-- **studio**: the status bar says what the surface costs (19d38eb)
-- **design**: the viewport gets a chassis of its own, and the accent lab returns (06fa6df)
-- **studio**: read class separability from the spectra already stored (f01887d)
-- **frontend**: a Flood section below Energy (54b3c87)
-- **go**: bind, persist and export the flood envelope (14e12da)
-- **sidecar**: HAND flood extent with a multi-DEM envelope (1029075)
-
-
-### Bug fixes
-
-- **sidecar**: mypy sees the numpy it will see in CI, and nine errors with it (45ed94d)
-- **sidecar**: the composite test seeds its own generator (0b0ab71)
-- **sidecar**: zip() pairs or refuses, decided at each of the eleven sites (8c083c2)
-- **terrain**: the DEM behind solar reads every tile the window crosses (ef3ce20)
-- **map**: the elevation layer covers the area, and only the area (0348ecf)
-- **flood**: the counts raster survives the run being reopened (4ce22ed)
-- **map**: the drawing wiped itself on its third click (a382a43)
-- **globe**: the worker it never started, and the div it never filled (ece6606)
-- **charts**: the accuracy markers are round again (84e06aa)
-- **charts**: the agreement readings leave the brand palette for a measured ramp (842e1a8)
-- **studio**: a drawing made while a result is up is visible before it is run (187a9a6)
-- **projects**: leaving a project leaves nothing of it behind (d208829)
-- **runs**: a run is only reported as saved when it was saved (5199318)
-- **map**: the coordinates follow the drag again, and the header hides its own controls on macOS (9ef03c6)
-- **macos**: one set of window controls, at the position the header reserves (f037ad4)
-- **macos**: the window stops slowing down every other window beside it (bc7bcc8)
-- **build**: the bundle reports the version it is, and a guard keeps it that way (7037274)
-- **flood**: the payload says what happened, and the hub stays reachable (d62fca0)
-- **frontend**: all three Project hub controls, not one of three (378b0fd)
-- **studio**: measure the figure when it appears, not only if it is there (d22cf88)
-- **legend**: say that confidence can point the wrong way (83142cf)
-- **flood**: the reading blocks open and close (f0b7c8b)
-- **flood**: report the envelope over the AOI, and put the raster on the map (1f75688)
-- **test**: the round trips run again, and a missing fixture fails (312b966)
-- **frontend**: Project hub reaches the project hub (c80ec8d)
-
-
-### Performance
-
-- **globe**: the imagery the map already opens on, and a word for when it ends (73f869f)
-- **frontend**: the root stops re-rendering for a pan, and for a panel (b368985)
-
-
-Also 52 commits of refactoring, tests, tooling and documentation.
+Unreleased work is not listed here. It is in the open release proposal, which
+release-please rewrites on every push to main -- see docs/RELEASING.md. A
+hand-written "unreleased" section beside a generated one is the same list twice,
+and only one of them is kept current.
 
 
 ## 0.4.0 — 2026-08-22

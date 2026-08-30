@@ -65,6 +65,40 @@ for.
 
 ## Cutting a release
 
+### One repository setting this depends on
+
+`release-please` opens the proposal as GitHub Actions, and Actions cannot open
+pull requests unless the repository allows it. The setting is off by default,
+and the first run failed on it after having done everything else correctly --
+it parsed 120 commits, computed the bump, created the branch and wrote the
+commit, then stopped at `GitHub Actions is not permitted to create or approve
+pull requests`.
+
+    Settings -> Actions -> General -> Workflow permissions
+    [x] Allow GitHub Actions to create and approve pull requests
+
+or, the same thing over the API:
+
+```bash
+gh api -X PUT repos/rexionmars/TERRA/actions/permissions/workflow \
+  -f default_workflow_permissions=read \
+  -F can_approve_pull_request_reviews=true
+```
+
+`default_workflow_permissions` stays `read`: the workflow declares the write
+scopes it needs in its own `permissions:` block, which is narrower than raising
+the default for every workflow in the repository. The checkbox covers approving
+as well as creating, which is worth knowing but gates nothing here -- `main`
+has no branch protection and no rulesets, so there is no required review for a
+workflow's approval to satisfy. Adding one later is the point at which this
+setting starts to matter.
+
+It is written down because nothing in the repository records it: the workflow
+file, the config and the manifest can all be correct while the release still
+does not happen, and the only symptom is a failed run.
+
+### The procedure
+
 Most of this is done for you. `release-please` reads the Conventional Commits
 on `main` and keeps a pull request open that carries the next version, the
 CHANGELOG entry, and the bump in `version.go`, `wails.json` and `CITATION.cff`.
