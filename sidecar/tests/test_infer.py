@@ -379,7 +379,7 @@ def test_reference_pixel_size_converts_a_geographic_grid():
     """
     And does not treat degrees as metres. Reading 0.0001 degrees as 0.0001 m
     would report a pixel a tenth of a millimetre across, which is the failure
-    mode of reusing solar.pixel_size_m in the other direction.
+    mode of reusing terra.terrain.slope.pixel_size_m in the other direction.
     """
     profile = {
         "transform": _Transform(a=1e-4, e=-1e-4, f=0.0),

@@ -21,7 +21,6 @@ from rasterio.transform import from_origin
 from shapely.geometry import box
 
 from terra.terrain import dem
-import solar
 from terra import stac
 
 # One arcsecond, the spacing of every 30 m product in the set.
@@ -252,8 +251,8 @@ def test_cell_size_of_an_arcsecond_grid_is_about_thirty_metres():
 
 def test_merge_of_two_adjacent_tiles_reproduces_the_field_across_the_seam(tmp_path):
     """
-    The failure solar.fetch_dem had, before it read through here too: a window
-    straddling a tile edge.
+    The failure the solar terrain read had while it lived in solar.py with a
+    reader of its own: a window straddling a tile edge.
 
     Two tiles abut at longitude 0.03. Reading only the first would return the
     left half of the window and nothing else. The check is against the analytic
@@ -494,7 +493,7 @@ def test_every_product_resolves_by_short_id_and_by_collection_id():
 def test_the_default_set_is_the_four_products_and_starts_at_cop30():
     """
     cop30 is first because it defines the reference grid, and it is the one
-    collection the rest of the application already reads (solar.py).
+    collection the rest of the application already reads.
     """
     assert dem.DEFAULT_IDS[0] == "cop30"
     assert set(dem.DEFAULT_IDS) == set(dem.COLLECTIONS)
@@ -541,7 +540,7 @@ def test_describe_carries_the_fields_the_payload_row_needs():
     }
 
 
-# ----------------------------------------------------- the terrain read behind solar
+# --------------------------------------------- the terrain read written to a file
 
 
 class FakeAsset:
@@ -550,7 +549,7 @@ class FakeAsset:
 
 
 class FakeItem:
-    """A STAC item as fetch_dem uses it: one elevation asset with an href."""
+    """A STAC item as fetch_file uses it: one elevation asset with an href."""
 
     def __init__(self, href):
         self.assets = {"data": FakeAsset(href)}
@@ -567,7 +566,7 @@ def catalogue_of(*hrefs, seen=None):
     return search
 
 
-def test_fetch_dem_merges_every_tile_the_window_crosses(tmp_path, monkeypatch):
+def test_fetch_file_merges_every_tile_the_window_crosses(tmp_path, monkeypatch):
     """
     The defect this replaced: `items[0]`, one tile of however many intersected.
 
@@ -582,7 +581,7 @@ def test_fetch_dem_merges_every_tile_the_window_crosses(tmp_path, monkeypatch):
     monkeypatch.setattr(stac, "search", catalogue_of(left, right))
 
     aoi = box(0.25, -0.05, 0.35, 0.02)
-    out = solar.fetch_dem(aoi, tmp_path / "dem.tif")
+    out = dem.fetch_file(aoi, tmp_path / "dem.tif")
 
     with rasterio.open(out) as src:
         array = src.read(1)
@@ -595,7 +594,7 @@ def test_fetch_dem_merges_every_tile_the_window_crosses(tmp_path, monkeypatch):
     assert transform.c < 0.30 < transform.c + array.shape[1] * transform.a
 
 
-def test_fetch_dem_searches_by_the_buffered_window_not_the_aoi(tmp_path, monkeypatch):
+def test_fetch_file_searches_by_the_buffered_window_not_the_aoi(tmp_path, monkeypatch):
     """
     A tile intersecting only the buffer ring has to be returned by the search.
 
@@ -608,7 +607,7 @@ def test_fetch_dem_searches_by_the_buffered_window_not_the_aoi(tmp_path, monkeyp
     monkeypatch.setattr(stac, "search", catalogue_of(tile, seen=seen))
 
     aoi = box(0.00, 0.00, 0.02, 0.02)
-    solar.fetch_dem(aoi, tmp_path / "dem.tif", buffer_m=2000.0)
+    dem.fetch_file(aoi, tmp_path / "dem.tif", buffer_m=2000.0)
 
     asked = seen[0].bounds
     widened = dem.buffer_bounds(aoi.bounds, 2000.0)
@@ -616,7 +615,7 @@ def test_fetch_dem_searches_by_the_buffered_window_not_the_aoi(tmp_path, monkeyp
     assert asked[0] < aoi.bounds[0] and asked[2] > aoi.bounds[2]
 
 
-def test_fetch_dem_reports_the_part_of_the_window_no_tile_covers(tmp_path, monkeypatch):
+def test_fetch_file_reports_the_part_of_the_window_no_tile_covers(tmp_path, monkeypatch):
     """
     Copernicus publishes no tile over the sea, so a coastal window has a gap
     that is not a failure. It is reported rather than passed over, and the
@@ -628,7 +627,7 @@ def test_fetch_dem_reports_the_part_of_the_window_no_tile_covers(tmp_path, monke
     said = []
 
     aoi = box(0.15, -0.05, 0.45, 0.02)
-    out = solar.fetch_dem(aoi, tmp_path / "dem.tif", progress=said.append)
+    out = dem.fetch_file(aoi, tmp_path / "dem.tif", progress=said.append)
 
     assert any("no tile" in msg for msg in said), said
     with rasterio.open(out) as src:

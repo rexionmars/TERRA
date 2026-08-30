@@ -37,8 +37,6 @@ import functools
 import numpy as np
 import pandas as pd
 
-from terra.terrain import dem
-from terra import stac
 
 POWER_BASE = "https://power.larc.nasa.gov/api/temporal"
 POWER_COMMUNITY = "RE"
@@ -476,9 +474,6 @@ def modelled_performance_ratio(p_ac: pd.Series, poa_global: pd.Series) -> float:
 # irradiation reaching an inclined surface does, because the surface is terrain.
 # That is the mappable quantity.
 
-# Copernicus DEM GLO-30, served from the same STAC catalogue as Sentinel-2.
-DEM_COLLECTION = "cop-dem-glo-30"
-
 # Lookup grid over (slope, aspect). Coarser than the research grid: against the
 # research configuration the mean error is 0.04 percent and the maximum 0.31,
 # while the table shrinks from 1116 pairs to 198. Shortening the period is what
@@ -487,36 +482,8 @@ SLOPE_GRID = np.arange(0.0, 31.0, 3.0)
 ASPECT_GRID = np.arange(0.0, 360.0, 20.0)
 
 
-def pixel_size_m(transform, lat: float) -> tuple[float, float]:
-    """Approximate pixel dimensions in metres for a geographic grid."""
-    dx_deg, dy_deg = abs(transform.a), abs(transform.e)
-    m_per_deg_lat = 111_320.0
-    m_per_deg_lon = m_per_deg_lat * np.cos(np.radians(lat))
-    return dx_deg * m_per_deg_lon, dy_deg * m_per_deg_lat
 
 
-def horn_slope_aspect(z: np.ndarray, dx_m: float, dy_m: float):
-    """
-    Slope and aspect by the Horn (1981) third-order finite difference.
-
-    Aspect is the compass bearing of the downhill direction, clockwise from
-    north. A flat cell has no aspect and is returned as NaN rather than as a
-    bearing of zero, which would read as north-facing.
-    """
-    p = np.pad(z, 1, mode="edge")
-    nw, n_, ne = p[:-2, :-2], p[:-2, 1:-1], p[:-2, 2:]
-    w_, e_ = p[1:-1, :-2], p[1:-1, 2:]
-    sw, s_, se = p[2:, :-2], p[2:, 1:-1], p[2:, 2:]
-
-    # Rows increase southward, so the north gradient is top minus bottom.
-    gx = ((ne + 2 * e_ + se) - (nw + 2 * w_ + sw)) / (8.0 * dx_m)
-    gy = ((nw + 2 * n_ + ne) - (sw + 2 * s_ + se)) / (8.0 * dy_m)
-
-    grad = np.hypot(gx, gy)
-    slope = np.degrees(np.arctan(grad))
-    aspect = np.degrees(np.arctan2(-gx, -gy)) % 360.0
-    aspect = np.where(grad < 1e-9, np.nan, aspect)
-    return slope, aspect
 
 
 def build_poa_lookup(
@@ -972,61 +939,6 @@ def horizon_enclosure(horizon: np.ndarray) -> dict:
     }
 
 
-def fetch_dem(polygon, out_path, buffer_m: float = 0.0, progress=None) -> str:
-    """
-    Copernicus DEM GLO-30 window covering the AOI, merged across every tile.
-
-    Served as a COG from the same Planetary Computer catalogue Sentinel-2 comes
-    from, so this needs no new imagery infrastructure.
-
-    `buffer_m` widens the window so terrain outside the AOI can still cast onto
-    pixels inside it. Without it, a ridge just beyond the boundary is invisible
-    and the pixels it shades are reported as unshaded.
-
-    TWO FAILURES THIS NO LONGER HAS. It read `items[0]`, so an AOI crossing a
-    one-degree Copernicus tile boundary received terrain covering part of
-    itself, plausible on screen and wrong in a direction nothing revealed. And
-    it searched by the AOI rather than by the buffered window, so a tile
-    intersecting only the buffer ring was never returned and the shading band
-    the buffer exists to provide had a hole in exactly the place it mattered.
-    dem.read_merged is the reader that already got both right for the flood
-    envelope; this now goes through it.
-
-    Coverage is not required. Copernicus publishes no tile over the sea, so a
-    coastal area has a legitimate gap; those cells arrive as NaN, the fraction
-    is reported through `progress`, and the chain downstream already reads a
-    cell with no elevation as ground a plant cannot stand on.
-    """
-    import rasterio
-    from shapely.geometry import box
-
-    bounds = dem.buffer_bounds(polygon.bounds, buffer_m)
-    items = stac.search(DEM_COLLECTION, intersects=box(*bounds))
-    if not items:
-        raise RuntimeError("no Copernicus DEM tile covers this AOI")
-
-    array, transform, crs = dem.read_merged(
-        [item.assets["data"].href for item in items],
-        bounds,
-        progress=progress,
-        require_coverage=False,
-    )
-
-    with rasterio.open(
-        out_path,
-        "w",
-        driver="GTiff",
-        height=array.shape[0],
-        width=array.shape[1],
-        count=1,
-        dtype="float32",
-        crs=crs,
-        transform=transform,
-        nodata=float("nan"),
-        compress="lzw",
-    ) as dst:
-        dst.write(array, 1)
-    return str(out_path)
 
 
 def terrain_rgba(

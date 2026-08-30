@@ -6,7 +6,7 @@ Copernicus DEM GLO-30 for terrain and solar siting, and the four DEM products
 the flood envelope compares. Before this module each opened its own client, and
 the three were not equivalent. Only the Sentinel-2 path retried, so a transient
 5xx from the service aborted a terrain run and a flood envelope while leaving a
-classification to recover; and `solar.fetch_dem` read `items[0]` with no merge,
+classification to recover; and the DEM read took `items[0]` with no merge,
 so an area crossing a one-degree tile boundary received terrain covering part
 of itself. A caller could not tell from the call site which behaviour it had
 reached.

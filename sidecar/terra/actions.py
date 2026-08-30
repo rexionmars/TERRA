@@ -481,7 +481,7 @@ def reference_pixel_size_m(profile):
     class_statistics for hectares and the brush probe in the studio -- each
     carried their own copy of the literal 10.
 
-    NOT solar.pixel_size_m, which converts DEGREES to metres for a geographic
+    NOT terra.terrain.slope.pixel_size_m, which converts DEGREES to metres for
     DEM and would multiply this grid by 111320. The reference grid comes from a
     Sentinel-2 COG in UTM, so its transform is already in metres; the
     geographic branch below exists for a local product that is not, and is an
@@ -1044,6 +1044,7 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     SITING_STAGES; each caller maps the stage onto its own progress scale.
     """
     import solar as solar_mod
+    from terra.terrain import dem as terrain_dem, slope as terrain_slope
     import lulc as lulc_mod
     import rasterio
     from rasterio.features import geometry_mask
@@ -1055,7 +1056,7 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     centroid = polygon.centroid
     stage('dem', 'fetching Copernicus DEM GLO-30')
     try:
-        dem_path = solar_mod.fetch_dem(
+        dem_path = terrain_dem.fetch_file(
             polygon, Path(work_dir) / 'dem.tif',
             progress=lambda msg: protocol.emit_progress(-1, msg),
         )
@@ -1067,9 +1068,9 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
         dem_crs = src.crs
         dem_profile = src.profile.copy()
 
-    dx_m, dy_m = solar_mod.pixel_size_m(dem_transform, centroid.y)
+    dx_m, dy_m = terrain_slope.pixel_size_m(dem_transform, centroid.y)
     stage('slope', 'slope and aspect')
-    slope, _aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
+    slope, _aspect = terrain_slope.horn_slope_aspect(elevation, dx_m, dy_m)
 
     stage('cover', 'MapBiomas land cover')
     try:
@@ -1965,6 +1966,7 @@ def action_solar_resource(req, work_dir):
 # Terrain-resolved plane-of-array irradiation over the AOI.
 def action_solar_terrain(req, work_dir):
     import solar as solar_mod
+    from terra.terrain import dem as terrain_dem, slope as terrain_slope
     import composite as comp
     import rasterio
     from datetime import date as _date
@@ -1983,7 +1985,7 @@ def action_solar_terrain(req, work_dir):
         # Buffered, so terrain just outside the AOI can still cast onto
         # pixels inside it. Everything downstream is cropped back to the AOI
         # window before it is published.
-        dem_path = solar_mod.fetch_dem(
+        dem_path = terrain_dem.fetch_file(
             polygon, Path(work_dir) / 'dem.tif',
             buffer_m=solar_mod.HORIZON_MAX_DIST_M,
             progress=lambda msg: protocol.emit_progress(-1, msg),
@@ -2002,9 +2004,9 @@ def action_solar_terrain(req, work_dir):
             rasterio.windows.Window(0, 0, src.width, src.height)
         )
 
-    dx_m, dy_m = solar_mod.pixel_size_m(buf_transform, lat)
+    dx_m, dy_m = terrain_slope.pixel_size_m(buf_transform, lat)
     protocol.emit_progress(20, 'slope, aspect and horizon')
-    slope, aspect = solar_mod.horn_slope_aspect(elevation, dx_m, dy_m)
+    slope, aspect = terrain_slope.horn_slope_aspect(elevation, dx_m, dy_m)
     horizon, _ = solar_mod.horizon_angles(elevation, dx_m, dy_m)
 
     # Crop back: the buffer exists so the horizon sees beyond the boundary,
@@ -2300,6 +2302,7 @@ def action_solar_siting(req, work_dir):
 # that action has already been run for this cell.
 def action_energy_model(req, work_dir):
     import solar as solar_mod
+    from terra.terrain import slope as terrain_slope
     import energy as energy_mod
     from datetime import date as _date
 
@@ -2510,7 +2513,7 @@ def action_energy_model(req, work_dir):
         protocol.emit_progress(88, 'reading the siting raster')
         with rasterio.open(siting_tif) as src:
             suitability = src.read(1)
-            dx_m, dy_m = solar_mod.pixel_size_m(src.transform, centroid.y)
+            dx_m, dy_m = terrain_slope.pixel_size_m(src.transform, centroid.y)
         pixel_area_ha = (dx_m * dy_m) / 10_000.0
         class_areas = solar_mod.suitability_stats(suitability, pixel_area_ha)
     elif siting_classes:

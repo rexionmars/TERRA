@@ -19,8 +19,8 @@ water enters from outside references a drainage cell farther downstream than
 the real one. The HAND comes out too high and the flood extent too small -- a
 plausible map, wrong in a direction nothing on screen would reveal. The study
 this ports never met the failure: it ran on a fixed AOI that already had a
-margin drawn around it. solar.fetch_dem did meet it, until it was brought
-here.
+margin drawn around it. The solar terrain read did meet it, for as long as
+it lived in solar.py with a reader of its own.
 
 So every intersecting tile is merged, over a window buffered beyond the AOI so
 the drainage entering it is real terrain rather than a domain edge. The search
@@ -534,3 +534,64 @@ def align_mask(mask, read):
         return mask
     moved = resample_onto(mask.astype(np.float32), read.grid, read.reference)
     return np.nan_to_num(moved, nan=0.0) >= 0.5
+
+
+def fetch_file(polygon, out_path, buffer_m: float = 0.0, progress=None) -> str:
+    """
+    A Copernicus DEM GLO-30 window written to a file, merged across every tile.
+
+    The third of the three reads: `fetch` returns arrays over a buffered window
+    and `fetch_set` returns one ProductRead per product, while this returns the
+    path of a GeoTIFF, which is what the solar terrain chain consumes.
+
+    Served as a COG from the same Planetary Computer catalogue Sentinel-2 comes
+    from, so this needs no new imagery infrastructure.
+
+    `buffer_m` widens the window so terrain outside the AOI can still cast onto
+    pixels inside it. Without it, a ridge just beyond the boundary is invisible
+    and the pixels it shades are reported as unshaded.
+
+    TWO FAILURES THIS NO LONGER HAS. As solar.fetch_dem it read `items[0]`, so an AOI crossing a
+    one-degree Copernicus tile boundary received terrain covering part of
+    itself, plausible on screen and wrong in a direction nothing revealed. And
+    it searched by the AOI rather than by the buffered window, so a tile
+    intersecting only the buffer ring was never returned and the shading band
+    the buffer exists to provide had a hole in exactly the place it mattered.
+    Both were fixed by bringing it here, beside read_merged, which the flood
+    envelope already required to get them right.
+
+    Coverage is not required. Copernicus publishes no tile over the sea, so a
+    coastal area has a legitimate gap; those cells arrive as NaN, the fraction
+    is reported through `progress`, and the chain downstream already reads a
+    cell with no elevation as ground a plant cannot stand on.
+    """
+    import rasterio
+    from shapely.geometry import box
+
+    bounds = buffer_bounds(polygon.bounds, buffer_m)
+    items = stac.search(COLLECTIONS["cop30"].collection, intersects=box(*bounds))
+    if not items:
+        raise RuntimeError("no Copernicus DEM tile covers this AOI")
+
+    array, transform, crs = read_merged(
+        [item.assets["data"].href for item in items],
+        bounds,
+        progress=progress,
+        require_coverage=False,
+    )
+
+    with rasterio.open(
+        out_path,
+        "w",
+        driver="GTiff",
+        height=array.shape[0],
+        width=array.shape[1],
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
+        nodata=float("nan"),
+        compress="lzw",
+    ) as dst:
+        dst.write(array, 1)
+    return str(out_path)
