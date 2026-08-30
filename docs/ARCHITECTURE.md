@@ -8,7 +8,7 @@ hosted API server.
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  Frontend (React + Leaflet) in native WebView           │
+│  Frontend (React + MapLibre GL) in native WebView       │
 │  AOI, period, models, Analysis, Compare, auth UI        │
 └──────────────────────────┬──────────────────────────────┘
                            │ Wails bindings (Go ↔ JS)
@@ -55,12 +55,13 @@ Prithvi pixel mode can be slow.
 | `internal/store/` | SQLite persistence |
 | `sidecar/` | Inference, LULC, phenology, Prithvi, Temporal Transformer |
 | `model/` | Trained artifacts |
-| `areas/` | Embedded GeoJSON study areas A/B/C |
-| `frontend/` | React 19 + Vite + Tailwind + Leaflet |
+| `frontend/` | React 19 + Vite + Tailwind + MapLibre GL |
 
 ## Inference pipeline (predict)
 
-1. Resolve AOI (embedded area or GeoJSON polygon).
+1. Take the AOI polygon from the request. It is the only way a request
+   names a ground: the embedded areas A/B/C, which a request could select
+   by id instead, are gone.
 2. Query Planetary Computer STAC for Sentinel-2 L2A scenes (cloud filter,
    optional monthly-best, optional tiles).
 3. Clip bands to the polygon on a reference grid (typically B04).

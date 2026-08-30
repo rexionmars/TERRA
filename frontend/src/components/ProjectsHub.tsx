@@ -63,9 +63,9 @@ export function ProjectsHub({
 
   const mainSubtitle =
     selection === "all"
-      ? "Farm and field workspaces — analyses and overlays stay together."
+      ? "Farm and field workspaces. A project holds the grounds worked on it, and each ground holds the runs measured over it."
       : selection === "unassigned"
-        ? "Older classifications not yet attached to a project."
+        ? "Runs belonging to no project. A run made now is filed under the area it was measured on, inside the project that area is in; these predate that."
         : selectedProject?.notes ||
           "Analyses and overlays saved under this project."
 

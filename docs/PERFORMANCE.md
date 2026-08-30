@@ -126,7 +126,7 @@ letting the one component that wants it subscribe:
 
 `AnimatePresence` also carried `mode="wait"`, under which the leaving screen had
 to finish its 240ms exit before the arriving one was allowed to mount — and the
-mount is the expensive half, since a screen here builds Leaflet, its overlays
+mount is the expensive half, since a screen here builds MapLibre, its overlays
 and sometimes the studio.
 
 **Still open:** the screens unmount and remount on every change. That is the

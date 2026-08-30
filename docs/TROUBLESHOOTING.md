@@ -45,10 +45,13 @@ pip install 'scikit-learn>=1.8,<1.9'
 
 ### No reference layer for a custom AOI
 
-- MapBiomas COG fetch is intended for AOIs inside Brazil.
-- Embedded areas A/B/C may also look for local TIFFs under a sibling
-  `global/data/mapbiomas/` tree (`TERRA_ROOT`); without those files, COG
-  fetch is used when possible.
+- MapBiomas COG fetch is intended for AOIs inside Brazil. The sidecar checks
+  `polygon_in_brazil` before asking, and fetches the Brazil COG window for the
+  polygon it was given.
+- A local raster under a sibling `global/data/mapbiomas/` tree (`TERRA_ROOT`)
+  is used when one is supplied. It is a shortcut, not the capability: the three
+  embedded areas that carried such a path are gone, and the fetch covers what
+  they covered.
 - Classification still works without a reference overlay.
 
 ## Desktop / OS

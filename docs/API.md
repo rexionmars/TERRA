@@ -14,7 +14,6 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 
 | Method | Input | Output | Description |
 |--------|--------|--------|-------------|
-| `ListEmbeddedAreas` | — | `[]Area` | Study areas A/B/C from `areas/*.geojson` |
 | `Predict` | `PredictRequest` | `PredictResult` | Run classification; streams `predict:progress` |
 | `ListDataCube` | `DataCubeRequest` | `DataCubeResult` | List STAC scenes for the AOI/filters |
 | `AnalyzeLULC` | `LULCRequest` | `LULCAnalysis` | MapBiomas descriptive analysis only |
@@ -26,7 +25,26 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 | Method | Description |
 |--------|-------------|
 | `ListRuns(limit)` | Recent inference runs (guest or signed-in user) |
+| `ListProjectRuns(projectID, limit)` | Runs of one project; `""` gives those of none |
+| `ListAreaRuns(areaID, limit)` | Runs measured on one ground |
 | `LoadAnalysis(runID)` | Reload a saved `PredictResult` (overlays as data URIs) |
+
+### Projects, areas and boards
+
+The hierarchy is **project › area › run**. A project holds the grounds worked on
+it; an area holds the runs measured over it. Deleting an area takes its runs and
+their rasters; deleting a project takes its areas and theirs. None of that is
+enforced by foreign keys — they are declared and never turned on — so each
+cascade is written where the delete is, in `internal/store/`.
+
+| Method | Description |
+|--------|-------------|
+| `ListProjects` / `CreateProject` / `DeleteProject` | Workspaces |
+| `ListAreas(projectID)` | The grounds of one project, oldest first |
+| `CreateArea(projectID, name, polygonGeoJSON)` | One drawn ground. An empty name is minted as `drawn`, `drawn 2`, … against what the project already holds |
+| `GetArea` / `UpdateArea` / `DeleteArea` | One ground. `UpdateArea` writes every column it is given |
+| `ListWhiteboards(projectID)` | Boards of one project; `""` gives every board |
+| `SaveWhiteboard` | Refuses a member whose run belongs to another project |
 
 ### Auth and preferences (local SQLite)
 
@@ -51,8 +69,7 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 
 ```json
 {
-  "area_id": "A",
-  "polygon_geojson": null,
+  "polygon_geojson": { "type": "Polygon", "coordinates": [] },
   "start": "2023-01-01",
   "end": "2023-12-31",
   "max_cloud": 30,
@@ -64,7 +81,11 @@ Source of truth: [`app.go`](../app.go), [`internal/analysis/types.go`](../intern
 }
 ```
 
-- `area_id` and `polygon_geojson` are mutually exclusive (area id preferred when set).
+- `polygon_geojson` is required: it is the only way a request names a ground.
+  It was one of two — `area_id` selected one of three embedded example areas —
+  and that field is gone. `area_id` on a request now means something else: the
+  catalogued ground the run is OF, so the board can keep an area and its runs
+  as one subject.
 - `mode`: `"single"` or `"temporal"` (temporal soybean retention requires spectral RF).
 - `model_kind`: `"spectral"` | `"temporal_transformer"` | `"prithvi"`.
 - `prithvi_mode`: `"pixel"` or `"patch"` when using Prithvi.
@@ -76,7 +97,7 @@ Important fields:
 | Field | Meaning |
 |-------|---------|
 | `extent` | `lon_min`, `lat_min`, `lon_max`, `lat_max` |
-| `overlay_uri` / `confidence_uri` / … | PNG data URIs for Leaflet |
+| `overlay_uri` / `confidence_uri` / … | PNG data URIs for the map |
 | `raster_tif` | Path to classification GeoTIFF |
 | `class_stats` | Per-class pixels, %, hectares |
 | `vi_series` / `phenology` / `phenology_states` | Temporal vegetation summary |

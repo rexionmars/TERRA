@@ -29,31 +29,45 @@ Main chrome:
 - **Overlay Tools** (top-right) — overlays, swipe, opacity, export
 - Map, search, basemap controls
 
-## 2. Projects, AOI names, and runs
+## 2. Projects, areas, and runs
 
-A **Project** groups an AOI, band compositions, and inference runs.
+The hierarchy is **project › area › run**. A **project** is a workspace — a
+farm, a study, a season. An **area** is one ground inside it. A **run** is one
+measurement over one area.
 
-- Rename the **AOI** (map chip / Analysis header) without renaming every run.
-- Each classification is saved as a **run** with a `run-…` label (unique per
-  execution). Lists and Compare show run names; the Cover map title shows the
-  **project** name with a separate **AOI** row.
-- In the project hub, open a project to land on **Analyses** (classification
-  runs). Switch to the **Band compositions** tab for RGB / indices from the map —
-  click a card for a preview modal (export / View on map).
+- A project can hold as many areas as you work. It has no single AOI of its own.
+- Every run is filed under the area it was measured on and the project that
+  area is in, so a project holding a dozen fields lists a dozen grounds rather
+  than a hundred runs in one grid.
+- Deleting an area takes the runs measured on it. Deleting a project takes its
+  areas and theirs. Both ask first.
+- Rename an area without renaming the runs made over it.
+- Each run carries a `run-…` label, unique per execution. Lists and Compare
+  show run names.
+- In the hub, open a project to land on **Areas**; open one to see its runs.
+  The **Compositions** tab holds the RGB / index compositions applied from the
+  map — click a card for a preview modal (export / View on map).
 
-Create a project from the hub or when you have an AOI on the map, then keep that
-project active while you classify.
+**A project is required before drawing.** An area belongs to one, so with no
+project open the map refuses the shape rather than keeping it somewhere it does
+not belong. Create or open a project first, then keep it active while you work.
 
-## 3. Choose an area of interest (AOI)
-
-Pick one of:
+## 3. Draw an area
 
 | Method | When to use |
 |--------|-------------|
-| Areas **A / B / C** | Validated polygons from the SBrT 2026 reference work (fastest first run) |
-| **Draw** | Digitize a polygon on the map |
+| **Draw** | Digitize a polygon on the map or on the studio globe |
 | **Search** | Nominatim place search, then draw or refine |
 | **Import** | Load a KML or GeoJSON polygon |
+
+A new area is named `drawn`, `drawn 2` and so on, numbered against what the
+project already holds. Rename it from the areas list.
+
+Keep areas modest for the first run (farm / field scale). Very large polygons
+increase STAC I/O and classification time, especially with Prithvi in pixel mode.
+
+Right-click inside the area for rename, contour colors, fit, or clear (also
+reachable from Overlay Tools for contours).
 
 Keep AOIs modest for the first run (farm / field scale). Very large polygons
 increase STAC I/O and classification time, especially with Prithvi in pixel mode.
@@ -123,7 +137,7 @@ Open **Analysis** for:
 
 - Cover map tiles (satellite, NDVI mean, MapBiomas, prediction, confidence)
 - Class statistics, VI series, phenology
-- Project hub (Analyses tab by default; Band compositions tab for map composites)
+- Project hub (Areas tab by default, runs one level in; Compositions tab for map composites)
 - Open a band composition card for a preview modal (export / View on map)
 - **Export tables** — ZIP with CSVs (class stats, VI series, phenology, MapBiomas compare), AOI GeoJSON, and classification GeoTIFF when available — for notebooks / training workspaces
 - Export GeoTIFF from the analysis header when available
@@ -146,8 +160,10 @@ on macOS); there is no cloud sync.
 
 ## Suggested first run
 
-1. Create or open a **Project**.
-2. Select embedded area **A**.
+1. Create or open a **Project**. Drawing needs one: an area belongs to a
+   project, and a run belongs to an area.
+2. Draw an **area** on the map. It is saved under the open project and named
+   `drawn`, `drawn 2` and so on; rename it from the areas list.
 3. Use a one-year agricultural window with monthly best and a moderate cloud
    threshold (e.g. 30%).
 4. Model: **spectral**, mode: single.
