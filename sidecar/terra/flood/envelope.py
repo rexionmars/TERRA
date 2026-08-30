@@ -835,3 +835,117 @@ def agreement_rgba(counts, n_products, inside=None):
     drawn = counts > 0 if inside is None else (counts > 0) & inside
     rgba[..., 3] = np.where(drawn, 255, 0).astype(np.uint8)
     return rgba
+
+
+# --- Reading the products onto one window -----------------------------------
+
+
+class NoCommonWindow(RuntimeError):
+    """
+    The products do not cover one rectangle between them.
+
+    Carries `missing`, the per-product count of cells with no elevation, and
+    `max_trim`, the border the search was allowed to cut. The caller turns
+    those into a sentence; what a user should do about it depends on how they
+    got here, and this module does not know.
+    """
+
+    def __init__(self, missing, max_trim):
+        self.missing = missing
+        self.max_trim = max_trim
+        super().__init__('the products do not cover one common window')
+
+
+@dataclass
+class Aligned:
+    """Every product on one grid, cropped to the window all of them cover."""
+
+    reads: list
+    arrays: dict
+    grid: object
+    dx: float
+    dy: float
+
+    def sources(self):
+        """The Source per product that `measure` compares."""
+        out = {}
+        for read in self.reads:
+            row = read.describe()
+            out[row['id']] = Source(
+                id=row['id'],
+                z=self.arrays[row['id']],
+                collection=row['collection'],
+                native_resolution_m=row['native_resolution_m'],
+                resampled=row['resampled'],
+            )
+        return out
+
+
+def read_aligned(polygon, products, buffer_m, reference_res_m, progress=None,
+                 aligning=None):
+    """
+    Read every product over the buffered AOI and put them on one grid.
+
+    `measure` counts products cell by cell and so requires one grid, which
+    means a product whose native grid differs is moved onto the reference grid
+    BEFORE its terrain chain runs. dem.fetch_set argues for the other order:
+    chain on the native grid, align the mask after. On the 6 by 6 km window
+    measured here the two orders put COP90's 1 m extent at IoU 0.47 of each
+    other. The order used is recorded in assumptions.chain_grid in the payload
+    and, per pair, in the resampled column; the two components cannot be
+    separated from the numbers alone.
+
+    Raises NoCommonWindow when trimming the alignment sliver does not reach a
+    rectangle every product covers.
+    """
+    from terra.terrain import dem as dem_mod
+
+    reads = dem_mod.fetch_set(
+        polygon, ids=[p.id for p in products], buffer_m=buffer_m,
+        progress=progress,
+    )
+    if aligning:
+        aligning()
+
+    reference = reads[0].reference
+    arrays = {
+        read.product.id: (
+            dem_mod.resample_onto(read.array, read.grid, reference)
+            if read.resampled else read.array
+        )
+        for read in reads
+    }
+
+    # One cell of the coarsest product, plus one for the rounding: past that a
+    # missing cell is not the alignment sliver.
+    max_trim = int(
+        round(max(p.native_resolution_m for p in products) / reference_res_m)
+    ) + 1
+    covered = common_covered_window(arrays.values(), max_trim)
+    if covered is None:
+        raise NoCommonWindow(
+            {pid: int((~np.isfinite(z)).sum())
+             for pid, z in arrays.items() if not np.isfinite(z).all()},
+            max_trim,
+        )
+
+    r0, r1, c0, c1 = covered
+    arrays = {pid: z[r0:r1, c0:c1] for pid, z in arrays.items()}
+
+    # The window the products were actually compared on, which the crop above
+    # can leave up to one cell inside the read window on any side. The payload
+    # bounds have to be this one and not the requested one, or the map would be
+    # drawn a cell off the ground it describes.
+    import rasterio.windows
+
+    grid = dem_mod.Grid(
+        transform=rasterio.windows.transform(
+            rasterio.windows.Window(c0, r0, c1 - c0, r1 - r0), reference.transform
+        ),
+        width=c1 - c0,
+        height=r1 - r0,
+        crs=reference.crs,
+    )
+    dx, dy = dem_mod.cell_size_m(grid)
+    return Aligned(reads=reads, arrays=arrays, grid=grid, dx=dx, dy=dy)
+

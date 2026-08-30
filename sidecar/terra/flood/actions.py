@@ -181,43 +181,16 @@ def flood_envelope(req, work_dir):
         f'reading {len(products)} DEM products over the AOI plus {buffer_m:.0f} m'
     )
     try:
-        reads = dem_mod.fetch_set(
-            polygon, ids=[p.id for p in products], buffer_m=buffer_m,
+        aligned = flood_mod.read_aligned(
+            polygon, products, buffer_m, reference_res_m,
             progress=read_progress,
+            aligning=lambda: protocol.emit_progress(
+                read_ceiling, 'aligning the products onto one grid'),
         )
-    except Exception as e:
-        protocol.fail(f'DEM read failed: {e}')
-
-    protocol.emit_progress(read_ceiling, 'aligning the products onto one grid')
-    reference = reads[0].reference
-    arrays = {}
-    for read in reads:
-        # flood.measure counts products cell by cell and so requires one grid,
-        # which means a product whose native grid differs is moved onto the
-        # reference grid BEFORE its terrain chain runs. dem.fetch_set argues for
-        # the other order: chain on the native grid, align the mask after. On
-        # the 6 by 6 km window measured here the two orders put COP90's 1 m
-        # extent at IoU 0.47 of each other. The order used is recorded in
-        # assumptions.chain_grid below and, per pair, in the resampled column;
-        # the two components cannot be separated from the numbers alone.
-        arrays[read.product.id] = (
-            dem_mod.resample_onto(read.array, read.grid, reference)
-            if read.resampled else read.array
-        )
-
-    # One cell of the coarsest product, plus one for the rounding: past that a
-    # missing cell is not the alignment sliver.
-    max_trim = int(
-        round(max(p.native_resolution_m for p in products) / reference_res_m)
-    ) + 1
-    covered = flood_mod.common_covered_window(arrays.values(), max_trim)
-    if covered is None:
-        missing = ', '.join(
-            f'{pid} {int((~np.isfinite(z)).sum())} cells'
-            for pid, z in arrays.items() if not np.isfinite(z).all()
-        )
+    except flood_mod.NoCommonWindow as e:
+        missing = ', '.join(f'{pid} {n} cells' for pid, n in e.missing.items())
         protocol.fail(f'the products do not cover one common window: {missing} have no '
-             f'elevation, and trimming up to {max_trim} cells from each border '
+             f'elevation, and trimming up to {e.max_trim} cells from each border '
              f'does not reach a rectangle all of them cover. A void that far '
              f'inside the window is a hole in the product itself, over water '
              f'or in radar shadow; the trim covers only the alignment sliver '
@@ -225,22 +198,10 @@ def flood_envelope(req, work_dir):
              f'field over such a hole, and nothing in the output would mark '
              f'the region it is wrong over. Move or shrink the AOI, or name a '
              f'dem_ids set without the product that is missing elevation.')
-    r0, r1, c0, c1 = covered
-    arrays = {pid: z[r0:r1, c0:c1] for pid, z in arrays.items()}
-
-    # The window the products were actually compared on, which the crop above
-    # can leave up to one cell inside the read window on any side. The payload
-    # bounds have to be this one and not the requested one, or the map would be
-    # drawn a cell off the ground it describes.
-    grid = dem_mod.Grid(
-        transform=rasterio.windows.transform(
-            rasterio.windows.Window(c0, r0, c1 - c0, r1 - r0), reference.transform
-        ),
-        width=c1 - c0,
-        height=r1 - r0,
-        crs=reference.crs,
-    )
-    dx, dy = dem_mod.cell_size_m(grid)
+    except Exception as e:
+        protocol.fail(f'DEM read failed: {e}')
+    grid = aligned.grid
+    dx, dy = aligned.dx, aligned.dy
 
     # What the figures are about. The arrays above cover the AOI plus buffer_m
     # on every side because the terrain chain needs the drainage entering the
@@ -249,16 +210,7 @@ def flood_envelope(req, work_dir):
     # compared on and not on the window that was requested.
     aoi_mask = flood_mod.aoi_reporting_mask(polygon, grid)
 
-    sources = {}
-    for read in reads:
-        row = read.describe()
-        sources[row['id']] = flood_mod.Source(
-            id=row['id'],
-            z=arrays[row['id']],
-            collection=row['collection'],
-            native_resolution_m=row['native_resolution_m'],
-            resampled=row['resampled'],
-        )
+    sources = aligned.sources()
 
     try:
         result = flood_mod.measure(
