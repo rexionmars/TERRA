@@ -86,3 +86,61 @@ func TestAoiIDColumnIsDropped(t *testing.T) {
 		t.Errorf("inference_runs still declares aoi_id")
 	}
 }
+
+/*
+A database whose version already claims this build's number still gets its
+columns dropped.
+
+THIS IS A REGRESSION TEST FOR A FILE THAT EXISTS. schemaVersion was raised in
+one edit and the drop it stood for written in the next; a build compiled in
+between opened a database, found nothing to do for the new number, and recorded
+it. Gated on `at < N`, the drops then never ran again on that file: it said the
+work was done, and the columns stayed.
+
+So the drops are not gated, and this is what says so. It builds exactly that
+file -- the columns present, the version already current -- and asserts that
+Open removes them anyway.
+*/
+func TestDropsRunOnADatabaseAlreadyAtThisVersion(t *testing.T) {
+	s := openTestStore(t)
+
+	// Put the four columns back and leave the version where it is.
+	for _, stmt := range []string{
+		`ALTER TABLE inference_runs ADD COLUMN aoi_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE projects ADD COLUMN polygon_geojson TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE projects ADD COLUMN area_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE projects ADD COLUMN label TEXT NOT NULL DEFAULT ''`,
+	} {
+		if _, err := s.db.Exec(stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var at int
+	if err := s.db.QueryRow(`PRAGMA user_version`).Scan(&at); err != nil {
+		t.Fatal(err)
+	}
+	if at != schemaVersion {
+		t.Fatalf("user_version is %d, want %d: this test needs a file that claims to be current", at, schemaVersion)
+	}
+
+	if err := s.migrate(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct{ table, column string }{
+		{"inference_runs", "aoi_id"},
+		{"projects", "polygon_geojson"},
+		{"projects", "area_id"},
+		{"projects", "label"},
+	} {
+		var n int
+		if err := s.db.QueryRow(
+			`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`, c.table, c.column,
+		).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("%s.%s survived because the file already claimed version %d", c.table, c.column, at)
+		}
+	}
+}

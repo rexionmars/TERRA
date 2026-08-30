@@ -684,43 +684,52 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 		}
 	}
 	/*
-		inference_runs.aoi_id, dropped rather than left unwritten.
+		THE COLUMNS THIS BUILD HAS REMOVED. Not gated on the version, and that
+		is the point.
 
-		It named an entry in the JSON-array catalogue that preceded the `areas`
-		table. Nothing writes it now, and the version-3 step already emptied
-		every row that could carry a value, so what is left is a column that
-		will always read '' -- and a column nothing writes is one that will
-		disagree with the table one day, which is the same argument areas.go
-		makes for having no position column.
+		WHAT GATING THEM COST, observed rather than imagined. `schemaVersion`
+		was raised to 5 in one edit and the drop it stood for written in the
+		next; a dev build compiled in between, opened the database, found
+		at = 4 < 5, had no step to run, and recorded 5. The gate then closed
+		over three columns that had never been dropped and could never be
+		dropped again -- the file said the work was done and nothing would
+		reconsider it. That is not a mistake in the drops. It is what a gate on
+		a number does when the number can be raised without the work.
 
-		SQLite has dropped columns since 3.35 and refuses on an indexed one;
-		this has no index. The failure is not swallowed: a build that thinks
-		this column is gone while it is still there is exactly the disagreement
-		being removed.
+		addColumns already argues this for the other direction: "the table is
+		asked rather than the version trusted, because on every database
+		already in the field the two disagree." dropColumn asks the table too,
+		so running these every time is a handful of pragma_table_info queries
+		at Open and a file that ends in the shape this build believes it has,
+		whatever its version says.
+
+		WHAT EACH DROP IS FOR:
+
+		inference_runs.aoi_id named an entry in the JSON-array catalogue that
+		preceded the `areas` table. area_id replaced it.
+
+		projects.polygon_geojson, .area_id and .label gave a project a geometry
+		of its own, written from whatever was on the map while it was open and
+		read back as the project's "AOI" -- one shape for a workspace holding
+		as many grounds as a reader draws. last_area_id replaced all three with
+		the only question they were still answering: which ground to resume on.
+
+		Dropped rather than left unwritten, because a column nothing writes
+		always reads its default and will disagree with the table one day --
+		the same argument areas.go makes for having no position column. SQLite
+		has dropped columns since 3.35 and refuses on an indexed one; none of
+		these four is indexed. The failure is not swallowed: a build that
+		believes a column is gone while it is still there is exactly the
+		disagreement being removed.
 	*/
-	if at < 4 {
-		if err := s.dropColumn("inference_runs", "aoi_id"); err != nil {
-			return fmt.Errorf("migrate: drop aoi_id: %w", err)
-		}
-	}
-	/*
-		The three columns that gave a project a geometry of its own.
-
-		polygon_geojson, area_id and label were written from whatever was on
-		the map while the project was open, and read back as the project's
-		"AOI" -- one shape for a workspace that now holds as many grounds as a
-		reader draws. last_area_id replaced all three with the only question
-		they were still answering: which ground to resume on.
-
-		Dropped rather than left, for the reason the aoi_id drop gives: a column
-		nothing writes always reads its default and will disagree with the table
-		one day. None of the three is indexed.
-	*/
-	if at < 5 {
-		for _, col := range []string{"polygon_geojson", "area_id", "label"} {
-			if err := s.dropColumn("projects", col); err != nil {
-				return fmt.Errorf("migrate: %w", err)
-			}
+	for _, c := range []struct{ table, column string }{
+		{"inference_runs", "aoi_id"},
+		{"projects", "polygon_geojson"},
+		{"projects", "area_id"},
+		{"projects", "label"},
+	} {
+		if err := s.dropColumn(c.table, c.column); err != nil {
+			return fmt.Errorf("migrate: %w", err)
 		}
 	}
 	/*
