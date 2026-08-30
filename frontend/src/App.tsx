@@ -3435,6 +3435,9 @@ function AppBody(props: {
               >
                 <MapScreen
                   activeProjectId={activeProjectId}
+                  activeProjectName={
+                    projects.find((p) => p.id === activeProjectId)?.name ?? null
+                  }
                   retainedRuns={props.retainedRuns}
                   onDropRetainedRun={props.onDropRetainedRun}
                   onCreditChange={setCredit}

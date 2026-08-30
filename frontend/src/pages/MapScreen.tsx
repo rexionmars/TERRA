@@ -197,6 +197,7 @@ export interface MapScreenProps {
   areas?: import("@/lib/areas").Area[]
   activeAreaId?: string
   activeProjectId?: string | null
+  activeProjectName?: string | null
   onActivateArea?: (id: string) => void
   onRenameArea?: (id: string, name: string) => void
   onDeleteArea?: (id: string) => void
@@ -1289,6 +1290,7 @@ export function MapScreen(props: MapScreenProps) {
               onPolygonDrawn={props.onPolygonDrawn}
               catalogAreas={props.areas}
               activeProjectId={props.activeProjectId}
+              activeProjectName={props.activeProjectName}
               activeAreaId={props.activeAreaId}
               onActivateArea={props.onActivateArea}
               onRenameArea={props.onRenameArea}

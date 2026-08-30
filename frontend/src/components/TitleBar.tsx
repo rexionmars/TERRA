@@ -245,10 +245,16 @@ export function TitleBar({
           className={cn("flex items-center", boardOpen && "ml-[1.8125rem]")}
         >
         {/*
-          Withheld in the studio, which carries its own data-block naming the
-          board that is loaded. Two selectors on one row, each saying what is
-          open and meaning something different by it, is the ambiguity this
-          bar can least afford.
+          Withheld in the studio, which names the open project in its own block
+          -- as the crumb before the board's name, so the relation is stated
+          rather than left to two selectors on one row each saying what is open
+          and meaning something different by it.
+
+          The reason given here used to be that the studio's block named "the
+          board that is loaded", which it did and still does. That was not a
+          substitute: a board is not a project, so while the studio was up
+          nothing on screen said which project the areas drawn and the runs
+          made there were being filed under.
         */}
         {!boardOpen && projectSwitcher}
         </span>

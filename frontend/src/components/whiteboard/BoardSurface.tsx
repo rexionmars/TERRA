@@ -173,6 +173,7 @@ import {
   Blend,
   BoxSelect,
   ChevronDown,
+  ChevronRight,
   Eraser,
   EyeOff,
   Filter,
@@ -407,6 +408,7 @@ export function BoardSurface({
   onSmoothChange,
   title,
   activeProjectId,
+  activeProjectName,
   whiteboards = [],
   onOpenWhiteboard,
   onWhiteboardsMenu,
@@ -518,6 +520,9 @@ export function BoardSurface({
    * ever saved and nothing stopped one holding runs from several projects.
    */
   activeProjectId?: string | null
+  /** Its name, shown in the studio's own block: the title bar's switcher is
+   *  withheld while the studio is up, so nothing else on screen says it. */
+  activeProjectName?: string | null
   whiteboards?: readonly Whiteboard[]
   onOpenWhiteboard?: (board: Whiteboard) => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
@@ -4150,6 +4155,48 @@ export function BoardSurface({
         <div
           className="flex min-w-0 max-w-[26rem] items-center gap-1.5"
         >
+          {/*
+            WHICH PROJECT THIS WORK GOES INTO, said where the studio can say it.
+
+            The title bar's project switcher is withheld while the studio is
+            up, on the reasoning that the studio "carries its own data-block
+            naming the board that is loaded" -- and it does, but a board is not
+            a project. So with the studio open nothing on screen named the
+            project, while the studio is exactly where areas are drawn and runs
+            are made, both filed under it. Work landing in a project the
+            surface never named is the failure this whole change set exists to
+            remove; the studio was still reaching it.
+
+            A CRUMB, NOT A SECOND SELECTOR. Two dropdowns on one row, each
+            saying what is open and meaning something different by it, is the
+            ambiguity the title bar was avoiding when it withheld the first.
+            Written as `project > board` the relation is stated instead, and
+            there is still one control on the row.
+          */}
+          {activeProjectName ? (
+            <>
+              <span
+                className="truncate text-meta text-muted-foreground"
+                title={`Project: ${activeProjectName}`}
+              >
+                {activeProjectName}
+              </span>
+              <ChevronRight
+                className="size-2.5 shrink-0 text-muted-foreground/60"
+                strokeWidth={2}
+              />
+            </>
+          ) : (
+            /*
+              The absence drawn as an absence, not as a project called that.
+              It matters here more than in the title bar: with no project open
+              the studio cannot draw an area or file a run, so this is the
+              reason the next attempt will be refused.
+            */
+            <span className="shrink-0 text-meta text-muted-foreground/70">
+              No project
+            </span>
+          )}
           {/*
             One line, like Blender's Scene and ViewLayer blocks.
 
