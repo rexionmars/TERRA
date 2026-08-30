@@ -40,6 +40,8 @@ float32 arithmetic costs, not from what the method costs.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from terra.canopy import voxel as cv
@@ -633,9 +635,40 @@ def analytic_check(canopy, step_frac=0.5, fixed_k=CROP_MODEL_K):
     return out
 
 
-def build(request, progress=None):
+@dataclass
+class FieldSpec:
     """
-    The whole field from one request dict, for the sidecar action.
+    What field to build, already read out of whatever asked for it.
+
+    A dataclass rather than the request dict this used to take: parsing a
+    request is the action's, and a builder that reads one cannot be called
+    without writing one. Every default here is the default the request carried,
+    so a caller that omits a field gets what it got before.
+    """
+
+    source: str = 'ellipsoid'
+    spacing: float = 6.0
+    cell: float = 0.30
+    lai: float = 2.0
+    z_top: float | None = None
+    n_reference: int = 64
+    step_frac: float = 0.5
+    # rows
+    height: float = 0.9
+    row_width_frac: float = 0.6
+    base: float = 0.0
+    # ellipsoid crowns
+    crown_a: float = 1.8
+    crown_b: float = 1.2
+    crown_z: float = 1.6
+    # a voxelised leaf cloud, from Helios or from a caller that has one
+    leaf_positions: object = None
+    leaf_areas: object = None
+
+
+def build(spec, progress=None):
+    """
+    The whole field from one specification.
 
     Returns (grid, payload). The grid is left as an array because it leaves the
     process as a binary file rather than as JSON -- a 40x40x20 field is 128 kB
@@ -645,46 +678,36 @@ def build(request, progress=None):
         if progress:
             progress(pct, msg)
 
-    source = request.get("source", "ellipsoid")
-    spacing = float(request.get("spacing", 6.0))
-    cell = float(request.get("cell", 0.30))
-    lai = float(request.get("lai", 2.0))
-
-    if source == "rows":
+    if spec.source == "rows":
         step(20, "laying the rows")
         grid, meta = row_field(
-            spacing=spacing, lai=lai,
-            height=float(request.get("height", 0.9)),
-            row_width_frac=float(request.get("row_width_frac", 0.6)),
-            base=float(request.get("base", 0.0)),
-            cell=cell, z_top=request.get("z_top"))
-    elif source == "ellipsoid":
+            spacing=spec.spacing, lai=spec.lai, height=spec.height,
+            row_width_frac=spec.row_width_frac, base=spec.base,
+            cell=spec.cell, z_top=spec.z_top)
+    elif spec.source == "ellipsoid":
         step(20, "placing the crowns")
         grid, meta = ellipsoid_field(
-            spacing=spacing, lai=lai,
-            crown_a=float(request.get("crown_a", 1.8)),
-            crown_b=float(request.get("crown_b", 1.2)),
-            crown_z=float(request.get("crown_z", 1.6)),
-            cell=cell, z_top=request.get("z_top"))
-    elif source == "leaves":
+            spacing=spec.spacing, lai=spec.lai, crown_a=spec.crown_a,
+            crown_b=spec.crown_b, crown_z=spec.crown_z,
+            cell=spec.cell, z_top=spec.z_top)
+    elif spec.source == "leaves":
         step(20, "voxelising the leaf cloud")
         grid, meta = leaf_cloud_field(
-            request["leaf_positions"], request["leaf_areas"],
-            spacing=spacing, cell=cell, z_top=request.get("z_top"))
+            spec.leaf_positions, spec.leaf_areas,
+            spacing=spec.spacing, cell=spec.cell, z_top=spec.z_top)
     else:
-        raise ValueError(f"unknown canopy source: {source!r}")
+        raise ValueError(f"unknown canopy source: {spec.source!r}")
 
     step(55, "marching the reference directions")
     canopy = canopy_of(grid, meta)
-    cases = reference_cases(canopy, n_points=int(request.get("n_reference", 64)),
-                            step_frac=float(request.get("step_frac", 0.5)))
+    cases = reference_cases(canopy, n_points=spec.n_reference,
+                            step_frac=spec.step_frac)
 
     step(80, "comparing against a uniform canopy of the same leaf area")
     payload = {
         "field": meta,
         "reference": cases,
-        "against_uniform": analytic_check(canopy,
-                                          step_frac=float(request.get("step_frac", 0.5))),
+        "against_uniform": analytic_check(canopy, step_frac=spec.step_frac),
     }
     return grid, payload
 

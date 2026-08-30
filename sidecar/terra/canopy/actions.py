@@ -24,6 +24,8 @@ from terra import protocol
 def canopy_field(req, work_dir):
     protocol.emit_progress(5, 'building the canopy field')
     source = req.get('source', 'ellipsoid')
+    leaf_positions = req.get('leaf_positions')
+    leaf_areas = req.get('leaf_areas')
     grow_meta = None
 
     # Helios is only ever asked for architecture. Its ImportError is caught
@@ -54,13 +56,28 @@ def canopy_field(req, work_dir):
             pos, area, grow_meta = helios_grow.leaf_cloud(grown)
         except Exception as e:
             protocol.fail(f'extracting the grown scene failed: {e}')
-        req = dict(req, source='leaves',
-                   leaf_positions=pos.tolist(), leaf_areas=area.tolist())
+        source, leaf_positions, leaf_areas = 'leaves', pos, area
 
+    from terra.canopy import field as cfield
+    spec = cfield.FieldSpec(
+        source=source,
+        spacing=protocol.request_number(req, 'spacing', 6.0),
+        cell=protocol.request_number(req, 'cell', 0.30),
+        lai=protocol.request_number(req, 'lai', 2.0),
+        z_top=protocol.request_number(req, 'z_top', None),
+        n_reference=protocol.request_number(req, 'n_reference', 64, int),
+        step_frac=protocol.request_number(req, 'step_frac', 0.5),
+        height=protocol.request_number(req, 'height', 0.9),
+        row_width_frac=protocol.request_number(req, 'row_width_frac', 0.6),
+        base=protocol.request_number(req, 'base', 0.0),
+        crown_a=protocol.request_number(req, 'crown_a', 1.8),
+        crown_b=protocol.request_number(req, 'crown_b', 1.2),
+        crown_z=protocol.request_number(req, 'crown_z', 1.6),
+        leaf_positions=leaf_positions,
+        leaf_areas=leaf_areas,
+    )
     try:
-        from terra.canopy import field as cfield
-        grid, payload = cfield.build(
-            req, progress=lambda p, m: protocol.emit_progress(p, m))
+        grid, payload = cfield.build(spec, progress=protocol.emit_progress)
     except Exception as e:
         protocol.fail(f'canopy_field failed: {e}')
 
@@ -96,16 +113,21 @@ def canopy_field(req, work_dir):
 # mesh is written once per request rather than per frame.
 def canopy_mesh(req, work_dir):
     protocol.emit_progress(5, 'growing the stand')
+    # Read once. The payload echoes the stand it grew, and reading the request
+    # a second time down there is how the two spellings of a default drift
+    # apart: a response that says four rows for a stand grown with five.
+    stand = {
+        'rows': protocol.request_number(req, 'rows', 4, int),
+        'per_row': protocol.request_number(req, 'per_row', 5, int),
+        'inter_row': protocol.request_number(req, 'inter_row', 0.8),
+        'inter_plant': protocol.request_number(req, 'inter_plant', 0.2),
+    }
     try:
         from terra.canopy import helios_grow as helios_grow
         grown = helios_grow.grow_canopy(
             species=req.get('species', 'sorghum'),
-            days=int(req.get('days', 60)),
-            rows=int(req.get('rows', 4)),
-            per_row=int(req.get('per_row', 5)),
-            inter_row=float(req.get('inter_row', 0.8)),
-            inter_plant=float(req.get('inter_plant', 0.2)),
-            seed=req.get('seed'))
+            days=protocol.request_number(req, 'days', 60, int),
+            seed=req.get('seed'), **stand)
     except ImportError as e:
         protocol.fail('Growing a 3D canopy needs the pyhelios3d package, which '
              'installs as the module `pyhelios`. This interpreter does not '
@@ -152,10 +174,7 @@ def canopy_mesh(req, work_dir):
         'species': grown.species,
         'days': grown.days,
         'plants': len(pids),
-        'rows': int(req.get('rows', 4)),
-        'per_row': int(req.get('per_row', 5)),
-        'inter_row': float(req.get('inter_row', 0.8)),
-        'inter_plant': float(req.get('inter_plant', 0.2)),
+        **stand,
         'leaf_area': float(sum(grown.pa.getPlantLeafArea(p) for p in pids)),
         'organs': {o: int(len(scene[o]['tris'])) for o in present},
     }
