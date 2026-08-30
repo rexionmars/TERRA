@@ -68,28 +68,22 @@ type InferenceRun struct {
 	// column existed, which are all classifications; readers normalise it.
 	Kind string `json:"kind,omitempty"`
 	/*
-		The catalogued area this run was made over, when there was one.
+		The ground this run was made over: a row in `areas`.
 
 		A run has always carried its polygon, which says WHERE it was made and
-		not WHICH area it belongs to. The board needs the second: a drawn area
-		and the runs over it are one subject, and without a link between them
-		the same ground appears twice -- once as the drawing and once as each
-		run -- with nothing saying they are the same place.
+		not WHICH area it belongs to. The board needs the second: an area and
+		the runs over it are one subject, and without a link between them the
+		same ground appears twice -- once as the area and once as each run --
+		with nothing saying they are the same place.
 
-		Empty for a run over an example area, over an imported shape that was
-		never catalogued, and on every row written before this column existed.
-		A reader that finds it empty falls back to comparing geometry.
-	*/
-	AoiID string `json:"aoi_id,omitempty"`
-	/*
-		The area this run is OF, which supersedes AoiID above.
+		There was a second field beside this one, AoiID, holding the same idea
+		against the old catalogue: it named an entry in a JSON array inside
+		preferences, so it could name one that had been deleted and no query
+		could resolve it. It is gone, and so is its column. Two names for one
+		thing is the confusion this change exists to remove.
 
-		AoiID named a row in a JSON array inside preferences and could name one
-		that had been deleted; this names a row in `areas`, which cannot exist
-		outside a project. Both fields are here for as long as the frontend still
-		writes the old one, and AoiID goes when it stops -- two names for one
-		thing is the confusion this whole change exists to remove, and carrying
-		them together is a transition rather than a design.
+		Empty is possible -- a run restored from a shape that was never made an
+		area -- and a reader that finds it empty falls back to geometry.
 	*/
 	AreaID string `json:"area_id,omitempty"`
 }
@@ -284,7 +278,7 @@ below it. The number says how far migrate has taken a database; it does not by
 itself say which columns a table has, and addColumns explains why those two are
 not the same question here.
 */
-const schemaVersion = 3
+const schemaVersion = 4
 
 // userVersion reads the version SQLite keeps in the database header.
 func (s *Store) userVersion() (int, error) {
@@ -352,6 +346,36 @@ func (s *Store) addColumns(adds []columnAdd) error {
 		if _, err := s.db.Exec(a.stmt); err != nil {
 			return fmt.Errorf("add %s.%s: %w", a.table, a.column, err)
 		}
+	}
+	return nil
+}
+
+/*
+dropColumn removes one column, and says nothing when there is none to remove.
+
+The table is asked rather than the version trusted, for the reason addColumns
+gives at length: databases in the field carry columns their recorded version
+does not admit to, and the reverse holds too -- a file created fresh by this
+build never had aoi_id, so the drop would fail on the only files that are
+already correct.
+
+Anything else propagates. A drop that fails for a real reason leaves a column
+this build believes is gone, which is the disagreement the drop exists to end.
+*/
+func (s *Store) dropColumn(table, column string) error {
+	var n int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`, table, column,
+	).Scan(&n); err != nil {
+		return fmt.Errorf("inspect %s: %w", table, err)
+	}
+	if n == 0 {
+		return nil
+	}
+	// Identifiers cannot be bound; both arguments here are literals from this
+	// file, never from a caller outside the package.
+	if _, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column)); err != nil {
+		return fmt.Errorf("drop %s.%s: %w", table, column, err)
 	}
 	return nil
 }
@@ -520,8 +544,16 @@ CREATE INDEX IF NOT EXISTS idx_runs_user_created ON inference_runs(user_id, crea
 			// rows predate water and are all classifications.
 			{"inference_runs", "kind",
 				`ALTER TABLE inference_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'classification'`},
-			// The catalogued area a run belongs to. Existing rows carry no link and
-			// resolve by geometry instead; see InferenceRun.AoiID.
+			/*
+				The catalogued area a run belonged to, against the JSON-array
+				catalogue that preceded the `areas` table.
+
+				ADDED HERE AND DROPPED AT VERSION 4, which reads as pointless
+				and is not: a database at version 0 has to pass through the
+				statements of every version between, and version 2 wrote this
+				column. Removing this line would leave the drop below with
+				nothing to drop on exactly the files that need it most.
+			*/
 			{"inference_runs", "aoi_id",
 				`ALTER TABLE inference_runs ADD COLUMN aoi_id TEXT NOT NULL DEFAULT ''`},
 		}); err != nil {
@@ -633,6 +665,26 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 			if _, err := s.db.Exec(stmt); err != nil {
 				return fmt.Errorf("migrate area indexes: %w", err)
 			}
+		}
+	}
+	/*
+		inference_runs.aoi_id, dropped rather than left unwritten.
+
+		It named an entry in the JSON-array catalogue that preceded the `areas`
+		table. Nothing writes it now, and the version-3 step already emptied
+		every row that could carry a value, so what is left is a column that
+		will always read '' -- and a column nothing writes is one that will
+		disagree with the table one day, which is the same argument areas.go
+		makes for having no position column.
+
+		SQLite has dropped columns since 3.35 and refuses on an indexed one;
+		this has no index. The failure is not swallowed: a build that thinks
+		this column is gone while it is still there is exactly the disagreement
+		being removed.
+	*/
+	if at < 4 {
+		if err := s.dropColumn("inference_runs", "aoi_id"); err != nil {
+			return fmt.Errorf("migrate: drop aoi_id: %w", err)
 		}
 	}
 	/*
@@ -1108,12 +1160,12 @@ func (s *Store) SaveRun(run InferenceRun) (*InferenceRun, error) {
 		`INSERT INTO inference_runs
 		 (id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson, status,
 		  summary_json, overlay_relpath, n_dates, result_json, assets_relpath, label, project_id,
-		  kind, aoi_id, area_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  kind, area_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.UserID, run.CreatedAt, run.ModelKind, run.PeriodStart, run.PeriodEnd,
 		run.PolygonGeoJSON, run.Status, run.SummaryJSON, nullIfEmpty(run.OverlayRelPath), run.NDates,
 		run.ResultJSON, nullIfEmpty(run.AssetsRelPath), run.Label, nullIfEmpty(run.ProjectID),
-		run.Kind, run.AoiID, run.AreaID,
+		run.Kind, run.AreaID,
 	)
 	if err != nil {
 		return nil, err
@@ -1132,7 +1184,7 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,''),
+		        COALESCE(project_id,''), COALESCE(kind,'classification'),
 		        COALESCE(area_id,'')
 		 FROM inference_runs WHERE user_id = ?
 		 ORDER BY created_at DESC LIMIT ?`,
@@ -1148,8 +1200,7 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		if err := rows.Scan(
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
-			&r.AreaID,
+			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AreaID,
 		); err != nil {
 			return nil, err
 		}
@@ -1218,15 +1269,14 @@ func (s *Store) GetRun(userID, runID string) (*InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,''),
+		        COALESCE(project_id,''), COALESCE(kind,'classification'),
 		        COALESCE(area_id,'')
 		 FROM inference_runs WHERE id = ? AND user_id = ?`,
 		runID, userID,
 	).Scan(
 		&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 		&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
-		&r.AreaID,
+		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AreaID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound

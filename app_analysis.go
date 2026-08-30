@@ -108,7 +108,7 @@ below cannot know.
 
 Six products persist a run, and apart from these fields the path is one
 sequence written six times. That is how it drifted: the "run-" prefix, the
-trimmed project id and the AoiID column each had to be added in every copy,
+trimmed project id and the area link each had to be added in every copy,
 and the thumbnail column the classification path fills never reached any of
 the others.
 */
@@ -281,7 +281,7 @@ func (a *App) AnalyzeSolarTerrain(req analysis.SolarTerrainRequest) (*analysis.S
 		return nil, err
 	}
 	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
-		req.RunLabel, req.ProjectID, req.AoiID, "solar_terrain", res.Season, res,
+		req.RunLabel, req.ProjectID, req.AreaID, "solar_terrain", res.Season, res,
 		res.OverlayURI, res.NDates())
 	return res, nil
 }
@@ -297,7 +297,7 @@ func (a *App) AnalyzeSolarSiting(req analysis.SolarSitingRequest) (*analysis.Sol
 		return nil, err
 	}
 	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
-		req.RunLabel, req.ProjectID, req.AoiID, "solar_siting", "siting", res,
+		req.RunLabel, req.ProjectID, req.AreaID, "solar_siting", "siting", res,
 		res.OverlayURI, 0)
 	return res, nil
 }

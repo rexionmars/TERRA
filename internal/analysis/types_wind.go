@@ -23,11 +23,11 @@ type WindRequest struct {
 	Label          string    `json:"label,omitempty"`
 	RunLabel       string    `json:"run_label,omitempty"`
 	ProjectID      string    `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // WindWeibullFitCheck compares the fitted distribution against the record it

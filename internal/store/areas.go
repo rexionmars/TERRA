@@ -391,7 +391,7 @@ func (s *Store) ListRunsByArea(userID, areaID string, limit int) ([]InferenceRun
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
 		        COALESCE(project_id,''), COALESCE(kind,'classification'),
-		        COALESCE(aoi_id,''), COALESCE(area_id,'')
+		        COALESCE(area_id,'')
 		 FROM inference_runs
 		 WHERE user_id = ? AND area_id = ?
 		 ORDER BY created_at DESC LIMIT ?`,
@@ -409,7 +409,7 @@ func (s *Store) ListRunsByArea(userID, areaID string, limit int) ([]InferenceRun
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
 			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind,
-			&r.AoiID, &r.AreaID,
+			&r.AreaID,
 		); err != nil {
 			return nil, err
 		}

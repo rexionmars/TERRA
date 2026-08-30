@@ -931,8 +931,8 @@ export function BoardSurface({
         refused to save at all: nothing survived the filter.
 
         The run each ground carries is already known -- `aoiOfRun` matches runs
-        to areas by `aoi_id`, or by ring equality for rows written before that
-        column -- so it is inverted here rather than guessed at. A ground with
+        to areas by `area_id`, or by ring equality for a run that records none
+        -- so it is inverted here rather than guessed at. A ground with
         no run behind it still resolves to nothing and is still dropped, which
         is the case the filter was written for.
       */
@@ -953,7 +953,7 @@ export function BoardSurface({
             one member and lost it.
 
             The run exists; it is simply not on the result. It records its
-            `aoi_id`, so the ground answers for it the way it does for every
+            `area_id`, so the ground answers for it the way it does for every
             other area. The explicit id still wins when it is a real one, since
             a classification names the run it is showing more precisely than
             the ground can.
@@ -1038,12 +1038,12 @@ export function BoardSurface({
   }
 
   /*
-    WHICH CATALOGUED AREA EACH RUN IS OF.
+    WHICH AREA EACH RUN IS OF.
 
-    A run records it since `InferenceRun.aoi_id`; a run written before that
-    column existed does not, and is matched by its polygon instead -- it was
-    sent the drawing's exact ring, so ring equality is the honest test and
-    `sameGround` says why it is not a spatial predicate.
+    A run records it in `InferenceRun.area_id`. One that does not -- put back
+    from a shape that was never made an area -- is matched by its polygon
+    instead: it was sent the area's exact ring, so ring equality is the honest
+    test, and `sameGround` says why it is not a spatial predicate.
 
     Memoised because the fallback parses a polygon per run, and this is read
     from three places in a render that runs on every drag of a division.
@@ -1051,7 +1051,7 @@ export function BoardSurface({
   const aoiOfRun = useMemo(() => {
     const out = new Map<string, string>()
     for (const r of runs) {
-      const linked = (r.aoi_id ?? "").trim()
+      const linked = (r.area_id ?? "").trim()
       if (linked) {
         out.set(r.id, linked)
         continue

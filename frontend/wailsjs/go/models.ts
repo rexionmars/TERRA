@@ -3212,7 +3212,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EnergyModelRequest(source);
@@ -3246,7 +3246,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3579,7 +3579,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FloodRequest(source);
@@ -3597,7 +3597,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4161,7 +4161,7 @@ export namespace analysis {
 	    project_id?: string;
 	    label?: string;
 	    run_label?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictRequest(source);
@@ -4181,7 +4181,7 @@ export namespace analysis {
 	        this.project_id = source["project_id"];
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5308,7 +5308,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarRequest(source);
@@ -5324,7 +5324,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5357,7 +5357,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarSitingRequest(source);
@@ -5373,7 +5373,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5404,7 +5404,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarTerrainRequest(source);
@@ -5418,7 +5418,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5550,7 +5550,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WaterRequest(source);
@@ -5567,7 +5567,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5607,7 +5607,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WindRequest(source);
@@ -5624,7 +5624,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -6003,7 +6003,6 @@ export namespace store {
 	    label?: string;
 	    project_id?: string;
 	    kind?: string;
-	    aoi_id?: string;
 	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -6028,7 +6027,6 @@ export namespace store {
 	        this.label = source["label"];
 	        this.project_id = source["project_id"];
 	        this.kind = source["kind"];
-	        this.aoi_id = source["aoi_id"];
 	        this.area_id = source["area_id"];
 	    }
 	}

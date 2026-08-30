@@ -8,7 +8,7 @@
  *
  * WHAT THIS REPLACES, and why the replacement matters. The catalogue was a JSON
  * array inside preferences.extras_json, minted here with an `aoi:` prefix and a
- * random id. Nothing in Go had ever seen one, so a run's aoi_id pointed at a
+ * random id. Nothing in Go had ever seen one, so a run's area link pointed at a
  * value no query could resolve and no delete could cascade -- 58 runs sat in
  * one project because the frontend was the only thing that knew what an area
  * was. An area is a row now. Its id comes from the database, its name is minted

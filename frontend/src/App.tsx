@@ -1915,7 +1915,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAreaId,
+        area_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
@@ -1971,7 +1971,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAreaId,
+        area_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         climatology_years: p.climatologyYears,
@@ -2022,7 +2022,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAreaId,
+        area_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         hourly_years: solar.params.hourlyYears,
@@ -2063,7 +2063,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAreaId,
+        area_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         slope_acceptable_deg: solar.params.slopeAcceptableDeg,
@@ -2129,7 +2129,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAreaId,
+        area_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         climatology_years: p.climatologyYears,
@@ -2217,7 +2217,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAreaId,
+        area_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         record_years: w.recordYears,
@@ -2280,7 +2280,7 @@ function AppBody(props: {
       const req: FloodRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
-        aoi_id: props.activeAreaId,
+        area_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         dem_ids: floodParams.demIds,
@@ -2387,7 +2387,7 @@ function AppBody(props: {
       run_label: nameThisRun(aoiLabel),
       // See the note on the other requests: the board needs which area
       // this run is of, not only where it was made.
-      aoi_id: props.activeAreaId,
+      area_id: props.activeAreaId,
     }
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult

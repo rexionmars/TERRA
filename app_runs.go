@@ -46,7 +46,7 @@ type savedRun struct {
 	// Which catalogued area this run is OF. The polygon says where it was
 	// made; the board needs the area to keep a drawing and its runs as one
 	// subject.
-	aoiID string
+	areaID string
 
 	periodStart string
 	periodEnd   string
@@ -160,7 +160,7 @@ func (a *App) saveRun(run savedRun) string {
 		NDates:         run.nDates,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(run.projectID),
-		AoiID:          strings.TrimSpace(run.aoiID),
+		AreaID:         strings.TrimSpace(run.areaID),
 	}); err != nil {
 		// Best effort means the failure is not reported, not that it is
 		// reported as a success. The caller hands this id to the frontend as
@@ -214,7 +214,7 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 		aoiLabel:    label,
 		runLabel:    req.RunLabel,
 		projectID:   req.ProjectID,
-		aoiID:       req.AoiID,
+		areaID:      req.AreaID,
 		periodStart: req.Start,
 		periodEnd:   req.End,
 		nDates:      res.NDates,
@@ -256,7 +256,7 @@ func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnal
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		nDates:    res.Resource.NYears,
 		summary: map[string]any{
 			"ghi_annual_kwh_m2":       res.Resource.GHIAnnualKWhM2,
@@ -276,7 +276,7 @@ func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnal
 // reopening the run puts the raster back rather than only its numbers.
 func (a *App) persistSolarRaster(
 	poly *analysis.GeoJSONGeometry,
-	label, runLabel, projectID, aoiID, kindTag, variant string,
+	label, runLabel, projectID, areaID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
 ) string {
 	if payload == nil {
@@ -290,7 +290,7 @@ func (a *App) persistSolarRaster(
 		aoiLabel:  l,
 		runLabel:  runLabel,
 		projectID: projectID,
-		aoiID:     aoiID,
+		areaID:    areaID,
 		nDates:    nDates,
 		summary: map[string]any{
 			"solar_product": kindTag,
@@ -323,7 +323,7 @@ func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analys
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		nDates:    res.NDates(),
 		// ghi_annual_kwh_m2, optimal_tilt_deg and specific_yield are the keys
 		// the saved-run list already reads for a solar row, so the row says
@@ -366,7 +366,7 @@ func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysi
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		nDates:    res.NDates(),
 		// The qualifier and the check outcome travel with the capacity factor.
 		// A gross, unvalidated figure listed beside a benchmarked photovoltaic
@@ -479,7 +479,7 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		// Zero, and not unfilled: HAND is a static terrain index with no
 		// observation dates to count. See FloodAnalysis.NDates.
 		nDates:  res.NDates(),
@@ -535,7 +535,7 @@ func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.Predict
 		aoiLabel:    label,
 		runLabel:    req.RunLabel,
 		projectID:   req.ProjectID,
-		aoiID:       req.AoiID,
+		areaID:      req.AreaID,
 		periodStart: req.Start,
 		periodEnd:   req.End,
 		nDates:      res.NDates,

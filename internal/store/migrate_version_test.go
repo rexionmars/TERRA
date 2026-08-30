@@ -71,7 +71,7 @@ var expectedColumns = map[string][]string{
 	"users":              {"id", "email", "display_name", "password_hash", "avatar_path", "created_at", "updated_at"},
 	"sessions":           {"token", "user_id", "expires_at"},
 	"preferences":        {"user_id", "default_model", "overlay_opacity", "theme", "extras_json"},
-	"inference_runs":     {"id", "user_id", "created_at", "model_kind", "period_start", "period_end", "polygon_geojson", "status", "summary_json", "overlay_relpath", "n_dates", "result_json", "assets_relpath", "label", "project_id", "kind", "aoi_id", "area_id"},
+	"inference_runs":     {"id", "user_id", "created_at", "model_kind", "period_start", "period_end", "polygon_geojson", "status", "summary_json", "overlay_relpath", "n_dates", "result_json", "assets_relpath", "label", "project_id", "kind", "area_id"},
 	"projects":           {"id", "user_id", "name", "notes", "created_at", "updated_at", "polygon_geojson", "area_id", "label", "last_area_id"},
 	"project_overlays":   {"id", "project_id", "kind", "title", "meta_json", "png_relpath", "tif_relpath", "created_at", "run_id", "area_id"},
 	"whiteboards":        {"id", "user_id", "name", "created_at", "updated_at", "view_json", "project_id"},

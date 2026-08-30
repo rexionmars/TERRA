@@ -275,7 +275,7 @@ func (s *Store) ListRunsByProject(userID, projectID string, limit int) ([]Infere
 			        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 			        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
 			        COALESCE(project_id,''), COALESCE(kind,'classification'),
-			        COALESCE(aoi_id,''), COALESCE(area_id,'')
+			        COALESCE(area_id,'')
 			 FROM inference_runs
 			 WHERE user_id = ? AND (project_id IS NULL OR project_id = '')
 			 ORDER BY created_at DESC LIMIT ?`,
@@ -287,7 +287,7 @@ func (s *Store) ListRunsByProject(userID, projectID string, limit int) ([]Infere
 			        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 			        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
 			        COALESCE(project_id,''), COALESCE(kind,'classification'),
-			        COALESCE(aoi_id,''), COALESCE(area_id,'')
+			        COALESCE(area_id,'')
 			 FROM inference_runs
 			 WHERE user_id = ? AND project_id = ?
 			 ORDER BY created_at DESC LIMIT ?`,
@@ -305,7 +305,7 @@ func (s *Store) ListRunsByProject(userID, projectID string, limit int) ([]Infere
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
 			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind,
-			&r.AoiID, &r.AreaID,
+			&r.AreaID,
 		); err != nil {
 			return nil, err
 		}
