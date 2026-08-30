@@ -9,17 +9,19 @@
  * on a canvas a third the size, taken out of the 3D surface the studio exists
  * to show. So one, and the one that gives back more than it takes.
  *
- * It gives back because the run's progress lived INSIDE the properties column,
- * replacing every figure there for as long as a run lasted -- a reader
- * watching a classification could not read the legend of anything. Twenty-two
- * pixels once, at the foot, buys that column back.
+ * It was written to give back the properties column, which the run log used to
+ * take over for as long as a run lasted -- a reader watching a classification
+ * could not read the legend of anything. THAT DID NOT ACTUALLY HAPPEN:
+ * BoardStatsBar still swaps its whole body for the log while `running`, so the
+ * column is still spent and this strip was carrying a second copy of the same
+ * line. Removing that copy is not the fix for the column; whether the log
+ * should own the properties panel is a question about the panel.
  *
- * LEFT what the pointer does here, MIDDLE what the application is doing, RIGHT
- * what is selected. Blender's own division, and each zone answers a question a
- * reader asks without looking away from the board.
+ * LEFT what the pointer does here, RIGHT what is selected. Blender's division
+ * has a middle for what the application is doing, and this one is empty on
+ * purpose: the only thing it had to say was a run's stage, and that is drawn
+ * in the run's own card now.
  */
-import { Loader2 } from "lucide-react"
-import type { RunLogEntry } from "@/lib/runLog"
 import type { BoardStats } from "@/components/whiteboard/boardScene"
 import { useSyncExternalStore } from "react"
 import {
@@ -34,27 +36,16 @@ export const STATUS_BAR_PX = 22
 
 export function StudioStatusBar({
   stats,
-  running,
-  progress,
-  runLog,
   selected,
   total,
   areas,
-  onOpenLog,
 }: {
   /** What the surface is costing, or null before it has drawn a frame. */
   stats: BoardStats | null
-  running: boolean
-  /** 0 to 100, from the sidecar's own stages. */
-  progress: number
-  runLog: RunLogEntry[]
   selected: number
   total: number
   areas: number
-  /** Opens the full log, which the middle zone summarises to one line. */
-  onOpenLog?: () => void
 }) {
-  const stage = runLog.length ? runLog[runLog.length - 1] : null
   /*
     Which figures to draw, subscribed rather than received.
 
@@ -162,46 +153,17 @@ export function StudioStatusBar({
         </span>
       )}
 
-      <span className="flex-1" />
-
       {/*
-        MIDDLE: what the application is doing. One line, and the stack of them
-        behind a press -- the argument the run log was written with, which is
-        that a line rewriting itself several times a second costs more
-        attention than it returns while a stack read once is the only account
-        of what a run did.
-      */}
-      {running && (
-        <button
-          type="button"
-          onClick={onOpenLog}
-          title="Open the run log"
-          className="flex min-w-0 max-w-[24rem] shrink items-center gap-1.5 rounded-sm px-1.5 text-meta text-foreground transition-colors hover:bg-surface-raised"
-        >
-          <Loader2 className="size-3 shrink-0 animate-spin text-accent" strokeWidth={2} />
-          <span className="telemetry shrink-0 text-[9px] tabular-nums text-muted-foreground">
-            {Math.round(progress)}%
-          </span>
-          <span className="min-w-0 truncate">{stage?.text ?? "Running"}</span>
-          {/*
-            The bar under the line rather than beside it: a progress figure and
-            a progress bar saying the same thing twice is the duplication this
-            codebase keeps having to remove, and the bar is the one that reads
-            at a glance.
-          */}
-          <span
-            className="ml-1 h-1 w-16 shrink-0 overflow-hidden rounded-full"
-            style={{ background: "rgb(var(--p-line) / 0.35)" }}
-            aria-hidden
-          >
-            <span
-              className="block h-full bg-accent transition-[width] duration-200"
-              style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
-            />
-          </span>
-        </button>
-      )}
+        NO MIDDLE ZONE. It carried the run's stage and percentage, and the run
+        card now carries them where the run was started -- the same figure in
+        two places at once, which is the duplication this file's own comment
+        below already names.
 
+        Its button was also inert: `onOpenLog` is optional and BoardSurface has
+        never passed it, so "Open the run log" opened nothing. The full stack is
+        reachable from the card's Method panel, which reads the same log and
+        keeps it after the run ends.
+      */}
       <span className="flex-1" />
 
       {/* RIGHT: what is in the scene and how much of it is picked. */}

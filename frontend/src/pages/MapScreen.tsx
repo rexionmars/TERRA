@@ -1292,9 +1292,6 @@ export function MapScreen(props: MapScreenProps) {
               onActivateSavedAoi={props.onActivateSavedAoi}
               onRenameSavedAoi={props.onRenameSavedAoi}
               onDeleteSavedAoi={props.onDeleteSavedAoi}
-              runLog={runLog}
-              runRunning={boardRun.running}
-              runProgress={boardRun.progress}
               legendSources={{
                 result: props.result,
                 water: props.water,

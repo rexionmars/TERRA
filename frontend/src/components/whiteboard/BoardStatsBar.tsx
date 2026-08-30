@@ -12,7 +12,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { RunLogEntry } from "@/lib/runLog"
 import type { LayerLegend } from "@/lib/layerLegend"
 import type { LULCAgreement } from "@/lib/types"
 import { BOARD_RIGHT_REM } from "@/lib/boardPartition"
@@ -53,52 +52,6 @@ export interface StatsEntry {
    * catalog — those keep their run label elsewhere.
    */
   onRenameArea?: (name: string) => void
-}
-
-/**
- * What the run has said, while it is saying it.
- *
- * The progress message used to be spent on the run button's tooltip, and the
- * argument for that was sound about a single line: one that rewrites itself
- * several times a second costs more attention than it returns. A log is the
- * other thing -- each line is read once and stays, and the stack of them is the
- * only account of what the run actually did. The sidecar's stages carry their
- * own detail, and it was being thrown away several times a second.
- */
-function RunLog({ entries }: { entries: RunLogEntry[] }) {
-  const endRef = useRef<HTMLLIElement>(null)
-  useEffect(() => {
-    // Scrolled to the foot, which is where a log is read: the stage in
-    // progress is the one being waited on.
-    endRef.current?.scrollIntoView({ block: "end" })
-  }, [entries.length])
-
-  return (
-    <ul className="panel-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-2">
-      {entries.map((e, i) => (
-        <li
-          key={`${i}-${e.text}`}
-          ref={i === entries.length - 1 ? endRef : undefined}
-          className="flex items-baseline gap-2"
-        >
-          <span className="telemetry w-8 shrink-0 text-right text-[9px] text-muted-foreground">
-            {Math.round(e.at)}%
-          </span>
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-meta",
-              // The last is what is happening; the rest is what happened.
-              i === entries.length - 1
-                ? "text-foreground"
-                : "text-muted-foreground",
-            )}
-          >
-            {e.text}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 /** Auto names from the draw catalog — still editable, but read as provisional. */
@@ -387,22 +340,22 @@ function Entry({ entry }: { entry: StatsEntry }) {
   )
 }
 
+/*
+  THIS PANEL IS THE SELECTION'S, AND ONLY THE SELECTION'S.
+
+  It used to swap its whole body for the run log while a run was going, on the
+  argument that the figures it displaced were stale and the live question was
+  what the run was doing. Both halves of that were wrong in practice. The panel
+  answers "what is this raster" for a raster the reader picked, which is a
+  question they asked and are waiting on; and the run's own account belongs
+  where the run was started, which is the run card -- it draws the stack there
+  now, and keeps it behind the Method panel once the run is over.
+*/
 export function BoardStatsBar({
   entries,
-  runLog = [],
-  running = false,
 }: {
   /** The selected rasters, in the order they were picked. */
   entries: StatsEntry[]
-  /**
-   * What the run has said so far.
-   *
-   * It takes the selection panel while a run is going: the figures it
-   * displaces are STALE, and the question in front of the reader is what the
-   * run is doing now. When it finishes they come back.
-   */
-  runLog?: RunLogEntry[]
-  running?: boolean
 }) {
   const empty = (
     <p className="px-1 text-meta leading-snug text-muted-foreground">
@@ -411,9 +364,7 @@ export function BoardStatsBar({
   )
 
   const body =
-    running && runLog.length > 0 ? (
-      <RunLog entries={runLog} />
-    ) : entries.length === 0 ? (
+    entries.length === 0 ? (
       empty
     ) : (
       <div className="panel-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2">

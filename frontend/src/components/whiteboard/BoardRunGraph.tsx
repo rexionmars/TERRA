@@ -34,7 +34,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"
 import {
@@ -156,6 +156,62 @@ function Head({
       />
       <span className="eyebrow !text-[9px] truncate">{label}</span>
     </>
+  )
+}
+
+/**
+ * What the run has said, while it is saying it.
+ *
+ * MOVED HERE FROM THE PROPERTIES PANEL, which used to swap its whole body for
+ * this while a run was going. That panel answers "what is this raster" about
+ * one the reader picked, and taking it over spent an answer they were waiting
+ * on to give them one they had not asked for. The account of a run belongs
+ * beside the button that started it.
+ *
+ * A LOG RATHER THAN A LINE, and that is the point. The run band kept the stage
+ * in a tooltip, and the argument was sound about a single line: one that
+ * rewrites itself several times a second costs more attention than it returns.
+ * A stack is the other thing -- each line is read once and stays, nothing is
+ * overwritten, and it is the only account of what the run actually did. The
+ * sidecar's stages carry their own detail and it was being thrown away several
+ * times a second.
+ *
+ * Bounded and scrolled, because a card is a card: a twelve-stage water run
+ * would otherwise grow this one past the graph it sits in.
+ */
+function RunLog({ entries }: { entries: RunLogEntry[] }) {
+  const endRef = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    // Scrolled to the foot, which is where a log is read: the stage in
+    // progress is the one being waited on.
+    endRef.current?.scrollIntoView({ block: "end" })
+  }, [entries.length])
+
+  return (
+    <ul className="panel-scroll flex max-h-[7rem] flex-col gap-0.5 overflow-y-auto pr-1">
+      {entries.map((e, i) => (
+        <li
+          key={`${i}-${e.text}`}
+          ref={i === entries.length - 1 ? endRef : undefined}
+          className="flex items-baseline gap-1.5"
+        >
+          <span className="telemetry w-7 shrink-0 text-right text-[9px] tabular-nums text-muted-foreground">
+            {Math.round(e.at)}%
+          </span>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-meta",
+              // The last is what is happening; the rest is what happened.
+              i === entries.length - 1
+                ? "text-foreground"
+                : "text-muted-foreground"
+            )}
+          >
+            {e.text}
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -283,6 +339,29 @@ function useKeptPlaces() {
 export function BoardRunGraph(props: BoardRunGraphProps) {
   const busy = props.running
   const [places, move] = useKeptPlaces()
+
+  /*
+    The latest stage, read the way StudioStatusBar reads it so the card and the
+    foot cannot come to describe one run differently. `progressMsg` is the
+    fallback rather than the source: it is the newest message, the log is the
+    account, and a run that has said nothing yet has neither.
+  */
+  const stage = props.runLog?.length
+    ? props.runLog[props.runLog.length - 1].text
+    : props.progressMsg || null
+
+  /*
+    ALREADY A PERCENTAGE. The sidecar emits it that way -- `emit_progress(10,
+    'querying STAC catalog')` -- and StudioStatusBar has always read it so.
+    The run band multiplied by a hundred to build the width of its progress
+    hairline, which asked for 7900% of a bar and got a full one, so the error
+    was invisible for as long as the only reader was a width. Drawn as a
+    figure it said 7900%.
+
+    Clamped rather than trusted: a stage that reports past its own scale would
+    otherwise push the fill outside the track it is drawn in.
+  */
+  const pct = Math.round(Math.max(0, Math.min(100, props.progress)))
 
   const graph = runGraph(props.tool, props.solar ? props.solar.product : null)
 
@@ -574,14 +653,8 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           type="button"
           onClick={props.onRun}
           disabled={!props.canRun || busy}
-          /*
-            The progress message is the button's tooltip rather than a second
-            line: it changes several times a second, and a line that reflows on
-            every change costs more attention than it returns.
-          */
-          title={
-            !props.canRun ? props.blockedBy : busy ? props.progressMsg : undefined
-          }
+          // Only the reason it cannot go. What it is doing is drawn below.
+          title={!props.canRun ? props.blockedBy : undefined}
           className={cn(
             "flex w-full items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-meta transition-colors",
             "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
@@ -599,20 +672,61 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         </button>
 
         {/*
-          The progress track, drawn only while running: one at rest would
-          assert that a run exists.
+          WHAT THE RUN IS DOING, IN THE CARD THE RUN IS IN.
+
+          It was a bare hairline here and a line of words in the studio's foot,
+          which put the figure a reader is watching at the other end of the
+          board from the thing they pressed. The stage now reads where the work
+          is, and the strip at the foot keeps its copy: the two answer different
+          situations, not one twice. This is for a reader watching the run they
+          started; the strip is what they still have after going to look at a
+          raster in another area, where this card is not on screen at all.
+
+          THE REFLOW ARGUMENT IS SETTLED BY THE CARD, not abandoned. The run
+          band kept this message in a tooltip because a line rewriting itself
+          several times a second costs more attention than it returns -- and
+          the cost there was that the line was in a row that resized around it.
+          A card is a fixed width and this line truncates inside it, so the
+          words change and nothing moves.
+
+          The stage comes from the run log rather than from `progressMsg`,
+          because the foot's strip reads the log and two accounts of one run
+          that can disagree is worse than either alone.
+
+          Drawn only while running: a track at rest would assert that a run
+          exists.
         */}
         {busy && (
-          <div className="h-px w-full overflow-hidden bg-line-strong/30">
-            <div
-              className="h-full bg-accent transition-[width]"
-              style={{ width: `${Math.round(props.progress * 100)}%` }}
-              role="progressbar"
-              aria-valuenow={Math.round(props.progress * 100)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`${props.runLabel} progress`}
-            />
+          <div className="flex flex-col gap-1">
+            {props.runLog?.length ? (
+              <RunLog entries={props.runLog} />
+            ) : (
+              /*
+                Before the first stage arrives there is no log to draw, and a
+                run that has said nothing still has a percentage and a message.
+                One line here rather than an empty box, which would read as a
+                log that had failed to start.
+              */
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <span className="telemetry shrink-0 text-[9px] tabular-nums text-muted-foreground">
+                  {pct}%
+                </span>
+                <span className="min-w-0 flex-1 truncate text-meta text-foreground">
+                  {stage ?? "Running"}
+                </span>
+              </div>
+            )}
+            <div className="h-1 w-full overflow-hidden rounded-full bg-line-strong/30">
+              <div
+                className="h-full bg-accent transition-[width] duration-200"
+                style={{ width: `${pct}%` }}
+                role="progressbar"
+                aria-valuenow={pct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${props.runLabel} progress`}
+              />
+            </div>
           </div>
         )}
 

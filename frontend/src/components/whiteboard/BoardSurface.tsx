@@ -63,7 +63,6 @@ import {
 } from "@/lib/boardProbe"
 import type { ClassLegendEntry } from "@/lib/classMask"
 import { legendFor, type LegendSources } from "@/lib/layerLegend"
-import type { RunLogEntry } from "@/lib/runLog"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { modelLabel, runAssets } from "@/lib/runAssets"
 import type { CardGroup } from "@/lib/boardLayout"
@@ -397,9 +396,6 @@ export function BoardSurface({
   onDetailToggleCollapsed,
   runBar,
   runBarHeader,
-  runLog,
-  runRunning,
-  runProgress = 0,
   assets,
   runId,
   runPeriod,
@@ -489,10 +485,6 @@ export function BoardSurface({
    * Handed in for the same reason the band itself is.
    */
   runBarHeader?: AreaHeaderSlots
-  runLog?: RunLogEntry[]
-  runRunning?: boolean
-  /** 0 to 100, for the status bar's middle zone. */
-  runProgress?: number
   assets: RunAsset[]
   runId: string
   runPeriod: string
@@ -3443,8 +3435,6 @@ export function BoardSurface({
     ),
     properties: (
           <BoardStatsBar
-            runLog={runLog}
-            running={runRunning}
             entries={selection
               .map(rowTarget)
               .filter((t): t is { areaId: string; layerId: string } => !!t?.layerId)
@@ -4147,9 +4137,6 @@ export function BoardSurface({
       */}
       <StudioStatusBar
         stats={boardStats}
-        running={!!runRunning}
-        progress={runProgress}
-        runLog={runLog ?? []}
         selected={selection.length}
         total={areas.reduce((n, a) => n + a.layers.length, 0)}
         areas={areas.length}
