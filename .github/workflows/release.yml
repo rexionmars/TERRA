@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # LITE — UI + sidecar/areas/model; needs system Python
+          # LITE — UI + sidecar/model; needs system Python
           - name: macOS lite (universal)
             os: macos-latest
             platform: darwin/universal

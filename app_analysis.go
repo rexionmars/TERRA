@@ -16,15 +16,6 @@ import (
 // what the sidecar returned; persisting what came back is app_runs.go and the
 // files it wrote are app_storage.go.
 
-// ListEmbeddedAreas returns the embedded study areas (A/B/C).
-func (a *App) ListEmbeddedAreas() []analysis.Area {
-	runner := a.currentRunner()
-	if runner == nil {
-		return []analysis.Area{}
-	}
-	return runner.ListAreas()
-}
-
 // Predict runs the inference sidecar for the given request.
 func (a *App) Predict(req analysis.PredictRequest) (*analysis.PredictResult, error) {
 	runner := a.currentRunner()

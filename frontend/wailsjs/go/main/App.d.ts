@@ -92,8 +92,6 @@ export function ListAreas(arg1:string):Promise<Array<store.Area>>;
 
 export function ListDataCube(arg1:analysis.DataCubeRequest):Promise<analysis.DataCubeResult>;
 
-export function ListEmbeddedAreas():Promise<Array<analysis.Area>>;
-
 export function ListOptionalPackages():Promise<Array<pyenv.OptionalPackage>>;
 
 export function ListProjectOverlays(arg1:string):Promise<Array<store.ProjectOverlay>>;

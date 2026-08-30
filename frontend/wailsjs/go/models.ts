@@ -1,19 +1,5 @@
 export namespace analysis {
 	
-	export class GeoJSONGeometry {
-	    type: string;
-	    coordinates: number[][][];
-	
-	    static createFrom(source: any = {}) {
-	        return new GeoJSONGeometry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.type = source["type"];
-	        this.coordinates = source["coordinates"];
-	    }
-	}
 	export class Bounds {
 	    lon_min: number;
 	    lat_min: number;
@@ -32,51 +18,6 @@ export namespace analysis {
 	        this.lat_max = source["lat_max"];
 	    }
 	}
-	export class Area {
-	    id: string;
-	    label: string;
-	    kml_name: string;
-	    approximate: boolean;
-	    centroid: number[];
-	    bounds: Bounds;
-	    mapbiomas: string;
-	    geometry: GeoJSONGeometry;
-	
-	    static createFrom(source: any = {}) {
-	        return new Area(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.label = source["label"];
-	        this.kml_name = source["kml_name"];
-	        this.approximate = source["approximate"];
-	        this.centroid = source["centroid"];
-	        this.bounds = this.convertValues(source["bounds"], Bounds);
-	        this.mapbiomas = source["mapbiomas"];
-	        this.geometry = this.convertValues(source["geometry"], GeoJSONGeometry);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
 	export class CanopyAgainstUniform {
 	    cos_zenith: number;
 	    field: number;
@@ -949,6 +890,20 @@ export namespace analysis {
 	}
 	
 	
+	export class GeoJSONGeometry {
+	    type: string;
+	    coordinates: number[][][];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoJSONGeometry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.coordinates = source["coordinates"];
+	    }
+	}
 	export class CompositeRequest {
 	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;

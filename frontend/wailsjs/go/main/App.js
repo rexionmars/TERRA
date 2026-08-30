@@ -174,10 +174,6 @@ export function ListDataCube(arg1) {
   return window['go']['main']['App']['ListDataCube'](arg1);
 }
 
-export function ListEmbeddedAreas() {
-  return window['go']['main']['App']['ListEmbeddedAreas']();
-}
-
 export function ListOptionalPackages() {
   return window['go']['main']['App']['ListOptionalPackages']();
 }

@@ -16,7 +16,6 @@ import {
 import { AccentLab } from "@/components/AccentLab"
 import { useTheme } from "next-themes"
 import {
-  ListEmbeddedAreas,
   LoadAnalysis,
   Predict,
   AnalyzeLULC,
@@ -243,7 +242,21 @@ function parseRunPolygon(
 
 function App() {
   const period = useMemo(defaultPeriod, [])
-  const [areas, setAreas] = useState<Area[]>([])
+  /*
+    EMPTY, AND ABOUT TO GO. These were the three embedded example areas -- A, B
+    and C -- loaded from geojson files beside the binary and offered as a second
+    way to name a ground: a run pointed either at an example or at a drawn
+    shape, and every reader had to handle both. That second path is one of the
+    duplications this change exists to remove, so the examples are gone and
+    nothing fills this list.
+
+    The state and the `activeExample` beside it survive one more step because
+    they are threaded through about a hundred places, and unpicking that in the
+    same commit as the removal would hide the removal inside it. Read from an
+    empty list, every one of those reads answers "no example", which is the
+    behaviour the application now has.
+  */
+  const [areas] = useState<Area[]>([])
   const [customPolygon, setCustomPolygon] = useState<GeoJSONGeometry | null>(null)
   const [savedAois, setSavedAois] = useState<SavedAoi[]>([])
   const [activeAoiId, setActiveAoiId] = useState<string | undefined>()
@@ -495,12 +508,6 @@ function App() {
     },
     [setTheme]
   )
-
-  useEffect(() => {
-    ListEmbeddedAreas()
-      .then((a) => setAreas((a ?? []) as unknown as Area[]))
-      .catch((e) => notifyError("Failed to load examples", e))
-  }, [])
 
   useEffect(() => {
     let cancelled = false
