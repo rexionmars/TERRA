@@ -437,63 +437,17 @@ def canopy_from_aoi(req, work_dir):
             # ~11 s and dominates; growing a plant is 0.24 s.
             if lit_row is not None:
                 try:
-                    from terra.canopy import field as cfield, helios_grow as hgrow
-                    row_az = float(req.get('row_azimuth_deg', 0.0))
-                    base_seed = int(req.get('seed', 7))
-                    n_seeds = max(1, min(int(req.get('n_seeds', 3)), 12))
-                    # One periodic module carrying one plant, so the LAI the
-                    # march integrates is the sowing's and not the plant's.
-                    module = float(np.sqrt(inter_row * inter_plant))
-                    cell = module / max(int(round(module / 0.05)), 4)
-
-                    runs = []
-                    for i in range(n_seeds):
-                        protocol.emit_progress(
-                            80 + int(15 * i / n_seeds),
-                            f'lighting canopy {i + 1} of {n_seeds}')
-                        grown = hgrow.grow(species=species_name,
-                                           days=int(round(lit_row['day'])),
-                                           seed=base_seed + i)
-                        pos, leaf_area, _m = hgrow.leaf_cloud(grown)
-                        pos = np.asarray(pos, float).copy()
-                        pos[:, 0] = np.mod(pos[:, 0] + module / 2, module)
-                        pos[:, 1] = np.mod(pos[:, 1] + module / 2, module)
-                        grid, fmeta = cfield.leaf_cloud_field(
-                            pos, leaf_area, spacing=module, cell=cell)
-                        one = cfield.light_under_sun(
-                            cfield.canopy_of(grid, fmeta), energy, el_edges,
-                            dhi_share=dhi_share, row_azimuth_deg=row_az)
-                        # THE FRACTION OF GROUND UNDER LEAF, which is the
-                        # one geometric number that tracks the answer.
-                        # Measured here at fixed LAI: sweeping the canopy's
-                        # horizontal extent moves faPAR 0.19 to 0.88 and
-                        # faPAR follows cover almost proportionally, while
-                        # sweeping its HEIGHT over a factor of 2.4 moves it
-                        # 0.020. Reported so a reader with an observed cover
-                        # -- which a nadir view gives cheaply, and which no
-                        # 3D reconstruction is needed for -- can check the
-                        # simulated canopy against the field's.
-                        one['cover'] = float(
-                            (grid.sum(axis=2) > 0).mean())
-                        one['seed'] = base_seed + i
-                        runs.append(one)
-
-                    # The median run carries the headline, so the reported
-                    # figures stay a self-consistent single canopy rather
-                    # than a mean of quantities that do not average.
-                    runs.sort(key=lambda r: r.get('fapar', 0.0))
-                    lit = dict(runs[len(runs) // 2])
-                    fapars = [float(r['fapar']) for r in runs]
-                    covers = [float(r['cover']) for r in runs]
-                    lit['ensemble'] = {
-                        'n': len(runs),
-                        'fapar_min': min(fapars),
-                        'fapar_max': max(fapars),
-                        'fapar_spread': max(fapars) - min(fapars),
-                        'cover_min': min(covers),
-                        'cover_max': max(covers),
-                        'seeds': [int(r['seed']) for r in runs],
-                    }
+                    from terra.canopy import ensemble
+                    lit = ensemble.light(
+                        species_name, lit_row['day'],
+                        inter_row=inter_row, inter_plant=inter_plant,
+                        energy=energy, el_edges=el_edges, dhi_share=dhi_share,
+                        row_azimuth_deg=protocol.request_number(
+                            req, 'row_azimuth_deg', 0.0),
+                        base_seed=protocol.request_number(req, 'seed', 7, int),
+                        n_seeds=protocol.request_number(req, 'n_seeds', 3, int),
+                        progress=protocol.emit_progress,
+                    )
                     lit['date'] = lit_row.get('date')
                     lit['day'] = lit_row.get('day')
                     payload['light'] = lit
