@@ -393,3 +393,22 @@ def test_agreement_matrix_is_predicted_by_reference():
     i_ref, i_pred = classes.index(classes[0]), classes.index(classes[1])
     assert m[i_pred, i_ref] == out["n_reference_cells"]
     assert m[i_ref, i_pred] == 0
+
+
+def test_the_reference_is_masked_to_the_footprint_and_the_legend():
+    """
+    Two masks, and both matter. Outside the AOI footprint the reference is not
+    drawn over the ground the prediction is; a class id the legend does not
+    carry would be painted from a default and read as a class it is not.
+    """
+    from terra.landcover import raster as lc_raster
+
+    reference = np.array([[3, 21], [15, 39]], dtype=np.int32)   # 15 is not in the legend
+    band = np.array([[1, 1], [1, 0]], dtype=np.int32)           # last cell outside the AOI
+
+    out = lc_raster.reference_classes(reference, band)
+
+    assert out[0, 0] == 3 and out[0, 1] == 21
+    assert out[1, 0] == -1      # unknown class
+    assert out[1, 1] == -1      # outside the footprint
+    assert reference[1, 0] == 15, 'the array it was given is not modified'

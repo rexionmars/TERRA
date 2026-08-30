@@ -205,3 +205,22 @@ def test_a_band_that_cannot_be_read_is_noted_and_not_written(matrix, capsys):
 
     captured = capsys.readouterr()
     assert captured.out == '' and captured.err == ''
+
+
+# ------------------------------------------------- the floor a confidence has
+
+
+def test_the_confidence_floor_is_one_over_the_class_count():
+    """
+    confidence is max(predict_proba), so with K classes it lives on [1/K, 1].
+    Reported as a bare percentage it reads on a 0-100 scale it does not occupy:
+    38 percent over five classes is a fifth of the way from maximum uncertainty
+    to certainty, not a third.
+    """
+    assert classify.confidence_floor(Encoder()) == pytest.approx(1.0 / 5)
+
+
+def test_no_encoder_states_no_floor_rather_than_inventing_one():
+    """The Prithvi and Temporal Transformer paths have none."""
+    assert classify.confidence_floor(None) == 0.0
+    assert classify.confidence_floor(object()) == 0.0

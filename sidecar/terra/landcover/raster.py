@@ -90,3 +90,23 @@ def write_classification_tif(classification_map, ref_profile, out_path):
     }
     with rasterio.open(out_path, 'w', **tif_profile) as dst:
         dst.write(classification_map.astype(np.int16), 1)
+
+
+def reference_classes(reference_map, valid_band, legend=MAPBIOMAS_COLORS):
+    """
+    The MapBiomas reference on the classification's own footprint and legend.
+
+    Two masks, and both matter. Cells outside the AOI footprint are dropped so
+    the reference is drawn over the same ground the prediction is, and class
+    ids the legend does not carry are dropped so a colour is never invented for
+    one: MapBiomas Collection 10 has classes this application does not render,
+    and an unknown id painted from a default reads as a class it is not.
+
+    Returns a copy; the array it was given is the reprojected reference the
+    comparison also reads.
+    """
+    classes = np.asarray(reference_map).astype(np.int32).copy()
+    classes[valid_band <= 0] = -1
+    classes[~np.isin(classes, list(legend))] = -1
+    return classes
+

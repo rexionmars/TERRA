@@ -313,3 +313,21 @@ def run(products, polygon, ref_profile, *, kind, mode, model_dir, prithvi_mode=N
     class_map, confidence = classify_from_features(
         matrix, valid, model, scaler, label_encoder)
     return Prediction(class_map, confidence, temporal, matrix)
+
+
+def confidence_floor(label_encoder):
+    """
+    The floor a confidence figure cannot go below, which is 1/K.
+
+    confidence is max(predict_proba), so with K classes it lives on [1/K, 1]
+    and never approaches zero. Reported as a bare percentage it reads on a
+    0-100 scale it does not occupy: 38 percent over five classes is a fifth of
+    the way from maximum uncertainty to certainty, not a third. The consumer
+    needs K to say that, and only this side knows it.
+
+    Zero when there is no encoder, which is the Prithvi and Temporal
+    Transformer path: no floor is stated rather than one invented.
+    """
+    classes = getattr(label_encoder, 'classes_', None) if label_encoder else None
+    return 1.0 / len(classes) if classes is not None and len(classes) else 0.0
+

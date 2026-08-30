@@ -18,9 +18,6 @@ import numpy as np
 
 from terra import protocol
 from terra.imagery import cog, sentinel2
-from terra.mapbiomas import (
-    CLASSIFIER_COLORS as MAPBIOMAS_COLORS,
-)
 
 
 # Standalone MapBiomas land-cover / land-use analysis (no Sentinel / model).
@@ -297,27 +294,11 @@ def predict(req, work_dir):
         true_color_path = str(true_color_png)
     reference_path = ''
     if mb_map is not None:
-        # Mask reference to AOI footprint (same as classification valid pixels).
-        ref_cls = mb_map.astype(np.int32).copy()
-        ref_cls[ref_band <= 0] = -1
-        # Keep only known MapBiomas legend classes.
-        known = np.isin(ref_cls, list(MAPBIOMAS_COLORS.keys()))
-        ref_cls[~known] = -1
-        lc_raster.write_overlay_png(ref_cls, reference_png)
+        lc_raster.write_overlay_png(
+            lc_raster.reference_classes(mb_map, ref_band), reference_png)
         reference_path = str(reference_png)
     mean_conf = float(confidence_map[classification_map >= 0].mean()) if np.any(classification_map >= 0) else 0.0
-    # The floor this figure cannot go below.
-    #
-    # confidence is max(predict_proba), so with K classes it lives on [1/K, 1]
-    # and never approaches zero. Reported as a bare percentage it reads on a
-    # 0-100 scale it does not occupy: 38% over five classes is a fifth of the
-    # way from maximum uncertainty to certainty, not a third. The consumer
-    # needs K to say that, and only this side knows it.
-    conf_floor = (
-        1.0 / len(label_encoder.classes_)
-        if label_encoder is not None and len(getattr(label_encoder, 'classes_', [])) > 0
-        else 0.0
-    )
+    conf_floor = classify.confidence_floor(label_encoder)
 
     lulc_payload = None
     if mapbiomas_path and Path(mapbiomas_path).exists():
