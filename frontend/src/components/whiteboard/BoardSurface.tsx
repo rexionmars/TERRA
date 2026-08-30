@@ -101,7 +101,11 @@ import type {
   PredictResult,
 } from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
-import { createBoard, tokenColor } from "@/components/whiteboard/boardScene"
+import {
+  createBoard,
+  tokenColor,
+  type BoardStats,
+} from "@/components/whiteboard/boardScene"
 import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
@@ -474,6 +478,24 @@ export function BoardSurface({
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
+  /*
+    What the board costs, polled rather than pushed.
+
+    Twice a second, which is as fast as a figure is worth reading and slow
+    enough that displaying it is not itself the load. Pushing from the scene
+    would ask React to re-render at the frame rate in order to show the frame
+    rate, and the stall being looked for would be partly this.
+
+    Null until the scene reports: on a board with nothing on it there is no
+    frame to have taken any time.
+  */
+  const [boardStats, setBoardStats] = useState<BoardStats | null>(null)
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setBoardStats(boardRef.current?.stats() ?? null)
+    }, 500)
+    return () => window.clearInterval(id)
+  }, [])
 
   /**
    * What the column is listing, and which asset it is describing.
@@ -2445,9 +2467,11 @@ export function BoardSurface({
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
         groups,
-        background: tokenColor("--p-ink", "#171717"),
-        line: tokenColor("--p-line", "#424C5A"),
-        accent: tokenColor("--p-accent", "#3578CF"),
+        // --v-*, not --p-*: the studio is a room the rasters hang in and the
+        // panels around it are a reading surface. See index.css.
+        background: tokenColor("--v-ink", "#333333"),
+        line: tokenColor("--v-line", "#F6F6F6"),
+        accent: tokenColor("--p-accent", "#ED8744"),
         // The separation in force at the moment of the build, so a plane lands
         // at its true height rather than at the base for a frame.
         gap: gapRef.current,
@@ -3941,6 +3965,7 @@ export function BoardSurface({
         legend of anything. Twenty-two pixels at the foot buys that back.
       */}
       <StudioStatusBar
+        stats={boardStats}
         running={!!runRunning}
         progress={runProgress}
         runLog={runLog ?? []}

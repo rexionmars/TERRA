@@ -1,6 +1,11 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
+import { selectPanel } from "@/lib/panelSelection"
+import {
+  TELEMETRY_DEFAULT,
+  setStudioTelemetry,
+} from "@/lib/studioTelemetry"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import type { Whiteboard } from "@/lib/whiteboards"
 import { listWhiteboards, openWhiteboard } from "@/lib/whiteboards"
@@ -8,6 +13,7 @@ import {
   restoreBoard,
   writeBoardMemory,
 } from "@/components/whiteboard/boardMemory"
+import { AccentLab } from "@/components/AccentLab"
 import { useTheme } from "next-themes"
 import {
   ListEmbeddedAreas,
@@ -342,6 +348,13 @@ function App() {
       const extras = parsePreferenceExtras(p.extras_json)
       setSavedAois(extras.saved_aois ?? [])
       setActiveAoiId(extras.active_aoi_id)
+      /*
+        Into a module rather than into state: the readers are the studio's
+        status bar and the scene, and the scene is not React. Seeded here
+        because this is where preferences arrive, and absent means none --
+        which is what a reader who has never opened the setting should get.
+      */
+      setStudioTelemetry(extras.studio_telemetry ?? TELEMETRY_DEFAULT)
     },
     [setTheme]
   )
@@ -885,7 +898,6 @@ function AppBody(props: {
    * every navigation away, so local state reset the dock to the classification
    * panel on every return.
    */
-  const [leftPanel, setLeftPanel] = useState<MapToolId | null>("classify")
   /**
    * Which map layout is drawn.
    *
@@ -2700,7 +2712,7 @@ function AppBody(props: {
         goEnergy()
         return
       }
-      setLeftPanel(product)
+      selectPanel(product)
       startNewClassification()
     },
     [goEnergy, startNewClassification]
@@ -3003,7 +3015,7 @@ function AppBody(props: {
       } else if (groupId === "analysis") {
         openProjectHub()
       } else {
-        if (itemId) setLeftPanel(itemId as MapToolId)
+        if (itemId) selectPanel(itemId as MapToolId)
         goMap()
       }
     },
@@ -3103,15 +3115,26 @@ function AppBody(props: {
               key="app-nav"
               hasAnalysis={!!props.result || runs.length > 0}
               onAnalysisClick={openProjectHub}
-              leftPanel={leftPanel}
-              onLeftPanelChange={setLeftPanel}
               energyTab={energyTab}
               onEnergyTabChange={setEnergyTab}
             />
           )}
         </AnimatePresence>
         <div className="relative min-h-0 min-w-0 flex-1">
-          <AnimatePresence mode="wait" initial={false}>
+          {/*
+            NOT mode="wait". Under it the leaving screen has to finish its exit
+            before the arriving one is allowed to mount, so every change of
+            screen was 240ms of an empty stage followed by the mount -- and the
+            mount is the expensive half, since a screen here builds leaflet, its
+            overlays and sometimes the studio. Serialised by construction, and
+            felt as the transition being slow rather than as the animation being
+            long.
+
+            Without it the two overlap. They are both `absolute inset-0`, so
+            overlapping is what the layout already expects, and the arriving
+            screen starts building at the moment it is asked for.
+          */}
+          <AnimatePresence initial={false}>
             {screen === "map" && (
               <motion.div
                 key="screen-map"
@@ -3155,11 +3178,9 @@ function AppBody(props: {
                   solarProgress={solar.run.progress}
                   solarProgressMsg={solar.run.message}
                   initialView={initialMapView}
-                  leftPanel={leftPanel}
                   layoutMode={layoutMode}
                   onLayoutModeChange={changeLayoutMode}
                   onNavigate={navigateTo}
-                  onLeftPanelChange={setLeftPanel}
                   areas={props.areas}
                   activeExample={props.activeExample}
                   customPolygon={props.customPolygon}
@@ -3458,6 +3479,8 @@ function AppBody(props: {
           )}
         </div>
       </div>
+      {/* TEMPORARY: accent lab. Delete this line and AccentLab.tsx. */}
+      {import.meta.env.DEV && <AccentLab />}
     </div>
   )
 }

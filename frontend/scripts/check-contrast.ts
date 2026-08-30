@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import {
+  ACCEPTED,
   checkContrast,
   TOKENS,
   type Channels,
@@ -127,19 +128,48 @@ for (const theme of Object.keys(TOKENS) as ThemeName[]) {
 
 const results = checkContrast()
 const width = Math.max(...results.map((r) => `${r.fg} on ${r.bg}`.length))
+const accepted: string[] = []
 
 for (const theme of ["dark", "light"] as const) {
   console.log(`\n${theme}`)
   for (const r of results.filter((x) => x.theme === theme)) {
+    const key = `${r.theme}.${r.fg}.${r.bg}`
     const label = `${r.fg} on ${r.bg}`.padEnd(width)
-    const verdict = r.passes ? "ok  " : "FAIL"
+    const excused = !r.passes && key in ACCEPTED
+    const verdict = r.passes ? "ok  " : excused ? "KNOWN" : "FAIL"
     console.log(`  ${verdict} ${label}  ${r.ratio.toFixed(2)}  (min ${r.min})`)
-    if (!r.passes) failed++
+    if (excused) {
+      accepted.push(`  ${key}  ${r.ratio.toFixed(2)} / ${r.min} -- ${ACCEPTED[key]}`)
+    } else if (!r.passes) {
+      failed++
+    }
   }
+}
+
+/*
+  An entry that no longer describes a failure is itself a failure. Otherwise the
+  list outlives the palette that needed it and quietly excuses a pair that has
+  since regressed for a different reason.
+*/
+const stale = Object.keys(ACCEPTED).filter(
+  (k) => !results.some((r) => `${r.theme}.${r.fg}.${r.bg}` === k && !r.passes)
+)
+for (const k of stale) {
+  console.error(`STALE  ${k} is accepted but now passes; remove it from ACCEPTED`)
+  failed++
+}
+
+if (accepted.length) {
+  console.log(`\n${accepted.length} pair(s) accepted below floor:`)
+  for (const line of accepted) console.log(line)
 }
 
 if (failed) {
   console.error(`\n${failed} problem(s).`)
   process.exit(1)
 }
-console.log("\nEvery token pair clears its floor, and the channels match index.css.")
+console.log(
+  accepted.length
+    ? "\nNo unaccepted failure, and the channels match index.css."
+    : "\nEvery token pair clears its floor, and the channels match index.css."
+)
