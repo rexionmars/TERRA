@@ -44,7 +44,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 # The species plantarchitecture ships. Recorded here rather than queried lazily
 # so a caller can offer a list without instantiating the toolkit, and so a name
 # that disappears upstream fails against this list rather than deep inside a

@@ -22,21 +22,21 @@ Usage:
 
 import argparse
 import sys
+import warnings
 from pathlib import Path
 
-import numpy as np
 import joblib
+import numpy as np
 import rasterio
-from rasterio.warp import reproject, Resampling
+from rasterio.warp import Resampling, reproject
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import accuracy_score, cohen_kappa_score, f1_score
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
+import prithvi
 from terra import actions
 from terra.imagery import sentinel2
-import prithvi
 
-import warnings
 warnings.filterwarnings("ignore")
 
 # Non-observation MapBiomas ids to drop from training.

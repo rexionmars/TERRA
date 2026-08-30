@@ -44,7 +44,6 @@ import pytest
 
 import canopy_voxel as cv
 
-
 SPACING = 6.0
 Z_TOP = 3.0
 

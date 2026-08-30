@@ -134,6 +134,7 @@ def test_bare_soil_returns_a_zero_that_prints_as_zero():
     como "-0,00" de área foliar -- um dossel negativo, na leitura de quem vê.
     """
     import json
+
     import numpy as np
 
     for ndvi in (lai_ndvi.NDVI_SOIL, 0.1188, 0.05, -0.2):

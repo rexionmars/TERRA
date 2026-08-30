@@ -44,7 +44,6 @@ import numpy as np
 
 import canopy_voxel as cv
 
-
 # How far a shader marching this field may drift from the numpy march before it
 # counts as a different algorithm rather than the same one in single precision.
 #

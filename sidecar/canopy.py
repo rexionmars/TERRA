@@ -71,8 +71,7 @@ class Orchard:
         """
         k = np.arange(-half, half + 1)
         gx, gy = np.meshgrid(k * self.row_m, k * self.tree_m, indexing="ij")
-        c = np.stack([gx.ravel(), gy.ravel(), np.full(gx.size, self.cz)], axis=1)
-        return c
+        return np.stack([gx.ravel(), gy.ravel(), np.full(gx.size, self.cz)], axis=1)
 
     def sample_points(self, n, rng):
         """Pontos uniformes no volume da copa central.

@@ -15,8 +15,8 @@ written by hand inside function bodies. It now has one place to be correct.
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from terra.protocol import Request
 

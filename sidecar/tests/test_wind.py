@@ -8,9 +8,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from terra.sun import nasa_power as sun_power
 from terra.energy import wind
-
+from terra.sun import nasa_power as sun_power
 
 HOURLY_COLUMNS = ("WS2M", "WS10M", "WS50M", "WD10M", "WD50M", "T2M", "PS")
 

@@ -1,0 +1,85 @@
+# Tool configuration for the sidecar. There is no [project] table and no build
+# backend: the sidecar is shipped as files and run by path, never installed, so
+# packaging metadata here would describe something that does not happen.
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-exclude = ["__pycache__"]
+
+[tool.ruff.lint]
+# Chosen per defect, as .golangci.yml is. Each entry names what it prevents
+# from coming back; a set picked by popularity is a set nobody can defend when
+# it fires.
+select = [
+    "F",    # pyflakes: the undefined name, the unused import a cut left behind
+    "E",    # pycodestyle errors
+    "W",    # trailing whitespace, blank line at end of file
+    "I",    # import order, so a moved module does not reorder a diff
+    "B",    # bugbear: mutable default, loop-variable capture in a closure
+    "UP",   # pyupgrade
+    "RET",  # a function returning a value on one path and nothing on another
+    "NPY",  # numpy legacy random and removed aliases
+]
+ignore = [
+    "E501",  # line length is the formatter's, not the linter's
+    "E741",  # `l` is a documented symbol in several radiative-transfer papers
+    # The two below are behaviour changes wearing the clothes of style fixes,
+    # and each is a decision to take on its own rather than in a sweep.
+    "B905",   # zip(strict=): raises where ten call sites currently truncate,
+              # and whether a length mismatch is a bug differs per site
+    "NPY002", # the Generator API changes the random stream, and the values it
+              # feeds are pinned by the tests that consume them
+]
+
+[tool.ruff.lint.isort]
+# Aliased names from one module stay in one statement. Split, they become two
+# statements from the same module, and a `# noqa` attached to the first stops
+# covering the second -- which is how the deliberate late import in
+# terra/actions.py started reporting itself.
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# Every module in the package is imported by name; a test file that imports one
+# only to patch it is not importing it for nothing.
+"tests/*" = ["F401"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+warn_redundant_casts = true
+# rasterio, pvlib, pystac_client, planetary_computer and shapely ship no stubs.
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Strict by module, widening as modules are written or moved. The list only
+# grows: a module joins it in the commit that touches it. Demanding strict over
+# 10,000 lines of numpy at once produces a check that gets switched off.
+module = ["terra.protocol", "terra.registry", "terra.cli", "terra.stac"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.importlinter]
+root_package = "terra"
+
+[[tool.importlinter.contracts]]
+name = "Slices sit above the readers, readers above the catalogue and the contract"
+type = "layers"
+layers = [
+    "terra.cli",
+    "terra.registry",
+    "terra.actions",
+    "terra.energy",
+    "terra.imagery | terra.terrain | terra.sun",
+    "terra.stac",
+    "terra.protocol",
+]
+
+[[tool.importlinter.contracts]]
+name = "The sun service knows nothing about the products that read it"
+type = "forbidden"
+source_modules = ["terra.sun"]
+forbidden_modules = ["terra.energy", "terra.actions", "terra.registry", "terra.cli"]

@@ -99,7 +99,7 @@ def extract(ctx, organ_uuids=None):
         labels = [by_uuid.get(u, "other") for u in uuids]
 
     out = {}
-    for i, (u, lab) in enumerate(zip(uuids, labels)):
+    for i, (_uuid, lab) in enumerate(zip(uuids, labels)):
         v = flat[offsets[i]:offsets[i + 1]].reshape(-1, 3)
         d = out.setdefault(lab, {"tris": [], "centroids": [], "areas": [],
                                  "normals": []})

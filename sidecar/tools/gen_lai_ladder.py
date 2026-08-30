@@ -125,7 +125,7 @@ def main() -> int:
         print(f"\n{species}")
         got = walk(species)
         if got is None:
-            print(f"  (nada cresceu; fora da tabela)")
+            print("  (nada cresceu; fora da tabela)")
             continue
         table[species] = got
         p = got["plateau_day"]

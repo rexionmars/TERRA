@@ -41,7 +41,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 # A soy or maize field, as a starting point. Every one of them is calibration.
 NDVI_SOIL = 0.15
 NDVI_INF = 0.90

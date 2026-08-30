@@ -171,8 +171,8 @@ def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
     AOIs inside one POWER cell then missed each other and each paid the roughly
     23 s hourly fetch, so the reuse the cache states it guarantees did not hold.
     """
-    from terra.sun import nasa_power as sun_power
     from terra.energy import wind  # noqa: F401
+    from terra.sun import nasa_power as sun_power
 
     a = (-53.5048, -25.7434)
     b = (-53.5362, -25.5)
@@ -235,8 +235,9 @@ def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
 
 def test_the_cached_power_series_is_reused_across_the_cell_not_the_centroid():
     """The cache miss the coarser key removes, measured on two real centroids."""
-    import pandas as pd
     import tempfile
+
+    import pandas as pd
 
     frame = pd.DataFrame({"ALLSKY_SFC_SW_DWN": [1.0]})
     calls = []
@@ -532,7 +533,7 @@ def _flood_reads(height=48, width=52):
 
     fine = _flood_valley(height, width, width / 2, 1.0)
     rng = np.random.default_rng(7)
-    reads = [
+    return [
         dem.ProductRead(product=dem.resolve("cop30"), array=fine,
                         grid=reference, reference=reference, resampled=False),
         dem.ProductRead(product=dem.resolve("nasadem"),
@@ -546,7 +547,6 @@ def _flood_reads(height=48, width=52):
                                             width / 6, 3.0, along_slope=0.03),
                         grid=coarse, reference=reference, resampled=True),
     ]
-    return reads
 
 
 def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypatch,
@@ -559,8 +559,9 @@ def test_the_flood_envelope_action_answers_under_its_own_key(tmp_path, monkeypat
     against arrives under "flood", and the agreement raster leaves as files
     because it cannot travel as JSON.
     """
-    from terra.terrain import dem
     import rasterio
+
+    from terra.terrain import dem
 
     reads = _flood_reads()
     monkeypatch.setattr(dem, "fetch_set", lambda *a, **k: reads)

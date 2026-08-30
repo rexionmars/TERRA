@@ -53,8 +53,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from terra.terrain import hand
 from terra import stac
+from terra.terrain import hand
 
 
 @dataclass(frozen=True)

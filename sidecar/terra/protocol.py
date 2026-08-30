@@ -16,11 +16,10 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any
 
 Request = dict[str, Any]
-
-_T = TypeVar('_T')
 
 
 def emit_progress(progress: int, msg: str) -> None:
@@ -70,10 +69,10 @@ def require_torch(product: str) -> None:
 # threshold became the wind default. Every numeric parameter is read through
 # these two helpers so the pattern cannot come back one call site at a time.
 
-def request_number(
+def request_number[T](
     req: Request,
     key: str,
-    default: _T,
+    default: T,
     cast: Callable[[Any], Any] = float,
 ) -> Any:
     """
@@ -89,10 +88,10 @@ def request_number(
     return cast(value)
 
 
-def request_positive(
+def request_positive[T](
     req: Request,
     key: str,
-    default: _T,
+    default: T,
     cast: Callable[[Any], Any] = float,
     allow_zero: bool = False,
 ) -> Any:

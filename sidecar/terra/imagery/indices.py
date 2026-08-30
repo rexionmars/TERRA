@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
+
 def calculate_ndvi(nir, red):
     with np.errstate(divide='ignore', invalid='ignore'):
         ndvi = (nir - red) / (nir + red)

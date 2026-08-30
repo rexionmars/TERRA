@@ -110,8 +110,9 @@ def test_a_flat_season_stays_flat_on_the_shared_domain():
     )
 
     # and the colours follow: winter moves further than summer on one domain
-    travel = lambda a: _colour_travel(overlays_mod.terrain_rgba(
-        a, valid, shared["min"], shared["max"], shared["palette"]))
+    def travel(a):
+        return _colour_travel(overlays_mod.terrain_rgba(
+            a, valid, shared["min"], shared["max"], shared["palette"]))
     assert travel(winter) > travel(summer)
 
 

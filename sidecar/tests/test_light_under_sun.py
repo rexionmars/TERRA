@@ -68,8 +68,12 @@ def test_energy_weighting_is_what_distinguishes_this_from_reference_suns(slab):
     não para descrever um céu.
     """
     el_edges = np.arange(0.0, 91.0, 1.0)
-    mostly_high = np.zeros((16, 90)); mostly_high[0, 80] = 9.0; mostly_high[0, 20] = 1.0
-    mostly_low = np.zeros((16, 90)); mostly_low[0, 80] = 1.0; mostly_low[0, 20] = 9.0
+    mostly_high = np.zeros((16, 90))
+    mostly_high[0, 80] = 9.0
+    mostly_high[0, 20] = 1.0
+    mostly_low = np.zeros((16, 90))
+    mostly_low[0, 80] = 1.0
+    mostly_low[0, 20] = 9.0
     a = cf.light_under_sun(slab, mostly_high, el_edges)
     b = cf.light_under_sun(slab, mostly_low, el_edges)
     assert b["fapar"] > a["fapar"]

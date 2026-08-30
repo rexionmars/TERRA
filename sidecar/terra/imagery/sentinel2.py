@@ -25,12 +25,13 @@ from datetime import datetime
 
 import numpy as np
 import rasterio
+from pyproj import Transformer
 from rasterio.mask import mask as rio_mask
 from rasterio.warp import Resampling, reproject
-from pyproj import Transformer
 from shapely.ops import transform as shp_transform
 
 from terra import stac
+
 
 def list_sentinel_products(data_path, tile_list=None):
     """List Sentinel-2 SAFE directories, deduplicating by date (from notebooks)."""

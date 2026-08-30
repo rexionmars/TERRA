@@ -145,5 +145,26 @@ jobs:
         # nothing inside a directory added later.
         run: python -m compileall -q sidecar
 
+      - name: Ruff
+        # The rule set is chosen per defect in sidecar/pyproject.toml, as the
+        # Go check set is in .golangci.yml. Formatting is not checked: the
+        # formatter would rewrite 57 files, which is a decision of its own.
+        working-directory: sidecar
+        run: ruff check .
+
+      - name: Mypy
+        # Strict by module, and the list only grows. Checking the whole package
+        # would report 25 errors in code nobody has annotated yet, which is how
+        # a type check becomes a step people learn to ignore.
+        working-directory: sidecar
+        run: mypy terra/protocol.py terra/registry.py terra/cli.py terra/stac.py
+
+      - name: Import contracts
+        # The layers the migration was carried out to make true. Run from the
+        # sidecar directory because terra is importable from there and nowhere
+        # else.
+        working-directory: sidecar
+        run: lint-imports --config pyproject.toml
+
       - name: Pytest
         run: pytest sidecar/tests -q

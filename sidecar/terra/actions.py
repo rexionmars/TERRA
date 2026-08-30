@@ -43,21 +43,20 @@ Result (stdout, single JSON object):
     }
 """
 
-import sys
 import json
-from pathlib import Path
-from datetime import datetime
+import sys
+import warnings
 import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
+from pathlib import Path
 
+import joblib
 import numpy as np
 import rasterio
-from rasterio.warp import reproject, Resampling
-from rasterio.windows import from_bounds
-from shapely.geometry import Polygon, shape
 from pyproj import Transformer
-import joblib
+from rasterio.warp import Resampling, reproject
+from shapely.geometry import Polygon, shape
 
-import warnings
 warnings.filterwarnings('ignore')
 
 SOJA_CLASS_ID = 39
@@ -70,12 +69,10 @@ from class_palette import (  # noqa: E402
     CLASSIFIER_LEGEND as MAPBIOMAS_LEGEND,
 )
 
-
 # The stdin/stdout/stderr contract, and the two readers every numeric
 # request parameter goes through.
 from terra import protocol  # noqa: E402
 from terra.imagery import cog, indices, sentinel2  # noqa: E402
-
 
 # --- Polygon / study area --------------------------------------------------
 
@@ -396,6 +393,7 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir):
     """Classify with the mestrado Temporal Transformer (T×6 reflectance)."""
     protocol.require_torch("The Temporal Transformer")
     import torch
+
     import temporal_transformer as tt
 
     ckpt_path = Path(model_dir) / "tt_mapbiomas.pt"
@@ -945,8 +943,8 @@ def cached_power_series(cache_dir, product, lon, lat, start, end, params,
     Returns (frame, provenance).
     """
     import hashlib
+
     import pandas as pd
-    from datetime import datetime, timezone
 
     def _record(source, fetched_utc, path=None):
         return {
@@ -969,7 +967,8 @@ def cached_power_series(cache_dir, product, lon, lat, start, end, params,
             ),
         }
 
-    now = lambda: datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    def now():
+        return datetime.now(UTC).replace(microsecond=0).isoformat()
     cell = power_cell_key(lon, lat)
 
     if cache_dir is None:
@@ -1043,11 +1042,12 @@ def compute_siting(polygon, work_dir, slope_acceptable, slope_restrictive,
     Stages are reported through progress(stage, message) with stage one of
     SITING_STAGES; each caller maps the stage onto its own progress scale.
     """
-    from terra.energy import siting as siting_mod
-    from terra.terrain import dem as terrain_dem, slope as terrain_slope
-    import lulc as lulc_mod
     import rasterio
     from rasterio.features import geometry_mask
+
+    import lulc as lulc_mod
+    from terra.energy import siting as siting_mod
+    from terra.terrain import dem as terrain_dem, slope as terrain_slope
 
     def stage(name, msg):
         if progress:
@@ -1578,8 +1578,8 @@ def action_canopy_from_aoi(req, work_dir):
         protocol.emit_progress(70, 'reading the solar record for this cell')
         try:
             from terra.sun import (
-                position as sun_position,
                 nasa_power as sun_power,
+                position as sun_position,
                 record as sun_record,
             )
             cell_lon, cell_lat = sun_power.request_point(float(lon), float(lat))
@@ -1815,13 +1815,14 @@ def action_list_datacube(req, work_dir):
 
 # Solar resource and photovoltaic yield at the AOI centroid (no imagery).
 def action_solar_resource(req, work_dir):
+    from datetime import date as _date
+
     from terra.energy import pv as pv_mod
     from terra.sun import (
-        position as sun_position,
         nasa_power as sun_power,
+        position as sun_position,
         record as sun_record,
     )
-    from datetime import date as _date
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
@@ -1974,20 +1975,22 @@ def action_solar_resource(req, work_dir):
 
 # Terrain-resolved plane-of-array irradiation over the AOI.
 def action_solar_terrain(req, work_dir):
+    from datetime import date as _date
+
+    import rasterio
+
+    import composite as comp
     from terra.energy import (
         overlays as overlays_mod,
-        terrain_irradiance as poa_mod,
         seasons as seasons_mod,
+        terrain_irradiance as poa_mod,
     )
     from terra.sun import (
-        position as sun_position,
         nasa_power as sun_power,
+        position as sun_position,
         record as sun_record,
     )
     from terra.terrain import dem as terrain_dem, slope as terrain_slope
-    import composite as comp
-    import rasterio
-    from datetime import date as _date
 
     cog.configure()
     if not req.get('polygon_geojson'):
@@ -2035,7 +2038,8 @@ def action_solar_terrain(req, work_dir):
     c1 = c0 + int(aoi_window.width)
     if r1 <= r0 or c1 <= c0:
         protocol.fail('the DEM window does not overlap the AOI')
-    _crop = lambda a: a[r0:r1, c0:c1]
+    def _crop(a):
+        return a[r0:r1, c0:c1]
     elevation = _crop(elevation)
     slope, aspect = _crop(slope), _crop(aspect)
     horizon = horizon[r0:r1, c0:c1, :]
@@ -2245,9 +2249,10 @@ def action_solar_terrain(req, work_dir):
 
 # Photovoltaic siting from slope limits and land-cover eligibility.
 def action_solar_siting(req, work_dir):
-    from terra.energy import siting as siting_mod
-    import composite as comp
     import rasterio
+
+    import composite as comp
+    from terra.energy import siting as siting_mod
 
     cog.configure()
     if not req.get('polygon_geojson'):
@@ -2319,15 +2324,15 @@ def action_solar_siting(req, work_dir):
 # Runs on the same POWER series as solar_resource, read from the cache when
 # that action has already been run for this cell.
 def action_energy_model(req, work_dir):
-    from terra.energy import pv as pv_mod, siting as siting_mod
+    from datetime import date as _date
+
+    from terra.energy import pv as pv_mod, pv_plant as energy_mod, siting as siting_mod
     from terra.sun import (
-        position as sun_position,
         nasa_power as sun_power,
+        position as sun_position,
         record as sun_record,
     )
     from terra.terrain import slope as terrain_slope
-    from terra.energy import pv_plant as energy_mod
-    from datetime import date as _date
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
@@ -2653,9 +2658,10 @@ def action_energy_model(req, work_dir):
 
 # Wind resource screening at the AOI centroid, from POWER hourly MERRA-2.
 def action_wind_resource(req, work_dir):
+    from datetime import date as _date
+
     from terra.energy import wind as wind_mod
     from terra.sun import nasa_power as sun_power
-    from datetime import date as _date
 
     if not req.get('polygon_geojson'):
         protocol.fail('no polygon provided (polygon_geojson required)')
@@ -2903,8 +2909,8 @@ def action_flood_envelope(req, work_dir):
     # and one missing dependency would fail the sidecar for every product
     # instead of for this one.
     import composite as comp
-    from terra.terrain import dem as dem_mod
     import flood as flood_mod
+    from terra.terrain import dem as dem_mod
 
     cog.configure()
 
@@ -3228,8 +3234,8 @@ def action_flood_envelope(req, work_dir):
 
 # Surface water / flood mapping from spectral water indices (no model).
 def action_water(req, work_dir):
-    import water as water_mod
     import composite as comp
+    import water as water_mod
 
     cog.configure()
     start = req.get('start')
@@ -3260,7 +3266,6 @@ def action_water(req, work_dir):
     # The reference grid comes from B04 at 10 m, as in the predict path.
     ref_band, ref_profile = sentinel2.load_and_clip_band(products[0], 'B04', polygon)
     aoi_valid = ref_band > 0
-    needed = water_mod.INDEX_BANDS[index_name]
 
     series = []
     masks = []
@@ -3379,7 +3384,10 @@ def action_render_composite(req, work_dir):
     start = req.get('start')
     end = req.get('end')
     max_cloud = float(req.get('max_cloud', 100.0))
-    monthly_best = bool(req.get('monthly_best', True))
+    # monthly_best arrives in the request and cannot be honoured here:
+    # matching scene_id needs every scene, so both searches below pass False.
+    # The Go side still sends it, because CompositeRequest shares its shape
+    # with the requests that do use it.
     tiles = req.get('tiles') or None
     scene_id = (req.get('scene_id') or '').strip()
     kind = (req.get('kind') or 'rgb').strip().lower()
@@ -3708,8 +3716,8 @@ def action_predict(req, work_dir):
         )
 
     protocol.emit_progress(88, 'computing vegetation index series and phenology')
-    import phenology as pheno
     import composite as comp
+    import phenology as pheno
     # The classification is already built above, so the crop pixels are known
     # before the index is averaged and the masked series costs one extra mean
     # per date rather than a second pass over the scenes.

@@ -14,27 +14,25 @@ from __future__ import annotations
 import json
 import math
 import re
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from terra.energy import pv_plant as energy
-from terra.energy import pv as pv_mod, seasons as seasons_mod
+from terra.energy import pv as pv_mod, pv_plant as energy, seasons as seasons_mod
 from terra.sun import (
-    position as sun_position,
     nasa_power as sun_power,
+    position as sun_position,
     record as sun_record,
 )
-
 
 SITE_LAT = -25.0
 SITE_LON = -53.5
 
 
-@lru_cache(maxsize=None)
+@cache
 def _synthetic_site() -> dict:
     """Two complete calendar years of hourly irradiance, solar position and
     photovoltaic output, built the way infer.py builds them.
@@ -1226,7 +1224,7 @@ requires_reference_series = pytest.mark.skipif(
 )
 
 
-@lru_cache(maxsize=None)
+@cache
 def _reference_site() -> dict:
     hourly = pd.read_parquet(REFERENCE_HOURLY)
     daily = pd.read_parquet(REFERENCE_DAILY)

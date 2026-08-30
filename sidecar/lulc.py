@@ -10,18 +10,18 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
-from rasterio.mask import mask as rio_mask
-from rasterio.warp import reproject, Resampling
-from shapely.geometry import mapping, shape
-from shapely.ops import transform as shp_transform
 from pyproj import Transformer
+from rasterio.mask import mask as rio_mask
+from shapely.geometry import mapping
+from shapely.ops import transform as shp_transform
 
 # Extended MapBiomas Coleção 10 legend (classes seen on PR farms + study targets).
-from class_palette import MAPBIOMAS_LEGEND  # noqa: E402,F401
-
 # Shared with the classification path so both render a class id identically;
 # see class_palette.py.
-from class_palette import MAPBIOMAS_COLORS  # noqa: E402,F401
+from class_palette import (
+    MAPBIOMAS_COLORS,  # noqa: E402,F401
+    MAPBIOMAS_LEGEND,  # noqa: E402,F401
+)
 
 LULC_GROUP = {
     3: "Natural vegetation",

@@ -20,8 +20,8 @@ import rasterio
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from terra.terrain import dem
 from terra import stac
+from terra.terrain import dem
 
 # One arcsecond, the spacing of every 30 m product in the set.
 ARCSEC = 1.0 / 3600.0

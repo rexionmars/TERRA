@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import numpy as np
 
+
 def pixel_size_m(transform, lat: float) -> tuple[float, float]:
     """Approximate pixel dimensions in metres for a geographic grid."""
     dx_deg, dy_deg = abs(transform.a), abs(transform.e)

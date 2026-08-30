@@ -8,11 +8,14 @@ and the payload it decodes, and everything downstream is given a frame.
 
 from __future__ import annotations
 
-
 import numpy as np
 import pandas as pd
 
-from terra.sun import nasa_power as sun_power, position as sun_position, record as sun_record
+from terra.sun import (
+    nasa_power as sun_power,
+    position as sun_position,
+    record as sun_record,
+)
 
 
 def test_fill_value_becomes_nan():

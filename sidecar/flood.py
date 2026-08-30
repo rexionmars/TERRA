@@ -528,7 +528,6 @@ def measure(dems, dx, dy, thresholds_m=THRESHOLDS_M, drainage_km2=DRAINAGE_REF_K
 
     _check(sources, dx, dy, thresholds, drainage_km2, grid, buffer_m, aoi_mask)
 
-    shape = sources[0].z.shape
     aoi = np.asarray(aoi_mask, dtype=bool)
     aoi_cells = int(aoi.sum())
     margin = resolve_inset_margin(bbox_shape(aoi), dx, inset_margin_cells)

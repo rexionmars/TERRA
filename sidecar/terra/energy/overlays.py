@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 
+
 def terrain_rgba(
     values: np.ndarray,
     valid: np.ndarray,
