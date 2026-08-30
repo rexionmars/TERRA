@@ -220,7 +220,7 @@ def occurrence_to_rgba(occ: np.ndarray) -> np.ndarray:
     same as one that is permanently flooded, and any legend beside it would be
     wrong. Unobserved pixels are transparent.
     """
-    import composite as comp
+    from terra.imagery import composite as comp
 
     seen = np.isfinite(occ)
     t = np.clip(np.nan_to_num(occ, nan=0.0), 0.0, 1.0).astype(np.float32)

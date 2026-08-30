@@ -13,7 +13,7 @@ from pathlib import Path
 SIDECAR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SIDECAR))
 
-import composite as comp  # noqa: E402
+from terra.imagery import composite as comp  # noqa: E402
 
 ORDER = ["rdylgn", "blues", "inferno", "viridis", "rdbu_r"]
 OUT = SIDECAR.parent / "frontend" / "src" / "lib" / "palettes.ts"

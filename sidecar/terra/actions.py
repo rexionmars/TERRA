@@ -298,7 +298,7 @@ def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None):
     AOI-wide one is what every existing export and figure already carries;
     narrowing it in place would move numbers nobody asked to move.
     """
-    import composite as comp
+    from terra.imagery import composite as comp
 
     series = []
     crop_series = []
@@ -1979,12 +1979,12 @@ def action_solar_terrain(req, work_dir):
 
     import rasterio
 
-    import composite as comp
     from terra.energy import (
         overlays as overlays_mod,
         seasons as seasons_mod,
         terrain_irradiance as poa_mod,
     )
+    from terra.imagery import composite as comp
     from terra.sun import (
         nasa_power as sun_power,
         position as sun_position,
@@ -2251,8 +2251,8 @@ def action_solar_terrain(req, work_dir):
 def action_solar_siting(req, work_dir):
     import rasterio
 
-    import composite as comp
     from terra.energy import siting as siting_mod
+    from terra.imagery import composite as comp
 
     cog.configure()
     if not req.get('polygon_geojson'):
@@ -2888,7 +2888,7 @@ def agreement_rgba(counts, n_products, inside=None):
     the AOI plus its buffer, and an overlay that covers more ground than the
     figures beside it invites the reader to attribute those figures to it.
     """
-    import composite as comp
+    from terra.imagery import composite as comp
 
     t = np.clip(counts.astype(np.float32) / max(int(n_products), 1), 0.0, 1.0)
     rgb = comp._lerp_cmap(t, comp._BLUES)
@@ -2908,8 +2908,8 @@ def action_flood_envelope(req, work_dir):
     # the terrain chain; at module scope every action would pay those imports,
     # and one missing dependency would fail the sidecar for every product
     # instead of for this one.
-    import composite as comp
     import flood as flood_mod
+    from terra.imagery import composite as comp
     from terra.terrain import dem as dem_mod
 
     cog.configure()
@@ -3234,8 +3234,8 @@ def action_flood_envelope(req, work_dir):
 
 # Surface water / flood mapping from spectral water indices (no model).
 def action_water(req, work_dir):
-    import composite as comp
     import water as water_mod
+    from terra.imagery import composite as comp
 
     cog.configure()
     start = req.get('start')
@@ -3378,7 +3378,7 @@ def action_water(req, work_dir):
 
 # RGB / false-color composite or spectral index for one STAC scene.
 def action_render_composite(req, work_dir):
-    import composite as comp
+    from terra.imagery import composite as comp
 
     cog.configure()
     start = req.get('start')
@@ -3716,8 +3716,8 @@ def action_predict(req, work_dir):
         )
 
     protocol.emit_progress(88, 'computing vegetation index series and phenology')
-    import composite as comp
     import phenology as pheno
+    from terra.imagery import composite as comp
     # The classification is already built above, so the crop pixels are known
     # before the index is averaged and the masked series costs one extra mean
     # per date rather than a second pass over the scenes.

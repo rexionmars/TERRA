@@ -31,7 +31,7 @@ def terrain_rgba(
     only be compared if they were drawn on the same one, and this function sees
     a single array. `render_scale` owns that decision.
     """
-    import composite as comp
+    from terra.imagery import composite as comp
 
     if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
         vmin = 0.0 if not np.isfinite(vmin) else float(vmin)

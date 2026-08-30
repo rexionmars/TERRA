@@ -33,9 +33,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, cohen_kappa_score, f1_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-import prithvi
-from terra import actions
-from terra.imagery import sentinel2
+SIDECAR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SIDECAR))
+
+import prithvi  # noqa: E402
+from terra import actions  # noqa: E402
+from terra.imagery import sentinel2  # noqa: E402
 
 warnings.filterwarnings("ignore")
 

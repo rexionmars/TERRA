@@ -2,7 +2,7 @@
 
 import numpy as np
 
-import composite
+from terra.imagery import composite
 
 
 def test_percentile_stretch_basic():

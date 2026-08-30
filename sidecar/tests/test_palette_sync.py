@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import composite as comp
+from terra.imagery import composite as comp
 
 PALETTES_TS = (
     Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "palettes.ts"

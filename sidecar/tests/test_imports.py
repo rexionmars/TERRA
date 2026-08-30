@@ -162,9 +162,12 @@ def _importable(name):
         return None
 
 
+# tools/ is included: those scripts reach across the package boundary -- the
+# Prithvi training script reads terra.actions and terra.imagery.sentinel2 --
+# and nothing else checks that the names they read are still there.
 SOURCES = sorted(
     p for p in SIDECAR.rglob('*.py')
-    if 'tests' not in p.parts and 'tools' not in p.parts and '__pycache__' not in p.parts
+    if 'tests' not in p.parts and '__pycache__' not in p.parts
 )
 
 

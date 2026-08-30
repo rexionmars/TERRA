@@ -142,7 +142,7 @@ def test_irradiation_does_not_use_the_vegetation_ramp():
     wrong for a physical quantity and is the ramp NDVI already uses, so a solar
     overlay drawn with it is indistinguishable from a vegetation overlay.
     """
-    import composite as comp
+    from terra.imagery import composite as comp
 
     assert overlays_mod.PALETTE_IRRADIATION == "inferno"
     assert overlays_mod.PALETTE_SHADING == "viridis"

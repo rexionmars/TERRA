@@ -15,6 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+
 def annual_totals(daily: pd.DataFrame, column: str = "ALLSKY_SFC_SW_DWN") -> pd.Series:
     """
     Annual sums over complete calendar years only.
