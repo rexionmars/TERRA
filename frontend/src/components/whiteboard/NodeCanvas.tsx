@@ -34,8 +34,24 @@ export interface CanvasNode {
   h: number
   header: React.ReactNode
   children: React.ReactNode
-  /** The card the others arrive at, lit so the eye finds the end of the graph. */
-  accent?: boolean
+  /**
+   * How the card is lit, and the two are DIFFERENT CLAIMS.
+   *
+   * "action" is the card the others arrive at, so the eye finds the end of the
+   * graph. Its header is filled.
+   *
+   * "held" is a card that is carrying something -- an area has been drawn or
+   * chosen -- against the same card when it is empty. It is OUTLINED and never
+   * filled, because a fill here would read as a second run button, and because
+   * the difference between "this is the action" and "this has a value" has to
+   * survive both being lit at once. The accent is the only colour this chassis
+   * has to say either with, so the shapes carry the distinction.
+   *
+   * Absent is a card with nothing to report about itself: the period and the
+   * model always hold a value, so lighting them would be a light that is
+   * always on.
+   */
+  tone?: "action" | "held"
 }
 
 interface View {
@@ -310,7 +326,11 @@ export function NodeCanvas({
             key={n.id}
             className={cn(
               "absolute rounded-md border shadow-lg",
-              n.accent ? "border-accent/60" : "border-line-strong/45"
+              n.tone === "action"
+                ? "border-accent/60"
+                : n.tone === "held"
+                  ? "border-accent/45"
+                  : "border-line-strong/45"
             )}
             style={{
               left: n.place.x,
@@ -331,7 +351,7 @@ export function NodeCanvas({
               onPointerCancel={endDrag}
               className={cn(
                 "flex h-[2.125rem] cursor-grab items-center gap-1.5 rounded-t-md px-2.5 active:cursor-grabbing",
-                n.accent ? "bg-accent-dim" : "bg-surface-raised/70"
+                n.tone === "action" ? "bg-accent-dim" : "bg-surface-raised/70"
               )}
             >
               {n.header}

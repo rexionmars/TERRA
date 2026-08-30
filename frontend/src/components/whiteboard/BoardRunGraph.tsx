@@ -127,11 +127,33 @@ function Choice({
   )
 }
 
-/** The header of a card: its glyph and its name, in the band's own vocabulary. */
-function Head({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+/**
+ * The header of a card: its glyph and its name, in the band's own vocabulary.
+ *
+ * `lit` takes the glyph to the accent and leaves the name where it is. The
+ * border of a card is at the edge of vision when the eye is on the value in
+ * the middle of it, and the glyph is the part of the header that is already
+ * being looked past -- so it is the cheapest place to put a second signal that
+ * the card is carrying something.
+ */
+function Head({
+  icon: Icon,
+  label,
+  lit,
+}: {
+  icon: LucideIcon
+  label: string
+  lit?: boolean
+}) {
   return (
     <>
-      <Icon className="size-3 shrink-0 text-muted-foreground" strokeWidth={2} />
+      <Icon
+        className={cn(
+          "size-3 shrink-0",
+          lit ? "text-accent-quiet" : "text-muted-foreground"
+        )}
+        strokeWidth={2}
+      />
       <span className="eyebrow !text-[9px] truncate">{label}</span>
     </>
   )
@@ -625,19 +647,32 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   }
 
   const fallback = defaultPlaces(graph)
-  const nodes: CanvasNode[] = graph.nodes.map((spec) => ({
-    id: spec.id,
-    place: places[spec.id] ?? fallback[spec.id],
-    h: spec.h,
-    accent: spec.id === "run",
-    header:
-      spec.id === "run" && props.tool ? (
-        <Head icon={TOOL_ICON[props.tool]} label={props.runLabel} />
-      ) : (
-        <Head icon={spec.icon} label={spec.label} />
-      ),
-    children: body[spec.id],
-  }))
+  const nodes: CanvasNode[] = graph.nodes.map((spec) => {
+    /*
+      THE ONE CARD WHOSE EMPTINESS IS A REAL STATE. Every other input arrives
+      with a value -- a period has dates, a model is one of three, a mode is
+      one of two -- so there is nothing for a light to distinguish. The area
+      is the only one that can be genuinely absent, it is the one the run is
+      blocked on when it is, and "none" in small type in the middle of a card
+      is not where the eye goes first.
+    */
+    const held = spec.id === "area" && props.hasArea
+    const tone: CanvasNode["tone"] =
+      spec.id === "run" ? "action" : held ? "held" : undefined
+    return {
+      id: spec.id,
+      place: places[spec.id] ?? fallback[spec.id],
+      h: spec.h,
+      tone,
+      header:
+        spec.id === "run" && props.tool ? (
+          <Head icon={TOOL_ICON[props.tool]} label={props.runLabel} />
+        ) : (
+          <Head icon={spec.icon} label={spec.label} lit={held} />
+        ),
+      children: body[spec.id],
+    }
+  })
 
   return <NodeCanvas nodes={nodes} edges={graph.edges} onMove={move} />
 }
