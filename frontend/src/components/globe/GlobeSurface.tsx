@@ -23,7 +23,15 @@
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useRef, useState } from "react"
-import { Globe2, Mountain, Pencil, Spline, TriangleAlert, Trash2 } from "lucide-react"
+import {
+  Globe2,
+  Mountain,
+  Pencil,
+  Search,
+  Spline,
+  TriangleAlert,
+  Trash2,
+} from "lucide-react"
 import {
   Map as MapLibreMap,
   type GeoJSONSource,
@@ -41,6 +49,7 @@ import {
   setTerrainEnabled,
 } from "@/components/map/terrain"
 import { Credit } from "@/components/TitleBar"
+import { SearchBar } from "@/components/SearchBar"
 import { useAreaDrawing } from "@/components/map/useAreaDrawing"
 import type { GeoJSONGeometry } from "@/lib/types"
 import {
@@ -172,6 +181,18 @@ export function GlobeSurface({
     turns a picture of a place into the ground the areas are drawn on.
   */
   const [relief, setRelief] = useState(false)
+  /*
+    REVEALED, NOT ALWAYS UP. The work map carries its search bar permanently
+    because it has the width for it and the bar is one of few things over the
+    imagery. A studio area may be a quarter of that wide, and a bar standing
+    across the top of a sphere would cover the pole to answer a question that
+    is asked once and then not again for a while.
+
+    It is also withheld from the work map for as long as the studio is up --
+    see MapScreen -- so without this the studio has no way to reach a place by
+    name at all, which is half of what the drawing modal was for.
+  */
+  const [searching, setSearching] = useState(false)
   /*
     THE TWO THINGS A READER CANNOT OTHERWISE TELL APART.
 
@@ -605,12 +626,18 @@ export function GlobeSurface({
       {ready && !failure && (
         <MapBar className="app-no-drag absolute right-3 top-3 z-[400] flex flex-col">
           {/*
-            Relief first, and above the drawing tools rather than in a bar of
-            its own: this surface has one column of chrome at this corner, and
-            a second bar beside it would be two instruments for one hand. It
-            leads because it is about the ground, and the tools below it are
-            about what is put on the ground.
+            THE COLUMN READS IN THE ORDER THE WORK HAPPENS: find the place,
+            light the ground, draw on it. One column rather than a bar per
+            subject, because this surface has one corner for chrome and a
+            second bar beside it would be two instruments for one hand.
           */}
+          <MapButton
+            label="Search for a place"
+            active={searching}
+            onClick={() => setSearching((v) => !v)}
+          >
+            <Search className="size-4" strokeWidth={1.5} />
+          </MapButton>
           <MapButton
             label="Relief"
             active={relief}
@@ -640,6 +667,31 @@ export function GlobeSurface({
             </>
           )}
         </MapBar>
+      )}
+      {/*
+        OPENING TO THE LEFT of the column rather than under it: under is where
+        the drawing tools are, and a panel that covered them would hide the
+        controls a reader reaches for immediately after arriving somewhere.
+
+        Bounded by the pane rather than given a width, so a narrow area gets a
+        narrow bar instead of one that runs off the edge.
+      */}
+      {searching && ready && !failure && (
+        <SearchBar
+          className="app-no-drag absolute left-3 right-[3.5rem] top-3 z-[401] max-w-[22rem]"
+          autoFocus
+          onSelectLocation={(lat, lon) => {
+            /*
+              14, the zoom FlyToController arrives at everywhere else. Its
+              export comment says the controller is shared precisely so there
+              is one answer to how far the application zooms on arrival, and a
+              second answer introduced here would be a globe that lands closer
+              or further than the map for the same search.
+            */
+            mapRef.current?.flyTo({ center: [lon, lat], zoom: 14, duration: 1200 })
+            setSearching(false)
+          }}
+        />
       )}
       {(!ready || failure) && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
