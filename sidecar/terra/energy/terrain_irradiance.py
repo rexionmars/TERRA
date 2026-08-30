@@ -234,3 +234,74 @@ def horizon_enclosure(horizon: np.ndarray) -> dict:
         "threshold_deg": SVF_MIN_MEAN_HORIZON_DEG,
         "encloses": bool(mean_h >= SVF_MIN_MEAN_HORIZON_DEG),
     }
+
+
+# --- What the layer says once it is drawn ------------------------------------
+
+
+def _pct(values, valid, reducer):
+    """A loss array reduced over the valid cells and reported as a percentage."""
+    if values is None:
+        return None
+    return round(float(100.0 * reducer(values[valid])), 3)
+
+
+def summarise(poa, slope, valid, *, shading_loss=None, svf_loss=None,
+              enclosure=None, scale=None, season=None, unit=None,
+              n_years=None, beam_share=None):
+    """
+    The statistics the terrain layer is reported by.
+
+    They were computed inside the payload literal of the action, which is
+    where a `round(float(100.0 * np.std(v) / np.mean(v)), 2)` is unreachable by
+    any test: the coefficient of variation, the two loss reductions, and the
+    difference between a sky view factor that was not applied and one applied
+    at zero all lived in a dict nothing could call.
+
+    `valid` is the mask the AOI resolved to; every reduction here is over it
+    and not over the read window, which is larger by the buffer the horizon
+    search needed.
+    """
+    values = poa[valid] if poa.shape == valid.shape else poa
+    mean = float(np.mean(values))
+    return {
+        'poa_min': round(float(np.min(values)), 1),
+        'poa_max': round(float(np.max(values)), 1),
+        'poa_mean': round(mean, 1),
+        # A coefficient of variation, which is what makes two areas
+        # comparable: the spread of one AOI in its own units says nothing
+        # about another at a different irradiation.
+        'poa_std_pct': round(float(100.0 * np.std(values) / mean), 2),
+        'slope_mean_deg': round(float(np.nanmean(slope[valid])), 2),
+        'slope_max_deg': round(float(np.nanmax(slope[valid])), 2),
+        'pixels': int(valid.sum()),
+        'hourly_years': int(n_years) if n_years is not None else None,
+        'season': season,
+        'unit': unit,
+        'scale': None if scale is None else {
+            'palette': scale['palette'],
+            'min': round(float(scale['min']), 4),
+            'max': round(float(scale['max']), 4),
+            'reference': scale['reference'],
+            'basis': scale['basis'],
+            'shared_with': scale['shared_with'],
+            'decimals': int(scale['decimals']),
+        },
+        'shading_mean_pct': _pct(shading_loss, valid, np.nanmean),
+        'shading_max_pct': _pct(shading_loss, valid, np.nanmax),
+        'horizon_max_dist_m': float(HORIZON_MAX_DIST_M),
+        'beam_fraction': (round(float(beam_share), 4)
+                          if beam_share is not None else None),
+        # Reported whether or not it was applied: "not applied" and "applied at
+        # zero" are different statements about the terrain.
+        'sky_view': {
+            'applied': bool(svf_loss is not None),
+            'mean_horizon_deg': (enclosure or {}).get('mean_horizon_deg'),
+            'max_horizon_deg': (enclosure or {}).get('max_horizon_deg'),
+            'threshold_deg': (enclosure or {}).get('threshold_deg'),
+            'diffuse_loss_mean_pct': _pct(svf_loss, valid, np.nanmean),
+            'diffuse_loss_max_pct': _pct(svf_loss, valid, np.nanmax),
+        },
+        'dem_source': 'Copernicus DEM GLO-30',
+    }
+

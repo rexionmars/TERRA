@@ -389,60 +389,17 @@ def solar_terrain(req, work_dir):
          'height': poa.shape[0], 'width': poa.shape[1]}
     )
     protocol.emit_progress(100, 'done')
+    summary = poa_mod.summarise(
+        vals, slope, valid,
+        shading_loss=shading_loss, svf_loss=svf_loss, enclosure=enclosure,
+        scale=scale, season=season, unit=unit, n_years=n_years,
+        beam_share=beam_share,
+    )
     sys.stdout.write(json.dumps({
         'solar_terrain': {
-            'poa_min': round(float(np.min(vals)), 1),
-            'poa_max': round(float(np.max(vals)), 1),
-            'poa_mean': round(float(np.mean(vals)), 1),
-            'poa_std_pct': round(float(100.0 * np.std(vals) / np.mean(vals)), 2),
-            'slope_mean_deg': round(float(np.nanmean(slope[valid])), 2),
-            'slope_max_deg': round(float(np.nanmax(slope[valid])), 2),
-            'pixels': int(valid.sum()),
-            'hourly_years': int(n_years),
-            'season': season,
-            'unit': unit,
-            # The colour domain the overlay was drawn on. Without it a
-            # client can only guess, and two layers drawn on different
-            # domains would be compared as if they shared one.
-            'scale': {
-                'palette': scale['palette'],
-                'min': round(float(scale['min']), 4),
-                'max': round(float(scale['max']), 4),
-                'reference': scale['reference'],
-                'basis': scale['basis'],
-                'shared_with': scale['shared_with'],
-                'decimals': int(scale['decimals']),
-            },
-            'shading_mean_pct': (
-                round(float(100.0 * np.nanmean(shading_loss[valid])), 3)
-                if shading_loss is not None else None
-            ),
-            'shading_max_pct': (
-                round(float(100.0 * np.nanmax(shading_loss[valid])), 3)
-                if shading_loss is not None else None
-            ),
-            'horizon_max_dist_m': float(poa_mod.HORIZON_MAX_DIST_M),
-            'beam_fraction': round(float(beam_share), 4),
-            # The sky view factor and the threshold it was judged against.
-            # Reported whether or not it was applied: "not applied" and
-            # "applied at zero" are different statements about the terrain.
-            'sky_view': {
-                'applied': bool(svf_loss is not None),
-                'mean_horizon_deg': enclosure['mean_horizon_deg'],
-                'max_horizon_deg': enclosure['max_horizon_deg'],
-                'threshold_deg': enclosure['threshold_deg'],
-                'diffuse_loss_mean_pct': (
-                    round(float(100.0 * np.nanmean(svf_loss[valid])), 3)
-                    if svf_loss is not None else None
-                ),
-                'diffuse_loss_max_pct': (
-                    round(float(100.0 * np.nanmax(svf_loss[valid])), 3)
-                    if svf_loss is not None else None
-                ),
-            },
-            'dem_source': 'Copernicus DEM GLO-30',
-            # Whether the POWER series behind this layer was fetched or
-            # read from the on-disk cache, and when it was fetched.
+            **summary,
+            # Whether the POWER series behind this layer was fetched or read
+            # from the on-disk cache, and when it was fetched.
             'power_provenance': {'hourly': hourly_provenance},
             'overlay_png': str(png),
             'raster_tif': str(tif),
