@@ -18,6 +18,7 @@ import "./leafletDrawPatch"
 import type { LatLngBoundsExpression } from "leaflet"
 import type { Area, PredictResult, GeoJSONGeometry, CompositionOverlay } from "@/lib/types"
 import { BASEMAPS, basemapByName, type BasemapKind } from "@/lib/basemaps"
+import { publishMapPose } from "@/lib/mapPose"
 import { boundsToLatLng, isZeroExtent } from "@/lib/mapLayers"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import {
@@ -110,27 +111,40 @@ interface MapViewProps {
   onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
 }
 
-// Report map center/zoom to the telemetry readout.
+/**
+ * Reports map centre and zoom, on two paths that run at two rates.
+ *
+ * PER FRAME, to the pose store, which the title bar's readout subscribes to.
+ * `move` fires on every frame of a drag, and this used to call onViewChange
+ * there -- a setState on App, whose subtree is every screen the application
+ * has, sixty times a second. See lib/mapPose.ts.
+ *
+ * ONCE PER GESTURE, to onViewChange, which is where the value is persisted to
+ * preferences and remembered for the return to this screen. Both wanted the
+ * settled value; neither wanted the intermediate ones.
+ */
 function ViewReporter({
   onViewChange,
 }: {
   onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
 }) {
   const map = useMapEvents({
-    move: () => {
-      const c = map.getCenter()
-      onViewChange({ lat: c.lat, lon: c.lng, zoom: map.getZoom() })
-    },
-    zoom: () => {
-      const c = map.getCenter()
-      onViewChange({ lat: c.lat, lon: c.lng, zoom: map.getZoom() })
-    },
+    move: () => publishMapPose(readPose(map)),
+    zoom: () => publishMapPose(readPose(map)),
+    moveend: () => onViewChange(readPose(map)),
+    zoomend: () => onViewChange(readPose(map)),
   })
   useEffect(() => {
-    const c = map.getCenter()
-    onViewChange({ lat: c.lat, lon: c.lng, zoom: map.getZoom() })
+    const pose = readPose(map)
+    publishMapPose(pose)
+    onViewChange(pose)
   }, [map, onViewChange])
   return null
+}
+
+function readPose(map: L.Map): { lat: number; lon: number; zoom: number } {
+  const c = map.getCenter()
+  return { lat: c.lat, lon: c.lng, zoom: map.getZoom() }
 }
 
 

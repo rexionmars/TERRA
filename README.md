@@ -244,6 +244,7 @@ can be installed from Settings › System into the environment already in use.
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Python, STAC, models, macOS |
 | [Contributing](CONTRIBUTING.md) | Issues, PRs, tests |
 | [Design](docs/DESIGN.md) | Visual tokens |
+| [Performance](docs/PERFORMANCE.md) | Frame rate, memory, and what was measured |
 | [JOSS paper draft](paper/paper.md) | Manuscript and BibTeX |
 
 ## Architecture

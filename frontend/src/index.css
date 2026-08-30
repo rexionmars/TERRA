@@ -911,6 +911,51 @@
   border-top-color: rgb(var(--p-line) / 0.28) !important;
 }
 
+/*
+  THE CHROME IS NOT SELECTABLE, and the content is.
+
+  A web view selects everything by default, so dragging across this application
+  highlighted its own labels, its navigation and the words on its buttons -- a
+  gesture that means nothing here and that no application with a native shell
+  answers to. The default is the wrong way round for a program whose text is
+  overwhelmingly chrome.
+
+  So the shell says no and the places that hold something worth taking say yes.
+  What earns `.selectable` is anything a reader might carry somewhere else: a
+  measured value, a coordinate, a file path, an error, a table cell, the text of
+  a run's log. Anything they might quote back into an issue.
+
+  FORM CONTROLS ARE EXEMPT UNCONDITIONALLY. Editing text without being able to
+  select it is not a restriction, it is a broken field, and this rule sits above
+  the class so no container can take it away from an input inside it.
+*/
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"],
+.selectable,
+.selectable * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/*
+  Code and preformatted text, wherever they appear. Both exist here to be read
+  literally -- a token block, a path, a stack -- and being read literally is the
+  same reason they would be copied.
+*/
+code,
+pre,
+.telemetry {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* Map swipe (imagery ↔ prediction) — handle sits above leaflet panes */
 .map-swipe-handle {
   touch-action: none;

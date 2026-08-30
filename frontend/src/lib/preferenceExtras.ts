@@ -67,6 +67,15 @@ export interface PreferenceExtras {
    * boardMemory, which states why they should not outlive a restart.
    */
   studio_layout?: import("@/lib/studioLayout").StudioLayout
+  /**
+   * Which figures the studio's status bar reports.
+   *
+   * A preference rather than a build flag because one of the figures costs
+   * something to have on -- it keeps the page animating -- and the reader who
+   * accepts that cost is the one diagnosing a stall. Absent means none, which
+   * is what a reader who has never opened the setting should get.
+   */
+  studio_telemetry?: import("@/lib/studioTelemetry").StudioTelemetry
 }
 
 export function parsePreferenceExtras(
