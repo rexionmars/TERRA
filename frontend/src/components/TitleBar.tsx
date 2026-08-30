@@ -184,8 +184,22 @@ export function TitleBar({
         // border-border/60 matches the sidebar's right edge, which this line
         // meets at the top-left corner.
         "app-draggable relative flex h-11 shrink-0 items-center justify-between border-b border-border/60 bg-ink/40 pr-2 backdrop-blur-md",
-        // The window's traffic lights own the first 4.5rem in both states.
-        "pl-[4.5rem]"
+        /*
+          The window's traffic lights own the first 4.5rem in both states, and
+          the wordmark keeps a centimetre clear of them.
+
+          Written as `1cm` rather than as the rem it works out to, because the
+          quantity being asked for is a physical distance between two things a
+          reader sees side by side -- the last traffic light and the mark --
+          and CSS defines the unit against the reference pixel, so it does not
+          drift if the root size is ever changed. The 4.5rem stays a rem: it is
+          the space the platform's own controls occupy, which is theirs.
+
+          Unconditional, like the 4.5rem it adds to. `onMac` is resolved from
+          the runtime after mount and starts false, so gating either value on
+          it would slide the wordmark leftward on every launch.
+        */
+        "pl-[calc(4.5rem+1cm)]"
       )}>
       <div className="flex items-center gap-3">
         {/*
@@ -365,8 +379,19 @@ export function TitleBar({
           <div ref={boardSlotRef} className="app-no-drag flex items-center" />
         )}
 
-        {/* Wherever there is a map to lay out. */}
-        {hasMap && onLayoutModeChange && (
+        {/*
+          Wherever there is a map to lay out, and NOT while the studio covers
+          it.
+
+          The board draws its own 15rem column and the shell's navigation
+          column would fight it for the left edge, so MapScreen pins the layout
+          to workspace for as long as the board is up and restores the previous
+          one on close. That makes this control inert in that mode rather than
+          merely redundant: a press sets docked and the pinning effect sets it
+          back on the same beat, so the icon flickers and the layout does not
+          move. A control whose only outcome is to be undone is one to withhold.
+        */}
+        {hasMap && !boardOpen && onLayoutModeChange && (
           <button
             type="button"
             onClick={() =>
