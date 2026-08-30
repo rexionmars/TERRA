@@ -5969,6 +5969,34 @@ export namespace store {
 	        this.count = source["count"];
 	    }
 	}
+	export class Area {
+	    id: string;
+	    project_id: string;
+	    user_id: string;
+	    name: string;
+	    polygon_geojson: string;
+	    notes: string;
+	    created_at: string;
+	    updated_at: string;
+	    run_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Area(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.project_id = source["project_id"];
+	        this.user_id = source["user_id"];
+	        this.name = source["name"];
+	        this.polygon_geojson = source["polygon_geojson"];
+	        this.notes = source["notes"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.run_count = source["run_count"];
+	    }
+	}
 	export class BackupCounts {
 	    users: number;
 	    runs: number;

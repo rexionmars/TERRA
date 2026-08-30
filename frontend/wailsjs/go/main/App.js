@@ -74,6 +74,10 @@ export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
 }
 
+export function CreateArea(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CreateArea'](arg1, arg2, arg3);
+}
+
 export function CreateProject(arg1, arg2) {
   return window['go']['main']['App']['CreateProject'](arg1, arg2);
 }
@@ -84,6 +88,10 @@ export function CurrentUser() {
 
 export function DeleteAnalysis(arg1) {
   return window['go']['main']['App']['DeleteAnalysis'](arg1);
+}
+
+export function DeleteArea(arg1) {
+  return window['go']['main']['App']['DeleteArea'](arg1);
 }
 
 export function DeleteProject(arg1) {
@@ -122,6 +130,10 @@ export function GetAppVersion() {
   return window['go']['main']['App']['GetAppVersion']();
 }
 
+export function GetArea(arg1) {
+  return window['go']['main']['App']['GetArea'](arg1);
+}
+
 export function GetBootLogs() {
   return window['go']['main']['App']['GetBootLogs']();
 }
@@ -148,6 +160,14 @@ export function InspectPython(arg1) {
 
 export function InspectStorage() {
   return window['go']['main']['App']['InspectStorage']();
+}
+
+export function ListAreaRuns(arg1, arg2) {
+  return window['go']['main']['App']['ListAreaRuns'](arg1, arg2);
+}
+
+export function ListAreas(arg1) {
+  return window['go']['main']['App']['ListAreas'](arg1);
 }
 
 export function ListDataCube(arg1) {
@@ -252,6 +272,10 @@ export function SetAvatar(arg1) {
 
 export function SetRunProject(arg1, arg2) {
   return window['go']['main']['App']['SetRunProject'](arg1, arg2);
+}
+
+export function UpdateArea(arg1) {
+  return window['go']['main']['App']['UpdateArea'](arg1);
 }
 
 export function UpdateProfile(arg1) {

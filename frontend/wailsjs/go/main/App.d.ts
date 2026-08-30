@@ -42,11 +42,15 @@ export function ChooseBackupArchive():Promise<store.RestorePreview>;
 
 export function ClearAvatar():Promise<store.User>;
 
+export function CreateArea(arg1:string,arg2:string,arg3:string):Promise<store.Area>;
+
 export function CreateProject(arg1:string,arg2:string):Promise<store.Project>;
 
 export function CurrentUser():Promise<store.User>;
 
 export function DeleteAnalysis(arg1:string):Promise<void>;
+
+export function DeleteArea(arg1:string):Promise<void>;
 
 export function DeleteProject(arg1:string):Promise<void>;
 
@@ -66,6 +70,8 @@ export function GeocodeSearch(arg1:string):Promise<Array<geocode.GeocodeResult>>
 
 export function GetAppVersion():Promise<string>;
 
+export function GetArea(arg1:string):Promise<store.Area>;
+
 export function GetBootLogs():Promise<Array<string>>;
 
 export function GetPreferences():Promise<store.Preferences>;
@@ -79,6 +85,10 @@ export function InspectEnvironment():Promise<main.EnvironmentState>;
 export function InspectPython(arg1:string):Promise<pyenv.EnvReport>;
 
 export function InspectStorage():Promise<store.StorageReport>;
+
+export function ListAreaRuns(arg1:string,arg2:number):Promise<Array<store.InferenceRun>>;
+
+export function ListAreas(arg1:string):Promise<Array<store.Area>>;
 
 export function ListDataCube(arg1:analysis.DataCubeRequest):Promise<analysis.DataCubeResult>;
 
@@ -131,6 +141,8 @@ export function SaveWhiteboard(arg1:store.Whiteboard):Promise<store.Whiteboard>;
 export function SetAvatar(arg1:string):Promise<store.User>;
 
 export function SetRunProject(arg1:string,arg2:string):Promise<void>;
+
+export function UpdateArea(arg1:store.Area):Promise<store.Area>;
 
 export function UpdateProfile(arg1:string):Promise<store.User>;
 
