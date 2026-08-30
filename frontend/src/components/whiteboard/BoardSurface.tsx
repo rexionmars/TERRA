@@ -1104,19 +1104,23 @@ export function BoardSurface({
       .filter(
         (r) =>
           /*
-            AGAINST THE AREA AS WELL AS THE RUN, since retention began keying
-            what it keeps by the GROUND. `runId` is `result.run_id ||
-            "current"` and can never equal an area id, so returning to a
-            ground that had been left put its retained entry beside the live
-            one -- two entries claiming the same area, the stale one able to
-            answer `assetOf` for it.
+            NOT AGAINST `live`, AND THAT WAS A REAL COST.
 
-            `runId` stays in the test because the call sites that retain
-            without naming a ground still key by the run row.
+            Excluding the ground the map is on looks right -- the live area is
+            already listed -- and it took the retained entry away exactly when
+            it was the only thing left. Returning to a ground the map had moved
+            on from clears its products, because the aoiSignature effects drop
+            what belongs to the area being left; the retained copy is then the
+            only account of the run, and this filter dropped it. The area a
+            reader selected came back empty while the one they had left kept
+            its raster.
+
+            Nothing lists twice without it. The live entry above is added ONLY
+            when it has assets of its own, and it is added FIRST, so `assetOf`
+            prefers it whenever there is a live run to prefer; `areas` filters
+            `r.areaId !== live` on its own account, so no second row appears.
           */
-          r.id !== live &&
-          r.id !== runId &&
-          !extraRuns.some((x) => x.run.id === r.id)
+          r.id !== runId && !extraRuns.some((x) => x.run.id === r.id)
       )
       .map((r) => ({
         areaId: r.id,
