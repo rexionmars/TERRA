@@ -4,7 +4,11 @@ TERRA uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 Git tags use a `v` prefix (`v0.3.0`); the version itself is `0.3.0`.
 
 Pushing a tag matching `v*` runs [`.github/workflows/release.yml`](../.github/workflows/release.yml)
-and publishes LITE/FULL zip assets.
+and publishes LITE/FULL zip assets. The tag is normally created by merging the
+release pull request that
+[`release-please.yml`](../.github/workflows/release-please.yml) keeps open —
+see [Cutting a release](#cutting-a-release). What each release contained is in
+[`CHANGELOG.md`](../CHANGELOG.md).
 
 ## What counts as the “public API”
 
@@ -33,48 +37,75 @@ Pre-1.0 means the product may evolve quickly. Prefer **MINOR** for features and
 **PATCH** for fixes. Reserve **`1.0.0`** for a stability milestone (e.g. after
 JOSS acceptance / production-ready install story).
 
-## Do not tag for every merge
+## When to release
 
-- Docs-only, wiki, CONTRIBUTING, or CI tweaks that do not change binaries →
-  **merge to `main` without a release tag**.
+The section above says which number to move. This one says when to move it,
+which the document did not say for its first four releases and which is the
+gap that showed: `v0.4.0` shipped 60 commits, and the eight days after it
+accumulated 116 without anything asking to be released. The number was never
+the hard part.
+
+**The rule.** Merge the standing release pull request when either is true:
+
+- it contains a `fix` or `feat` a user would notice, and the last release was
+  more than a week ago; or
+- it contains anything at all, and the last release was more than three weeks
+  ago.
+
+Neither is a deadline. They are the two conditions under which not releasing
+needs a reason, which is the opposite of today, where releasing needs one.
+
+**What does not trigger anything.** Docs-only work, CI changes, and internal
+refactoring accumulate in the proposal and ship with whatever goes next. A
+release whose whole content is `refactor` is a release nobody can read notes
+for.
+
 - Batch several small fixes into one **PATCH** instead of daily micro-releases.
 - Uncertain builds → prerelease tags: `v0.3.0-rc.1` (still matches `v*`).
 
-## Checklist before `git tag`
+## Cutting a release
 
-1. `main` is green (CI) and contains only what you intend to ship.
-2. Decide PATCH / MINOR / MAJOR with the table above.
-3. Update release notes mentally: what should users download (LITE vs FULL)?
-4. Bump embedded `AppVersion` in [`version.go`](../version.go) to match the tag
-   (or pass `-ldflags "-X main.AppVersion=X.Y.Z"` in the release build). That file
-   is the **authority**; three other places carry the same number and must follow
-   it:
+Most of this is done for you. `release-please` reads the Conventional Commits
+on `main` and keeps a pull request open that carries the next version, the
+CHANGELOG entry, and the bump in `version.go`, `wails.json` and `CITATION.cff`.
+Merging that pull request tags the release, and the tag is what
+[`release.yml`](../.github/workflows/release.yml) already watches to build and
+publish the LITE and FULL zips.
 
-   | Place | What it feeds |
-   |---|---|
-   | [`wails.json`](../wails.json) `info.productVersion` | `CFBundleShortVersionString` in the packaged bundle, and the Windows file version |
-   | [`CITATION.cff`](../CITATION.cff) `version:` | How the software is cited |
-   | [`frontend/src/lib/whatsNew.ts`](../frontend/src/lib/whatsNew.ts) newest entry | The What’s New modal |
+So the procedure is:
 
-   Run `npm run check:version` in `frontend/` and it names any that disagree. CI
-   runs it too, so a mismatch fails the pull request rather than shipping. Add
-   the What’s New entry only if the release should show the modal; the guard
-   checks the newest entry's version, not that one was added.
+1. **Read the proposal.** It says which bump it computed and why — the CHANGELOG
+   entry is the list of `feat`, `fix` and `perf` commits since the last tag.
+   If the bump looks wrong, the commit types are wrong, and the fix is in the
+   commits rather than in the proposal.
+2. **Write the What's New entry.** This is the one step nothing can do for you,
+   and the proposal's CI stays red until it is done: `npm run check:version`
+   requires the newest entry in
+   [`whatsNew.ts`](../frontend/src/lib/whatsNew.ts) to carry the version the
+   other three files now carry. That red is the reminder, and it is deliberate
+   — a release that ships without telling users what changed is a release whose
+   notes are a commit log.
+3. **Pick the code name and the still** — see below. `RELEASE_NAME` in
+   [`brand.ts`](../frontend/src/lib/brand.ts) is edited in the same commit as
+   the What's New entry, and for the same reason: neither can be generated.
+4. **Merge it.** The tag, the GitHub release and the assets follow.
 
-   Not part of this: `splashBackground.ts` `since:` records the release a still
-   was **added** in and stays where it is, and `frontend/package.json` is pinned
-   at `0.0.0` because nothing reads it.
-5. Pick the release's still and code name — see below.
-6. Tag and push:
+`main` must be green before you merge, which CI enforces on the proposal like
+any other pull request.
 
-```bash
-git checkout main && git pull
-git tag -a v0.3.0 -m "TERRA v0.3.0 — short reason"
-git push origin v0.3.0
-```
+### The one number release-please does not touch
 
-7. Confirm the Release workflow finished and assets appear on
-   [Releases](https://github.com/rexionmars/TERRA/releases).
+`whatsNew.ts` carries an entry per release, and each entry's `version` records
+the release it describes. Bumping it automatically would attach this release's
+number to the previous release's prose, which is worse than leaving it to fail
+the check. It fails the check.
+
+### If you have to tag by hand
+
+Nothing prevents it — `release.yml` triggers on any `v*` tag. Bump
+`version.go` first and run `npm run check:version` in `frontend/`, which names
+any of the four places that disagree. `version.go` is the authority; change the
+others to match it, not the other way round.
 
 ## Code names and the splash still
 
@@ -127,6 +158,18 @@ disk fails the build.
 
 ## Current line
 
-Latest published tags (see GitHub for the full list): `v0.1.0`, `v0.2.0`.
-The LITE/FULL packaging work on `main` is a **MINOR** when you next cut binaries
-(e.g. `v0.3.0`), not a jump to `1.0.0`.
+`v0.4.0` is the latest published tag. The line so far, with what each shipped:
+
+| Tag | Date | Commits | Named for |
+|---|---|---|---|
+| `v0.1.0` | 2026-06-27 | — | — |
+| `v0.2.0` | 2026-07-31 | 51 | — |
+| `v0.3.0` | 2026-08-16 | 383 | — |
+| `v0.4.0` | 2026-08-22 | 60 | Amazon |
+
+THIS TABLE WAS TWO RELEASES STALE when the trigger above was written: it said
+the latest tags were `v0.1.0` and `v0.2.0` and described `v0.3.0` as future, on
+a day when `v0.4.0` had already shipped. A section that records the current
+state and is updated by hand goes stale by default, so this one is here to be
+read rather than trusted — [the tag list](https://github.com/rexionmars/TERRA/tags)
+is the authority, and the CHANGELOG carries what each release contained.

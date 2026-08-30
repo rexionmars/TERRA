@@ -1,0 +1,36 @@
+# The release proposal, kept open and current.
+#
+# WHY A STANDING PULL REQUEST rather than a command someone runs. Cutting a
+# release used to mean opening docs/RELEASING.md, deciding the bump, editing the
+# version in three places and tagging -- four steps, each of which is a chance
+# to be interrupted, and none of which announces itself. The result was visible
+# in the record: v0.4.0 shipped 60 commits and the following eight days
+# accumulated 116, because nothing was asking to be released.
+#
+# release-please reads the Conventional Commits on main and keeps a pull request
+# open that says what the next version would be and what would be in it. The
+# decision stops being "do the release procedure" and becomes "merge this or
+# not", which is a decision small enough to take on a Friday afternoon.
+#
+# Merging it tags the release, which is what release.yml already watches for.
+# Nothing about how binaries are built changes.
+
+name: Release please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
