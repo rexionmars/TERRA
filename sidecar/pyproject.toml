@@ -25,14 +25,6 @@ select = [
 ignore = [
     "E501",  # line length is the formatter's, not the linter's
     "E741",  # `l` is a documented symbol in several radiative-transfer papers
-    # NPY002 is a behaviour change wearing the clothes of a style fix: the
-    # Generator API changes the random stream, and the values it feeds are
-    # pinned by the tests that consume them. B905 is no longer here: it was
-    # deferred for the same reason and then decided site by site, which is what
-    # it needed -- ten of the eleven pair sequences that are equal by
-    # construction, and the eleventh pairs each step with its successor and so
-    # differs in length by one on purpose.
-    "NPY002",
 ]
 
 [tool.ruff.lint.isort]
