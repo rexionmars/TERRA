@@ -82,7 +82,6 @@ import {
   writeBoardMemory,
 } from "@/components/whiteboard/boardMemory"
 import { useAuth } from "@/lib/auth"
-import { isSavedAoiId } from "@/lib/savedAois"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import type { LonLat } from "@/lib/geometry"
 import {
@@ -386,11 +385,11 @@ export function BoardSurface({
   onUseArea,
   customPolygon = null,
   onPolygonDrawn,
-  savedAois = [],
-  activeAoiId,
-  onActivateSavedAoi,
-  onRenameSavedAoi,
-  onDeleteSavedAoi,
+  catalogAreas = [],
+  activeAreaId,
+  onActivateArea,
+  onRenameArea,
+  onDeleteArea,
   detailHeightRem,
   onDetailResize,
   detailCollapsed,
@@ -447,13 +446,13 @@ export function BoardSurface({
   legendSources?: LegendSources
   /**
    * Put a geometry from the Areas tab back onto the map as the active AOI.
-   * Saved catalog entries go through onActivateSavedAoi instead.
+   * Saved catalog entries go through onActivateArea instead.
    */
   onUseArea?: (geom: GeoJSONGeometry) => void
   /**
    * The area in hand, so the globe can show it and edit it.
    *
-   * Distinct from the catalog in `savedAois`: that is what has been kept, this
+   * Distinct from the catalog in `catalogAreas`: that is what has been kept, this
    * is what is being worked on, and the globe draws them differently for the
    * same reason the work map does.
    */
@@ -466,11 +465,11 @@ export function BoardSurface({
    */
   onPolygonDrawn?: (geom: GeoJSONGeometry | null) => void
   /** Drawn / imported AOIs kept in the catalog (not only the active one). */
-  savedAois?: import("@/lib/savedAois").SavedAoi[]
-  activeAoiId?: string
-  onActivateSavedAoi?: (id: string) => void
-  onRenameSavedAoi?: (id: string, name: string) => void
-  onDeleteSavedAoi?: (id: string) => void
+  catalogAreas?: import("@/lib/areas").Area[]
+  activeAreaId?: string
+  onActivateArea?: (id: string) => void
+  onRenameArea?: (id: string, name: string) => void
+  onDeleteArea?: (id: string) => void
   /** The detail band's height in rem, and where a drag on its edge reports. */
   detailHeightRem?: number
   onDetailResize?: (rem: number) => void
@@ -967,9 +966,7 @@ export function BoardSurface({
               : (runOfGround.get(a.id) ?? a.id),
           layerIds: a.layers.map((l) => l.id),
         }))
-        .filter(
-          (m) => m.runId && m.runId !== "current" && !isSavedAoiId(m.runId)
-        )
+        .filter((m) => m.runId && m.runId !== "current" && !catalogued.has(m.runId))
       if (!members.length) {
         /*
           THE OLD WORDING SENT A READER BACK TO WHAT HAD JUST FAILED.
@@ -1059,18 +1056,18 @@ export function BoardSurface({
         out.set(r.id, linked)
         continue
       }
-      if (!savedAois.length || !r.polygon_geojson) continue
+      if (!catalogAreas.length || !r.polygon_geojson) continue
       let geom: GeoJSONGeometry | null = null
       try {
         geom = JSON.parse(r.polygon_geojson) as GeoJSONGeometry
       } catch {
         continue
       }
-      const match = savedAois.find((a) => sameGround(a.geometry, geom))
+      const match = catalogAreas.find((a) => sameGround(a.geometry, geom))
       if (match) out.set(r.id, match.id)
     }
     return out
-  }, [runs, savedAois])
+  }, [runs, catalogAreas])
 
   /*
     Which subject the map's area IS, rather than the slot it sits in.
@@ -1088,8 +1085,8 @@ export function BoardSurface({
   */
   const live = liveAreaId(
     runId,
-    activeAoiId,
-    runs.some((r) => r.id === runId) ? aoiOfRun.get(runId) : activeAoiId
+    activeAreaId,
+    runs.some((r) => r.id === runId) ? aoiOfRun.get(runId) : activeAreaId
   )
 
   /*
@@ -1211,7 +1208,7 @@ export function BoardSurface({
         title:
           displayRunLabel(
             runs.find((x) => x.id === r.id)?.label ??
-              savedAois.find((a) => a.id === r.id)?.name ??
+              catalogAreas.find((a) => a.id === r.id)?.name ??
               ""
           ) || "Previous run",
         model: runModel(r.id),
@@ -1591,6 +1588,16 @@ export function BoardSurface({
   }
 
   /*
+    Which ids name a catalogued ground rather than a run.
+
+    A prefix test answered this while area ids were minted in the browser with
+    an `aoi:` in front. They come from the database now and are bare UUIDs, the
+    same shape a run id has, so the only thing that can tell them apart is the
+    catalogue itself.
+  */
+  const catalogued = useMemo(() => new Set(catalogAreas.map((a) => a.id)), [catalogAreas])
+
+  /*
     THE GROUND ALREADY DRAWN BY A RUN, so it is not drawn a second time empty.
 
     A catalogued drawing is offered as an area of its own -- that is how a
@@ -1615,8 +1622,7 @@ export function BoardSurface({
         catalogued drawing AS WELL as the area already holding it. One ground,
         two rows, for every retained run on the board.
       */
-      const ground =
-        aoiOfRun.get(r.runId) ?? (isSavedAoiId(r.areaId) ? r.areaId : null)
+      const ground = aoiOfRun.get(r.runId) ?? (catalogued.has(r.areaId) ? r.areaId : null)
       return ground ? [ground] : []
     })
   )
@@ -1647,7 +1653,7 @@ export function BoardSurface({
       */
       title:
         names[stackRow(live)] ??
-        savedAois.find((a) => a.id === live)?.name ??
+        catalogAreas.find((a) => a.id === live)?.name ??
         liveTitle,
       layers: applyOrder(live, [
         ...layers.filter((l) => !removed.has(sceneKey(live, l.id))),
@@ -1668,7 +1674,7 @@ export function BoardSurface({
       The live one keeps its outline. That is the ground the next run happens
       on, which is the one drawing this surface is about.
     */
-    ...savedAois
+    ...catalogAreas
       /*
         The active drawing is no longer excluded here.
 
@@ -1710,7 +1716,7 @@ export function BoardSurface({
         */
         title:
           names[stackRow(r.areaId)] ??
-          savedAois.find((a) => a.id === r.areaId)?.name ??
+          catalogAreas.find((a) => a.id === r.areaId)?.name ??
           r.title,
         layers: applyOrder(r.areaId, extrasFor(r.areaId, 400)),
       })),
@@ -1733,9 +1739,9 @@ export function BoardSurface({
         that is exactly when the new drawing has to be visible -- it is what
         they are about to aim at.
       */
-      (!!activeAoiId &&
-        a.id === activeAoiId &&
-        activeAoiId !== live &&
+      (!!activeAreaId &&
+        a.id === activeAreaId &&
+        activeAreaId !== live &&
         !groundOnBoard.has(a.id)) ||
       // Nothing else earns a place. A drawing with no raster on it is a
       // catalog entry, and the Areas tab is where a catalog is read.
@@ -1759,8 +1765,8 @@ export function BoardSurface({
       sorts after them, keeping the relative order it was assembled in.
     */
     .map((a, i) => {
-      const rank = savedAois.findIndex((s) => s.id === a.id)
-      return { a, key: rank === -1 ? savedAois.length + i : rank }
+      const rank = catalogAreas.findIndex((s) => s.id === a.id)
+      return { a, key: rank === -1 ? catalogAreas.length + i : rank }
     })
     .sort((x, y) => x.key - y.key)
     .map(({ a }) => a)
@@ -1918,7 +1924,7 @@ export function BoardSurface({
         dropRun(id)
         await refreshRuns()
       } else {
-        onDeleteSavedAoi?.(id)
+        onDeleteArea?.(id)
       }
       notifySuccess(`“${title}” deleted`)
       setPendingDelete(null)
@@ -1996,7 +2002,7 @@ export function BoardSurface({
       was filed under the old run's id, outlining one field with another's edge.
     */
     ...Object.fromEntries(
-      savedAois.flatMap((a) => {
+      catalogAreas.flatMap((a) => {
         const ring = polygonOuterRing(a.geometry)
         return ring ? [[a.id, ring] as const] : []
       })
@@ -2007,7 +2013,7 @@ export function BoardSurface({
       area IS catalogued, the entry above is the same ring from a source that
       cannot drift.
     */
-    ...(aoiPolygon?.length && !savedAois.some((a) => a.id === live)
+    ...(aoiPolygon?.length && !catalogAreas.some((a) => a.id === live)
       ? { [live]: aoiPolygon }
       : {}),
     /*
@@ -2110,10 +2116,10 @@ export function BoardSurface({
     const geom = ring?.length
       ? ({ type: "Polygon", coordinates: [ring] } as GeoJSONGeometry)
       : null
-    const saved = savedAois.find((s) => s.id === a.id)
+    const saved = catalogAreas.find((s) => s.id === a.id)
     const catalogId =
       a.id === live
-        ? activeAoiId
+        ? activeAreaId
         : saved
           ? a.id
           : undefined
@@ -2144,7 +2150,7 @@ export function BoardSurface({
     Measured from the catalog's own geometry rather than from the ring the
     board holds, because the board holds none for an area it is not drawing.
   */
-  for (const a of savedAois) {
+  for (const a of catalogAreas) {
     if (areaInfo.some((x) => x.id === a.id || x.catalogId === a.id)) continue
     const ring = polygonOuterRing(a.geometry)
     areaInfo.push({
@@ -2445,10 +2451,10 @@ export function BoardSurface({
 
   const availableSides = useMemo(
     () =>
-      areas
+      catalogAreas
         .map((a) => sideOf(a.id))
         .filter((s): s is PredictionCompareSide => !!s),
-    [areas, sideOf]
+    [catalogAreas, sideOf]
   )
 
   /*
@@ -3496,10 +3502,10 @@ export function BoardSurface({
   */
   const globeAreas = useMemo<GlobeArea[]>(
     () =>
-      savedAois
+      catalogAreas
         .map((a) => toGlobeArea(`aoi:${a.id}`, a.name, a.geometry))
         .filter((a): a is GlobeArea => a !== null),
-    [savedAois]
+    [catalogAreas]
   )
 
   const renderEditor = (
@@ -3549,7 +3555,7 @@ export function BoardSurface({
         <GlobeSurface
           className="h-full w-full"
           areas={globeAreas}
-          onPickArea={(id) => onActivateSavedAoi?.(id.slice(id.indexOf(":") + 1))}
+          onPickArea={(id) => onActivateArea?.(id.slice(id.indexOf(":") + 1))}
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
         />
@@ -3564,8 +3570,8 @@ export function BoardSurface({
               the shape that is worked on is the shape that was on screen.
             */
             onUseArea={(id) => {
-              if (savedAois.some((a) => a.id === id)) {
-                onActivateSavedAoi?.(id)
+              if (catalogAreas.some((a) => a.id === id)) {
+                onActivateArea?.(id)
                 return
               }
               const ring = polygonsRef.current[id]
@@ -3575,8 +3581,8 @@ export function BoardSurface({
                 coordinates: [ring],
               } as GeoJSONGeometry)
             }}
-            onRenameSavedAoi={onRenameSavedAoi}
-            onDeleteSavedAoi={(id, title) =>
+            onRenameArea={onRenameArea}
+            onDeleteArea={(id, title) =>
               setPendingDelete({ kind: "area", id, title })
             }
             areas={areas}
@@ -3652,8 +3658,8 @@ export function BoardSurface({
                       ? legendByArea.get(t.areaId)?.result?.lulc?.agreement
                       : undefined,
                   onRenameArea:
-                    catalogId && onRenameSavedAoi
-                      ? (name: string) => onRenameSavedAoi(catalogId, name)
+                    catalogId && onRenameArea
+                      ? (name: string) => onRenameArea(catalogId, name)
                       : undefined,
                 }
               })}

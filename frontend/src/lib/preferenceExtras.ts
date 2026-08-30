@@ -4,11 +4,6 @@ import type {
   Preferences,
   StartSurface,
 } from "@/lib/types"
-import {
-  parseSavedAois,
-  type SavedAoi,
-} from "@/lib/savedAois"
-
 export type { LayoutMode, LeftDockTabsMode, StartSurface }
 
 export interface PreferenceExtras {
@@ -32,14 +27,13 @@ export interface PreferenceExtras {
   active_project_id?: string
   /** Last custom AOI display name (survives restart with active project / prefs). */
   aoi_label?: string
-  /**
-   * User-drawn / imported AOIs kept as a catalog so a second draw does not
-   * replace the first. The active shape is still `customPolygon` on the map;
-   * this list is what the Areas tab offers back.
-   */
-  saved_aois?: SavedAoi[]
-  /** Which catalog entry is currently the map's active AOI, if any. */
-  active_aoi_id?: string
+  /*
+    NO AREAS HERE. `saved_aois` held the whole catalogue as a JSON array, and
+    `active_aoi_id` named one of its entries. Areas are rows now, scoped to the
+    project that owns them, so the catalogue is asked for rather than carried;
+    which one is open follows `active_project_id` and is not remembered across
+    a restart, because an area outlives a session and a selection does not.
+  */
   /** Last product version for which What’s New was shown (or silently seeded). */
   last_seen_version?: string
   /**
@@ -85,10 +79,7 @@ export function parsePreferenceExtras(
   try {
     const parsed = JSON.parse(raw) as PreferenceExtras
     if (!parsed || typeof parsed !== "object") return {}
-    return {
-      ...parsed,
-      saved_aois: parseSavedAois(parsed.saved_aois),
-    }
+    return parsed
   } catch {
     return {}
   }

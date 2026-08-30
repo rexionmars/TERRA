@@ -191,15 +191,15 @@ function AreasPane({
   activeRow,
   onActivate,
   onUseArea,
-  onRenameSavedAoi,
-  onDeleteSavedAoi,
+  onRenameArea,
+  onDeleteArea,
 }: {
   areas: AreaInfo[]
   activeRow: string | null
   onActivate: (rowId: string, additive?: boolean) => void
   onUseArea?: (id: string) => void
-  onRenameSavedAoi?: (id: string, name: string) => void
-  onDeleteSavedAoi?: (id: string, title: string) => void
+  onRenameArea?: (id: string, name: string) => void
+  onDeleteArea?: (id: string, title: string) => void
 }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
@@ -246,13 +246,13 @@ function AreasPane({
               onChange={(e) => setDraft(e.target.value)}
               onBlur={() => {
                 setEditing(null)
-                if (a.catalogId) onRenameSavedAoi?.(a.catalogId, draft)
+                if (a.catalogId) onRenameArea?.(a.catalogId, draft)
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault()
                   setEditing(null)
-                  if (a.catalogId) onRenameSavedAoi?.(a.catalogId, draft)
+                  if (a.catalogId) onRenameArea?.(a.catalogId, draft)
                 }
                 if (e.key === "Escape") {
                   e.preventDefault()
@@ -266,7 +266,7 @@ function AreasPane({
               type="button"
               onClick={() => onActivate(stackRow(a.id))}
               onDoubleClick={() => {
-                if (!a.catalogId || !onRenameSavedAoi) return
+                if (!a.catalogId || !onRenameArea) return
                 setEditing(a.id)
                 setDraft(a.title)
               }}
@@ -308,10 +308,10 @@ function AreasPane({
             one control in the tree whose mistake is unrecoverable. The asking
             belongs to the studio, which owns the dialog -- this only requests.
           */}
-          {a.catalogId && onDeleteSavedAoi && (
+          {a.catalogId && onDeleteArea && (
             <button
               type="button"
-              onClick={() => onDeleteSavedAoi(a.catalogId!, a.title)}
+              onClick={() => onDeleteArea(a.catalogId!, a.title)}
               title={
                 a.current
                   ? "Delete this area, which is the one in use"
@@ -393,8 +393,8 @@ export function BoardSidebar({
   mode,
   areaInfo = [],
   onUseArea,
-  onRenameSavedAoi,
-  onDeleteSavedAoi,
+  onRenameArea,
+  onDeleteArea,
   activeRow,
   selection,
   activeAsset,
@@ -505,8 +505,8 @@ export function BoardSidebar({
    * refuses two places.
    */
   onUseArea?: (id: string) => void
-  onRenameSavedAoi?: (id: string, name: string) => void
-  onDeleteSavedAoi?: (id: string, title: string) => void
+  onRenameArea?: (id: string, name: string) => void
+  onDeleteArea?: (id: string, title: string) => void
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
   onModeChange: (m: OutlinerMode) => void
@@ -964,8 +964,8 @@ export function BoardSidebar({
           activeRow={activeRow}
           onActivate={onActivate}
           onUseArea={onUseArea}
-          onRenameSavedAoi={onRenameSavedAoi}
-          onDeleteSavedAoi={onDeleteSavedAoi}
+          onRenameArea={onRenameArea}
+          onDeleteArea={onDeleteArea}
         />
       ) : mode === "scene" ? (
         <div

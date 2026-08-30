@@ -195,11 +195,11 @@ export interface MapScreenProps {
   /** Adopt a run polygon as the active AOI without adding a catalog entry. */
   onAdoptAreaGeometry?: (geom: GeoJSONGeometry | null) => void
   /** Catalog of drawn/imported AOIs kept beside the active shape. */
-  savedAois?: import("@/lib/savedAois").SavedAoi[]
-  activeAoiId?: string
-  onActivateSavedAoi?: (id: string) => void
-  onRenameSavedAoi?: (id: string, name: string) => void
-  onDeleteSavedAoi?: (id: string) => void
+  areas?: import("@/lib/areas").Area[]
+  activeAreaId?: string
+  onActivateArea?: (id: string) => void
+  onRenameArea?: (id: string, name: string) => void
+  onDeleteArea?: (id: string) => void
   onLocationSelect: (lat: number, lon: number) => void
   onClearArea: () => void
   onImportPolygon: () => void
@@ -1311,11 +1311,11 @@ export function MapScreen(props: MapScreenProps) {
               */
               customPolygon={props.customPolygon}
               onPolygonDrawn={props.onPolygonDrawn}
-              savedAois={props.savedAois}
-              activeAoiId={props.activeAoiId}
-              onActivateSavedAoi={props.onActivateSavedAoi}
-              onRenameSavedAoi={props.onRenameSavedAoi}
-              onDeleteSavedAoi={props.onDeleteSavedAoi}
+              catalogAreas={props.areas}
+              activeAreaId={props.activeAreaId}
+              onActivateArea={props.onActivateArea}
+              onRenameArea={props.onRenameArea}
+              onDeleteArea={props.onDeleteArea}
               legendSources={{
                 result: props.result,
                 water: props.water,
@@ -1368,7 +1368,7 @@ export function MapScreen(props: MapScreenProps) {
                 active AOI's, then the map's label.
               */
               title={
-                props.savedAois?.find((a) => a.id === props.activeAoiId)?.name ||
+                props.areas?.find((a) => a.id === props.activeAreaId)?.name ||
                 props.areaLabel ||
                 ""
               }

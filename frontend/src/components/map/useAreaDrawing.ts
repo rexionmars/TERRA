@@ -170,11 +170,10 @@ export function useAreaDrawing({
         listener below answered them, and one finished polygon was reported
         two and three times.
 
-        Downstream that is not a repeated no-op. `handlePolygonDrawn` creates a
-        catalog entry per report, and every report in one batch reads the same
-        list, so they were named by `nextDrawnName` from the same starting
-        point: three entries called "drawn 2", identical geometry, three ids.
-        The board then listed each of them.
+        Downstream that is not a repeated no-op. `handlePolygonDrawn` writes an
+        area per report, and the store names each one against what the project
+        held when the write arrived: three areas called "drawn 2", identical
+        geometry, three ids. The board then listed each of them.
 
         The report is made after the guard is released, deliberately: it is the
         one thing here that IS news.

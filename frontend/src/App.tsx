@@ -28,6 +28,10 @@ import {
   GetProject,
   UpdateProjectAOI,
   CreateProject,
+  ListAreas,
+  CreateArea,
+  UpdateArea,
+  DeleteArea,
   AnalyzeWater,
   AnalyzeSolar,
   AnalyzeSolarTerrain,
@@ -96,10 +100,7 @@ import {
   type AoiContourSchemeId,
 } from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
-import {
-  createSavedAoi,
-  type SavedAoi,
-} from "@/lib/savedAois"
+import { toArea, toAreas, type Area } from "@/lib/areas"
 
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
@@ -242,8 +243,8 @@ function parseRunPolygon(raw: string): GeoJSONGeometry | null {
 function App() {
   const period = useMemo(defaultPeriod, [])
   const [customPolygon, setCustomPolygon] = useState<GeoJSONGeometry | null>(null)
-  const [savedAois, setSavedAois] = useState<SavedAoi[]>([])
-  const [activeAoiId, setActiveAoiId] = useState<string | undefined>()
+  const [areas, setAreas] = useState<Area[]>([])
+  const [activeAreaId, setActiveAreaId] = useState<string | undefined>()
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; key: number } | null>(null)
   const [view, setView] = useState<{ lat: number; lon: number; zoom: number }>({
     lat: -14.5,
@@ -479,8 +480,6 @@ function App() {
         setTheme(p.theme)
       }
       const extras = parsePreferenceExtras(p.extras_json)
-      setSavedAois(extras.saved_aois ?? [])
-      setActiveAoiId(extras.active_aoi_id)
       /*
         Into a module rather than into state: the readers are the studio's
         status bar and the scene, and the scene is not React. Seeded here
@@ -563,60 +562,7 @@ function App() {
   const clearArea = () => {
     setCustomPolygon(null)
     setAnalysisLabel(undefined)
-    setActiveAoiId(undefined)
-  }
-
-  const handleImportPolygon = async () => {
-    try {
-      const { kml } = await import("@tmcw/togeojson")
-      const input = document.createElement("input")
-      input.type = "file"
-      input.accept = ".kml,.geojson,.json"
-      input.onchange = async () => {
-        const file = input.files?.[0]
-        if (!file) return
-        const text = await file.text()
-        let geom: GeoJSONGeometry | null = null
-        try {
-          if (file.name.toLowerCase().endsWith(".kml")) {
-            const dom = new DOMParser().parseFromString(text, "text/xml")
-            const fc = kml(dom)
-            const poly = fc.features.find(
-              (f) => f.geometry && f.geometry.type === "Polygon"
-            )
-            geom = (poly?.geometry as GeoJSONGeometry) ?? null
-          } else {
-            const parsed = JSON.parse(text)
-            if (parsed.type === "FeatureCollection") {
-              geom =
-                parsed.features.find(
-                  (f: { geometry?: { type?: string } }) => f.geometry?.type === "Polygon"
-                )?.geometry ?? null
-            } else if (parsed.type === "Feature") {
-              geom = parsed.geometry
-            } else if (parsed.type === "Polygon") {
-              geom = parsed
-            }
-          }
-        } catch (e) {
-          notifyError("Invalid file", e)
-          return
-        }
-        if (!geom) {
-          notifyError("No polygon found in the file.")
-          return
-        }
-        const entry = createSavedAoi(geom, savedAois, file.name.replace(/\.[^.]+$/, ""))
-        setSavedAois((prev) => [...prev, entry])
-        setActiveAoiId(entry.id)
-        setCustomPolygon(geom)
-        setAnalysisLabel(entry.name)
-        notifySuccess(`Polygon saved as “${entry.name}”.`)
-      }
-      input.click()
-    } catch (e) {
-      notifyError("Import failed", e)
-    }
+    setActiveAreaId(undefined)
   }
 
   return (
@@ -629,8 +575,8 @@ function App() {
           <WhatsNewGate />
           <AppBody
             customPolygon={customPolygon}
-            savedAois={savedAois}
-            activeAoiId={activeAoiId}
+            areas={areas}
+            activeAreaId={activeAreaId}
             flyTo={flyTo}
             view={view}
             start={start}
@@ -656,8 +602,8 @@ function App() {
             hasArea={hasArea}
             setView={setView}
             setCustomPolygon={setCustomPolygon}
-            setSavedAois={setSavedAois}
-            setActiveAoiId={setActiveAoiId}
+            setAreas={setAreas}
+            setActiveAreaId={setActiveAreaId}
             setFlyTo={setFlyTo}
             setStart={setStart}
             setEnd={setEnd}
@@ -686,7 +632,6 @@ function App() {
             lulcRunning={lulcRunning}
             setLulcRunning={setLulcRunning}
             onClearArea={clearArea}
-            onImportPolygon={handleImportPolygon}
           />
         </div>
       )}
@@ -696,8 +641,8 @@ function App() {
 
 function AppBody(props: {
   customPolygon: GeoJSONGeometry | null
-  savedAois: SavedAoi[]
-  activeAoiId?: string
+  areas: Area[]
+  activeAreaId?: string
   flyTo: { lat: number; lon: number; key: number } | null
   view: { lat: number; lon: number; zoom: number }
   start: string
@@ -723,8 +668,8 @@ function AppBody(props: {
   hasArea: boolean
   setView: (v: { lat: number; lon: number; zoom: number }) => void
   setCustomPolygon: (g: GeoJSONGeometry | null) => void
-  setSavedAois: Dispatch<SetStateAction<SavedAoi[]>>
-  setActiveAoiId: (id: string | undefined) => void
+  setAreas: Dispatch<SetStateAction<Area[]>>
+  setActiveAreaId: (id: string | undefined) => void
   setFlyTo: (v: { lat: number; lon: number; key: number } | null) => void
   setStart: (v: string) => void
   setEnd: (v: string) => void
@@ -755,7 +700,6 @@ function AppBody(props: {
   lulcRunning: boolean
   setLulcRunning: (v: boolean) => void
   onClearArea: () => void
-  onImportPolygon: () => void
 }) {
   const {
     user,
@@ -1493,7 +1437,7 @@ function AppBody(props: {
 
         The half that is not visible is worse, because it reaches the studio.
         The board receives `runId` as `result?.run_id || "current"` and resolves
-        the live area from it and from `activeAoiId`; carrying both across meant
+        the live area from it and from `activeAreaId`; carrying both across meant
         the new project's ground opened under the OLD project's identity, and
         that identity is the key to everything the board keeps per area -- the
         name a reader typed, the layer order, what they removed, where they
@@ -1518,7 +1462,7 @@ function AppBody(props: {
         // runs it moved on from in hand carries the previous project onto this
         // one's boards by the other door.
         props.clearRetainedRuns()
-        props.setActiveAoiId(undefined)
+        props.setActiveAreaId(undefined)
       }
       await persistActiveProjectId(id)
       if (!id) {
@@ -1588,7 +1532,7 @@ function AppBody(props: {
       props.clearRetainedRuns,
       persistAoiLabel,
       prefs?.extras_json,
-      props.setActiveAoiId,
+      props.setActiveAreaId,
       props.setCustomPolygon,
       props.setAnalysisLabel,
       props.setFlyTo,
@@ -1605,27 +1549,31 @@ function AppBody(props: {
     void activateProject(id, { userInitiated: false })
   }, [prefs?.extras_json, projects, activateProject])
 
-  const handleCreateProjectFromAoi = useCallback(async () => {
-    const hint =
-      props.analysisLabel || (props.customPolygon ? "Custom AOI" : "New field")
-    const name = window.prompt("Project name", hint)
+  /*
+    A new project, opened.
+
+    IT USED TO COPY THE MAP'S SHAPE INTO IT, as `projects.polygon_geojson`, and
+    was named handleCreateProjectFromAoi for that. A project holds areas now,
+    and giving it a geometry of its own is the confusion this change removes: a
+    project with one shape cannot describe a reader working several fields, and
+    that column is what the hub still reads to print "AOI" for a project holding
+    a dozen grounds. The copy stops here; the column goes with its last reader.
+
+    The map keeps whatever is drawn on it. Nothing is discarded -- it simply
+    belongs to no project until an area is made of it.
+  */
+  const handleCreateProject = useCallback(async () => {
+    const name = window.prompt("Project name", props.analysisLabel || "New field")
     if (!name?.trim()) return
     try {
       const p = (await CreateProject(name.trim(), "")) as unknown as Project
       await refreshProjects()
       await activateProject(p.id)
-      await syncProjectAoi(p.id)
       notifySuccess("Project created", p.name)
     } catch (e) {
       notifyError("Could not create project", e)
     }
-  }, [
-    activateProject,
-    refreshProjects,
-    syncProjectAoi,
-    props.analysisLabel,
-    props.customPolygon,
-  ])
+  }, [activateProject, refreshProjects, props.analysisLabel])
 
   const clearAreaAndComposition = useCallback(() => {
     setComposition(null)
@@ -1967,7 +1915,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAoiId,
+        aoi_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
       }
       const res = (await AnalyzeWater(req as never)) as unknown as WaterAnalysis
@@ -2023,7 +1971,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAoiId,
+        aoi_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         climatology_years: p.climatologyYears,
@@ -2074,7 +2022,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAoiId,
+        aoi_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         hourly_years: solar.params.hourlyYears,
@@ -2115,7 +2063,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAoiId,
+        aoi_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         slope_acceptable_deg: solar.params.slopeAcceptableDeg,
@@ -2181,7 +2129,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAoiId,
+        aoi_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         climatology_years: p.climatologyYears,
@@ -2269,7 +2217,7 @@ function AppBody(props: {
         // Which catalogued area this run is OF. Without it a drawing and
         // the runs over it are separate subjects on the board, and the
         // same ground is drawn once per drawing plus once per run.
-        aoi_id: props.activeAoiId,
+        aoi_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         record_years: w.recordYears,
@@ -2332,7 +2280,7 @@ function AppBody(props: {
       const req: FloodRequest = {
         label: aoiLabel,
         run_label: nameThisRun(aoiLabel),
-        aoi_id: props.activeAoiId,
+        aoi_id: props.activeAreaId,
         project_id: activeProjectId || undefined,
         polygon_geojson: props.customPolygon,
         dem_ids: floodParams.demIds,
@@ -2439,7 +2387,7 @@ function AppBody(props: {
       run_label: nameThisRun(aoiLabel),
       // See the note on the other requests: the board needs which area
       // this run is of, not only where it was made.
-      aoi_id: props.activeAoiId,
+      aoi_id: props.activeAreaId,
     }
     try {
       const res = (await Predict(req as never)) as unknown as PredictResult
@@ -2862,6 +2810,82 @@ function AppBody(props: {
     parsePreferenceExtras(prefs?.extras_json).map_view ??
     null
 
+  /*
+    The open project's grounds, re-read from the store.
+
+    A LOAD, NOT A CACHE TO KEEP IN STEP. Every mutation below re-reads rather
+    than patching the list in place, because the store decides two things the
+    frontend cannot: the id an area gets, and the name it is given when the
+    caller supplies none -- "drawn", "drawn 2", numbered against what the
+    project already holds. A local patch would have to reimplement both, and
+    the previous catalogue is what happened when it did.
+  */
+  const refreshAreas = useCallback(
+    async (projectId: string | null) => {
+      if (!projectId) {
+        props.setAreas([])
+        return
+      }
+      try {
+        const rows = await ListAreas(projectId)
+        props.setAreas(toAreas(rows))
+      } catch (e) {
+        notifyError("Could not load the project's areas", e)
+      }
+    },
+    [props.setAreas]
+  )
+
+  useEffect(() => {
+    void refreshAreas(activeProjectId)
+  }, [activeProjectId, refreshAreas])
+
+  /*
+    One drawn ground, written to the open project.
+
+    THE REFUSAL IS THE POINT. An area used to be created wherever a shape
+    arrived, belonging to nothing, and the run made over it inherited whichever
+    project happened to be selected -- which is how 58 runs from several fields
+    came to sit inside one project. There is nowhere to put an area without a
+    project, so this says so instead of inventing somewhere.
+
+    Returns the created area, or null when it refused or the write failed. The
+    callers use that to decide whether to say anything.
+  */
+  const createArea = useCallback(
+    async (geom: GeoJSONGeometry, nameHint?: string): Promise<Area | null> => {
+      if (!activeProjectId) {
+        notifyError("Open a project first: an area belongs to one.")
+        return null
+      }
+      try {
+        const row = await CreateArea(activeProjectId, nameHint?.trim() ?? "", JSON.stringify(geom))
+        const entry = toArea(row)
+        if (!entry) {
+          notifyError("The area was saved but its shape could not be read back.")
+          return null
+        }
+        await refreshAreas(activeProjectId)
+        props.setActiveAreaId(entry.id)
+        props.setCustomPolygon(entry.geometry)
+        props.setAnalysisLabel(entry.name)
+        setComposition(null)
+        setShowCompositionOverlay(true)
+        return entry
+      } catch (e) {
+        notifyError("Could not save the area", e)
+        return null
+      }
+    },
+    [
+      activeProjectId,
+      refreshAreas,
+      props.setActiveAreaId,
+      props.setCustomPolygon,
+      props.setAnalysisLabel,
+    ]
+  )
+
   /**
    * A polygon drawn on either map. Appended to the saved-AOI catalog so a
    * second draw does not throw the first away; the new entry becomes active.
@@ -2872,9 +2896,9 @@ function AppBody(props: {
    *
    * A REF, BECAUSE STATE CANNOT ANSWER THIS. The check below compares against
    * the active area, and when two reports of one drawing arrive in a single
-   * React batch the second still sees the activeAoiId the first has not
+   * React batch the second still sees the activeAreaId the first has not
    * committed yet -- so both create an entry, both name it from the same
-   * `savedAois`, and the catalog gets two areas with one name between them.
+   * `areas`, and the catalog gets two areas with one name between them.
    * That is exactly the pair reported. A ref is written synchronously and is
    * therefore the only thing that can see the first report from inside the
    * second.
@@ -2886,7 +2910,7 @@ function AppBody(props: {
       if (!geom) {
         lastDrawnRef.current = null
         props.setCustomPolygon(null)
-        props.setActiveAoiId(undefined)
+        props.setActiveAreaId(undefined)
         props.setAnalysisLabel(undefined)
         return
       }
@@ -2898,7 +2922,7 @@ function AppBody(props: {
         polygon once, but it is not the only way in -- two map surfaces are
         mounted at a time and either can report -- and the cost of a stray
         second report is not a stray no-op: it is a catalog entry, named from
-        whatever `savedAois` looked like when the batch started, so a pair of
+        whatever `areas` looked like when the batch started, so a pair of
         them arrive with one name between them.
 
         Compared by geometry rather than by identity: the value that comes back
@@ -2906,7 +2930,7 @@ function AppBody(props: {
         one already held.
       */
       const shape = JSON.stringify(geom)
-      const active = props.savedAois.find((a) => a.id === props.activeAoiId)
+      const active = props.areas.find((a) => a.id === props.activeAreaId)
       if (
         shape === lastDrawnRef.current ||
         (active && JSON.stringify(active.geometry) === shape)
@@ -2917,41 +2941,113 @@ function AppBody(props: {
       }
       lastDrawnRef.current = shape
       /*
-        Retention is NOT done here. Setting `activeAoiId` below is what the
-        effect beside `resultWithWater` watches, and it keeps the outgoing
-        ground's work for every way of leaving it rather than for this one.
+        Retention is NOT done here. Setting `activeAreaId` inside createArea is
+        what the effect beside `resultWithWater` watches, and it keeps the
+        outgoing ground's work for every way of leaving it rather than for this
+        one.
+
+        The shape goes on the map before the write returns. Waiting would leave
+        a drawn outline invisible for the round trip, and the write is what
+        decides the id and the name, not the geometry.
+
+        IF THE WRITE IS REFUSED THE OUTLINE GOES WITH IT. An outline the map
+        shows and the area card calls "none" is the disagreement this whole
+        change exists to end; a reader told to open a project first should be
+        looking at a map that is waiting for them, not at half a result.
       */
-      const entry = createSavedAoi(geom, props.savedAois)
-      props.setSavedAois((prev) => [...prev, entry])
-      props.setActiveAoiId(entry.id)
       props.setCustomPolygon(geom)
-      props.setAnalysisLabel(entry.name)
-      setComposition(null)
-      setShowCompositionOverlay(true)
+      void createArea(geom).then((entry) => {
+        if (entry) return
+        lastDrawnRef.current = null
+        props.setCustomPolygon(null)
+        props.setAnalysisLabel(undefined)
+      })
     },
     [
-      props.savedAois,
-      props.activeAoiId,
-      props.setSavedAois,
-      props.setActiveAoiId,
+      props.areas,
+      props.activeAreaId,
+      props.setActiveAreaId,
       props.setCustomPolygon,
       props.setAnalysisLabel,
+      createArea,
     ]
   )
 
-  const activateSavedAoi = useCallback(
+  /*
+    A polygon from a file, kept as an area of the open project.
+
+    IN APPBODY, not in App where it used to live, because creating an area now
+    needs the project to put it in and that id is state here. It was written
+    where it was when an area was a local object with a browser-minted id and
+    belonged to nothing.
+  */
+  const handleImportPolygon = async () => {
+    if (!activeProjectId) {
+      notifyError("Open a project first: an area belongs to one.")
+      return
+    }
+    try {
+      const { kml } = await import("@tmcw/togeojson")
+      const input = document.createElement("input")
+      input.type = "file"
+      input.accept = ".kml,.geojson,.json"
+      input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file) return
+        const text = await file.text()
+        let geom: GeoJSONGeometry | null = null
+        try {
+          if (file.name.toLowerCase().endsWith(".kml")) {
+            const dom = new DOMParser().parseFromString(text, "text/xml")
+            const fc = kml(dom)
+            const poly = fc.features.find(
+              (f) => f.geometry && f.geometry.type === "Polygon"
+            )
+            geom = (poly?.geometry as GeoJSONGeometry) ?? null
+          } else {
+            const parsed = JSON.parse(text)
+            if (parsed.type === "FeatureCollection") {
+              geom =
+                parsed.features.find(
+                  (f: { geometry?: { type?: string } }) => f.geometry?.type === "Polygon"
+                )?.geometry ?? null
+            } else if (parsed.type === "Feature") {
+              geom = parsed.geometry
+            } else if (parsed.type === "Polygon") {
+              geom = parsed
+            }
+          }
+        } catch (e) {
+          notifyError("Invalid file", e)
+          return
+        }
+        if (!geom) {
+          notifyError("No polygon found in the file.")
+          return
+        }
+        const entry = await createArea(geom, file.name.replace(/\.[^.]+$/, ""))
+        if (!entry) return
+        notifySuccess(`Polygon saved as \u201c${entry.name}\u201d.`)
+      }
+      input.click()
+    } catch (e) {
+      notifyError("Import failed", e)
+    }
+  }
+
+  const activateArea = useCallback(
     (id: string) => {
-      const entry = props.savedAois.find((a) => a.id === id)
+      const entry = props.areas.find((a) => a.id === id)
       if (!entry) return
-      props.setActiveAoiId(entry.id)
+      props.setActiveAreaId(entry.id)
       props.setCustomPolygon(entry.geometry)
       props.setAnalysisLabel(entry.name)
       setComposition(null)
       setShowCompositionOverlay(true)
     },
     [
-      props.savedAois,
-      props.setActiveAoiId,
+      props.areas,
+      props.setActiveAreaId,
       props.setCustomPolygon,
       props.setAnalysisLabel,
     ]
@@ -2962,74 +3058,95 @@ function AppBody(props: {
     (geom: GeoJSONGeometry | null) => {
       if (!geom) {
         props.setCustomPolygon(null)
-        props.setActiveAoiId(undefined)
+        props.setActiveAreaId(undefined)
         props.setAnalysisLabel(undefined)
         return
       }
       props.setCustomPolygon(geom)
-      props.setActiveAoiId(undefined)
+      props.setActiveAreaId(undefined)
       setComposition(null)
       setShowCompositionOverlay(true)
     },
     [
       props.setCustomPolygon,
-      props.setActiveAoiId,
+      props.setActiveAreaId,
       props.setAnalysisLabel,
     ]
   )
 
-  const renameSavedAoi = useCallback(
-    (id: string, name: string) => {
+  const renameArea = useCallback(
+    async (id: string, name: string) => {
       const next = name.trim()
       if (!next) return
-      props.setSavedAois((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, name: next } : a))
-      )
-      if (props.activeAoiId === id) props.setAnalysisLabel(next)
-    },
-    [props.setSavedAois, props.activeAoiId, props.setAnalysisLabel]
-  )
-
-  const deleteSavedAoi = useCallback(
-    (id: string) => {
-      props.setSavedAois((prev) => prev.filter((a) => a.id !== id))
-      if (props.activeAoiId === id) {
-        props.setCustomPolygon(null)
-        props.setActiveAoiId(undefined)
-        props.setAnalysisLabel(undefined)
+      const current = props.areas.find((a) => a.id === id)
+      if (!current) return
+      /*
+        THROUGH THE STORE, which is what makes the new name outlive the
+        session. Renaming used to patch the local list and stop there, so the
+        name a reader typed was gone at the next start and every run recorded
+        under it still carried the old one.
+      */
+      try {
+        await UpdateArea({
+          id,
+          name: next,
+          notes: current.notes,
+          polygon_geojson: JSON.stringify(current.geometry),
+        } as never)
+        await refreshAreas(activeProjectId)
+        if (props.activeAreaId === id) props.setAnalysisLabel(next)
+      } catch (e) {
+        notifyError("Could not rename the area", e)
       }
     },
     [
-      props.setSavedAois,
-      props.activeAoiId,
-      props.setCustomPolygon,
-      props.setActiveAoiId,
+      props.areas,
+      props.activeAreaId,
       props.setAnalysisLabel,
+      refreshAreas,
+      activeProjectId,
     ]
   )
 
-  /** Persist the catalog whenever it changes (silent — no toast). */
-  useEffect(() => {
-    if (!prefs) return
-    const extras = parsePreferenceExtras(prefs.extras_json)
-    const sameAois =
-      JSON.stringify(extras.saved_aois ?? []) === JSON.stringify(props.savedAois)
-    const sameActive = (extras.active_aoi_id ?? undefined) === props.activeAoiId
-    if (sameAois && sameActive) return
-    void savePrefs(
-      {
-        ...prefs,
-        extras_json: mergePreferenceExtras(prefs.extras_json, {
-          saved_aois: props.savedAois,
-          active_aoi_id: props.activeAoiId,
-          aoi_label:
-            props.savedAois.find((a) => a.id === props.activeAoiId)?.name ??
-            extras.aoi_label,
-        }),
-      },
-      { silent: true }
-    ).catch(() => {})
-  }, [props.savedAois, props.activeAoiId, prefs, savePrefs])
+  const deleteArea = useCallback(
+    async (id: string) => {
+      const target = props.areas.find((a) => a.id === id)
+      if (!target) return
+      /*
+        ASKED FOR, BECAUSE IT TAKES THE RUNS TOO.
+
+        Deleting an entry from the old catalogue left the runs alone -- nothing
+        linked them, so nothing could follow. An area owns its runs now, and
+        DeleteArea removes their rows and their rasters. That is the behaviour
+        wanted; it is not a behaviour to discover afterwards.
+      */
+      const owned = target.run_count
+      const warning = owned
+        ? `Delete "${target.name}" and the ${owned} run${owned === 1 ? "" : "s"} measured on it? This cannot be undone.`
+        : `Delete "${target.name}"?`
+      if (!window.confirm(warning)) return
+      try {
+        await DeleteArea(id)
+        await refreshAreas(activeProjectId)
+        if (props.activeAreaId === id) {
+          props.setCustomPolygon(null)
+          props.setActiveAreaId(undefined)
+          props.setAnalysisLabel(undefined)
+        }
+      } catch (e) {
+        notifyError("Could not delete the area", e)
+      }
+    },
+    [
+      props.areas,
+      props.activeAreaId,
+      props.setCustomPolygon,
+      props.setActiveAreaId,
+      props.setAnalysisLabel,
+      refreshAreas,
+      activeProjectId,
+    ]
+  )
 
   /**
    * The analysis payload as the Analysis screen and the exporter see it.
@@ -3121,10 +3238,10 @@ function AppBody(props: {
   }>({ id: undefined, result: null })
   useEffect(() => {
     const leaving = leavingRef.current
-    leavingRef.current = { id: props.activeAoiId, result: resultWithWater }
-    if (!leaving.id || leaving.id === props.activeAoiId) return
+    leavingRef.current = { id: props.activeAreaId, result: resultWithWater }
+    if (!leaving.id || leaving.id === props.activeAreaId) return
     props.retainRun(leaving.result, leaving.id)
-  }, [props.activeAoiId, resultWithWater, props.retainRun])
+  }, [props.activeAreaId, resultWithWater, props.retainRun])
 
   /**
    * The hub, from wherever the click came from.
@@ -3233,7 +3350,7 @@ function AppBody(props: {
               onMenuOpen={() => void refreshWhiteboards()}
               busy={loadingRun}
               onSelect={(id) => void activateProject(id)}
-              onCreate={() => void handleCreateProjectFromAoi()}
+              onCreate={() => void handleCreateProject()}
               onOpenRun={(run) => {
                 void (async () => {
                   /*
@@ -3395,16 +3512,16 @@ function AppBody(props: {
                   onViewChange={handleViewChange}
                   onPolygonDrawn={handlePolygonDrawn}
                   onAdoptAreaGeometry={adoptAreaGeometry}
-                  savedAois={props.savedAois}
-                  activeAoiId={props.activeAoiId}
-                  onActivateSavedAoi={activateSavedAoi}
-                  onRenameSavedAoi={renameSavedAoi}
-                  onDeleteSavedAoi={deleteSavedAoi}
+                  areas={props.areas}
+                  activeAreaId={props.activeAreaId}
+                  onActivateArea={activateArea}
+                  onRenameArea={renameArea}
+                  onDeleteArea={deleteArea}
                   onLocationSelect={(lat, lon) =>
                     props.setFlyTo({ lat, lon, key: Date.now() })
                   }
                   onClearArea={clearAreaAndComposition}
-                  onImportPolygon={props.onImportPolygon}
+                  onImportPolygon={handleImportPolygon}
                   onStartChange={props.setStart}
                   onEndChange={props.setEnd}
                   onMaxCloudChange={props.setMaxCloud}
@@ -3535,7 +3652,7 @@ function AppBody(props: {
                   hasArea={props.hasArea}
                   customPolygon={props.customPolygon}
                   onPolygonDrawn={handlePolygonDrawn}
-                  onImportPolygon={props.onImportPolygon}
+                  onImportPolygon={handleImportPolygon}
                   onClearArea={clearAreaAndComposition}
                   areaLabel={areaLabel}
                   onAreaLabelChange={(label) => {
@@ -3583,7 +3700,7 @@ function AppBody(props: {
                   hasArea={props.hasArea}
                   customPolygon={props.customPolygon}
                   onPolygonDrawn={handlePolygonDrawn}
-                  onImportPolygon={props.onImportPolygon}
+                  onImportPolygon={handleImportPolygon}
                   onClearArea={clearAreaAndComposition}
                   areaLabel={areaLabel}
                   onAreaLabelChange={(label) => {
