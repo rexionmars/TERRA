@@ -80,7 +80,7 @@ type = "layers"
 layers = [
     "terra.cli",
     "terra.registry",
-    "terra.energy | terra.water | terra.flood | terra.canopy | terra.landcover | terra.scenes",
+    "terra.energy | terra.water | terra.flood | terra.canopy | terra.landcover | terra.scenes | terra.surface",
     "terra.imagery | terra.terrain | terra.sun",
     "terra.stac | terra.mapbiomas",
     "terra.aoi | terra.phenology",
@@ -97,6 +97,7 @@ modules = [
     "terra.canopy",
     "terra.landcover",
     "terra.scenes",
+    "terra.surface",
 ]
 
 [[tool.importlinter.contracts]]

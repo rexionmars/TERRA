@@ -20,12 +20,20 @@
  */
 import { Loader2 } from "lucide-react"
 import type { RunLogEntry } from "@/lib/runLog"
+import type { BoardStats } from "@/components/whiteboard/boardScene"
+import { useSyncExternalStore } from "react"
+import {
+  TELEMETRY_FIGURES,
+  studioTelemetry,
+  subscribeStudioTelemetry,
+} from "@/lib/studioTelemetry"
 import { cn } from "@/lib/utils"
 
 /** The strip's height, which the area tree subtracts from its rectangle. */
 export const STATUS_BAR_PX = 22
 
 export function StudioStatusBar({
+  stats,
   running,
   progress,
   runLog,
@@ -34,6 +42,8 @@ export function StudioStatusBar({
   areas,
   onOpenLog,
 }: {
+  /** What the surface is costing, or null before it has drawn a frame. */
+  stats: BoardStats | null
   running: boolean
   /** 0 to 100, from the sidecar's own stages. */
   progress: number
@@ -45,6 +55,20 @@ export function StudioStatusBar({
   onOpenLog?: () => void
 }) {
   const stage = runLog.length ? runLog[runLog.length - 1] : null
+  /*
+    Which figures to draw, subscribed rather than received.
+
+    Off by default and each switched separately in Settings, because a status
+    bar reporting its own performance to a reader who did not ask is chrome
+    spent on a question they are not holding. One of them is not free -- see
+    lib/studioTelemetry.ts -- and the scene watches the same store, so switching
+    that one off stops the work as well as the display.
+  */
+  const shows = useSyncExternalStore(
+    subscribeStudioTelemetry,
+    studioTelemetry
+  )
+  const anyShown = TELEMETRY_FIGURES.some((f) => shows[f.key])
 
   return (
     <div
@@ -73,6 +97,70 @@ export function StudioStatusBar({
         <Binding keys="Shift Middle" what="Pan" />
         <Binding keys="Ctrl Middle" what="Zoom" />
       </span>
+
+      {/*
+        What the surface costs, beside what the pointer does, because both
+        answer questions about THIS viewport and a reader checking whether a
+        drag is smooth is already looking here.
+
+        EVERY FIGURE IS MEASURED. The frame time is the median interval between
+        the frames that actually happened -- the board renders on demand, so a
+        mean since the scene opened would hide the stall being looked for. The
+        counters are three's own renderer.info, which is what was submitted
+        rather than an estimate of it.
+
+        There is no CPU or process-memory figure here, and it is not an
+        oversight. A WKWebView exposes neither: `performance.memory` is not
+        implemented in WebKit, and the process doing the work is a WebContent
+        XPC service whose only link back to this application is a handful of
+        transient cache files. A number invented for those columns would be
+        worse than their absence.
+      */}
+      {stats && anyShown && (
+        <span className="telemetry hidden shrink-0 items-center gap-2 text-[9px] text-muted-foreground xl:flex">
+          {shows.page && (
+            <Figure
+              label="page"
+              value={`${stats.displayHz.toFixed(0)}hz`}
+              warn={stats.displayHz > 0 && stats.displayHz < 45}
+            />
+          )}
+          {shows.fps && (
+            <>
+              {/* Under 30 a drag reads as stepping rather than moving. */}
+              <Figure label="fps" value={stats.fps.toFixed(0)} warn={stats.fps > 0 && stats.fps < 30} />
+              <Figure label="gap" value={`${stats.frameMs.toFixed(0)}ms`} />
+            </>
+          )}
+          {shows.work && (
+            <Figure label="work" value={`${stats.workMs.toFixed(1)}ms`} warn={stats.workMs > 16} />
+          )}
+          {shows.pointer && (
+            <>
+              <Figure label="move" value={`${stats.moveMs.toFixed(1)}ms`} warn={stats.moveMs > 4} />
+              <Figure label="ev" value={`${stats.moveHz.toFixed(0)}/s`} />
+            </>
+          )}
+          {shows.draws && (
+            <>
+              <Figure label="calls" value={String(stats.calls)} />
+              <Figure label="tris" value={formatCount(stats.triangles)} />
+            </>
+          )}
+          {shows.resources && (
+            <>
+              <Figure label="tex" value={String(stats.textures)} />
+              <Figure label="geo" value={String(stats.geometries)} />
+            </>
+          )}
+          {shows.buffer && (
+            <Figure
+              label={`buf @${stats.pixelRatio}x`}
+              value={`${stats.bufferW}x${stats.bufferH}`}
+            />
+          )}
+        </span>
+      )}
 
       <span className="flex-1" />
 
@@ -128,6 +216,36 @@ export function StudioStatusBar({
       </span>
     </div>
   )
+}
+
+/** One measured figure: the number in the foreground, its unit beside it. */
+function Figure({
+  label,
+  value,
+  warn = false,
+}: {
+  label: string
+  value: string
+  warn?: boolean
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span
+        className="tabular-nums"
+        style={{ color: warn ? "var(--destructive-quiet)" : "rgb(var(--p-text))" }}
+      >
+        {value}
+      </span>
+      {label}
+    </span>
+  )
+}
+
+/** Thousands as k, because a triangle count is read for its order of size. */
+function formatCount(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`
+  return `${(n / 1_000_000).toFixed(1)}M`
 }
 
 /** One binding: the key in the foreground, what it does beside it. */

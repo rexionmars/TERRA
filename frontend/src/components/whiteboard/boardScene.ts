@@ -66,6 +66,14 @@ import {
   file consult the partition without the chrome it must not pull.
 */
 import type { CardGroup, CardPlane } from "@/lib/boardLayout"
+import {
+  onPaletteChange,
+  viewportPaletteOverride,
+} from "@/lib/paletteWatch"
+import {
+  subscribeStudioTelemetry,
+  telemetryShows,
+} from "@/lib/studioTelemetry"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
 
@@ -82,6 +90,24 @@ import { ViewHelper } from "three/examples/jsm/helpers/ViewHelper.js"
  * Measured against three 0.185: `rgb(23 23 23)` parses to ffffff,
  * `rgb(23,23,23)` to 171717.
  */
+/**
+ * The ground grid's alpha.
+ *
+ * Sparse and dim on purpose -- see addGround. Named because the palette
+ * override can replace it, and a literal in two places would let the override
+ * and the default disagree about what "the grid's own alpha" means.
+ */
+const GRID_OPACITY = 0.14
+
+/** --v-grid-alpha, or the constant above where the token is missing. */
+function gridAlpha(): number {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue("--v-grid-alpha")
+    .trim()
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 && n <= 1 ? n : GRID_OPACITY
+}
+
 /** Arrowhead size, in board units where the largest area's side is 1. */
 const ARROW_RADIUS = 0.018
 const ARROW_LENGTH = 0.055
@@ -132,6 +158,45 @@ export interface PlaneState {
  * Only the two units this variable is ever written in. Anything else returns 0,
  * which is the same fallback the caller had and is honest about not knowing.
  */
+/** What one board is costing to draw. Every figure is measured, none derived. */
+export interface BoardStats {
+  /**
+   * Frames per second the BROWSER delivers, from a loop that draws nothing.
+   *
+   * Near the display's own rate means the page's frame loop is healthy and a
+   * large `frameMs` is the board idling. Far below it means the browser cannot
+   * finish a frame, and nothing in this scene is the reason.
+   */
+  displayHz: number
+  /** Median time inside one pointermove handler, in milliseconds. */
+  moveMs: number
+  /** Pointer events arriving per second, over the last full second. */
+  moveHz: number
+  /** The drawing buffer, in device pixels, and the ratio it was built at. */
+  bufferW: number
+  bufferH: number
+  pixelRatio: number
+  /**
+   * Median time spent INSIDE a frame: controls, draw, helper, labels.
+   *
+   * This is the figure that says whether the surface is slow. It is not the
+   * interval -- see workMs in createBoard for why the two differ here.
+   */
+  workMs: number
+  /** Median interval between frames, which on an idle board is mostly waiting. */
+  frameMs: number
+  /** The interval as a rate, or 0 before two frames have been drawn. */
+  fps: number
+  /** three's renderer.info.render.calls for the last frame. */
+  calls: number
+  triangles: number
+  /** Live GPU resources: renderer.info.memory. */
+  textures: number
+  geometries: number
+  /** Compiled shader programs held by the renderer. */
+  programs: number
+}
+
 export interface BoardHandle {
   /** Redraw once. The board renders on demand, not in a permanent loop. */
   render: () => void
@@ -255,6 +320,14 @@ export interface BoardHandle {
    */
   focusPlane: (groupId: string, layerId: string) => boolean
   /** Release the GL context and every resource attached to it. */
+  /**
+   * What the surface is costing, for the studio's status bar.
+   *
+   * Read on demand rather than pushed: the caller polls at a rate a person can
+   * read, and a scene that reported every frame would be asking React to
+   * re-render at the frame rate to display the frame rate.
+   */
+  stats: () => BoardStats
   dispose: () => void
 }
 
@@ -408,7 +481,25 @@ export function createBoard(
   host.appendChild(renderer.domElement)
 
   const scene = new Scene()
-  scene.background = new Color(opts.background)
+  /*
+    The chassis colours the board is painted in RIGHT NOW, rather than the ones
+    it was built with.
+
+    Held together and mutable because the theme can move under a scene that is
+    already open, and everything below reads from here instead of from `opts`
+    -- including the ground, which is built later than this and would otherwise
+    be the one object still wearing the palette that was current at the build.
+
+    `opts` stays the source of the first values: BoardSurface reads the tokens
+    off the computed style before calling, and repainting immediately to
+    re-read what it just passed would be a second answer to a settled question.
+  */
+  const palette = {
+    background: opts.background,
+    line: opts.line,
+    accent: opts.accent,
+  }
+  scene.background = new Color(palette.background)
 
   const FOV = 45
   /*
@@ -421,7 +512,7 @@ export function createBoard(
     Near and far are set once the cards are laid out, since both depend on how
     large the stack turned out to be.
   */
-  scene.fog = new Fog(new Color(opts.background).getHex(), 1, 10)
+  scene.fog = new Fog(new Color(palette.background).getHex(), 1, 10)
 
   const camera = new PerspectiveCamera(FOV, 1, 0.01, 1000)
 
@@ -1176,6 +1267,23 @@ export function createBoard(
   }
 
   const onPointerMove = (e: PointerEvent) => {
+    const began = performance.now()
+    moveCount++
+    if (!moveWindowAt) moveWindowAt = began
+    else if (began - moveWindowAt >= 1000) {
+      moveHz = (moveCount * 1000) / (began - moveWindowAt)
+      moveCount = 0
+      moveWindowAt = began
+    }
+    try {
+      onPointerMoveInner(e)
+    } finally {
+      moveMs.push(performance.now() - began)
+      if (moveMs.length > 60) moveMs.shift()
+    }
+  }
+
+  const onPointerMoveInner = (e: PointerEvent) => {
     if (!dragging) {
       sampleProbe(e)
       return
@@ -1294,6 +1402,16 @@ export function createBoard(
   }
 
   /**
+   * The ground's material, once there is one.
+   *
+   * Kept because the ground is the only theme-painted thing here that is built
+   * on demand rather than with the scene, so a repaint cannot assume it exists
+   * and cannot find it by walking the graph without knowing what it is looking
+   * at.
+   */
+  let gridMaterial: LineBasicMaterial | null = null
+
+  /**
    * The ground the stack sits over: a sparse grid, fading out.
    *
    * Sparse and dim on purpose. A dense bright grid is what makes a surface
@@ -1307,15 +1425,16 @@ export function createBoard(
     // Ten cells across the object, out to four times its radius: fine enough
     // to read motion against, coarse enough not to draw attention.
     const span = radius * 8
-    const grid = new GridHelper(span, 20, opts.line, opts.line)
+    const grid = new GridHelper(span, 20, palette.line, palette.line)
     const material = grid.material as LineBasicMaterial
     material.transparent = true
-    material.opacity = 0.14
+    material.opacity = viewportPaletteOverride()?.gridOpacity ?? gridAlpha()
     material.depthWrite = false
     // Below the lowest plane, so it never fights the rasters for the surface.
     grid.position.y = -radius * 0.35
     scene.add(grid)
     disposables.push(grid.geometry, material)
+    gridMaterial = material
 
     gridSpan = span
   }
@@ -1427,10 +1546,114 @@ export function createBoard(
     opts.onLabels(spots)
   }
 
+  /*
+    What the last frames cost, and what they drew.
+
+    The board renders on demand, so a frame rate here is not "how fast the loop
+    runs" -- it is how long the frames that DID happen took, which is the number
+    that says whether a drag is smooth. Kept as a small ring rather than an
+    average since the scene opened: a mean over a session hides the stall that
+    is being looked for.
+
+    The counters come from three's own renderer.info, so they are what was
+    submitted rather than an estimate of it.
+  */
+  const frameMs: number[] = []
+  /*
+    And what the frame COST, which is a different number from what it waited.
+
+    The board renders on demand, so the gap between two frames includes however
+    long nothing asked for one. A readout of that gap alone reports a scene
+    sitting still as a slow scene -- the interval is honest about the rate and
+    says nothing about the work, and the two are only the same thing in a loop
+    that never idles. This one idles by design.
+
+    Measured around the whole callback rather than around renderer.render: what
+    a dropped frame costs includes the controls' update and the label
+    projection, and blaming only the draw would point at the wrong half.
+  */
+  const workMs: number[] = []
+  let lastFrameAt = 0
+
+  /*
+    How fast the BROWSER is handing out frames, measured by a loop that draws
+    nothing.
+
+    `frameMs` cannot answer this on its own. The board renders on demand, so a
+    gap of 70ms is either the browser delivering frames at 14Hz or the board
+    only being asked for one that often -- opposite diagnoses with opposite
+    fixes, and the same number.
+
+    This ticker asks for a frame, records when it arrives, and asks again. It
+    submits no drawing, so what it measures is the page's own frame loop:
+    whatever style, layout, paint and compositing the browser does between
+    handing out one frame and the next.
+
+    A DIAGNOSTIC, and not free: a self-scheduling rAF keeps the page animating,
+    which is the state being measured but not one the studio would otherwise
+    sit in.
+  */
+  /*
+    What a pointer event costs, measured because the frame timing cannot see it.
+
+    `workMs` covers the requestAnimationFrame callback. Pointer handlers run
+    OUTSIDE it: if a move handler were expensive, the main thread would be busy
+    between frames, the browser would deliver them late, and the readout would
+    show a fast frame and a slow page -- which is exactly what it does show. So
+    this closes the one gap in that reasoning rather than assuming it shut.
+  */
+  const moveMs: number[] = []
+  let moveCount = 0
+  let moveWindowAt = 0
+  let moveHz = 0
+
+  const displayMs: number[] = []
+  let tickAt = 0
+  let tickRaf = 0
+  const tick = (t: number) => {
+    if (disposed || !telemetryShows("page")) {
+      tickRaf = 0
+      tickAt = 0
+      displayMs.length = 0
+      return
+    }
+    if (tickAt) {
+      displayMs.push(t - tickAt)
+      if (displayMs.length > 60) displayMs.shift()
+    }
+    tickAt = t
+    tickRaf = requestAnimationFrame(tick)
+  }
+  /*
+    Started only when the figure is switched on, and stopped when it is off.
+
+    This is the one measurement that is not free, so it does not run for a
+    reader who is not reading it. Subscribing rather than reading once means the
+    setting takes effect on the open studio instead of on the next one.
+  */
+  const syncTicker = () => {
+    if (telemetryShows("page")) {
+      if (!tickRaf && !disposed) tickRaf = requestAnimationFrame(tick)
+    } else if (tickRaf) {
+      cancelAnimationFrame(tickRaf)
+      tickRaf = 0
+      tickAt = 0
+      displayMs.length = 0
+    }
+  }
+  const stopTelemetryWatch = subscribeStudioTelemetry(syncTicker)
+  syncTicker()
+
   const render = () => {
     if (disposed || raf) return
     raf = requestAnimationFrame(() => {
       raf = 0
+      const began = performance.now()
+      if (lastFrameAt) {
+        frameMs.push(began - lastFrameAt)
+        if (frameMs.length > 60) frameMs.shift()
+      }
+      lastFrameAt = began
       controls.update()
       updateFog()
       renderer.clear()
@@ -1440,6 +1663,8 @@ export function createBoard(
       // behind the raster.
       viewHelper.render(renderer)
       reportLabels()
+      workMs.push(performance.now() - began)
+      if (workMs.length > 60) workMs.shift()
     })
   }
   controls.addEventListener("change", render)
@@ -1564,7 +1789,7 @@ export function createBoard(
     boundary to reconcile with the first.
   */
   const footprintMaterial = new LineBasicMaterial({
-    color: new Color(opts.line),
+    color: new Color(palette.line),
     transparent: true,
     opacity: 0.55,
     depthWrite: false,
@@ -1578,7 +1803,7 @@ export function createBoard(
     for a property with two values.
   */
   const footprintSelected = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.95,
     depthWrite: false,
@@ -1617,7 +1842,7 @@ export function createBoard(
     geometry was disposed -- three only drops a replaced attribute then.
   */
   const linkMaterial = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.45,
     depthWrite: false,
@@ -1667,13 +1892,13 @@ export function createBoard(
     already is when it follows a line.
   */
   const pathMaterial = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.85,
     depthWrite: false,
   })
   const arrowMaterial = new MeshBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.9,
     depthWrite: false,
@@ -1870,12 +2095,64 @@ export function createBoard(
     are per plane and disposed individually.
   */
   const outlineMaterial = new LineBasicMaterial({
-    color: new Color(opts.accent),
+    color: new Color(palette.accent),
     transparent: true,
     opacity: 0.9,
     depthWrite: false,
   })
   disposables.push(outlineMaterial)
+
+  /*
+    Re-reads the chassis tokens and repaints everything drawn in them.
+
+    IN PLACE, not by rebuilding. A rebuilt scene decodes every raster again and
+    starts from the layout's first answer, so changing the theme would undo an
+    arrangement -- the planes someone dragged apart would spring back, and the
+    textures would go for a second trip through the decoder to arrive
+    identical. Nothing here is geometry: it is a colour per material, plus the
+    two on the scene itself.
+
+    Named for what it does rather than exposed on the handle, because no caller
+    asks for it. What asks is the attribute the theme is written to, and this
+    subscribes to that itself -- see onPaletteChange for why a WebGL surface is
+    the one place in the application that has to.
+  */
+  const repaint = () => {
+    /*
+      The override wins where there is one. It is how the studio can be held on
+      one palette while the panels around it move to another, which is the only
+      way to judge the two against each other -- they read the same tokens
+      otherwise, by design.
+    */
+    const pinned = viewportPaletteOverride()
+    palette.background = pinned
+      ? pinned.background
+      : tokenColor("--v-ink", palette.background)
+    palette.line = pinned ? pinned.line : tokenColor("--v-line", palette.line)
+    palette.accent = pinned
+      ? pinned.accent
+      : tokenColor("--p-accent", palette.accent)
+    ;(scene.background as Color).set(palette.background)
+    // The fog is the background, so the ground still dissolves into the edge
+    // of the viewport rather than into the colour the viewport used to be.
+    if (scene.fog) scene.fog.color.set(palette.background)
+    if (gridMaterial) {
+      gridMaterial.color.set(palette.line)
+      gridMaterial.opacity = pinned?.gridOpacity ?? gridAlpha()
+    }
+    footprintMaterial.color.set(palette.line)
+    for (const m of [
+      footprintSelected,
+      linkMaterial,
+      pathMaterial,
+      arrowMaterial,
+      outlineMaterial,
+    ]) {
+      m.color.set(palette.accent)
+    }
+    render()
+  }
+  const stopPaletteWatch = onPaletteChange(repaint)
 
   /*
     Every plane on the board, drawn in a single order.
@@ -2268,6 +2545,31 @@ export function createBoard(
         render()
       }
     },
+    stats() {
+      const mid = (xs: number[]) => {
+        if (!xs.length) return 0
+        const sorted = [...xs].sort((x, y) => x - y)
+        return sorted[Math.floor(sorted.length / 2)]
+      }
+      const median = mid(frameMs)
+      const display = mid(displayMs)
+      return {
+        displayHz: display > 0 ? 1000 / display : 0,
+        moveMs: mid(moveMs),
+        moveHz,
+        bufferW: renderer.domElement.width,
+        bufferH: renderer.domElement.height,
+        pixelRatio: renderer.getPixelRatio(),
+        workMs: mid(workMs),
+        frameMs: median,
+        fps: median > 0 ? 1000 / median : 0,
+        calls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        textures: renderer.info.memory.textures,
+        geometries: renderer.info.memory.geometries,
+        programs: renderer.info.programs?.length ?? 0,
+      }
+    },
     dispose() {
       disposed = true
       // Returns every echo to the pool first, so the loop below sees them all.
@@ -2281,6 +2583,9 @@ export function createBoard(
       for (const echo of echoPool) echo.material.dispose()
       echoPool.length = 0
       if (raf) cancelAnimationFrame(raf)
+      if (tickRaf) cancelAnimationFrame(tickRaf)
+      stopTelemetryWatch()
+      stopPaletteWatch()
       observer.disconnect()
       controls.removeEventListener("change", render)
       controls.dispose()

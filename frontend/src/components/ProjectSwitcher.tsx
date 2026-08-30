@@ -354,14 +354,57 @@ export function ProjectSwitcher({
             return !o
           })
         }
-        className="panel flex max-w-[14rem] items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[11px] text-foreground hover:bg-secondary/40"
+        /*
+          NO BOX AT REST, and no accent on the glyph.
+
+          It wore `panel` -- a bordered, translucent surface -- inside the title
+          bar, which is itself a panel. A panel drawn on a panel reads as a
+          control competing with the wordmark beside it rather than as one more
+          thing on the same row, and the row already separates its parts with a
+          hairline where it means to.
+
+          The accent went with it. DESIGN.md gives that colour three jobs -- a
+          fill, a focus ring, an active state -- and a permanent tint on a
+          folder glyph is none of them. It spent the one colour on screen that
+          is not data on a decoration, beside the project's name, which is what
+          a reader is actually here to read.
+
+          Both come back when the menu is open, because that IS an active state
+          and is exactly what the accent is for.
+        */
+        className={cn(
+          "flex max-w-[14rem] items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[11px] transition-colors",
+          open
+            ? "bg-secondary/60 text-foreground"
+            : "text-foreground hover:bg-secondary/40"
+        )}
         title="Active project"
       >
-        <FolderKanban className="size-3.5 shrink-0 text-primary" />
-        <span className="min-w-0 flex-1 truncate">
+        <FolderKanban
+          className={cn(
+            "size-3.5 shrink-0 transition-colors",
+            open ? "text-primary" : "text-muted-foreground"
+          )}
+        />
+        {/*
+          The name at full strength and the fallback muted, because they are
+          different kinds of thing: one is a value, the other is the absence of
+          one. Drawn alike, "No project" read as a project called that.
+        */}
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            !active && "text-muted-foreground"
+          )}
+        >
           {active ? active.name : "No project"}
         </span>
-        <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+        <ChevronDown
+          className={cn(
+            "size-3 shrink-0 transition-transform",
+            open ? "rotate-180 text-foreground" : "text-muted-foreground"
+          )}
+        />
       </button>
       {menu}
     </div>

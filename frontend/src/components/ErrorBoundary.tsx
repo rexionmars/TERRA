@@ -125,7 +125,7 @@ function CrashDetail({
         {error.message || "The thrown value carried no message."}
       </p>
       {componentStack ? (
-        <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap text-micro text-muted-foreground">
+        <pre className="selectable mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap text-micro text-muted-foreground">
           {componentStack.trim()}
         </pre>
       ) : null}

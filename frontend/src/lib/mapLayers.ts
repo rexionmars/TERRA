@@ -47,6 +47,17 @@ export interface RasterLayer {
    */
   smooth: boolean
   /**
+   * The same ground as `uri`, carrying VALUES rather than colours.
+   *
+   * Present only where the run wrote one. A layer that has it is painted from
+   * the measurement and coloured by an expression, so the palette and which
+   * values are drawn become paint properties; a layer without it is drawn as
+   * the finished image it always was.
+   */
+  valuesUri?: string
+  /** How many discrete values the scale runs to, when `valuesUri` is set. */
+  classes?: number
+  /**
    * Whether it is currently drawn.
    *
    * The table returns layers that COULD be drawn, not only those that are, so
@@ -185,17 +196,33 @@ export function floodAgreementLayer(
   visible: boolean,
   opacity: number
 ): RasterLayer | null {
-  if (!flood?.agreement_uri || isZeroExtent(flood.extent)) return null
+  /*
+    Either raster is enough to draw the layer. The guard tested the coloured
+    image alone, which was right while that was the only one -- and became a
+    layer silently dropped the moment a run carried its counts and not its
+    colours, which is a state the store can produce.
+  */
+  const values = flood?.agreement_values_uri || ""
+  const coloured = flood?.agreement_uri || ""
+  if (!flood || (!coloured && !values) || isZeroExtent(flood.extent)) return null
   return {
     id: "flood",
     title: "Flood agreement",
-    uri: flood.agreement_uri,
+    uri: coloured,
     extent: flood.extent,
     opacity,
     order: 365,
     pixelated: true,
     smooth: false,
     visible,
+    /*
+      The counts, where the run produced them. The map paints from these and
+      colours them with an expression; `uri` above stays as the fallback for a
+      run made before this existed, or one whose values file could not be read.
+      `classes` is how many products voted, which is the top of the scale.
+    */
+    valuesUri: values || undefined,
+    classes: flood.products.length || undefined,
   }
 }
 

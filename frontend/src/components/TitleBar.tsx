@@ -9,16 +9,24 @@ import {
 } from "lucide-react"
 import { BRAND_TAGLINE } from "@/lib/brand"
 import { AvatarCircle } from "@/components/AvatarCircle"
-import type { ReactNode } from "react"
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 import {
   BrowserOpenURL,
+  Environment,
   WindowMinimise,
   WindowToggleMaximise,
   Quit,
 } from "../../wailsjs/runtime/runtime"
+import { ELEVATION_CREDIT } from "@/components/map/terrain"
+import { mapPose, subscribeMapPose } from "@/lib/mapPose"
 import type { LayoutMode, PredictResult } from "@/lib/types"
 import {
-  LEAFLET_CREDIT,
+  MAPLIBRE_CREDIT,
   basemapByKind,
   type BasemapKind,
   type CreditPart,
@@ -80,7 +88,7 @@ interface TitleBarProps {
    * moved rather than went: the links each licence asks for are rendered as
    * real anchors from the table in lib/basemaps.
    */
-  credit?: { kind: BasemapKind; date: string | null }
+  credit?: { kind: BasemapKind; date: string | null; terrain?: boolean }
 }
 
 /**
@@ -127,6 +135,42 @@ export function TitleBar({
   boardOpen = false,
 }: TitleBarProps) {
   const { screen, user, loading, goProfile, goAuth } = useAuth()
+  /*
+    The live pose, subscribed to rather than received.
+
+    `view` is still the prop and still what App holds, but App only hears about
+    the settled value now, once per gesture -- the reporter used to write every
+    frame of a drag into the root component, and the root's subtree is every
+    screen the application has. This readout is the only thing that wants those
+    intermediate values, so it is the only thing that re-renders for them. The
+    prop stands in until the map has reported: on a screen with no map, and on
+    the first paint of one, the store is empty.
+  */
+  const live = useSyncExternalStore(subscribeMapPose, mapPose)
+  const shown = live ?? view
+  /*
+    Whether the platform draws the window controls, asked once.
+
+    Not a user-agent string: Wails reports the platform it was built for, which
+    is the thing being asked about. Starts false, so the buttons are absent for
+    the frame before the answer arrives -- appearing late reads as the bar
+    settling, where disappearing late reads as a glitch.
+  */
+  const [onMac, setOnMac] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    void Environment()
+      .then((env) => {
+        if (!cancelled) setOnMac(env.platform === "darwin")
+      })
+      .catch(() => {
+        /* No runtime to ask: leave the buttons drawn, which is the safe way
+           to be wrong -- a window with no controls cannot be closed. */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const onMap = screen === "map"
   const hasMap = onMap || screen === "energy"
   // The map's own readings, which need the map to be on screen to mean
@@ -221,13 +265,13 @@ export function TitleBar({
         {showMapTelemetry && (
           <div className="telemetry hidden items-center gap-4 text-[11px] text-muted-foreground lg:flex">
             <span>
-              LAT <span className="text-foreground">{fmtCoord(view.lat, "N", "S")}</span>
+              LAT <span className="text-foreground">{fmtCoord(shown.lat, "N", "S")}</span>
             </span>
             <span>
-              LON <span className="text-foreground">{fmtCoord(view.lon, "E", "W")}</span>
+              LON <span className="text-foreground">{fmtCoord(shown.lon, "E", "W")}</span>
             </span>
             <span>
-              Z <span className="text-foreground">{view.zoom.toFixed(0)}</span>
+              Z <span className="text-foreground">{shown.zoom.toFixed(0)}</span>
             </span>
             {credit && (
               <>
@@ -235,7 +279,7 @@ export function TitleBar({
                 {/* Not telemetry, so it is not in the mono face the readings
                     use -- it is a sentence about who the imagery belongs to. */}
                 <span className="hidden max-w-[26rem] truncate font-sans normal-case xl:inline">
-                  <Credit part={LEAFLET_CREDIT} />
+                  <Credit part={MAPLIBRE_CREDIT} />
                   {credit.date ? ` \u00b7 imagery ${credit.date}` : ""}
                   {basemapByKind(credit.kind).credit.map((c, i) => (
                     <span key={c.label}>
@@ -243,6 +287,18 @@ export function TitleBar({
                       <Credit part={c} />
                     </span>
                   ))}
+                  {/*
+                    Only while relief is drawn, because only then is a second
+                    provider on screen. It is also what keeps the elevation
+                    mosaic distinct from the DEMs an analysis was computed on --
+                    see components/map/terrain.ts.
+                  */}
+                  {credit.terrain && (
+                    <span>
+                      {" \u2014 "}
+                      <Credit part={ELEVATION_CREDIT} />
+                    </span>
+                  )}
                 </span>
               </>
             )}
@@ -335,17 +391,32 @@ export function TitleBar({
           </button>
         )}
 
-        <div className="app-no-drag flex items-center gap-1">
-          <WindowButton onClick={WindowMinimise} title="Minimize">
-            <Minus className="h-3.5 w-3.5" />
-          </WindowButton>
-          <WindowButton onClick={WindowToggleMaximise} title="Maximize">
-            <Square className="h-3 w-3" />
-          </WindowButton>
-          <WindowButton onClick={Quit} danger title="Close">
-            <X className="h-3.5 w-3.5" />
-          </WindowButton>
-        </div>
+        {/*
+          NOT ON macOS, where the platform draws them itself.
+
+          These were written for a frameless window, which has no controls of
+          its own. The window is titled now -- frameless made macOS composite it
+          off the path it uses for titled windows, and that slowed every other
+          window sharing its space -- so the traffic lights sit at the other end
+          of this same bar, and drawing a second minimise, maximise and close
+          beside the avatar put two sets of window controls on one window.
+
+          Kept everywhere else: on Windows and Linux this bar is still the only
+          place they exist.
+        */}
+        {!onMac && (
+          <div className="app-no-drag flex items-center gap-1">
+            <WindowButton onClick={WindowMinimise} title="Minimize">
+              <Minus className="h-3.5 w-3.5" />
+            </WindowButton>
+            <WindowButton onClick={WindowToggleMaximise} title="Maximize">
+              <Square className="h-3 w-3" />
+            </WindowButton>
+            <WindowButton onClick={Quit} danger title="Close">
+              <X className="h-3.5 w-3.5" />
+            </WindowButton>
+          </div>
+        )}
       </div>
     </header>
   )

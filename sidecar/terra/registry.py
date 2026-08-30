@@ -43,6 +43,7 @@ ACTIONS: dict[str, str] = {
     'canopy_from_aoi': 'terra.canopy.actions:canopy_from_aoi',
     'list_datacube': 'terra.scenes.actions:list_datacube',
     'render_composite': 'terra.scenes.actions:render_composite',
+    'surface_model': 'terra.surface.actions:surface_model',
 }
 
 DEFAULT_ACTION = 'predict'

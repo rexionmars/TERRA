@@ -23,11 +23,17 @@ import {
   LogIn,
   Map as MapIcon,
   UserRound,
+  Globe2,
   Waves,
   Zap,
 } from "lucide-react"
 import { motion } from "motion/react"
-import { useState, type ReactNode } from "react"
+import { useState, type ReactNode, useSyncExternalStore } from "react"
+import {
+  panelSelection,
+  selectPanel,
+  subscribePanelSelection,
+} from "@/lib/panelSelection"
 import { useAuth, type AppScreen } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { AvatarCircle } from "@/components/AvatarCircle"
@@ -40,8 +46,6 @@ export interface AppNavProps {
   /** Used instead of goAnalysis when the analysis screen is already open. */
   onAnalysisClick?: () => void
   /** The map's open tool panel, so its children can show which is current. */
-  leftPanel: MapToolId | null
-  onLeftPanelChange: (id: MapToolId | null) => void
   /** The energy screen's open tab, for the same reason. */
   energyTab: EnergyTab
   onEnergyTabChange: (tab: EnergyTab) => void
@@ -59,12 +63,20 @@ interface NavChild {
 export function AppNav({
   hasAnalysis = false,
   onAnalysisClick,
-  leftPanel,
-  onLeftPanelChange,
   energyTab,
   onEnergyTabChange,
   projectSwitcher,
 }: AppNavProps) {
+  /*
+    Subscribed rather than received. Both this column and the map screen read
+    which panel is open, and holding it in App meant a collapse reconciled every
+    screen in order to change which of three panels was drawn. See
+    lib/panelSelection.ts.
+  */
+  const leftPanel = useSyncExternalStore(
+    subscribePanelSelection,
+    panelSelection
+  )
   const {
     user,
     loading,
@@ -75,6 +87,7 @@ export function AppNav({
     goAnalysis,
     goEnergy,
     goFlood,
+    goGlobe,
   } = useAuth()
 
   const onMap = screen === "map"
@@ -106,7 +119,7 @@ export function AppNav({
     label: t.label,
     active: onMap && leftPanel === t.id,
     onSelect: () => {
-      onLeftPanelChange(t.id)
+      selectPanel(t.id)
       goMap()
     },
   }))
@@ -179,6 +192,19 @@ export function AppNav({
           label="Flood envelope"
           onClick={goFlood}
           icon={<Waves className="size-4" />}
+        />
+        {/* Globe2 rather than a pin or a folded map: this destination is
+            about the planet and the others are about a place on it, and a
+            sphere is the only glyph here that cannot be read as the map. See
+            lib/navigation.ts, which carries the same group for the dock
+            layout's bar -- the two lists are written separately and a screen
+            added to one and not the other makes them disagree. */}
+        <NavItem
+          id="globe"
+          active={screen === "globe"}
+          label="Globe"
+          onClick={goGlobe}
+          icon={<Globe2 className="size-4" />}
         />
         <NavItem
           id="analysis"

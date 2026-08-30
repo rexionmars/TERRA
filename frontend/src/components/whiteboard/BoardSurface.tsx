@@ -10,9 +10,17 @@
  * pay for it until the board is opened; see BoardButton for the other
  * half of that boundary.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { motion } from "motion/react"
-import { Copy, Save } from "lucide-react"
+import { Copy, Save, Settings2 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/whiteboard/BoardSidebar"
 import type { OutlinerMode } from "@/components/whiteboard/BoardSidebar"
@@ -93,6 +101,7 @@ import {
   compareShareDeltaTable,
 } from "@/lib/compareTables"
 import { saveWhiteboard, type Whiteboard } from "@/lib/whiteboards"
+import { StudioManager } from "@/components/whiteboard/StudioManager"
 import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
@@ -101,7 +110,11 @@ import type {
   PredictResult,
 } from "@/lib/types"
 import type { BoardHandle, PlaneState } from "@/components/whiteboard/boardScene"
-import { createBoard, tokenColor } from "@/components/whiteboard/boardScene"
+import {
+  createBoard,
+  tokenColor,
+  type BoardStats,
+} from "@/components/whiteboard/boardScene"
 import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
@@ -115,6 +128,7 @@ import {
   type AreaId,
 } from "@/lib/boardAreas"
 import { STUDIO_EDITORS, studioEditor, type EditorId } from "@/lib/studioEditors"
+import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
 import type { LucideIcon } from "lucide-react"
 import {
   DEFAULT_WORKSPACE,
@@ -123,6 +137,19 @@ import {
 } from "@/lib/studioWorkspaces"
 
 /** The tab strip's height; the areas divide what is left below it. */
+/*
+  Lazy, for the reason MapScreen loads this file lazily: the surface imports
+  MapLibre and its stylesheet, which is 945 kB. Statically imported it would
+  land in the studio's chunk for every board, whether or not an area is ever
+  set to the globe. `toGlobeArea` above is pure and stays static, which is why
+  it lives in its own module.
+*/
+const GlobeSurface = lazy(() =>
+  import("@/components/globe/GlobeSurface").then((m) => ({
+    default: m.GlobeSurface,
+  }))
+)
+
 const WORKSPACE_BAR_PX = 28
 import {
   AREA_HEADER_PX,
@@ -469,11 +496,29 @@ export function BoardSurface({
   whiteboards?: readonly Whiteboard[]
   onOpenWhiteboard?: (board: Whiteboard) => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
-  onWhiteboardsMenu?: () => void
+  onWhiteboardsMenu?: () => void | Promise<void>
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
+  /*
+    What the board costs, polled rather than pushed.
+
+    Twice a second, which is as fast as a figure is worth reading and slow
+    enough that displaying it is not itself the load. Pushing from the scene
+    would ask React to re-render at the frame rate in order to show the frame
+    rate, and the stall being looked for would be partly this.
+
+    Null until the scene reports: on a board with nothing on it there is no
+    frame to have taken any time.
+  */
+  const [boardStats, setBoardStats] = useState<BoardStats | null>(null)
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setBoardStats(boardRef.current?.stats() ?? null)
+    }, 500)
+    return () => window.clearInterval(id)
+  }, [])
 
   /**
    * What the column is listing, and which asset it is describing.
@@ -754,6 +799,8 @@ export function BoardSurface({
   const [saving, setSaving] = useState(false)
   /** Whether the title block's catalog is open. */
   const [boardMenu, setBoardMenu] = useState(false)
+  /** Whether the rename-and-remove dialog is up. */
+  const [managing, setManaging] = useState(false)
   /**
    * A board chosen while this one has changes that were never saved.
    *
@@ -1456,9 +1503,20 @@ export function BoardSurface({
       on, which is the one drawing this surface is about.
     */
     ...savedAois
-      .filter(
-        (a) => a.id !== live && a.id !== activeAoiId && !groundOnBoard.has(a.id)
-      )
+      /*
+        The active drawing is no longer excluded here.
+
+        It was, on the assumption that it is the live area and already listed
+        as such. `liveAreaId` follows the SHOWN RUN, so drawing a new area while
+        a classification is up leaves the two apart -- and the new drawing then
+        fell through both filters, appearing neither as the live area nor as a
+        catalogued one. It was invisible in the scene and in the tree until a
+        run over it existed, which is when the live area finally became it.
+
+        `a.id !== live` alone says what this filter meant: do not list twice
+        what is already listed.
+      */
+      .filter((a) => a.id !== live && !groundOnBoard.has(a.id))
       .map((a) => ({
         id: a.id,
         title: names[stackRow(a.id)] ?? a.name,
@@ -1480,6 +1538,20 @@ export function BoardSurface({
       // ground is already on the board, in which case the outline would stand
       // empty beside the plane that is the same field.
       (a.id === live && !!aoiPolygon?.length && !groundOnBoard.has(live)) ||
+      /*
+        And the drawing the map is ACTIVE on, when that is not the live area.
+
+        Same reason as the line above, which is the one that matters: this is
+        the ground the next run happens on, and the board is where that run is
+        started. The two are usually the same area and this adds nothing; they
+        part company the moment a reader draws while a result is still up, and
+        that is exactly when the new drawing has to be visible -- it is what
+        they are about to aim at.
+      */
+      (!!activeAoiId &&
+        a.id === activeAoiId &&
+        activeAoiId !== live &&
+        !groundOnBoard.has(a.id)) ||
       // Nothing else earns a place. A drawing with no raster on it is a
       // catalog entry, and the Areas tab is where a catalog is read.
       false
@@ -1703,14 +1775,32 @@ export function BoardSurface({
    */
   const polygonsRef = useRef<Record<string, LonLat[]>>({})
   polygonsRef.current = {
-    ...(aoiPolygon?.length ? { [live]: aoiPolygon } : {}),
+    /*
+      EVERY CATALOGUED DRAWING SUPPLIES ITS OWN, the active one included.
+
+      The active one used to be skipped, on the assumption that it is the live
+      area and that `aoiPolygon` therefore already describes it. `liveAreaId`
+      breaks that assumption whenever a result is on screen: the live area
+      follows the SHOWN RUN, so drawing a new area while a classification is up
+      leaves the two apart. The new drawing was then skipped here and had no
+      shape at all, while `aoiPolygon` -- which is that new drawing's ring --
+      was filed under the old run's id, outlining one field with another's edge.
+    */
     ...Object.fromEntries(
       savedAois.flatMap((a) => {
-        if (a.id === activeAoiId) return []
         const ring = polygonOuterRing(a.geometry)
         return ring ? [[a.id, ring] as const] : []
       })
     ),
+    /*
+      The map's own shape, for a ground the catalog does not hold: an example
+      area, an adopted geometry, a studio opened on nothing. Where the live
+      area IS catalogued, the entry above is the same ring from a source that
+      cannot drift.
+    */
+    ...(aoiPolygon?.length && !savedAois.some((a) => a.id === live)
+      ? { [live]: aoiPolygon }
+      : {}),
     /*
       A retained run's outline, from the run record where there is one.
 
@@ -2445,9 +2535,11 @@ export function BoardSurface({
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
         groups,
-        background: tokenColor("--p-ink", "#171717"),
-        line: tokenColor("--p-line", "#424C5A"),
-        accent: tokenColor("--p-accent", "#3578CF"),
+        // --v-*, not --p-*: the studio is a room the rasters hang in and the
+        // panels around it are a reading surface. See index.css.
+        background: tokenColor("--v-ink", "#333333"),
+        line: tokenColor("--v-line", "#F6F6F6"),
+        accent: tokenColor("--p-accent", "#ED8744"),
         // The separation in force at the moment of the build, so a plane lands
         // at its true height rather than at the base for a frame.
         gap: gapRef.current,
@@ -3195,6 +3287,19 @@ export function BoardSurface({
     different panes. An editor's props depend on WHICH area is drawing it,
     which is what the argument is for.
   */
+  /*
+    The catalog as shapes on a planet. Only the saved areas: a board is about
+    one area's work and the catalog it was drawn from, and the hub's projects
+    are not in scope on this screen.
+  */
+  const globeAreas = useMemo<GlobeArea[]>(
+    () =>
+      savedAois
+        .map((a) => toGlobeArea(`aoi:${a.id}`, a.name, a.geometry))
+        .filter((a): a is GlobeArea => a !== null),
+    [savedAois]
+  )
+
   const renderEditor = (
     areaId: AreaId
   ): Partial<Record<EditorId, React.ReactNode>> => {
@@ -3214,6 +3319,33 @@ export function BoardSurface({
     })()
     const pair = sides ? predCompares[`${sides[0].areaId}|${sides[1].areaId}`] : null
     return {
+    /*
+      The catalog on the planet, inside the board.
+
+      The same surface the globe screen mounts, with the projects left out: a
+      board is about one area's work and its catalog, and the hub's projects
+      are not in scope here. Pressing one activates it exactly as the
+      outliner's own list does -- one behaviour for "use this area", not two.
+
+      No "open the work map here": there is no map on this screen to open, and
+      a control that navigated out of the studio from inside an area would be
+      the only one that did.
+    */
+    globe: (
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center text-meta text-muted-foreground">
+            Loading the globe
+          </div>
+        }
+      >
+        <GlobeSurface
+          className="h-full w-full"
+          areas={globeAreas}
+          onPickArea={(id) => onActivateSavedAoi?.(id.slice(id.indexOf(":") + 1))}
+        />
+      </Suspense>
+    ),
     outliner: (
           <BoardSidebar
             areaInfo={areaInfo}
@@ -3628,6 +3760,38 @@ export function BoardSurface({
         />
       )}
 
+      {managing && (
+        <StudioManager
+          boards={whiteboards}
+          openId={savedId}
+          onDismiss={() => setManaging(false)}
+          /*
+            The caller owns the list, so it is asked to re-read it rather than
+            the dialog keeping a copy that the surface would then disagree
+            with. Awaited, so the dialog shows the result of its own act.
+          */
+          onChanged={async () => {
+            await onWhiteboardsMenu?.()
+          }}
+          /*
+            THE BOARD ON SCREEN OUTLIVED ITS RECORD.
+
+            Its arrangement is still here and still worth keeping -- that is
+            the reader's work -- so nothing is torn down. What goes is the
+            claim to be a saved board: the name in the title block named a row
+            that no longer exists, and pressing Save would have written over an
+            id the store would refuse. Forgetting both turns this back into an
+            unsaved board, which is exactly what it now is, and the next Save
+            asks for a name.
+          */
+          onOpenDeleted={() => {
+            setSavedId(null)
+            setSavedName(null)
+            markBoardDirty()
+          }}
+        />
+      )}
+
       {/*
         THE WORKSPACE TABS.
 
@@ -3867,6 +4031,23 @@ export function BoardSurface({
                 setNaming(savedName ?? "")
               }}
             />
+            {/*
+              Renaming a board that is NOT open, and removing one, are the two
+              things the list above cannot offer: its rows are buttons whose
+              whole job is a single press, and a rename needs a field while a
+              delete needs a confirmation. Only offered where there is
+              something to manage.
+            */}
+            {whiteboards.length > 0 && (
+              <StudioMenuItem
+                icon={Settings2}
+                label="Manage studios…"
+                onSelect={() => {
+                  setBoardMenu(false)
+                  setManaging(true)
+                }}
+              />
+            )}
           </StudioPopover>
           {/*
             Saving names the board. Unnamed it asks for one; named it writes over
@@ -3941,6 +4122,7 @@ export function BoardSurface({
         legend of anything. Twenty-two pixels at the foot buys that back.
       */}
       <StudioStatusBar
+        stats={boardStats}
         running={!!runRunning}
         progress={runProgress}
         runLog={runLog ?? []}

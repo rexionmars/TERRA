@@ -6,7 +6,7 @@ import {
   Map as MapGlyph,
   type LucideIcon,
 } from "lucide-react"
-import { Suspense, lazy, useEffect, useRef, useState } from "react"
+import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence } from "motion/react"
 import type {
@@ -24,8 +24,18 @@ import type {
   WaterAnalysis,
   WaterIndex,
 } from "@/lib/types"
+import {
+  panelSelection,
+  selectPanel,
+  subscribePanelSelection,
+} from "@/lib/panelSelection"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
-import { MapView } from "@/components/MapView"
+/*
+  MapLibre, not Leaflet. The three screens that mount the work map share one
+  component, so they moved together; the studio's own drawing map is the last
+  Leaflet map left. See components/map/MapSurface.tsx.
+*/
+import { MapSurface } from "@/components/map/MapSurface"
 import { SearchBar } from "@/components/SearchBar"
 import { PeriodTimeline } from "@/components/PeriodTimeline"
 import { ControlPanel } from "@/components/ControlPanel"
@@ -106,8 +116,6 @@ export interface MapScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
-  leftPanel: MapToolId | null
-  onLeftPanelChange: (id: MapToolId | null) => void
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
   /**
@@ -241,7 +249,12 @@ export interface MapScreenProps {
   whiteboards?: import("@/lib/whiteboards").Whiteboard[]
   onOpenWhiteboard?: (board: import("@/lib/whiteboards").Whiteboard) => void
   /** Called when the studio's board menu opens, to refresh the list. */
-  onWhiteboardsMenu?: () => void
+  /*
+    Returns its promise, so a caller that needs the list BEFORE it draws again
+    can wait for it. The menu that opens on hover does not and ignores it; the
+    manage dialog does, since it shows the result of its own rename or delete.
+  */
+  onWhiteboardsMenu?: () => void | Promise<void>
   onNewClassification: () => void
   onViewDataCube: () => void
   dataCubeLoading?: boolean
@@ -313,7 +326,17 @@ export function MapScreen(props: MapScreenProps) {
   // goes to another one, so local state put the dock back on "classify" on
   // every return -- including a return from a water run, which left a water
   // raster on the map with the classification panel open beside it.
-  const { leftPanel, onLeftPanelChange } = props
+  /*
+    Subscribed rather than received. It was a prop because this screen remounts
+    on every return to it and a useState here forgot the choice -- a module
+    outlives the remount for free, and App stops re-rendering for a collapse.
+    See lib/panelSelection.ts.
+  */
+  const leftPanel = useSyncExternalStore(
+    subscribePanelSelection,
+    panelSelection
+  )
+  const onLeftPanelChange = selectPanel
   /**
    * Which right-edge drawer is open, at most one.
    *
@@ -1085,7 +1108,7 @@ export function MapScreen(props: MapScreenProps) {
           props.titleBarSlot
         )}
 
-      <MapView
+      <MapSurface
         initialView={props.initialView}
         areas={props.areas}
         activeExample={props.activeExample}
@@ -1119,8 +1142,9 @@ export function MapScreen(props: MapScreenProps) {
         onClearArea={props.onClearArea}
         onViewChange={props.onViewChange}
         onCreditChange={props.onCreditChange}
-        // Handed to Leaflet rather than positioned here: it joins the zoom and
-        // draw stack at the bottom-right, under them.
+        // Placed in the surface's own bottom-right stack, above the zoom and
+        // draw controls, so a panel opening no longer reads as something this
+        // button produced.
         bottomRightSlot={
           <>
             {/*

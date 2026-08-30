@@ -238,3 +238,85 @@ export function usesExampleArea(
 ): boolean {
   return !!activeExample && areas.some((a) => a.id === activeExample)
 }
+
+/** Ray-cast point-in-polygon (lon/lat), for AOI right-click hit testing. */
+// Moved here from MapView when a second map surface needed the same test: a
+// hit test written twice is a hit test that can disagree with itself about
+// what is inside an area.
+export function pointInRing(lon: number, lat: number, ring: LonLat[]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0]
+    const yi = ring[i][1]
+    const xj = ring[j][0]
+    const yj = ring[j][1]
+    const intersect =
+      yi > lat !== yj > lat &&
+      lon < ((xj - xi) * (lat - yi)) / (yj - yi + Number.EPSILON) + xi
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
+export function pointInAoi(lon: number, lat: number, geometry: GeoJSONGeometry): boolean {
+  if (geometry.type === "Polygon") {
+    const coords = geometry.coordinates as LonLat[][]
+    const outer = coords[0]
+    if (!outer || !pointInRing(lon, lat, outer)) return false
+    for (let h = 1; h < coords.length; h++) {
+      if (pointInRing(lon, lat, coords[h])) return false
+    }
+    return true
+  }
+  if (geometry.type === "MultiPolygon") {
+    const multi = geometry.coordinates as unknown as LonLat[][][]
+    return multi.some((poly) => {
+      const outer = poly[0]
+      if (!outer || !pointInRing(lon, lat, outer)) return false
+      for (let h = 1; h < poly.length; h++) {
+        if (pointInRing(lon, lat, poly[h])) return false
+      }
+      return true
+    })
+  }
+  return false
+}
+
+/** Longest edge in the southern band of the AOI — label glues to this segment. */
+export function pickContourEdge(geometry: GeoJSONGeometry): {
+  a: LonLat
+  b: LonLat
+  mid: LonLat
+} | null {
+  const ring = polygonOuterRing(geometry)
+  if (!ring || ring.length < 2) return null
+
+  let latMin = Infinity
+  let latMax = -Infinity
+  for (const [, lat] of ring) {
+    if (lat < latMin) latMin = lat
+    if (lat > latMax) latMax = lat
+  }
+  const southBand = latMin + (latMax - latMin) * 0.4
+
+  let best: { a: LonLat; b: LonLat; mid: LonLat; score: number } | null = null
+  for (let i = 0; i < ring.length - 1; i++) {
+    const a = ring[i]
+    const b = ring[i + 1]
+    const mid: LonLat = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+    const dlon = b[0] - a[0]
+    const dlat = b[1] - a[1]
+    const len = Math.hypot(dlon, dlat)
+    if (len < 1e-12) continue
+    // Prefer southern long edges (Wheat Field labels sit on the bottom contour).
+    const southBonus = mid[1] <= southBand ? 3 : 1
+    const score = len * southBonus - (mid[1] - latMin) * 0.15
+    if (!best || score > best.score) {
+      best = { a, b, mid, score }
+    }
+  }
+  if (!best) return null
+  return { a: best.a, b: best.b, mid: best.mid }
+}
+
+

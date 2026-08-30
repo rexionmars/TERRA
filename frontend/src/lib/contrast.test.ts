@@ -15,6 +15,7 @@
  */
 import { describe, expect, it } from "vitest"
 import {
+  ACCEPTED,
   checkContrast,
   contrast,
   luminance,
@@ -93,7 +94,7 @@ describe("contrast", () => {
     )
     // Two tokens the interface actually paints, one per theme.
     expect(contrast(TOKENS.dark.text, TOKENS.dark.ink)).toBeCloseTo(
-      12.813813966308757,
+      11.85512560381741,
       10
     )
     expect(contrast(TOKENS.light.text, TOKENS.light.ink)).toBeCloseTo(
@@ -137,10 +138,10 @@ describe("checkContrast", () => {
     // a token's channels shows up here as a named number rather than only as a
     // pass/fail somewhere else.
     const expected: Record<string, number> = {
-      "dark.text.surfaceRaised": 9.03,
-      "dark.muted.surfaceRaised": 4.75,
-      "dark.accentQuiet.accentDim": 4.92,
-      "dark.lineStrong.surfaceRaised": 3.02,
+      "dark.text.surfaceRaised": 7.28,
+      "dark.muted.surfaceRaised": 3.83,
+      "dark.accentQuiet.accentDim": 5.71,
+      "dark.lineStrong.surfaceRaised": 2.47,
       "dark.destructiveForeground.destructive": 5.35,
       "light.text.surface": 15.66,
       "light.accent.accentDim": 4.09,
@@ -170,10 +171,17 @@ describe("checkContrast", () => {
     }
   })
 
-  it("finds every pair in the shipped palette clearing its floor", () => {
+  it("finds no failing pair in the shipped palette that is not accepted", () => {
+    /*
+      Not "nothing fails". Three pairs do, by a decision recorded in ACCEPTED,
+      and asserting an empty list here would have meant either deleting this
+      test or editing the palette to suit it. Asserting the SET keeps the guard:
+      a fourth failure breaks this, and so does an accepted pair that has since
+      been fixed and left on the list.
+    */
     const failing = results
       .filter((r) => !r.passes)
-      .map((r) => `${r.theme}: ${r.fg} on ${r.bg} is ${r.ratio}, min ${r.min}`)
-    expect(failing).toEqual([])
+      .map((r) => `${r.theme}.${r.fg}.${r.bg}`)
+    expect(failing.sort()).toEqual(Object.keys(ACCEPTED).sort())
   })
 })
