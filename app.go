@@ -355,6 +355,22 @@ func (a *App) RenderComposite(req analysis.CompositeRequest) (*analysis.Composit
 	return runner.RenderComposite(a.ctx, req)
 }
 
+// AnalyzeSurfaceModel returns the Copernicus surface over one area.
+//
+// It does not persist a run. The other products record one because they are
+// measurements a reader returns to and compares; this is the ground they were
+// measured on, static and reproducible from the polygon alone, so a row would
+// record nothing the request does not already say.
+func (a *App) AnalyzeSurfaceModel(
+	req analysis.SurfaceModelRequest,
+) (*analysis.SurfaceModel, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.AnalyzeSurfaceModel(a.ctx, req)
+}
+
 // AnalyzeWater maps surface water over a period from spectral water indices.
 // Descriptive: a thresholded index, with no model and no trained legend.
 func (a *App) AnalyzeWater(req analysis.WaterRequest) (*analysis.WaterAnalysis, error) {
@@ -1083,9 +1099,30 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 					stored.AgreementTIF = filepath.Join(assetsRel, floodAgreementTIF)
 				}
 			}
+			/*
+				The counts, on the same terms as the rendering above.
+
+				It has to be COPIED and not left where the sidecar wrote it:
+				that path is the run's work directory, which does not survive,
+				so a values raster kept by reference would work for the live
+				run and be gone on the next open -- the map falling silently
+				back to the coloured image, which is exactly the failure this
+				pair of files exists to make impossible to have silently.
+			*/
+			valuesSrc := res.AgreementValuesURI
+			if valuesSrc == "" {
+				valuesSrc = res.AgreementValuesPNG
+			}
+			stored.AgreementValuesPNG = ""
+			if err := store.WriteDataURIFile(
+				valuesSrc, filepath.Join(assetsDir, floodAgreementValuesPNG),
+			); err == nil && valuesSrc != "" {
+				stored.AgreementValuesPNG = filepath.Join(assetsRel, floodAgreementValuesPNG)
+			}
 			// The base64 stays out of the database; LoadAnalysis reads it back
-			// from the file written above.
+			// from the files written above.
 			stored.AgreementURI = ""
+			stored.AgreementValuesURI = ""
 			return stored
 		},
 		// The run list paints its thumbnail from the agreement raster, which is
@@ -1094,12 +1131,13 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 	})
 }
 
-// The two files a flood run keeps in its assets directory. Named in one place
+// The three files a flood run keeps in its assets directory. Named in one place
 // because the persist path writes them and LoadAnalysis reads them, and a run
 // whose writer and reader disagree on a file name reopens without its raster.
 const (
-	floodAgreementPNG = "flood_agreement.png"
-	floodAgreementTIF = "flood_agreement.tif"
+	floodAgreementPNG       = "flood_agreement.png"
+	floodAgreementTIF       = "flood_agreement.tif"
+	floodAgreementValuesPNG = "flood_agreement_values.png"
 )
 
 // floodProductIDs lists which DEM products the envelope was measured over, for
@@ -1680,6 +1718,15 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		if uri, err := store.ReadFileDataURI(png, "image/png"); err == nil {
 			flood.AgreementURI = uri
 			flood.AgreementPNG = png
+		}
+		// The counts. Absent for a run made before they were written, in which
+		// case the map draws the coloured image, which is what it drew then.
+		values := filepath.Join(assetsDir, floodAgreementValuesPNG)
+		flood.AgreementValuesPNG = ""
+		flood.AgreementValuesURI = ""
+		if uri, err := store.ReadFileDataURI(values, "image/png"); err == nil {
+			flood.AgreementValuesURI = uri
+			flood.AgreementValuesPNG = values
 		}
 		flood.AgreementTIF = ""
 		tif := filepath.Join(assetsDir, floodAgreementTIF)

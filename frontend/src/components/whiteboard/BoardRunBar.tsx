@@ -266,7 +266,8 @@ export function BoardRunBar(props: BoardRunBarProps) {
     <div
       /*
         Where the period timeline sits on the map, at the same height, taking
-        the foot's own reservation -- see --map-foot in index.css. It starts at
+        the foot's own reservation -- see MAP_FOOT_REM in lib/boardPartition.ts,
+        which is where --map-foot is set. It starts at
         the column's right edge rather than spanning the window, so the two are
         neighbours rather than one lying over the other.
       */

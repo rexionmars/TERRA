@@ -605,3 +605,44 @@ def test_the_buffer_is_required_because_the_interior_reading_depends_on_it():
     with pytest.raises(ValueError, match="buffer_m"):
         flood.measure({"a": z, "b": z.copy()}, DX, DY, drainage_km2=DRAINAGE_KM2,
                       grid=grid_for(z))
+
+
+def test_agreement_values_survive_the_channel_and_the_decoder():
+    """
+    The counts raster is written for a decoder, not for an eye.
+
+    infer.py writes the agreement counts a second time, uncoloured, so the map
+    can paint them from an expression instead of drawing a finished image. Two
+    things have to hold for that to mean anything, and neither is visible in a
+    rendered PNG: the count has to survive the channel it is written into, and
+    MapLibre's custom DEM decoding has to give the count back.
+
+    That decoding is `r * redFactor + g * greenFactor + b * blueFactor -
+    baseShift`, with the factors declared in
+    frontend/src/components/map/scalarTiles.ts as positional base-256. This
+    test is the other end of that contract; it fails if either side moves.
+    """
+    counts = np.array([[0, 1, 2], [3, 4, 255], [0, 2, 4]], dtype=np.uint8)
+    inside = np.array(
+        [[True, True, True], [True, True, True], [False, False, True]]
+    )
+
+    # The lines infer.py runs, on a window small enough to write down.
+    rgba = np.zeros((*counts.shape, 4), dtype=np.uint8)
+    rgba[..., 0] = np.clip(counts, 0, 255).astype(np.uint8)
+    rgba[..., 3] = np.where(inside, 255, 0).astype(np.uint8)
+
+    assert np.array_equal(rgba[..., 0], counts)
+    # Alpha is the reporting mask, so a cell outside the AOI reads as absent
+    # rather than as a measured zero. Both draw as nothing; they are not the
+    # same statement, and the raster keeps them apart.
+    assert np.array_equal(rgba[..., 3], np.where(inside, 255, 0))
+
+    red_factor, green_factor, blue_factor, base_shift = 1.0, 1 / 256, 1 / 65536, 0.0
+    decoded = (
+        rgba[..., 0] * red_factor
+        + rgba[..., 1] * green_factor
+        + rgba[..., 2] * blue_factor
+        - base_shift
+    )
+    assert np.array_equal(decoded, counts.astype(np.float64))

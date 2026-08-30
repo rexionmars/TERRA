@@ -575,14 +575,14 @@ export function OverlayToolsButton({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        // No anchor of its own: it is handed to Leaflet's bottom-right stack,
-        // which places it under the zoom and draw tools. It used to sit at the
-        // top-right, a few pixels from where this panel opens, so the panel
-        // read as something the button had produced.
+        // No anchor of its own: it is handed to the map surface's bottom-right
+        // stack, which places it above the draw and zoom bars. It used to sit
+        // at the top-right, a few pixels from where this panel opens, so the
+        // panel read as something the button had produced.
         //
-        // Sized to the stack it joins rather than to the 2rem it was: the zoom
-        // and draw buttons are 2.125rem, and a narrower one beside them reads
-        // as a different kind of control.
+        // Sized to the stack it joins rather than to the 2rem it was: those
+        // bars are 2.125rem, and a narrower one beside them reads as a
+        // different kind of control. MapSurface names the same figure.
         "overlay-tools-btn panel app-no-drag flex h-[2.125rem] w-[2.125rem] items-center justify-center rounded-sm text-muted-foreground transition-colors",
         "hover:bg-secondary hover:text-foreground",
         active && "border-primary/50 bg-primary/15 text-foreground"

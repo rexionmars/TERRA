@@ -3560,6 +3560,8 @@ export namespace analysis {
 	    agreement_png: string;
 	    extent: Bounds;
 	    agreement_uri?: string;
+	    agreement_values_png: string;
+	    agreement_values_uri?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FloodAnalysis(source);
@@ -3585,6 +3587,8 @@ export namespace analysis {
 	        this.agreement_png = source["agreement_png"];
 	        this.extent = this.convertValues(source["extent"], Bounds);
 	        this.agreement_uri = source["agreement_uri"];
+	        this.agreement_values_png = source["agreement_values_png"];
+	        this.agreement_values_uri = source["agreement_values_uri"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5494,6 +5498,106 @@ export namespace analysis {
 	
 	
 	
+	export class SurfaceModel {
+	    run_id?: string;
+	    model_kind: string;
+	    source: string;
+	    native_resolution_m: number;
+	    extent: Bounds;
+	    floor_m: number;
+	    ceiling_m: number;
+	    relief_m: number;
+	    mean_m: number;
+	    value_full_scale: number;
+	    value_floor: number;
+	    measured_cells: number;
+	    void_cells: number;
+	    notes: string[];
+	    values_png: string;
+	    values_uri?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SurfaceModel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
+	        this.model_kind = source["model_kind"];
+	        this.source = source["source"];
+	        this.native_resolution_m = source["native_resolution_m"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.floor_m = source["floor_m"];
+	        this.ceiling_m = source["ceiling_m"];
+	        this.relief_m = source["relief_m"];
+	        this.mean_m = source["mean_m"];
+	        this.value_full_scale = source["value_full_scale"];
+	        this.value_floor = source["value_floor"];
+	        this.measured_cells = source["measured_cells"];
+	        this.void_cells = source["void_cells"];
+	        this.notes = source["notes"];
+	        this.values_png = source["values_png"];
+	        this.values_uri = source["values_uri"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SurfaceModelRequest {
+	    area_id: string;
+	    polygon_geojson?: GeoJSONGeometry;
+	    aoi_label: string;
+	    run_label: string;
+	    project_id: string;
+	    aoi_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SurfaceModelRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.area_id = source["area_id"];
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.aoi_label = source["aoi_label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
+	        this.aoi_id = source["aoi_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	
 	
