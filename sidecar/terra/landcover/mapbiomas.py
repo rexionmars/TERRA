@@ -123,7 +123,7 @@ def composition_from_array(arr: np.ndarray, px_ha: float) -> list[dict]:
         return []
     ids, counts = np.unique(labels, return_counts=True)
     rows = []
-    for cid, n in zip(ids.tolist(), counts.tolist()):
+    for cid, n in zip(ids.tolist(), counts.tolist(), strict=True):
         cid = int(cid)
         rows.append({
             "class_id": cid,
@@ -378,7 +378,7 @@ def agreement_against_reference(
     block_n = np.zeros((n_blocks, n_blocks), dtype=np.int64)
     block_hit = np.zeros((n_blocks, n_blocks), dtype=np.int64)
 
-    for a, b in zip(bounds[:-1], bounds[1:]):
+    for a, b in zip(bounds[:-1], bounds[1:], strict=True):
         ref_vals = refs_s[a:b]
         # One reference label per native cell; the mode guards a cell straddling
         # a resampling boundary rather than assuming the run is homogeneous.

@@ -96,7 +96,7 @@ def classify_temporal_transformer(products, polygon, ref_profile, model_dir,
     if rows.size == 0:
         raise NoValidData("no valid pixels for Temporal Transformer")
 
-    x = np.stack([stack[:, :, r, c] for r, c in zip(rows, cols)], axis=0).astype(np.float32)
+    x = np.stack([stack[:, :, r, c] for r, c in zip(rows, cols, strict=True)], axis=0).astype(np.float32)
     x = np.clip(x, 0.0, 1.0)
 
     protocol.emit_progress(70, f"Temporal Transformer inference ({len(x)} pixels)")
@@ -116,7 +116,7 @@ def class_statistics(classification_map):
     if total == 0:
         return stats
     unique_pred, counts = np.unique(valid, return_counts=True)
-    for cls_id, count in zip(unique_pred, counts):
+    for cls_id, count in zip(unique_pred, counts, strict=True):
         cls_id = int(cls_id)
         stats.append({
             'class_id': cls_id,
@@ -236,7 +236,7 @@ def _retention_row(target, cumulative, polygon, ref_profile, class_map, soja_mas
         predicted = class_map[soja_mask & (class_map >= 0)]
         if predicted.size:
             ids, counts = np.unique(predicted, return_counts=True)
-            distribution = {int(c): int(v) for c, v in zip(ids, counts)}
+            distribution = {int(c): int(v) for c, v in zip(ids, counts, strict=True)}
             dominant = MAPBIOMAS_LEGEND.get(int(ids[np.argmax(counts)]),
                                             str(int(ids[np.argmax(counts)])))
             retention = round(

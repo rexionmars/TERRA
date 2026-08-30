@@ -73,7 +73,7 @@ def readable(monkeypatch):
 
 def test_every_readable_date_becomes_one_row_of_the_series(readable):
     products = [scene(1), scene(6), scene(11)]
-    for p, fraction in zip(products, (0.25, 0.50, 0.125)):
+    for p, fraction in zip(products, (0.25, 0.50, 0.125), strict=True):
         readable[p['date']] = bands_of(fraction)
 
     out = survey.run(products, polygon=None, index_name='MNDWI')

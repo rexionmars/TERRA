@@ -264,7 +264,7 @@ def resolve_series(lai, density, name, *, states=None, dates=None,
         )
 
     out = []
-    for value, state, date in zip(lai, states, dates):
+    for value, state, date in zip(lai, states, dates, strict=True):
         row: dict = {"date": date, "lai": float(value)}
         try:
             row.update(resolve(float(value), density, name, state=state, path=path))

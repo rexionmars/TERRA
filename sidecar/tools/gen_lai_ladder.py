@@ -88,7 +88,10 @@ def walk(species: str) -> dict | None:
     # improves on its predecessor is the answer, and everything after it is the
     # same plant.
     plateau = None
-    for prev, cur in zip(steps, steps[1:]):
+    # strict=False, and this is the one place in the tree where that is the
+    # answer: the two sequences differ in length by one BY CONSTRUCTION,
+    # because pairing each step with its successor is what the loop is.
+    for prev, cur in zip(steps, steps[1:], strict=False):
         if prev["leaf_area_m2"] <= 0:
             continue
         rel = (cur["leaf_area_m2"] - prev["leaf_area_m2"]) / prev["leaf_area_m2"]

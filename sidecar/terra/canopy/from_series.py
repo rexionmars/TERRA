@@ -136,7 +136,7 @@ def read(ndvi, dates, species_name, density, progress=None) -> Reading:
     # A duração da estação, para normalizar o progresso do campo contra o
     # do Helios. Do próprio NDVI, que é onde ela é observável.
     season_days = float(phen.phenology_metrics(ndvi, dates).get('los_days') or 0.0)
-    for i, (row, o) in enumerate(zip(resolved, ordinals)):
+    for i, (row, o) in enumerate(zip(resolved, ordinals, strict=True)):
         k = int(cycle_ids[i])
         start = greenup_by_cycle.get(k)
         since = None if start is None else float(o - start)

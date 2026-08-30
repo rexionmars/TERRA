@@ -16,7 +16,8 @@ select = [
     "E",    # pycodestyle errors
     "W",    # trailing whitespace, blank line at end of file
     "I",    # import order, so a moved module does not reorder a diff
-    "B",    # bugbear: mutable default, loop-variable capture in a closure
+    "B",    # bugbear: mutable default, loop-variable capture in a closure,
+            # and zip() pairing two sequences of different length in silence
     "UP",   # pyupgrade
     "RET",  # a function returning a value on one path and nothing on another
     "NPY",  # numpy legacy random and removed aliases
@@ -24,12 +25,14 @@ select = [
 ignore = [
     "E501",  # line length is the formatter's, not the linter's
     "E741",  # `l` is a documented symbol in several radiative-transfer papers
-    # The two below are behaviour changes wearing the clothes of style fixes,
-    # and each is a decision to take on its own rather than in a sweep.
-    "B905",   # zip(strict=): raises where ten call sites currently truncate,
-              # and whether a length mismatch is a bug differs per site
-    "NPY002", # the Generator API changes the random stream, and the values it
-              # feeds are pinned by the tests that consume them
+    # NPY002 is a behaviour change wearing the clothes of a style fix: the
+    # Generator API changes the random stream, and the values it feeds are
+    # pinned by the tests that consume them. B905 is no longer here: it was
+    # deferred for the same reason and then decided site by site, which is what
+    # it needed -- ten of the eleven pair sequences that are equal by
+    # construction, and the eleventh pairs each step with its successor and so
+    # differs in length by one on purpose.
+    "NPY002",
 ]
 
 [tool.ruff.lint.isort]
