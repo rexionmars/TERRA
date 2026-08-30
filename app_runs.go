@@ -190,14 +190,24 @@ func aoiLabel(candidates ...string) string {
 	return "Custom AOI"
 }
 
-// persistWaterRun saves a surface-water run so it survives the session and is
-// listed, opened and exported like a classification.
-func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnalysis) {
+/*
+persistWaterRun saves a surface-water run so it survives the session and is
+listed, opened and exported like a classification.
+
+Returns the row it wrote, empty when nothing was written. Every persist function
+here does, and the reason is the same one persistAnalysis gives: the caller has
+to be able to tell the frontend which run it is now looking at. Only the
+classification did, and everything downstream paid for it -- the studio's live
+area reported the sentinel "current" for these products, so a board could not
+record the run it was plainly showing, and a composition applied over one was
+filed against no run at all.
+*/
+func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindWater,
 		// No model produced this: the index name carries the method instead.
 		modelKind:   res.Index,
@@ -233,13 +243,14 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 }
 
 // persistSolarRun saves a solar resource run so it survives the session and is
-// listed, opened and exported like the other analyses.
-func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnalysis) {
+// listed, opened and exported like the other analyses. Returns the row it
+// wrote; see persistWaterRun for why every one of these does.
+func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
 		modelKind: "NASA POWER",
@@ -270,12 +281,12 @@ func (a *App) persistSolarRaster(
 	areaID string, poly *analysis.GeoJSONGeometry,
 	label, runLabel, projectID, aoiID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
-) {
+) string {
 	if payload == nil {
-		return
+		return ""
 	}
 	l := aoiLabel(label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind:      store.RunKindSolar,
 		modelKind: "NASA POWER",
 		areaID:    areaID,
@@ -303,12 +314,12 @@ func (a *App) persistSolarRaster(
 // Filed under RunKindSolar with solar_product "energy_model", which is the
 // discriminator the solar products already use. It is a solar product: same
 // radiation chain, same grid, same optimum.
-func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analysis.EnergyModelAnalysis) {
+func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analysis.EnergyModelAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
 		modelKind: "NASA POWER",
@@ -345,13 +356,14 @@ func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analys
 	})
 }
 
-// persistWindRun saves a wind screening run under its own kind.
-func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysis) {
+// persistWindRun saves a wind screening run under its own kind. Returns the row
+// it wrote; see persistWaterRun for why every one of these does.
+func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindWind,
 		// No model produced this; the source is the product that did.
 		modelKind: "NASA POWER MERRA-2",
@@ -403,9 +415,9 @@ alone is a shape produced by a DEM the user never chose and is never shown.
 // A run whose stored paths still named it would list, reopen, and hand the
 // reader a GeoTIFF path that resolves to nothing -- and the GeoTIFF is the
 // product, not an illustration of it.
-func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnalysis) {
+func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
 	// The envelope row at the reference threshold: the narrowest and widest
@@ -464,7 +476,7 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 	if res.AgreementURI != "" || res.AgreementPNG != "" {
 		overlay = floodAgreementPNG
 	}
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindFlood,
 		// No model produced this; the terrain index and the catalogue the DEMs
 		// were read from are the method.
@@ -726,7 +738,17 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 			_ = json.Unmarshal([]byte(run.ResultJSON), &wind)
 		}
 		wind.NormalizeNilSlices()
-		return &analysis.PredictResult{Wind: &wind}, nil
+		/*
+			Stamped, like the solar, flood and classification branches around it.
+
+			This branch and the water one below returned without it, so reopening
+			a saved wind or water run handed the frontend a result that did not
+			know which run it was -- the same sentinel the live path suffered
+			from, arriving through the other door. A run read back from its own
+			row is the one case where the id is never in doubt.
+		*/
+		wind.RunID = run.ID
+		return &analysis.PredictResult{Wind: &wind, RunID: run.ID}, nil
 	}
 
 	/*
@@ -784,7 +806,9 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		); err == nil {
 			water.OccurrenceURI = uri
 		}
-		return &analysis.PredictResult{Water: &water}, nil
+		// Stamped for the reason the wind branch above states.
+		water.RunID = run.ID
+		return &analysis.PredictResult{Water: &water, RunID: run.ID}, nil
 	}
 
 	var res analysis.PredictResult

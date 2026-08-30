@@ -20,21 +20,26 @@ is where a reader meets that fact rather than inferring it.
 //
 // No period and no cloud limit: GLO-30 is a single static product, not a stack
 // of acquisitions, so there is nothing to select between.
+// It carries no project and no area, and that is the same fact stated on the
+// request side: nothing here is recorded, so there is nothing to file. The two
+// fields existed and were never read, which is why the one caller could pass
+// empty strings for both without consequence.
 type SurfaceModelRequest struct {
 	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	AoiLabel       string           `json:"aoi_label"`
 	RunLabel       string           `json:"run_label"`
-	ProjectID      string           `json:"project_id"`
-	AoiID          string           `json:"aoi_id"`
 }
 
 // SurfaceModel is the elevation over one area, as values rather than as a
 // picture of values.
+// No RunID, and its absence is deliberate rather than an omission. Every other
+// analysis carries one because it is recorded and returned to; AnalyzeSurfaceModel
+// records nothing, and says why: the surface is the ground the measurements were
+// made on, static and reproducible from the polygon alone, so a row would record
+// nothing the request does not already say. A field that can never be filled is
+// worse than no field, because a reader has to discover it is always empty.
 type SurfaceModel struct {
-	// The row this run was recorded as, or empty where it was not recorded.
-	// saveRun withdraws its claim to have saved by returning nothing.
-	RunID string `json:"run_id,omitempty"`
 	// "DSM". Stated rather than implied: the distinction from a terrain model
 	// is the single most consequential thing about this product.
 	ModelKind string `json:"model_kind"`

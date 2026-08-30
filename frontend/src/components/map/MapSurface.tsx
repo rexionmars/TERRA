@@ -1130,13 +1130,18 @@ export function MapSurface({
             if (!aoiGeometry) return
             setSurface({ at: "reading" })
             try {
+              /*
+                No project and no area, and no longer a pair of empty strings
+                standing in for them. This reading is not recorded -- the Go
+                side says so on AnalyzeSurfaceModel -- so there was nothing for
+                them to file it under, and the request has stopped declaring
+                fields it never reads.
+              */
               const reading = await AnalyzeSurfaceModel({
                 polygon_geojson: aoiGeometry as never,
                 area_id: "",
                 aoi_label: aoiName,
                 run_label: "",
-                project_id: "",
-                aoi_id: "",
               } as never)
               setSurface({ at: "read", reading: reading as never })
             } catch (e) {

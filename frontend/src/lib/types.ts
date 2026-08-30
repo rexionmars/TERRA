@@ -1022,6 +1022,16 @@ export interface SolarSkyView {
 }
 
 export interface SolarTerrainAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. It read as absent on every run of this
+   * product until the Go side began stamping it: the field was declared there
+   * and never written, so the studio's live area reported the sentinel
+   * "current" and could not record the run it was showing.
+   */
+  run_id?: string
   poa_min: number
   poa_max: number
   poa_mean: number
@@ -1084,6 +1094,16 @@ export interface SolarSitingClass {
 }
 
 export interface SolarSitingAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. It read as absent on every run of this
+   * product until the Go side began stamping it: the field was declared there
+   * and never written, so the studio's live area reported the sentinel
+   * "current" and could not record the run it was showing.
+   */
+  run_id?: string
   classes: SolarSitingClass[]
   /** Never summed with the cropland class: the trade-off must stay visible. */
   suitable_no_conflict_ha: number
@@ -1683,6 +1703,16 @@ export interface EnergyAssumptions {
  * live path and again on restore, which is what makes that safe here.
  */
 export interface EnergyModelAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. It read as absent on every run of this
+   * product until the Go side began stamping it: the field was declared there
+   * and never written, so the studio's live area reported the sentinel
+   * "current" and could not record the run it was showing.
+   */
+  run_id?: string
   lon: number
   lat: number
   hourly_years: number
@@ -1915,6 +1945,16 @@ export interface WindAssumptions {
  * EnergyModelAnalysis.
  */
 export interface WindAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. It read as absent on every run of this
+   * product until the Go side began stamping it: the field was declared there
+   * and never written, so the studio's live area reported the sentinel
+   * "current" and could not record the run it was showing.
+   */
+  run_id?: string
   lon: number
   lat: number
   /** Centre of the reanalysis cell the AOI resolves to, [lon, lat]. */
@@ -2190,6 +2230,16 @@ export interface FloodAssumptions {
  * Array fields are non-nullable for the reason given on EnergyModelAnalysis.
  */
 export interface FloodAnalysis {
+  /**
+   * The row this run was recorded as, or absent where it was not recorded.
+   *
+   * The Go side withdraws its claim to have saved by returning nothing, so the
+   * absence of this is the withdrawal. It read as absent on every run of this
+   * product until the Go side began stamping it: the field was declared there
+   * and never written, so the studio's live area reported the sentinel
+   * "current" and could not record the run it was showing.
+   */
+  run_id?: string
   reference_threshold_m: number
   thresholds_m: number[]
   drainage_km2: number

@@ -642,6 +642,18 @@ type EnergyAssumptions struct {
 // the radiation chain with SolarAnalysis and reports the same optimum, so the
 // two products cannot disagree about one AOI.
 type EnergyModelAnalysis struct {
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing, and
+	// until this field existed the withdrawal had nowhere to go: the frontend
+	// read every one of these runs as unrecorded, and the studio's live area
+	// reported the sentinel "current" for it. Same field and same meaning as
+	// WaterAnalysis.RunID, which states it at length.
+	//
+	// A line comment and not a block: frontend/scripts/check-types.ts parses
+	// these structs and refuses a "/*" it cannot read a JSON name from,
+	// rather than skipping the field in silence.
+	RunID             string  `json:"run_id,omitempty"`
 	Lon               float64 `json:"lon"`
 	Lat               float64 `json:"lat"`
 	HourlyYears       int     `json:"hourly_years"`

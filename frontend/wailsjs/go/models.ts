@@ -3168,6 +3168,7 @@ export namespace analysis {
 		}
 	}
 	export class EnergyModelAnalysis {
+	    run_id?: string;
 	    lon: number;
 	    lat: number;
 	    hourly_years: number;
@@ -3193,6 +3194,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.lon = source["lon"];
 	        this.lat = source["lat"];
 	        this.hourly_years = source["hourly_years"];
@@ -3542,6 +3544,7 @@ export namespace analysis {
 	    }
 	}
 	export class FloodAnalysis {
+	    run_id?: string;
 	    reference_threshold_m: number;
 	    thresholds_m: number[];
 	    drainage_km2: number;
@@ -3569,6 +3572,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.reference_threshold_m = source["reference_threshold_m"];
 	        this.thresholds_m = source["thresholds_m"];
 	        this.drainage_km2 = source["drainage_km2"];
@@ -4664,6 +4668,7 @@ export namespace analysis {
 		}
 	}
 	export class WindAnalysis {
+	    run_id?: string;
 	    lon: number;
 	    lat: number;
 	    grid_cell_centre: number[];
@@ -4686,6 +4691,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.lon = source["lon"];
 	        this.lat = source["lat"];
 	        this.grid_cell_centre = source["grid_cell_centre"];
@@ -4744,6 +4750,7 @@ export namespace analysis {
 	    }
 	}
 	export class SolarSitingAnalysis {
+	    run_id?: string;
 	    classes: SolarSitingClass[];
 	    suitable_no_conflict_ha: number;
 	    suitable_cropland_ha: number;
@@ -4760,6 +4767,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.classes = this.convertValues(source["classes"], SolarSitingClass);
 	        this.suitable_no_conflict_ha = source["suitable_no_conflict_ha"];
 	        this.suitable_cropland_ha = source["suitable_cropland_ha"];
@@ -4836,6 +4844,7 @@ export namespace analysis {
 	    }
 	}
 	export class SolarTerrainAnalysis {
+	    run_id?: string;
 	    poa_min: number;
 	    poa_max: number;
 	    poa_mean: number;
@@ -4864,6 +4873,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.poa_min = source["poa_min"];
 	        this.poa_max = source["poa_max"];
 	        this.poa_mean = source["poa_mean"];
@@ -5499,7 +5509,6 @@ export namespace analysis {
 	
 	
 	export class SurfaceModel {
-	    run_id?: string;
 	    model_kind: string;
 	    source: string;
 	    native_resolution_m: number;
@@ -5522,7 +5531,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.run_id = source["run_id"];
 	        this.model_kind = source["model_kind"];
 	        this.source = source["source"];
 	        this.native_resolution_m = source["native_resolution_m"];
@@ -5563,8 +5571,6 @@ export namespace analysis {
 	    polygon_geojson?: GeoJSONGeometry;
 	    aoi_label: string;
 	    run_label: string;
-	    project_id: string;
-	    aoi_id: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SurfaceModelRequest(source);
@@ -5576,8 +5582,6 @@ export namespace analysis {
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.aoi_label = source["aoi_label"];
 	        this.run_label = source["run_label"];
-	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
