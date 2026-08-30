@@ -15,6 +15,7 @@ from pathlib import Path
 
 from terra import protocol
 from terra.imagery import cog, indices, sentinel2
+from terra.scenes import lookup
 
 
 # Inventory Sentinel-2 scenes for the AOI (no classification / band reads).
@@ -108,33 +109,14 @@ def render_composite(req, work_dir):
 
     protocol.emit_progress(10, 'querying STAC for scene')
     try:
-        products = sentinel2.list_stac_products(
-            polygon, start, end, tile_list=tiles, max_cloud=max_cloud,
-            monthly_best=False,  # need full list to match scene_id
+        product = lookup.find(
+            polygon, start, end, scene_id, tiles=tiles, max_cloud=max_cloud,
+            note=lambda msg: protocol.emit_progress(-1, msg),
         )
+    except lookup.SceneNotFound as e:
+        protocol.fail(str(e))
     except Exception as e:
         protocol.fail(f'STAC query failed: {e}')
-
-    product = None
-    for p in products:
-        if (p.get('id') or '') == scene_id:
-            product = p
-            break
-    if product is None:
-        # Fall back: monthly_best list may have dropped the scene; retry without cloud filter widen
-        try:
-            products = sentinel2.list_stac_products(
-                polygon, start, end, tile_list=tiles, max_cloud=100.0,
-                monthly_best=False,
-            )
-        except Exception as e:
-            protocol.fail(f'STAC query failed: {e}')
-        for p in products:
-            if (p.get('id') or '') == scene_id:
-                product = p
-                break
-    if product is None:
-        protocol.fail(f'scene not found: {scene_id}')
 
     protocol.emit_progress(30, 'loading reference band B04')
     try:
