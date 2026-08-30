@@ -5,26 +5,9 @@ import { todayISO } from "@/lib/dates"
 import { btnGhost, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import { PanelSection as Section } from "@/components/ui/PanelSection"
 import type { WaterIndex } from "@/lib/types"
+import { WATER_INDICES as INDICES } from "@/lib/waterOptions"
 import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { PanelShell } from "@/components/ui/PanelShell"
-
-const INDICES: { id: WaterIndex; label: string; detail: string }[] = [
-  {
-    id: "MNDWI",
-    label: "MNDWI",
-    detail: "green + SWIR1 · Xu (2006)",
-  },
-  {
-    id: "NDWI",
-    label: "NDWI",
-    detail: "green + NIR · McFeeters (1996)",
-  },
-  {
-    id: "AWEI",
-    label: "AWEI",
-    detail: "4 bands, unbounded · Feyisa (2014)",
-  },
-]
 
 export interface WaterPanelProps {
   /** Which container draws this panel. See ui/PanelShell. */

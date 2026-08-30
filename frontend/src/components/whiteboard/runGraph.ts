@@ -22,10 +22,15 @@
  */
 import {
   CalendarRange,
+  Contrast,
+  Droplet,
   History,
+  Images,
+  Layers,
   Mountain,
   Network,
   Package,
+  Palette,
   Pentagon,
   Repeat,
   SunSnow,
@@ -38,6 +43,12 @@ export type RunNodeId =
   | "period"
   | "model"
   | "mode"
+  | "scene"
+  | "composite"
+  | "bands"
+  | "spectralIndex"
+  | "stretch"
+  | "waterIndex"
   | "product"
   | "record"
   | "season"
@@ -85,6 +96,12 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   period: { id: "period", label: "Period", icon: CalendarRange, h: 168 },
   model: { id: "model", label: "Model", icon: Network, h: 74 },
   mode: { id: "mode", label: "Mode", icon: Repeat, h: 74 },
+  scene: { id: "scene", label: "Scene", icon: Images, h: 92 },
+  composite: { id: "composite", label: "Composite", icon: Layers, h: 78 },
+  bands: { id: "bands", label: "Bands", icon: Palette, h: 74 },
+  spectralIndex: { id: "spectralIndex", label: "Index", icon: Palette, h: 74 },
+  stretch: { id: "stretch", label: "Stretch", icon: Contrast, h: 116 },
+  waterIndex: { id: "waterIndex", label: "Index", icon: Droplet, h: 78 },
   product: { id: "product", label: "Product", icon: Package, h: 78 },
   record: { id: "record", label: "Record", icon: History, h: 78 },
   season: { id: "season", label: "Season", icon: SunSnow, h: 116 },
@@ -107,7 +124,9 @@ export interface RunGraph {
  */
 export function runGraph(
   tool: BoardToolId | null,
-  solarProduct: "terrain" | "siting" | null
+  solarProduct: "terrain" | "siting" | null,
+  /** Which recipe a composition is built from; gates bands against an index. */
+  compositeKind: "rgb" | "index" | null = null
 ): RunGraph | null {
   if (!tool) return null
 
@@ -166,13 +185,50 @@ export function runGraph(
     }
   }
 
-  // Compositions and surface water: an area and a period, and no model to
-  // choose -- both run one method on whatever the period returns.
+  if (tool === "compose") {
+    /*
+      THE PERIOD DOES NOT FEED THE RUN HERE, IT FEEDS THE SCENE LIST.
+
+      A composition is built from ONE scene, and which scenes there are to pick
+      from is what the area and the period answer between them -- that is what
+      "List scenes" asks. So the run consumes the scene, and the period reaches
+      it through the list rather than directly. Drawing the period straight
+      into the run would say the request carries a date range, and it does not.
+
+      The recipe gates its own parameters the way solar's product does: an RGB
+      composite reads three bands, an index composite reads one index, and
+      neither set means anything under the other kind.
+    */
+    const recipe: RunNodeId = compositeKind === "index" ? "spectralIndex" : "bands"
+    return {
+      nodes: [
+        at("area", 0),
+        at("period", 0),
+        at("composite", 0),
+        at("stretch", 0),
+        at("scene", 1),
+        at(recipe, 1),
+        at("run", 2),
+      ],
+      edges: [
+        ["area", "scene"],
+        ["period", "scene"],
+        ["scene", "run"],
+        ["area", "run"],
+        ["composite", recipe],
+        [recipe, "run"],
+        ["stretch", "run"],
+      ],
+    }
+  }
+
+  // Surface water: an area, a period, and which index says what water is.
   return {
-    nodes: [at("area", 0), at("period", 0), at("run", 1)],
+    nodes: [at("area", 0), at("period", 0), at("waterIndex", 0), at("run", 1)],
     edges: [
       ["area", "run"],
       ["period", "run"],
+      ["waterIndex", "run"],
     ],
   }
 }

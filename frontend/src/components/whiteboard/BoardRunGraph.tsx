@@ -47,7 +47,16 @@ import type { BoardToolId } from "@/lib/mapTools"
 import { methodBrief } from "@/lib/methodBrief"
 import type { RunLogEntry } from "@/lib/runLog"
 import { SOLAR_SEASONS } from "@/lib/solarOptions"
-import type { ModelKind, SolarSeason } from "@/lib/types"
+import { RGB_PRESETS, INDICES } from "@/lib/compositeCatalog"
+import { WATER_INDICES } from "@/lib/waterOptions"
+import type {
+  CompositeIndex,
+  CompositeKind,
+  DataCubeScene,
+  ModelKind,
+  SolarSeason,
+  WaterIndex,
+} from "@/lib/types"
 import { cn } from "@/lib/utils"
 import {
   markBoardDirty,
@@ -262,6 +271,38 @@ export interface BoardRunGraphProps {
     onSlopeChange: (acceptable: number, restrictive: number) => void
   }
 
+  /**
+   * Everything a composition is built from, or absent where it cannot be made.
+   *
+   * One object for the same reason the solar bundle is one: these arrive and
+   * leave together, and a graph with no way to apply a composition must not
+   * draw cards for one.
+   */
+  compose?: {
+    scenes: readonly DataCubeScene[]
+    scenesLoading: boolean
+    scenesError: string | null
+    selectedSceneId: string
+    onSelectScene: (id: string) => void
+    /** Asks the period for the scenes in it; the list is empty until it runs. */
+    onListScenes: () => void
+    kind: CompositeKind
+    onKindChange: (k: CompositeKind) => void
+    bands: [string, string, string]
+    onBandsChange: (b: [string, string, string]) => void
+    index: CompositeIndex
+    onIndexChange: (i: CompositeIndex) => void
+    stretchLow: number
+    stretchHigh: number
+    onStretchChange: (low: number, high: number) => void
+  }
+
+  /** Which index the surface-water run reads, or absent where it cannot run. */
+  water?: {
+    index: WaterIndex
+    onIndexChange: (i: WaterIndex) => void
+  }
+
   hasArea: boolean
   activeExample: string
   /** Display name of the active custom AOI (drawn / drawn 2 / renamed). */
@@ -363,7 +404,11 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   */
   const pct = Math.round(Math.max(0, Math.min(100, props.progress)))
 
-  const graph = runGraph(props.tool, props.solar ? props.solar.product : null)
+  const graph = runGraph(
+    props.tool,
+    props.solar ? props.solar.product : null,
+    props.compose ? props.compose.kind : null
+  )
 
   /*
     What the chosen tool will actually do, resolved from the SAME props the
@@ -550,6 +595,187 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         ))}
       </div>
     ),
+
+    scene: props.compose ? (
+      <>
+        {/*
+          THE LIST IS ASKED FOR, NOT ASSUMED. Scenes come from a query over the
+          area and the period, which costs a round trip, so nothing is fetched
+          until a reader asks -- and the button says which period it will ask
+          about by simply being on the card the period feeds.
+        */}
+        <button
+          type="button"
+          onClick={props.compose.onListScenes}
+          disabled={busy || !props.hasArea || props.compose.scenesLoading}
+          className="flex h-[1.375rem] items-center justify-center gap-1.5 rounded-sm bg-surface-raised/40 px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:opacity-40"
+        >
+          {props.compose.scenesLoading && (
+            <Loader2 className="size-3 animate-spin" />
+          )}
+          {props.compose.scenes.length ? "Refresh scenes" : "List scenes"}
+        </button>
+        {props.compose.scenesError ? (
+          <span className="text-meta text-destructive-quiet">
+            {props.compose.scenesError}
+          </span>
+        ) : props.compose.scenes.length ? (
+          <select
+            value={props.compose.selectedSceneId}
+            disabled={busy}
+            onChange={(e) => props.compose?.onSelectScene(e.target.value)}
+            className="field-input h-[1.375rem] w-full px-1 text-meta"
+          >
+            {props.compose.scenes.map((sc) => (
+              <option key={sc.id} value={sc.id}>
+                {sc.date}
+                {` \u00b7 ${Math.round(sc.cloud_cover)}% cloud`}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-meta text-muted-foreground">
+            No scenes listed yet.
+          </span>
+        )}
+      </>
+    ) : null,
+
+    composite: props.compose ? (
+      <div className="flex flex-wrap gap-1">
+        <Choice
+          label="RGB"
+          chosen={props.compose.kind === "rgb"}
+          disabled={busy}
+          onPick={() => props.compose?.onKindChange("rgb")}
+        />
+        <Choice
+          label="Index"
+          chosen={props.compose.kind === "index"}
+          disabled={busy}
+          onPick={() => props.compose?.onKindChange("index")}
+        />
+      </div>
+    ) : null,
+
+    bands: props.compose ? (
+      /*
+        The presets, as a menu. Their names are names -- "True color", "False
+        colour IR" -- and the guideline this file already follows leaves an
+        enum a dropdown where its members cannot be glyphed.
+      */
+      <select
+        value={
+          RGB_PRESETS.find(
+            (r) => r.bands.join() === props.compose?.bands.join()
+          )?.id ?? ""
+        }
+        disabled={busy}
+        onChange={(e) => {
+          const hit = RGB_PRESETS.find((r) => r.id === e.target.value)
+          if (hit) props.compose?.onBandsChange([...hit.bands] as [string, string, string])
+        }}
+        title={
+          RGB_PRESETS.find((r) => r.bands.join() === props.compose?.bands.join())
+            ?.description
+        }
+        className="field-input h-[1.375rem] w-full px-1 text-meta"
+      >
+        {!RGB_PRESETS.some(
+          (r) => r.bands.join() === props.compose?.bands.join()
+        ) && <option value="">Custom</option>}
+        {RGB_PRESETS.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.label}
+          </option>
+        ))}
+      </select>
+    ) : null,
+
+    spectralIndex: props.compose ? (
+      <select
+        value={props.compose.index}
+        disabled={busy}
+        onChange={(e) =>
+          props.compose?.onIndexChange(e.target.value as CompositeIndex)
+        }
+        title={INDICES.find((i) => i.id === props.compose?.index)?.description}
+        className="field-input h-[1.375rem] w-full px-1 text-meta"
+      >
+        {INDICES.map((i) => (
+          <option key={i.id} value={i.id}>
+            {i.label}
+          </option>
+        ))}
+      </select>
+    ) : null,
+
+    stretch: props.compose ? (
+      <>
+        {/*
+          The percentiles the colour ramp is fitted between. Two fields rather
+          than one range, because they are read as numbers -- "2 to 98" is the
+          convention this is departing from when it is changed.
+        */}
+        <NumberField
+          label="Low"
+          value={props.compose.stretchLow}
+          min={0}
+          max={49}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)}%`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("%", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.compose?.onStretchChange(
+              Math.round(v),
+              props.compose.stretchHigh
+            )
+          }
+        />
+        <NumberField
+          label="High"
+          value={props.compose.stretchHigh}
+          min={51}
+          max={100}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)}%`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("%", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.compose?.onStretchChange(
+              props.compose.stretchLow,
+              Math.round(v)
+            )
+          }
+        />
+      </>
+    ) : null,
+
+    waterIndex: props.water ? (
+      /*
+        Choices rather than a menu: three short names that fit, and the choice
+        between them is a choice between definitions -- the title carries what
+        each is computed from and who published it.
+      */
+      <div className="flex flex-wrap gap-1">
+        {WATER_INDICES.map((o) => (
+          <Choice
+            key={o.id}
+            label={o.label}
+            chosen={props.water?.index === o.id}
+            disabled={busy}
+            onPick={() => props.water?.onIndexChange(o.id)}
+          />
+        ))}
+      </div>
+    ) : null,
 
     product: (
       <div className="flex flex-wrap gap-1">

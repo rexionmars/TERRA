@@ -983,6 +983,34 @@ export function MapScreen(props: MapScreenProps) {
             }
           : undefined
       }
+      /*
+        The composition's own parameters, handed over as one object for the
+        reason the solar bundle is: they arrive together, and a graph offered
+        no way to apply a composition must not draw cards for one. Every value
+        is the map screen's own state passed straight through, so the panel and
+        the graph cannot come to disagree about what the next composite is.
+      */
+      compose={{
+        scenes: props.composeScenes,
+        scenesLoading: props.composeScenesLoading,
+        scenesError: props.composeScenesError,
+        selectedSceneId: props.selectedSceneId,
+        onSelectScene: props.onSelectScene,
+        onListScenes: props.onListComposeScenes,
+        kind: props.composeKind,
+        onKindChange: props.onComposeKindChange,
+        bands: props.composeBands,
+        onBandsChange: props.onComposeBandsChange,
+        index: props.composeIndex,
+        onIndexChange: props.onComposeIndexChange,
+        stretchLow: props.composeStretchLow,
+        stretchHigh: props.composeStretchHigh,
+        onStretchChange: props.onComposeStretchChange,
+      }}
+      water={{
+        index: props.waterIndex,
+        onIndexChange: props.onWaterIndexChange,
+      }}
       hasArea={props.hasArea}
       activeExample={props.activeExample}
       areaLabel={props.areaLabel}
