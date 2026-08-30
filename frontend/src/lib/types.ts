@@ -1829,7 +1829,7 @@ export interface WindShearDiagnostics {
   /**
    * Null when the shear exponent lies outside the range a neutral logarithmic
    * profile between 10 m and 50 m can produce for any roughness length:
-   * sidecar/wind.py implied_roughness_length returns NaN there and the
+   * terra/energy/wind.py implied_roughness_length returns NaN there and the
    * serialiser writes null. Declared nullable because Go decodes that null into
    * a float64 zero, and rendered as a number it printed "0.000 m" for a value
    * that was never computed, beside prose saying the inversion has no root.

@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import canopy_field as cf  # noqa: E402
+from terra.canopy import field as cf  # noqa: E402
 
 
 @pytest.fixture
@@ -68,8 +68,12 @@ def test_energy_weighting_is_what_distinguishes_this_from_reference_suns(slab):
     não para descrever um céu.
     """
     el_edges = np.arange(0.0, 91.0, 1.0)
-    mostly_high = np.zeros((16, 90)); mostly_high[0, 80] = 9.0; mostly_high[0, 20] = 1.0
-    mostly_low = np.zeros((16, 90)); mostly_low[0, 80] = 1.0; mostly_low[0, 20] = 9.0
+    mostly_high = np.zeros((16, 90))
+    mostly_high[0, 80] = 9.0
+    mostly_high[0, 20] = 1.0
+    mostly_low = np.zeros((16, 90))
+    mostly_low[0, 80] = 1.0
+    mostly_low[0, 20] = 9.0
     a = cf.light_under_sun(slab, mostly_high, el_edges)
     b = cf.light_under_sun(slab, mostly_low, el_edges)
     assert b["fapar"] > a["fapar"]
@@ -163,7 +167,7 @@ def test_canopy_azimuth_is_mirrored_by_the_scene_in_typescript():
     partir do próprio +x, porque um talhão não tem norte -- tem um módulo com
     dois eixos. O que junta os dois é a direção das linhas, que é agronomia.
     """
-    from canopy_field import _canopy_azimuth
+    from terra.canopy.field import _canopy_azimuth
 
     for compass, row in ((0.0, 0.0), (90.0, 0.0), (170.0, 30.0), (350.0, 0.0)):
         graus_ts = 90.0 - (compass - row)          # sceneAzimuthFromCompass

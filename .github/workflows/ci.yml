@@ -140,7 +140,32 @@ jobs:
         run: pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Byte-compile sidecar
-        run: python -m py_compile sidecar/*.py
+        # Recursive, so the terra package is covered and not only the modules
+        # still sitting beside it. A glob of sidecar/*.py silently compiles
+        # nothing inside a directory added later.
+        run: python -m compileall -q sidecar
+
+      - name: Ruff
+        # The rule set is chosen per defect in sidecar/pyproject.toml, as the
+        # Go check set is in .golangci.yml. Formatting is not checked: the
+        # formatter would rewrite 57 files, which is a decision of its own.
+        working-directory: sidecar
+        run: ruff check .
+
+      - name: Mypy
+        # The whole package at the default level, and strict on the modules
+        # pyproject.toml lists. The default level does not ask for annotations;
+        # it asks that the ones that exist do not contradict what is inferred,
+        # which all 65 modules now satisfy.
+        working-directory: sidecar
+        run: mypy terra
+
+      - name: Import contracts
+        # The layers the migration was carried out to make true. Run from the
+        # sidecar directory because terra is importable from there and nowhere
+        # else.
+        working-directory: sidecar
+        run: lint-imports --config pyproject.toml
 
       - name: Pytest
         run: pytest sidecar/tests -q

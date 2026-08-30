@@ -20,8 +20,8 @@ import json
 import numpy as np
 import pytest
 
-import flood
-import hand
+from terra.flood import envelope as flood
+from terra.terrain import hand
 
 DX = DY = 30.0
 DRAINAGE_KM2 = 0.02
@@ -465,7 +465,7 @@ def test_the_reporting_mask_moves_the_figures_and_not_the_terrain():
     assert sum(part.payload["agreement"]["counts"]) == int(aoi.sum())
 
     for whole_row, part_row in zip(whole.payload["products"],
-                                   part.payload["products"]):
+                                   part.payload["products"], strict=True):
         assert part_row["cells"] == int((part.masks[part_row["id"]] & aoi).sum())
         assert part_row["cells"] < whole_row["cells"]
 

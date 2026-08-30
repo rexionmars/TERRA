@@ -1,7 +1,7 @@
 """
 The surface raster is written for a decoder, and this is the other end of it.
 
-action_surface_model carries elevation to the map as three bytes per cell,
+surface_model carries elevation to the map as three bytes per cell,
 normalised to the window's own relief. Nothing about that is visible in the
 image: a wrong scale draws a plausible hypsometric ramp in the wrong units, and
 a wrong packing draws a plausible one of the wrong ground. Both are caught here
@@ -24,7 +24,7 @@ VALUE_FLOOR = 1.0
 
 
 def pack(elevation, lo, hi, absent=None):
-    """The lines action_surface_model runs, over a window small enough to read."""
+    """The lines surface_model runs, over a window small enough to read."""
     span = max(hi - lo, 1e-6)
     fraction = np.clip((elevation - lo) / span, 0.0, 1.0)
     normalised = VALUE_FLOOR + fraction * (VALUE_FULL_SCALE - VALUE_FLOOR)

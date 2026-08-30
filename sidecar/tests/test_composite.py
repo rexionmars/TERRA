@@ -2,7 +2,7 @@
 
 import numpy as np
 
-import composite
+from terra.imagery import composite
 
 
 def test_percentile_stretch_basic():
@@ -38,9 +38,15 @@ def test_ndwi_ndmi_range():
 
 
 def test_rgb_to_rgba_shape():
-    r = np.random.rand(8, 8).astype(np.float32)
-    g = np.random.rand(8, 8).astype(np.float32)
-    b = np.random.rand(8, 8).astype(np.float32)
+    # Seeded, and the seed is the point: this asserts shape, dtype and the
+    # alpha channel, so the values only have to be plausible reflectances --
+    # but an unseeded draw makes a failure impossible to reproduce, and
+    # np.random.rand draws from the legacy global state that any other test
+    # can advance.
+    rng = np.random.default_rng(20240115)
+    r = rng.random((8, 8), dtype=np.float32)
+    g = rng.random((8, 8), dtype=np.float32)
+    b = rng.random((8, 8), dtype=np.float32)
     mask = np.ones((8, 8), dtype=bool)
     mask[0, 0] = False
     rgba = composite.rgb_to_rgba(r, g, b, mask)

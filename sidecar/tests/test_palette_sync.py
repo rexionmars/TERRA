@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import composite as comp
+from terra.imagery import composite as comp
 
 PALETTES_TS = (
     Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "palettes.ts"
@@ -19,7 +19,7 @@ PALETTES_TS = (
 
 def _to_hex(stops):
     """Truncate, matching the renderer's astype(uint8)."""
-    return ["#%02x%02x%02x" % tuple(int(c * 255) for c in s) for s in stops]
+    return ["#{:02x}{:02x}{:02x}".format(*(int(c * 255) for c in s)) for s in stops]
 
 
 def _parse_ts() -> dict[str, list[str]]:

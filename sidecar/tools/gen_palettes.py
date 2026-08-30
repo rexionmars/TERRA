@@ -13,7 +13,7 @@ from pathlib import Path
 SIDECAR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SIDECAR))
 
-import composite as comp  # noqa: E402
+from terra.imagery import composite as comp  # noqa: E402
 
 ORDER = ["rdylgn", "blues", "inferno", "viridis", "rdbu_r"]
 OUT = SIDECAR.parent / "frontend" / "src" / "lib" / "palettes.ts"
@@ -21,7 +21,7 @@ OUT = SIDECAR.parent / "frontend" / "src" / "lib" / "palettes.ts"
 
 def to_hex(stops):
     """Truncate, matching the renderer's astype(uint8)."""
-    return ["#%02x%02x%02x" % tuple(int(c * 255) for c in s) for s in stops]
+    return ["#{:02x}{:02x}{:02x}".format(*(int(c * 255) for c in s)) for s in stops]
 
 
 def render() -> str:

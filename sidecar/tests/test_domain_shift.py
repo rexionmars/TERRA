@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import domain_shift as ds
+from terra.landcover import domain_shift as ds
 
 
 def test_kl_identical_is_near_zero():

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import numpy as np
 
-import phenology
+from terra import phenology as phenology
 
 
 def _seasonal_ndvi(n: int = 24) -> tuple[np.ndarray, list[str]]:

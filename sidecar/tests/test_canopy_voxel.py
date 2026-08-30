@@ -42,8 +42,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import canopy_voxel as cv
-
+from terra.canopy import voxel as cv
 
 SPACING = 6.0
 Z_TOP = 3.0

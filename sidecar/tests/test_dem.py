@@ -1,10 +1,10 @@
 """
 Checks on the DEM read: grid arithmetic, the buffer, the merge, the alignment.
 
-Offline by construction. Nothing here touches Planetary Computer, and the STAC
-call itself is not exercised -- a test that needs the network is a test that
-fails for a reason unrelated to the code, and the part of `fetch` worth pinning
-is the geometry it hands to `read_merged`, which is reachable without it.
+Offline by construction. Nothing here touches Planetary Computer -- a test that
+needs the network is a test that fails for a reason unrelated to the code. The
+search is stood in for, which leaves both parts worth pinning reachable: the
+geometry handed to the catalogue, and the geometry handed to `read_merged`.
 
 The tiles are synthetic and written to disk, so `read_merged` runs the real
 rasterio merge over real files rather than over a stand-in. The field on them
@@ -18,8 +18,10 @@ import numpy as np
 import pytest
 import rasterio
 from rasterio.transform import from_origin
+from shapely.geometry import box
 
-import dem
+from terra import stac
+from terra.terrain import dem
 
 # One arcsecond, the spacing of every 30 m product in the set.
 ARCSEC = 1.0 / 3600.0
@@ -249,7 +251,8 @@ def test_cell_size_of_an_arcsecond_grid_is_about_thirty_metres():
 
 def test_merge_of_two_adjacent_tiles_reproduces_the_field_across_the_seam(tmp_path):
     """
-    The failure solar.fetch_dem has: a window straddling a tile edge.
+    The failure the solar terrain read had while it lived in solar.py with a
+    reader of its own: a window straddling a tile edge.
 
     Two tiles abut at longitude 0.03. Reading only the first would return the
     left half of the window and nothing else. The check is against the analytic
@@ -490,7 +493,7 @@ def test_every_product_resolves_by_short_id_and_by_collection_id():
 def test_the_default_set_is_the_four_products_and_starts_at_cop30():
     """
     cop30 is first because it defines the reference grid, and it is the one
-    collection the rest of the application already reads (solar.py).
+    collection the rest of the application already reads.
     """
     assert dem.DEFAULT_IDS[0] == "cop30"
     assert set(dem.DEFAULT_IDS) == set(dem.COLLECTIONS)
@@ -535,3 +538,99 @@ def test_describe_carries_the_fields_the_payload_row_needs():
         "native_resolution_m": 90.0,
         "resampled": True,
     }
+
+
+# --------------------------------------------- the terrain read written to a file
+
+
+class FakeAsset:
+    def __init__(self, href):
+        self.href = href
+
+
+class FakeItem:
+    """A STAC item as fetch_file uses it: one elevation asset with an href."""
+
+    def __init__(self, href):
+        self.assets = {"data": FakeAsset(href)}
+
+
+def catalogue_of(*hrefs, seen=None):
+    """A stand-in for stac.search that records the geometry it was asked about."""
+
+    def search(collection, *, intersects=None, **kwargs):
+        if seen is not None:
+            seen.append(intersects)
+        return [FakeItem(h) for h in hrefs]
+
+    return search
+
+
+def test_fetch_file_merges_every_tile_the_window_crosses(tmp_path, monkeypatch):
+    """
+    The defect this replaced: `items[0]`, one tile of however many intersected.
+
+    The AOI spans the seam at longitude 0.30, so reading the first tile alone
+    returns terrain over part of the area and nothing over the rest. The check
+    is against the analytic field, so a tile placed one cell off fails by the
+    gradient rather than by looking plausible.
+    """
+    res = 10 * ARCSEC
+    left = write_tile(tmp_path / "left.tif", 0.00, 0.05, 108, 108, res)
+    right = write_tile(tmp_path / "right.tif", 0.30, 0.05, 108, 108, res)
+    monkeypatch.setattr(stac, "search", catalogue_of(left, right))
+
+    aoi = box(0.25, -0.05, 0.35, 0.02)
+    out = dem.fetch_file(aoi, tmp_path / "dem.tif")
+
+    with rasterio.open(out) as src:
+        array = src.read(1)
+        transform = src.transform
+    assert np.isfinite(array).all()
+    rows, cols = np.indices(array.shape)
+    lon = transform.c + (cols + 0.5) * transform.a
+    lat = transform.f + (rows + 0.5) * transform.e
+    assert array == pytest.approx(elevation_field(lon, lat), abs=1e-2)
+    assert transform.c < 0.30 < transform.c + array.shape[1] * transform.a
+
+
+def test_fetch_file_searches_by_the_buffered_window_not_the_aoi(tmp_path, monkeypatch):
+    """
+    A tile intersecting only the buffer ring has to be returned by the search.
+
+    Searching by the AOI leaves the merge a hole in exactly the band the buffer
+    was added to cover, which is the terrain that casts onto the pixels inside.
+    """
+    res = 10 * ARCSEC
+    tile = write_tile(tmp_path / "tile.tif", -0.05, 0.05, 216, 216, res)
+    seen = []
+    monkeypatch.setattr(stac, "search", catalogue_of(tile, seen=seen))
+
+    aoi = box(0.00, 0.00, 0.02, 0.02)
+    dem.fetch_file(aoi, tmp_path / "dem.tif", buffer_m=2000.0)
+
+    asked = seen[0].bounds
+    widened = dem.buffer_bounds(aoi.bounds, 2000.0)
+    assert asked == pytest.approx(widened, abs=1e-9)
+    assert asked[0] < aoi.bounds[0] and asked[2] > aoi.bounds[2]
+
+
+def test_fetch_file_reports_the_part_of_the_window_no_tile_covers(tmp_path, monkeypatch):
+    """
+    Copernicus publishes no tile over the sea, so a coastal window has a gap
+    that is not a failure. It is reported rather than passed over, and the
+    cells with no tile read as no data.
+    """
+    res = 10 * ARCSEC
+    tile = write_tile(tmp_path / "half.tif", 0.00, 0.05, 108, 108, res)
+    monkeypatch.setattr(stac, "search", catalogue_of(tile))
+    said = []
+
+    aoi = box(0.15, -0.05, 0.45, 0.02)
+    out = dem.fetch_file(aoi, tmp_path / "dem.tif", progress=said.append)
+
+    assert any("no tile" in msg for msg in said), said
+    with rasterio.open(out) as src:
+        array = src.read(1)
+    assert np.isnan(array).any()
+    assert np.isfinite(array).any()

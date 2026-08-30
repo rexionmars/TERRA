@@ -19,8 +19,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import canopy
-
+from terra.canopy import crowns as canopy
 
 # ---------------------------------------------------------------------------
 # Radiation convention

@@ -14,9 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import canopy_field as cf
-import canopy_voxel as cv
-
+from terra.canopy import field as cf, voxel as cv
 
 SPACING, LAI, CELL = 6.0, 2.0, 0.30
 CROWN = dict(crown_a=1.8, crown_b=1.2, crown_z=1.6)
@@ -160,7 +158,7 @@ def test_degenerate_geometry_is_refused(bad):
 
 def test_an_unknown_source_is_refused_by_name():
     with pytest.raises(ValueError, match="helios"):
-        cf.build({"source": "helios"})
+        cf.build(cf.FieldSpec(source="helios"))
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +298,7 @@ def test_build_returns_a_grid_matching_the_shape_it_reports():
     own depth axis -- which renders as a plausible canopy and is wrong at every
     point.
     """
-    grid, payload = cf.build({"spacing": SPACING, "lai": LAI, "cell": CELL})
+    grid, payload = cf.build(cf.FieldSpec(spacing=SPACING, lai=LAI, cell=CELL))
     meta = payload["field"]
     assert grid.shape == (meta["n_xy"], meta["n_xy"], meta["n_z"])
     assert grid.dtype.kind == "f"
@@ -309,7 +307,7 @@ def test_build_returns_a_grid_matching_the_shape_it_reports():
 
 def test_build_reports_progress_in_order():
     seen = []
-    cf.build({"spacing": SPACING, "lai": LAI, "cell": CELL},
+    cf.build(cf.FieldSpec(spacing=SPACING, lai=LAI, cell=CELL),
              progress=lambda p, m: seen.append((p, m)))
     assert seen, "a build that reports nothing leaves the progress bar empty"
     assert [p for p, _ in seen] == sorted(p for p, _ in seen)
@@ -437,7 +435,7 @@ def test_the_payload_holds_no_token_go_would_refuse():
     the ratio used to become NaN.
     """
     import json
-    _, payload = cf.build({"spacing": SPACING, "lai": 400.0, "cell": CELL})
+    _, payload = cf.build(cf.FieldSpec(spacing=SPACING, lai=400.0, cell=CELL))
     text = json.dumps(payload)
     assert "NaN" not in text and "Infinity" not in text
     assert any(row["ratio"] is None for row in payload["against_uniform"]), (
@@ -506,9 +504,7 @@ def test_a_strip_wider_than_its_spacing_is_refused():
 
 
 def test_the_action_dispatches_the_row_source():
-    grid, payload = cf.build({"source": "rows", **{k: v for k, v in ROW.items()
-                                                   if k != "row_width_frac"},
-                              "row_width_frac": ROW["row_width_frac"]})
+    grid, payload = cf.build(cf.FieldSpec(source="rows", **ROW))
     assert payload["field"]["source"] == "rows"
     assert grid.shape == (payload["field"]["n_xy"], payload["field"]["n_xy"],
                           payload["field"]["n_z"])
@@ -566,3 +562,29 @@ def test_a_uniform_canopy_behaves_as_the_coefficient_it_was_built_with():
             continue
         np.testing.assert_allclose(row["k_emergent"],
                                    cv.G_LEAF / row["cos_zenith"], rtol=2e-2)
+
+
+# ------------------------------------------- the spec the action hands it
+
+
+def test_a_spec_with_nothing_set_is_the_ellipsoid_field():
+    """The defaults are the ones the request carried, so an omitted field
+    still gets what it got when build read the request itself."""
+    spec = cf.FieldSpec()
+
+    assert spec.source == "ellipsoid"
+    assert (spec.spacing, spec.cell, spec.lai) == (6.0, 0.30, 2.0)
+    assert spec.z_top is None
+
+
+def test_a_deliberate_zero_survives_the_read(monkeypatch):
+    """
+    ABSENCE SELECTS THE DEFAULT, NOT FALSINESS. `base` is a height, and zero is
+    a height a caller can mean; read as `float(req.get('base') or 0.9)` it
+    would become the default and the rows would sit off the ground.
+    """
+    from terra import protocol
+
+    assert protocol.request_number({"base": 0.0}, "base", 0.9) == 0.0
+    assert protocol.request_number({}, "base", 0.9) == 0.9
+    assert protocol.request_number({"base": None}, "base", 0.9) == 0.9

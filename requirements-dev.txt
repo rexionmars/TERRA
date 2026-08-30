@@ -2,3 +2,9 @@
 # Includes runtime deps from requirements.txt plus pytest.
 -r requirements.txt
 pytest>=8.0
+
+# Static checks. Each is run by CI on the sidecar; see sidecar/pyproject.toml
+# for what they are configured to look for and why.
+ruff>=0.14
+mypy>=1.14
+import-linter>=2.0
