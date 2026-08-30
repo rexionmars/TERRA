@@ -57,7 +57,11 @@ import {
   useCameraNavigation,
 } from "@/components/map/cameraNavigation"
 import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
-import { basemapByKind, type BasemapKind } from "@/lib/basemaps"
+import {
+  MAPLIBRE_CREDIT,
+  basemapByKind,
+  type BasemapKind,
+} from "@/lib/basemaps"
 import { onPaletteChange } from "@/lib/paletteWatch"
 import { cn } from "@/lib/utils"
 
@@ -248,8 +252,8 @@ export function GlobeSurface({
           WKWebView with no createWebViewWith delegate, so an anchor with
           target="_blank" is silently ignored -- the licence asks the credit to
           be REACHABLE and an anchor here is not. The application already
-          discharges this the way it must, through BrowserOpenURL; the globe
-          screen renders the same credit parts at its foot.
+          discharges this the way it must, through BrowserOpenURL, and the
+          readout at this surface's own foot renders the parts.
 
           Passing an options object here would also have dropped MapLibre's own
           link, since MapOptions.attributionControl is merged by shallow spread.
@@ -579,7 +583,7 @@ export function GlobeSurface({
         anything heavier would compete with the imagery for the answer.
       */}
       {ready && !failure && (
-        <div className="telemetry pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 text-[10px] text-muted-foreground">
+        <div className="telemetry pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
           <span className="tabular-nums text-foreground">z{zoom.toFixed(1)}</span>
           {busy ? (
             <span>loading imagery</span>
@@ -590,21 +594,48 @@ export function GlobeSurface({
             <span>magnified past z{NATIVE_MAX}, the finest this imagery has</span>
           ) : null}
           {/*
-            NOT DECORATIVE AND NOT OPTIONAL. terrain.ts states the rule: the
-            mosaic is assembled from national and mission datasets whose
-            licences ask to be named, and naming it is also what keeps it
-            distinct from the DEMs an analysis ran on -- a reader must not take
-            the shading under a flood envelope for the surface that envelope
-            was derived from.
+            WHO THE GROUND BELONGS TO, in the title bar's own order and with its
+            own separators, so the two surfaces credit one set of providers one
+            way. It was missing here entirely: the surface switches MapLibre's
+            attribution control off -- see the mount, where the reason is that
+            an anchor in this WKWebView opens nothing -- on the understanding
+            that the application renders the parts itself, and the screen that
+            used to do so was removed with the globe destination.
 
-            `pointer-events-auto` on the credit alone, because the line around
-            it is a readout that must not take the pointer off the planet.
+            Not `telemetry`, so it is not in the mono face the readings above
+            use: it is a sentence about ownership rather than a measurement.
+
+            IT WRAPS RATHER THAN TRUNCATES. The title bar can hide its credit
+            below xl and clip what is left, because the licence is discharged by
+            the line being reachable on the surface that draws the imagery, and
+            there the map is the whole window. A studio area can be a few inches
+            wide, and a truncated credit in the only place it appears is a
+            credit that is not given.
+
+            `pointer-events-auto` on the credits alone, because the line around
+            them is a readout that must not take the pointer off the planet.
           */}
-          {relief && (
-            <span className="pointer-events-auto opacity-80">
-              <Credit part={ELEVATION_CREDIT} />
-            </span>
-          )}
+          <span className="pointer-events-auto font-sans normal-case opacity-80">
+            <Credit part={MAPLIBRE_CREDIT} />
+            {basemapByKind(GLOBE_BASEMAP).credit.map((c, i) => (
+              <span key={c.label}>
+                {i === 0 ? " | " : " \u2014 "}
+                <Credit part={c} />
+              </span>
+            ))}
+            {/*
+              Only while relief is drawn, because only then is a second provider
+              on screen. terrain.ts states that rule and the reason behind it:
+              naming the mosaic is also what keeps it distinct from the DEMs an
+              analysis was computed on.
+            */}
+            {relief && (
+              <span>
+                {" \u2014 "}
+                <Credit part={ELEVATION_CREDIT} />
+              </span>
+            )}
+          </span>
         </div>
       )}
 
