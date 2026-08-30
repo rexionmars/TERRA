@@ -15,6 +15,7 @@ import math
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 # Cap stored / compared feature rows so run JSON stays manageable.
 DEFAULT_SAMPLE_N = 512
@@ -39,8 +40,8 @@ def histogram_ndvi(values: np.ndarray, n_bins: int = NDVI_BINS) -> dict[str, lis
         counts = np.zeros(n_bins, dtype=np.float64)
     else:
         v = np.clip(v, lo, hi)
-        counts, _ = np.histogram(v, bins=edges)
-        counts = counts.astype(np.float64)
+        hist, _ = np.histogram(v, bins=edges)
+        counts = hist.astype(np.float64)
     total = counts.sum()
     probs = counts / total if total > 0 else counts
     return {
@@ -180,7 +181,8 @@ def build_fingerprint(
     return None
 
 
-def kl_divergence(p: np.ndarray, q: np.ndarray, eps: float = 1e-9) -> float:
+def kl_divergence(p: npt.ArrayLike, q: npt.ArrayLike,
+                  eps: float = 1e-9) -> float:
     """KL(P || Q) on discrete probability vectors with additive smoothing."""
     p = np.asarray(p, dtype=np.float64).ravel()
     q = np.asarray(q, dtype=np.float64).ravel()
@@ -193,7 +195,7 @@ def kl_divergence(p: np.ndarray, q: np.ndarray, eps: float = 1e-9) -> float:
     return float(np.sum(p * np.log(p / q)))
 
 
-def cva_magnitude(mean_a: np.ndarray, mean_b: np.ndarray) -> float:
+def cva_magnitude(mean_a: npt.ArrayLike, mean_b: npt.ArrayLike) -> float:
     """Euclidean magnitude between two mean feature vectors (Change Vector Analysis)."""
     a = np.asarray(mean_a, dtype=np.float64).ravel()
     b = np.asarray(mean_b, dtype=np.float64).ravel()
@@ -595,6 +597,8 @@ def compare_fingerprints(
     mag = float(round(raw, 6)) if math.isfinite(raw) else None
     mag_sd = None
     if standardised:
+        # `standardised` is bool(za) and bool(zb), so neither is None here.
+        assert za is not None and zb is not None
         v = cva_magnitude(za, zb)
         mag_sd = float(round(v, 6)) if math.isfinite(v) else None
 

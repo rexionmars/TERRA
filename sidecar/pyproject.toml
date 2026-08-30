@@ -40,6 +40,15 @@ combine-as-imports = true
 "tests/*" = ["F401"]
 
 [tool.mypy]
+# RUN IT WITH THE DEPENDENCIES INSTALLED. mypy reads the type information the
+# installed packages ship, so numpy absent is numpy as Any and the check passes
+# things it would otherwise refuse. CI installs the lock and so sees the real
+# stubs; a local run through a tool runner does not unless it is told to:
+#
+#   uvx --from mypy==2.3.1 --with numpy --with pandas --with scipy mypy terra
+#
+# Nine errors in terra/landcover/domain_shift.py reached CI green locally
+# exactly this way.
 python_version = "3.12"
 warn_unused_configs = true
 warn_redundant_casts = true
