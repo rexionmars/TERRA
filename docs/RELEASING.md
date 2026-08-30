@@ -85,9 +85,10 @@ So the procedure is:
    other three files now carry. That red is the reminder, and it is deliberate
    — a release that ships without telling users what changed is a release whose
    notes are a commit log.
-3. **Pick the code name and the still** — see below. `RELEASE_NAME` in
-   [`brand.ts`](../frontend/src/lib/brand.ts) is edited in the same commit as
-   the What's New entry, and for the same reason: neither can be generated.
+3. **On a MINOR, pick the code name and the still** — see below.
+   `RELEASE_NAME` in [`brand.ts`](../frontend/src/lib/brand.ts) is edited in
+   the same commit as the What's New entry, and for the same reason: neither
+   can be generated. A PATCH keeps the name it has and skips this step.
 4. **Merge it.** The tag, the GitHub release and the assets follow.
 
 `main` must be green before you merge, which CI enforces on the proposal like
@@ -111,24 +112,66 @@ others to match it, not the other way round.
 
 Each release has a code name, fixed for the version the way Sierra and Sonoma
 are. It is shown on the splash under the wordmark, beside the version number,
-and does not change from launch to launch.
+and does not change from launch to launch. It also opens the release's What's
+New entry and titles the GitHub release.
 
-The stills carry names from the same set, and the release is named for one of
-them. The manifest currently holds a single still, `Amazon`, so the splash is
-fixed and the release is named for the only photograph there is. Add a second
-entry and the rotation resumes on its own: the featured still is what the first
-launch after an update shows and what every second launch after it shows, and
-the walk covers the rest. The correspondence is deliberate but not a dependency
-— the release keeps its name whichever photograph the rotation lands on.
+Names come from one set: **what is observable from orbit**. `Ember`, `Amazon`
+and `Stockpile` have been used; `Meander`, `Terraces`, `Vortex`, `Windfarm` and
+`Soybean` are in the history of `splashBackground.ts` with their sources, and
+their files are still in `frontend/public/terra-splash-images`. The coherence is
+the point — a set is what makes the names read as deliberate rather than
+arbitrary — and it does not run out.
 
-Names come from one set: **what is observable from orbit**. `Amazon`, and
-before it `Meander`, `Terraces`, `Vortex`, `Windfarm`, `Ember`, `Soybean` —
-those six are in the history of `splashBackground.ts` with their sources, and
-their files are still in `frontend/public/terra-splash-images`. The coherence is the point — a
-set is what makes the names read as deliberate rather than arbitrary — and it
-does not run out. Pick a name that fits the image, and an image that fits what
-the release is about: a version focused on solar and wind ships turbines at
-dusk.
+### The name identifies the release; it does not describe it
+
+This section used to say: *pick a name that fits the image, and an image that
+fits what the release is about*. That instruction is gone, for two reasons.
+
+It was not being followed. `v0.4.0` is **Amazon** and shipped the energy result
+as a column of its own — a rainforest does not describe that. One release out of
+the two that had names at the time.
+
+And it worked against the trigger above. That trigger exists to separate
+releasing from finishing a feature: ship the fix when the fix is worth shipping.
+A name that has to describe a theme joins them back together, because a release
+of thirty-one refactors and twenty-five fixes has no theme to name. It then gets
+a name that lies, or it waits for a theme to arrive — and waiting is the
+behaviour the trigger was written to end.
+
+Every naming scheme that lasts works this way. macOS ships places in California
+and Mojave brought no desert features; Ubuntu ships an adjective and an animal
+in alphabetical order; Debian ships Toy Story characters. None of them describe
+the release, because none of them can promise a theme per release. The changelog
+describes the release. The name identifies it.
+
+So take the next name from the set. It does not have to mean anything about what
+shipped, and a release of pure maintenance is named exactly like any other.
+
+### A MINOR takes the next name; a PATCH keeps the one it has
+
+The code name belongs to the MINOR line. `v0.5.0` and `v0.5.1` carry the same
+name and the same still, the way 14.0 through 14.7 are all Sonoma.
+
+This is the part that matters in practice: a release carrying only fixes needs
+no naming decision at all, and no image sourced, resized and committed. Those
+are most releases, and under the old rule each of them was a small blocked
+decision standing between a fix and the user who needed it.
+
+### The still it is named for
+
+`RELEASE_NAME` in [`brand.ts`](../frontend/src/lib/brand.ts) and
+`FEATURED_STILL` in
+[`splashBackground.ts`](../frontend/src/lib/splashBackground.ts) name the same
+entry, and `npm run check:version` fails when they do not. They disagreed once,
+silently, which is why it is now checked rather than described: the splash would
+have printed one release's name over another release's photograph, and nothing
+in the build had an opinion about it.
+
+With one entry in the manifest the splash is fixed. Add a second and the
+rotation resumes on its own: the featured still is what the first launch after
+an update shows and what every second launch after it shows, and the walk covers
+the rest. Which photograph a given launch lands on is not the release's name —
+the name is fixed for the version.
 
 ### Adding one
 
@@ -153,8 +196,8 @@ Then add an entry to `SPLASH_STILLS` in
 [`splashBackground.ts`](../frontend/src/lib/splashBackground.ts), point
 `FEATURED_STILL` at it, and set `RELEASE_NAME` in
 [`brand.ts`](../frontend/src/lib/brand.ts) to match. Nothing else needs
-editing: `index.html` receives both at build time, and a path with no file on
-disk fails the build.
+editing: `index.html` receives both at build time, a path with no file on disk
+fails the build, and `npm run check:version` fails if the two names differ.
 
 ## Current line
 

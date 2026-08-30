@@ -1,5 +1,6 @@
 /**
- * Fails when the four places that carry the product version stop agreeing.
+ * Fails when the four places that carry the product version stop agreeing, and
+ * when the release's code name and the still it is named for stop agreeing.
  *
  * The version is written by hand in four files across three languages, and
  * nothing compiles against any of the other three. `docs/RELEASING.md` lists
@@ -22,10 +23,14 @@
  * WHAT IS DELIBERATELY NOT CHECKED, and why each would be wrong to check:
  *
  *   splashBackground.ts `since:`  Records the release a still was ADDED in, not
- *                                 the current one. It reads 0.4.0 today only
- *                                 because there is one still and it arrived in
- *                                 0.4.0; pinning it to AppVersion would rewrite
- *                                 an accurate piece of history at every bump.
+ *                                 the current one, so it is correct for it to
+ *                                 sit behind AppVersion -- and correct for a
+ *                                 still added in 0.5.0 to keep saying 0.5.0
+ *                                 through every release after it. Pinning it to
+ *                                 AppVersion would rewrite an accurate piece of
+ *                                 history at every bump. The still's NAME is
+ *                                 checked, below; the version it arrived in is
+ *                                 not.
  *
  *   WHATS_NEW[1..]                Older entries, for the same reason. Only the
  *                                 first is checked -- the list is newest-first
@@ -124,6 +129,96 @@ for (const c of claims) {
     `  ${agrees ? "ok  " : "DRIFT"} ${c.file.padEnd(width)}  ${c.version}  (${c.what})`
   )
   if (!agrees) failed++
+}
+
+/*
+  THE CODE NAME, which is not a version but drifts the same way and for the same
+  reason: it is written by hand in two files and nothing compares them.
+
+  It drifted. brand.ts said "Amazon" while splashBackground.ts featured
+  "Stockpile", with one still in the manifest -- so the rotation could not land
+  anywhere else and every launch would have printed one release's name over
+  another release's photograph. Nothing failed, because nothing looked. That is
+  the same sentence as the wails.json paragraph above, which is why this check
+  lives here rather than in a script of its own.
+
+  The invariant is one the code already asserts in prose: FEATURED_STILL's own
+  docstring calls it "the still this release is named for", and brand.ts calls
+  the correspondence deliberate. An invariant two files state and neither
+  enforces is a comment.
+
+  NOT CHECKED, deliberately: whether the name suits what the release contains.
+  docs/RELEASING.md removed that rule -- the name identifies the release, the
+  changelog describes it -- so there is nothing here to compare against.
+*/
+const brand = read("frontend/src/lib/brand.ts")
+const splash = read("frontend/src/lib/splashBackground.ts")
+
+function one(text: string, file: string, what: string, re: RegExp): string {
+  const m = re.exec(text)
+  if (!m?.[1]) {
+    throw new Error(
+      `${file}: could not find ${what}. Either it was renamed, in which case ` +
+        `the code name there is no longer guarded, or this pattern is stale.`
+    )
+  }
+  return m[1]
+}
+
+const releaseName = one(
+  brand,
+  "frontend/src/lib/brand.ts",
+  "RELEASE_NAME",
+  /export const RELEASE_NAME = "([^"]+)"/
+)
+const featured = one(
+  splash,
+  "frontend/src/lib/splashBackground.ts",
+  "FEATURED_STILL",
+  /export const FEATURED_STILL = "([^"]+)"/
+)
+
+/*
+  The manifest's names, taken from the array rather than from the file, so the
+  `name: string` on the SplashStill type above it is not mistaken for an entry.
+  The array closes on a line of its own, which is what bounds the slice.
+*/
+const arrayStart = splash.indexOf("SPLASH_STILLS: SplashStill[] = [")
+const arrayEnd = splash.indexOf("\n]", arrayStart)
+if (arrayStart < 0 || arrayEnd < 0) {
+  throw new Error(
+    "frontend/src/lib/splashBackground.ts: SPLASH_STILLS is not in the shape " +
+      "this script reads. The manifest is no longer guarded."
+  )
+}
+const stillNames = [
+  ...splash
+    .slice(arrayStart, arrayEnd)
+    .matchAll(/\bname:\s*"([^"]+)"/g),
+].map((m) => m[1])
+
+console.log(`\ncode name  brand.ts RELEASE_NAME  ${releaseName}`)
+if (releaseName !== featured) {
+  console.error(
+    `  DRIFT splashBackground.ts FEATURED_STILL  ${featured}\n` +
+      `        The release is named for the still it features. These name ` +
+      `different\n        entries, so the splash would print "${releaseName}" ` +
+      `over the "${featured}" photograph.`
+  )
+  failed++
+} else {
+  console.log(`  ok   splashBackground.ts FEATURED_STILL  ${featured}`)
+}
+
+if (!stillNames.includes(featured)) {
+  console.error(
+    `  MISSING  no SPLASH_STILLS entry is named "${featured}". ` +
+      `The manifest holds: ${stillNames.join(", ") || "(none)"}.\n` +
+      `        A FEATURED_STILL naming nothing does not fail the build -- the ` +
+      `rotation\n        silently collapses to the plain walk and the release ` +
+      `features no still.`
+  )
+  failed++
 }
 
 /*

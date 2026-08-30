@@ -130,6 +130,39 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # BEFORE the artifacts are downloaded, not after: actions/checkout runs
+      # `git clean -ffdx` unless told otherwise, and dist/ is untracked, so a
+      # checkout placed after the download would delete every binary this job
+      # exists to publish.
+      #
+      # The code name, so the release carries it. It was decided in brand.ts and
+      # reached exactly two surfaces, both inside the running binary: the splash
+      # and the What's New entry. The releases page -- the one place a person
+      # goes to refer to a release afterwards, which is what the name is FOR --
+      # showed only the tag, so v0.3.0 being Ember had to be recovered from the
+      # history of brand.ts.
+      #
+      # Hard failure is deliberate. check-version.ts guards RELEASE_NAME on every
+      # pull request, so a tag cannot be reached without it; if it is missing
+      # here, the assumption this reads under is already wrong and a release
+      # titled with a silently empty name is worse than one that stops.
+      - name: Checkout for the code name
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: frontend/src/lib/brand.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Read the code name
+        id: codename
+        run: |
+          name=$(sed -nE 's/^export const RELEASE_NAME = "([^"]+)"$/\1/p' \
+            frontend/src/lib/brand.ts)
+          if [ -z "$name" ]; then
+            echo "RELEASE_NAME not found in frontend/src/lib/brand.ts" >&2
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -140,11 +173,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          name: TERRA ${{ github.ref_name }} — ${{ steps.codename.outputs.name }}
           generate_release_notes: true
           draft: false
           prerelease: false
           body: |
-            ## TERRA ${{ github.ref_name }}
+            ## TERRA ${{ github.ref_name }} — ${{ steps.codename.outputs.name }}
 
             Two install flavors per platform:
 
