@@ -24,7 +24,7 @@ import json
 import numpy as np
 import pytest
 
-import helios_bridge
+from terra.canopy import helios_bridge as helios_bridge
 
 # ---------------------------------------------------------------------------
 # The contract, made executable
@@ -190,7 +190,7 @@ def test_leaf_cloud_output_is_what_the_voxel_canopy_accepts(scene_context):
     up: (N,3) positions and (N,) areas. Asserting it against the real consumer
     rather than against a description of it.
     """
-    import canopy_voxel
+    from terra.canopy import voxel as canopy_voxel
 
     scene = helios_bridge.extract(scene_context)
     pos, area = helios_bridge.leaf_cloud(scene)

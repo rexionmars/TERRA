@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import crop_species as cs  # noqa: E402
+from terra.canopy import species as cs  # noqa: E402
 
 
 def stats(*rows):

@@ -40,7 +40,7 @@ sys.path.insert(0, str(SIDECAR))
 
 import numpy as np  # noqa: E402
 
-import helios_grow as hg  # noqa: E402
+from terra.canopy import helios_grow as hg  # noqa: E402
 
 OUT = SIDECAR / "data" / "lai_ladder.json"
 

@@ -1227,7 +1227,7 @@ def action_canopy_field(req, work_dir):
             # list can be offered on a machine that cannot grow anything;
             # the ImportError arrives from grow(). Catching it here rather
             # than around the import is what keeps the message specific.
-            import helios_grow
+            from terra.canopy import helios_grow as helios_grow
             grown = helios_grow.grow(
                 species=req.get('species', 'almond'),
                 days=int(req.get('days', 120)),
@@ -1249,7 +1249,7 @@ def action_canopy_field(req, work_dir):
                    leaf_positions=pos.tolist(), leaf_areas=area.tolist())
 
     try:
-        import canopy_field as cfield
+        from terra.canopy import field as cfield
         grid, payload = cfield.build(
             req, progress=lambda p, m: protocol.emit_progress(p, m))
     except Exception as e:
@@ -1288,7 +1288,7 @@ def action_canopy_field(req, work_dir):
 def action_canopy_mesh(req, work_dir):
     protocol.emit_progress(5, 'growing the stand')
     try:
-        import helios_grow
+        from terra.canopy import helios_grow as helios_grow
         grown = helios_grow.grow_canopy(
             species=req.get('species', 'sorghum'),
             days=int(req.get('days', 60)),
@@ -1307,7 +1307,7 @@ def action_canopy_mesh(req, work_dir):
 
     protocol.emit_progress(45, 'extracting the scene')
     try:
-        import helios_bridge
+        from terra.canopy import helios_bridge as helios_bridge
         organs = req.get('organs') or ['leaf', 'petiole', 'other']
         scene = helios_bridge.extract(
             grown.ctx, organ_uuids=helios_grow.organ_uuids(grown))
@@ -1398,7 +1398,7 @@ def action_canopy_from_aoi(req, work_dir):
     suggestion = None
     if req.get('class_stats'):
         try:
-            import crop_species
+            from terra.canopy import species as crop_species
             suggestion = crop_species.suggest(req['class_stats'])
         except Exception as e:
             suggestion = {'species': None, 'why': f'suggestion failed: {e}'}
@@ -1424,9 +1424,11 @@ def action_canopy_from_aoi(req, work_dir):
     density = 1.0 / (inter_row * inter_plant)
 
     try:
-        import lai_ndvi
-        import lai_to_age
-        import phenology as phen
+        from terra.canopy import (
+            lai_ndvi as lai_ndvi,
+            lai_to_age as lai_to_age,
+            phenology as phen,
+        )
     except ImportError as e:
         protocol.fail(f'the canopy bridge is unavailable: {e}')
 
@@ -1690,8 +1692,7 @@ def action_canopy_from_aoi(req, work_dir):
             # ~11 s and dominates; growing a plant is 0.24 s.
             if lit_row is not None:
                 try:
-                    import canopy_field as cfield
-                    import helios_grow as hgrow
+                    from terra.canopy import field as cfield, helios_grow as hgrow
                     row_az = float(req.get('row_azimuth_deg', 0.0))
                     base_seed = int(req.get('seed', 7))
                     n_seeds = max(1, min(int(req.get('n_seeds', 3)), 12))
@@ -3716,13 +3717,13 @@ def action_predict(req, work_dir):
         )
 
     protocol.emit_progress(88, 'computing vegetation index series and phenology')
-    import phenology as pheno
+    from terra.canopy import phenology as pheno
     from terra.imagery import composite as comp
     # The classification is already built above, so the crop pixels are known
     # before the index is averaged and the masked series costs one extra mean
     # per date rather than a second pass over the scenes.
     try:
-        import crop_species
+        from terra.canopy import species as crop_species
         crop_pixels = crop_species.crop_mask(classification_map)
         if not crop_pixels.any():
             crop_pixels = None

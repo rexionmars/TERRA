@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import canopy_field as cf  # noqa: E402
+from terra.canopy import field as cf  # noqa: E402
 
 
 @pytest.fixture
@@ -167,7 +167,7 @@ def test_canopy_azimuth_is_mirrored_by_the_scene_in_typescript():
     partir do próprio +x, porque um talhão não tem norte -- tem um módulo com
     dois eixos. O que junta os dois é a direção das linhas, que é agronomia.
     """
-    from canopy_field import _canopy_azimuth
+    from terra.canopy.field import _canopy_azimuth
 
     for compass, row in ((0.0, 0.0), (90.0, 0.0), (170.0, 30.0), (350.0, 0.0)):
         graus_ts = 90.0 - (compass - row)          # sceneAzimuthFromCompass

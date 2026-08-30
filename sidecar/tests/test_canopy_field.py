@@ -14,8 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import canopy_field as cf
-import canopy_voxel as cv
+from terra.canopy import field as cf, voxel as cv
 
 SPACING, LAI, CELL = 6.0, 2.0, 0.30
 CROWN = dict(crown_a=1.8, crown_b=1.2, crown_z=1.6)

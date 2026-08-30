@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import lai_ndvi
+from terra.canopy import lai_ndvi as lai_ndvi
 
 
 def test_bare_soil_gives_no_leaf():
@@ -121,7 +121,7 @@ def test_this_k_is_not_the_canopy_extinction_coefficient():
     reversed its sign, which is why both modules say so in prose -- and why this
     asserts they are not silently the same number.
     """
-    import canopy_voxel
+    from terra.canopy import voxel as canopy_voxel
 
     assert lai_ndvi.K_EXTINCTION != canopy_voxel.G_LEAF
 

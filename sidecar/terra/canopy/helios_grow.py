@@ -243,7 +243,7 @@ def leaf_cloud(grown, organs=("leaf",)):
     pipeline where the two numbers can still be compared -- downstream there is
     only the voxel grid, which has no memory of how much leaf went into it.
     """
-    import helios_bridge as hb
+    from terra.canopy import helios_bridge as hb
 
     scene = hb.extract(grown.ctx, organ_uuids=organ_uuids(grown))
     pos, area = hb.leaf_cloud(scene, organs=organs)

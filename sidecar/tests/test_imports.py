@@ -51,15 +51,33 @@ WATCHED = (
 )
 
 
+# Everything below the products: reached on every run whatever it asks for.
+SHARED = (
+    'terra.protocol',
+    'terra.registry',
+    'terra.cli',
+    'terra.stac',
+    'terra.imagery',
+    'terra.terrain',
+    'terra.sun',
+)
+
+
 def test_resolving_every_action_imports_no_heavy_dependency():
     """
     Every action name resolved, every terra submodule imported, and none of the
     watched packages present afterwards.
 
-    The submodule walk is the half that survives the migration. resolve() only
-    imports the module an action names, so once the products move into slices a
-    check that resolved actions alone would stop observing the modules the move
-    creates.
+    The shared modules are walked as well as the actions, because resolve()
+    imports only the module an action names. Everything below the products is
+    on every run's path, so a heavy import written there is paid for by every
+    product, including the ones that have no use for it.
+
+    The product slices are NOT walked. A module inside one is reached only by
+    its own action, so a heavy import at its top level is allowed: terra/energy
+    may import pvlib and terra/canopy/phenology.py imports scipy at module
+    scope for a sentinel it needs there. Walking them would report that as a
+    violation of a rule it does not break.
     """
     script = textwrap.dedent(f"""
         import importlib, json, pkgutil, sys
@@ -70,8 +88,12 @@ def test_resolving_every_action_imports_no_heavy_dependency():
         for name in registry.ACTIONS:
             registry.resolve(name)
 
-        for found in pkgutil.walk_packages(terra.__path__, 'terra.'):
-            importlib.import_module(found.name)
+        for shared in {SHARED!r}:
+            importlib.import_module(shared)
+            module = sys.modules[shared]
+            for found in pkgutil.walk_packages(
+                    getattr(module, '__path__', []), shared + '.'):
+                importlib.import_module(found.name)
 
         print(json.dumps(sorted(set({WATCHED!r}) & set(sys.modules))))
     """)
