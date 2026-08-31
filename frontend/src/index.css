@@ -434,7 +434,45 @@
 
     Disabled keeps not-allowed below, which was never the web's convention to
     borrow -- it is what every toolkit draws on a dead control.
+
+    THE ARROW IS DECLARED, not left to inheritance. `html, body` in cursors.css
+    already sets it, and an inherited value is the weakest thing in the cascade
+    -- it loses to any declaration at all, the user agent's included. Where a UA
+    stylesheet says `cursor: default` on a control, the keyword wins and that
+    control draws the PLATFORM arrow while everything around it draws this one.
+    Dropping the pointer declaration is what exposed that: the old rule outranked
+    the UA and hid it. Declaring the arrow puts the same weight behind it that
+    the pointer had, so the whole surface answers from one set.
   */
+  button:not(:disabled),
+  summary,
+  select:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="option"],
+  label:has(input[type="checkbox"]:not(:disabled)),
+  label:has(input[type="radio"]:not(:disabled)) {
+    cursor: var(--cursor-default);
+  }
+
+  /*
+    The caret, for the same reason as the arrow above: the user agent declares
+    one on a text field, so these were the last controls still answering from
+    the platform rather than from the set. Listed by type rather than as `input`
+    -- a checkbox, a radio and a range are not text and take the arrow.
+
+    Disabled still wins below: those selectors carry the same weight as these
+    and come later.
+  */
+  textarea,
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"] {
+    cursor: var(--cursor-text);
+  }
 
   button:disabled,
   select:disabled,
