@@ -101,7 +101,6 @@ import {
 } from "@/lib/aoiStyle"
 import { AuthProvider, useAuth } from "@/lib/auth"
 import { toArea, toAreas, type Area } from "@/lib/areas"
-import type { RasterLayer } from "@/lib/mapLayers"
 
 import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
@@ -804,19 +803,6 @@ function AppBody(props: {
     null
   )
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
-  /*
-    A studio plane the work map is drawing.
-
-    HELD HERE, NOT IN THE STUDIO, because the map outlives it. A raster sent
-    over and then held by the surface that sent it would be taken away by the
-    very gesture of going to look at it -- closing the studio unmounts
-    BoardSurface, and the state would go with it.
-
-    One at a time. Sending a second replaces the first: this is "put that one
-    over the ground", a question about one raster, and a stack of ad-hoc
-    overlays with no ordering control is a picture no one asked for.
-  */
-  const [sentToMap, setSentToMap] = useState<RasterLayer | null>(null)
 
   /*
     The boards of the open project.
@@ -1458,14 +1444,6 @@ function AppBody(props: {
         // one's boards by the other door.
         props.clearRetainedRuns()
         props.setActiveAreaId(undefined)
-        /*
-          And the plane the studio sent to the map, for the same reason as the
-          retained runs beside it: it is a raster of the project being left,
-          and leaving it drawn over the next project's ground is the
-          contamination this clear exists to prevent -- here in its most
-          visible form, since it is painted on the map.
-        */
-        setSentToMap(null)
       }
       await persistActiveProjectId(id)
       if (!id) {
@@ -3491,8 +3469,6 @@ function AppBody(props: {
                   activeProjectName={
                     projects.find((p) => p.id === activeProjectId)?.name ?? null
                   }
-                  sentToMap={sentToMap}
-                  onSendToMap={setSentToMap}
                   retainedRuns={props.retainedRuns}
                   onDropRetainedRun={props.onDropRetainedRun}
                   onCreditChange={setCredit}

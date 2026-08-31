@@ -43,6 +43,8 @@ import "@/lib/maplibreWorker"
 
 import type { GlobeArea } from "@/components/globe/globeArea"
 import { MapBar, MapButton } from "@/components/map/MapChrome"
+import { syncOverlays } from "@/components/map/mapOverlays"
+import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import {
   ELEVATION_CREDIT,
   addTerrainSources,
@@ -161,6 +163,7 @@ export function GlobeSurface({
   onPolygonDrawn,
   initialView = null,
   onViewChange,
+  overlays = [],
   className,
 }: {
   areas: readonly GlobeArea[]
@@ -196,6 +199,19 @@ export function GlobeSurface({
    * on one already.
    */
   onViewChange?: (v: { lat: number; lon: number; zoom: number }) => void
+  /**
+   * Rasters from the viewport, drawn here over the ground each measures.
+   *
+   * The viewport lifts rasters off their coordinates so grounds far apart can
+   * be read side by side; this is the way back. Under the area outlines, which
+   * stay legible over them, and above the imagery they are measurements of.
+   *
+   * Each carries the key it is held by, because a layer id alone does not
+   * identify one: two runs over two fields both call their raster
+   * `solar:terrain`, and keying on that would let the second replace the
+   * first while claiming to be a second overlay.
+   */
+  overlays?: readonly { key: string; layer: RasterLayer }[]
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -556,6 +572,94 @@ export function GlobeSurface({
     const src = map.getSource<GeoJSONSource>(AREA_SOURCE)
     void src?.setData(toFeatureCollection(areas))
   }, [areas, ready])
+
+  /*
+    The raster sent here from the viewport.
+
+    Through the same syncOverlays the work map uses, so one module decides how
+    an image is placed and in what order -- two of them would disagree about
+    where a class boundary sits, which mapLayers.ts already argues at length.
+
+    Under AREA_LINE so the outlines stay readable over it. `once("styledata")`
+    covers the window where the style is being replaced and addSource throws;
+    the work map carries the same guard and the note explaining it.
+  */
+  const overlayIdsRef = useRef<string[]>([])
+  const [styleNonce, setStyleNonce] = useState(0)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    /*
+      Bottom to top, by the layer's own order.
+
+      RasterLayer.order already encodes which raster reads over which -- a
+      classification over surface water, confidence over the classification --
+      and syncOverlays takes the array AS the ordering. Sorting here is what
+      makes a stack of several read the way the same set reads on the work map,
+      rather than in whatever sequence they happened to be pressed.
+    */
+    const specs = [...overlays]
+      .filter((o) => !isZeroExtent(o.layer.extent))
+      .sort((a, b) => a.layer.order - b.layer.order)
+      .map((o) => ({
+        id: `sent-${o.key}`,
+        url: o.layer.uri,
+        bounds: o.layer.extent,
+        opacity: o.layer.opacity,
+      }))
+    try {
+      overlayIdsRef.current = syncOverlays(
+        map,
+        specs,
+        overlayIdsRef.current,
+        map.getLayer(AREA_LINE) ? AREA_LINE : undefined
+      )
+    } catch {
+      const retry = () => setStyleNonce((n) => n + 1)
+      map.once("styledata", retry)
+      return () => {
+        map.off("styledata", retry)
+      }
+    }
+  }, [overlays, ready, styleNonce])
+
+  /*
+    And the camera comes to what is drawn, when the SET changes.
+
+    A globe is usually read at a zoom where a field is a fraction of a pixel,
+    so drawing one without moving is drawing it where nobody is looking.
+
+    To the union of the extents, not to the newest: sending a second raster
+    over another field and being taken to it alone would hide the first, which
+    is the comparison the reader is making. Two over the same ground give the
+    same box, so nothing moves.
+
+    Keyed on the set rather than the array, so a re-render or an opacity change
+    does not pull the camera under the reader's hand.
+  */
+  const fitKey = overlays.map((o) => o.key).join("|")
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const boxes = overlays
+      .map((o) => o.layer.extent)
+      .filter((e) => !isZeroExtent(e))
+    if (!boxes.length) return
+    map.fitBounds(
+      [
+        [
+          Math.min(...boxes.map((e) => e.lon_min)),
+          Math.min(...boxes.map((e) => e.lat_min)),
+        ],
+        [
+          Math.max(...boxes.map((e) => e.lon_max)),
+          Math.max(...boxes.map((e) => e.lat_max)),
+        ],
+      ],
+      { padding: 60 }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the set, not the array
+  }, [fitKey, ready])
 
   /*
     The DEM and its shading, added once the style exists and inserted UNDER the

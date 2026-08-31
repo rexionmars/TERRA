@@ -407,8 +407,6 @@ export function BoardSurface({
   smooth,
   onSmoothChange,
   title,
-  sentToMap = null,
-  onSendToMap,
   initialView = null,
   onViewChange,
   activeProjectId,
@@ -523,16 +521,6 @@ export function BoardSurface({
    * A board used to belong to the user alone, so the menu offered every board
    * ever saved and nothing stopped one holding runs from several projects.
    */
-  /**
-   * The raster the work map is drawing on the studio's behalf, and the way to
-   * change it.
-   *
-   * Held by the caller rather than here: the map outlives the studio, so a
-   * raster sent to it has to survive the studio closing -- otherwise sending
-   * one and going to look at it would take it away on the way.
-   */
-  sentToMap?: RasterLayer | null
-  onSendToMap?: (layer: RasterLayer | null) => void
   /** Where the globe opens, and where it reports being left. The work map's
    *  own memory, shared: two would lose a pan to whichever wrote last. */
   initialView?: { lat: number; lon: number; zoom: number } | null
@@ -843,6 +831,30 @@ export function BoardSurface({
    */
   const [savedId, setSavedId] = useKept<string | null>("savedId", null)
   const [savedName, setSavedName] = useKept<string | null>("savedName", null)
+  /*
+    The planes drawn on the globe, over the ground each measures.
+
+    Held here, not lifted to the application, because the globe they are drawn
+    on is part of this surface: a raster sent to it has nothing to outlive. The
+    first version kept it in App and sent it to the work map, which is the one
+    map the reader cannot see from here.
+
+    AS MANY AS ASKED FOR. This took one, replacing it each time, on the
+    reasoning that a stack with no ordering control is a picture nobody asked
+    for. The ordering was there all along: RasterLayer.order already says which
+    raster reads over which, and the globe sorts on it -- so several read there
+    the way the same set reads on the work map.
+
+    KEYED BY AREA AND LAYER, not by the layer alone. Two runs over two fields
+    both call their raster `solar:terrain`; keyed on that, sending the second
+    would silently replace the first while the menu claimed both were on.
+    `sceneKey` is that pair, and it is the one the rest of this surface already
+    files per-plane state under -- a second key space for the same question is
+    the kind of thing that disagrees with the first within a release.
+  */
+  const [sentToGlobe, setSentToGlobe] = useState<
+    readonly { key: string; layer: RasterLayer }[]
+  >([])
   const [naming, setNaming] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   /** Whether the title block's catalog is open. */
@@ -2793,7 +2805,7 @@ export function BoardSurface({
             // Compared by the layer's own id, not by the plane's: the map is
             // sent a raster, and the same raster reached from a second area is
             // the same thing on the ground.
-            onMap: sentToMap?.id === l.id,
+            onMap: sentToGlobe.some((o) => o.key === sceneKey(groupId, id)),
           })
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
@@ -3613,6 +3625,7 @@ export function BoardSurface({
           onPickArea={(id) => onActivateArea?.(id.slice(id.indexOf(":") + 1))}
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
+          overlays={sentToGlobe}
           /*
             The same memory the work map keeps. The globe opened over Brazil at
             zoom 1.6 every time, however far the reader had travelled on it,
@@ -4474,24 +4487,31 @@ export function BoardSurface({
           boardRef.current?.focusPlane(planeMenu.areaId, planeMenu.layerId)
         }
         /*
-          The plane's raster, handed over resolved.
+          The plane's raster, put on the globe beside it.
 
-          The map cannot be told "the third layer of area two": it has no
-          account of the studio's arrangement, and the run this plane belongs to
-          may not be the one the map is showing. What travels is the layer
-          itself -- image, extent, opacity and its smoothing setting -- which is
-          everything needed to draw it and nothing about where it sat here.
+          THE GLOBE, NOT THE WORK MAP. This first sent it to the map on the
+          home screen, which is the one place the reader is NOT while they are
+          here: the gesture is made in the studio, and its result appeared on a
+          surface they had to leave the studio to see. The globe is the map in
+          this room, and putting a raster over the ground it measures is what
+          "send to the map" meant when it was asked for.
+
+          What travels is the layer itself -- image, extent, opacity -- because
+          that is everything needed to place it and nothing about where it sat
+          in the viewport.
         */
         onSendToMap={() => {
-          if (!planeMenu || !onSendToMap) return
+          if (!planeMenu) return
+          const key = sceneKey(planeMenu.areaId, planeMenu.layerId)
           if (planeMenu.onMap) {
-            onSendToMap(null)
+            setSentToGlobe((prev) => prev.filter((o) => o.key !== key))
             return
           }
           const layer = areas
             .find((a) => a.id === planeMenu.areaId)
             ?.layers.find((l) => l.id === planeMenu.layerId)
-          if (layer) onSendToMap(layer)
+          if (!layer) return
+          setSentToGlobe((prev) => [...prev, { key, layer }])
         }}
         onRemove={() =>
           planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)

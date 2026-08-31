@@ -53,10 +53,10 @@ export interface PlaneContextTarget {
    */
   soloed: boolean
   /**
-   * Whether this plane is the one the map is currently drawing.
+   * Whether this plane is the one the globe is currently drawing.
    *
-   * A toggle, like solo beside it and for the same reason: sending eleven
-   * planes to the map and taking them back one at a time is not the shape of
+   * A toggle, like solo beside it and for the same reason: putting eleven
+   * planes on the globe and taking them back one at a time is not the shape of
    * the gesture. The label says which way the entry goes.
    */
   onMap: boolean
@@ -84,13 +84,17 @@ export function PlaneContextMenu({
   /** Put the camera on this plane. */
   onFit: () => void
   /**
-   * Draw this raster on the work map, over the ground it measures, or stop.
+   * Draw this raster on the studio's globe, over the ground it measures.
    *
-   * The studio lifts rasters off their coordinates so two grounds hundreds of
-   * kilometres apart can be read side by side. That is what it is for, and it
-   * is also what it costs: a plane here answers "how do these compare" and
-   * cannot answer "where on the ground is this". Sending it back to the map is
-   * the second question, asked of the plane the reader is already pointing at.
+   * The viewport lifts rasters off their coordinates so two grounds hundreds
+   * of kilometres apart can be read side by side. That is what it is for, and
+   * it is also what it costs: a plane here answers "how do these compare" and
+   * cannot answer "where on the ground is this". The globe beside it is the
+   * second question, asked of the plane the reader is already pointing at.
+   *
+   * THE GLOBE, NOT THE WORK MAP. This drew on the map of the home screen at
+   * first -- the one surface the reader is not on while they are here, so the
+   * result appeared somewhere they had to leave the studio to find.
    */
   onSendToMap: () => void
   onRemove: () => void
@@ -220,11 +224,11 @@ export function PlaneContextMenu({
       />
       <StudioMenuItem
         icon={MapIcon}
-        label={target.onMap ? "Take off the map" : "Send to the map"}
+        label={target.onMap ? "Take off the globe" : "Show on the globe"}
         title={
           target.onMap
-            ? "The work map stops drawing it; the studio keeps it"
-            : "Draw it on the work map, over the ground it measures"
+            ? "The globe stops drawing it; the viewport keeps it"
+            : "Draw it on the globe, over the ground it measures"
         }
         checked={target.onMap}
         onSelect={() => {
