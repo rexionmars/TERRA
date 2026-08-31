@@ -48,3 +48,12 @@ docs/user-manual/scripts
 docs/user-manual/png-images
 docs/user-manual/capas
 docs/user-manual/guides
+
+# The screenshot masters, kept on disk and out of the history.
+#
+# They are 3824 px PNGs with the window's alpha, ~35 MB for four, and the README
+# ships 1800 px WebP derived from them at 521 KB. Committing the masters would
+# put that weight in every clone forever, and deleting them is worse: the JPEGs
+# in 7509678 lost the alpha channel because the masters had already been thrown
+# away, and there was nothing left to re-encode from.
+docs/img/*/original/
