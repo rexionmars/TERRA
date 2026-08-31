@@ -183,6 +183,7 @@ import {
   Image as ImageIcon,
   Layers,
   LineChart as LineChartIcon,
+  Plus,
   Layers2,
   Pentagon,
   Sun,
@@ -413,6 +414,7 @@ export function BoardSurface({
   activeProjectName,
   studios = [],
   onOpenStudio,
+  onNewStudio,
   onStudiosMenu,
   onClose,
 }: {
@@ -531,6 +533,15 @@ export function BoardSurface({
   activeProjectName?: string | null
   studios?: readonly Studio[]
   onOpenStudio?: (board: Studio) => void
+  /**
+   * Clears the board to an empty one, detached from whatever was open.
+   *
+   * The catalog could open a studio and save over one, but there was no way to
+   * begin a second: the only route to an empty board was to take every plane
+   * off the current one by hand, and that leaves it still bound to the saved
+   * id, so the next save wrote over the studio it started from.
+   */
+  onNewStudio?: () => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
   onStudiosMenu?: () => void | Promise<void>
   onClose: () => void
@@ -868,11 +879,21 @@ export function BoardSurface({
    * clears the store before it writes -- so a switch is where unsaved work
    * goes silently. Held here until the reader has said what to do with it.
    */
-  const [pendingOpen, setPendingOpen] = useState<Studio | null>(null)
+  const [pendingOpen, setPendingOpen] = useState<Studio | "new" | null>(null)
   const openBoard = (board: Studio) => {
     if (board.id === savedId) return
     if (boardIsDirty()) setPendingOpen(board)
     else onOpenStudio?.(board)
+  }
+  /*
+    Starting an empty one destroys the arrangement exactly as opening another
+    does, so it asks in the same place and with the same words. A separate
+    dialog for it would be the second way of asking that ConfirmDelete's own
+    docblock argues against.
+  */
+  const newBoard = () => {
+    if (boardIsDirty()) setPendingOpen("new")
+    else onNewStudio?.()
   }
 
   /*
@@ -4037,14 +4058,29 @@ export function BoardSurface({
       {pendingOpen && (
         <ConfirmDelete
           eyebrow="UNSAVED CHANGES"
-          title={<>Open “{pendingOpen.name}”?</>}
-          subtitle={`This board has changes that were never saved${savedName ? ` to “${savedName}”` : ""} — planes taken off, renames, the order they sit in. Opening another one replaces them and they cannot be brought back. Cancel, press Save, and open it again to keep both.`}
-          confirmLabel="Discard and open"
+          title={
+            pendingOpen === "new" ? (
+              <>Start a new studio?</>
+            ) : (
+              <>Open “{pendingOpen.name}”?</>
+            )
+          }
+          subtitle={`This board has changes that were never saved${savedName ? ` to “${savedName}”` : ""} — planes taken off, renames, the order they sit in. ${
+            pendingOpen === "new"
+              ? "An empty one replaces them"
+              : "Opening another one replaces them"
+          } and they cannot be brought back. Cancel, press Save, and ${
+            pendingOpen === "new" ? "start again" : "open it again"
+          } to keep both.`}
+          confirmLabel={
+            pendingOpen === "new" ? "Discard and start" : "Discard and open"
+          }
           onCancel={() => setPendingOpen(null)}
           onConfirm={() => {
             const board = pendingOpen
             setPendingOpen(null)
-            onOpenStudio?.(board)
+            if (board === "new") onNewStudio?.()
+            else onOpenStudio?.(board)
           }}
         />
       )}
@@ -4348,6 +4384,23 @@ export function BoardSurface({
               )}
             </StudioMenuGroup>
             <StudioMenuRule />
+            {/*
+              Before Save rather than after it, because this is where a studio
+              begins and the two below act on one that already exists. Offered
+              even with nothing saved yet: an empty board is still the way out
+              of an arrangement built by hand that is not wanted.
+            */}
+            {onNewStudio && (
+              <StudioMenuItem
+                icon={Plus}
+                label="New studio"
+                title="Clear the board and start an empty studio — this arrangement is replaced by it"
+                onSelect={() => {
+                  setBoardMenu(false)
+                  newBoard()
+                }}
+              />
+            )}
             {/*
               Renaming is a save under another name over the same board, which
               is what the store already does with an id and a name. Offered

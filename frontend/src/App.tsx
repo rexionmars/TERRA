@@ -10,6 +10,7 @@ import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import type { Studio } from "@/lib/studios"
 import { listStudios, openStudio } from "@/lib/studios"
 import {
+  clearBoardMemory,
   restoreBoard,
   writeBoardMemory,
 } from "@/components/studio/boardMemory"
@@ -2742,6 +2743,55 @@ function AppBody(props: {
   ])
 
   /**
+   * An empty board, bound to no saved studio.
+   *
+   * The mirror of handleOpenStudio: that one restores an arrangement and writes
+   * the id and name it came from, this one clears both. Clearing the id is the
+   * point rather than a detail -- taking every plane off by hand leaves the
+   * board still bound to what it was opened from, so the next save writes over
+   * the studio it started from instead of making the second one.
+   *
+   * THE MAP'S OWN ANALYSIS GOES TOO, and that is what the first attempt at this
+   * missed. A plane on the board comes from one of three places, and only two
+   * of them are the board's: the runs added through the picker and the runs the
+   * map has finished with, both of which live in boardMemory. The third is
+   * whatever the map is showing right now, which is not a member of any board
+   * -- it is the ground the studio is standing on, and it appears in a saved
+   * studio just as it does here. So clearing the board left it, and a new
+   * studio opened holding the last analysis.
+   *
+   * Cleared WITHOUT being retained, unlike startNewClassification, which hands
+   * the result to retainRun on the way out. A retained run becomes an area of
+   * the board, which is the thing being emptied.
+   *
+   * The AOI stays. Areas belong to the project rather than to the board, and
+   * dropping them would take the ground out from under a studio that is meant
+   * to be built on it. The composition goes, since it would otherwise be the
+   * one plane left on an empty board.
+   *
+   * `clearBoardMemory` runs first, because openInStudio writes pendingRunIds
+   * into that same store and a clear afterwards would take them with it.
+   */
+  const handleNewStudio = useCallback(() => {
+    clearBoardMemory()
+    props.clearRetainedRuns()
+    clearAnalysisResults()
+    props.setShowPredictionOverlay(true)
+    props.setSwipeCompare(false)
+    props.setSwipeRatio(0.5)
+    setComposition(null)
+    setCompositionGallery([])
+    openInStudio([])
+  }, [
+    openInStudio,
+    clearAnalysisResults,
+    props.clearRetainedRuns,
+    props.setShowPredictionOverlay,
+    props.setSwipeCompare,
+    props.setSwipeRatio,
+  ])
+
+  /**
    * Starts a run of any product, from wherever the user is.
    *
    * The hub offered New classification and nothing else, while the application
@@ -3626,6 +3676,7 @@ function AppBody(props: {
                   */
                   studios={studios}
                   onOpenStudio={(b) => void handleOpenStudio(b)}
+                  onNewStudio={handleNewStudio}
                   onStudiosMenu={refreshStudios}
                   onCloseResult={() => {
                     props.setResult(null)

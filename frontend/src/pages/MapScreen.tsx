@@ -243,6 +243,7 @@ export interface MapScreenProps {
   /** Saved studios, for the studio's own title block. */
   studios?: import("@/lib/studios").Studio[]
   onOpenStudio?: (board: import("@/lib/studios").Studio) => void
+  onNewStudio?: () => void
   /** Called when the studio's board menu opens, to refresh the list. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
@@ -1355,6 +1356,7 @@ export function MapScreen(props: MapScreenProps) {
               }
               studios={props.studios}
               onOpenStudio={props.onOpenStudio}
+              onNewStudio={props.onNewStudio}
               onStudiosMenu={props.onStudiosMenu}
               onClose={() => setBoard(false)}
             />
