@@ -26,7 +26,6 @@ and only one of them is kept current.
 
 * **areas:** the frontend can reach an area ([4b876ab](https://github.com/rexionmars/TERRA/commit/4b876ab2e1de482ad08b3c2833769ce89ed7971c))
 * **brand:** the new mark and the new application icon ([5da9f2a](https://github.com/rexionmars/TERRA/commit/5da9f2a4b4a9e9942cbc850e1f1f5fe31693cc16))
-* **design:** the viewport gets a chassis of its own, and the accent lab returns ([79a22ef](https://github.com/rexionmars/TERRA/commit/79a22efc001e1bcca1c46491c8d3562b1b2d6a93))
 * **design:** the viewport gets a chassis of its own, and the accent lab returns ([06fa6df](https://github.com/rexionmars/TERRA/commit/06fa6dfbc5c3b0665c667105f9c956ea0bf96ad3))
 * **flood:** the agreement raster is a measurement on the map, not a picture ([3192704](https://github.com/rexionmars/TERRA/commit/3192704e84c0d87a5761dba33570bd3348591bb0))
 * **frontend:** a Flood section below Energy ([54b3c87](https://github.com/rexionmars/TERRA/commit/54b3c8790f861b32810b7f30488fbcd748bbfd36))
@@ -72,10 +71,8 @@ and only one of them is kept current.
 ### Bug fixes
 
 * **analysis:** the MapBiomas lookup goes, and the environment stops naming it ([8be2657](https://github.com/rexionmars/TERRA/commit/8be2657745f9ae8bd0935a85688be00a344f157e))
-* **build:** the bundle reports the version it is, and a guard keeps it that way ([9c8cad0](https://github.com/rexionmars/TERRA/commit/9c8cad0a03e0d710a19bdddcbb93e5606594eb96))
 * **build:** the bundle reports the version it is, and a guard keeps it that way ([7037274](https://github.com/rexionmars/TERRA/commit/7037274cd66b1462b149ed451b1bccc448eab58b))
 * **charts:** the accuracy markers are round again ([84e06aa](https://github.com/rexionmars/TERRA/commit/84e06aa5dfd2d9b03f4c396a8ee42ee5443d769e))
-* **charts:** the agreement readings leave the brand palette for a measured ramp ([0ace56f](https://github.com/rexionmars/TERRA/commit/0ace56fa974a74fc95a56a402a85911a766c9114))
 * **charts:** the agreement readings leave the brand palette for a measured ramp ([842e1a8](https://github.com/rexionmars/TERRA/commit/842e1a805f35c6614fd31b467451930e431914c8))
 * **flood:** report the envelope over the AOI, and put the raster on the map ([1f75688](https://github.com/rexionmars/TERRA/commit/1f75688f71a1d1c2567987c0523df109cbf64690))
 * **flood:** the counts raster survives the run being reopened ([4ce22ed](https://github.com/rexionmars/TERRA/commit/4ce22edc4c3dfc5f5ea5d8d061fbe849bafa1176))
@@ -96,7 +93,6 @@ and only one of them is kept current.
 * **merge:** carry [#59](https://github.com/rexionmars/TERRA/issues/59), [#60](https://github.com/rexionmars/TERRA/issues/60) and [#61](https://github.com/rexionmars/TERRA/issues/61) onto main ([5d353f6](https://github.com/rexionmars/TERRA/commit/5d353f611b2c94be34a20851a4cb505e3cbcc2e5))
 * Project hub reaches the project hub, and two tests stop skipping ([d8ddb6a](https://github.com/rexionmars/TERRA/commit/d8ddb6a7dab03c5eb4b26c580a8980498e63166a))
 * **projects:** leaving a project leaves nothing of it behind ([d208829](https://github.com/rexionmars/TERRA/commit/d208829abab4c225c91840d7e1010f9f793eb578))
-* **release:** the changelog listed unreleased work twice, and a setting was undocumented ([96578f5](https://github.com/rexionmars/TERRA/commit/96578f5f206fee106db12b314314c7cec52db6be))
 * **release:** the changelog listed unreleased work twice, and a setting was undocumented ([848917b](https://github.com/rexionmars/TERRA/commit/848917bb4f762a43f18eea495e024d8406b03cbe))
 * **runs:** a run is only reported as saved when it was saved ([5199318](https://github.com/rexionmars/TERRA/commit/5199318d73735e5fc8c4147971e5476262be0e33))
 * **runs:** a run is what it says it is, from the map to the studio ([5855b13](https://github.com/rexionmars/TERRA/commit/5855b139182def5915624aaeadbacad7920f385e))
