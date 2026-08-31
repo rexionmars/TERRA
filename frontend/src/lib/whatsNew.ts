@@ -7,6 +7,19 @@ export type WhatsNewEntry = {
 /** Newest first. Keep in sync with AppVersion / Git tags when cutting a release. */
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: "0.5.0",
+    title: "Draugen — the ground a run was made over, and a planet to draw it on",
+    items: [
+      "Work is filed under the piece of ground it was made over. A project holds areas, an area holds its runs, and deleting either takes what belongs to it — where before a project reported every run in it whatever field they came from, because nothing owned anything",
+      "Drawing happens on a planet rather than in a dialog with a second map inside it. The globe carries the drawing, the relief, the search and the imagery credit, and the modal that used to hold them is gone",
+      "Flood extent from terrain: HAND, run against several elevation models at once, so the reading carries the disagreement between them instead of one model's answer presented as certain",
+      "Studios can be started, not only opened and saved over — a new one begins empty and bound to nothing, so saving it makes a second studio rather than writing over the one it began from",
+      "The studio's outliner names its columns and answers a right-click. What used to be a list with an eye somewhere on the right is a table with the eye in its own gutter, and the actions on a raster are on the raster instead of in a strip under the panel",
+      "A raster can be shown on the globe beside the studio, over the ground it measures — the viewport lifts rasters off their coordinates so two fields hundreds of kilometres apart read side by side, and this is the question that costs",
+      "Terrain is a subject rather than an input: the surface model can be read on its own, and a raster can lie on the ground instead of floating over it",
+    ],
+  },
+  {
     version: "0.4.0",
     title: "Amazon — the energy result in a column of its own",
     items: [
