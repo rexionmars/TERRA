@@ -828,6 +828,11 @@ export function MapSurface({
     return () => sub.unsubscribe()
   }, [swipeActive, ready, swipeRatio])
 
+  /*
+    Bumped when the style settles, so the overlay effect below runs again. A
+    ref would not do: the retry has to produce a render.
+  */
+  const [styleNonce, setStyleNonce] = useState(0)
   const [resolved, setResolved] = useState<OverlaySpec[]>([])
   useEffect(() => {
     let cancelled = false
@@ -894,14 +899,40 @@ export function MapSurface({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    overlayIdsRef.current = syncOverlays(
-      map,
-      resolved,
-      overlayIdsRef.current,
-      // Always under the outline, which is the last layer in the style.
-      map.getLayer(AOI_LINE) ? AOI_LINE : undefined
-    )
-  }, [resolved, ready])
+    /*
+      THE STYLE CAN BE MID-REPLACEMENT, AND `ready` DOES NOT PROMISE OTHERWISE.
+
+      `ready` is set on the map's `load` event, which fires once. The style is
+      touched after that, and while a replacement is in flight `addSource`
+      throws "Style is not done loading" -- from an effect that has nothing to
+      do with the basemap, so it reached the error boundary, which recreated
+      MapSurface from scratch: a new map, a new style, and the overlays gone.
+
+      CAUGHT RATHER THAN PRE-CHECKED. `isStyleLoaded()` is the obvious guard and
+      it is the wrong one: it reports false while any SOURCE is still loading,
+      and the hillshade fetches DEM tiles on every pan, so gating on it drops
+      the overlay for most of the time a reader is moving. That guard was tried
+      here and made an intermittent failure permanent.
+
+      Deferred, not dropped: `styledata` says when the style has settled, and
+      the retry runs this again with the same `resolved`.
+    */
+    try {
+      overlayIdsRef.current = syncOverlays(
+        map,
+        resolved,
+        overlayIdsRef.current,
+        // Always under the outline, which is the last layer in the style.
+        map.getLayer(AOI_LINE) ? AOI_LINE : undefined
+      )
+    } catch {
+      const retry = () => setStyleNonce((n) => n + 1)
+      map.once("styledata", retry)
+      return () => {
+        map.off("styledata", retry)
+      }
+    }
+  }, [resolved, ready, styleNonce])
 
   useEffect(() => {
     return () => {
