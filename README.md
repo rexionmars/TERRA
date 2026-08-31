@@ -29,10 +29,10 @@ reference protocol is published:
 > (SBrT 2026), Salvador, BA, Brazil.
 
 <p align="center">
-  <img src="docs/img/v5/terra-explorer-home.webp" alt="TERRA, with an AOI classified over the map" width="900" />
+  <img src="docs/img/v5/terra-studio-main.webp" alt="Solar irradiation and siting suitability over an area in Rio de Janeiro, read in the studio beside the globe" width="900" />
 </p>
 
-<p align="center"><em>Draw an area, drag the acquisition window on the track, classify, read the class shares</em></p>
+<p align="center"><em>Solar irradiation over an area in Rio de Janeiro, with the siting suitability derived from it and the terrain it was computed on</em></p>
 
 ## The map, and the studio over it
 
@@ -53,10 +53,10 @@ two areas hundreds of kilometres apart cannot be set beside each other on one.
 Everything else the studio offers follows from that one constraint.
 
 <p align="center">
-  <img src="docs/img/v5/terra-studio-main.webp" alt="Three classified areas in Cascavel, Parana, arranged on one Studio board" width="900" />
+  <img src="docs/img/v5/terra-explorer-home.webp" alt="Two classified areas in Tocantins arranged on one Studio board" width="900" />
 </p>
 
-<p align="center"><em>The studio: three areas in Cascavel, Paraná, on one board, each with its own classification, statistics and agreement</em></p>
+<p align="center"><em>The studio: two areas in Tocantins on one board, each classified by the Temporal Transformer over eleven scenes, with its own confidence and class shares</em></p>
 
 Comparison is the arrangement that answers where a classification is wrong
 rather than how much of it is right: the confusion against the reference, the
@@ -152,10 +152,10 @@ built from analytic ellipsoid crowns of the same leaf area, which needs nothing
 beyond numpy.
 
 <p align="center">
-  <img src="docs/img/v5/terra-studio-simulation.webp" alt="A soybean stand grown in three dimensions and lit by the local sun" width="900" />
+  <img src="docs/img/v5/terra-studio-simulation.webp" alt="A sorghum stand grown in three dimensions and lit by the local sun" width="900" />
 </p>
 
-<p align="center"><em>Simulation: a soybean stand at day 68, with the season's LAI, the age curve and the light budget beside it</em></p>
+<p align="center"><em>Simulation: a sorghum stand at day 60 over an area in Tocantins, with the season's LAI, the age curve and the light budget beside it</em></p>
 
 ## Limitations
 
