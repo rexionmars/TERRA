@@ -863,9 +863,29 @@ export function BoardSurface({
     files per-plane state under -- a second key space for the same question is
     the kind of thing that disagrees with the first within a release.
   */
-  const [sentToGlobe, setSentToGlobe] = useState<
-    readonly { key: string; layer: RasterLayer }[]
-  >([])
+  /*
+    KEYS, NOT THE RASTERS THEMSELVES, and that is the whole of a bug this held.
+
+    It kept `{ key, layer }` -- a copy of the layer taken at the moment it was
+    sent. Nothing then tied the copy to the board it came from, so removing a
+    plane left the entry behind: the globe went on drawing a raster whose plane
+    no longer existed, with no control anywhere to stop it, since the plane's
+    own menu was the only one and the plane was gone. Bring that plane back and
+    the stale key made the menu read "Take off the globe" for something that was
+    never put back, so there was no way to send it again.
+
+    A copy also went stale on its own account. Opacity and the smoothing flag
+    are edited on the plane, and the globe kept drawing whatever they were when
+    the entry was made.
+
+    So the set names planes and the rasters are looked up in `areas`, which is
+    the board. A plane that leaves takes its overlay with it because the lookup
+    finds nothing, and an edit to it reaches the globe because there is one
+    copy of the layer rather than two.
+  */
+  const [sentToGlobe, setSentToGlobe] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const [naming, setNaming] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   /** Whether the title block's catalog is open. */
@@ -2358,10 +2378,48 @@ export function BoardSurface({
     Read through refs, because createBoard runs once and its callback would
     otherwise close over the areas as they were when the board was built.
   */
+  /*
+    What the globe draws: the planes named by `sentToGlobe` that the board still
+    holds.
+
+    Resolved against `areas` on every render rather than remembered, which is
+    what makes a removal reach the globe without every removal path having to
+    remember to say so. There are several -- the plane's own menu, the layer's
+    Remove in the data tab, dropping a whole run, opening another studio -- and
+    an overlay that outlived its plane had no control left that could reach it.
+
+    A key with no plane behind it is simply skipped. It is not pruned from the
+    set here: this runs during a restore too, where planes are briefly absent,
+    and pruning would quietly forget what the reader had sent.
+  */
+  const globeOverlays = useMemo(() => {
+    const out: { key: string; layer: RasterLayer }[] = []
+    for (const a of areas) {
+      for (const l of a.layers) {
+        const key = sceneKey(a.id, l.id)
+        if (sentToGlobe.has(key)) out.push({ key, layer: l })
+      }
+    }
+    return out
+    // `areas` is a new array on every render, which is what keeps an edit to a
+    // layer reaching the globe; sentToGlobe changes only when one is sent.
+  }, [areas, sentToGlobe])
+
   const areasRef = useRef(areas)
   areasRef.current = areas
   const flatRef = useRef(flat)
   flatRef.current = flat
+  /*
+    Through a ref for the reason the two above are: `createBoard` is called
+    once and its callbacks hold the scope they were built in, so state read
+    straight out of that scope is frozen at whatever it was then.
+
+    This one was, and the plane menu's globe entry therefore named a direction
+    that had nothing to do with the plane -- it read the set as it stood when
+    the board was built, so the label stopped following the action.
+  */
+  const sentToGlobeRef = useRef(sentToGlobe)
+  sentToGlobeRef.current = sentToGlobe
   /*
     What the board is still waiting for. Reported by the scene as each texture
     lands, including the ones that fail -- a board with one unreadable raster
@@ -2831,10 +2889,11 @@ export function BoardSurface({
             // The same predicate the action uses: two copies of this rule
             // would let the label say one thing and the press do the other.
             soloed: isSoloed(areasRef.current, groupId, id),
-            // Compared by the layer's own id, not by the plane's: the map is
-            // sent a raster, and the same raster reached from a second area is
-            // the same thing on the ground.
-            onMap: sentToGlobe.some((o) => o.key === sceneKey(groupId, id)),
+            // By the PLANE, area and layer together, which is what the set
+            // holds and why -- see its docblock. This comment said the
+            // opposite, describing the keying that was replaced there because
+            // two runs over two fields name their raster the same thing.
+            onMap: sentToGlobeRef.current.has(sceneKey(groupId, id)),
           })
         },
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
@@ -3660,7 +3719,7 @@ export function BoardSurface({
           onPickArea={(id) => onActivateArea?.(id.slice(id.indexOf(":") + 1))}
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
-          overlays={sentToGlobe}
+          overlays={globeOverlays}
           /*
             The same memory the work map keeps. The globe opened over Brazil at
             zoom 1.6 every time, however far the reader had travelled on it,
@@ -4570,15 +4629,11 @@ export function BoardSurface({
         onSendToMap={() => {
           if (!planeMenu) return
           const key = sceneKey(planeMenu.areaId, planeMenu.layerId)
-          if (planeMenu.onMap) {
-            setSentToGlobe((prev) => prev.filter((o) => o.key !== key))
-            return
-          }
-          const layer = areas
-            .find((a) => a.id === planeMenu.areaId)
-            ?.layers.find((l) => l.id === planeMenu.layerId)
-          if (!layer) return
-          setSentToGlobe((prev) => [...prev, { key, layer }])
+          setSentToGlobe((prev) => {
+            const next = new Set(prev)
+            if (!next.delete(key)) next.add(key)
+            return next
+          })
         }}
         onRemove={() =>
           planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)
