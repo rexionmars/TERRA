@@ -1,7 +1,7 @@
 # TERRA Earth Observation
 
 <p align="center">
-  <img src="docs/img/v4/TERRA_EO_Logo.png" alt="TERRA" width="280" />
+  <img src="docs/img/v5/TERRA_EO_Logo.png" alt="TERRA" width="280" />
 </p>
 
 TERRA classifies land cover over an area of interest from Sentinel-2 L2A time
@@ -29,7 +29,7 @@ reference protocol is published:
 > (SBrT 2026), Salvador, BA, Brazil.
 
 <p align="center">
-  <img src="docs/img/v3/terra-explorer-home.jpeg" alt="TERRA, with an AOI classified over the map" width="900" />
+  <img src="docs/img/v5/terra-explorer-home.jpeg" alt="TERRA, with an AOI classified over the map" width="900" />
 </p>
 
 <p align="center"><em>Draw an area, drag the acquisition window on the track, classify, read the class shares</em></p>
@@ -53,10 +53,21 @@ two areas hundreds of kilometres apart cannot be set beside each other on one.
 Everything else the studio offers follows from that one constraint.
 
 <p align="center">
-  <img src="docs/img/v3/terra-studio-main.jpeg" alt="Three classified areas in Cascavel, Parana, arranged on one Studio board" width="900" />
+  <img src="docs/img/v5/terra-studio-main.jpeg" alt="Three classified areas in Cascavel, Parana, arranged on one Studio board" width="900" />
 </p>
 
 <p align="center"><em>The studio: three areas in Cascavel, Paraná, on one board, each with its own classification, statistics and agreement</em></p>
+
+Comparison is the arrangement that answers where a classification is wrong
+rather than how much of it is right: the confusion against the reference, the
+accuracy delta per class, and the agreement read block by block instead of as
+one number over the whole area.
+
+<p align="center">
+  <img src="docs/img/v5/terra-studio-compare.jpeg" alt="The Compare arrangement: confusion against the reference, accuracy delta and agreement by block" width="900" />
+</p>
+
+<p align="center"><em>Compare: confusion against the reference, accuracy delta per class, agreement by block</em></p>
 
 ## What it produces
 
@@ -141,7 +152,7 @@ built from analytic ellipsoid crowns of the same leaf area, which needs nothing
 beyond numpy.
 
 <p align="center">
-  <img src="docs/img/v3/terra-studio-simulation.jpeg" alt="A soybean stand grown in three dimensions and lit by the local sun" width="900" />
+  <img src="docs/img/v5/terra-studio-simulation.jpeg" alt="A soybean stand grown in three dimensions and lit by the local sun" width="900" />
 </p>
 
 <p align="center"><em>Simulation: a soybean stand at day 68, with the season's LAI, the age curve and the light budget beside it</em></p>
@@ -187,18 +198,6 @@ If the interpreter cannot import what the sidecar needs, TERRA says which
 package is missing and what it stops working, and offers to build its own
 environment. That environment is kept outside the application and survives an
 update.
-
-## Gallery
-
-| Compare | Diagnose |
-|:-------:|:--------:|
-| ![Compare](docs/img/v3/terra-studio-compare.jpeg) | ![Diagnose](docs/img/v3/terra-studio-diagnose.jpeg) |
-| Confusion against the reference, accuracy delta, agreement by block | Domain shift between two runs: NDVI divergence, feature space, Pontius disagreement |
-
-| Analysis | Data |
-|:--------:|:----:|
-| ![Analysis](docs/img/v3/terra-explorer-analysis.jpeg) | ![Data](docs/img/v3/terra-studio-data.jpeg) |
-| Cover map: composition, land-use groups, agreement with MapBiomas | Every table the run produced, readable and copyable |
 
 ## Research and this repository
 
