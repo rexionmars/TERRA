@@ -109,7 +109,7 @@ export function Credit({ part }: { part: CreditPart }) {
     <button
       type="button"
       onClick={() => BrowserOpenURL(part.href!)}
-      className="hover:text-foreground hover:underline"
+      className="cursor-pointer hover:text-foreground hover:underline"
     >
       {part.label}
     </button>

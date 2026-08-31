@@ -58,7 +58,7 @@ export function FloodSetupSections({
               <li key={p.id}>
                 <label
                   className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-sm border px-2 py-1.5 text-xs transition-colors",
+                    "flex items-center gap-2 rounded-sm border px-2 py-1.5 text-xs transition-colors",
                     on
                       ? "border-primary/60 bg-primary/10 text-foreground"
                       : "border-border text-muted-foreground hover:text-foreground"

@@ -1126,7 +1126,7 @@ export function ProfilePage({
                   focused={focusedSetting === `telemetry.${figure.key}`}
                   onFocus={() => setFocusedSetting(`telemetry.${figure.key}`)}
                 >
-                  <label className="flex cursor-pointer items-start gap-2.5">
+                  <label className="flex items-start gap-2.5">
                     <input
                       type="checkbox"
                       className={cn("mt-0.5 shrink-0", focusRing)}
@@ -1212,7 +1212,7 @@ export function ProfilePage({
               <button
                 type="button"
                 onClick={() => BrowserOpenURL(REPO_URL)}
-                className={btnGhost}
+                className={`${btnGhost} cursor-pointer`}
               >
                 <Star className="h-3 w-3" />
                 Star on GitHub
@@ -1220,7 +1220,7 @@ export function ProfilePage({
               <button
                 type="button"
                 onClick={() => BrowserOpenURL(SPONSOR_URL)}
-                className={btnGhost}
+                className={`${btnGhost} cursor-pointer`}
               >
                 <Heart className="h-3 w-3" />
                 Sponsor

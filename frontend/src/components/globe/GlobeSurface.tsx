@@ -534,6 +534,22 @@ export function GlobeSurface({
     */
     subs.push(map.on("dataloading", () => setBusy(true)))
     subs.push(map.on("idle", () => setBusy(false)))
+    /*
+      THE ONE HAND THAT IS NOT A LINK.
+
+      The convention elsewhere is that the arrow covers everything clickable and
+      the hand is kept for what leaves the application -- a button reads as a
+      button from its shape, its border and its hover, so the cursor is spent
+      saying what those already say.
+
+      A polygon on a canvas has none of those. AREA_FILL carries no hover paint,
+      so with the arrow here a clickable area would announce itself in no way at
+      all. The cursor is the whole affordance, which is the case the rule exists
+      to leave room for rather than an exception to it.
+
+      Giving the layer a hover feature-state would settle it the other way and
+      let this go. That is a rendering change, not a cursor one.
+    */
     subs.push(
       map.on("mouseenter", AREA_FILL, () => {
         map.getCanvas().style.cursor = "var(--cursor-pointer)"

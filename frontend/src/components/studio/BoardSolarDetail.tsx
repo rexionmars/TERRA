@@ -1191,7 +1191,7 @@ export function BoardSolarDetail({
                 onClick={onToggleCollapsed}
                 title={collapsed ? "Expand the band" : "Collapse the band"}
                 aria-label={collapsed ? "Expand the band" : "Collapse the band"}
-                className="absolute left-1.5 flex size-4 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+                className="absolute left-1.5 flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
               >
                 <ChevronDown
                   className={cn(

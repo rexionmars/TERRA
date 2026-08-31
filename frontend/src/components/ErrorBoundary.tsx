@@ -118,7 +118,7 @@ function CrashDetail({
 }) {
   return (
     <details className="w-full">
-      <summary className="cursor-pointer select-none text-meta text-muted-foreground">
+      <summary className="select-none text-meta text-muted-foreground">
         Error detail
       </summary>
       <p className="mt-1.5 text-body break-words text-foreground">

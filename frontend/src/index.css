@@ -405,29 +405,36 @@
   }
 
   /*
-    The pointer, for the same reason and in the same place.
+    NO POINTER ON A BUTTON. The hand means a link, and it is spent if it means
+    anything a hand can click.
 
-    Neither browsers nor Tailwind put a pointer on a button, so 134 buttons drew
-    the arrow while three labels drew the hand -- equally clickable things saying
-    different things. Declared once rather than per control, so the next button
-    added inherits the convention instead of needing to remember it.
+    It went on 227 buttons and role=button here, to settle a real inconsistency
+    -- 134 buttons drew the arrow while three labels drew the hand, equally
+    clickable things saying different things. That inconsistency had two exits
+    and this took the web's. The other one is taken now, for two reasons that
+    both arrived after that decision.
 
-    Checkbox and radio labels only: a label wrapping a text field wants the text
-    caret, and giving every label a hand would have taken it away.
+    This is a desktop window, not a page: it has its own title bar, and every
+    toolkit the window sits among -- AppKit, Windows, GTK, Qt -- draws a button
+    under the arrow and keeps the hand for a link. And the pointers are now
+    Android's, whose set assumes the same split. Keeping the web convention
+    while wearing a native frame and a native pointer set is the one arrangement
+    that agrees with nothing.
 
-    Utilities still win, which is how the drag handles keep ew-resize, the swipe
-    seam keeps col-resize, and the pan viewport keeps grab.
+    The count is the rest of the argument. There are 227 buttons and 3 links, so
+    a hand on everything clickable distinguished 227 things from nothing at all.
+    On the three it distinguishes them from 227, and it says the specific thing
+    it says everywhere else: this leaves the application. The buttons lose
+    nothing -- a button already reads as a button from its shape, its border and
+    its hover.
+
+    THE THREE ARE MARKED AT THE CALL SITE, with .cursor-pointer, because there
+    is no selector for them: every link here is a <button> calling
+    BrowserOpenURL, since an anchor in this WKWebView opens nothing.
+
+    Disabled keeps not-allowed below, which was never the web's convention to
+    borrow -- it is what every toolkit draws on a dead control.
   */
-  button:not(:disabled),
-  summary,
-  select:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
-  [role="tab"]:not([aria-disabled="true"]),
-  [role="option"],
-  label:has(input[type="checkbox"]:not(:disabled)),
-  label:has(input[type="radio"]:not(:disabled)) {
-    cursor: var(--cursor-pointer);
-  }
 
   button:disabled,
   select:disabled,
@@ -814,8 +821,9 @@ pre,
   cursor: var(--cursor-crosshair);
 }
 
-.maplibregl-ctrl-group button {
-  cursor: var(--cursor-pointer);
+.maplibregl-ctrl-group button,
+.maplibregl-popup-close-button {
+  cursor: var(--cursor-default);
 }
 
 .maplibregl-ctrl-group button.maplibregl-ctrl-compass {
@@ -830,9 +838,13 @@ pre,
   cursor: var(--cursor-not-allowed);
 }
 
+/*
+  The two that are links, and keep the hand for it: both open a page in the
+  system browser. The zoom buttons and the popup's close take the arrow above,
+  under the same convention as every other button here.
+*/
 a.maplibregl-ctrl-logo,
-.maplibregl-ctrl-attrib-button,
-.maplibregl-popup-close-button {
+.maplibregl-ctrl-attrib-button {
   cursor: var(--cursor-pointer);
 }
 
