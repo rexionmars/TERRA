@@ -1711,6 +1711,30 @@ export function BoardSurface({
     })
   )
 
+  /*
+    Catalogued drawings that are NOT on this board.
+
+    Listed in the Areas tab, which is the catalog and carries Use, and kept out
+    of the scene and the globe. They are the project's rather than the board's:
+    every studio drew every drawing the project holds, so a studio was never
+    empty while the project was not, and a new one opened holding ground nobody
+    had put on it.
+
+    The tab still lists them, because that is where one is picked up. What
+    changed is that listing a drawing and placing it are no longer one act --
+    Use is the second.
+
+    The active drawing is not excluded by being active, only by being listed
+    already. `liveAreaId` follows the SHOWN RUN, so drawing a new area while a
+    classification is up leaves the two apart -- and the new drawing then fell
+    through both filters, appearing neither as the live area nor as a
+    catalogued one.
+  */
+  const offBoardDrawings = catalogAreas.filter(
+    (a) => a.id !== live && !groundOnBoard.has(a.id)
+  )
+  const offBoard = new Set(offBoardDrawings.map((a) => a.id))
+
   const areas = [
     {
       id: live,
@@ -1751,33 +1775,11 @@ export function BoardSurface({
       with five drawings opened any board and found five empty outlines over
       it -- in the scene, in the tree and in the layout -- none of which was
       part of that board: a drawing belongs to the catalog, and a board is the
-      runs arranged on it. The catalog has a pane of its own, and the Areas tab
-      lists every drawing with its footprint, its hectares and Use whether or
-      not it is on the board.
+      runs arranged on it.
 
       The live one keeps its outline. That is the ground the next run happens
       on, which is the one drawing this surface is about.
     */
-    ...catalogAreas
-      /*
-        The active drawing is no longer excluded here.
-
-        It was, on the assumption that it is the live area and already listed
-        as such. `liveAreaId` follows the SHOWN RUN, so drawing a new area while
-        a classification is up leaves the two apart -- and the new drawing then
-        fell through both filters, appearing neither as the live area nor as a
-        catalogued one. It was invisible in the scene and in the tree until a
-        run over it existed, which is when the live area finally became it.
-
-        `a.id !== live` alone says what this filter meant: do not list twice
-        what is already listed.
-      */
-      .filter((a) => a.id !== live && !groundOnBoard.has(a.id))
-      .map((a) => ({
-        id: a.id,
-        title: names[stackRow(a.id)] ?? a.name,
-        layers: applyOrder(a.id, extrasFor(a.id, 200)),
-      })),
     ...assetRuns
       .filter((r) => r.areaId !== live)
       .map((r) => ({
@@ -2223,18 +2225,24 @@ export function BoardSurface({
   })
 
   /*
-    THE CATALOG, WHICH IS LONGER THAN THE BOARD.
+    THE BOARD'S GROUND, measured from the catalog's own geometry.
 
-    A drawing stops being an area once it has nothing on it -- see the note in
-    `areas` -- and this pane is where it did not stop being anything. It lists
-    the ground a reader has drawn, on the board or not, which is what makes Use
-    a way back to a field rather than a way back to whatever happens to be
-    arranged right now.
+    This pane listed the whole catalog, on the board or not, which is what made
+    every studio open holding the project rather than itself -- three drawings
+    in the tab, in the scene and in orbit, none of them put there. It lists what
+    is on this board now, and `offBoard` is what it stops at.
 
-    Measured from the catalog's own geometry rather than from the ring the
-    board holds, because the board holds none for an area it is not drawing.
+    THE COST IS Use, which was the way back to a field that is not arranged
+    right now, and which no other control offers. A drawing off the board is
+    reached through the map instead: draw it or adopt it there and the run over
+    it brings it here. If that turns out to be a route too long, the answer is a
+    catalog section of its own rather than this pane going back to being one.
+
+    Measured from the geometry rather than from the ring the board holds,
+    because the board holds none for an area it is not drawing.
   */
   for (const a of catalogAreas) {
+    if (offBoard.has(a.id)) continue
     if (areaInfo.some((x) => x.id === a.id || x.catalogId === a.id)) continue
     const ring = polygonOuterRing(a.geometry)
     areaInfo.push({
@@ -3588,12 +3596,18 @@ export function BoardSurface({
     one area's work and the catalog it was drawn from, and the hub's projects
     are not in scope on this screen.
   */
+  /*
+    The rule the scene follows, for the same reason. The globe drew every
+    catalogued drawing, so opening any studio put the whole project in orbit
+    around it whether or not the board had asked for any of it.
+  */
   const globeAreas = useMemo<GlobeArea[]>(
     () =>
       catalogAreas
+        .filter((a) => !offBoard.has(a.id))
         .map((a) => toGlobeArea(`aoi:${a.id}`, a.name, a.geometry))
         .filter((a): a is GlobeArea => a !== null),
-    [catalogAreas]
+    [catalogAreas, offBoard]
   )
 
   const renderEditor = (
