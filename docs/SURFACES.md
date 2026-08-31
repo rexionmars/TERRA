@@ -47,7 +47,9 @@ them organise by **panel**: the window is divided into regions, each region
 shows one editor, and the reader puts on screen what the question needs right
 now. Adding a capability adds an editor, not a mode.
 
-That is what the studio is. Fourteen editors exist —
+That is what the studio is, and the resemblance is structural rather than
+inspirational: the board subdivides, panels do not float, and an arrangement is
+a saved tree of splits. Fourteen editors exist —
 
 > Viewport · Outliner · Properties · Comparison · Domain shift ·
 > Spectral response · Class separability · Library check · Rover ·
@@ -108,6 +110,89 @@ removing it tomorrow. What decides that is a list — every control the map
 offers, checked against whether the studio offers it — and that list has not
 been made. It is worth making before the question is settled by opinion, which
 is how it has been discussed so far.
+
+## How this is practised elsewhere
+
+The shape was not invented here, and the tools that use it have written down why.
+
+### Blender: subdivision, and three rules
+
+Blender states three paradigms for its interface, and the studio follows all
+three without having set out to.
+
+**Non-overlapping.** Editors sit side by side rather than in floating windows,
+so one never covers another and the reader does not spend time moving things out
+of the way. **Non-blocking.** Tools do not stop the rest of the application while
+they are open. **Non-modal.** You say what you are working on, then what to do
+with it, rather than entering a tool mode first.
+
+An **area** is the container, an **editor** is what fills it, and a **workspace**
+is a saved arrangement of both, aimed at one task. Eleven ship: Layout,
+Modeling, Sculpting, UV Editing, Texture Paint, Shading, Animation, Rendering,
+Compositing, Geometry Nodes and Scripting. Blender opens on Layout.
+
+The mapping to this repository is close enough to be worth naming: `splitArea`,
+`joinArea`, `retypeArea` and `moveSplit` in `lib/boardAreas.ts` are the
+subdivision; `studioEditors.ts` is the editor registry; `studioWorkspaces.ts`
+holds five arrangements where Blender holds eleven, named the same way, after
+the task rather than after the panels.
+
+Blender's guidelines also carry a warning this repository has to heed: editors
+behave almost like separate applications, so they must share one set of patterns
+or the reader pays a learning cost at every boundary. That is the argument for
+the outliner and the plane menu speaking one vocabulary rather than each
+inventing its own.
+
+### Unreal: docking, and layout as state
+
+Unreal takes the same decomposition and a different arrangement model. Panels
+are **dockable**: dragged, floated, tabbed together, snapped with a drop
+preview. `TabManager` owns the layout, which persists between sessions, and
+`Window → Load Layout → Default Editor Layout` returns everything home.
+
+TERRA is Blender's model, not this one — the board subdivides and nothing
+floats. Two things carry over anyway: the arrangement is state that survives a
+restart, and there is a way back to what ships. The second matters more than it
+sounds. An interface the reader can take apart needs a way to undo that without
+undoing their work.
+
+### It is already the pattern in scientific software
+
+This is not only a game-engine habit. napari, the multidimensional image viewer
+used across bioimaging, is built from dockable Qt widgets: the layer list, the
+layer controls and the console are all dock widgets, and a plugin adds analysis
+by adding one. QGIS — the application TERRA deliberately does not try to replace
+— carries its own panels the same way.
+
+So the audience TERRA is written for already works in interfaces of this shape.
+That is worth knowing: the shape is not being introduced to them.
+
+### What it costs
+
+The cost is documented as clearly as the benefit, and it is real. A dense
+panelled interface has a steeper first climb: Unreal's is regularly described as
+overwhelming on first launch, and its Details panel is where new users report
+getting lost. The problem is discoverability — a capability that is a panel you
+have not opened is a capability you do not know exists.
+
+Two things reduce it here and neither removes it. The audience is a research one
+already working in napari, QGIS and their like. And the five arrangements are the
+answer Blender gives to the same problem: a reader who does not yet know what to
+put on screen is handed a board that already answers a named question.
+
+### Sources
+
+- [Blender — Design Paradigms](https://developer.blender.org/docs/features/interface/human_interface_guidelines/paradigms/)
+- [Blender — Human Interface Guidelines](https://developer.blender.org/docs/features/interface/human_interface_guidelines/)
+- [Blender — Workspaces (manual)](https://docs.blender.org/manual/en/latest/interface/window_system/workspaces.html)
+- [Blender — Anatomy of an Editor](https://wiki.blender.org/wiki/Human_Interface_Guidelines/Anatomy_of_an_Editor)
+- [Blender 2.8 design document](https://code.blender.org/2017/10/blender-2-8-design-document/)
+- [Unreal Engine — Layout Customization](https://dev.epicgames.com/documentation/en-us/unreal-engine/layout-customization)
+- [napari](https://napari.org/) · [napari on ImageJ.net](https://imagej.net/software/napari)
+
+The Blender pages above are paraphrased rather than quoted: they answered a
+search but refused a direct fetch, so the wording here is a summary and the
+links are where the exact phrasing lives.
 
 ## Related docs
 
