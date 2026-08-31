@@ -251,25 +251,19 @@ func (r *Runner) ModelDir() string {
 	return r.modelDir
 }
 
-// RepoRoot returns the resolved repository root, which is where the legacy
-// MapBiomas rasters are looked up.
+// RepoRoot returns the resolved repository root, which is where the checked-out
+// virtualenv and the fallback model directory are looked for.
+//
+// It used to be described as where the legacy MapBiomas rasters are looked up,
+// and mapbiomasPath beside it did that lookup, resolving a raster by file name
+// under global/data/mapbiomas. The three embedded example areas were the only
+// callers and they were removed in 8ead8fa; the function outlived them with no
+// caller anywhere, which is what golangci-lint's `unused` reported.
 func (r *Runner) RepoRoot() string {
 	if r == nil {
 		return ""
 	}
 	return r.repoRoot
-}
-
-// mapbiomasPath returns the absolute path to a MapBiomas raster by file name.
-func (r *Runner) mapbiomasPath(name string) string {
-	if name == "" {
-		return ""
-	}
-	p := filepath.Join(r.repoRoot, "global", "data", "mapbiomas", name)
-	if _, err := os.Stat(p); err != nil {
-		return ""
-	}
-	return p
 }
 
 // Predict runs the sidecar for the given request, emitting progress events.

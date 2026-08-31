@@ -177,7 +177,11 @@ func resolvedPaths(runner *analysis.Runner, dataDir string) []ResolvedPath {
 			Label:  "Repository root",
 			Path:   runner.RepoRoot(),
 			Source: sourceVar("TERRA_ROOT"),
-			Blocks: "the local MapBiomas rasters for embedded areas",
+			// Not the MapBiomas rasters any more: the embedded areas that
+			// read them are gone, and so is the lookup. What is left under
+			// this root is the checked-out virtualenv and the model directory
+			// the runner falls back to.
+			Blocks: "the bundled interpreter and the fallback model directory",
 		},
 	)
 	return withExistence(paths)
