@@ -12,7 +12,7 @@
   },
   "info": {
     "productName": "TERRA",
-    "productVersion": "0.4.0",
+    "productVersion": "0.5.0",
     "copyright": "TERRA contributors",
     "comments": "Desktop land-cover classification from Sentinel-2 time series"
   }
