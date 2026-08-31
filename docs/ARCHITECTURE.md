@@ -75,3 +75,4 @@ Prithvi pixel mode can be slow.
 - [API.md](API.md) — bindings and JSON contracts
 - [USER_GUIDE.md](USER_GUIDE.md) — operator workflow
 - [DESIGN.md](DESIGN.md) — visual identity tokens
+- [SURFACES.md](SURFACES.md) — why the interface is panels rather than screens
