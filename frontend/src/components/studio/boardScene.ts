@@ -66,10 +66,7 @@ import {
   file consult the partition without the chrome it must not pull.
 */
 import type { CardGroup, CardPlane } from "@/lib/boardLayout"
-import {
-  onPaletteChange,
-  viewportPaletteOverride,
-} from "@/lib/paletteWatch"
+import { onPaletteChange } from "@/lib/paletteWatch"
 import {
   subscribeStudioTelemetry,
   telemetryShows,
@@ -1428,7 +1425,7 @@ export function createBoard(
     const grid = new GridHelper(span, 20, palette.line, palette.line)
     const material = grid.material as LineBasicMaterial
     material.transparent = true
-    material.opacity = viewportPaletteOverride()?.gridOpacity ?? gridAlpha()
+    material.opacity = gridAlpha()
     material.depthWrite = false
     // Below the lowest plane, so it never fights the rasters for the surface.
     grid.position.y = -radius * 0.35
@@ -2118,27 +2115,16 @@ export function createBoard(
     the one place in the application that has to.
   */
   const repaint = () => {
-    /*
-      The override wins where there is one. It is how the studio can be held on
-      one palette while the panels around it move to another, which is the only
-      way to judge the two against each other -- they read the same tokens
-      otherwise, by design.
-    */
-    const pinned = viewportPaletteOverride()
-    palette.background = pinned
-      ? pinned.background
-      : tokenColor("--v-ink", palette.background)
-    palette.line = pinned ? pinned.line : tokenColor("--v-line", palette.line)
-    palette.accent = pinned
-      ? pinned.accent
-      : tokenColor("--p-accent", palette.accent)
+    palette.background = tokenColor("--v-ink", palette.background)
+    palette.line = tokenColor("--v-line", palette.line)
+    palette.accent = tokenColor("--p-accent", palette.accent)
     ;(scene.background as Color).set(palette.background)
     // The fog is the background, so the ground still dissolves into the edge
     // of the viewport rather than into the colour the viewport used to be.
     if (scene.fog) scene.fog.color.set(palette.background)
     if (gridMaterial) {
       gridMaterial.color.set(palette.line)
-      gridMaterial.opacity = pinned?.gridOpacity ?? gridAlpha()
+      gridMaterial.opacity = gridAlpha()
     }
     footprintMaterial.color.set(palette.line)
     for (const m of [

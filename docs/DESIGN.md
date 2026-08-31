@@ -68,10 +68,10 @@ against it.
 The same lift moved three more tokens, and none of them was chosen either.
 `--p-muted` is 175 because 161 read **3.83** on the raised surface, under the 4.5
 floor for body-adjacent text. `--destructive-quiet` moved from `#E08A78` to
-`#E59E8F` because it read **3.80** there — a failure the accent lab cannot see,
-since status colours take no part in its rules and only `check:contrast` covers
-them. `--p-accent-quiet` and `--p-accent-dim` came out of the lab with the rest
-of the family.
+`#E59E8F` because it read **3.80** there — a failure only `check:contrast`
+covers, since status colours take no part in the accent family's rules.
+`--p-accent-quiet` and `--p-accent-dim` were derived with the rest of that
+family, in a development-only panel that has since been removed.
 
 ### Light
 
@@ -199,17 +199,16 @@ subscribe through `frontend/src/lib/paletteWatch.ts` and repaint **in place** �
 rebuild would decode every raster again, refetch the canopy mesh, and send
 dragged planes back to the layout's first answer, all for a colour.
 
-Two attributes are watched, because the palette moves in two ways: `data-theme`,
-which next-themes writes with the resolved theme, and `style`, which AccentLab
-writes the `--p-*` channels to inline while a candidate accent is being judged.
+One attribute is watched: `data-theme`, which next-themes writes with the
+resolved theme — "dark" or "light", never "system" — so it covers a reader left
+on the system setting whose machine flips at dusk.
 
-**The scenes can be pinned off the tokens.** `setViewportPaletteOverride` gives
-them a palette of their own. Nothing sets it in normal use — one null check per
-repaint — and it exists because the stylesheet and the scenes read the same
-tokens by design, which is correct for shipping and makes the two impossible to
-judge apart: moving a token to see it in the viewport moves every panel around
-the viewport at the same time. AccentLab's scope row uses it to hold one still
-while the other moves.
+`style` was watched alongside it, because the accent lab wrote candidate `--p-*`
+channels inline on the same element. That panel is gone, and with it the only
+writer, so watching the attribute would have meant waking every scene whenever
+anything else touched an inline style on the root. The override the lab used to
+pin the scenes off the tokens went the same way, for the same reason: it was a
+lever with no hand left on it.
 
 ### What inside the viewport is not chassis
 

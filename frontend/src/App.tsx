@@ -13,7 +13,6 @@ import {
   restoreBoard,
   writeBoardMemory,
 } from "@/components/studio/boardMemory"
-import { AccentLab } from "@/components/AccentLab"
 import { useTheme } from "next-themes"
 import {
   LoadAnalysis,
@@ -3797,8 +3796,6 @@ function AppBody(props: {
           )}
         </div>
       </div>
-      {/* TEMPORARY: accent lab. Delete this line and AccentLab.tsx. */}
-      {import.meta.env.DEV && <AccentLab />}
     </div>
   )
 }

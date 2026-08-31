@@ -54,10 +54,7 @@ import {
 } from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
-import {
-  onPaletteChange,
-  viewportPaletteOverride,
-} from "@/lib/paletteWatch"
+import { onPaletteChange } from "@/lib/paletteWatch"
 
 /**
  * The sky the stand stands under, as the AOI's own record measured it.
@@ -113,7 +110,7 @@ const RAYLEIGH_TAU: [number, number, number] = [0.0733, 0.1052, 0.242]
   is a desaturated green, because light that has been through a leaf twice is
   much duller than the leaf.
 */
-/** The ground grid's alpha, matching boardScene's. See ViewportPalette. */
+/** The ground grid's alpha, matching boardScene's. */
 const GRID_OPACITY = 0.14
 
 /** --v-grid-alpha off the host, or the constant above where it is missing. */
@@ -383,7 +380,7 @@ export function createStandScene(
     const g = new GridHelper(span, 20, groundColour, groundColour)
     const material = g.material as LineBasicMaterial
     material.transparent = true
-    material.opacity = viewportPaletteOverride()?.gridOpacity ?? gridAlpha(host)
+    material.opacity = gridAlpha(host)
     // Never writes depth, so it cannot fight the plants for a surface.
     material.depthWrite = false
     // At the base of the stems rather than at y=0: Helios grows from a ground
@@ -508,19 +505,13 @@ export function createStandScene(
     colour is not a reason to do that twice.
   */
   const repaint = () => {
-    // The override wins where there is one -- see boardScene's repaint.
-    const pinned = viewportPaletteOverride()
-    groundColour.copy(
-      pinned ? new Color(pinned.line) : tokenColor(host, "--v-line")
-    )
-    hazeColour.copy(
-      pinned ? new Color(pinned.background) : tokenColor(host, "--v-ink")
-    )
+    groundColour.copy(tokenColor(host, "--v-line"))
+    hazeColour.copy(tokenColor(host, "--v-ink"))
     if (scene.fog) scene.fog.color.copy(hazeColour)
     if (grid) {
       const m = grid.material as LineBasicMaterial
       m.color.copy(groundColour)
-      m.opacity = pinned?.gridOpacity ?? gridAlpha(host)
+      m.opacity = gridAlpha(host)
     }
     render()
   }
