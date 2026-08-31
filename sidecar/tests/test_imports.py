@@ -215,3 +215,77 @@ def test_every_module_attribute_taken_off_an_import_exists(source):
             rel = source.relative_to(SIDECAR)
             missing.append(f'{rel}:{line} reads {module_name}.{attribute}')
     assert not missing, '\n'.join(missing)
+
+def _scope_body(node):
+    """
+    Every node of this scope, without descending into a nested one.
+
+    A nested function has a scope of its own: an import in the outer body is
+    visible inside it, and a name the inner body assigns is the inner body's.
+    Walking through one would report the pair as if it happened here.
+    """
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield child
+        yield from _scope_body(child)
+
+
+def _rebound_imports(tree):
+    """(scope, name, import line, assignment line) for each import reassigned."""
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        bound = {}
+        for child in _scope_body(node):
+            if isinstance(child, ast.Import):
+                for a in child.names:
+                    bound[a.asname or a.name.split('.')[0]] = child.lineno
+            elif isinstance(child, ast.ImportFrom):
+                for a in child.names:
+                    bound[a.asname or a.name] = child.lineno
+        if not bound:
+            continue
+        for child in _scope_body(node):
+            if not isinstance(child, ast.Name) or not isinstance(child.ctx, ast.Store):
+                continue
+            if child.id in bound:
+                found.append((node.name, child.id, bound[child.id], child.lineno))
+    return sorted(set(found))
+
+
+@pytest.mark.parametrize('source', SOURCES, ids=lambda p: str(p.relative_to(SIDECAR)))
+def test_no_function_reassigns_a_name_it_imported(source):
+    """
+    An import bound inside a function body, assigned again in the same body.
+
+    THIS SHIPPED. `terra/landcover/actions.py` imported `terra.imagery.grid` as
+    `ref_grid`, used it, and two hundred lines later bound the same name to the
+    reprojected reference array. The extent read at the tail of the function --
+    outside the block that rebound it, on every run -- then asked an ndarray for
+    `get_map_extent`, and every classification over an AOI with a MapBiomas
+    reference failed there, under either model, since that tail is shared.
+
+    NOTHING SAW IT. Not ruff, with every rule it has selected: pyflakes reports
+    a redefinition only of a name that was unused, and this one was used before
+    the rebind. Not mypy, with numpy and pandas installed. Not this suite, which
+    calls no action function -- which is the same gap `_attribute_uses` was
+    written for.
+
+    And not `_shadowed` above, which finds precisely this and drops it: its own
+    docstring says shadowing an import "is worth knowing about, but it is a
+    different finding". This is that finding, written down.
+
+    The rule is narrow on purpose. It asks only about a name bound by an import
+    IN THIS BODY and assigned IN THIS BODY, so the `try: import x / except:
+    x = None` fallback is not what it is looking at, and neither is a module
+    imported at the top of a file and used as a local name somewhere else.
+    """
+    rebound = _rebound_imports(ast.parse(source.read_text()))
+    rel = source.relative_to(SIDECAR)
+    assert not rebound, "\n".join(
+        f"{rel}: {scope}() imports {name} on line {imported} "
+        f"and assigns it on line {assigned}"
+        for scope, name, imported, assigned in rebound
+    )

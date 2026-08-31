@@ -307,25 +307,36 @@ def predict(req, work_dir):
             from terra.landcover import mapbiomas as lulc_mod
             # Prefer native MapBiomas clip for composition; attach pred-vs-ref
             # when the reprojected reference grid is available.
-            ref_grid = mb_map if mb_map is not None else None
+            #
+            # NOT `ref_grid`, which is the module imported at the top of this
+            # function. Binding the reference array to that name replaced the
+            # module for the rest of the call, and the extent read below --
+            # outside this block, on every run -- then asked an ndarray for
+            # `get_map_extent`. It failed for any AOI with a MapBiomas
+            # reference, whatever the model, because this sits in the tail both
+            # classifiers share. The `except` under it is no guard: the rebind
+            # happens before anything here can raise.
+            reference_on_grid = mb_map if mb_map is not None else None
             lulc_payload = lulc_mod.analyze_mapbiomas(
                 mapbiomas_path,
                 polygon,
                 work_dir=work_dir,
-                pred_map=classification_map if ref_grid is not None else None,
+                pred_map=(
+                    classification_map if reference_on_grid is not None else None
+                ),
                 ref_on_pred_grid=None,  # composition from native clip
             )
-            if ref_grid is not None:
+            if reference_on_grid is not None:
                 # Overlay comparison on Sentinel grid (10 m -> 0.01 ha/px).
                 # The reference was resampled from 30 m, so the pixel count is
                 # not the number of label observations; carry the native cell
                 # count alongside it as the sample size.
                 cell_ids = lulc_mod.reference_cell_grid(ref_profile, mapbiomas_path)
                 compare = lulc_mod.pred_vs_ref_composition(
-                    classification_map, ref_grid, cell_ids=cell_ids
+                    classification_map, reference_on_grid, cell_ids=cell_ids
                 )
                 lulc_payload['pred_vs_ref'] = compare
-                valid = (classification_map >= 0) & (ref_grid > 0)
+                valid = (classification_map >= 0) & (reference_on_grid > 0)
                 lulc_payload['compare_pixels'] = int(valid.sum())
                 n_cells = lulc_mod.distinct_reference_cells(cell_ids, valid)
                 if n_cells is not None:
@@ -333,7 +344,7 @@ def predict(req, work_dir):
                 # Agreement, which the composition comparison beside it cannot
                 # show: equal marginals are not equal maps.
                 agreement = lulc_mod.agreement_against_reference(
-                    classification_map, ref_grid, cell_ids=cell_ids
+                    classification_map, reference_on_grid, cell_ids=cell_ids
                 )
                 if agreement is not None:
                     lulc_payload['agreement'] = agreement
