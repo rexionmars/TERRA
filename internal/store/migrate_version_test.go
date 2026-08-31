@@ -314,3 +314,81 @@ func TestLegacyDatabaseWithoutAVersionMigrates(t *testing.T) {
 		t.Error("no copy of the database was left beside it before the discard")
 	}
 }
+
+/*
+An older build reopened a migrated database and left the legacy name behind.
+
+That is not hypothetical. `whiteboards` was renamed to `studios`; a build from
+before the rename, run against a database that had already been migrated,
+recreates `whiteboards` from its own schema -- empty, because the work is under
+the new name. The next current build then found both, refused to choose between
+them, and returned an error from Open, so the whole application came up with no
+projects and no runs while every row sat untouched in `studios`.
+
+The refusal is right when both tables hold work: that is a question about which
+is the work, and migrate cannot answer it. It is wrong when the source is empty,
+which is the shape an accidental downgrade leaves. Dropping an empty legacy
+table loses nothing, and is the same judgement an empty DESTINATION already gets.
+*/
+func TestRenameDropsAnEmptyLegacyTableBesideAPopulatedOne(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "terra.db")
+	s := openStoreOnFile(t, dbPath)
+
+	for _, stmt := range []string{
+		`CREATE TABLE studios (id TEXT PRIMARY KEY, name TEXT)`,
+		`INSERT INTO studios (id, name) VALUES ('a', 'compare')`,
+		// What the older build recreates on the way past.
+		`CREATE TABLE whiteboards (id TEXT PRIMARY KEY, name TEXT)`,
+	} {
+		if _, err := s.db.Exec(stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := s.renameTable("whiteboards", "studios"); err != nil {
+		t.Fatalf("an empty legacy table must not stop the rename: %v", err)
+	}
+	if hasTable(t, s, "whiteboards") {
+		t.Error("the empty legacy table was left in place, so the next open fails the same way")
+	}
+	var name string
+	if err := s.db.QueryRow(`SELECT name FROM studios WHERE id = 'a'`).Scan(&name); err != nil {
+		t.Fatalf("the work under the new name must survive: %v", err)
+	}
+	if name != "compare" {
+		t.Errorf("studios row = %q, want %q", name, "compare")
+	}
+}
+
+/*
+Two populated tables are still refused, which is the property above's other half.
+
+Dropping the source there would destroy work, and choosing between them is a
+judgement about the user's data that this cannot make.
+*/
+func TestRenameRefusesWhenBothTablesHoldRows(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "terra.db")
+	s := openStoreOnFile(t, dbPath)
+
+	for _, stmt := range []string{
+		`CREATE TABLE studios (id TEXT PRIMARY KEY, name TEXT)`,
+		`INSERT INTO studios (id, name) VALUES ('a', 'new')`,
+		`CREATE TABLE whiteboards (id TEXT PRIMARY KEY, name TEXT)`,
+		`INSERT INTO whiteboards (id, name) VALUES ('b', 'old')`,
+	} {
+		if _, err := s.db.Exec(stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err := s.renameTable("whiteboards", "studios")
+	if err == nil {
+		t.Fatal("two populated tables must be refused, not silently merged")
+	}
+	if !strings.Contains(err.Error(), "both exist") {
+		t.Errorf("error = %v, want it to name the collision", err)
+	}
+	if !hasTable(t, s, "whiteboards") {
+		t.Error("the refused rename must leave both tables in place")
+	}
+}

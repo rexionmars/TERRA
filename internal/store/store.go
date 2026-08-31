@@ -442,6 +442,33 @@ func (s *Store) renameTable(from, to string) error {
 			return fmt.Errorf("inspect %s rows: %w", to, err)
 		}
 		if rows > 0 {
+			/*
+				THE MIRROR CASE: an EMPTY SOURCE beside a populated destination.
+
+				An older build opening a migrated database recreates the legacy
+				table from its own schema, empty, and leaves it there. The next
+				run of a current build then finds both names, refused to choose,
+				and the store did not open at all -- so a rename that had
+				already succeeded made the whole application unreachable, with
+				every row still in place under the new name.
+
+				There is nothing to weigh here. The source holds no work, so
+				dropping it loses nothing and is the same judgement the empty
+				DESTINATION already gets below. Only two populated tables are a
+				question this cannot answer.
+			*/
+			var carried int
+			if err := s.db.QueryRow(
+				fmt.Sprintf("SELECT COUNT(1) FROM %s", from),
+			).Scan(&carried); err != nil {
+				return fmt.Errorf("inspect %s rows: %w", from, err)
+			}
+			if carried == 0 {
+				if _, err := s.db.Exec("DROP TABLE " + from); err != nil {
+					return fmt.Errorf("drop empty %s: %w", from, err)
+				}
+				return nil
+			}
 			return fmt.Errorf(
 				"cannot rename %s to %s: both exist and %s holds %d row(s)", from, to, to, rows)
 		}
