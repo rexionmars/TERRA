@@ -20,8 +20,6 @@
  * the left button already does it, and a menu entry for a gesture the reader
  * has just performed is a row that says nothing.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { createPortal } from "react-dom"
 import {
   AlignVerticalJustifyEnd,
   Eye,
@@ -31,7 +29,11 @@ import {
   Maximize,
   Trash2,
 } from "lucide-react"
-import { StudioMenuItem, StudioMenuRule } from "@/components/studio/StudioPopover"
+import {
+  StudioContextMenu,
+  StudioMenuItem,
+  StudioMenuRule,
+} from "@/components/studio/StudioPopover"
 
 export interface PlaneContextTarget {
   areaId: string
@@ -99,68 +101,15 @@ export function PlaneContextMenu({
   onSendToMap: () => void
   onRemove: () => void
 }) {
-  const panelRef = useRef<HTMLDivElement | null>(null)
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
-
-  useLayoutEffect(() => {
-    if (!target || !surface) {
-      setPos(null)
-      return
-    }
-    const p = panelRef.current
-    if (!p) return
-    const s = surface.getBoundingClientRect()
-    const pad = 6
-    // Surface-relative: the press reports window coordinates and the panel is
-    // a child of the surface, which is the frame those have to be brought into.
-    let x = target.at.x - s.left
-    let y = target.at.y - s.top
-    x = Math.min(Math.max(pad, x), Math.max(pad, s.width - p.offsetWidth - pad))
-    y = Math.min(Math.max(pad, y), Math.max(pad, s.height - p.offsetHeight - pad))
-    setPos({ x, y })
-  }, [target, surface])
-
-  useEffect(() => {
-    if (!target) return
-    const away = (e: PointerEvent) => {
-      if (panelRef.current?.contains(e.target as Node)) return
-      onClose()
-    }
-    const esc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return
-      // Stopped, or the studio's window-level Escape closes the studio under a
-      // menu the reader was dismissing.
-      e.stopPropagation()
-      e.preventDefault()
-      onClose()
-    }
-    window.addEventListener("pointerdown", away, true)
-    window.addEventListener("keydown", esc, true)
-    return () => {
-      window.removeEventListener("pointerdown", away, true)
-      window.removeEventListener("keydown", esc, true)
-    }
-  }, [target, onClose])
-
-  if (!target || !surface) return null
-
-  return createPortal(
-    <div
-      ref={panelRef}
-      role="menu"
-      className="absolute z-[70] w-[14rem] rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
-      style={{
-        left: pos?.x ?? -9999,
-        top: pos?.y ?? -9999,
-        background: "rgb(var(--p-surface-raised))",
-        borderColor: "rgb(var(--p-line-strong) / 0.5)",
-        visibility: pos ? "visible" : "hidden",
-      }}
+  return (
+    <StudioContextMenu
+      at={target?.at ?? null}
+      surface={surface}
+      title={target?.title ?? ""}
+      onClose={onClose}
     >
-      <p className="truncate px-2 pb-1 pt-0.5 text-[10px] text-muted-foreground">
-        {target.title}
-      </p>
-      <StudioMenuRule />
+      {target && (
+        <>
 
       {/*
         Offered only where there is a level below to descend to.
@@ -250,7 +199,8 @@ export function PlaneContextMenu({
           />
         </>
       )}
-    </div>,
-    surface
+        </>
+      )}
+    </StudioContextMenu>
   )
 }

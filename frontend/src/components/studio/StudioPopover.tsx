@@ -248,6 +248,103 @@ export function StudioMenuGroup({
 }
 
 /** The hairline Blender puts between groups of menu entries. */
+/**
+ * A menu placed at a press, inside a surface, dismissed by Escape or a press
+ * away from it.
+ *
+ * Extracted from PlaneContextMenu when a second surface needed the same thing.
+ * What is shared is not the entries -- a plane and a raster are asked different
+ * questions -- but the shell: bring a window coordinate into the surface's
+ * frame, clamp it so the panel cannot open half off the edge, and take the two
+ * dismissals. That is fifty lines with three ways to get it subtly wrong, and
+ * two copies of it would drift the moment one of them was fixed.
+ *
+ * `at` is in WINDOW coordinates, which is what a pointer event reports and what
+ * the 3D canvas already passed.
+ */
+export function StudioContextMenu({
+  at,
+  surface,
+  title,
+  onClose,
+  children,
+}: {
+  at: { x: number; y: number } | null
+  /** Portalled here and clamped inside it, as every studio panel is. */
+  surface: HTMLElement | null
+  /** What the menu is about, named at its head. */
+  title: string
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+
+  useLayoutEffect(() => {
+    if (!at || !surface) {
+      setPos(null)
+      return
+    }
+    const p = panelRef.current
+    if (!p) return
+    const s = surface.getBoundingClientRect()
+    const pad = 6
+    // Surface-relative: the press reports window coordinates and the panel is
+    // a child of the surface, which is the frame those have to be brought into.
+    let x = at.x - s.left
+    let y = at.y - s.top
+    x = Math.min(Math.max(pad, x), Math.max(pad, s.width - p.offsetWidth - pad))
+    y = Math.min(Math.max(pad, y), Math.max(pad, s.height - p.offsetHeight - pad))
+    setPos({ x, y })
+  }, [at, surface])
+
+  useEffect(() => {
+    if (!at) return
+    const away = (e: PointerEvent) => {
+      if (panelRef.current?.contains(e.target as Node)) return
+      onClose()
+    }
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      // Stopped, or the studio's window-level Escape closes the studio under a
+      // menu the reader was dismissing.
+      e.stopPropagation()
+      e.preventDefault()
+      onClose()
+    }
+    window.addEventListener("pointerdown", away, true)
+    window.addEventListener("keydown", esc, true)
+    return () => {
+      window.removeEventListener("pointerdown", away, true)
+      window.removeEventListener("keydown", esc, true)
+    }
+  }, [at, onClose])
+
+  if (!at || !surface) return null
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      role="menu"
+      className="absolute z-[70] w-[14rem] rounded-sm border py-1 shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
+      style={{
+        left: pos?.x ?? -9999,
+        top: pos?.y ?? -9999,
+        background: "rgb(var(--p-surface-raised))",
+        borderColor: "rgb(var(--p-line-strong) / 0.5)",
+        visibility: pos ? "visible" : "hidden",
+      }}
+    >
+      <p className="truncate px-2 pb-1 pt-0.5 text-[10px] text-muted-foreground">
+        {title}
+      </p>
+      <StudioMenuRule />
+      {children}
+    </div>,
+    surface
+  )
+}
+
 export function StudioMenuRule() {
   return (
     <div

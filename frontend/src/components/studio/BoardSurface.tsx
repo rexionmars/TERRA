@@ -2374,6 +2374,47 @@ export function BoardSurface({
     still.
   */
   const [planeMenu, setPlaneMenu] = useState<PlaneContextTarget | null>(null)
+  /**
+   * Opens the plane menu on one raster, wherever the press came from.
+   *
+   * TWO SURFACES ASK FOR THIS MENU. A plane in the viewport is right-clicked
+   * on the canvas, and a row in the outliner is right-clicked in the DOM --
+   * the tree had no context menu at all, so the actions on a plane were
+   * reachable only by finding it in three dimensions first.
+   *
+   * One function rather than one per caller, for the reason the entries
+   * themselves already give: the labels name a direction, and two copies of
+   * the rule that decides it would let one surface say the opposite of the
+   * other about the same plane.
+   *
+   * Everything live is read through a ref, because the scene's callback holds
+   * the scope it was built in -- see sentToGlobeRef, which is where that cost
+   * was paid.
+   */
+  const openPlaneMenu = useCallback(
+    (groupId: string, id: string, at: { x: number; y: number }) => {
+      const a = areasRef.current.find((x) => x.id === groupId)
+      const l = a?.layers.find((x) => x.id === id)
+      if (!a || !l) return
+      setPlaneMenu({
+        areaId: groupId,
+        layerId: id,
+        title: l.title,
+        at,
+        visible: l.visible,
+        // The base is the level; it has nothing below to descend to.
+        isBase: a.layers.findIndex((x) => x.id === id) === 0,
+        flat: flatRef.current.has(sceneKey(groupId, id)),
+        removable: true,
+        // Read at open time, so the entry names the direction it will go.
+        soloed: isSoloed(areasRef.current, groupId, id),
+        // By the PLANE, area and layer together, which is what the set holds
+        // and why -- see its docblock.
+        onMap: sentToGlobeRef.current.has(sceneKey(groupId, id)),
+      })
+    },
+    []
+  )
   /*
     Read through refs, because createBoard runs once and its callback would
     otherwise close over the areas as they were when the board was built.
@@ -2871,31 +2912,7 @@ export function BoardSurface({
       // Read from the computed style rather than hardcoded, so the board
       // follows the theme the rest of the application is painted in.
       board = createBoard(host, {
-        onPlaneContext: (groupId, id, at) => {
-          const a = areasRef.current.find((x) => x.id === groupId)
-          const l = a?.layers.find((x) => x.id === id)
-          if (!a || !l) return
-          setPlaneMenu({
-            areaId: groupId,
-            layerId: id,
-            title: l.title,
-            at,
-            visible: l.visible,
-            // The base is the level; it has nothing below to descend to.
-            isBase: a.layers.findIndex((x) => x.id === id) === 0,
-            flat: flatRef.current.has(sceneKey(groupId, id)),
-            removable: true,
-            // Read at open time, so the entry names the direction it will go.
-            // The same predicate the action uses: two copies of this rule
-            // would let the label say one thing and the press do the other.
-            soloed: isSoloed(areasRef.current, groupId, id),
-            // By the PLANE, area and layer together, which is what the set
-            // holds and why -- see its docblock. This comment said the
-            // opposite, describing the keying that was replaced there because
-            // two runs over two fields name their raster the same thing.
-            onMap: sentToGlobeRef.current.has(sceneKey(groupId, id)),
-          })
-        },
+        onPlaneContext: openPlaneMenu,
         onCardsLoaded: (loaded, total) => setCards({ loaded, total }),
         groups,
         // --v-*, not --p-*: the studio is a room the rasters hang in and the
@@ -3777,6 +3794,8 @@ export function BoardSurface({
             onModeChange={(m) => setModeOf(areaId, m)}
             activeAsset={activeAsset}
             onActivateAsset={setActiveAsset}
+            surface={surfaceRef.current}
+            onRowContext={openPlaneMenu}
             onSelectComposition={onSelectComposition}
             onRemoveComposition={onRemoveComposition}
             activeRow={active}

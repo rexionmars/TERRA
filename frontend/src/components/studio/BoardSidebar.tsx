@@ -45,6 +45,11 @@ import {
   Wrench,
   X,
 } from "lucide-react"
+import {
+  StudioContextMenu,
+  StudioMenuItem,
+  StudioMenuRule,
+} from "@/components/studio/StudioPopover"
 import { AoiFootprint } from "@/components/AoiFootprint"
 import type { GeoJSONGeometry } from "@/lib/types"
 import type { RasterLayer } from "@/lib/mapLayers"
@@ -181,7 +186,7 @@ function layerIcon(id: string): LucideIcon {
  *
  * The icons already carry this, and a column carries it differently -- a glyph
  * is recognised and a word is READ, which is what makes a column of them
- * scannable down a tree of thirty rows.
+ * scannable and sortable by eye down a tree of thirty rows.
  */
 function layerKind(id: string): string {
   if (id.startsWith("solar:")) return "Solar"
@@ -425,6 +430,7 @@ export function BoardSidebar({
   onModeChange,
   onActivate,
   onActivateAsset,
+  surface,
   onAddToScene,
   onRemoveFromScene,
   names,
@@ -438,6 +444,7 @@ export function BoardSidebar({
   onToggleExpanded,
   onLayerChange,
   onSmoothChange,
+  onRowContext,
   onSelectComposition,
   onRemoveComposition,
   hideInvisible = false,
@@ -533,7 +540,33 @@ export function BoardSidebar({
   activeAsset: string | null
   onModeChange: (m: OutlinerMode) => void
   onActivateAsset: (id: string) => void
+  /**
+   * Where a context menu is portalled and clamped, as every studio panel is.
+   *
+   * The column itself is too narrow to hold one: a 14rem menu opened inside a
+   * 15rem column with nowhere to go would be clamped to its edge on every
+   * press. It belongs to the surface the column sits in.
+   */
+  surface?: HTMLElement | null
   /** Switches the board to a composition from the gallery. */
+  /**
+   * A raster was right-clicked in the tree.
+   *
+   * The same menu the viewport opens on a plane, from the surface that LISTS
+   * the planes. Without it the tree was the one place a raster could be found
+   * by name and the one place nothing could be done to it beyond the two
+   * toggles on the row -- the rest was reachable only by locating the plane in
+   * three dimensions first.
+   *
+   * Offered for a raster and not for the area above it or the modifier below:
+   * the menu's entries are a plane's -- hide it, solo it, fit to it, send it to
+   * the globe -- and the other two rows are not planes.
+   */
+  onRowContext?: (
+    areaId: string,
+    layerId: string,
+    at: { x: number; y: number }
+  ) => void
   onSelectComposition?: (id: string) => void
   onRemoveComposition?: (id: string) => void
   /**
@@ -735,6 +768,23 @@ export function BoardSidebar({
   const activeAssetRow =
     allAssetRows.find((x) => x.key === activeAsset) ?? allAssetRows[0] ?? null
   const asset = activeAssetRow?.asset ?? null
+  /*
+    A raster right-clicked in the data tree.
+
+    Held by KEY rather than by the row, so the entries below read the row out of
+    `assetRows` on every render. A row object captured at the press would go
+    stale the moment the thing it describes changed -- put on the board, taken
+    off, its opacity moved -- and the menu would then name a state that had
+    passed, which is the defect the plane menu paid for once already.
+  */
+  const [assetMenu, setAssetMenu] = useState<{
+    key: string
+    at: { x: number; y: number }
+  } | null>(null)
+  const menuRow = assetMenu
+    ? (assetRows.find((r) => r.key === assetMenu.key) ?? null)
+    : null
+  const menuAsset = menuRow?.asset ?? null
 
   const rowRefs = useRef(new Map<string, HTMLElement>())
 
@@ -1053,6 +1103,21 @@ export function BoardSidebar({
                   // A press that travelled was a reorder, not a choice.
                   if (dragRef.current?.moved) return
                   onActivate(row.id, e.shiftKey)
+                }}
+                onContextMenu={(e) => {
+                  if (!onRowContext || !row.layerId || row.depth !== 1) return
+                  /*
+                    Selected first, so the menu and the tree agree about what is
+                    being acted on. A menu opened over an unselected row would
+                    otherwise name one raster while the panels around it still
+                    describe another.
+                  */
+                  e.preventDefault()
+                  onActivate(row.id, false)
+                  onRowContext(row.areaId, row.layerId, {
+                    x: e.clientX,
+                    y: e.clientY,
+                  })
                 }}
                 onKeyDown={(e) => {
                   /*
@@ -1429,6 +1494,17 @@ export function BoardSidebar({
                 aria-selected={isActive}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => onActivateAsset(row.key)}
+                onContextMenu={(e) => {
+                  if (!surface) return
+                  // Selected first, so the menu and the panel below it agree
+                  // about which raster is being acted on.
+                  e.preventDefault()
+                  onActivateAsset(row.key)
+                  setAssetMenu({
+                    key: row.key,
+                    at: { x: e.clientX, y: e.clientY },
+                  })
+                }}
                 onKeyDown={(e) => {
                   if (e.target !== e.currentTarget) return
                   if (e.key === "Enter" || e.key === " ") {
@@ -1541,106 +1617,119 @@ export function BoardSidebar({
           <p className="telemetry mt-1 text-meta leading-snug text-muted-foreground">
             {asset.params}
           </p>
+        </div>
+      )}
 
-          <div className="mt-2 flex flex-wrap gap-1">
+      {/*
+        THE SAME ACTIONS, AT THE PRESS THAT ASKS FOR THEM.
+
+        They were a row of five buttons under the panel above, which made the
+        panel a control surface and put export beside a destructive act at the
+        same weight, a pixel apart. As a menu they are where a menu is looked
+        for -- on the thing -- and the one that cannot be undone can be set
+        apart by a rule instead of by reading two words carefully.
+
+        The panel above keeps what a panel is for: what this raster IS.
+      */}
+      <StudioContextMenu
+        at={assetMenu?.at ?? null}
+        surface={surface ?? null}
+        title={menuAsset?.title ?? ""}
+        onClose={() => setAssetMenu(null)}
+      >
+        {menuRow && menuAsset && (
+          <>
             {/*
               The same act as the row's control, spelled out. A row is read at
               a glance and a panel is read deliberately, and the one place
               someone looks for what can be DONE with a thing is the panel.
             */}
-            {asset.extent &&
-              activeAssetRow &&
+            {menuAsset.extent &&
               (sceneIds.has(
-                sceneKey(activeAssetRow.run.areaId, asset.sceneId)
+                sceneKey(menuRow.run.areaId, menuAsset.sceneId)
               ) ? (
-                <AssetAction
+                <StudioMenuItem
                   icon={Minus}
-                  label="Remove"
-                  onClick={() =>
-                    onRemoveFromScene(activeAssetRow.run.areaId, asset.sceneId)
-                  }
+                  label="Take off the board"
+                  title="The run keeps it; the studio stops drawing it"
+                  onSelect={() => {
+                    onRemoveFromScene(menuRow.run.areaId, menuAsset.sceneId)
+                    setAssetMenu(null)
+                  }}
                 />
               ) : (
-                <AssetAction
+                <StudioMenuItem
                   icon={Plus}
-                  label="Add"
-                  onClick={() =>
-                    onAddToScene(activeAssetRow.run.areaId, asset.sceneId)
-                  }
+                  label="Put on the board"
+                  onSelect={() => {
+                    onAddToScene(menuRow.run.areaId, menuAsset.sceneId)
+                    setAssetMenu(null)
+                  }}
                 />
               ))}
-            {asset.selectId && onSelectComposition && (
-              <AssetAction
+            {/*
+              Only where it would change something. The button this replaces was
+              disabled and relabelled "On board" when the composition was
+              already the one being drawn -- a readout wearing a control's
+              clothes, and the only entry in the row that named a state rather
+              than an act.
+            */}
+            {menuAsset.selectId && onSelectComposition && !menuAsset.onBoard && (
+              <StudioMenuItem
                 icon={Eye}
-                label={asset.onBoard ? "On board" : "Show"}
-                disabled={asset.onBoard}
-                onClick={() => onSelectComposition(asset.selectId!)}
+                label="Show on the map"
+                onSelect={() => {
+                  onSelectComposition(menuAsset.selectId!)
+                  setAssetMenu(null)
+                }}
               />
             )}
-            <AssetAction
+            <StudioMenuRule />
+            <StudioMenuItem
               icon={Download}
-              label="PNG"
-              onClick={() => void exportPng(asset)}
+              label="Export PNG"
+              onSelect={() => {
+                void exportPng(menuAsset)
+                setAssetMenu(null)
+              }}
             />
-            {asset.exportTif && (
-              <AssetAction
+            {menuAsset.exportTif && (
+              <StudioMenuItem
                 icon={Download}
-                label="GeoTIFF"
-                onClick={() => void exportTif(asset)}
+                label="Export GeoTIFF"
+                onSelect={() => {
+                  void exportTif(menuAsset)
+                  setAssetMenu(null)
+                }}
               />
             )}
-            {asset.removeId && onRemoveComposition && (
-              <AssetAction
-                icon={Trash2}
-                label="Drop"
-                onClick={() => onRemoveComposition(asset.removeId!)}
-              />
+            {/*
+              Behind a rule of its own, because it is the one act here the run
+              does not survive: the others take a raster off a board or write a
+              file, and this drops the composition from the project.
+            */}
+            {menuAsset.removeId && onRemoveComposition && (
+              <>
+                <StudioMenuRule />
+                <StudioMenuItem
+                  icon={Trash2}
+                  label="Drop from the project"
+                  title="Removes this composition from the project's gallery"
+                  onSelect={() => {
+                    onRemoveComposition(menuAsset.removeId!)
+                    setAssetMenu(null)
+                  }}
+                />
+              </>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </StudioContextMenu>
 
     </div>
   )
 }
 
-/** One action on the active asset. Small, and the same size as its siblings. */
-function AssetAction({
-  icon: Icon,
-  label,
-  disabled,
-  onClick,
-}: {
-  icon: LucideIcon
-  label: string
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "inline-flex h-[1.375rem] items-center gap-1 rounded-sm bg-surface-raised px-1.5 text-meta transition-colors",
-        "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-        disabled
-          ? "cursor-not-allowed text-muted-foreground opacity-45"
-          : "text-muted-foreground hover:bg-surface-raised/80 hover:text-foreground"
-      )}
-    >
-      <Icon className="size-3" strokeWidth={1.75} />
-      {label}
-    </button>
-  )
-}
-
-/**
- * Whether an asset is one of the board's planes.
- *
- * A button rather than a marker, because the state and the way to change it
- * are the same thing here and two controls for one bit is one too many.
- */
 function SceneToggle({
   inScene,
   placeable,
