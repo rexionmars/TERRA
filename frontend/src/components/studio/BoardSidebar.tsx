@@ -172,6 +172,26 @@ function layerIcon(id: string): LucideIcon {
   return Grid2x2
 }
 
+/**
+ * What a raster IS, in the word the Type column prints.
+ *
+ * Beside `layerIcon` because the two answer the same question and would drift
+ * if they were apart: an icon is this word drawn, and a row whose glyph says
+ * one thing while its type says another is worse than either alone.
+ *
+ * The icons already carry this, and a column carries it differently -- a glyph
+ * is recognised and a word is READ, which is what makes a column of them
+ * scannable down a tree of thirty rows.
+ */
+function layerKind(id: string): string {
+  if (id.startsWith("solar:")) return "Solar"
+  if (id === "water") return "Water"
+  if (id === "composition") return "Composite"
+  if (id === "confidence") return "Confidence"
+  if (id === "prediction") return "Prediction"
+  return "Raster"
+}
+
 
 /**
  * The ground the board is working on.
@@ -335,6 +355,8 @@ interface Row {
   layerId: string | null
   title: string
   icon: LucideIcon
+  /** The word the Type column prints. See `layerKind`. */
+  kind: string
   /** Indent level: the stack at 0, its rasters at 1, their modifiers at 2. */
   depth: number
   /**
@@ -585,6 +607,7 @@ export function BoardSidebar({
       layerId: null,
       title: names[stackRow(area.id)] ?? area.title,
       icon: Layers,
+      kind: "Area",
       depth: 0,
       visible: allVisible,
       /*
@@ -638,6 +661,7 @@ export function BoardSidebar({
         layerId: l.id,
         title: names[layerRow(area.id, l.id)] ?? l.title,
         icon: layerIcon(l.id),
+        kind: layerKind(l.id),
         depth: 1,
         visible: l.visible,
         toggle: () => onLayerChange(area.id, l.id, { visible: !l.visible }),
@@ -655,6 +679,7 @@ export function BoardSidebar({
           layerId: l.id,
           title: "Majority filter",
           icon: Wrench,
+          kind: "Modifier",
           depth: 2,
           visible: smooth,
           toggle: () => onSmoothChange(!smooth),
@@ -968,6 +993,31 @@ export function BoardSidebar({
           onDeleteArea={onDeleteArea}
         />
       ) : mode === "scene" ? (
+        <>
+        {/*
+          THE COLUMN HEADER, which is what turns a list into an outliner.
+
+          The tree already carried all of this -- an eye, a glyph, a name, a
+          kind -- with nothing naming any of it, so every column had to be
+          inferred from its contents. Naming them costs one row and makes the
+          gutter legible before it is used: the eye at the head of its own
+          column says the column is visibility, which no amount of eyes down
+          the tree says on its own.
+
+          Not sortable, and not pretending to be. These are labels, so they
+          take no button affordance and no cursor of one.
+        */}
+        <div
+          aria-hidden
+          className="flex shrink-0 items-center border-b py-1 text-meta text-muted-foreground/70"
+          style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
+        >
+          <span className="flex w-6 shrink-0 justify-center">
+            <Eye className="size-3" strokeWidth={1.75} />
+          </span>
+          <span className="min-w-0 flex-1 pl-1.5">Item Label</span>
+          <span className="w-[74px] shrink-0 pr-2 text-right">Type</span>
+        </div>
         <div
           role="tree"
           aria-label="Layers on the board"
@@ -1018,7 +1068,7 @@ export function BoardSidebar({
                   }
                 }}
                 className={cn(
-                  "relative flex cursor-default select-none items-center gap-1.5 py-[3px] pr-2 transition-colors",
+                  "relative flex cursor-default select-none items-center py-[3px] pr-2 transition-colors",
                   "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
                   isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40",
                   row.dimmed && !isActive && "opacity-50",
@@ -1037,10 +1087,58 @@ export function BoardSidebar({
                     layerRowsOf(row.areaId).at(-1) === row &&
                     "after:absolute after:inset-x-1 after:bottom-0 after:h-px after:bg-accent"
                 )}
-                // Indent by depth, from a fixed gutter. Inline because the depth
-                // is data: a Tailwind class per level would be a class per level.
-                style={{ paddingLeft: `${0.375 + row.depth * 0.75}rem` }}
               >
+                {/*
+                  THE VISIBILITY GUTTER, at the head of the row rather than the
+                  tail of it.
+
+                  The eye sat on the right, where it read as the last of the
+                  row's actions and moved with the row's contents. A gutter is
+                  a column: fixed width, outside the indent, so every eye in the
+                  tree lands on one vertical line whatever the depth or the
+                  length of the name -- and the header above it can say what
+                  that line is.
+                */}
+                <span className="flex w-6 shrink-0 justify-center">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      row.toggle()
+                    }}
+                    // Roving with the row, so the toggles are two tab stops for
+                    // the whole tree rather than one per raster -- and so the eye
+                    // does not become mouse-only, which it was when every one of
+                    // them carried tabIndex -1.
+                    tabIndex={isActive ? 0 : -1}
+                    aria-pressed={row.visible}
+                    aria-label={`${row.visible ? "Hide" : "Show"} ${row.title}`}
+                    title={row.visible ? "Hide" : "Show"}
+                    className={cn(
+                      "transition-colors hover:text-foreground",
+                      row.visible
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground/40"
+                    )}
+                  >
+                    {row.visible ? (
+                      <Eye className="size-3.5" />
+                    ) : (
+                      <EyeOff className="size-3.5" />
+                    )}
+                  </button>
+                </span>
+
+                {/*
+                  The label column. Indent lives here rather than on the row so
+                  the gutter beside it does not step in with the tree. Inline
+                  because the depth is data: a Tailwind class per level would be
+                  a class per level.
+                */}
+                <div
+                  className="flex min-w-0 flex-1 items-center gap-1.5"
+                  style={{ paddingLeft: `${row.depth * 0.75}rem` }}
+                >
                 {/*
                   The disclosure keeps its width on every row, expandable or not,
                   so the icons and names below a parent line up with each other
@@ -1113,12 +1211,12 @@ export function BoardSidebar({
                     {row.title}
                   </span>
                 )}
+                </div>
 
                 {/*
-                  Right-aligned, so the toggles form a column that stays readable
-                  however long the names get and however deep the tree goes.
-                  Toggling does not activate the row: hiding something is a
-                  glance at the stack, not a decision to start editing it.
+                  The actions sit between the label and the Type column, so the
+                  type stays the last thing on every row and reads as a column
+                  rather than as another control.
                 */}
                 {/*
                   Its place in the path, where there is one. A number rather
@@ -1178,31 +1276,17 @@ export function BoardSidebar({
                     <Minus className="size-3.5" />
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    row.toggle()
-                  }}
-                  // Roving with the row, so the toggles are two tab stops for
-                  // the whole tree rather than one per raster -- and so the eye
-                  // does not become mouse-only, which it was when every one of
-                  // them carried tabIndex -1.
-                  tabIndex={isActive ? 0 : -1}
-                  aria-pressed={row.visible}
-                  aria-label={`${row.visible ? "Hide" : "Show"} ${row.title}`}
-                  title={row.visible ? "Hide" : "Show"}
-                  className={cn(
-                    "shrink-0 transition-colors hover:text-foreground",
-                    row.visible ? "text-muted-foreground" : "text-muted-foreground/50"
-                  )}
-                >
-                  {row.visible ? (
-                    <Eye className="size-3.5" />
-                  ) : (
-                    <EyeOff className="size-3.5" />
-                  )}
-                </button>
+                {/*
+                  What the row IS, in a fixed column under its header.
+
+                  Muted against the label beside it: the name is what a reader
+                  is looking for and the type is what tells two rows with
+                  similar names apart, so it answers when asked rather than
+                  competing with the thing being scanned.
+                */}
+                <span className="w-[74px] shrink-0 truncate pl-2 pr-2 text-right text-meta text-muted-foreground/70">
+                  {row.kind}
+                </span>
               </div>
             )
           })}
@@ -1213,6 +1297,7 @@ export function BoardSidebar({
             </p>
           )}
         </div>
+        </>
       ) : (
         /*
           What the run produced, drawn or not. The same set the overlay tools
@@ -1400,6 +1485,33 @@ export function BoardSidebar({
           )}
         </div>
       )}
+
+      {/*
+        WHAT THE PANE HOLDS, counted, at its foot.
+
+        The tab strip already carries a ratio -- 3/7 visible, or a bare count --
+        which says how much is drawn and not how much there IS, and says nothing
+        at all about the selection. A reader arranging a board is working with
+        both: how many planes are on it, and how many are in hand.
+
+        Its own row rather than a second number in the strip above, because the
+        strip is a control and this is a readout, and the two answer to
+        different things -- the strip to the reader's press, this to the board.
+      */}
+      <div
+        className="flex shrink-0 items-center justify-between border-t px-2 py-1 text-meta text-muted-foreground/70"
+        style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
+      >
+        <span className="telemetry truncate">
+          {mode === "scene"
+            ? `${allRows.length} ${allRows.length === 1 ? "item" : "items"}${
+                selection.length ? ` (${selection.length} selected)` : ""
+              }`
+            : mode === "data"
+              ? `${allAssetRows.length} ${allAssetRows.length === 1 ? "raster" : "rasters"}`
+              : `${areaInfo.length} ${areaInfo.length === 1 ? "area" : "areas"}`}
+        </span>
+      </div>
 
       {/*
         Under the branches and OUTSIDE the scroller.
