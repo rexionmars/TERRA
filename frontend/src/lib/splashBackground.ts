@@ -53,20 +53,57 @@ export type SplashStill = {
  */
 export const SPLASH_STILLS: SplashStill[] = [
   {
-    name: "Stockpile",
-    path: "/terra-splash-images/stockpile.webp",
-    subject:
-      "a coal stockyard from directly above, with the stacker-reclaimer that " +
-      "grades it and the benches its passes have cut",
     /*
-      Pexels, which asks for no attribution. The upload id survived in the
-      filename this time -- pexels-kelly-6595788 -- so this entry can point
-      further back than the last one could: the site plus the id, which is
-      enough to find the original again without inventing a URL that may not
-      resolve.
+      The structure's own name, from the sign in the frame.
+
+      A proper noun, as Amazon is, rather than the category the still belongs
+      to: "Platform" would have said what the photograph contains and nothing
+      about why this one. It was chosen for being engineering held at its limit
+      in open water, and a reader who follows the name reaches that; a reader
+      who follows "Platform" reaches a genus.
+
+      It is also, in Norse, the revenant of the sea -- the drowned man who does
+      not sink. Not the reason for the name, but not a bad one for a structure
+      standing where this one stands.
     */
-    source: "https://www.pexels.com — upload 6595788",
-    photographer: "Kelly",
+    name: "Draugen",
+    path: "/terra-splash-images/draugen.webp",
+    subject:
+      "an offshore production platform on a flat sea, its deck lit against an " +
+      "overcast sky and the flare burning at the boom's end, the whole of it " +
+      "carried on a single concrete column",
+    /*
+      CHOSEN FOR WHAT IT IS, not for how it photographs.
+
+      A structure of this kind is built and held at the edge of what engineering
+      knows how to do, in open water, and it goes on producing there. That is
+      the reading the release is named for. It is written down because the next
+      person picking a still will otherwise have only the composition to go on,
+      and would replace this with something merely better lit.
+    */
+    /*
+      Pexels, which asks for no attribution. The upload id is kept for the
+      reason the entry beside it used to give: it is the way back to the
+      original if this ever needs re-encoding at another size.
+
+      RE-ENCODED HERE, unlike the ones before it. The download was a 3264x2448
+      JPEG of 1.5 MB; this is WebP at 1600 px and 313 KB, which is the shape the
+      rest of the set was in. index.html paints the still before any bundle
+      loads, so its weight is on the critical path of the window opening.
+
+      It reads 2.98 against the text under the mark and 8.06 under the boot
+      line, at the scrim index.css now carries. The reasoning behind both
+      numbers is with the scrim rather than here.
+
+      Shell-operated, and the sign in the frame says so -- which is where the
+      name is read from, so the release carries the name of a company's asset.
+      That was weighed and accepted: the alternative names either described the
+      genus or rested on a structural claim about the hull that could not be
+      checked. At 420x280 under the scrim the sign is a few illegible pixels.
+      Someone choosing the next still should know all of this is in the frame.
+    */
+    source: "https://www.pexels.com — upload 3216911",
+    photographer: "Jan Rune Smenes Reite",
     since: "0.5.0",
   },
 ]
@@ -80,7 +117,7 @@ export const SPLASH_STILLS: SplashStill[] = [
  * show; the rest walk the others, so featuring a still neither discards them
  * nor makes the code name decorative.
  */
-export const FEATURED_STILL = "Stockpile"
+export const FEATURED_STILL = "Draugen"
 
 /** Paths alone, for the places that only need to load them. */
 export const SPLASH_IMAGES = SPLASH_STILLS.map((s) => s.path)

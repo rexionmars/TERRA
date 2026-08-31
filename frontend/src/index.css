@@ -614,18 +614,53 @@
 .splash-kenburns-scrim {
   z-index: 2;
   background:
+    /*
+      MEASURED, over the twenty-three stills that were considered for 0.5.0.
+
+      All three radial stops were lighter: 0.18, 0.42, 0.62. The centre one is
+      what the mark and the release name sit on, and under that block the
+      brightest pixel of a photograph read between 1.10 and 2.75 against the
+      text -- a bright patch behind the middle of a splash is where it stops
+      being readable, and 0.18 did not reach it. The foot was 0.55, which left
+      the boot line at 4.03 over the still that was chosen.
+
+      They move together. Raising the centre alone past 0.42 inverts the
+      gradient: it grows LIGHTER outward, the darkest point becomes the middle,
+      and a bright patch two thirds of the way across the block keeps its
+      brightness however far the centre goes. The three below preserve the gaps
+      the original had.
+
+      WHY NOT FURTHER. Clearing WCAG's 4.5 under the mark needs about 0.70 at
+      the centre -- seventy per cent ink over the middle of the photograph,
+      which does not darken the still, it replaces it, and the still is the
+      point. At the values below the chosen still reads 2.98 there and 8.06 at
+      the foot. The first is under 4.5 knowingly: that band's text carries an
+      8px drop shadow at 0.65, which darkens locally behind the glyphs and which
+      no measurement of the background models, so the figure is conservative
+      there and is worth more for ranking two stills against each other than as
+      a pass mark. The foot, where the boot line is small and unshadowed, is
+      the one held above the floor.
+
+      TO MEASURE AGAIN: draw the still cover-cropped to 420x280, composite these
+      two gradients per pixel over it, take the brightest pixel inside each text
+      band, and read it against --p-text. That was done in a scratch page that
+      is deliberately not in this repository -- a tool used once a release,
+      holding its own copy of these gradients, drifts from them silently. The
+      numbers above are what it was for.
+    */
     radial-gradient(
       ellipse 70% 55% at 50% 42%,
-      rgb(var(--p-ink) / 0.18),
-      rgb(var(--p-ink) / 0.42) 55%,
-      rgb(var(--p-ink) / 0.62)
+      rgb(var(--p-ink) / 0.56),
+      rgb(var(--p-ink) / 0.68) 55%,
+      rgb(var(--p-ink) / 0.88)
     ),
     linear-gradient(
       to bottom,
       rgb(var(--p-ink) / 0.2) 0%,
       transparent 35%,
       transparent 70%,
-      rgb(var(--p-ink) / 0.55) 100%
+      /* The foot is this one's, not the radial's: it is what the boot line sits on. */
+      rgb(var(--p-ink) / 0.85) 100%
     );
 }
 
