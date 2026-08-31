@@ -1,5 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/*
+  Android's pointer set, generated from vendor/aosp-pointers by
+  scripts/build-cursors.ts. It re-declares the Tailwind cursor utilities with an
+  image in front of the keyword, so call sites are untouched and an engine that
+  refuses the image falls back to what it had. Imported here rather than left to
+  a component so the rules land unlayered, above Tailwind's utilities layer.
+*/
+@import "./cursors.css";
 
 /*
   TERRA design system — docs/DESIGN.md
@@ -418,14 +426,14 @@
   [role="option"],
   label:has(input[type="checkbox"]:not(:disabled)),
   label:has(input[type="radio"]:not(:disabled)) {
-    cursor: pointer;
+    cursor: var(--cursor-pointer);
   }
 
   button:disabled,
   select:disabled,
   input:disabled,
   [aria-disabled="true"] {
-    cursor: not-allowed;
+    cursor: var(--cursor-not-allowed);
   }
   html,
   body,
@@ -774,13 +782,71 @@ pre,
   -webkit-user-select: text;
 }
 
+/*
+  MapLibre paints its own cursors, from its stylesheet rather than from anything
+  here, so every map surface kept the platform cursor while the rest of the
+  interface had changed.
+
+  SPECIFICITY IS NOT WHY. The broad rule on `button, a, [role=button]` above
+  sits in @layer base, and maplibre-gl.css arrives unlayered through a component
+  import. An unlayered rule beats a layered one whatever the selectors say, so
+  no weight added there would have reached a map control. These rules are
+  unlayered too, and match maplibre's own selectors one for one.
+
+  The canvas pair is what a hand touches most -- grab over the map, grabbing
+  while dragging it. The rest are the controls, the popup and the markers.
+*/
+.maplibregl-canvas-container.maplibregl-interactive {
+  cursor: var(--cursor-grab);
+}
+
+.maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: var(--cursor-grabbing);
+}
+
+.maplibregl-canvas-container.maplibregl-interactive.maplibregl-track-pointer {
+  cursor: var(--cursor-pointer);
+}
+
+.maplibregl-crosshair,
+.maplibregl-crosshair .maplibregl-interactive,
+.maplibregl-crosshair .maplibregl-interactive:active {
+  cursor: var(--cursor-crosshair);
+}
+
+.maplibregl-ctrl-group button {
+  cursor: var(--cursor-pointer);
+}
+
+.maplibregl-ctrl-group button.maplibregl-ctrl-compass {
+  cursor: var(--cursor-grab);
+}
+
+.maplibregl-ctrl-group button.maplibregl-ctrl-compass:active {
+  cursor: var(--cursor-grabbing);
+}
+
+.maplibregl-ctrl button:disabled {
+  cursor: var(--cursor-not-allowed);
+}
+
+a.maplibregl-ctrl-logo,
+.maplibregl-ctrl-attrib-button,
+.maplibregl-popup-close-button {
+  cursor: var(--cursor-pointer);
+}
+
+.maplibregl-marker-draggable {
+  cursor: var(--cursor-grab);
+}
+
 /* Map swipe (imagery / prediction) — the handle sits above the map canvas */
 .map-swipe-handle {
   touch-action: none;
   user-select: none;
   /* It only moves on one axis. Left as the inherited arrow it read as a
      decoration sitting on the seam rather than as the control that moves it. */
-  cursor: col-resize;
+  cursor: var(--cursor-col-resize);
 }
 
 /* AOI name chip — glued to contour edge, rotation applied inline */

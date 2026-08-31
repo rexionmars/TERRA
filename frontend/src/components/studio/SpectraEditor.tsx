@@ -537,7 +537,7 @@ export function SpectraEditor({
                   transform={`translate(${s.legend.x},${figure.layout.legendTop + s.legend.row * ROW_PX.label + ROW_PX.label / 2})`}
                   onMouseEnter={() => setHoverClass(s.classId)}
                   onMouseLeave={() => setHoverClass(null)}
-                  style={{ cursor: "pointer" }}
+                  style={{ cursor: "var(--cursor-pointer)" }}
                 >
                   <rect
                     x={-4}

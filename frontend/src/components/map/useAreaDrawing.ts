@@ -36,6 +36,36 @@ import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter"
 
 import type { GeoJSONGeometry } from "@/lib/types"
 
+/**
+ * The adapter, with terra-draw's cursor keywords pointed at the pointer set.
+ *
+ * terra-draw writes a cursor straight onto the canvas -- `canvas.style.cursor =
+ * "crosshair"` -- which outranks every rule, so drawing an area kept the
+ * platform cursor while the map under it had changed. Its own `cursors` option
+ * cannot help: that type is a closed union of CSS keywords and will not take a
+ * variable.
+ *
+ * So the translation happens here, at the one place the value is written. The
+ * keyword becomes `var(--cursor-<keyword>, <keyword>)`, and var()'s own
+ * fallback does the rest -- a keyword the set does not draw, `wait` or
+ * `n-resize`, resolves to itself rather than to nothing. That fallback is why
+ * there is no list of covered keywords to keep in step with cursors.css.
+ */
+class PointerSetAdapter extends TerraDrawMapLibreGLAdapter<MapLibreMap> {
+  private readonly canvasOf: () => HTMLElement
+
+  constructor(options: { map: MapLibreMap }) {
+    super(options)
+    this.canvasOf = () => options.map.getCanvas()
+  }
+
+  setCursor(cursor: Parameters<TerraDrawMapLibreGLAdapter<MapLibreMap>["setCursor"]>[0]) {
+    const style = this.canvasOf().style
+    if (cursor === "unset") style.removeProperty("cursor")
+    else style.cursor = `var(--cursor-${cursor}, ${cursor})`
+  }
+}
+
 /** What the pointer is doing: nothing, laying vertices, or moving them. */
 export type DrawMode = "idle" | "draw" | "edit"
 
@@ -76,7 +106,7 @@ export function useAreaDrawing({
   useEffect(() => {
     if (!map || !ready) return
     const draw = new TerraDraw({
-      adapter: new TerraDrawMapLibreGLAdapter({ map }),
+      adapter: new PointerSetAdapter({ map }),
       modes: [
         new TerraDrawPolygonMode({
           styles: {

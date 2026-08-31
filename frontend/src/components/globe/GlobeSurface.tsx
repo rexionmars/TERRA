@@ -536,7 +536,7 @@ export function GlobeSurface({
     subs.push(map.on("idle", () => setBusy(false)))
     subs.push(
       map.on("mouseenter", AREA_FILL, () => {
-        map.getCanvas().style.cursor = "pointer"
+        map.getCanvas().style.cursor = "var(--cursor-pointer)"
       })
     )
     subs.push(

@@ -267,7 +267,10 @@ export function NodeCanvas({
           "radial-gradient(rgb(var(--p-line) / 0.55) 1px, transparent 1px)",
         backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
         backgroundPosition: `${view.x}px ${view.y}px`,
-        cursor: drag.current?.kind === "pan" ? "grabbing" : "default",
+        cursor:
+          drag.current?.kind === "pan"
+            ? "var(--cursor-grabbing)"
+            : "var(--cursor-default)",
       }}
     >
       <div

@@ -153,7 +153,7 @@ function AngleRanking({
             opacity={dim ? 0.35 : 1}
             onMouseEnter={() => onFocus(c.class_id)}
             onMouseLeave={() => onFocus(null)}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "var(--cursor-pointer)" }}
           >
             <rect
               x={0}
