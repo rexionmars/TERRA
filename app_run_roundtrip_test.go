@@ -86,7 +86,7 @@ func TestEnergyModelRunRoundTrip(t *testing.T) {
 	assertEnergyFixtureBinds(t, &res)
 
 	a.persistEnergyModelRun(analysis.EnergyModelRequest{
-		AreaID: "B", Label: "Propriedade B", ProjectID: "",
+		Label: "Propriedade B", ProjectID: "",
 	}, &res)
 
 	runID := latestRunID(t, a)
@@ -239,7 +239,7 @@ func TestWindRunRoundTrip(t *testing.T) {
 	assertWindFixtureBinds(t, &res)
 
 	a.persistWindRun(analysis.WindRequest{
-		AreaID: "B", Label: "Propriedade B",
+		Label: "Propriedade B",
 	}, &res)
 
 	runID := latestRunID(t, a)
@@ -616,7 +616,7 @@ func TestFloodRunRoundTrip(t *testing.T) {
 	res.AgreementURI = onePixelPNG
 
 	a.persistFloodRun(analysis.FloodRequest{
-		AreaID: "B", Label: "Propriedade B",
+		Label: "Propriedade B",
 	}, &res)
 
 	runID := latestRunID(t, a)

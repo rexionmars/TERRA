@@ -1,26 +1,33 @@
 import { cn } from "@/lib/utils"
-import type { GeoJSONGeometry, Project } from "@/lib/types"
-import { geometryAreaHectares } from "@/lib/geometry"
-import { AoiFootprint } from "@/components/AoiFootprint"
-import { formatHectares } from "@/lib/runSummary"
+import type { Project } from "@/lib/types"
+import { FolderKanban } from "lucide-react"
 
+/*
+  A project on the hub's grid.
+
+  IT DREW A SHAPE, and could not honestly go on doing it. The outline came from
+  the project's own polygon -- one geometry per workspace, written from whatever
+  was on the map -- so a project working a dozen fields showed one of them, with
+  nothing saying the other eleven were there. Those columns are gone.
+
+  What replaces it is a count, not a thumbnail of the grounds: drawing them
+  would be one query per card in a grid, and a dozen outlines at 64px say less
+  than the number does. The grounds themselves are one click in, at full size.
+*/
 export function ProjectFolderCard({
   project,
-  geometry,
   onOpen,
   selected,
   className,
 }: {
   project: Project
-  /** Resolved AOI geometry; null when the project has none. */
-  geometry?: GeoJSONGeometry | null
   onOpen: () => void
   selected?: boolean
   className?: string
 }) {
+  const areas = project.area_count ?? 0
   const runs = project.run_count ?? 0
   const overlays = project.overlay_count ?? 0
-  const areaHa = geometry ? geometryAreaHectares(geometry) : 0
 
   return (
     <button
@@ -40,10 +47,12 @@ export function ProjectFolderCard({
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <AoiFootprint
-          geometry={geometry}
-          title={`${project.name} area of interest`}
-          className="h-16 w-16 shrink-0 transition-transform group-hover:scale-[1.04]"
+        <FolderKanban
+          aria-hidden
+          className={cn(
+            "h-12 w-12 shrink-0 transition-transform group-hover:scale-[1.04]",
+            selected ? "text-primary" : "text-muted-foreground"
+          )}
         />
       </div>
       <div className="mt-auto min-w-0 px-3.5 py-3">
@@ -55,16 +64,15 @@ export function ProjectFolderCard({
           1.4.3. Selected cards therefore use the full-contrast text color
           (9.54:1), which is also the conventional treatment for a selected row.
         */}
-        {/* The outline is normalised to its own bounds and so carries no
-            scale; the area figure is what distinguishes a 20 ha plot from a
-            2000 ha farm. Hectares throughout, the working unit here. */}
         <p
           className={cn(
             "telemetry mt-1 text-[10px]",
             selected ? "text-foreground" : "text-muted-foreground"
           )}
         >
-          {areaHa > 0 ? formatHectares(areaHa) : "No AOI set"}
+          {areas > 0
+            ? `${areas} ${areas === 1 ? "area" : "areas"}`
+            : "No areas drawn"}
         </p>
         <p
           className={cn(
@@ -72,9 +80,8 @@ export function ProjectFolderCard({
             selected ? "text-foreground" : "text-muted-foreground"
           )}
         >
-          {runs} {runs === 1 ? "analysis" : "analyses"} · {overlays}{" "}
+          {runs} {runs === 1 ? "run" : "runs"} · {overlays}{" "}
           {overlays === 1 ? "overlay" : "overlays"}
-          {project.label ? ` · ${project.label}` : ""}
         </p>
       </div>
     </button>

@@ -154,7 +154,7 @@ export const RULES: readonly ContrastRule[] = [
     fg: "accentQuiet",
     on: ["ink", "surface", "surfaceRaised", "accentDim"],
     min: 4.5,
-    why: "the accent where it is read rather than filled; accentDim is the plate the whiteboard band lights a chosen value on, and the label sits on it",
+    why: "the accent where it is read rather than filled; accentDim is the plate the studio band lights a chosen value on, and the label sits on it",
   },
   {
     fg: "accent",
@@ -164,7 +164,7 @@ export const RULES: readonly ContrastRule[] = [
   },
   {
     /*
-     * `ink` joins the surfaces here because the whiteboard's run band paints
+     * `ink` joins the surfaces here because the studio's run band paints
      * itself in ink and draws every editable control as a boxed field on it.
      * A boundary that was only ever checked against the two panel surfaces was
      * the fill's own 1.33 against ink -- which is the reason the band read as

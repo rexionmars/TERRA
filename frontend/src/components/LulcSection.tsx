@@ -1,19 +1,18 @@
 import type { LULCAgreement, LULCAnalysis } from "@/lib/types"
 
-const CALENDAR_NOTES: Record<string, string> = {
-  A: "Wheat → Soybean → Fallow → Oat → Soybean",
-  B: "Wheat → Corn+Soy → Cover crop → Wheat → Corn+Soy",
-  C: "Corn → Soybean → Second-crop corn → Corn → Soybean",
-}
-
+/*
+  A documented crop rotation was shown beside the composition, looked up by area
+  id from a table of three: the embedded examples A, B and C, whose rotations
+  were known because someone had written them down here. Nothing supplies a
+  rotation for a field a user draws, and the examples are gone, so the table
+  answered nothing and the panel it filled never appeared.
+*/
 interface LulcSectionProps {
   lulc: LULCAnalysis
-  areaId?: string
 }
 
-export function LulcSection({ lulc, areaId }: LulcSectionProps) {
+export function LulcSection({ lulc }: LulcSectionProps) {
   const m = lulc.metrics
-  const calendar = areaId ? CALENDAR_NOTES[areaId] : undefined
   const hasCompare = (lulc.pred_vs_ref?.length ?? 0) > 0
 
   return (
@@ -29,11 +28,6 @@ export function LulcSection({ lulc, areaId }: LulcSectionProps) {
             (no classifier)
           </p>
         </div>
-        {calendar && (
-          <p className="rounded-sm border border-border bg-secondary max-w-xs px-2.5 py-1.5 text-[10px] text-muted-foreground">
-            Documented use: {calendar}
-          </p>
-        )}
       </div>
 
       {/* Map + dense 2×4 metrics — never stretch to 8 sparse columns */}

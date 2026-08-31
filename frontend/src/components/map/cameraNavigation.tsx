@@ -23,7 +23,6 @@
  * `r` does both.
  */
 import { useEffect, useRef, useState } from "react"
-import { Compass } from "lucide-react"
 import type { Map as MapLibreMap } from "maplibre-gl"
 
 import { MapBar, MapButton } from "@/components/map/MapChrome"
@@ -128,6 +127,42 @@ export function useCameraNavigation(
  * kind of control, which it is not. A glyph, at the neighbours' measurements,
  * with the name and the three keys on its title.
  */
+/** Where the ground ring is drawn, in the gizmo's own 24-unit box. */
+const GIZMO_C = 12
+const GIZMO_R = 8
+
+/**
+ * The camera, drawn rather than named.
+ *
+ * A COMPASS GLYPH SAID THERE WAS A TILT AND NOT WHAT IT WAS. The control has
+ * always been the way back from a turned camera; what it could not do was
+ * report the camera it was undoing, so a reader who had orbited had to move
+ * the view to find out where they had got to.
+ *
+ * The drawing is an attitude gizmo, in the shape the reference instruments use
+ * -- Earth's navigation ball, an artificial horizon:
+ *
+ *   THE RING IS THE GROUND, seen from where the camera is. Straight down it is
+ *   a circle; laid over towards the horizon it closes into a line. That is not
+ *   a metaphor for pitch, it is the ground plane's actual projection, so
+ *   `ry = r * cos(pitch)` is the whole of it.
+ *
+ *   NORTH RIDES THE RING. At bearing 0 it is at the top; turning the camera
+ *   carries it around, and the ring's compression carries it up and down with
+ *   the tilt. One mark rather than four cardinals: at 22px the other three are
+ *   three more things to resolve and none of them says anything the first does
+ *   not.
+ *
+ *   THE BAR IS THE VIEWER and does not move. Everything else turns under it,
+ *   which is what makes the gizmo read as the world moving rather than the
+ *   instrument.
+ *
+ * DRAWN BY MUTATION, NOT BY RENDER. The hook above returns a boolean and its
+ * comment says why: bearing and pitch change on every frame of a drag, and
+ * putting them in React state would re-render this bar sixty times a second
+ * for two numbers nothing else reads. The angles are written straight onto the
+ * two elements that carry them, from the map's own events.
+ */
 export function CameraControls({
   map,
   level,
@@ -137,8 +172,39 @@ export function CameraControls({
   level: boolean
   className?: string
 }) {
+  const groundRef = useRef<SVGEllipseElement | null>(null)
+  const northRef = useRef<SVGGElement | null>(null)
+
+  useEffect(() => {
+    if (!map) return
+    const paint = () => {
+      const p = (map.getPitch() * Math.PI) / 180
+      const b = (map.getBearing() * Math.PI) / 180
+      const flat = Math.cos(p)
+      groundRef.current?.setAttribute("ry", `${GIZMO_R * flat}`)
+      /*
+        North's screen direction is the bearing turned the other way -- the
+        camera faces east and north goes to the left -- and its vertical half
+        is compressed by the same cosine the ring is, so the mark sits ON the
+        ring at every tilt rather than crossing it.
+      */
+      const x = GIZMO_C - GIZMO_R * Math.sin(b)
+      const y = GIZMO_C - GIZMO_R * Math.cos(b) * flat
+      northRef.current?.setAttribute("transform", `translate(${x} ${y})`)
+    }
+    paint()
+    const subs = [map.on("rotate", paint), map.on("pitch", paint), map.on("move", paint)]
+    return () => {
+      for (const s of subs) s.unsubscribe()
+    }
+    // `level` is in the list because this control unmounts when the view is
+    // square: coming back, the refs are new elements and have to be painted.
+  }, [map, level])
+
   // Nothing to square when the view is already square. The control appears
-  // with the tilt it undoes, and leaves with it.
+  // with the tilt it undoes, and leaves with it -- and an instrument that
+  // reports a level camera by being absent is the same statement the compass
+  // made, now with something to say for the whole time it is up.
   if (level) return null
   return (
     <MapBar className={className}>
@@ -146,7 +212,53 @@ export function CameraControls({
         label="Level, facing north (r). n faces north, u looks straight down."
         onClick={() => map?.easeTo({ bearing: 0, pitch: 0, duration: 400 })}
       >
-        <Compass className="size-4" strokeWidth={1.5} />
+        {/*
+          22px inside the 34px control, where the compass was 16. The button
+          keeps its measurements -- MapChrome states what a control of a
+          different size costs in a stack of them -- and the extra six pixels
+          come out of the padding, which is what a drawing with three parts
+          needs and a single glyph did not.
+        */}
+        <svg
+          viewBox="0 0 24 24"
+          className="size-[1.375rem]"
+          fill="none"
+          aria-hidden="true"
+        >
+          {/* The bezel: the instrument's own edge, fixed. */}
+          <circle
+            cx={GIZMO_C}
+            cy={GIZMO_C}
+            r={GIZMO_R + 2.5}
+            stroke="currentColor"
+            strokeOpacity={0.35}
+            strokeWidth={1}
+          />
+          {/* The ground, closing towards a line as the camera lies down. */}
+          <ellipse
+            ref={groundRef}
+            cx={GIZMO_C}
+            cy={GIZMO_C}
+            rx={GIZMO_R}
+            ry={GIZMO_R}
+            stroke="currentColor"
+            strokeWidth={1.25}
+          />
+          {/* North, riding it. Filled, so it reads at this size. */}
+          <g ref={northRef}>
+            <circle r={1.9} fill="rgb(var(--p-accent))" />
+          </g>
+          {/*
+            The viewer. Last, so it is over the ring at every tilt: it is the
+            one part of the picture that is not in the world.
+          */}
+          <path
+            d={`M ${GIZMO_C - 4.5} ${GIZMO_C} H ${GIZMO_C + 4.5}`}
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+        </svg>
       </MapButton>
     </MapBar>
   )

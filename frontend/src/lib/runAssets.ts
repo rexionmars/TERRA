@@ -424,6 +424,28 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
 
   for (const item of compositionList(i)) {
     if (!item.overlay_uri) continue
+    /*
+      A RUN'S ASSETS ARE WHAT THE RUN PRODUCED, and a project's compositions
+      are not that.
+
+      The gallery is loaded whole when a project is activated -- see
+      activateProject, where the comment says so deliberately: the compositions
+      stay one press away in Overlay Tools. `scopeCompositionsToView` then
+      decides which of them are RELEVANT, and its rule for one with no run of
+      its own is whether its extent meets the AOI on screen.
+
+      That is the right rule for Overlay Tools and the wrong one here. Drawing
+      an area over ground a stored composition happens to cover brought it into
+      scope, and this loop listed it under the current run as though that run
+      had made it -- a composition appearing from nothing, attributed to a run
+      that never produced one.
+
+      One with a `runId` has already been filtered to this run by the scoping.
+      One without is the project's, and it earns a place here only by being the
+      composition actually on the map, which is the case this list exists to
+      report.
+    */
+    if (!item.runId && item.id !== i.composition?.id) continue
     const title = item.title || item.label || "Composition"
     const bandOrIndex =
       item.kind === "index" && item.index

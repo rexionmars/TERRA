@@ -1,19 +1,5 @@
 export namespace analysis {
 	
-	export class GeoJSONGeometry {
-	    type: string;
-	    coordinates: number[][][];
-	
-	    static createFrom(source: any = {}) {
-	        return new GeoJSONGeometry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.type = source["type"];
-	        this.coordinates = source["coordinates"];
-	    }
-	}
 	export class Bounds {
 	    lon_min: number;
 	    lat_min: number;
@@ -32,51 +18,6 @@ export namespace analysis {
 	        this.lat_max = source["lat_max"];
 	    }
 	}
-	export class Area {
-	    id: string;
-	    label: string;
-	    kml_name: string;
-	    approximate: boolean;
-	    centroid: number[];
-	    bounds: Bounds;
-	    mapbiomas: string;
-	    geometry: GeoJSONGeometry;
-	
-	    static createFrom(source: any = {}) {
-	        return new Area(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.label = source["label"];
-	        this.kml_name = source["kml_name"];
-	        this.approximate = source["approximate"];
-	        this.centroid = source["centroid"];
-	        this.bounds = this.convertValues(source["bounds"], Bounds);
-	        this.mapbiomas = source["mapbiomas"];
-	        this.geometry = this.convertValues(source["geometry"], GeoJSONGeometry);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
 	export class CanopyAgainstUniform {
 	    cos_zenith: number;
 	    field: number;
@@ -949,8 +890,21 @@ export namespace analysis {
 	}
 	
 	
+	export class GeoJSONGeometry {
+	    type: string;
+	    coordinates: number[][][];
+	
+	    static createFrom(source: any = {}) {
+	        return new GeoJSONGeometry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.coordinates = source["coordinates"];
+	    }
+	}
 	export class CompositeRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -969,7 +923,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -1038,7 +991,6 @@ export namespace analysis {
 		}
 	}
 	export class DataCubeRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -1052,7 +1004,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -3168,6 +3119,7 @@ export namespace analysis {
 		}
 	}
 	export class EnergyModelAnalysis {
+	    run_id?: string;
 	    lon: number;
 	    lat: number;
 	    hourly_years: number;
@@ -3193,6 +3145,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.lon = source["lon"];
 	        this.lat = source["lat"];
 	        this.hourly_years = source["hourly_years"];
@@ -3233,7 +3186,6 @@ export namespace analysis {
 	}
 	
 	export class EnergyModelRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    climatology_years?: number;
 	    hourly_years?: number;
@@ -3260,7 +3212,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EnergyModelRequest(source);
@@ -3268,7 +3220,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.climatology_years = source["climatology_years"];
 	        this.hourly_years = source["hourly_years"];
@@ -3295,7 +3246,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3542,6 +3493,7 @@ export namespace analysis {
 	    }
 	}
 	export class FloodAnalysis {
+	    run_id?: string;
 	    reference_threshold_m: number;
 	    thresholds_m: number[];
 	    drainage_km2: number;
@@ -3569,6 +3521,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.reference_threshold_m = source["reference_threshold_m"];
 	        this.thresholds_m = source["thresholds_m"];
 	        this.drainage_km2 = source["drainage_km2"];
@@ -3616,7 +3569,6 @@ export namespace analysis {
 	
 	
 	export class FloodRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    dem_ids?: string[];
 	    thresholds_m?: number[];
@@ -3627,7 +3579,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FloodRequest(source);
@@ -3635,7 +3587,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.dem_ids = source["dem_ids"];
 	        this.thresholds_m = source["thresholds_m"];
@@ -3646,7 +3597,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3964,7 +3915,6 @@ export namespace analysis {
 	
 	
 	export class LULCRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    mapbiomas_path?: string;
 	
@@ -3974,7 +3924,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.mapbiomas_path = source["mapbiomas_path"];
 	    }
@@ -4200,7 +4149,6 @@ export namespace analysis {
 	
 	
 	export class PredictRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -4213,7 +4161,7 @@ export namespace analysis {
 	    project_id?: string;
 	    label?: string;
 	    run_label?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PredictRequest(source);
@@ -4221,7 +4169,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -4234,7 +4181,7 @@ export namespace analysis {
 	        this.project_id = source["project_id"];
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4664,6 +4611,7 @@ export namespace analysis {
 		}
 	}
 	export class WindAnalysis {
+	    run_id?: string;
 	    lon: number;
 	    lat: number;
 	    grid_cell_centre: number[];
@@ -4686,6 +4634,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.lon = source["lon"];
 	        this.lat = source["lat"];
 	        this.grid_cell_centre = source["grid_cell_centre"];
@@ -4744,6 +4693,7 @@ export namespace analysis {
 	    }
 	}
 	export class SolarSitingAnalysis {
+	    run_id?: string;
 	    classes: SolarSitingClass[];
 	    suitable_no_conflict_ha: number;
 	    suitable_cropland_ha: number;
@@ -4760,6 +4710,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.classes = this.convertValues(source["classes"], SolarSitingClass);
 	        this.suitable_no_conflict_ha = source["suitable_no_conflict_ha"];
 	        this.suitable_cropland_ha = source["suitable_cropland_ha"];
@@ -4836,6 +4787,7 @@ export namespace analysis {
 	    }
 	}
 	export class SolarTerrainAnalysis {
+	    run_id?: string;
 	    poa_min: number;
 	    poa_max: number;
 	    poa_mean: number;
@@ -4864,6 +4816,7 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
 	        this.poa_min = source["poa_min"];
 	        this.poa_max = source["poa_max"];
 	        this.poa_mean = source["poa_mean"];
@@ -5327,7 +5280,6 @@ export namespace analysis {
 	}
 	export class ResearchExportMeta {
 	    model_kind: string;
-	    area_id: string;
 	    aoi_label: string;
 	    polygon_geojson: string;
 	
@@ -5338,7 +5290,6 @@ export namespace analysis {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.model_kind = source["model_kind"];
-	        this.area_id = source["area_id"];
 	        this.aoi_label = source["aoi_label"];
 	        this.polygon_geojson = source["polygon_geojson"];
 	    }
@@ -5349,7 +5300,6 @@ export namespace analysis {
 	
 	
 	export class SolarRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    climatology_years?: number;
 	    hourly_years?: number;
@@ -5358,7 +5308,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarRequest(source);
@@ -5366,7 +5316,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.climatology_years = source["climatology_years"];
 	        this.hourly_years = source["hourly_years"];
@@ -5375,7 +5324,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5400,7 +5349,6 @@ export namespace analysis {
 	
 	
 	export class SolarSitingRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    slope_acceptable_deg?: number;
 	    slope_restrictive_deg?: number;
@@ -5409,7 +5357,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarSitingRequest(source);
@@ -5417,7 +5365,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.slope_acceptable_deg = source["slope_acceptable_deg"];
 	        this.slope_restrictive_deg = source["slope_restrictive_deg"];
@@ -5426,7 +5373,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5451,14 +5398,13 @@ export namespace analysis {
 	
 	
 	export class SolarTerrainRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    hourly_years?: number;
 	    season?: string;
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SolarTerrainRequest(source);
@@ -5466,14 +5412,13 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.hourly_years = source["hourly_years"];
 	        this.season = source["season"];
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5499,7 +5444,6 @@ export namespace analysis {
 	
 	
 	export class SurfaceModel {
-	    run_id?: string;
 	    model_kind: string;
 	    source: string;
 	    native_resolution_m: number;
@@ -5522,7 +5466,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.run_id = source["run_id"];
 	        this.model_kind = source["model_kind"];
 	        this.source = source["source"];
 	        this.native_resolution_m = source["native_resolution_m"];
@@ -5559,12 +5502,9 @@ export namespace analysis {
 		}
 	}
 	export class SurfaceModelRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    aoi_label: string;
 	    run_label: string;
-	    project_id: string;
-	    aoi_id: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SurfaceModelRequest(source);
@@ -5572,12 +5512,9 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.aoi_label = source["aoi_label"];
 	        this.run_label = source["run_label"];
-	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5604,7 +5541,6 @@ export namespace analysis {
 	
 	
 	export class WaterRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    start: string;
 	    end: string;
@@ -5614,7 +5550,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WaterRequest(source);
@@ -5622,7 +5558,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.start = source["start"];
 	        this.end = source["end"];
@@ -5632,7 +5567,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5663,7 +5598,6 @@ export namespace analysis {
 	
 	
 	export class WindRequest {
-	    area_id: string;
 	    polygon_geojson?: GeoJSONGeometry;
 	    record_years?: number;
 	    hub_height_m?: number;
@@ -5673,7 +5607,7 @@ export namespace analysis {
 	    label?: string;
 	    run_label?: string;
 	    project_id?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WindRequest(source);
@@ -5681,7 +5615,6 @@ export namespace analysis {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.area_id = source["area_id"];
 	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
 	        this.record_years = source["record_years"];
 	        this.hub_height_m = source["hub_height_m"];
@@ -5691,7 +5624,7 @@ export namespace analysis {
 	        this.label = source["label"];
 	        this.run_label = source["run_label"];
 	        this.project_id = source["project_id"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5965,6 +5898,34 @@ export namespace store {
 	        this.count = source["count"];
 	    }
 	}
+	export class Area {
+	    id: string;
+	    project_id: string;
+	    user_id: string;
+	    name: string;
+	    polygon_geojson: string;
+	    notes: string;
+	    created_at: string;
+	    updated_at: string;
+	    run_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Area(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.project_id = source["project_id"];
+	        this.user_id = source["user_id"];
+	        this.name = source["name"];
+	        this.polygon_geojson = source["polygon_geojson"];
+	        this.notes = source["notes"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.run_count = source["run_count"];
+	    }
+	}
 	export class BackupCounts {
 	    users: number;
 	    runs: number;
@@ -6042,7 +6003,7 @@ export namespace store {
 	    label?: string;
 	    project_id?: string;
 	    kind?: string;
-	    aoi_id?: string;
+	    area_id?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new InferenceRun(source);
@@ -6066,7 +6027,7 @@ export namespace store {
 	        this.label = source["label"];
 	        this.project_id = source["project_id"];
 	        this.kind = source["kind"];
-	        this.aoi_id = source["aoi_id"];
+	        this.area_id = source["area_id"];
 	    }
 	}
 	export class Preferences {
@@ -6096,9 +6057,8 @@ export namespace store {
 	    notes?: string;
 	    created_at: string;
 	    updated_at: string;
-	    polygon_geojson?: string;
-	    area_id?: string;
-	    label?: string;
+	    last_area_id?: string;
+	    area_count?: number;
 	    run_count?: number;
 	    overlay_count?: number;
 	
@@ -6114,9 +6074,8 @@ export namespace store {
 	        this.notes = source["notes"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
-	        this.polygon_geojson = source["polygon_geojson"];
-	        this.area_id = source["area_id"];
-	        this.label = source["label"];
+	        this.last_area_id = source["last_area_id"];
+	        this.area_count = source["area_count"];
 	        this.run_count = source["run_count"];
 	        this.overlay_count = source["overlay_count"];
 	    }
@@ -6362,6 +6321,77 @@ export namespace store {
 		}
 	}
 	
+	export class StudioMember {
+	    id: string;
+	    studio_id: string;
+	    run_id: string;
+	    position: number;
+	    name?: string;
+	    state_json?: string;
+	    missing?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StudioMember(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.studio_id = source["studio_id"];
+	        this.run_id = source["run_id"];
+	        this.position = source["position"];
+	        this.name = source["name"];
+	        this.state_json = source["state_json"];
+	        this.missing = source["missing"];
+	    }
+	}
+	export class Studio {
+	    id: string;
+	    user_id: string;
+	    project_id?: string;
+	    name: string;
+	    created_at: string;
+	    updated_at: string;
+	    view_json?: string;
+	    members?: StudioMember[];
+	    member_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Studio(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.project_id = source["project_id"];
+	        this.name = source["name"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.view_json = source["view_json"];
+	        this.members = this.convertValues(source["members"], StudioMember);
+	        this.member_count = source["member_count"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class User {
 	    id: string;
 	    email: string;
@@ -6385,74 +6415,6 @@ export namespace store {
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	    }
-	}
-	export class WhiteboardMember {
-	    id: string;
-	    whiteboard_id: string;
-	    run_id: string;
-	    position: number;
-	    name?: string;
-	    state_json?: string;
-	    missing?: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new WhiteboardMember(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.whiteboard_id = source["whiteboard_id"];
-	        this.run_id = source["run_id"];
-	        this.position = source["position"];
-	        this.name = source["name"];
-	        this.state_json = source["state_json"];
-	        this.missing = source["missing"];
-	    }
-	}
-	export class Whiteboard {
-	    id: string;
-	    user_id: string;
-	    name: string;
-	    created_at: string;
-	    updated_at: string;
-	    view_json?: string;
-	    members?: WhiteboardMember[];
-	    member_count: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new Whiteboard(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.user_id = source["user_id"];
-	        this.name = source["name"];
-	        this.created_at = source["created_at"];
-	        this.updated_at = source["updated_at"];
-	        this.view_json = source["view_json"];
-	        this.members = this.convertValues(source["members"], WhiteboardMember);
-	        this.member_count = source["member_count"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 
 }

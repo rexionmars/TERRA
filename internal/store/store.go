@@ -68,19 +68,24 @@ type InferenceRun struct {
 	// column existed, which are all classifications; readers normalise it.
 	Kind string `json:"kind,omitempty"`
 	/*
-		The catalogued area this run was made over, when there was one.
+		The ground this run was made over: a row in `areas`.
 
 		A run has always carried its polygon, which says WHERE it was made and
-		not WHICH area it belongs to. The board needs the second: a drawn area
-		and the runs over it are one subject, and without a link between them
-		the same ground appears twice -- once as the drawing and once as each
-		run -- with nothing saying they are the same place.
+		not WHICH area it belongs to. The board needs the second: an area and
+		the runs over it are one subject, and without a link between them the
+		same ground appears twice -- once as the area and once as each run --
+		with nothing saying they are the same place.
 
-		Empty for a run over an example area, over an imported shape that was
-		never catalogued, and on every row written before this column existed.
-		A reader that finds it empty falls back to comparing geometry.
+		There was a second field beside this one, AoiID, holding the same idea
+		against the old catalogue: it named an entry in a JSON array inside
+		preferences, so it could name one that had been deleted and no query
+		could resolve it. It is gone, and so is its column. Two names for one
+		thing is the confusion this change exists to remove.
+
+		Empty is possible -- a run restored from a shape that was never made an
+		area -- and a reader that finds it empty falls back to geometry.
 	*/
-	AoiID string `json:"aoi_id,omitempty"`
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // Run kinds. A classification comes from a model; a descriptive product such as
@@ -114,17 +119,33 @@ const (
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.
 type Project struct {
-	ID             string `json:"id"`
-	UserID         string `json:"user_id"`
-	Name           string `json:"name"`
-	Notes          string `json:"notes,omitempty"`
-	CreatedAt      string `json:"created_at"`
-	UpdatedAt      string `json:"updated_at"`
-	PolygonGeoJSON string `json:"polygon_geojson,omitempty"`
-	AreaID         string `json:"area_id,omitempty"`
-	Label          string `json:"label,omitempty"`
-	RunCount       int    `json:"run_count,omitempty"`
-	OverlayCount   int    `json:"overlay_count,omitempty"`
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	Name      string `json:"name"`
+	Notes     string `json:"notes,omitempty"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	/*
+		The ground the reader was last on in this project.
+
+		A CURSOR, NOT A PROPERTY. It says where to resume, and a project whose
+		last area has been deleted simply resumes nowhere -- DeleteArea clears
+		it rather than leaving it pointing at a row that is gone.
+
+		It replaces three columns that tried to give the project a geometry of
+		its own: polygon_geojson, area_id and label. One shape per project
+		cannot describe a reader working several fields, and it was written
+		from whatever happened to be on the map, so a project holding a dozen
+		grounds showed a single line naming one of them. Areas carry the shapes
+		now, and this carries only which of them was open.
+	*/
+	LastAreaID string `json:"last_area_id,omitempty"`
+	// How many grounds this project holds, beside the runs and compositions
+	// under them. Counted by the listing query, so the hub can size a project
+	// without loading its areas one card at a time.
+	AreaCount    int `json:"area_count,omitempty"`
+	RunCount     int `json:"run_count,omitempty"`
+	OverlayCount int `json:"overlay_count,omitempty"`
 }
 
 // ProjectOverlay is a persisted composition (or similar) asset under a project.
@@ -273,7 +294,7 @@ below it. The number says how far migrate has taken a database; it does not by
 itself say which columns a table has, and addColumns explains why those two are
 not the same question here.
 */
-const schemaVersion = 2
+const schemaVersion = 5
 
 // userVersion reads the version SQLite keeps in the database header.
 func (s *Store) userVersion() (int, error) {
@@ -346,6 +367,244 @@ func (s *Store) addColumns(adds []columnAdd) error {
 }
 
 /*
+dropColumn removes one column, and says nothing when there is none to remove.
+
+The table is asked rather than the version trusted, for the reason addColumns
+gives at length: databases in the field carry columns their recorded version
+does not admit to, and the reverse holds too -- a file created fresh by this
+build never had aoi_id, so the drop would fail on the only files that are
+already correct.
+
+Anything else propagates. A drop that fails for a real reason leaves a column
+this build believes is gone, which is the disagreement the drop exists to end.
+*/
+func (s *Store) dropColumn(table, column string) error {
+	var n int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`, table, column,
+	).Scan(&n); err != nil {
+		return fmt.Errorf("inspect %s: %w", table, err)
+	}
+	if n == 0 {
+		return nil
+	}
+	// Identifiers cannot be bound; both arguments here are literals from this
+	// file, never from a caller outside the package.
+	if _, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column)); err != nil {
+		return fmt.Errorf("drop %s.%s: %w", table, column, err)
+	}
+	return nil
+}
+
+/*
+renameTable and renameColumn move a name that has changed, and say nothing when
+there is nothing under the old one.
+
+Asked of the schema rather than of the version, for the reason dropColumn and
+addColumns both give: a file created fresh by this build already carries the new
+names, so an unconditional rename would fail on exactly the files that are
+already correct.
+
+A FILE CAN HOLD BOTH, and it is not a hypothetical: every schema block here is
+CREATE TABLE IF NOT EXISTS, so any build that ran those before the rename was
+written left an empty `studios` beside a populated `whiteboards`. That happened
+on this author's own database during the rename.
+
+An EMPTY destination is dropped and the rename proceeds. It was made by a CREATE
+and holds nothing, so there is nothing to weigh against the rows in the source;
+refusing instead would leave the work unreachable behind a store that will not
+open, which is worse than either name.
+
+A destination with ROWS is refused. Two populated tables for one thing is a
+question about which is the work, and this cannot answer it -- so it says which
+pair is involved and stops, rather than picking one.
+*/
+func (s *Store) renameTable(from, to string) error {
+	var have, want int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name = ?`, from,
+	).Scan(&have); err != nil {
+		return fmt.Errorf("inspect %s: %w", from, err)
+	}
+	if have == 0 {
+		return nil
+	}
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name = ?`, to,
+	).Scan(&want); err != nil {
+		return fmt.Errorf("inspect %s: %w", to, err)
+	}
+	if want > 0 {
+		var rows int
+		if err := s.db.QueryRow(
+			fmt.Sprintf("SELECT COUNT(1) FROM %s", to),
+		).Scan(&rows); err != nil {
+			return fmt.Errorf("inspect %s rows: %w", to, err)
+		}
+		if rows > 0 {
+			/*
+				THE MIRROR CASE: an EMPTY SOURCE beside a populated destination.
+
+				An older build opening a migrated database recreates the legacy
+				table from its own schema, empty, and leaves it there. The next
+				run of a current build then finds both names, refused to choose,
+				and the store did not open at all -- so a rename that had
+				already succeeded made the whole application unreachable, with
+				every row still in place under the new name.
+
+				There is nothing to weigh here. The source holds no work, so
+				dropping it loses nothing and is the same judgement the empty
+				DESTINATION already gets below. Only two populated tables are a
+				question this cannot answer.
+			*/
+			var carried int
+			if err := s.db.QueryRow(
+				fmt.Sprintf("SELECT COUNT(1) FROM %s", from),
+			).Scan(&carried); err != nil {
+				return fmt.Errorf("inspect %s rows: %w", from, err)
+			}
+			if carried == 0 {
+				if _, err := s.db.Exec("DROP TABLE " + from); err != nil {
+					return fmt.Errorf("drop empty %s: %w", from, err)
+				}
+				return nil
+			}
+			return fmt.Errorf(
+				"cannot rename %s to %s: both exist and %s holds %d row(s)", from, to, to, rows)
+		}
+		if _, err := s.db.Exec("DROP TABLE " + to); err != nil {
+			return fmt.Errorf("drop empty %s: %w", to, err)
+		}
+	}
+	// Identifiers cannot be bound; both arguments are literals from this file.
+	if _, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", from, to)); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", from, to, err)
+	}
+	return nil
+}
+
+func (s *Store) renameColumn(table, from, to string) error {
+	var have, want int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`, table, from,
+	).Scan(&have); err != nil {
+		return fmt.Errorf("inspect %s: %w", table, err)
+	}
+	if have == 0 {
+		return nil
+	}
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM pragma_table_info(?) WHERE name = ?`, table, to,
+	).Scan(&want); err != nil {
+		return fmt.Errorf("inspect %s: %w", table, err)
+	}
+	if want > 0 {
+		return fmt.Errorf("cannot rename %s.%s to %s: both exist", table, from, to)
+	}
+	if _, err := s.db.Exec(
+		fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", table, from, to),
+	); err != nil {
+		return fmt.Errorf("rename %s.%s to %s: %w", table, from, to, err)
+	}
+	return nil
+}
+
+/*
+discardPreAreaData empties the domain tables once, when a database written
+before areas existed is opened by a build that has them.
+
+THIS IS NOT A MIGRATION AND DOES NOT PRETEND TO BE. A run written before this
+version names its ground through inference_runs.aoi_id, which pointed into a
+JSON array in preferences and was validated by nothing; a project names one
+ground of its own; a board names runs and no project. There is no rule that
+turns those into a project holding areas holding runs without inventing which
+area a run was of, and a wrong answer there is worse than an empty database,
+because it reads as work rather than as absence.
+
+What survives is the account: users, sessions and preferences. Losing a theme
+and a window layout would be a second, unnecessary loss, and none of that is
+domain data.
+
+THE COPY IS TAKEN BEFORE THE FIRST DELETE, and the order is the whole safety
+property. VACUUM INTO is the same mechanism the backup path already trusts, and
+it cannot run inside a transaction -- which is also why the deletes come after
+it rather than sharing one. The asset directories are moved aside rather than
+removed, following the convention RestoreBackup uses for the same reason: the
+way back from an irreversible step should be a rename, not a restore.
+
+An ExportBackup archive was the alternative and is the wrong tool: it strips
+password hashes and session tokens, which is right for a file a user mails
+themselves and wrong for a rollback the application takes on its own, and it
+re-compresses every asset when the assets are exactly what the renames keep.
+*/
+func (s *Store) discardPreAreaData() error {
+	/*
+		Nothing to discard is the common case, and it must cost nothing.
+
+		Every fresh install reaches this step -- a database created a moment ago
+		reports version 0 -- and so does every launch after a user has emptied
+		their own work. Without this the first of those would leave a snapshot
+		file and a runs.replaced-* directory beside a database that never held a
+		row, which reads as damage where there was none.
+	*/
+	var rows int
+	if err := s.db.QueryRow(
+		`SELECT (SELECT COUNT(1) FROM inference_runs) + (SELECT COUNT(1) FROM projects)`,
+	).Scan(&rows); err != nil {
+		return fmt.Errorf("count what would be discarded: %w", err)
+	}
+	if rows == 0 {
+		return nil
+	}
+
+	stamp := time.Now().UTC().Format("20060102-150405")
+
+	snapshot := filepath.Join(s.dataDir, dbFileName+".replaced-"+stamp)
+	if _, err := s.db.Exec(`VACUUM INTO ?`, snapshot); err != nil {
+		return fmt.Errorf("copy the database before discarding it: %w", err)
+	}
+
+	// Moved, not deleted, and a failure here stops the discard: assets whose
+	// rows are about to go are unreachable afterwards, so losing the move means
+	// losing them for good.
+	for _, dir := range []string{"runs", "projects"} {
+		src := filepath.Join(s.dataDir, dir)
+		if _, err := os.Stat(src); err != nil {
+			continue
+		}
+		if err := os.Rename(src, src+".replaced-"+stamp); err != nil {
+			return fmt.Errorf("set aside %s: %w", dir, err)
+		}
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// Children first, so a failure part way leaves no row pointing at one that
+	// is already gone.
+	for _, stmt := range []string{
+		`DELETE FROM studio_members`,
+		`DELETE FROM studios`,
+		`DELETE FROM project_overlays`,
+		`DELETE FROM inference_runs`,
+		`DELETE FROM areas`,
+		`DELETE FROM projects`,
+		// The catalogue that is becoming a table. Left in place it would keep
+		// handing parsePreferenceExtras a list of areas that reference nothing.
+		`UPDATE preferences SET extras_json =
+		   COALESCE(json_remove(extras_json, '$.saved_aois', '$.active_aoi_id',
+		                        '$.active_project_id', '$.aoi_label'), '{}')`,
+	} {
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("discard pre-area data: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
+/*
 migrate brings the database up to schemaVersion.
 
 The CREATE TABLE IF NOT EXISTS blocks run every time. Each states what it wants
@@ -357,6 +616,45 @@ func (s *Store) migrate() error {
 	at, err := s.userVersion()
 	if err != nil {
 		return err
+	}
+	/*
+		THE NAME THIS THING IS CALLED. `whiteboard` became `studio`.
+
+		FIRST, BEFORE ANY CREATE TABLE. The schema blocks below are
+		`CREATE TABLE IF NOT EXISTS studios`, so running them against a file
+		that still holds `whiteboards` would make an empty table beside the
+		populated one -- and the rename would then fail with "both exist",
+		correctly, having been made impossible a few lines earlier. Every
+		reader would find the empty one.
+
+		Not gated on the version, like the drops below and for the same reason:
+		a number can be raised without the work, and a file that slipped through
+		such a window is one no later gate reopens. The helpers ask the schema,
+		so on a database already renamed this is three queries and nothing else.
+
+		The index names go untouched. An index is not addressed by name from
+		anywhere in this package, so renaming them would be churn with no
+		reader; the CREATE INDEX IF NOT EXISTS statements below add the new
+		names, and the old ones are dropped here so a file does not carry two
+		indexes over one column.
+	*/
+	if err := s.renameTable("whiteboards", "studios"); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	if err := s.renameTable("whiteboard_members", "studio_members"); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	if err := s.renameColumn("studio_members", "whiteboard_id", "studio_id"); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	for _, idx := range []string{
+		"idx_whiteboards_user_updated",
+		"idx_whiteboard_members_whiteboard",
+		"idx_whiteboards_project",
+	} {
+		if _, err := s.db.Exec("DROP INDEX IF EXISTS " + idx); err != nil {
+			return fmt.Errorf("migrate: drop index %s: %w", idx, err)
+		}
 	}
 	schema := `
 CREATE TABLE IF NOT EXISTS users (
@@ -414,8 +712,16 @@ CREATE INDEX IF NOT EXISTS idx_runs_user_created ON inference_runs(user_id, crea
 			// rows predate water and are all classifications.
 			{"inference_runs", "kind",
 				`ALTER TABLE inference_runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'classification'`},
-			// The catalogued area a run belongs to. Existing rows carry no link and
-			// resolve by geometry instead; see InferenceRun.AoiID.
+			/*
+				The catalogued area a run belonged to, against the JSON-array
+				catalogue that preceded the `areas` table.
+
+				ADDED HERE AND DROPPED AT VERSION 4, which reads as pointless
+				and is not: a database at version 0 has to pass through the
+				statements of every version between, and version 2 wrote this
+				column. Removing this line would leave the drop below with
+				nothing to drop on exactly the files that need it most.
+			*/
 			{"inference_runs", "aoi_id",
 				`ALTER TABLE inference_runs ADD COLUMN aoi_id TEXT NOT NULL DEFAULT ''`},
 		}); err != nil {
@@ -451,6 +757,11 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 	if _, err := s.db.Exec(projectSchema); err != nil {
 		return fmt.Errorf("migrate projects: %w", err)
 	}
+	// After projects, because an area references one. Unconditional like its
+	// neighbours; see areas.go for what the table is and why it exists.
+	if _, err := s.db.Exec(areaSchema); err != nil {
+		return fmt.Errorf("migrate areas: %w", err)
+	}
 	/*
 		Which run a composition was made under.
 
@@ -479,8 +790,99 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 			return fmt.Errorf("migrate overlay run index: %w", err)
 		}
 	}
-	if _, err := s.db.Exec(whiteboardSchema); err != nil {
-		return fmt.Errorf("migrate whiteboards: %w", err)
+	if _, err := s.db.Exec(studioSchema); err != nil {
+		return fmt.Errorf("migrate studios: %w", err)
+	}
+	/*
+		Ownership becomes a chain: a project holds areas, an area holds runs, and
+		a board is the runs of one project arranged.
+
+		The discard comes FIRST, and not only for safety. These columns are added
+		NOT NULL DEFAULT '' because SQLite refuses ADD COLUMN NOT NULL without a
+		default; the empty string is then unreachable only because no row that
+		could carry it survives the line above. Written the other way round, every
+		pre-existing run would report itself as belonging to an area with no id.
+
+		This block ALTERs studios, so it sits after the CREATE that
+		guarantees the table -- the same order the gated blocks above keep.
+	*/
+	if at < 3 {
+		if err := s.discardPreAreaData(); err != nil {
+			return fmt.Errorf("migrate to areas: %w", err)
+		}
+		if err := s.addColumns([]columnAdd{
+			{"inference_runs", "area_id",
+				`ALTER TABLE inference_runs ADD COLUMN area_id TEXT NOT NULL DEFAULT ''`},
+			{"project_overlays", "area_id",
+				`ALTER TABLE project_overlays ADD COLUMN area_id TEXT NOT NULL DEFAULT ''`},
+			{"studios", "project_id",
+				`ALTER TABLE studios ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`},
+			// Which ground the reader was last on in this project. Per-project
+			// state, so it belongs on the project rather than growing the
+			// preferences blob this change exists to shrink.
+			{"projects", "last_area_id",
+				`ALTER TABLE projects ADD COLUMN last_area_id TEXT NOT NULL DEFAULT ''`},
+		}); err != nil {
+			return fmt.Errorf("migrate area links: %w", err)
+		}
+		for _, stmt := range []string{
+			`CREATE INDEX IF NOT EXISTS idx_runs_area_created ON inference_runs(area_id, created_at DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_project_overlays_area ON project_overlays(area_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_studios_project ON studios(project_id, updated_at DESC)`,
+		} {
+			if _, err := s.db.Exec(stmt); err != nil {
+				return fmt.Errorf("migrate area indexes: %w", err)
+			}
+		}
+	}
+	/*
+		THE COLUMNS THIS BUILD HAS REMOVED. Not gated on the version, and that
+		is the point.
+
+		WHAT GATING THEM COST, observed rather than imagined. `schemaVersion`
+		was raised to 5 in one edit and the drop it stood for written in the
+		next; a dev build compiled in between, opened the database, found
+		at = 4 < 5, had no step to run, and recorded 5. The gate then closed
+		over three columns that had never been dropped and could never be
+		dropped again -- the file said the work was done and nothing would
+		reconsider it. That is not a mistake in the drops. It is what a gate on
+		a number does when the number can be raised without the work.
+
+		addColumns already argues this for the other direction: "the table is
+		asked rather than the version trusted, because on every database
+		already in the field the two disagree." dropColumn asks the table too,
+		so running these every time is a handful of pragma_table_info queries
+		at Open and a file that ends in the shape this build believes it has,
+		whatever its version says.
+
+		WHAT EACH DROP IS FOR:
+
+		inference_runs.aoi_id named an entry in the JSON-array catalogue that
+		preceded the `areas` table. area_id replaced it.
+
+		projects.polygon_geojson, .area_id and .label gave a project a geometry
+		of its own, written from whatever was on the map while it was open and
+		read back as the project's "AOI" -- one shape for a workspace holding
+		as many grounds as a reader draws. last_area_id replaced all three with
+		the only question they were still answering: which ground to resume on.
+
+		Dropped rather than left unwritten, because a column nothing writes
+		always reads its default and will disagree with the table one day --
+		the same argument areas.go makes for having no position column. SQLite
+		has dropped columns since 3.35 and refuses on an indexed one; none of
+		these four is indexed. The failure is not swallowed: a build that
+		believes a column is gone while it is still there is exactly the
+		disagreement being removed.
+	*/
+	for _, c := range []struct{ table, column string }{
+		{"inference_runs", "aoi_id"},
+		{"projects", "polygon_geojson"},
+		{"projects", "area_id"},
+		{"projects", "label"},
+	} {
+		if err := s.dropColumn(c.table, c.column); err != nil {
+			return fmt.Errorf("migrate: %w", err)
+		}
 	}
 	/*
 		Written last, so a failure anywhere above leaves the version where it
@@ -955,12 +1357,12 @@ func (s *Store) SaveRun(run InferenceRun) (*InferenceRun, error) {
 		`INSERT INTO inference_runs
 		 (id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson, status,
 		  summary_json, overlay_relpath, n_dates, result_json, assets_relpath, label, project_id,
-		  kind, aoi_id)
+		  kind, area_id)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.UserID, run.CreatedAt, run.ModelKind, run.PeriodStart, run.PeriodEnd,
 		run.PolygonGeoJSON, run.Status, run.SummaryJSON, nullIfEmpty(run.OverlayRelPath), run.NDates,
 		run.ResultJSON, nullIfEmpty(run.AssetsRelPath), run.Label, nullIfEmpty(run.ProjectID),
-		run.Kind, run.AoiID,
+		run.Kind, run.AreaID,
 	)
 	if err != nil {
 		return nil, err
@@ -979,7 +1381,8 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,'')
+		        COALESCE(project_id,''), COALESCE(kind,'classification'),
+		        COALESCE(area_id,'')
 		 FROM inference_runs WHERE user_id = ?
 		 ORDER BY created_at DESC LIMIT ?`,
 		userID, limit,
@@ -994,7 +1397,7 @@ func (s *Store) ListRuns(userID string, limit int) ([]InferenceRun, error) {
 		if err := rows.Scan(
 			&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 			&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
+			&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AreaID,
 		); err != nil {
 			return nil, err
 		}
@@ -1063,13 +1466,14 @@ func (s *Store) GetRun(userID, runID string) (*InferenceRun, error) {
 		`SELECT id, user_id, created_at, model_kind, period_start, period_end, polygon_geojson,
 		        status, summary_json, COALESCE(overlay_relpath,''), n_dates,
 		        COALESCE(result_json,'{}'), COALESCE(assets_relpath,''), COALESCE(label,''),
-		        COALESCE(project_id,''), COALESCE(kind,'classification'), COALESCE(aoi_id,'')
+		        COALESCE(project_id,''), COALESCE(kind,'classification'),
+		        COALESCE(area_id,'')
 		 FROM inference_runs WHERE id = ? AND user_id = ?`,
 		runID, userID,
 	).Scan(
 		&r.ID, &r.UserID, &r.CreatedAt, &r.ModelKind, &r.PeriodStart, &r.PeriodEnd,
 		&r.PolygonGeoJSON, &r.Status, &r.SummaryJSON, &r.OverlayRelPath, &r.NDates,
-		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AoiID,
+		&r.ResultJSON, &r.AssetsRelPath, &r.Label, &r.ProjectID, &r.Kind, &r.AreaID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -1096,13 +1500,46 @@ func (s *Store) DeleteRun(userID, runID string) error {
 	if err != nil {
 		return err
 	}
-	res, err := s.db.Exec(`DELETE FROM inference_runs WHERE id = ? AND user_id = ?`, runID, userID)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(`DELETE FROM inference_runs WHERE id = ? AND user_id = ?`, runID, userID)
 	if err != nil {
 		return err
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return ErrNotFound
+	}
+	/*
+		The references this row leaves behind, which it used to leave dangling.
+
+		A board member naming a deleted run survived as a row pointing at
+		nothing. GetStudio compensates -- it LEFT JOINs and reports the gap
+		as Missing -- and that reporting stays, because a board saved with a run
+		that is later deleted genuinely has a gap and a reader should be told.
+		What does not need to stay is the row: the member is removed here, so the
+		gap is reported once, on the board that was saved with it, rather than
+		accumulating in a table nothing prunes.
+
+		An overlay's run_id is CLEARED rather than the overlay deleted. The
+		composition is still a real raster of real ground; what it loses is the
+		run it was made under, and its own comment already defines empty as
+		"belongs to the project" rather than "belongs to nothing".
+	*/
+	if _, err := tx.Exec(`DELETE FROM studio_members WHERE run_id = ?`, runID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(
+		`UPDATE project_overlays SET run_id = NULL WHERE run_id = ?`, runID,
+	); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	_ = os.RemoveAll(s.RunsDir(runID))
 	if run.ProjectID != "" {

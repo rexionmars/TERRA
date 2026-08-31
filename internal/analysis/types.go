@@ -1,17 +1,5 @@
 package analysis
 
-// Area is an embedded study-area polygon shown in the area selector.
-type Area struct {
-	ID          string          `json:"id"`
-	Label       string          `json:"label"`
-	KMLName     string          `json:"kml_name"`
-	Approximate bool            `json:"approximate"`
-	Centroid    []float64       `json:"centroid"`
-	Bounds      Bounds          `json:"bounds"`
-	MapBiomas   string          `json:"mapbiomas"`
-	Geometry    GeoJSONGeometry `json:"geometry"`
-}
-
 // Bounds is the lon/lat bounding box of an area or raster.
 type Bounds struct {
 	LonMin float64 `json:"lon_min"`
@@ -29,9 +17,8 @@ type GeoJSONGeometry struct {
 // PredictRequest is the request issued from the frontend. Imagery is fetched
 // on demand from the Sentinel-2 STAC catalog (cloud COGs); no local download.
 type PredictRequest struct {
-	// AreaID selects an embedded area (A/B/C). Mutually exclusive with PolygonGeoJSON.
-	AreaID string `json:"area_id"`
-	// PolygonGeoJSON is an explicit geometry (used when AreaID is empty).
+	// PolygonGeoJSON is the ground to run over, and the only way a request
+	// names one.
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	// Start and End bound the acquisition window (YYYY-MM-DD).
 	Start string `json:"start"`
@@ -54,11 +41,11 @@ type PredictRequest struct {
 	Label string `json:"label,omitempty"`
 	// RunLabel is the inference run title (should be run-…). Generated if empty.
 	RunLabel string `json:"run_label,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // sidecarRequest is the JSON contract written to the Python sidecar stdin.
@@ -398,14 +385,12 @@ type LULCAnalysis struct {
 
 // LULCRequest selects an embedded area (or explicit polygon + MapBiomas path).
 type LULCRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	MapBiomasPath  string           `json:"mapbiomas_path,omitempty"`
 }
 
 // DataCubeRequest lists Sentinel-2 scenes for an AOI before Classify.
 type DataCubeRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	Start          string           `json:"start"`
 	End            string           `json:"end"`
@@ -435,7 +420,6 @@ type DataCubeResult struct {
 
 // CompositeRequest renders an RGB composite or spectral index for one scene.
 type CompositeRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson"`
 	Start          string           `json:"start"`
 	End            string           `json:"end"`
@@ -815,14 +799,12 @@ type ProgressEvent struct {
 // ResearchExportMeta accompanies a PredictResult when building a research ZIP.
 type ResearchExportMeta struct {
 	ModelKind      string `json:"model_kind"`
-	AreaID         string `json:"area_id"`
 	AoiLabel       string `json:"aoi_label"`
 	PolygonGeoJSON string `json:"polygon_geojson"` // raw GeoJSON geometry or Feature
 }
 
 // WaterRequest selects an AOI and period for surface water / flood mapping.
 type WaterRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	Start          string           `json:"start"`
 	End            string           `json:"end"`
@@ -834,11 +816,11 @@ type WaterRequest struct {
 	Label     string `json:"label,omitempty"`
 	RunLabel  string `json:"run_label,omitempty"`
 	ProjectID string `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // WaterDate is one acquisition in the surface-water series.
@@ -924,7 +906,6 @@ type waterSidecarPayload struct {
 // SolarRequest selects an AOI for solar resource analysis. The radiation grid
 // is 1 degree, so the request resolves to the cell the AOI centroid falls in.
 type SolarRequest struct {
-	AreaID           string           `json:"area_id"`
 	PolygonGeoJSON   *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	ClimatologyYears int              `json:"climatology_years,omitempty"`
 	HourlyYears      int              `json:"hourly_years,omitempty"`
@@ -937,11 +918,11 @@ type SolarRequest struct {
 	Label     string `json:"label,omitempty"`
 	RunLabel  string `json:"run_label,omitempty"`
 	ProjectID string `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // SolarMonth is one calendar month of the radiation climatology, as daily means.
@@ -1051,7 +1032,6 @@ type SolarAnalysis struct {
 
 // SolarTerrainRequest maps plane-of-array irradiation over the AOI terrain.
 type SolarTerrainRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	HourlyYears    int              `json:"hourly_years,omitempty"`
 	// "annual", "winter", "summer", "winter_crop", "anisotropy" for the
@@ -1062,11 +1042,11 @@ type SolarTerrainRequest struct {
 	Label     string `json:"label,omitempty"`
 	RunLabel  string `json:"run_label,omitempty"`
 	ProjectID string `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // SolarRenderScale is the colour domain an overlay was drawn on.
@@ -1096,6 +1076,18 @@ type SolarRenderScale struct {
 // has no spatial structure at AOI scale; the irradiation reaching an inclined
 // surface does, because the surface is terrain.
 type SolarTerrainAnalysis struct {
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing, and
+	// until this field existed the withdrawal had nowhere to go: the frontend
+	// read every one of these runs as unrecorded, and the studio's live area
+	// reported the sentinel "current" for it. Same field and same meaning as
+	// WaterAnalysis.RunID, which states it at length.
+	//
+	// A line comment and not a block: frontend/scripts/check-types.ts parses
+	// these structs and refuses a "/*" it cannot read a JSON name from,
+	// rather than skipping the field in silence.
+	RunID        string  `json:"run_id,omitempty"`
 	POAMin       float64 `json:"poa_min"`
 	POAMax       float64 `json:"poa_max"`
 	POAMean      float64 `json:"poa_mean"`
@@ -1176,7 +1168,6 @@ type solarTerrainSidecarPayload struct {
 
 // SolarSitingRequest selects an AOI and the siting conventions to apply.
 type SolarSitingRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	// Conventions, not verified legal restrictions. Zero applies the default,
 	// and the response repeats what was used.
@@ -1187,11 +1178,11 @@ type SolarSitingRequest struct {
 	Label               string  `json:"label,omitempty"`
 	RunLabel            string  `json:"run_label,omitempty"`
 	ProjectID           string  `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // SolarSitingClass is one siting class with its extent.
@@ -1215,6 +1206,18 @@ type SolarSitingThresholds struct {
 
 // SolarSitingAnalysis is the photovoltaic siting map.
 type SolarSitingAnalysis struct {
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing, and
+	// until this field existed the withdrawal had nowhere to go: the frontend
+	// read every one of these runs as unrecorded, and the studio's live area
+	// reported the sentinel "current" for it. Same field and same meaning as
+	// WaterAnalysis.RunID, which states it at length.
+	//
+	// A line comment and not a block: frontend/scripts/check-types.ts parses
+	// these structs and refuses a "/*" it cannot read a JSON name from,
+	// rather than skipping the field in silence.
+	RunID   string             `json:"run_id,omitempty"`
 	Classes []SolarSitingClass `json:"classes"`
 	// Reported apart and never summed: a pixel that is geometrically fine but
 	// currently produces soybean carries a trade-off a binary map would hide.

@@ -3,7 +3,7 @@
  *
  * The widget every dense editor uses where a web page would reach for a range
  * input, and it is not a matter of taste. In `components/ui` rather than with
- * the whiteboard because the product panels need it too: a slider in a 15rem
+ * the studio because the product panels need it too: a slider in a 15rem
  * column spends the width of the column on a value it cannot show. A slider spends a whole row on one
  * value and still cannot express it: the number it holds is never shown unless
  * a second element is added to show it, its precision is bounded by how many
@@ -163,7 +163,7 @@ export function NumberField({
         "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
         /*
           A boundary, not only a fill. The fill alone measures 1.33 against the
-          whiteboard band's ink and 1.13 in light, so the field had no visible
+          studio band's ink and 1.13 in light, so the field had no visible
           edge in either theme -- it read as text, which is what it was reported
           as. line-strong clears 4.11 and 3.82 there, and inset-ring is an inset
           box-shadow, so it costs no layout width.

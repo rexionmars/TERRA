@@ -44,7 +44,7 @@ export interface StudioWorkspace {
    * their width, the canopy the whole board -- and it is already listed in the
    * type menu under that editor's own glyph. Wearing the same one makes the
    * tab and the area it leads to legible as one subject, which is the argument
-   * `BoardRunBar` makes for reusing the board tree's glyphs on its tools.
+   * `BoardRunGraph` makes for reusing the board tree's glyphs on its tools.
    */
   icon: LucideIcon
   /** Built fresh per call: a shared tree would be mutated across workspaces. */

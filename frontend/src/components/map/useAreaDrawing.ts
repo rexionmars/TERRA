@@ -2,10 +2,11 @@
  * Drawing one area on a MapLibre map, with terra-draw.
  *
  * A HOOK BECAUSE THERE ARE TWO SURFACES. The work map draws an area, and so
- * does the board's own modal, which exists so an area can be drawn without
- * leaving the board. Under Leaflet the second imported the first's control;
- * with the control now being a store, a mode and four handlers, a second copy
- * would be a second answer to what "one area" means.
+ * does the studio's globe, which is how an area is drawn without leaving the
+ * board. The second used to be a dialog holding a map of its own; it is a
+ * planet in the arrangement now, and the reason for the hook did not change
+ * with it -- the control is a store, a mode and four handlers, and a second
+ * copy would be a second answer to what "one area" means.
  *
  * WHAT IT CARRIES that terra-draw does not:
  *
@@ -35,6 +36,36 @@ import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter"
 
 import type { GeoJSONGeometry } from "@/lib/types"
 
+/**
+ * The adapter, with terra-draw's cursor keywords pointed at the pointer set.
+ *
+ * terra-draw writes a cursor straight onto the canvas -- `canvas.style.cursor =
+ * "crosshair"` -- which outranks every rule, so drawing an area kept the
+ * platform cursor while the map under it had changed. Its own `cursors` option
+ * cannot help: that type is a closed union of CSS keywords and will not take a
+ * variable.
+ *
+ * So the translation happens here, at the one place the value is written. The
+ * keyword becomes `var(--cursor-<keyword>, <keyword>)`, and var()'s own
+ * fallback does the rest -- a keyword the set does not draw, `wait` or
+ * `n-resize`, resolves to itself rather than to nothing. That fallback is why
+ * there is no list of covered keywords to keep in step with cursors.css.
+ */
+class PointerSetAdapter extends TerraDrawMapLibreGLAdapter<MapLibreMap> {
+  private readonly canvasOf: () => HTMLElement
+
+  constructor(options: { map: MapLibreMap }) {
+    super(options)
+    this.canvasOf = () => options.map.getCanvas()
+  }
+
+  setCursor(cursor: Parameters<TerraDrawMapLibreGLAdapter<MapLibreMap>["setCursor"]>[0]) {
+    const style = this.canvasOf().style
+    if (cursor === "unset") style.removeProperty("cursor")
+    else style.cursor = `var(--cursor-${cursor}, ${cursor})`
+  }
+}
+
 /** What the pointer is doing: nothing, laying vertices, or moving them. */
 export type DrawMode = "idle" | "draw" | "edit"
 
@@ -59,6 +90,15 @@ export function useAreaDrawing({
   stop: () => void
 } {
   const drawRef = useRef<TerraDraw | null>(null)
+  /**
+   * True while THIS hook is writing the store to match the shape held outside.
+   *
+   * `draw.clear()` and `draw.addFeatures()` raise the same `change` events a
+   * hand does, and the listener below cannot tell them apart -- so a sync would
+   * report itself back out as an edit. Emitting during one is how a shape
+   * arriving from elsewhere came to erase itself.
+   */
+  const syncing = useRef(false)
   const [mode, setMode] = useState<DrawMode>("idle")
   const onDrawnRef = useRef(onPolygonDrawn)
   onDrawnRef.current = onPolygonDrawn
@@ -66,7 +106,7 @@ export function useAreaDrawing({
   useEffect(() => {
     if (!map || !ready) return
     const draw = new TerraDraw({
-      adapter: new TerraDrawMapLibreGLAdapter({ map }),
+      adapter: new PointerSetAdapter({ map }),
       modes: [
         new TerraDrawPolygonMode({
           styles: {
@@ -100,25 +140,90 @@ export function useAreaDrawing({
     }
 
     const emit = () => {
+      /*
+        THE SYNC IS NOT AN EDIT, and this guard is what says so.
+
+        Two surfaces run this hook at once -- the work map and the studio's
+        globe, both mounted, both bound to the one area the application holds.
+        Finishing a shape on either one sets that area, which arrives at the
+        OTHER as a polygon its store does not have; the effect below then
+        clears the store to replace it, `clear()` raises `change` with
+        "delete", and this listener answered a synchronisation with
+        `onPolygonDrawn(null)`. The shape that had just been drawn was erased
+        by the surface that was only being told about it.
+
+        It was reachable before the globe drew, through search, import and
+        adopt -- any path that sets the area from outside a mounted map -- and
+        it is constant now. The rule is narrow: while this hook is writing the
+        store to match what it was given, the store has nothing to report.
+      */
+      if (syncing.current) return
       const polys = draw
         .getSnapshot()
         .filter((f) => f.geometry.type === "Polygon")
+      /*
+        ONE AREA IS THIS HOOK'S INVARIANT, so two polygons is a state it is
+        PASSING THROUGH and never a state to report from.
+
+        Two surfaces run this hook at once -- the work map and the studio's
+        globe -- and the sync effect below puts the area the application holds
+        into each store. Drawing on one of them therefore starts from a store
+        that already has a polygon in it: the synced copy, plus the new one.
+
+        `finish` prunes the extra before it reports, so the finish path is
+        never in this state. The `change` listener is: terra-draw raises
+        "update" in select mode while both are present, this emitted, and the
+        line below takes the LAST polygon in the snapshot -- which in that
+        transient pair is not reliably the one being drawn. The application
+        received a geometry it had not asked about and filed it as a new area.
+
+        The trace that found it read `emit len=179 polys=2` immediately before
+        a catalog entry appeared, and `polys=1` on the report that followed.
+
+        Guarding on the geometry was the wrong fix and is why two attempts at
+        it changed nothing: the two reports carry DIFFERENT shapes, so no
+        comparison between them could ever have matched.
+      */
+      if (polys.length > 1) return
       const last = polys[polys.length - 1]
       onDrawnRef.current(last ? (last.geometry as GeoJSONGeometry) : null)
     }
 
     draw.on("finish", (id) => {
-      // By id from the event, not by position in the snapshot: the store also
-      // holds the closing point and the snapping point, and "everything but
-      // the last" removed whichever of those happened to sort last.
-      const others = draw
-        .getSnapshot()
-        .filter((f) => f.id !== id)
-        .map((f) => f.id!)
-      if (others.length) draw.removeFeatures(others)
+      /*
+        ONE FINISH, ONE REPORT, and the guard is what makes that true.
+
+        Everything this handler does to the store is housekeeping: dropping the
+        closing and snapping points the polygon mode leaves behind, and handing
+        the feature to the select mode. Each of those raises the same `change`
+        events a hand raises -- `removeFeatures` raises "delete" -- so the
+        listener below answered them, and one finished polygon was reported
+        two and three times.
+
+        Downstream that is not a repeated no-op. `handlePolygonDrawn` writes an
+        area per report, and the store names each one against what the project
+        held when the write arrived: three areas called "drawn 2", identical
+        geometry, three ids. The board then listed each of them.
+
+        The report is made after the guard is released, deliberately: it is the
+        one thing here that IS news.
+      */
+      syncing.current = true
+      try {
+        // By id from the event, not by position in the snapshot: the store also
+        // holds the closing point and the snapping point, and "everything but
+        // the last" removed whichever of those happened to sort last.
+        const others = draw
+          .getSnapshot()
+          .filter((f) => f.id !== id)
+          .map((f) => f.id!)
+        if (others.length) draw.removeFeatures(others)
+        setMode("idle")
+        draw.setMode("select")
+      } finally {
+        syncing.current = false
+      }
       emit()
-      setMode("idle")
-      draw.setMode("select")
     })
 
     draw.on("change", (_ids, type) => {
@@ -145,15 +250,27 @@ export function useAreaDrawing({
       ? (current[current.length - 1].geometry as GeoJSONGeometry)
       : null
     if (JSON.stringify(currentGeom) === JSON.stringify(polygon)) return
-    draw.clear()
-    if (polygon && polygon.type === "Polygon") {
-      draw.addFeatures([
-        {
-          type: "Feature",
-          properties: { mode: "polygon" },
-          geometry: polygon as never,
-        } as never,
-      ])
+    /*
+      Set for the whole replacement rather than per call, because it is the
+      pair that has to be silent: cleared and not yet refilled is a state this
+      hook passes THROUGH, and reporting from inside it would report an empty
+      store as an area that was removed. Restored in a finally so a throw in
+      addFeatures cannot leave the surface permanently unable to report.
+    */
+    syncing.current = true
+    try {
+      draw.clear()
+      if (polygon && polygon.type === "Polygon") {
+        draw.addFeatures([
+          {
+            type: "Feature",
+            properties: { mode: "polygon" },
+            geometry: polygon as never,
+          } as never,
+        ])
+      }
+    } finally {
+      syncing.current = false
     }
   }, [polygon])
 
@@ -165,7 +282,19 @@ export function useAreaDrawing({
     mode,
     setMode,
     clear: () => {
-      drawRef.current?.clear()
+      /*
+        The caller's clear IS an edit -- the reader pressed the bin -- so it
+        reports, and it reports EXPLICITLY rather than through the change
+        listener: the guard above silences that path, and a removal nobody
+        hears is a shape that stays in the application after it has left the
+        screen.
+      */
+      syncing.current = true
+      try {
+        drawRef.current?.clear()
+      } finally {
+        syncing.current = false
+      }
       onDrawnRef.current(null)
       setMode("idle")
     },

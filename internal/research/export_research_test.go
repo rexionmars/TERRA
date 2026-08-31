@@ -56,7 +56,6 @@ func TestBuildResearchPackZIP(t *testing.T) {
 
 	meta := analysis.ResearchExportMeta{
 		ModelKind:      "temporal_transformer",
-		AreaID:         "",
 		AoiLabel:       "Test AOI",
 		PolygonGeoJSON: `{"type":"Polygon","coordinates":[[[-45,-10],[-44,-10],[-44,-9],[-45,-9],[-45,-10]]]}`,
 	}

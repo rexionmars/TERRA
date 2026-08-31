@@ -198,14 +198,41 @@ export function ProfilePage({
   const savePrefsTimer = useRef<number | null>(null)
   const prefsDraftRef = useRef({ theme: "dark" })
 
+  /*
+    THREE JOBS, THREE EFFECTS. They were one, and the one ran whenever any of
+    the three had reason to -- which is how refreshing the run list came to
+    overwrite what was being typed into the display name field.
+
+    Gating them apart is what fixes it, and the stable `goAuth` in lib/auth.tsx
+    is what stops the loop that made it constant rather than occasional. Either
+    alone would leave the other half standing: a stable callback still lets an
+    avatar upload discard a half-typed name, and split effects still spin if
+    the callback they depend on is rebuilt on every context recomputation.
+  */
+
+  /** Signed out with settings open: there is nothing here to show. */
   useEffect(() => {
-    if (!user) {
-      goAuth()
-      return
-    }
-    setName(user.display_name)
+    if (!user) goAuth()
+  }, [user, goAuth])
+
+  /*
+    The stored name SEEDS the field, and replaces what is in it only when the
+    stored name itself changes.
+
+    Keyed on the string rather than on `user`, which is a fresh object after
+    every save -- of the name, of an avatar, of anything. Keyed on the object,
+    uploading a photo mid-edit would have reverted the half-typed name to the
+    one on disk.
+  */
+  const storedName = user?.display_name ?? ""
+  useEffect(() => {
+    setName(storedName)
+  }, [storedName])
+
+  /* Once, on arrival. `refreshRuns` is stable, so this is a mount effect. */
+  useEffect(() => {
     void refreshRuns()
-  }, [user, goAuth, refreshRuns])
+  }, [refreshRuns])
 
   useEffect(() => {
     if (!prefs) return
@@ -1099,7 +1126,7 @@ export function ProfilePage({
                   focused={focusedSetting === `telemetry.${figure.key}`}
                   onFocus={() => setFocusedSetting(`telemetry.${figure.key}`)}
                 >
-                  <label className="flex cursor-pointer items-start gap-2.5">
+                  <label className="flex items-start gap-2.5">
                     <input
                       type="checkbox"
                       className={cn("mt-0.5 shrink-0", focusRing)}
@@ -1148,6 +1175,35 @@ export function ProfilePage({
             className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4"
             style={{ borderColor: "var(--border)" }}
           >
+            {/*
+              THE MARK, NOT THE ICON, AND THEY ARE TWO DIFFERENT IMAGES. The
+              icon is the wordless circle in frontend/public/terra-logo.png,
+              drawn by the title bar and the splash and generated into the
+              .icns and the .ico -- it is what the operating system shows when
+              it has 32 px to show it in. The mark is the hexagonal badge
+              carrying TERRA and EARTH OBSERVATION, which is what the README
+              opens with and what the LaTeX manual references. This paragraph
+              is the project speaking about itself as a project, to a reader
+              who might go and look at the repository, so it is the mark that
+              belongs beside it.
+
+              Copied to public/ rather than reached for across the repository:
+              docs/ is not under the Vite root and would need fs.allow widened
+              to serve from it. The icon is already carried twice for the same
+              reason -- build/appicon.png and public/terra-logo.png are one
+              file in two places -- so this follows a path the project already
+              takes rather than opening a new one.
+
+              alt="" because the badge says TERRA and the sentence beside it
+              says TERRA, and a screen reader announcing the name twice reads
+              as two things rather than one. The text carries the meaning; the
+              image is the signature on it.
+            */}
+            <img
+              src="/terra-mark.png"
+              alt=""
+              className="h-10 w-auto shrink-0 self-start object-contain"
+            />
             <p className="min-w-0 flex-1 text-meta leading-relaxed text-muted-foreground">
               TERRA is open source. If it is useful to you, a star helps other
               people find it, and sponsoring pays for the time that goes into it.
@@ -1156,7 +1212,7 @@ export function ProfilePage({
               <button
                 type="button"
                 onClick={() => BrowserOpenURL(REPO_URL)}
-                className={btnGhost}
+                className={`${btnGhost} cursor-pointer`}
               >
                 <Star className="h-3 w-3" />
                 Star on GitHub
@@ -1164,7 +1220,7 @@ export function ProfilePage({
               <button
                 type="button"
                 onClick={() => BrowserOpenURL(SPONSOR_URL)}
-                className={btnGhost}
+                className={`${btnGhost} cursor-pointer`}
               >
                 <Heart className="h-3 w-3" />
                 Sponsor

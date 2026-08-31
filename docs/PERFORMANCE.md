@@ -126,7 +126,7 @@ letting the one component that wants it subscribe:
 
 `AnimatePresence` also carried `mode="wait"`, under which the leaving screen had
 to finish its 240ms exit before the arriving one was allowed to mount — and the
-mount is the expensive half, since a screen here builds Leaflet, its overlays
+mount is the expensive half, since a screen here builds MapLibre, its overlays
 and sometimes the studio.
 
 **Still open:** the screens unmount and remount on every change. That is the
@@ -148,7 +148,7 @@ settings page is the order to reach for them in:
    draws nothing. First, always: it is what says whether the studio is the cause
    at all. **It is the one figure that costs something** — it keeps the page
    animating for as long as the studio is open.
-2. **Board frame rate** — the board draws on demand, so a long interval on a
+2. **Studio frame rate** — the studio draws on demand, so a long interval on a
    still scene is idling, not a fault.
 3. **Frame work** — the only figure that accuses the scene itself.
 4. **Pointer cost** — pointer handlers run outside the animation callback, so an

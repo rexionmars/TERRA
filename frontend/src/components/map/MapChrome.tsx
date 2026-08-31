@@ -7,7 +7,7 @@
  * around it.
  *
  * ONE COPY, because there were three -- the work map's stack, the board's
- * drawing modal, and the camera's own control, which had drifted into a
+ * drawing surface, and the camera's own control, which had drifted into a
  * labelled pill twice the height of its neighbours. OverlayToolsPanel records
  * what that costs: "a narrower one beside them reads as a different kind of
  * control", and a wider one reads as a different kind of control that is also

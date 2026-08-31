@@ -1,5 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/*
+  Android's pointer set, generated from vendor/aosp-pointers by
+  scripts/build-cursors.ts. It re-declares the Tailwind cursor utilities with an
+  image in front of the keyword, so call sites are untouched and an engine that
+  refuses the image falls back to what it had. Imported here rather than left to
+  a component so the rules land unlayered, above Tailwind's utilities layer.
+*/
+@import "./cursors.css";
 
 /*
   TERRA design system — docs/DESIGN.md
@@ -397,18 +405,44 @@
   }
 
   /*
-    The pointer, for the same reason and in the same place.
+    NO POINTER ON A BUTTON. The hand means a link, and it is spent if it means
+    anything a hand can click.
 
-    Neither browsers nor Tailwind put a pointer on a button, so 134 buttons drew
-    the arrow while three labels drew the hand -- equally clickable things saying
-    different things. Declared once rather than per control, so the next button
-    added inherits the convention instead of needing to remember it.
+    It went on 227 buttons and role=button here, to settle a real inconsistency
+    -- 134 buttons drew the arrow while three labels drew the hand, equally
+    clickable things saying different things. That inconsistency had two exits
+    and this took the web's. The other one is taken now, for two reasons that
+    both arrived after that decision.
 
-    Checkbox and radio labels only: a label wrapping a text field wants the text
-    caret, and giving every label a hand would have taken it away.
+    This is a desktop window, not a page: it has its own title bar, and every
+    toolkit the window sits among -- AppKit, Windows, GTK, Qt -- draws a button
+    under the arrow and keeps the hand for a link. And the pointers are now
+    Android's, whose set assumes the same split. Keeping the web convention
+    while wearing a native frame and a native pointer set is the one arrangement
+    that agrees with nothing.
 
-    Utilities still win, which is how the drag handles keep ew-resize, the swipe
-    seam keeps col-resize, and the pan viewport keeps grab.
+    The count is the rest of the argument. There are 227 buttons and 3 links, so
+    a hand on everything clickable distinguished 227 things from nothing at all.
+    On the three it distinguishes them from 227, and it says the specific thing
+    it says everywhere else: this leaves the application. The buttons lose
+    nothing -- a button already reads as a button from its shape, its border and
+    its hover.
+
+    THE THREE ARE MARKED AT THE CALL SITE, with .cursor-pointer, because there
+    is no selector for them: every link here is a <button> calling
+    BrowserOpenURL, since an anchor in this WKWebView opens nothing.
+
+    Disabled keeps not-allowed below, which was never the web's convention to
+    borrow -- it is what every toolkit draws on a dead control.
+
+    THE ARROW IS DECLARED, not left to inheritance. `html, body` in cursors.css
+    already sets it, and an inherited value is the weakest thing in the cascade
+    -- it loses to any declaration at all, the user agent's included. Where a UA
+    stylesheet says `cursor: default` on a control, the keyword wins and that
+    control draws the PLATFORM arrow while everything around it draws this one.
+    Dropping the pointer declaration is what exposed that: the old rule outranked
+    the UA and hid it. Declaring the arrow puts the same weight behind it that
+    the pointer had, so the whole surface answers from one set.
   */
   button:not(:disabled),
   summary,
@@ -418,14 +452,33 @@
   [role="option"],
   label:has(input[type="checkbox"]:not(:disabled)),
   label:has(input[type="radio"]:not(:disabled)) {
-    cursor: pointer;
+    cursor: var(--cursor-default);
+  }
+
+  /*
+    The caret, for the same reason as the arrow above: the user agent declares
+    one on a text field, so these were the last controls still answering from
+    the platform rather than from the set. Listed by type rather than as `input`
+    -- a checkbox, a radio and a range are not text and take the arrow.
+
+    Disabled still wins below: those selectors carry the same weight as these
+    and come later.
+  */
+  textarea,
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"] {
+    cursor: var(--cursor-text);
   }
 
   button:disabled,
   select:disabled,
   input:disabled,
   [aria-disabled="true"] {
-    cursor: not-allowed;
+    cursor: var(--cursor-not-allowed);
   }
   html,
   body,
@@ -774,13 +827,76 @@ pre,
   -webkit-user-select: text;
 }
 
+/*
+  MapLibre paints its own cursors, from its stylesheet rather than from anything
+  here, so every map surface kept the platform cursor while the rest of the
+  interface had changed.
+
+  SPECIFICITY IS NOT WHY. The broad rule on `button, a, [role=button]` above
+  sits in @layer base, and maplibre-gl.css arrives unlayered through a component
+  import. An unlayered rule beats a layered one whatever the selectors say, so
+  no weight added there would have reached a map control. These rules are
+  unlayered too, and match maplibre's own selectors one for one.
+
+  The canvas pair is what a hand touches most -- grab over the map, grabbing
+  while dragging it. The rest are the controls, the popup and the markers.
+*/
+.maplibregl-canvas-container.maplibregl-interactive {
+  cursor: var(--cursor-grab);
+}
+
+.maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: var(--cursor-grabbing);
+}
+
+.maplibregl-canvas-container.maplibregl-interactive.maplibregl-track-pointer {
+  cursor: var(--cursor-pointer);
+}
+
+.maplibregl-crosshair,
+.maplibregl-crosshair .maplibregl-interactive,
+.maplibregl-crosshair .maplibregl-interactive:active {
+  cursor: var(--cursor-crosshair);
+}
+
+.maplibregl-ctrl-group button,
+.maplibregl-popup-close-button {
+  cursor: var(--cursor-default);
+}
+
+.maplibregl-ctrl-group button.maplibregl-ctrl-compass {
+  cursor: var(--cursor-grab);
+}
+
+.maplibregl-ctrl-group button.maplibregl-ctrl-compass:active {
+  cursor: var(--cursor-grabbing);
+}
+
+.maplibregl-ctrl button:disabled {
+  cursor: var(--cursor-not-allowed);
+}
+
+/*
+  The two that are links, and keep the hand for it: both open a page in the
+  system browser. The zoom buttons and the popup's close take the arrow above,
+  under the same convention as every other button here.
+*/
+a.maplibregl-ctrl-logo,
+.maplibregl-ctrl-attrib-button {
+  cursor: var(--cursor-pointer);
+}
+
+.maplibregl-marker-draggable {
+  cursor: var(--cursor-grab);
+}
+
 /* Map swipe (imagery / prediction) — the handle sits above the map canvas */
 .map-swipe-handle {
   touch-action: none;
   user-select: none;
   /* It only moves on one axis. Left as the inherited arrow it read as a
      decoration sitting on the seam rather than as the control that moves it. */
-  cursor: col-resize;
+  cursor: var(--cursor-col-resize);
 }
 
 /* AOI name chip — glued to contour edge, rotation applied inline */

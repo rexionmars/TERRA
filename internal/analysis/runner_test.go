@@ -35,7 +35,15 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-func TestNewRunnerListAreasAndModelDir(t *testing.T) {
+// The paths a runner resolves from its environment.
+//
+// It also asserted the three embedded areas -- that ListAreas found A, B and C,
+// that each carried a closed polygon and sane bounds, and that loadArea refused
+// an id that was not one of them. Those areas are gone: a run is over the
+// polygon it was given, and offering a second way to name a ground was one of
+// the duplications this change removes. What is left here is what the runner
+// still resolves.
+func TestNewRunnerResolvesItsPaths(t *testing.T) {
 	root := repoRoot(t)
 	t.Setenv("TERRA_APP_DIR", root)
 	t.Setenv("TERRA_MODEL_DIR", "")
@@ -51,35 +59,6 @@ func TestNewRunnerListAreasAndModelDir(t *testing.T) {
 	}
 	if r.PythonPath() != "python3" {
 		t.Fatalf("PythonPath=%s want python3", r.PythonPath())
-	}
-
-	areas := r.ListAreas()
-	if len(areas) != 3 {
-		t.Fatalf("ListAreas len=%d want 3", len(areas))
-	}
-	ids := map[string]bool{}
-	for _, a := range areas {
-		ids[a.ID] = true
-		if a.Geometry.Type != "Polygon" {
-			t.Fatalf("area %s geometry type=%s", a.ID, a.Geometry.Type)
-		}
-		if len(a.Geometry.Coordinates) == 0 || len(a.Geometry.Coordinates[0]) < 4 {
-			t.Fatalf("area %s has incomplete polygon", a.ID)
-		}
-		if a.Bounds.LonMax <= a.Bounds.LonMin || a.Bounds.LatMax <= a.Bounds.LatMin {
-			t.Fatalf("area %s has invalid bounds: %+v", a.ID, a.Bounds)
-		}
-	}
-	for _, id := range []string{"A", "B", "C"} {
-		if !ids[id] {
-			t.Fatalf("missing area %s", id)
-		}
-		if _, ok := r.loadArea(id); !ok {
-			t.Fatalf("loadArea(%s) failed", id)
-		}
-	}
-	if _, ok := r.loadArea("Z"); ok {
-		t.Fatal("loadArea(Z) should fail")
 	}
 }
 

@@ -44,7 +44,6 @@ type Runner struct {
 	pythonPath string // Python interpreter (.venv/bin/python or TERRA_PYTHON)
 	sidecar    string // path to sidecar/infer.py
 	modelDir   string // path to the trained model directory
-	areasDir   string // path to embedded area GeoJSONs
 }
 
 func hasSidecar(dir string) bool {
@@ -162,7 +161,6 @@ func NewRunner(appDir, configuredPython string) (*Runner, error) {
 	python := resolvePython(appDir, repoRoot, configuredPython)
 
 	sidecar := filepath.Join(appDir, "sidecar", "infer.py")
-	areasDir := filepath.Join(appDir, "areas")
 
 	// Model directory resolution (in order): TERRA_MODEL_DIR, the bundled
 	// model/ directory inside the app (self-contained repo), or the legacy
@@ -187,7 +185,6 @@ func NewRunner(appDir, configuredPython string) (*Runner, error) {
 		pythonPath: python,
 		sidecar:    sidecar,
 		modelDir:   modelDir,
-		areasDir:   areasDir,
 	}
 	return r, nil
 }
@@ -254,14 +251,6 @@ func (r *Runner) ModelDir() string {
 	return r.modelDir
 }
 
-// AreasDir returns the resolved directory of embedded area GeoJSONs.
-func (r *Runner) AreasDir() string {
-	if r == nil {
-		return ""
-	}
-	return r.areasDir
-}
-
 // RepoRoot returns the resolved repository root, which is where the legacy
 // MapBiomas rasters are looked up.
 func (r *Runner) RepoRoot() string {
@@ -269,34 +258,6 @@ func (r *Runner) RepoRoot() string {
 		return ""
 	}
 	return r.repoRoot
-}
-
-// ListAreas loads the embedded area GeoJSONs (A/B/C).
-func (r *Runner) ListAreas() []Area {
-	areas := []Area{}
-	for _, id := range []string{"A", "B", "C"} {
-		path := filepath.Join(r.areasDir, id+".geojson")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var a Area
-		if err := json.Unmarshal(data, &a); err != nil {
-			continue
-		}
-		areas = append(areas, a)
-	}
-	return areas
-}
-
-// loadArea returns the embedded area by id, or false if missing.
-func (r *Runner) loadArea(id string) (Area, bool) {
-	for _, a := range r.ListAreas() {
-		if a.ID == id {
-			return a, true
-		}
-	}
-	return Area{}, false
 }
 
 // mapbiomasPath returns the absolute path to a MapBiomas raster by file name.
@@ -340,30 +301,28 @@ func (r *Runner) Predict(ctx context.Context, req PredictRequest) (*PredictResul
 		prithviMode = "pixel"
 	}
 
-	// Resolve polygon and MapBiomas path. Embedded areas (A/B/C) use the
-	// validated PR tiles and their MapBiomas reference; custom polygons leave the
-	// tile filter empty so the STAC catalog returns whichever tile covers the
-	// area, and have no MapBiomas reference (soja retention unavailable).
-	var polygon *GeoJSONGeometry
-	var mbPath string
-	tiles := req.Tiles
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-		mbPath = r.mapbiomasPath(area.MapBiomas)
-		if len(tiles) == 0 {
-			tiles = []string{"T22JBT", "T21JZN"}
-		}
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-		// tiles stays empty -> automatic tile selection in the sidecar.
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	/*
+		A run is over the polygon it was given, and there is no second way in.
+
+		This resolved either an embedded area -- A, B or C -- or a polygon. The
+		embedded ones pinned two validated Parana tiles and a local MapBiomas
+		raster; a drawn polygon got neither, and the comment here recorded that
+		as "soja retention unavailable".
+
+		Neither is a loss now. The tile filter left empty is what the STAC
+		catalog wants: it returns whichever tile covers the ground, which is
+		right for every field and was only ever right for those three by
+		coincidence. And the MapBiomas reference is resolved by the sidecar from
+		the polygon -- terra/mapbiomas.py falls back to fetching the Brazil COG
+		window, and the classifier checks polygon_in_brazil before asking -- so
+		the local raster was a shortcut, not the capability.
+	*/
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon := req.PolygonGeoJSON
+	tiles := req.Tiles
+	mbPath := ""
 
 	workDir, err := os.MkdirTemp("", "terra-run-")
 	if err != nil {
@@ -531,20 +490,11 @@ func (r *Runner) AnalyzeLULC(ctx context.Context, req LULCRequest) (*LULCAnalysi
 
 	var polygon *GeoJSONGeometry
 	var mbPath string
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-		mbPath = r.mapbiomasPath(area.MapBiomas)
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-		mbPath = req.MapBiomasPath // optional; sidecar fetches Brazil COG if empty
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
+	mbPath = req.MapBiomasPath // optional; sidecar fetches Brazil COG if empty
 	// mbPath may be empty for custom polygons — Python fetches MapBiomas on demand.
 
 	workDir, err := os.MkdirTemp("", "terra-lulc-")
@@ -602,21 +552,10 @@ func (r *Runner) ListDataCube(ctx context.Context, req DataCubeRequest) (*DataCu
 
 	var polygon *GeoJSONGeometry
 	tiles := req.Tiles
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-		if len(tiles) == 0 {
-			tiles = []string{"T22JBT", "T21JZN"}
-		}
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-cube-")
 	if err != nil {
@@ -679,21 +618,10 @@ func (r *Runner) RenderComposite(ctx context.Context, req CompositeRequest) (*Co
 
 	var polygon *GeoJSONGeometry
 	tiles := req.Tiles
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-		if len(tiles) == 0 {
-			tiles = []string{"T22JBT", "T21JZN"}
-		}
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	stretch := req.StretchPct
 	if len(stretch) != 2 {
@@ -952,18 +880,10 @@ func (r *Runner) AnalyzeSurfaceModel(
 	}
 
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-surface-")
 	if err != nil {
@@ -1021,18 +941,10 @@ func (r *Runner) AnalyzeWater(ctx context.Context, req WaterRequest) (*WaterAnal
 	}
 
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	maxCloud := req.MaxCloud
 	if maxCloud <= 0 {
@@ -1340,18 +1252,10 @@ func (r *Runner) AnalyzeSolar(ctx context.Context, req SolarRequest) (*SolarAnal
 	}
 
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-solar-")
 	if err != nil {
@@ -1507,18 +1411,10 @@ func (r *Runner) AnalyzeSolarTerrain(ctx context.Context, req SolarTerrainReques
 		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
 	}
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-solar-terrain-")
 	if err != nil {
@@ -1578,18 +1474,10 @@ func (r *Runner) AnalyzeSolarSiting(ctx context.Context, req SolarSitingRequest)
 		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
 	}
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-solar-siting-")
 	if err != nil {
@@ -1660,18 +1548,10 @@ func (r *Runner) AnalyzeEnergyModel(ctx context.Context, req EnergyModelRequest)
 	}
 
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-energy-model-")
 	if err != nil {
@@ -1864,18 +1744,10 @@ func (r *Runner) AnalyzeWind(ctx context.Context, req WindRequest) (*WindAnalysi
 	}
 
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-wind-")
 	if err != nil {
@@ -1991,18 +1863,10 @@ func (r *Runner) AnalyzeFlood(ctx context.Context, req FloodRequest) (*FloodAnal
 	}
 
 	var polygon *GeoJSONGeometry
-	if req.AreaID != "" {
-		area, ok := r.loadArea(req.AreaID)
-		if !ok {
-			return nil, fmt.Errorf("unknown area: %s", req.AreaID)
-		}
-		geom := area.Geometry
-		polygon = &geom
-	} else if req.PolygonGeoJSON != nil {
-		polygon = req.PolygonGeoJSON
-	} else {
-		return nil, fmt.Errorf("no area or polygon provided")
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
 	}
+	polygon = req.PolygonGeoJSON
 
 	workDir, err := os.MkdirTemp("", "terra-flood-")
 	if err != nil {

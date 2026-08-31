@@ -24,7 +24,7 @@ import (
 //
 // What it does NOT hold, and why it is worth saying: the methods the frontend
 // calls are in app_analysis.go, app_runs.go, app_storage.go, app_session.go,
-// app_projects.go and app_whiteboards.go. This file held all of them, 67
+// app_projects.go and app_studios.go. This file held all of them, 67
 // declarations over seven subjects, and a reader looking for how a run is
 // saved had to find it among sign-in and window management.
 

@@ -6,7 +6,9 @@ import {
   Download,
   FolderOpen,
   ChevronDown,
+  ChevronRight,
   History,
+  LandPlot,
   Map as MapIcon,
   Pencil,
   Plus,
@@ -32,7 +34,6 @@ import type { MapToolId } from "@/lib/mapTools"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import type {
-  Area,
   InferenceRun,
   PredictResult,
   Project,
@@ -41,6 +42,7 @@ import type {
 import {
   CreateProject,
   DeleteAnalysis,
+  ListAreas,
   DeleteProject,
   ExportClassification,
   ExportOverlayFile,
@@ -50,6 +52,7 @@ import {
   LoadAnalysis,
   SetRunProject,
 } from "../../wailsjs/go/main/App"
+import { toAreas, type Area } from "@/lib/areas"
 import { LulcSection } from "@/components/LulcSection"
 import { CompareAnalyses } from "@/components/CompareAnalyses"
 import { ProjectsHub } from "@/components/ProjectsHub"
@@ -152,8 +155,14 @@ const PRODUCT_COLOR = {
 type ProjectTab = "analyses" | "compositions"
 
 /** Project detail sections, in tab order. Drives the ARIA tabs wiring below. */
+/*
+  Named for what the tab opens on. It said "Runs", and opened on every run of
+  the project in one grid; it opens on the project's GROUNDS now, and the runs
+  are one level in. The id stays "analyses" because it is written into no
+  stored state and renaming it would touch every reference for nothing.
+*/
 const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
-  { id: "analyses", label: "Runs" },
+  { id: "analyses", label: "Areas" },
   { id: "compositions", label: "Compositions" },
 ]
 
@@ -334,13 +343,20 @@ function waterSummaryLine(summary?: string | null): string {
 const tabId = (id: ProjectTab) => `project-tab-${id}`
 const tabPanelId = (id: ProjectTab) => `project-panel-${id}`
 
+/**
+ * Stands for "the runs of this project that are of no area".
+ *
+ * A run carries an area only when it was made over one. One restored from a
+ * shape that was never catalogued carries none, and without a row to select it
+ * would be listed nowhere -- present in the database, absent from the only
+ * place that lists runs.
+ */
+const LOOSE_RUNS = "__loose__"
+
 interface AnalysisPageProps {
   result: PredictResult | null
   modelKind: string
-  /** Embedded example areas, for resolving project AOIs stored as area_id. */
-  areas?: Area[]
   areaLabel?: string
-  areaId?: string
   /** Current AOI polygon as GeoJSON text (geometry or Feature). */
   polygonGeoJSON?: string
   loadingRun?: boolean
@@ -369,9 +385,7 @@ type CompareState = {
 export function AnalysisPage({
   result,
   modelKind,
-  areas,
   areaLabel,
-  areaId,
   polygonGeoJSON,
   loadingRun,
   onOpenRun,
@@ -390,6 +404,17 @@ export function AnalysisPage({
   const [hubView, setHubView] = useState<"list" | "detail" | "unassigned">("list")
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [projectRuns, setProjectRuns] = useState<InferenceRun[]>([])
+  /*
+    The middle level: Project > AREA > runs.
+
+    The hub grouped by project alone and put every run of it in one flat grid,
+    which is what let a project holding several fields read as one subject --
+    fifty-eight runs under a single name with nothing saying which ground each
+    was over. `selectedAreaId` is null while that project's grounds are being
+    listed and holds one while its runs are.
+  */
+  const [projectAreas, setProjectAreas] = useState<Area[]>([])
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null)
   const [projectOverlays, setProjectOverlays] = useState<ProjectOverlay[]>([])
   const [openedOverlay, setOpenedOverlay] = useState<ProjectOverlay | null>(null)
   /** Project detail sub-view: analyses first; compositions behind a tab. */
@@ -438,15 +463,21 @@ export function AnalysisPage({
   const loadProjectDetail = useCallback(async (projectId: string) => {
     setHubLoading(true)
     try {
-      const [r, o] = await Promise.all([
+      // The project's runs, its grounds and its compositions together: the
+      // three lists the detail view can show, and one round trip decides which
+      // of them has anything in it.
+      const [r, a, o] = await Promise.all([
         ListProjectRuns(projectId, 50) as unknown as Promise<InferenceRun[]>,
+        ListAreas(projectId),
         ListProjectOverlays(projectId) as unknown as Promise<ProjectOverlay[]>,
       ])
       setProjectRuns(r ?? [])
+      setProjectAreas(toAreas(a ?? []))
       setProjectOverlays(o ?? [])
     } catch (e) {
       notifyError("Could not load project", e)
       setProjectRuns([])
+      setProjectAreas([])
       setProjectOverlays([])
     } finally {
       setHubLoading(false)
@@ -458,6 +489,7 @@ export function AnalysisPage({
     try {
       const r = (await ListProjectRuns("", 50)) as unknown as InferenceRun[]
       setProjectRuns(r ?? [])
+      setProjectAreas([])
       setProjectOverlays([])
     } catch (e) {
       notifyError("Could not load unassigned runs", e)
@@ -483,6 +515,17 @@ export function AnalysisPage({
       void loadUnassigned()
     }
   }, [hubView, selectedProjectId, loadProjectDetail, loadUnassigned])
+
+  /*
+    A ground belongs to one project, so leaving the project leaves the ground.
+
+    Without this the area selected in the previous project survives into the
+    next one, where it matches nothing: the runs list would be empty and the
+    heading would name a field that is not in this project.
+  */
+  useEffect(() => {
+    setSelectedAreaId(null)
+  }, [selectedProjectId, hubView])
 
   const handleOpenRun = useCallback(
     async (run: InferenceRun) => {
@@ -541,12 +584,33 @@ export function AnalysisPage({
 
   const clearSelection = useCallback(() => setSelectedIds([]), [])
 
+  /*
+    Every run of the open project, whichever ground it is of.
+
+    Distinct from `scopedRuns`, which narrows further to the selected area.
+    The area list needs this one: it counts the runs of no ground, and a count
+    taken from the already-narrowed list would count the runs of whatever area
+    happened to be open.
+  */
+  const scopedProjectRuns = useMemo(() => {
+    if (hubView !== "detail" || !selectedProjectId) return []
+    // Belt-and-suspenders: never mix in legacy/unassigned runs.
+    return projectRuns.filter(
+      (r) => !r.project_id || r.project_id === selectedProjectId
+    )
+  }, [hubView, projectRuns, selectedProjectId])
+
   const scopedRuns = useMemo(() => {
     if (hubView === "detail" && selectedProjectId) {
-      // Belt-and-suspenders: never mix in legacy/unassigned runs.
-      return projectRuns.filter(
-        (r) => !r.project_id || r.project_id === selectedProjectId
-      )
+      const ofProject = scopedProjectRuns
+      if (!selectedAreaId) return ofProject
+      // The sentinel for runs of no ground: a run put back from a shape that
+      // was never made an area. They are reachable rather than hidden, which
+      // is the same argument the projectless board is kept for.
+      if (selectedAreaId === LOOSE_RUNS) {
+        return ofProject.filter((r) => !r.area_id)
+      }
+      return ofProject.filter((r) => r.area_id === selectedAreaId)
     }
     if (hubView === "unassigned") {
       return projectRuns.filter((r) => !r.project_id)
@@ -555,7 +619,7 @@ export function AnalysisPage({
       return runs.filter((r) => r.project_id === selectedProjectId)
     }
     return runs
-  }, [hubView, projectRuns, runs, selectedProjectId])
+  }, [hubView, projectRuns, runs, selectedProjectId, selectedAreaId, scopedProjectRuns])
 
   /**
    * The list's own heading, which only earns one where nothing above it says
@@ -784,6 +848,90 @@ export function AnalysisPage({
       of the detail view carries "Saved analyses" for going back, and comparing,
       deleting and assigning all live on the hub the button returns to.
     */
+    /*
+      The project's grounds, as the level between the project and its runs.
+
+      Each row is one area and says how many runs are of it. A project with one
+      field reads as one row, which is the shape it always had; a project with a
+      dozen no longer reads as one subject with a hundred runs under it, which
+      is what the flat grid made of it.
+
+      A row for the runs of no ground appears only when there are some. Offering
+      an empty category is a question the reader then has to answer to find out
+      there was nothing in it.
+    */
+    const looseCount = scopedProjectRuns.filter((r) => !r.area_id).length
+    const areasPanel = (
+      <section className="flex flex-col gap-2">
+        {projectAreas.length === 0 && looseCount === 0 ? (
+          <p className="rounded-sm border border-border bg-secondary px-3 py-4 text-body text-muted-foreground">
+            No areas yet. Open this project on the map and draw one; the runs
+            you make over it are filed under it.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {projectAreas.map((a) => (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAreaId(a.id)}
+                  className="group flex w-full items-center gap-2.5 rounded-sm border border-border bg-secondary/50 px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                >
+                  <LandPlot className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-body text-foreground group-hover:text-primary">
+                    {a.name}
+                  </span>
+                  <span className="telemetry shrink-0 text-meta text-muted-foreground">
+                    {a.run_count} {a.run_count === 1 ? "run" : "runs"}
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </button>
+              </li>
+            ))}
+            {looseCount > 0 && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAreaId(LOOSE_RUNS)}
+                  className="group flex w-full items-center gap-2.5 rounded-sm border border-dashed border-border px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                >
+                  <LandPlot className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-body text-muted-foreground group-hover:text-foreground">
+                    Not filed under an area
+                  </span>
+                  <span className="telemetry shrink-0 text-meta text-muted-foreground">
+                    {looseCount} {looseCount === 1 ? "run" : "runs"}
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </button>
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
+    )
+
+    const selectedArea =
+      selectedAreaId && selectedAreaId !== LOOSE_RUNS
+        ? (projectAreas.find((a) => a.id === selectedAreaId) ?? null)
+        : null
+
+    const areaCrumb = selectedAreaId ? (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSelectedAreaId(null)}
+          className={btnGhost}
+        >
+          <ArrowLeft className="h-3 w-3" />
+          Areas
+        </button>
+        <span className="truncate text-body text-foreground">
+          {selectedArea?.name ?? "Not filed under an area"}
+        </span>
+      </div>
+    ) : null
+
     const runsPanel = (
       <SavedRunsPanel
         title={panelTitle}
@@ -864,7 +1012,6 @@ export function AnalysisPage({
       <div className="app-no-drag relative flex h-full min-h-0 flex-col overflow-hidden">
         <ProjectsHub
           projects={projects}
-          areas={areas}
           unassignedCount={unassignedCount}
           selection={hubSelection}
           creating={creating}
@@ -906,13 +1053,19 @@ export function AnalysisPage({
                   the same weight as the list of 48 runs below.
                 */
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                  {/*
+                    A PROJECT HAS GROUNDS, NOT AN AOI. This printed
+                    `label || area_id || "Custom polygon"` from the project row
+                    -- one shape per project, which is the model being replaced:
+                    a project working a dozen fields still showed a single line
+                    naming one of them, and nothing said the other eleven were
+                    there. Those three columns lose their last reader here.
+                  */}
                   <p className="text-body text-muted-foreground">
-                    <span className="eyebrow mr-2">AOI</span>
-                    {selectedProject.label ||
-                      selectedProject.area_id ||
-                      (selectedProject.polygon_geojson
-                        ? "Custom polygon"
-                        : "Not set yet")}
+                    <span className="eyebrow mr-2">Areas</span>
+                    {projectAreas.length === 0
+                      ? "None drawn yet"
+                      : `${projectAreas.length} ${projectAreas.length === 1 ? "ground" : "grounds"}`}
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -934,7 +1087,7 @@ export function AnalysisPage({
                       type="button"
                       onClick={() => setPendingDeleteProjectId(selectedProject.id)}
                       className={cn(btnGhost, "hover:text-destructive-quiet")}
-                      title="Delete project (runs become unassigned)"
+                      title="Delete project, its areas and their runs"
                     >
                       <Trash2 className="h-3 w-3" />
                       Delete
@@ -960,10 +1113,18 @@ export function AnalysisPage({
                 >
                   {PROJECT_TABS.map((tab) => {
                     const active = projectTab === tab.id
+                    /*
+                      What the tab is about to show, not what is behind it. The
+                      analyses tab opens on the project's grounds, so it counts
+                      those; once one is open it counts that ground's runs,
+                      which is what is then on screen.
+                    */
                     const count =
-                      tab.id === "analyses"
-                        ? scopedRuns.length
-                        : projectOverlays.length
+                      tab.id !== "analyses"
+                        ? projectOverlays.length
+                        : selectedAreaId
+                          ? scopedRuns.length
+                          : projectAreas.length + (looseCount > 0 ? 1 : 0)
                     return (
                       <button
                         key={tab.id}
@@ -1064,14 +1225,24 @@ export function AnalysisPage({
                   )}
                 </section>
               ) : hubView === "detail" ? (
-                // Only a tab panel under the detail view; the unassigned view
-                // renders the same list with no tablist above it.
+                /*
+                  Only a tab panel under the detail view; the unassigned view
+                  renders the same list with no tablist above it.
+
+                  TWO LEVELS INSIDE THE TAB. Without a ground chosen it lists
+                  the project's grounds; with one, that ground's runs under a
+                  way back. The tab used to open straight onto every run of the
+                  project in one grid, which is the shape that let a project
+                  holding several fields read as a single subject.
+                */
                 <div
                   role="tabpanel"
                   id={tabPanelId("analyses")}
                   aria-labelledby={tabId("analyses")}
+                  className="flex flex-col gap-3"
                 >
-                  {runsPanel}
+                  {areaCrumb}
+                  {selectedAreaId ? runsPanel : areasPanel}
                 </div>
               ) : (
                 runsPanel
@@ -1233,7 +1404,6 @@ export function AnalysisPage({
       const dest = await ExportResearchPack(
         {
           model_kind: modelKind,
-          area_id: areaId ?? "",
           aoi_label: areaLabel?.trim() || "",
           polygon_geojson: polygonGeoJSON?.trim() || "",
         },
@@ -1448,7 +1618,7 @@ export function AnalysisPage({
 
       <PageBody>
         <div className="flex w-full flex-col gap-3 p-4">
-          {lulc && <LulcSection lulc={lulc} areaId={areaId} />}
+          {lulc && <LulcSection lulc={lulc} />}
 
           {hasClassification && (
             <section className="rounded-sm border border-border bg-secondary/50 p-4">
@@ -1878,7 +2048,6 @@ export function AnalysisPage({
           result={result}
           modelKind={modelKind}
           areaLabel={areaLabel}
-          areaId={areaId}
           polygonGeoJSON={polygonGeoJSON}
           onClose={() => setPackOpen(false)}
         />
@@ -1928,7 +2097,15 @@ function ConfirmDeleteProjectModal({
         eyebrow="DELETE PROJECT"
         titleId="delete-project-title"
         title={<>Delete “{project.name}”?</>}
-        subtitle="This cannot be undone. Classification runs stay on disk but become unassigned; band compositions for this project are removed."
+        /*
+          IT SAID THE RUNS SURVIVED. DeleteProject used to detach them --
+          project_id = NULL -- and they reappeared under "Unassigned". It takes
+          them now, with the areas they were measured on and their rasters,
+          because a run without the ground it is of and the project that ground
+          is in is not a run anyone can read. A dialog that promises the
+          opposite of what the button does is worse than no dialog.
+        */
+        subtitle="This cannot be undone. The project's areas go with it, and every run measured on them, along with their rasters and band compositions."
       />
         <div className="flex shrink-0 justify-end gap-2 border-t border-border px-4 py-3">
           <button

@@ -15,7 +15,6 @@ package analysis
 // request, the payload key, the stored run and the exported manifest all name
 // the same thing. It is not a claim about the method.
 type EnergyModelRequest struct {
-	AreaID           string           `json:"area_id"`
 	PolygonGeoJSON   *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	ClimatologyYears int              `json:"climatology_years,omitempty"`
 	HourlyYears      int              `json:"hourly_years,omitempty"`
@@ -69,11 +68,11 @@ type EnergyModelRequest struct {
 	Label     string `json:"label,omitempty"`
 	RunLabel  string `json:"run_label,omitempty"`
 	ProjectID string `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // EnergyGeometry is the fixed-tilt optimum the energy model was computed on.
@@ -642,6 +641,18 @@ type EnergyAssumptions struct {
 // the radiation chain with SolarAnalysis and reports the same optimum, so the
 // two products cannot disagree about one AOI.
 type EnergyModelAnalysis struct {
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing, and
+	// until this field existed the withdrawal had nowhere to go: the frontend
+	// read every one of these runs as unrecorded, and the studio's live area
+	// reported the sentinel "current" for it. Same field and same meaning as
+	// WaterAnalysis.RunID, which states it at length.
+	//
+	// A line comment and not a block: frontend/scripts/check-types.ts parses
+	// these structs and refuses a "/*" it cannot read a JSON name from,
+	// rather than skipping the field in silence.
+	RunID             string  `json:"run_id,omitempty"`
 	Lon               float64 `json:"lon"`
 	Lat               float64 `json:"lat"`
 	HourlyYears       int     `json:"hourly_years"`

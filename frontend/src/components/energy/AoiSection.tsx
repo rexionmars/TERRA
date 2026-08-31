@@ -21,7 +21,6 @@ import { PanelSection } from "@/components/ui/PanelSection"
 
 export function AoiSection({
   note,
-  activeExample,
   hasArea,
   hasCustomPolygon,
   onImportPolygon,
@@ -29,7 +28,6 @@ export function AoiSection({
   busy,
 }: {
   note: string
-  activeExample: string
   hasArea: boolean
   hasCustomPolygon: boolean
   onImportPolygon: () => void
@@ -74,11 +72,7 @@ export function AoiSection({
           <Pencil className="size-3.5" />
         )}
         {hasArea
-          ? hasCustomPolygon
-            ? "Area defined"
-            : activeExample
-              ? `Example ${activeExample} loaded`
-              : "Area defined"
+          ? "Area defined"
           : "No area defined. Draw one on the map or import a file."}
       </div>
 

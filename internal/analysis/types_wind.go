@@ -10,7 +10,6 @@ package analysis
 // is 0.5 by 0.625 degrees, so the request resolves to the cell the AOI centroid
 // falls in and the response reports that cell centre, not the centroid.
 type WindRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	RecordYears    int              `json:"record_years,omitempty"`
 	// Project convention, user-editable. No turbine has been selected for any
@@ -24,11 +23,11 @@ type WindRequest struct {
 	Label          string    `json:"label,omitempty"`
 	RunLabel       string    `json:"run_label,omitempty"`
 	ProjectID      string    `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it
-	// is OF, which is what lets a drawing and the runs over it be one subject
-	// rather than two. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // WindWeibullFitCheck compares the fitted distribution against the record it
@@ -221,8 +220,20 @@ type WindAssumptions struct {
 // figures are gross, carry no external validation, and rest on an
 // extrapolation above the highest level the data carries.
 type WindAnalysis struct {
-	Lon float64 `json:"lon"`
-	Lat float64 `json:"lat"`
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing, and
+	// until this field existed the withdrawal had nowhere to go: the frontend
+	// read every one of these runs as unrecorded, and the studio's live area
+	// reported the sentinel "current" for it. Same field and same meaning as
+	// WaterAnalysis.RunID, which states it at length.
+	//
+	// A line comment and not a block: frontend/scripts/check-types.ts parses
+	// these structs and refuses a "/*" it cannot read a JSON name from,
+	// rather than skipping the field in silence.
+	RunID string  `json:"run_id,omitempty"`
+	Lon   float64 `json:"lon"`
+	Lat   float64 `json:"lat"`
 	// Centre of the reanalysis cell the AOI resolves to, [lon, lat].
 	GridCellCentre []float64 `json:"grid_cell_centre"`
 	GridNote       string    `json:"grid_note"`

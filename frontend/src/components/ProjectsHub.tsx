@@ -1,8 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { FolderKanban, Inbox, Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Area, Project } from "@/lib/types"
-import { resolveProjectGeometry } from "@/lib/geometry"
+import type { Project } from "@/lib/types"
 import { ProjectFolderCard } from "@/components/ProjectFolderCard"
 import { PageAside, PageBody, PageShell } from "@/components/ui/PageShell"
 import { btnGhostDense, btnIcon, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
@@ -11,7 +10,6 @@ export type ProjectsHubSelection = "all" | "unassigned" | string
 
 export function ProjectsHub({
   projects,
-  areas,
   unassignedCount,
   selection,
   creating,
@@ -25,8 +23,6 @@ export function ProjectsHub({
   children,
 }: {
   projects: Project[]
-  /** Embedded example areas, to resolve a project stored as an area_id. */
-  areas?: Area[]
   unassignedCount: number
   selection: ProjectsHubSelection
   creating: boolean
@@ -45,11 +41,9 @@ export function ProjectsHub({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return projects
-    return projects.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.label?.toLowerCase().includes(q) ?? false)
-    )
+    // By name alone. It also matched `p.label`, the project's AOI name, which
+    // no longer exists: a project has grounds, and each carries its own name.
+    return projects.filter((p) => p.name.toLowerCase().includes(q))
   }, [projects, query])
 
   const selectedProject =
@@ -66,9 +60,9 @@ export function ProjectsHub({
 
   const mainSubtitle =
     selection === "all"
-      ? "Farm and field workspaces — analyses and overlays stay together."
+      ? "Farm and field workspaces. A project holds the grounds worked on it, and each ground holds the runs measured over it."
       : selection === "unassigned"
-        ? "Older classifications not yet attached to a project."
+        ? "Runs belonging to no project. A run made now is filed under the area it was measured on, inside the project that area is in; these predate that."
         : selectedProject?.notes ||
           "Analyses and overlays saved under this project."
 
@@ -298,7 +292,6 @@ export function ProjectsHub({
                   <li key={p.id} className="min-h-[10.5rem]">
                     <ProjectFolderCard
                       project={p}
-                      geometry={resolveProjectGeometry(p, areas ?? [])}
                       onOpen={() => onOpenProject(p.id)}
                       selected={selection === p.id}
                       className="h-full min-h-[10.5rem]"

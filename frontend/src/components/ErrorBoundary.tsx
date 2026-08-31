@@ -118,7 +118,7 @@ function CrashDetail({
 }) {
   return (
     <details className="w-full">
-      <summary className="cursor-pointer select-none text-meta text-muted-foreground">
+      <summary className="select-none text-meta text-muted-foreground">
         Error detail
       </summary>
       <p className="mt-1.5 text-body break-words text-foreground">
@@ -168,7 +168,7 @@ export function AppErrorFallback({ error, componentStack }: ErrorFallbackProps) 
         <p className="mt-2 text-body text-muted-foreground">
           React unmounted the tree rather than leave it half drawn. Analyses
           already saved are on disk and were not touched; anything held only in
-          this session -- a whiteboard arrangement that was never saved, a run
+          this session -- a studio arrangement that was never saved, a run
           that was never stored -- does not survive the reload.
         </p>
         <div className="mt-3">

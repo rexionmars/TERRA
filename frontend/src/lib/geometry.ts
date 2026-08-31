@@ -1,4 +1,4 @@
-import type { Area, GeoJSONGeometry } from "@/lib/types"
+import type { GeoJSONGeometry } from "@/lib/types"
 
 /** Coordinate pair in GeoJSON axis order: [lon, lat]. */
 export type LonLat = [number, number]
@@ -104,7 +104,7 @@ export function polygonParts(geometry: GeoJSONGeometry): LonLat[][][] {
  * east-west by about a tenth, and a Nordic one by half.
  *
  * Named here rather than written where it is needed, because it is needed in
- * two places now -- the footprint thumbnail and the whiteboard -- and this
+ * two places now -- the footprint thumbnail and the studio -- and this
  * repository has already been bitten by a value that existed twice.
  */
 export function lonScaleAtLat(lat: number): number {
@@ -197,46 +197,30 @@ export function geometryCentroid(
 }
 
 /**
- * AOI geometry of a project, or null when it has none.
+ * A stored `polygon_geojson` column as geometry, or null when it cannot be read.
  *
- * A project stores either an inline polygon or a reference to an embedded
- * example area, and projects created from the hub start with neither, so the
- * absent case is normal rather than exceptional.
+ * NAMED FOR A ROW IT NO LONGER READS. It was `resolveProjectGeometry`, and
+ * resolved a project's AOI -- an inline polygon or a reference to one of three
+ * embedded example areas. A project has no geometry now, and its only callers
+ * pass RUN rows, which have always stored their polygon this way.
+ *
+ * Null for a column that is empty or holds text this cannot parse. A run whose
+ * ground cannot be recovered is shown without one rather than refused.
  */
-export function resolveProjectGeometry(
-  project: { polygon_geojson?: string; area_id?: string },
-  areas: Area[]
-): GeoJSONGeometry | null {
-  const raw = project.polygon_geojson?.trim()
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as GeoJSONGeometry
-      if (parsed?.type === "Polygon" || parsed?.type === "MultiPolygon") {
-        return parsed
-      }
-    } catch {
-      /* stored text is opaque; fall through to the area reference */
+export function polygonFromRow(row: {
+  polygon_geojson?: string
+}): GeoJSONGeometry | null {
+  const raw = row.polygon_geojson?.trim()
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as GeoJSONGeometry
+    if (parsed?.type === "Polygon" || parsed?.type === "MultiPolygon") {
+      return parsed
     }
-  }
-  const areaId = project.area_id?.trim()
-  if (areaId) {
-    return areas.find((a) => a.id === areaId)?.geometry ?? null
+  } catch {
+    /* stored text is opaque */
   }
   return null
-}
-
-/**
- * True when `activeExample` names an area that is present in `areas`.
- *
- * Requests send either an area id or an inline polygon, never both, so this
- * guard decides which branch applies. A stale id that no longer resolves falls
- * back to the drawn polygon rather than referencing a missing area.
- */
-export function usesExampleArea(
-  activeExample: string,
-  areas: Area[]
-): boolean {
-  return !!activeExample && areas.some((a) => a.id === activeExample)
 }
 
 /** Ray-cast point-in-polygon (lon/lat), for AOI right-click hit testing. */

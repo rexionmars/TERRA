@@ -2,7 +2,7 @@
  * What a classification can be run with, named once.
  *
  * These lists were inline in ControlPanel, which was fine while one surface
- * drew them. The whiteboard draws the same choices in its own vocabulary --
+ * drew them. The studio draws the same choices in its own vocabulary --
  * rows in a column rather than cards in a panel -- and a second copy of the
  * list is a second place a model can be added to, or a constraint forgotten.
  * The same reason lib/mapTools.ts and lib/mapLayers.ts exist.

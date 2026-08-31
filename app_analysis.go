@@ -16,15 +16,6 @@ import (
 // what the sidecar returned; persisting what came back is app_runs.go and the
 // files it wrote are app_storage.go.
 
-// ListEmbeddedAreas returns the embedded study areas (A/B/C).
-func (a *App) ListEmbeddedAreas() []analysis.Area {
-	runner := a.currentRunner()
-	if runner == nil {
-		return []analysis.Area{}
-	}
-	return runner.ListAreas()
-}
-
 // Predict runs the inference sidecar for the given request.
 func (a *App) Predict(req analysis.PredictRequest) (*analysis.PredictResult, error) {
 	runner := a.currentRunner()
@@ -98,7 +89,16 @@ func (a *App) AnalyzeWater(req analysis.WaterRequest) (*analysis.WaterAnalysis, 
 	if err != nil {
 		return nil, err
 	}
-	a.persistWaterRun(req, res)
+	/*
+		Stamped here, the way the classification path stamps its own.
+
+		The field has existed on WaterAnalysis since it was written and had no
+		writer anywhere, so it read as empty on every run and the frontend
+		treated the product as unrecorded. `saveRun` withdraws its claim by
+		returning "", which is exactly what the field's own comment says the
+		empty value means.
+	*/
+	res.RunID = a.persistWaterRun(req, res)
 	return res, nil
 }
 
@@ -108,7 +108,7 @@ below cannot know.
 
 Six products persist a run, and apart from these fields the path is one
 sequence written six times. That is how it drifted: the "run-" prefix, the
-trimmed project id and the AoiID column each had to be added in every copy,
+trimmed project id and the area link each had to be added in every copy,
 and the thumbnail column the classification path fills never reached any of
 the others.
 */
@@ -123,7 +123,7 @@ func (a *App) AnalyzeSolar(req analysis.SolarRequest) (*analysis.SolarAnalysis, 
 	if err != nil {
 		return nil, err
 	}
-	a.persistSolarRun(req, res)
+	res.RunID = a.persistSolarRun(req, res)
 	return res, nil
 }
 
@@ -280,8 +280,9 @@ func (a *App) AnalyzeSolarTerrain(req analysis.SolarTerrainRequest) (*analysis.S
 	if err != nil {
 		return nil, err
 	}
-	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
-		req.ProjectID, req.AoiID, "solar_terrain", res.Season, res, res.OverlayURI, res.NDates())
+	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
+		req.RunLabel, req.ProjectID, req.AreaID, "solar_terrain", res.Season, res,
+		res.OverlayURI, res.NDates())
 	return res, nil
 }
 
@@ -295,8 +296,9 @@ func (a *App) AnalyzeSolarSiting(req analysis.SolarSitingRequest) (*analysis.Sol
 	if err != nil {
 		return nil, err
 	}
-	a.persistSolarRaster(req.AreaID, req.PolygonGeoJSON, req.Label, req.RunLabel,
-		req.ProjectID, req.AoiID, "solar_siting", "siting", res, res.OverlayURI, 0)
+	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
+		req.RunLabel, req.ProjectID, req.AreaID, "solar_siting", "siting", res,
+		res.OverlayURI, 0)
 	return res, nil
 }
 
@@ -310,7 +312,7 @@ func (a *App) AnalyzeEnergyModel(req analysis.EnergyModelRequest) (*analysis.Ene
 	if err != nil {
 		return nil, err
 	}
-	a.persistEnergyModelRun(req, res)
+	res.RunID = a.persistEnergyModelRun(req, res)
 	return res, nil
 }
 
@@ -324,7 +326,7 @@ func (a *App) AnalyzeWind(req analysis.WindRequest) (*analysis.WindAnalysis, err
 	if err != nil {
 		return nil, err
 	}
-	a.persistWindRun(req, res)
+	res.RunID = a.persistWindRun(req, res)
 	return res, nil
 }
 
@@ -337,7 +339,7 @@ func (a *App) AnalyzeFlood(req analysis.FloodRequest) (*analysis.FloodAnalysis, 
 	if err != nil {
 		return nil, err
 	}
-	a.persistFloodRun(req, res)
+	res.RunID = a.persistFloodRun(req, res)
 	return res, nil
 }
 

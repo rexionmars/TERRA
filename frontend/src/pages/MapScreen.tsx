@@ -1,16 +1,13 @@
 import {
-  Clock,
   Droplet,
   Grid2x2,
   Image as ImageIcon,
-  Map as MapGlyph,
   type LucideIcon,
 } from "lucide-react"
 import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence } from "motion/react"
 import type {
-  Area,
   CompositionOverlay,
   CompositeIndex,
   CompositeKind,
@@ -50,11 +47,9 @@ import {
 } from "@/lib/mapTools"
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
-import { BoardRunBar, TOOL_ICON } from "@/components/whiteboard/BoardRunBar"
-import { StudioLoading } from "@/components/whiteboard/StudioLoading"
-import { StudioHeaderRadio } from "@/components/whiteboard/StudioHeaderControls"
+import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph"
+import { StudioLoading } from "@/components/studio/StudioLoading"
 import { BOARD_TOOLS } from "@/lib/mapTools"
-import { MODE_OPTIONS } from "@/lib/classifyOptions"
 import {
   BOARD_DETAIL_REM,
   BOARD_LEFT_REM,
@@ -64,16 +59,15 @@ import {
   clampDetail,
   partitionVars,
 } from "@/lib/boardPartition"
-import { rasterLayers } from "@/lib/mapLayers"
+import { rasterLayers, type RasterLayer } from "@/lib/mapLayers"
 import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
 import { useRunLog } from "@/lib/runLog"
-import { boardHoldsOtherAreas } from "@/components/whiteboard/boardMemory"
 import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 import { WorkspaceBar } from "@/components/WorkspaceBar"
-import { BoardButton } from "@/components/whiteboard/BoardButton"
+import { BoardButton } from "@/components/studio/BoardButton"
 
 /*
   Lazy, and reached only from here. BoardSurface imports the scene, which
@@ -81,11 +75,11 @@ import { BoardButton } from "@/components/whiteboard/BoardButton"
   loads with the map screen.
 */
 const BoardSurface = lazy(() =>
-  import("@/components/whiteboard/BoardSurface").then((m) => ({
+  import("@/components/studio/BoardSurface").then((m) => ({
     default: m.BoardSurface,
   }))
 )
-const prefetchBoard = () => void import("@/components/whiteboard/BoardSurface")
+const prefetchBoard = () => void import("@/components/studio/BoardSurface")
 
 /**
  * The run band's height, in rem.
@@ -104,7 +98,6 @@ import type { PanelPlacement } from "@/components/ui/PanelShell"
 import { ResultsPanel } from "@/components/ResultsPanel"
 import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
-import { BoardAreaModal } from "@/components/whiteboard/BoardAreaModal"
 import { ConfidenceLegend } from "@/components/ConfidenceLegend"
 import { statusPanelInset } from "@/components/analysisPrimitives"
 import {
@@ -119,7 +112,7 @@ export interface MapScreenProps {
   /** Which layout draws this screen. See lib/types LayoutMode. */
   layoutMode?: LayoutMode
   /**
-   * Switch the shell layout. Used when the whiteboard opens: Sidebar and
+   * Switch the shell layout. Used when the studio opens: Sidebar and
    * column leaves the navigation column beside the board's own column, so the
    * board forces Dock (workspace) for as long as it is up.
    */
@@ -128,7 +121,7 @@ export interface MapScreenProps {
     opts?: { persist?: boolean }
   ) => void
   /**
-   * The title bar's host for this screen's whiteboard toggle.
+   * The title bar's host for this screen's studio toggle.
    *
    * An element rather than a callback, because the button has to be DRAWN up
    * there while the state it reads stays down here. `board` is local to this
@@ -146,13 +139,13 @@ export interface MapScreenProps {
   onBoardOpenChange?: (open: boolean) => void
   /** Go to another destination, for the dock layout's bar. */
   onNavigate: (groupId: string, itemId?: string) => void
-  areas: Area[]
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   flyTo: { lat: number; lon: number; key: number } | null
   result: PredictResult | null
   /** Results the map finished with, still placeable on the board. */
   retainedRuns: readonly { id: string; result: PredictResult }[]
+  /** Let go of one, which the board lists and cannot remove on its own. */
+  onDropRetainedRun?: (id: string) => void
   overlayOpacity: number
   showConfidence: boolean
   confidenceOnTop: boolean
@@ -201,11 +194,13 @@ export interface MapScreenProps {
   /** Adopt a run polygon as the active AOI without adding a catalog entry. */
   onAdoptAreaGeometry?: (geom: GeoJSONGeometry | null) => void
   /** Catalog of drawn/imported AOIs kept beside the active shape. */
-  savedAois?: import("@/lib/savedAois").SavedAoi[]
-  activeAoiId?: string
-  onActivateSavedAoi?: (id: string) => void
-  onRenameSavedAoi?: (id: string, name: string) => void
-  onDeleteSavedAoi?: (id: string) => void
+  areas?: import("@/lib/areas").Area[]
+  activeAreaId?: string
+  activeProjectId?: string | null
+  activeProjectName?: string | null
+  onActivateArea?: (id: string) => void
+  onRenameArea?: (id: string, name: string) => void
+  onDeleteArea?: (id: string) => void
   onLocationSelect: (lat: number, lon: number) => void
   onClearArea: () => void
   onImportPolygon: () => void
@@ -241,20 +236,21 @@ export interface MapScreenProps {
    * A request to open the board, bumped each time one arrives.
    *
    * A nonce rather than a boolean: the board's open state is this screen's, and
-   * a flag would fire only on its first change -- opening the same whiteboard
+   * a flag would fire only on its first change -- opening the same studio
    * twice in a row has to work.
    */
   openBoardNonce?: number
-  /** Saved whiteboards, for the studio's own title block. */
-  whiteboards?: import("@/lib/whiteboards").Whiteboard[]
-  onOpenWhiteboard?: (board: import("@/lib/whiteboards").Whiteboard) => void
+  /** Saved studios, for the studio's own title block. */
+  studios?: import("@/lib/studios").Studio[]
+  onOpenStudio?: (board: import("@/lib/studios").Studio) => void
+  onNewStudio?: () => void
   /** Called when the studio's board menu opens, to refresh the list. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
     can wait for it. The menu that opens on hover does not and ignores it; the
     manage dialog does, since it shows the result of its own rename or delete.
   */
-  onWhiteboardsMenu?: () => void | Promise<void>
+  onStudiosMenu?: () => void | Promise<void>
   onNewClassification: () => void
   onViewDataCube: () => void
   dataCubeLoading?: boolean
@@ -390,7 +386,6 @@ export function MapScreen(props: MapScreenProps) {
    * Only from the board: on the map the drawing tool is already there, and a
    * modal over it would be a second map over the one that has one.
    */
-  const [drawingArea, setDrawingArea] = useState(false)
   /**
    * The detail band's height, in rem, which the reader can drag.
    *
@@ -425,19 +420,15 @@ export function MapScreen(props: MapScreenProps) {
    * Whether the studio was asked for by name rather than toggled onto what is
    * on screen.
    *
-   * A saved whiteboard and the opening-surface preference both arrive as the
+   * A saved studio and the opening-surface preference both arrive as the
    * nonce, and both mean the same thing: this reader wants the studio, not the
-   * studio OF something. The emptiness rule below is what that has to survive
-   * -- it exists so a board with nothing left in it stops covering the map,
-   * and at the start of a session there has never been anything in it.
+   * studio OF something.
    */
-  const [boardAsked, setBoardAsked] = useState(false)
   const nonce = props.openBoardNonce ?? 0
   useEffect(() => {
     // Zero is the resting value, not a request.
     if (nonce > 0) {
       setBoard(true)
-      setBoardAsked(true)
       // What the two toggle handlers do inline. This path skipped it, and with
       // the island withheld there is no longer a button on screen to shut a
       // drawer that opened before the board did.
@@ -524,37 +515,26 @@ export function MapScreen(props: MapScreenProps) {
    * the map's own panel has one slider for the pair.
    */
   /**
-   * Whether the board is actually up.
+   * Whether the board is actually up. The state, and nothing else.
    *
-   * Not `board` on its own, and the difference was a dead end you could
-   * reach in two clicks. The board used to mount on there being a VISIBLE
-   * raster, and its own sidebar can hide every one of them -- so pressing the
-   * stack's eye unmounted the surface that held the control, while `board`
-   * stayed true and kept the search field and the overlay tools button hidden.
-   * No board, no way back into it (its button reads the same condition and had
-   * gone disabled), and no overlay tools to turn a layer back on.
+   * IT USED TO REQUIRE SOMETHING TO SHOW: a visible raster, or another area
+   * the board had fetched, or an AOI on the map, or the nonce that opens a
+   * studio by name. The rule existed because an empty board was a dead end --
+   * a surface that could only ARRANGE runs, mounted over a map, with nothing
+   * on it and no way to put anything there.
    *
-   * The condition is whether there is a raster to lift AT ALL -- from this run
-   * OR from another the board has fetched. The second half was missing, and
-   * discarding the current result closed a board that still held a second
-   * area: the map screen can only see its own layers, and the board's other
-   * areas are not among them. Everything that hides while the board is up
-   * reads this same value, so there is no state where the board is gone and
-   * what it replaced is still hidden.
+   * That stopped being true when the studio gained a globe to draw on and a
+   * run graph to run from. An empty studio is now where work starts, not a
+   * screen you have to back out of, and the nonce exception -- which existed
+   * precisely because "a studio opened by name stands with nothing on it" --
+   * was the rule already admitting its own case.
    *
-   * `boardAsked` is the exception, and only that: a studio opened by name --
-   * a saved whiteboard, or a session that opens on it by preference -- stands
-   * with nothing on it, because that is the state it necessarily starts in and
-   * its own run band draws an area and starts a run without leaving it. The
-   * rule above still governs the toggle, which is a gesture over what is on
-   * screen rather than a request for the surface itself.
+   * The dead end the old rule was itself written to close is closed by this
+   * too: the sidebar's eye can hide every layer, and under the old condition
+   * that unmounted the surface holding the control, taking the search field,
+   * the overlay tools and the button back in with it.
    */
-  const boardOpen =
-    board &&
-    (boardLayers.length > 0 ||
-      boardHoldsOtherAreas() ||
-      props.hasArea ||
-      boardAsked)
+  const boardOpen = board
 
   /*
     Reported to the title bar, which withholds the map's latitude, longitude,
@@ -572,7 +552,7 @@ export function MapScreen(props: MapScreenProps) {
   }, [boardOpen, reportBoardOpen])
 
   /*
-    The whiteboard and "Sidebar and column" fight for the left edge: the shell
+    The studio and "Sidebar and column" fight for the left edge: the shell
     keeps AppNav while the board draws its own 15rem column. Dock (workspace)
     already clears the navigation column, which is the arrangement the board
     was drawn for. Remember the mode we left so closing the board puts it back
@@ -774,7 +754,6 @@ export function MapScreen(props: MapScreenProps) {
           <ControlPanel
             key="classify"
             placement={placement}
-            activeExample={props.activeExample}
             customPolygon={props.customPolygon}
             hasArea={props.hasArea}
             onClearArea={props.onClearArea}
@@ -865,7 +844,7 @@ export function MapScreen(props: MapScreenProps) {
   }
 
   /**
-   * The whiteboard's Run tab: which product, and its own parameters.
+   * The studio's Run tab: which product, and its own parameters.
    *
    * The SAME panels the map screen docks, in a third container. They were kept
    * off the board to avoid a second place to set a period -- which was right
@@ -930,20 +909,22 @@ export function MapScreen(props: MapScreenProps) {
         )}
       </>
     ),
-    options: bandTool === "classify" ? (
-      <StudioHeaderRadio
-        value={props.mode}
-        onChange={props.onModeChange}
-        options={MODE_OPTIONS.map((m) => ({
-          id: m.id,
-          // The short name is written; the detail is what the pointer adds,
-          // since "Map" on its own does not say that it is the full stack.
-          label: m.label,
-          title: `${m.label} — ${m.detail}`,
-          icon: m.id === "single" ? MapGlyph : Clock,
-        }))}
-      />
-    ) : null,
+    /*
+      THE MODE MOVED INTO THE GRAPH and is not offered twice.
+
+      It was a header radio beside the tool tabs, which put a run's INPUT in
+      the row that chooses which product is in view -- and the two are
+      different questions. Every other input the run reads is a card now, so
+      the mode being the one left in the header made the header look like part
+      of the form.
+
+      The correction it carries is the reason it could not simply be restyled.
+      `modeBlockedBy` refuses the temporal mode under a model that cannot
+      produce it, and `StudioHeaderRadio` has no refused state -- it draws a
+      chosen half and an unchosen half and nothing else -- so the studio was
+      offering a mode the run would not honour. A card can say why.
+    */
+    options: null,
   }
 
   /*
@@ -955,14 +936,15 @@ export function MapScreen(props: MapScreenProps) {
     and progress are the map screen's.
   */
   const runBarNode = (
-    <BoardRunBar
+    <BoardRunGraph
+      /*
+        The tool is READ here and changed in the header above, which is the
+        only place it was ever changed from. The band declared an
+        `onToolChange` and never called it: its tab strip had already moved to
+        `runBarHeader`, where the handler also syncs `leftPanel` for the map's
+        dock. A prop nothing calls is a second way in that does not exist.
+      */
       tool={bandTool}
-      onToolChange={(id) => {
-        setBoardTool(id)
-        // The map's dock and navigation read leftPanel, and solar is not
-        // one of their ids -- see BoardToolId in lib/mapTools.
-        if (isMapTool(id)) setLeftPanel(id)
-      }}
       solar={
         props.solarParams && props.onRunSolar
           ? {
@@ -984,11 +966,37 @@ export function MapScreen(props: MapScreenProps) {
             }
           : undefined
       }
+      /*
+        The composition's own parameters, handed over as one object for the
+        reason the solar bundle is: they arrive together, and a graph offered
+        no way to apply a composition must not draw cards for one. Every value
+        is the map screen's own state passed straight through, so the panel and
+        the graph cannot come to disagree about what the next composite is.
+      */
+      compose={{
+        scenes: props.composeScenes,
+        scenesLoading: props.composeScenesLoading,
+        scenesError: props.composeScenesError,
+        selectedSceneId: props.selectedSceneId,
+        onSelectScene: props.onSelectScene,
+        onListScenes: props.onListComposeScenes,
+        kind: props.composeKind,
+        onKindChange: props.onComposeKindChange,
+        bands: props.composeBands,
+        onBandsChange: props.onComposeBandsChange,
+        index: props.composeIndex,
+        onIndexChange: props.onComposeIndexChange,
+        stretchLow: props.composeStretchLow,
+        stretchHigh: props.composeStretchHigh,
+        onStretchChange: props.onComposeStretchChange,
+      }}
+      water={{
+        index: props.waterIndex,
+        onIndexChange: props.onWaterIndexChange,
+      }}
       hasArea={props.hasArea}
-      activeExample={props.activeExample}
       areaLabel={props.areaLabel}
       onImportPolygon={props.onImportPolygon}
-      onDrawArea={() => setDrawingArea(true)}
       onClearArea={props.onClearArea}
       start={props.start}
       end={props.end}
@@ -1004,7 +1012,7 @@ export function MapScreen(props: MapScreenProps) {
       onModeChange={props.onModeChange}
       /*
         The chosen tool's own run, resolved once above for both the island
-        and this band. Two resolutions of "can this go" would be two
+        and this graph. Two resolutions of "can this go" would be two
         answers.
       */
       runLabel={boardRun.label}
@@ -1026,11 +1034,10 @@ export function MapScreen(props: MapScreenProps) {
       lulcRunning={props.lulcRunning}
       /*
         The same log the stats column draws, from the same resolved run. The
-        band's method panel reads it after the run as well as during, which is
-        when most of its questions are asked.
+        run card's method panel reads it after the run as well as during, which
+        is when most of its questions are asked.
       */
       runLog={runLog}
-      placement="area"
     />
   )
 
@@ -1072,7 +1079,7 @@ export function MapScreen(props: MapScreenProps) {
       }
     >
       {/*
-        The whiteboard toggle, drawn into the title bar.
+        The studio toggle, drawn into the title bar.
 
         Portalled rather than passed up because of where the state is: `board`
         below is this screen's, and the bar belongs to the shell. This keeps the
@@ -1084,15 +1091,6 @@ export function MapScreen(props: MapScreenProps) {
         createPortal(
           <BoardButton
             active={boardOpen}
-            /*
-              An entry can be refused; an exit cannot. `boardOpen` is also true
-              when the board holds ANOTHER area's rasters, which neither term
-              below covers -- so without the first clause the board could be up,
-              carrying a second area, with its only toggle greyed out.
-            */
-            disabled={
-              !boardOpen && !boardLayers.length && !props.hasArea && !boardAsked
-            }
             onClick={() =>
               setBoard((o) => {
                 // Closing the overlay drawer on the way in: the sidebar carries
@@ -1110,8 +1108,6 @@ export function MapScreen(props: MapScreenProps) {
 
       <MapSurface
         initialView={props.initialView}
-        areas={props.areas}
-        activeExample={props.activeExample}
         customPolygon={props.customPolygon}
         onPolygonDrawn={props.onPolygonDrawn}
         flyTo={props.flyTo}
@@ -1254,7 +1250,7 @@ export function MapScreen(props: MapScreenProps) {
                 studio in the first place; keying by it turns a second request
                 into the mount the restore path already expects.
               */
-              key={`whiteboard-${nonce}`}
+              key={`studio-${nonce}`}
               /*
                 The band's height, and the two gestures that change it. Clamped
                 here rather than in the band: the reservation --map-foot is
@@ -1272,6 +1268,7 @@ export function MapScreen(props: MapScreenProps) {
               layers={boardLayers}
               assets={boardAssets}
               retainedRuns={props.retainedRuns}
+              onDropRetainedRun={props.onDropRetainedRun}
               /*
                 What this run's colours mean. Not derivable from the layers:
                 a layer is what is drawn, and class_stats, the water index and
@@ -1284,14 +1281,23 @@ export function MapScreen(props: MapScreenProps) {
                 application cannot come to hold two ideas of what the area is.
               */
               onUseArea={props.onAdoptAreaGeometry ?? props.onPolygonDrawn}
-              savedAois={props.savedAois}
-              activeAoiId={props.activeAoiId}
-              onActivateSavedAoi={props.onActivateSavedAoi}
-              onRenameSavedAoi={props.onRenameSavedAoi}
-              onDeleteSavedAoi={props.onDeleteSavedAoi}
-              runLog={runLog}
-              runRunning={boardRun.running}
-              runProgress={boardRun.progress}
+              /*
+                And the same handler again for the globe, which DRAWS rather
+                than adopts. `onUseArea` cannot carry a removal -- it takes a
+                geometry, not a geometry or nothing -- and clearing the shape is
+                half of what a drawing tool does.
+              */
+              customPolygon={props.customPolygon}
+              onPolygonDrawn={props.onPolygonDrawn}
+              catalogAreas={props.areas}
+              initialView={props.initialView}
+              onViewChange={props.onViewChange}
+              activeProjectId={props.activeProjectId}
+              activeProjectName={props.activeProjectName}
+              activeAreaId={props.activeAreaId}
+              onActivateArea={props.onActivateArea}
+              onRenameArea={props.onRenameArea}
+              onDeleteArea={props.onDeleteArea}
               legendSources={{
                 result: props.result,
                 water: props.water,
@@ -1312,15 +1318,13 @@ export function MapScreen(props: MapScreenProps) {
                 window that was asked for.
               */
               /*
-                What was actually drawn, or the example area it stands for.
-                The board outlines the AREA rather than the raster's box, and
-                a box around an area claims ground the analysis never saw.
+                What was actually drawn. The board outlines the AREA rather
+                than the raster's box, and a box around an area claims ground
+                the analysis never saw.
               */
               aoiPolygon={
                 polygonOuterRing(
                   props.customPolygon ??
-                    props.areas.find((a) => a.id === props.activeExample)
-                      ?.geometry ??
                     ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
                 ) ?? undefined
               }
@@ -1346,13 +1350,14 @@ export function MapScreen(props: MapScreenProps) {
                 active AOI's, then the map's label.
               */
               title={
-                props.savedAois?.find((a) => a.id === props.activeAoiId)?.name ||
+                props.areas?.find((a) => a.id === props.activeAreaId)?.name ||
                 props.areaLabel ||
                 ""
               }
-              whiteboards={props.whiteboards}
-              onOpenWhiteboard={props.onOpenWhiteboard}
-              onWhiteboardsMenu={props.onWhiteboardsMenu}
+              studios={props.studios}
+              onOpenStudio={props.onOpenStudio}
+              onNewStudio={props.onNewStudio}
+              onStudiosMenu={props.onStudiosMenu}
               onClose={() => setBoard(false)}
             />
           </Suspense>
@@ -1512,20 +1517,6 @@ export function MapScreen(props: MapScreenProps) {
           />
         ) : null}
       </AnimatePresence>
-
-      {drawingArea && (
-        <BoardAreaModal
-          /*
-            Opens where the work is: the view the map was left at, so the shape
-            is drawn over the ground already being looked at rather than over
-            the world.
-          */
-          view={props.initialView ?? { lat: -26.23, lon: -52.67, zoom: 12 }}
-          polygon={props.customPolygon}
-          onPolygonDrawn={props.onPolygonDrawn}
-          onClose={() => setDrawingArea(false)}
-        />
-      )}
 
       <DataCubeModal
         open={!!props.dataCubeOpen}

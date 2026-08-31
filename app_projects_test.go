@@ -508,8 +508,8 @@ func TestProjectRowsAreScopedToTheirUser(t *testing.T) {
 	if err := a.DeleteProject(guestProject.ID); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("DeleteProject on another user's project returned %v, want not found", err)
 	}
-	if _, err := a.UpdateProjectAOI(guestProject.ID, "area", "", "label"); !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("UpdateProjectAOI on another user's project returned %v, want not found", err)
+	if _, err := a.SetProjectLastArea(guestProject.ID, "area"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("SetProjectLastArea on another user's project returned %v, want not found", err)
 	}
 	if _, err := a.UpdateProjectRunLabels(guestProject.ID, "Renamed"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("UpdateProjectRunLabels on another user's project returned %v, want not found", err)
@@ -585,10 +585,20 @@ func TestProjectCreateUpdateDelete(t *testing.T) {
 
 // Deleting a project detaches its runs rather than deleting them.
 //
-// A run is the expensive artefact -- a sidecar execution and its assets --
-// and the project is a folder over it. Deleting the folder must return the
-// runs to the unassigned list, not destroy them.
-func TestProjectDeleteDetachesRunsAndRemovesOverlays(t *testing.T) {
+/*
+Deleting a project deletes what is inside it.
+
+THIS TEST ASSERTED THE OPPOSITE AND WAS RIGHT TO, until ownership became a
+chain. It said a run is the expensive artefact and the project a folder over it,
+so deleting the folder should return the run to the unassigned list rather than
+destroy it. That reasoning depended on there BEING an unassigned list: somewhere
+a run could stand on its own.
+
+A project now holds areas and an area holds runs, so there is nowhere to detach
+to -- a run with no project is a run of no ground. The folder is not a label over
+the work any more; it is what the work is inside.
+*/
+func TestProjectDeleteRemovesItsRunsAndOverlays(t *testing.T) {
 	a := newTestApp(t)
 	p := mustCreateProject(t, a, "Doomed project")
 	runID := mustSaveRun(t, a, store.LocalUserID, "run-in-project")
@@ -605,19 +615,17 @@ func TestProjectDeleteDetachesRunsAndRemovesOverlays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	run, err := a.store.GetRun(store.LocalUserID, runID)
-	if err != nil {
-		t.Fatalf("the run was deleted with its project: %v", err)
+	if _, err := a.store.GetRun(store.LocalUserID, runID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("the run outlived its project: %v", err)
 	}
-	if run.ProjectID != "" {
-		t.Fatalf("the run still names project %q, which no longer exists", run.ProjectID)
-	}
+	// And it is not hiding in the unassigned list either, which is the state
+	// this deletion used to produce and the hierarchy no longer has.
 	unassigned, err := a.ListProjectRuns("", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(unassigned) != 1 || unassigned[0].ID != runID {
-		t.Fatalf("the detached run is not in the unassigned list (%d rows)", len(unassigned))
+	if len(unassigned) != 0 {
+		t.Fatalf("deleting the project left %d run(s) with no project", len(unassigned))
 	}
 	if _, err := os.Stat(pngAbs); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("the composition file outlived its project: %v", err)
@@ -696,49 +704,48 @@ func TestProjectRunAssignmentRefusesAnotherUsersProject(t *testing.T) {
 	}
 }
 
-// Binding the map AOI to a project keeps the project's own fields and refuses
-// a polygon that is not JSON.
-//
-// The polygon is stored as text and read back by the map, which has no way to
-// report a parse failure the user could act on. Refusing it here is the only
-// point at which a malformed geometry is visible, and the refusal must leave
-// the previous AOI in place rather than half-applied.
-func TestProjectAOIUpdate(t *testing.T) {
-	a := newTestApp(t)
-	p := mustCreateProject(t, a, "AOI project")
-	polygon := `{"type":"Polygon","coordinates":[]}`
+/*
+The cursor a project keeps: which ground the reader was last on.
 
-	got, err := a.UpdateProjectAOI(p.ID, "  area-7  ", "  "+polygon+"  ", "  Talhao 3  ")
+It was TestProjectAOIUpdate, over UpdateProjectAOI, which wrote the map's
+current shape and label onto the project row and refused a polygon that was not
+JSON. There is no polygon on a project any more -- the shapes live in `areas`,
+one row each -- so what is left to test is that the cursor is stored trimmed,
+that setting it does not disturb the project's own fields, and that it can be
+cleared.
+
+Clearing matters on its own: leaving a project with nothing selected has to be
+expressible, and an empty string is how it is said.
+*/
+func TestProjectLastAreaCursor(t *testing.T) {
+	a := newTestApp(t)
+	p := mustCreateProject(t, a, "Cursor project")
+
+	got, err := a.SetProjectLastArea(p.ID, "  area-7  ")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.AreaID != "area-7" || got.PolygonGeoJSON != polygon || got.Label != "Talhao 3" {
-		t.Fatalf("AOI fields not stored trimmed: %+v", got)
+	if got.LastAreaID != "area-7" {
+		t.Fatalf("cursor stored as %q, want trimmed", got.LastAreaID)
 	}
 	if got.Name != p.Name {
-		t.Fatalf("binding an AOI renamed the project to %q", got.Name)
+		t.Fatalf("setting the cursor renamed the project to %q", got.Name)
 	}
 
-	if _, err := a.UpdateProjectAOI(p.ID, "area-8", `{"type":`, "Talhao 4"); err == nil {
-		t.Fatal("a polygon that is not JSON was accepted")
-	} else if !strings.Contains(err.Error(), "invalid polygon_geojson") {
-		t.Fatalf("error %q does not name the invalid polygon", err)
-	}
 	after, err := a.GetProject(p.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.AreaID != "area-7" || after.PolygonGeoJSON != polygon || after.Label != "Talhao 3" {
-		t.Fatalf("the refused update was partly applied: %+v", after)
+	if after.LastAreaID != "area-7" {
+		t.Fatalf("the cursor did not survive a read back: %+v", after)
 	}
 
-	// Clearing is not a malformed polygon: an empty string unbinds the AOI.
-	cleared, err := a.UpdateProjectAOI(p.ID, "", "", "")
+	cleared, err := a.SetProjectLastArea(p.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cleared.AreaID != "" || cleared.PolygonGeoJSON != "" || cleared.Label != "" {
-		t.Fatalf("the AOI was not cleared: %+v", cleared)
+	if cleared.LastAreaID != "" {
+		t.Fatalf("the cursor was not cleared: %+v", cleared)
 	}
 }
 
@@ -852,7 +859,7 @@ func TestProjectBindingsWithoutAStoreReturnAnError(t *testing.T) {
 		{"ListProjectOverlays", func() error { _, err := a.ListProjectOverlays("p"); return err }},
 		{"DeleteProjectOverlay", func() error { return a.DeleteProjectOverlay("o") }},
 		{"DeleteAnalysis", func() error { return a.DeleteAnalysis("r") }},
-		{"UpdateProjectAOI", func() error { _, err := a.UpdateProjectAOI("p", "a", "", "l"); return err }},
+		{"SetProjectLastArea", func() error { _, err := a.SetProjectLastArea("p", "a"); return err }},
 		{"UpdateProjectRunLabels", func() error { _, err := a.UpdateProjectRunLabels("p", "L"); return err }},
 	} {
 		err := c.call()

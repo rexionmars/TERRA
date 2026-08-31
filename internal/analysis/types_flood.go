@@ -35,7 +35,6 @@ package analysis
 // exactly the AOI, an inset margin of 0 cells for no inset ring. A plain
 // float64 would send each of those defaults as an explicit zero.
 type FloodRequest struct {
-	AreaID         string           `json:"area_id"`
 	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
 	// The products to compare, by dem.COLLECTIONS id. Empty selects the
 	// four-product default set. Fewer than two the sidecar refuses: one product
@@ -63,10 +62,11 @@ type FloodRequest struct {
 	Label            string `json:"label,omitempty"`
 	RunLabel         string `json:"run_label,omitempty"`
 	ProjectID        string `json:"project_id,omitempty"`
-	// AoiID is the catalogued area this run belongs to, when the caller has
-	// one. The polygon says where the run was made; this says which area it is
-	// OF. See store.InferenceRun.AoiID.
-	AoiID string `json:"aoi_id,omitempty"`
+	// AreaID is the ground this run is OF: a row in `areas`, inside the project
+	// the run is filed under. The polygon says where the run was made; this
+	// says which area it belongs to, which is what lets an area and the runs
+	// over it be one subject rather than two.
+	AreaID string `json:"area_id,omitempty"`
 }
 
 // FloodCellSize is the ground size of one grid cell in metres, evaluated at the
@@ -238,6 +238,18 @@ type FloodAssumptions struct {
 // Qualifier says so in the words that must travel with any figure taken from
 // here.
 type FloodAnalysis struct {
+	// The row this run was recorded as, or empty where it was not recorded.
+	//
+	// saveRun withdraws its claim to have saved by returning nothing, and
+	// until this field existed the withdrawal had nowhere to go: the frontend
+	// read every one of these runs as unrecorded, and the studio's live area
+	// reported the sentinel "current" for it. Same field and same meaning as
+	// WaterAnalysis.RunID, which states it at length.
+	//
+	// A line comment and not a block: frontend/scripts/check-types.ts parses
+	// these structs and refuses a "/*" it cannot read a JSON name from,
+	// rather than skipping the field in silence.
+	RunID               string        `json:"run_id,omitempty"`
 	ReferenceThresholdM float64       `json:"reference_threshold_m"`
 	ThresholdsM         []float64     `json:"thresholds_m"`
 	DrainageKm2         float64       `json:"drainage_km2"`

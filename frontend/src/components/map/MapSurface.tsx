@@ -100,13 +100,12 @@ import {
   polygonOuterRing,
   ringCentroid,
 } from "@/lib/geometry"
-import { isZeroExtent } from "@/lib/mapLayers"
+import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { AnalyzeSurfaceModel } from "../../../wailsjs/go/main/App"
 import { publishMapPose } from "@/lib/mapPose"
 import { paletteColor } from "@/lib/palettes"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import type {
-  Area,
   Bounds,
   CompositionOverlay,
   GeoJSONGeometry,
@@ -121,8 +120,6 @@ const AOI_LINE = "aoi-line"
 
 export interface MapSurfaceProps {
   initialView?: { lat: number; lon: number; zoom: number } | null
-  areas: Area[]
-  activeExample: string
   customPolygon: GeoJSONGeometry | null
   onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
   flyTo: { lat: number; lon: number; key: number } | null
@@ -191,8 +188,6 @@ interface RawOverlay {
 
 export function MapSurface({
   initialView = null,
-  areas,
-  activeExample,
   customPolygon,
   onPolygonDrawn,
   flyTo,
@@ -265,25 +260,16 @@ export function MapSurface({
   )
 
   /*
-    Custom first, then the named example: MapView's precedence, kept because it
-    decides the outline, the label, the right-click target and what "fit to
-    area" fits.
+    The drawn shape decides the outline, the label, the right-click target and
+    what "fit to area" fits. A named example area used to come second in that
+    precedence; there are no example areas now.
   */
-  const aoiGeometry = useMemo(() => {
-    if (customPolygon) return customPolygon
-    if (activeExample) {
-      return areas.find((a) => a.id === activeExample)?.geometry ?? null
-    }
-    return null
-  }, [customPolygon, activeExample, areas])
+  const aoiGeometry = customPolygon
 
   const aoiName = useMemo(() => {
     if (areaLabel?.trim()) return areaLabel.trim()
-    if (activeExample) {
-      return areas.find((a) => a.id === activeExample)?.label ?? "AOI"
-    }
     return customPolygon ? "Custom AOI" : ""
-  }, [areaLabel, activeExample, areas, customPolygon])
+  }, [areaLabel, customPolygon])
 
   // ---- the map ------------------------------------------------------------
 
@@ -815,6 +801,11 @@ export function MapSurface({
     return () => sub.unsubscribe()
   }, [swipeActive, ready, swipeRatio])
 
+  /*
+    Bumped when the style settles, so the overlay effect below runs again. A
+    ref would not do: the retry has to produce a render.
+  */
+  const [styleNonce, setStyleNonce] = useState(0)
   const [resolved, setResolved] = useState<OverlaySpec[]>([])
   useEffect(() => {
     let cancelled = false
@@ -881,14 +872,40 @@ export function MapSurface({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    overlayIdsRef.current = syncOverlays(
-      map,
-      resolved,
-      overlayIdsRef.current,
-      // Always under the outline, which is the last layer in the style.
-      map.getLayer(AOI_LINE) ? AOI_LINE : undefined
-    )
-  }, [resolved, ready])
+    /*
+      THE STYLE CAN BE MID-REPLACEMENT, AND `ready` DOES NOT PROMISE OTHERWISE.
+
+      `ready` is set on the map's `load` event, which fires once. The style is
+      touched after that, and while a replacement is in flight `addSource`
+      throws "Style is not done loading" -- from an effect that has nothing to
+      do with the basemap, so it reached the error boundary, which recreated
+      MapSurface from scratch: a new map, a new style, and the overlays gone.
+
+      CAUGHT RATHER THAN PRE-CHECKED. `isStyleLoaded()` is the obvious guard and
+      it is the wrong one: it reports false while any SOURCE is still loading,
+      and the hillshade fetches DEM tiles on every pan, so gating on it drops
+      the overlay for most of the time a reader is moving. That guard was tried
+      here and made an intermittent failure permanent.
+
+      Deferred, not dropped: `styledata` says when the style has settled, and
+      the retry runs this again with the same `resolved`.
+    */
+    try {
+      overlayIdsRef.current = syncOverlays(
+        map,
+        resolved,
+        overlayIdsRef.current,
+        // Always under the outline, which is the last layer in the style.
+        map.getLayer(AOI_LINE) ? AOI_LINE : undefined
+      )
+    } catch {
+      const retry = () => setStyleNonce((n) => n + 1)
+      map.once("styledata", retry)
+      return () => {
+        map.off("styledata", retry)
+      }
+    }
+  }, [resolved, ready, styleNonce])
 
   useEffect(() => {
     return () => {
@@ -925,6 +942,7 @@ export function MapSurface({
     const b = geometryBounds(aoiGeometry)
     if (b) map.fitBounds(boundsToLngLat(b), { padding: 40 })
   }, [fitAoiNonce, aoiGeometry, ready])
+
 
   // ---- right-click on the area -------------------------------------------
 
@@ -1130,13 +1148,18 @@ export function MapSurface({
             if (!aoiGeometry) return
             setSurface({ at: "reading" })
             try {
+              /*
+                No project and no area, and no longer a pair of empty strings
+                standing in for them. This reading is not recorded -- the Go
+                side says so on AnalyzeSurfaceModel -- so there was nothing for
+                them to file it under, and the request has stopped declaring
+                fields it never reads.
+              */
               const reading = await AnalyzeSurfaceModel({
                 polygon_geojson: aoiGeometry as never,
                 area_id: "",
                 aoi_label: aoiName,
                 run_label: "",
-                project_id: "",
-                aoi_id: "",
               } as never)
               setSurface({ at: "read", reading: reading as never })
             } catch (e) {
@@ -1163,7 +1186,7 @@ export function MapSurface({
           menu={aoiMenu}
           areaName={aoiName || "AOI"}
           schemeId={scheme.id}
-          canClear={!!customPolygon || !!activeExample}
+          canClear={!!customPolygon}
           onClose={() => setAoiMenu(null)}
           onRename={onAreaLabelChange}
           onSchemeChange={onAoiContourSchemeChange}

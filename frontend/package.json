@@ -10,7 +10,9 @@
     "test": "vitest run",
     "check:contrast": "tsx scripts/check-contrast.ts",
     "check:types": "tsx scripts/check-types.ts",
-    "check:version": "tsx scripts/check-version.ts"
+    "check:version": "tsx scripts/check-version.ts",
+    "check:cursors": "tsx scripts/build-cursors.ts --check",
+    "build:cursors": "tsx scripts/build-cursors.ts"
   },
   "dependencies": {
     "@tmcw/togeojson": "^7.1.2",

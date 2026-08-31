@@ -1,5 +1,5 @@
 /**
- * Figures shared by the Analysis solar sections and the whiteboard's right
+ * Figures shared by the Analysis solar sections and the studio's right
  * solar drawer. Kept in one place so sky view and the siting cover lists
  * cannot disagree about what a run reported.
  */

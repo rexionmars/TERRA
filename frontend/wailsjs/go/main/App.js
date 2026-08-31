@@ -74,6 +74,10 @@ export function ClearAvatar() {
   return window['go']['main']['App']['ClearAvatar']();
 }
 
+export function CreateArea(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CreateArea'](arg1, arg2, arg3);
+}
+
 export function CreateProject(arg1, arg2) {
   return window['go']['main']['App']['CreateProject'](arg1, arg2);
 }
@@ -86,6 +90,10 @@ export function DeleteAnalysis(arg1) {
   return window['go']['main']['App']['DeleteAnalysis'](arg1);
 }
 
+export function DeleteArea(arg1) {
+  return window['go']['main']['App']['DeleteArea'](arg1);
+}
+
 export function DeleteProject(arg1) {
   return window['go']['main']['App']['DeleteProject'](arg1);
 }
@@ -94,8 +102,8 @@ export function DeleteProjectOverlay(arg1) {
   return window['go']['main']['App']['DeleteProjectOverlay'](arg1);
 }
 
-export function DeleteWhiteboard(arg1) {
-  return window['go']['main']['App']['DeleteWhiteboard'](arg1);
+export function DeleteStudio(arg1) {
+  return window['go']['main']['App']['DeleteStudio'](arg1);
 }
 
 export function ExportBackup() {
@@ -122,6 +130,10 @@ export function GetAppVersion() {
   return window['go']['main']['App']['GetAppVersion']();
 }
 
+export function GetArea(arg1) {
+  return window['go']['main']['App']['GetArea'](arg1);
+}
+
 export function GetBootLogs() {
   return window['go']['main']['App']['GetBootLogs']();
 }
@@ -134,8 +146,8 @@ export function GetProject(arg1) {
   return window['go']['main']['App']['GetProject'](arg1);
 }
 
-export function GetWhiteboard(arg1) {
-  return window['go']['main']['App']['GetWhiteboard'](arg1);
+export function GetStudio(arg1) {
+  return window['go']['main']['App']['GetStudio'](arg1);
 }
 
 export function InspectEnvironment() {
@@ -150,12 +162,16 @@ export function InspectStorage() {
   return window['go']['main']['App']['InspectStorage']();
 }
 
-export function ListDataCube(arg1) {
-  return window['go']['main']['App']['ListDataCube'](arg1);
+export function ListAreaRuns(arg1, arg2) {
+  return window['go']['main']['App']['ListAreaRuns'](arg1, arg2);
 }
 
-export function ListEmbeddedAreas() {
-  return window['go']['main']['App']['ListEmbeddedAreas']();
+export function ListAreas(arg1) {
+  return window['go']['main']['App']['ListAreas'](arg1);
+}
+
+export function ListDataCube(arg1) {
+  return window['go']['main']['App']['ListDataCube'](arg1);
 }
 
 export function ListOptionalPackages() {
@@ -178,8 +194,8 @@ export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
 }
 
-export function ListWhiteboards() {
-  return window['go']['main']['App']['ListWhiteboards']();
+export function ListStudios(arg1) {
+  return window['go']['main']['App']['ListStudios'](arg1);
 }
 
 export function LoadAnalysis(arg1) {
@@ -214,8 +230,8 @@ export function Register(arg1, arg2, arg3) {
   return window['go']['main']['App']['Register'](arg1, arg2, arg3);
 }
 
-export function RenameWhiteboard(arg1, arg2) {
-  return window['go']['main']['App']['RenameWhiteboard'](arg1, arg2);
+export function RenameStudio(arg1, arg2) {
+  return window['go']['main']['App']['RenameStudio'](arg1, arg2);
 }
 
 export function RenderComposite(arg1) {
@@ -242,16 +258,24 @@ export function SaveProjectOverlay(arg1) {
   return window['go']['main']['App']['SaveProjectOverlay'](arg1);
 }
 
-export function SaveWhiteboard(arg1) {
-  return window['go']['main']['App']['SaveWhiteboard'](arg1);
+export function SaveStudio(arg1) {
+  return window['go']['main']['App']['SaveStudio'](arg1);
 }
 
 export function SetAvatar(arg1) {
   return window['go']['main']['App']['SetAvatar'](arg1);
 }
 
+export function SetProjectLastArea(arg1, arg2) {
+  return window['go']['main']['App']['SetProjectLastArea'](arg1, arg2);
+}
+
 export function SetRunProject(arg1, arg2) {
   return window['go']['main']['App']['SetRunProject'](arg1, arg2);
+}
+
+export function UpdateArea(arg1) {
+  return window['go']['main']['App']['UpdateArea'](arg1);
 }
 
 export function UpdateProfile(arg1) {
@@ -260,10 +284,6 @@ export function UpdateProfile(arg1) {
 
 export function UpdateProject(arg1) {
   return window['go']['main']['App']['UpdateProject'](arg1);
-}
-
-export function UpdateProjectAOI(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['UpdateProjectAOI'](arg1, arg2, arg3, arg4);
 }
 
 export function UpdateProjectRunLabels(arg1, arg2) {

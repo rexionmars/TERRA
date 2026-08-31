@@ -22,7 +22,6 @@ New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 function Copy-Assets([string]$Dest) {
   New-Item -ItemType Directory -Force -Path $Dest | Out-Null
   Copy-Item -Recurse (Join-Path $Root "sidecar") (Join-Path $Dest "sidecar")
-  Copy-Item -Recurse (Join-Path $Root "areas") (Join-Path $Dest "areas")
   Copy-Item -Recurse (Join-Path $Root "model") (Join-Path $Dest "model")
   Get-ChildItem -Path (Join-Path $Dest "sidecar") -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue

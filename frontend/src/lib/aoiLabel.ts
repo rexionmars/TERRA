@@ -32,11 +32,15 @@ export function displayRunLabel(label: string | null | undefined): string {
 }
 
 /**
- * Resolve the AOI (area) display name — never use a run-* label here.
+ * Resolve the area's display name — never use a run-* label here.
+ *
+ * The second candidate was `projectLabel`, the name a project carried for its
+ * one AOI. A project has grounds now, each with its own name, so the run's own
+ * area answers where the project used to: `areaName`.
  */
 export function resolveAoiDisplayLabel(opts: {
   analysisLabel?: string | null
-  projectLabel?: string | null
+  areaName?: string | null
   prefsAoiLabel?: string | null
   /** From inference_runs.summary_json aoi_label (frozen at predict). */
   summaryAoiLabel?: string | null
@@ -44,7 +48,7 @@ export function resolveAoiDisplayLabel(opts: {
 }): string {
   for (const c of [
     opts.analysisLabel,
-    opts.projectLabel,
+    opts.areaName,
     opts.prefsAoiLabel,
     opts.summaryAoiLabel,
   ]) {
@@ -53,7 +57,7 @@ export function resolveAoiDisplayLabel(opts: {
   }
   for (const c of [
     opts.analysisLabel,
-    opts.projectLabel,
+    opts.areaName,
     opts.prefsAoiLabel,
     opts.summaryAoiLabel,
   ]) {

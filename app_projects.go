@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -246,8 +245,23 @@ func hydrateProjectOverlay(st *store.Store, o *store.ProjectOverlay) *store.Proj
 	return &out
 }
 
-// UpdateProjectAOI is a convenience wrapper for binding the current map AOI.
-func (a *App) UpdateProjectAOI(projectID, areaID, polygonGeoJSON, label string) (*store.Project, error) {
+/*
+SetProjectLastArea records which ground the reader is on, so opening the project
+again resumes there.
+
+IT WAS UpdateProjectAOI, and it wrote the map's current shape, its area id and
+its label onto the project row -- one geometry per project, taken from whatever
+was on screen. That is the model areas replaced: a project working a dozen
+fields still showed a single line naming one of them, and a run made in it
+inherited that line rather than the ground it was actually over.
+
+An empty areaID clears the cursor, which is what leaving a project with nothing
+selected means. The area is not checked here: DeleteArea clears this column for
+every project pointing at it, so the only way to store a dangling id is to pass
+one that never existed, and the reader treats an id it cannot resolve as no
+cursor at all.
+*/
+func (a *App) SetProjectLastArea(projectID, areaID string) (*store.Project, error) {
 	st, err := a.requireStore()
 	if err != nil {
 		return nil, err
@@ -257,13 +271,7 @@ func (a *App) UpdateProjectAOI(projectID, areaID, polygonGeoJSON, label string) 
 	if err != nil {
 		return nil, err
 	}
-	p.AreaID = strings.TrimSpace(areaID)
-	p.PolygonGeoJSON = strings.TrimSpace(polygonGeoJSON)
-	p.Label = strings.TrimSpace(label)
-	// Keep name; ensure polygon JSON is valid-ish when provided.
-	if p.PolygonGeoJSON != "" && !json.Valid([]byte(p.PolygonGeoJSON)) {
-		return nil, errors.New("invalid polygon_geojson")
-	}
+	p.LastAreaID = strings.TrimSpace(areaID)
 	return st.UpdateProject(userID, *p)
 }
 

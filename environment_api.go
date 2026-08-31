@@ -174,12 +174,6 @@ func resolvedPaths(runner *analysis.Runner, dataDir string) []ResolvedPath {
 			Blocks: "the Random Forest classification",
 		},
 		ResolvedPath{
-			Label:  "Areas",
-			Path:   runner.AreasDir(),
-			Source: sourceVar("TERRA_APP_DIR"),
-			Blocks: "the embedded study areas A, B and C",
-		},
-		ResolvedPath{
 			Label:  "Repository root",
 			Path:   runner.RepoRoot(),
 			Source: sourceVar("TERRA_ROOT"),

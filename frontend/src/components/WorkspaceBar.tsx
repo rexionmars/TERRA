@@ -73,7 +73,7 @@ export function WorkspaceBar({
   canRun: boolean
   onRun: () => void
   /**
-   * The whiteboard is up, and running belongs to it.
+   * The studio is up, and running belongs to it.
    *
    * The bar exists because in this layout the parameters live in a drawer; the
    * board carries the same panels under its Run tab, so a second button that

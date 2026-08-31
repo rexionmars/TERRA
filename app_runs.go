@@ -28,10 +28,11 @@ type savedRun struct {
 	kind      string
 	modelKind string
 
-	// Where the run was made. The polygon wins; the area id is recorded as a
-	// reference when the request named a catalogued area instead of drawing
-	// a shape.
-	areaID  string
+	// Where the run was made. A polygon, always: the alternative was an
+	// embedded example's id, and when a request came that way this wrote
+	// `{"area_id":"A"}` into the polygon column -- a geometry field holding
+	// something no reader of geometry can parse. The examples are gone and so
+	// is the branch.
 	polygon *analysis.GeoJSONGeometry
 
 	// What the run is called. aoiLabel names the ground and arrives already
@@ -45,7 +46,7 @@ type savedRun struct {
 	// Which catalogued area this run is OF. The polygon says where it was
 	// made; the board needs the area to keep a drawing and its runs as one
 	// subject.
-	aoiID string
+	areaID string
 
 	periodStart string
 	periodEnd   string
@@ -126,8 +127,6 @@ func (a *App) saveRun(run savedRun) string {
 		if b, err := json.Marshal(run.polygon); err == nil {
 			poly = string(b)
 		}
-	} else if run.areaID != "" {
-		poly = fmt.Sprintf(`{"area_id":%q}`, run.areaID)
 	}
 
 	runLabel := strings.TrimSpace(run.runLabel)
@@ -161,7 +160,7 @@ func (a *App) saveRun(run savedRun) string {
 		NDates:         run.nDates,
 		Label:          runLabel,
 		ProjectID:      strings.TrimSpace(run.projectID),
-		AoiID:          strings.TrimSpace(run.aoiID),
+		AreaID:         strings.TrimSpace(run.areaID),
 	}); err != nil {
 		// Best effort means the failure is not reported, not that it is
 		// reported as a success. The caller hands this id to the frontend as
@@ -190,23 +189,32 @@ func aoiLabel(candidates ...string) string {
 	return "Custom AOI"
 }
 
-// persistWaterRun saves a surface-water run so it survives the session and is
-// listed, opened and exported like a classification.
-func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnalysis) {
+/*
+persistWaterRun saves a surface-water run so it survives the session and is
+listed, opened and exported like a classification.
+
+Returns the row it wrote, empty when nothing was written. Every persist function
+here does, and the reason is the same one persistAnalysis gives: the caller has
+to be able to tell the frontend which run it is now looking at. Only the
+classification did, and everything downstream paid for it -- the studio's live
+area reported the sentinel "current" for these products, so a board could not
+record the run it was plainly showing, and a composition applied over one was
+filed against no run at all.
+*/
+func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindWater,
 		// No model produced this: the index name carries the method instead.
 		modelKind:   res.Index,
-		areaID:      req.AreaID,
 		polygon:     req.PolygonGeoJSON,
 		aoiLabel:    label,
 		runLabel:    req.RunLabel,
 		projectID:   req.ProjectID,
-		aoiID:       req.AoiID,
+		areaID:      req.AreaID,
 		periodStart: req.Start,
 		periodEnd:   req.End,
 		nDates:      res.NDates,
@@ -233,22 +241,22 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 }
 
 // persistSolarRun saves a solar resource run so it survives the session and is
-// listed, opened and exported like the other analyses.
-func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnalysis) {
+// listed, opened and exported like the other analyses. Returns the row it
+// wrote; see persistWaterRun for why every one of these does.
+func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
 		modelKind: "NASA POWER",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		nDates:    res.Resource.NYears,
 		summary: map[string]any{
 			"ghi_annual_kwh_m2":       res.Resource.GHIAnnualKWhM2,
@@ -267,23 +275,22 @@ func (a *App) persistSolarRun(req analysis.SolarRequest, res *analysis.SolarAnal
 // persistSolarRaster saves a solar map run and writes its overlay to disk, so
 // reopening the run puts the raster back rather than only its numbers.
 func (a *App) persistSolarRaster(
-	areaID string, poly *analysis.GeoJSONGeometry,
-	label, runLabel, projectID, aoiID, kindTag, variant string,
+	poly *analysis.GeoJSONGeometry,
+	label, runLabel, projectID, areaID, kindTag, variant string,
 	payload any, overlayURI string, nDates int,
-) {
+) string {
 	if payload == nil {
-		return
+		return ""
 	}
 	l := aoiLabel(label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind:      store.RunKindSolar,
 		modelKind: "NASA POWER",
-		areaID:    areaID,
 		polygon:   poly,
 		aoiLabel:  l,
 		runLabel:  runLabel,
 		projectID: projectID,
-		aoiID:     aoiID,
+		areaID:    areaID,
 		nDates:    nDates,
 		summary: map[string]any{
 			"solar_product": kindTag,
@@ -303,21 +310,20 @@ func (a *App) persistSolarRaster(
 // Filed under RunKindSolar with solar_product "energy_model", which is the
 // discriminator the solar products already use. It is a solar product: same
 // radiation chain, same grid, same optimum.
-func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analysis.EnergyModelAnalysis) {
+func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analysis.EnergyModelAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindSolar,
 		// No model produced this; the source is the method that did.
 		modelKind: "NASA POWER",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		nDates:    res.NDates(),
 		// ghi_annual_kwh_m2, optimal_tilt_deg and specific_yield are the keys
 		// the saved-run list already reads for a solar row, so the row says
@@ -345,22 +351,22 @@ func (a *App) persistEnergyModelRun(req analysis.EnergyModelRequest, res *analys
 	})
 }
 
-// persistWindRun saves a wind screening run under its own kind.
-func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysis) {
+// persistWindRun saves a wind screening run under its own kind. Returns the row
+// it wrote; see persistWaterRun for why every one of these does.
+func (a *App) persistWindRun(req analysis.WindRequest, res *analysis.WindAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindWind,
 		// No model produced this; the source is the product that did.
 		modelKind: "NASA POWER MERRA-2",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		nDates:    res.NDates(),
 		// The qualifier and the check outcome travel with the capacity factor.
 		// A gross, unvalidated figure listed beside a benchmarked photovoltaic
@@ -403,9 +409,9 @@ alone is a shape produced by a DEM the user never chose and is never shown.
 // A run whose stored paths still named it would list, reopen, and hand the
 // reader a GeoTIFF path that resolves to nothing -- and the GeoTIFF is the
 // product, not an illustration of it.
-func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnalysis) {
+func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnalysis) string {
 	if res == nil {
-		return
+		return ""
 	}
 	label := aoiLabel(req.Label)
 	// The envelope row at the reference threshold: the narrowest and widest
@@ -464,17 +470,16 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 	if res.AgreementURI != "" || res.AgreementPNG != "" {
 		overlay = floodAgreementPNG
 	}
-	a.saveRun(savedRun{
+	return a.saveRun(savedRun{
 		kind: store.RunKindFlood,
 		// No model produced this; the terrain index and the catalogue the DEMs
 		// were read from are the method.
 		modelKind: "HAND over Planetary Computer DEM",
-		areaID:    req.AreaID,
 		polygon:   req.PolygonGeoJSON,
 		aoiLabel:  label,
 		runLabel:  req.RunLabel,
 		projectID: req.ProjectID,
-		aoiID:     req.AoiID,
+		areaID:    req.AreaID,
 		// Zero, and not unfilled: HAND is a static terrain index with no
 		// observation dates to count. See FloodAnalysis.NDates.
 		nDates:  res.NDates(),
@@ -522,16 +527,15 @@ func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.Predict
 	if res == nil {
 		return ""
 	}
-	label := aoiLabel(req.Label, req.AreaID)
+	label := aoiLabel(req.Label)
 	runID := a.saveRun(savedRun{
 		kind:        store.RunKindClassification,
 		modelKind:   req.ModelKind,
-		areaID:      req.AreaID,
 		polygon:     req.PolygonGeoJSON,
 		aoiLabel:    label,
 		runLabel:    req.RunLabel,
 		projectID:   req.ProjectID,
-		aoiID:       req.AoiID,
+		areaID:      req.AreaID,
 		periodStart: req.Start,
 		periodEnd:   req.End,
 		nDates:      res.NDates,
@@ -540,7 +544,6 @@ func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.Predict
 			"date_range":      res.DateRange,
 			"n_dates":         res.NDates,
 			"mean_confidence": res.MeanConfidence,
-			"area_id":         req.AreaID,
 			"aoi_label":       label,
 			"has_reference":   res.ReferenceURI != "",
 			"has_ndvi_mean":   res.NDVIMeanURI != "",
@@ -726,7 +729,17 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 			_ = json.Unmarshal([]byte(run.ResultJSON), &wind)
 		}
 		wind.NormalizeNilSlices()
-		return &analysis.PredictResult{Wind: &wind}, nil
+		/*
+			Stamped, like the solar, flood and classification branches around it.
+
+			This branch and the water one below returned without it, so reopening
+			a saved wind or water run handed the frontend a result that did not
+			know which run it was -- the same sentinel the live path suffered
+			from, arriving through the other door. A run read back from its own
+			row is the one case where the id is never in doubt.
+		*/
+		wind.RunID = run.ID
+		return &analysis.PredictResult{Wind: &wind, RunID: run.ID}, nil
 	}
 
 	/*
@@ -784,7 +797,9 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		); err == nil {
 			water.OccurrenceURI = uri
 		}
-		return &analysis.PredictResult{Water: &water}, nil
+		// Stamped for the reason the wind branch above states.
+		water.RunID = run.ID
+		return &analysis.PredictResult{Water: &water, RunID: run.ID}, nil
 	}
 
 	var res analysis.PredictResult

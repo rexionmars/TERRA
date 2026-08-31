@@ -47,10 +47,45 @@ function level(count: number): number {
  * first attempt broke both: the empty cell measured 1.17 against the background,
  * which is nothing, and the first filled step 1.39, which is nothing again.
  *
- * Measured against the app background: 1.43, 1.98, 2.71, 3.75, 5.23.
+ * THE IDLE STEP IS THEMED AND THE FILLED ONES ARE NOT, which is a difference
+ * in the palette rather than a preference. The filled steps are the accent,
+ * and the accent is already darkened for the light theme, so one alpha lands
+ * both. The idle step is the neutral line against the page, and the headroom
+ * under the first filled step is not the same on both sides: the accent at 45
+ * per cent reaches 2.32 on the dark background and only 2.01 on the light one.
+ * A single alpha bright enough to be worth looking at in the dark theme rises
+ * to 94 per cent of the first filled step in the light one, which is the
+ * failure above returning from the other direction. Two values hold the idle
+ * step at the same 79 per cent of the first filled step in both.
+ *
+ * Contrast against `--background`, dark then light:
+ *   idle   1.85 / 1.59
+ *   1 run  2.32 / 2.01
+ *   2-3    3.24 / 2.69
+ *   4-6    4.49 / 3.67
+ *   7+     6.25 / 5.02
+ *
+ * `bg-[rgb(var(--p-line))]` AND NOT `bg-line`, WHICH DRAWS NOTHING AT ALL.
+ * The `line` scale is declared in index.css as
+ * `rgb(var(--p-line) / <alpha-value>)`. That placeholder is Tailwind v3, where
+ * the engine substituted it per utility; v4 copies the declared value through
+ * and applies opacity around it with color-mix, so the literal string reaches
+ * the stylesheet and the parser drops the rule. An invalid background-color is
+ * not a wrong colour but no declaration at all, which is why the idle cells
+ * were not faint here -- they were absent, and so was the first swatch of the
+ * legend below.
+ *
+ * Reaching past the scale to the channels it is built from is the narrow way
+ * around it. The wide way is to drop `<alpha-value>` from the ten tokens that
+ * carry it, which is the actual repair -- and which revives thirteen further
+ * utilities across roughly thirty files, `bg-surface` and `bg-surface-raised`
+ * among them, repainting the navigation column and the buttons in tones that
+ * were declared but never once rendered. That is a design pass over the app's
+ * surfaces, not a correction to this grid, so it is left to be taken on its
+ * own terms rather than smuggled in behind a heatmap.
  */
 const LEVEL_CLASS = [
-  "bg-line/55",
+  "bg-[rgb(var(--p-line))]/75 dark:bg-[rgb(var(--p-line))]",
   "bg-primary/45",
   "bg-primary/[0.62]",
   "bg-primary/80",
