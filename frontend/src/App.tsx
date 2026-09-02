@@ -27,7 +27,6 @@ import {
   ListProjectOverlays,
   GetProject,
   SetProjectLastArea,
-  CreateProject,
   ListAreas,
   CreateArea,
   UpdateArea,
@@ -88,7 +87,6 @@ import {
   geometryBounds,
   geometryCentroid,
 } from "@/lib/geometry"
-import { ProjectSwitcher } from "@/components/ProjectSwitcher"
 import { resolveCompositionMeta } from "@/lib/compositeCatalog"
 import {
   DEFAULT_AOI_CONTOUR_SCHEME,
@@ -670,7 +668,6 @@ function AppBody(props: {
     screen,
     goStudio,
     goProfile,
-    runs,
     projects,
     prefs,
     savePrefs,
@@ -1388,32 +1385,6 @@ function AppBody(props: {
     didRestoreProjectRef.current = true
     void activateProject(id, { userInitiated: false })
   }, [prefs?.extras_json, projects, activateProject])
-
-  /*
-    A new project, opened.
-
-    IT USED TO COPY THE MAP'S SHAPE INTO IT, as `projects.polygon_geojson`, and
-    was named handleCreateProjectFromAoi for that. A project holds areas now,
-    and giving it a geometry of its own is the confusion this change removes: a
-    project with one shape cannot describe a reader working several fields, and
-    that column is what the hub still reads to print "AOI" for a project holding
-    a dozen grounds. The copy stops here; the column goes with its last reader.
-
-    The map keeps whatever is drawn on it. Nothing is discarded -- it simply
-    belongs to no project until an area is made of it.
-  */
-  const handleCreateProject = useCallback(async () => {
-    const name = window.prompt("Project name", props.analysisLabel || "New field")
-    if (!name?.trim()) return
-    try {
-      const p = (await CreateProject(name.trim(), "")) as unknown as Project
-      await refreshProjects()
-      await activateProject(p.id)
-      notifySuccess("Project created", p.name)
-    } catch (e) {
-      notifyError("Could not create project", e)
-    }
-  }, [activateProject, refreshProjects, props.analysisLabel])
 
   const clearAreaAndComposition = useCallback(() => {
     setComposition(null)
@@ -3112,49 +3083,6 @@ function AppBody(props: {
         boardOpen={boardOpen}
         result={props.result}
         credit={credit}
-        /*
-          Wherever a run is filed under the active project. Every product sends
-          project_id -- the solar, wind and flood handlers exactly as the
-          classification ones do -- so a run lands in a project, and the header
-          is where which project that is can be read and changed.
-
-          Not on settings or sign-in, which have no project.
-        */
-        projectSwitcher={
-          screen === "studio" ? (
-            <ProjectSwitcher
-              projects={projects}
-              activeProjectId={activeProjectId}
-              runs={runs}
-              studios={studios}
-              onOpenStudio={(b) => void handleOpenStudio(b)}
-              onMenuOpen={() => void refreshStudios()}
-              busy={loadingRun}
-              onSelect={(id) => void activateProject(id)}
-              onCreate={() => void handleCreateProject()}
-              onOpenRun={(run) => {
-                void (async () => {
-                  /*
-                    The header must not name one project while the map shows a
-                    run belonging to another, and picking a run inside a
-                    project's own list is as clear a statement of which project
-                    is meant as clicking its name.
-
-                    Not user-initiated: that draws the project's AOI and flies
-                    to it, which is exactly what the run about to load is going
-                    to replace. This sets the context and lets the run draw.
-                  */
-                  if (run.project_id && run.project_id !== activeProjectId) {
-                    await activateProject(run.project_id, {
-                      userInitiated: false,
-                    })
-                  }
-                  await openSavedAnalysis(run)
-                })()
-              }}
-            />
-          ) : undefined
-        }
       />
 
       <div className="flex min-h-0 flex-1">

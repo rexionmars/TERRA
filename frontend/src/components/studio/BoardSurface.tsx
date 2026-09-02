@@ -23,6 +23,7 @@ import { motion } from "motion/react"
 import {
   Copy,
   FloppyDisk,
+  FolderSimple,
   Package,
   SlidersHorizontal,
 } from "@phosphor-icons/react"
@@ -1025,6 +1026,8 @@ export function BoardSurface({
   const [saving, setSaving] = useState(false)
   /** Whether the title block's catalog is open. */
   const [boardMenu, setBoardMenu] = useState(false)
+  /** And the project half of the same block. */
+  const [projectMenu, setProjectMenu] = useState(false)
   /** Whether the rename-and-remove dialog is up. */
   const [managing, setManaging] = useState(false)
   /**
@@ -4716,20 +4719,67 @@ export function BoardSurface({
             surface never named is the failure this whole change set exists to
             remove; the studio was still reaching it.
 
-            A CRUMB, NOT A SECOND SELECTOR. Two dropdowns on one row, each
-            saying what is open and meaning something different by it, is the
-            ambiguity the title bar was avoiding when it withheld the first.
-            Written as `project > board` the relation is stated instead, and
-            there is still one control on the row.
+            IT IS A SELECTOR, and it was a crumb. The reasoning for a crumb was
+            that two dropdowns on one row -- this and the title bar's project
+            switcher -- would each say what is open and mean something
+            different by it. That switcher is gone: the bar withholds it while
+            the board is up, and the board is up whenever the studio is, which
+            is now always. So the crumb was the only thing naming the project
+            and it could not change it, which is the readout-wearing-a-
+            control's-clothes this row's other half is written against.
+
+            Still `project > board`, so the relation is stated: what changed is
+            that both halves of it can now be pressed.
           */}
           {activeProjectName ? (
             <>
-              <span
-                className="truncate text-meta text-muted-foreground"
-                title={`Project: ${activeProjectName}`}
+              <StudioPopover
+                open={projectMenu}
+                onOpenChange={setProjectMenu}
+                surface={surfaceRef.current}
+                align="start"
+                widthRem={17}
+                trigger={(p) => (
+                  <button
+                    {...p}
+                    ref={p.ref as React.Ref<HTMLButtonElement>}
+                    type="button"
+                    disabled={!onActivateProject}
+                    className="app-no-drag flex min-w-0 items-center gap-1 rounded-sm px-1 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:cursor-default disabled:hover:bg-transparent"
+                    title={
+                      onActivateProject
+                        ? `${activeProjectName} — open another project`
+                        : `Project: ${activeProjectName}`
+                    }
+                  >
+                    <span className="truncate">{activeProjectName}</span>
+                    {onActivateProject && (
+                      <CaretDown className="size-2.5 shrink-0 opacity-60" />
+                    )}
+                  </button>
+                )}
               >
-                {activeProjectName}
-              </span>
+                <StudioMenuGroup label="Projects">
+                  {projects.length ? (
+                    projects.map((pr) => (
+                      <StudioMenuItem
+                        key={pr.id}
+                        icon={FolderSimple}
+                        label={pr.name}
+                        checked={pr.id === activeProjectId}
+                        onSelect={() => {
+                          onActivateProject?.(pr.id)
+                          setProjectMenu(false)
+                        }}
+                      />
+                    ))
+                  ) : (
+                    <p className="px-2 py-1.5 text-micro leading-relaxed text-muted-foreground">
+                      No projects yet. The Browser makes one.
+                    </p>
+                  )}
+                </StudioMenuGroup>
+              </StudioPopover>
               <CaretRight
                 className="size-2.5 shrink-0 text-muted-foreground/60"
               />
