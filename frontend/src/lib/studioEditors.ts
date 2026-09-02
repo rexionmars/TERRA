@@ -20,6 +20,7 @@ import {
   Box,
   ChartSpline,
   Crosshair,
+  Fan,
   Globe2,
   LibraryBig,
   GitCompareArrows,
@@ -48,6 +49,8 @@ export type EditorId =
   | "canopy"
   | "canopyParams"
   | "globe"
+  | "windReading"
+  | "floodReading"
 
 export interface StudioEditorMeta {
   id: EditorId
@@ -329,6 +332,37 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     */
     unique: true,
     hint: "Species, age and sowing for the stand, and which area is read",
+  },
+  {
+    id: "windReading",
+    label: "Wind screening",
+    icon: Fan,
+    /*
+      The two products whose result is a reading and not a raster.
+
+      Every other editor here draws something the viewport could also draw, or
+      controls something that changes it. These two do not: a wind screening
+      resolves an AOI to one reanalysis cell and reports figures over it, and
+      the flood envelope reports how far its products disagree. There is no
+      plane to select, so the reading is the editor rather than a band that
+      fills when a plane is picked.
+
+      Wide because the figures sit two to a row under a chip strip that names
+      the blocks, and a column narrower than this wraps a labelled figure onto
+      three lines. Tall for the same reason the reading scrolls at all: the
+      shear table alone is five rows.
+    */
+    minRem: 20,
+    minRowRem: 16,
+    hint: "Hub-height wind over the area, and how far the estimate moves with roughness",
+  },
+  {
+    id: "floodReading",
+    label: "Flood envelope",
+    icon: Waves,
+    minRem: 20,
+    minRowRem: 16,
+    hint: "How far the elevation products disagree about what the area floods",
   },
 ]
 

@@ -3516,10 +3516,12 @@ function AppBody(props: {
                   solarProgressMsg={solar.run.message}
                   /*
                     Wind and flood, in the shape solar established. Each had a
-                    screen of its own until the band grew cards for it; what the
-                    screen carried that the band does not is the reading of a
-                    finished run, which the board already draws as a raster
-                    beside the run that produced it.
+                    screen of its own until the band grew cards for it, and the
+                    result travels with the parameters because neither product
+                    becomes a plane: a wind screening reports over one
+                    reanalysis cell, and the flood raster shows where the
+                    products disagree rather than how far. Their editors read
+                    these; see studioEditors.ts.
                   */
                   windParams={wind.params}
                   onWindParamsChange={setWindParams}
@@ -3527,12 +3529,17 @@ function AppBody(props: {
                   windBusy={!!wind.run.active}
                   windProgress={wind.run.progress}
                   windProgressMsg={wind.run.message}
+                  polygonGeoJSON={analysisPolygonGeoJSON}
+                  windResult={wind.result}
+                  onClearWind={() => windDispatch({ type: "result/clear" })}
                   floodParams={floodParams}
                   onFloodParamsChange={setFloodParamsPatch}
                   onRunFlood={() => void handleRunFlood()}
                   floodBusy={floodRun.active}
                   floodProgress={floodRun.progress}
                   floodProgressMsg={floodRun.message}
+                  floodResult={flood}
+                  onClearFlood={() => setFlood(null)}
                   initialView={initialMapView}
                   layoutMode={layoutMode}
                   onLayoutModeChange={changeLayoutMode}

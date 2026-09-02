@@ -330,7 +330,6 @@ export function FloodScreen(props: FloodScreenProps) {
               onOpacityChange: setAgreementOpacity,
             }}
             onClear={props.onClearResult}
-            onCollapse={() => setResultOpen(false)}
           />
         )}
       </AnimatePresence>

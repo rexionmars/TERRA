@@ -20,7 +20,7 @@ import {
   useState,
 } from "react"
 import { motion } from "motion/react"
-import { Copy, Save, Settings2 } from "lucide-react"
+import { Copy, Package, Save, Settings2 } from "lucide-react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/studio/BoardSidebar"
 import type { OutlinerMode } from "@/components/studio/BoardSidebar"
@@ -102,11 +102,17 @@ import { saveStudio, type Studio } from "@/lib/studios"
 import { StudioManager } from "@/components/studio/StudioManager"
 import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
+  FloodAnalysis,
   GeoJSONGeometry,
   InferenceRun,
   ModelKind,
   PredictResult,
+  WindAnalysis,
 } from "@/lib/types"
+import { ReadingPanel } from "@/components/studio/ReadingPanel"
+import { ResearchPackModal } from "@/components/ResearchPackModal"
+import { windReadingGroups } from "@/components/energy/readingSections"
+import { FloodReadingColumn } from "@/components/flood/FloodReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
   createBoard,
@@ -416,6 +422,11 @@ export function BoardSurface({
   onOpenStudio,
   onNewStudio,
   onStudiosMenu,
+  polygonGeoJSON,
+  windResult = null,
+  onClearWind,
+  floodResult = null,
+  onClearFlood,
   onClose,
 }: {
   /**
@@ -544,6 +555,31 @@ export function BoardSurface({
   onNewStudio?: () => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
   onStudiosMenu?: () => void | Promise<void>
+  /**
+   * The AOI as GeoJSON text, for the research pack's manifest.
+   *
+   * The same string the exporter receives, passed rather than rebuilt from
+   * `aoiPolygon`: a second serialiser here could write a geometry that differs
+   * from the one the pack claims to describe.
+   */
+  polygonGeoJSON?: string
+  /**
+   * The two products whose result is read rather than drawn.
+   *
+   * They arrive whole and not as layers because neither is one. A wind
+   * screening resolves the area to a single reanalysis cell and reports over
+   * it, so there is nothing to paint; the flood envelope does produce a raster,
+   * but its reading is the disagreement between products, which the raster
+   * shows the location of and not the size of.
+   *
+   * Held here rather than in `legendSources` for the same reason: that carries
+   * what a plane's colours MEAN, and these have no plane to mean anything
+   * about. They are the whole of what their editor draws.
+   */
+  windResult?: WindAnalysis | null
+  onClearWind?: () => void
+  floodResult?: FloodAnalysis | null
+  onClearFlood?: () => void
   /**
    * Where to go when the surface cannot be built.
    *
@@ -900,6 +936,8 @@ export function BoardSurface({
   const [boardMenu, setBoardMenu] = useState(false)
   /** Whether the rename-and-remove dialog is up. */
   const [managing, setManaging] = useState(false)
+  /** Whether the research pack dialog is up. Opened from the table header. */
+  const [packOpen, setPackOpen] = useState(false)
   /**
    * A board chosen while this one has changes that were never saved.
    *
@@ -3371,6 +3409,44 @@ export function BoardSurface({
   ): Partial<Record<EditorId, AreaHeaderSlots>> => ({
     runParams: runBarHeader ?? {},
     /*
+      The research pack, on the editor whose own tables it writes.
+
+      It lived on the project hub, which is where every export lived because
+      that page was where a finished run was read. The tables are read here
+      now -- the Data workspace exists for them -- and the pack is those same
+      tables plus the rasters and a manifest. Putting it anywhere else would
+      mean leaving the surface that shows what is about to be exported in order
+      to export it.
+
+      Disabled rather than hidden with no run selected: the control is what
+      says the pack is per-run, and a button that appears only once the
+      condition is already met never teaches the condition.
+    */
+    table: {
+      options: (
+        <button
+          type="button"
+          onClick={() => setPackOpen(true)}
+          disabled={!selectedRuns.length}
+          title={
+            selectedRuns.length
+              ? `Export a research pack for ${selectedRuns[0].label}`
+              : "Select a run in the outliner to export it"
+          }
+          className={cn(
+            "flex h-6 items-center gap-1.5 rounded-sm px-1.5 text-emphasis",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            selectedRuns.length
+              ? "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+              : "cursor-not-allowed text-muted-foreground/50"
+          )}
+        >
+          <Package className="size-3.5" />
+          <span>Research pack</span>
+        </button>
+      ),
+    },
+    /*
       The source, only where there is a star to have a centre of. In the pair
       reading the two subjects come from the selection or the compare pins, and
       a control for something that reading does not use is a control that
@@ -3919,6 +3995,40 @@ export function BoardSurface({
     ),
     table: <StudioTables runs={selectedRuns} />,
     /*
+      The two readings that are not readings OF a plane.
+
+      Every other editor here is fed by `selectedRuns` -- what the outliner has
+      selected -- because every other product draws something the outliner
+      lists. These two take the result straight from the studio's props: a wind
+      screening has no plane to select, and selecting the flood raster would
+      still not be selecting the comparison that raster is evidence for.
+
+      So they show the run in hand, and say so when there is none. Not unique:
+      two areas on the same reading is two positions in one long scroll, which
+      is a comparison, and neither carries a control the other could disagree
+      with.
+    */
+    windReading: (
+      <ReadingPanel
+        groups={windReadingGroups(windResult)}
+        onClear={onClearWind ? () => onClearWind() : undefined}
+        empty="No wind screening yet. Draw an area, then run the wind from the run band."
+      />
+    ),
+    floodReading: floodResult ? (
+      <FloodReadingColumn
+        flood={floodResult}
+        onClear={() => onClearFlood?.()}
+      />
+    ) : (
+      <div className="flex h-full items-center justify-center p-4">
+        <p className="max-w-[22rem] text-center text-meta leading-relaxed text-muted-foreground">
+          No flood envelope yet. Draw an area, choose at least two elevation
+          products in the run band, then map the envelope.
+        </p>
+      </div>
+    ),
+    /*
       Four readings of one canopy, and the canopy is the workflow's rather than
       the panel's: what is grown and which area is read are set once in the
       canopy band, which is why this takes only which reading to show. Two
@@ -4217,6 +4327,23 @@ export function BoardSurface({
             setSavedName(null)
             markBoardDirty()
           }}
+        />
+      )}
+
+      {/*
+        The pack is written for the run the outliner has selected, and the
+        button that opens this is disabled without one -- so the guard here is
+        the same condition, not a second policy about what may be exported.
+      */}
+      {packOpen && selectedRuns[0] && (
+        <ResearchPackModal
+          result={selectedRuns[0].result}
+          modelKind={
+            assetRuns.find((r) => r.areaId === selectedRuns[0].id)?.model ?? ""
+          }
+          areaLabel={selectedRuns[0].label}
+          polygonGeoJSON={polygonGeoJSON}
+          onClose={() => setPackOpen(false)}
         />
       )}
 
