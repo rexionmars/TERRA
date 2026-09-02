@@ -1206,7 +1206,21 @@ function FolderTile({
         "hover:bg-surface-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
-      <span className={cn(TILE_PLATE, "flex items-center justify-center")}>
+      {/*
+        ALIGNED LEFT, NOT CENTRED IN THE PLATE.
+
+        A run's tile is a tinted plate the full width of the tile, so its left
+        edge and its label's left edge are the same line. The folder is a
+        smaller shape on an untinted plate, and centred it stood about 22px in
+        from that line -- so the grid had two left edges and the eye read the
+        folder as shifted right of its own name.
+
+        The shape keeps its proportion rather than being stretched to the
+        plate: at the tile's full width it is a 1.7:1 slab, and the tab that
+        makes a folder a folder is lost on anything that wide. What moves is
+        where it sits, which is what the misalignment was about.
+      */}
+      <span className={cn(TILE_PLATE, "flex items-center justify-start")}>
         <span className="flex h-[3.25rem] w-[4.25rem] flex-col">
           {/* The tab, a little over a third of the width. */}
           <span
