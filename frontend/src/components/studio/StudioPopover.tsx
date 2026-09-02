@@ -218,7 +218,7 @@ export function StudioMenuItem({
         {checked ? (
           <span className="size-1.5 rounded-[1px] bg-accent" aria-hidden />
         ) : Icon ? (
-          <Icon className="size-3 text-muted-foreground" strokeWidth={1.75} />
+          <Icon className="size-3 text-muted-foreground" />
         ) : null}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>

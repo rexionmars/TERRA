@@ -22,8 +22,8 @@
  * The fractions are chosen against the application's minimum window of
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
-import type { LucideIcon } from "lucide-react"
-import { Box, GitCompareArrows, Table2, TreePine, Waves } from "lucide-react"
+import type { Icon } from "@phosphor-icons/react"
+import { Cube, GitDiff, Table, Tree, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import type { EditorId } from "@/lib/studioEditors"
@@ -46,7 +46,7 @@ export interface StudioWorkspace {
    * tab and the area it leads to legible as one subject, which is the argument
    * `BoardRunGraph` makes for reusing the board tree's glyphs on its tools.
    */
-  icon: LucideIcon
+  icon: Icon
   /** Built fresh per call: a shared tree would be mutated across workspaces. */
   build: () => StudioTree
 }
@@ -78,7 +78,7 @@ const col = (id: string, at: number, a: StudioTree, b: StudioTree): StudioTree =
 export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   {
     id: "layout",
-    icon: Box,
+    icon: Cube,
     label: "Layout",
     hint: "The general arrangement: the board, what is in it, and what is selected",
     /*
@@ -116,7 +116,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "compare",
-    icon: GitCompareArrows,
+    icon: GitDiff,
     label: "Compare",
     hint: "Two planes read against each other, without a dialog over the board",
     /*
@@ -169,7 +169,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "data",
-    icon: Table2,
+    icon: Table,
     label: "Data",
     hint: "The run's own tables, at the width a table needs",
     /*
@@ -199,7 +199,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "simulation",
-    icon: TreePine,
+    icon: Tree,
     label: "Simulation",
     hint: "An orchard module and the light that reaches through it",
     /*

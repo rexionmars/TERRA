@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
-  FolderKanban,
-  ChevronDown,
+  CaretDown,
+  CaretRight,
   Check,
-  ChevronRight,
-  Layers3,
-} from "lucide-react"
+  FolderSimple,
+  StackSimple,
+} from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { runRowLine } from "@/lib/runSummary"
@@ -231,7 +231,7 @@ export function ProjectSwitcher({
                         <span className="telemetry shrink-0 text-[10px] text-muted-foreground">
                           {n}
                         </span>
-                        <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                        <CaretRight className="size-3 shrink-0 text-muted-foreground" />
                       </>
                     )}
                   </button>
@@ -256,7 +256,7 @@ export function ProjectSwitcher({
                       onOpenStudio(b)
                     }}
                   >
-                    <Layers3 className="size-3 shrink-0 text-muted-foreground" />
+                    <StackSimple className="size-3 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{b.name}</span>
                     {/*
                       How many runs are arranged on it, which is the only thing
@@ -380,7 +380,7 @@ export function ProjectSwitcher({
         )}
         title="Active project"
       >
-        <FolderKanban
+        <FolderSimple
           className={cn(
             "size-3.5 shrink-0 transition-colors",
             open ? "text-primary" : "text-muted-foreground"
@@ -399,7 +399,7 @@ export function ProjectSwitcher({
         >
           {active ? active.name : "No project"}
         </span>
-        <ChevronDown
+        <CaretDown
           className={cn(
             "size-3 shrink-0 transition-transform",
             open ? "rotate-180 text-foreground" : "text-muted-foreground"

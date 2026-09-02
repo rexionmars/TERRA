@@ -24,18 +24,18 @@
 import {
   ArrowDown,
   Check,
-  Droplet,
-  Grid2x2,
+  CircleNotch,
+  Drop,
+  Fan,
+  GridFour,
   Image as ImageIcon,
-  Loader2,
-  type LucideIcon,
   Play,
   Sun,
-  Fan,
-  Waves,
-  Trash2,
+  Trash,
+  type Icon,
   Upload,
-} from "lucide-react"
+  Waves,
+} from "@phosphor-icons/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"
@@ -76,10 +76,10 @@ import { defaultPlaces, runGraph, type Place, type RunNodeId } from "./runGraph"
  * The same glyphs the board's tree uses for the rasters each tool produces,
  * because a tool and its output are one subject.
  */
-export const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
-  classify: Grid2x2,
+export const TOOL_ICON: Record<BoardToolId, Icon> = {
+  classify: GridFour,
   compose: ImageIcon,
-  water: Droplet,
+  water: Drop,
   solar: Sun,
   wind: Fan,
   // Waves rather than a droplet: the envelope reads terrain and no
@@ -156,7 +156,7 @@ function Head({
   label,
   lit,
 }: {
-  icon: LucideIcon
+  icon: Icon
   label: string
   lit?: boolean
 }) {
@@ -237,7 +237,7 @@ function IconAction({
   disabled,
   onClick,
 }: {
-  icon: LucideIcon
+  icon: Icon
   title: string
   disabled?: boolean
   onClick: () => void
@@ -516,7 +516,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
             onClick={props.onImportPolygon}
           />
           <IconAction
-            icon={Trash2}
+            icon={Trash}
             title="Clear the area"
             disabled={busy || !props.hasArea}
             onClick={props.onClearArea}
@@ -536,7 +536,6 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         <DateField value={props.start} disabled={busy} onChange={props.onStartChange} />
         <ArrowDown
           className="size-3 self-center text-muted-foreground"
-          strokeWidth={1.75}
         />
         <DateField value={props.end} disabled={busy} onChange={props.onEndChange} />
         <NumberField
@@ -578,7 +577,6 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         >
           <Check
             className={cn("size-3 shrink-0", props.monthlyBest ? "" : "opacity-0")}
-            strokeWidth={2.25}
           />
           best/month
         </button>
@@ -645,7 +643,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           className="flex h-[1.375rem] items-center justify-center gap-1.5 rounded-sm bg-surface-raised/40 px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:opacity-40"
         >
           {props.compose.scenesLoading && (
-            <Loader2 className="size-3 animate-spin" />
+            <CircleNotch className="size-3 animate-spin" />
           )}
           {props.compose.scenes.length ? "Refresh scenes" : "List scenes"}
         </button>
@@ -1088,7 +1086,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           )}
         >
           {busy ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <CircleNotch className="size-3.5 animate-spin" />
           ) : (
             <Play className="size-3.5" />
           )}
@@ -1175,7 +1173,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
               disabled={busy || !props.hasArea || props.lulcRunning}
               className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm bg-surface-raised/40 px-2 py-1 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:opacity-40"
             >
-              {props.lulcRunning && <Loader2 className="size-3 animate-spin" />}
+              {props.lulcRunning && <CircleNotch className="size-3 animate-spin" />}
               Land cover
             </button>
           )}

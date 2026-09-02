@@ -28,7 +28,7 @@ import type { ReactNode } from "react"
 import { useEffect } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "motion/react"
-import { X } from "lucide-react"
+import { X } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { btnIcon } from "@/components/ui/buttons"
 

@@ -20,7 +20,12 @@ import {
   useState,
 } from "react"
 import { motion } from "motion/react"
-import { Copy, Package, Save, Settings2 } from "lucide-react"
+import {
+  Copy,
+  FloppyDisk,
+  Package,
+  SlidersHorizontal,
+} from "@phosphor-icons/react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/studio/BoardSidebar"
 import type { OutlinerMode } from "@/components/studio/BoardSidebar"
@@ -134,7 +139,7 @@ import {
 } from "@/lib/boardAreas"
 import { STUDIO_EDITORS, studioEditor, type EditorId } from "@/lib/studioEditors"
 import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
-import type { LucideIcon } from "lucide-react"
+import type { Icon } from "@phosphor-icons/react"
 import {
   DEFAULT_WORKSPACE,
   studioWorkspace,
@@ -176,32 +181,31 @@ import {
 } from "@/components/studio/StudioHeaderControls"
 import { NumberField } from "@/components/ui/NumberField"
 import {
-  Box,
-  Blend,
-  BoxSelect,
-  ChevronDown,
-  ChevronRight,
+  ArrowCounterClockwise,
+  ArrowsSplit,
+  CaretDown,
+  CaretRight,
+  ChartLine as LineChartIcon,
+  Cube,
+  Drop,
   Eraser,
-  EyeOff,
-  Filter,
-  GitCompareArrows,
-  Ruler,
-  Split,
+  EyeSlash,
+  FunnelSimple,
+  GitDiff,
   Image as ImageIcon,
-  Layers,
-  LineChart as LineChartIcon,
-  Plus,
-  Layers2,
+  Link,
+  PaintBrush,
   Pentagon,
+  Plus,
+  Ruler,
+  Selection,
+  Stack,
   Sun,
-  TreePine,
-  Waves,
-  Link2,
-  Paintbrush,
-  RotateCcw,
   Tag,
+  Tree,
+  Waves,
   X,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 import { StudioAreaTree } from "@/components/studio/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import {
@@ -3317,7 +3321,7 @@ export function BoardSurface({
     areaId: AreaId
   ): Partial<Record<EditorId, StudioEditorMode[]>> => {
     const here = modeOf(areaId)
-    const pane = (id: OutlinerMode, label: string, icon: LucideIcon) => ({
+    const pane = (id: OutlinerMode, label: string, icon: Icon) => ({
       id,
       label,
       icon,
@@ -3327,7 +3331,7 @@ export function BoardSurface({
       select: () => setModeOf(areaId, id),
     })
     const canopyHere = canopyModeOf(areaId)
-    const canopyPane = (id: CanopyMode, label: string, icon: LucideIcon) => ({
+    const canopyPane = (id: CanopyMode, label: string, icon: Icon) => ({
       id,
       label,
       icon,
@@ -3338,7 +3342,7 @@ export function BoardSurface({
     const shiftPane = (
       id: DomainShiftMode,
       label: string,
-      icon: LucideIcon
+      icon: Icon
     ) => ({
       id,
       label,
@@ -3350,7 +3354,7 @@ export function BoardSurface({
     const libraryPane = (
       id: LibraryLimitMode,
       label: string,
-      icon: LucideIcon
+      icon: Icon
     ) => ({
       id,
       label,
@@ -3360,7 +3364,7 @@ export function BoardSurface({
     })
     return {
       outliner: [
-        pane("scene", "Scene", Layers),
+        pane("scene", "Scene", Stack),
         pane("data", "Data", ImageIcon),
         pane("areas", "Areas", Pentagon),
       ],
@@ -3373,7 +3377,7 @@ export function BoardSurface({
         assembles.
       */
       domainShift: [
-        shiftPane("pair", "Pair", GitCompareArrows),
+        shiftPane("pair", "Pair", GitDiff),
         shiftPane("cohort", "Cohort", Waves),
       ],
       /*
@@ -3384,7 +3388,7 @@ export function BoardSurface({
       */
       libraryLimit: [
         libraryPane("distance", "Distance", Ruler),
-        libraryPane("mechanism", "Why it survives", Split),
+        libraryPane("mechanism", "Why it survives", ArrowsSplit),
       ],
       /*
         Three questions about one season, and each wants the whole width. The
@@ -3394,10 +3398,10 @@ export function BoardSurface({
         the other two.
       */
       canopy: [
-        canopyPane("stand", "Stand", TreePine),
+        canopyPane("stand", "Stand", Tree),
         canopyPane("season", "Season", LineChartIcon),
         canopyPane("light", "Light", Sun),
-        canopyPane("ages", "Ages", GitCompareArrows),
+        canopyPane("ages", "Ages", GitDiff),
       ],
     }
   }
@@ -3527,7 +3531,7 @@ export function BoardSurface({
           trigger={(p) => (
             <StudioHeaderPopoverButton
               {...p}
-              icon={Filter}
+              icon={FunnelSimple}
               // The count is the label, which is what the tree used to carry
               // as a bare badge with no way to act on it.
               label={`${visibleCount}/${planeCount}`}
@@ -3539,7 +3543,7 @@ export function BoardSurface({
           )}
         >
           <StudioMenuItem
-            icon={EyeOff}
+            icon={EyeSlash}
             label="Hide the hidden"
             note={`${planeCount - visibleCount}`}
             checked={hideInvisible}
@@ -3568,7 +3572,7 @@ export function BoardSurface({
             )}
           >
             <StudioMenuItem
-              icon={BoxSelect}
+              icon={Selection}
               label="Select all planes"
               onSelect={() => {
                 setSelection(
@@ -3609,7 +3613,7 @@ export function BoardSurface({
             trigger={(p) => (
               <StudioHeaderPopoverButton
                 {...p}
-                icon={Layers2}
+                icon={Stack}
                 label="Overlays"
                 open={overlayMenu}
                 title="What is drawn over the studio"
@@ -3623,7 +3627,7 @@ export function BoardSurface({
               onSelect={() => setLabels((v) => !v)}
             />
             <StudioMenuItem
-              icon={Link2}
+              icon={Link}
               label="Link each area's rasters"
               checked={links}
               onSelect={() => setLinks((v) => !v)}
@@ -3670,7 +3674,7 @@ export function BoardSurface({
             trigger={(p) => (
               <StudioHeaderPopoverButton
                 {...p}
-                icon={Blend}
+                icon={Drop}
                 label="Opacity"
                 open={opacityMenu}
                 title={
@@ -3721,7 +3725,7 @@ export function BoardSurface({
           </StudioPopover>
           <StudioHeaderRule />
           <StudioHeaderToggle
-            icon={Paintbrush}
+            icon={PaintBrush}
             label="Brush"
             on={brushOn}
             disabled={!detailPrediction}
@@ -4406,13 +4410,13 @@ export function BoardSurface({
               title="Studio"
               className="flex h-full items-center gap-1 px-2 text-meta text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Box className="size-3.5" strokeWidth={1.75} />
+              <Cube className="size-3.5" />
               Studio
             </button>
           )}
         >
           <StudioMenuItem
-            icon={Save}
+            icon={FloppyDisk}
             label={savedName ? `Save over "${savedName}"` : "Save studio"}
             disabled={saving}
             onSelect={() => {
@@ -4422,7 +4426,7 @@ export function BoardSurface({
           />
           <StudioMenuRule />
           <StudioMenuItem
-            icon={RotateCcw}
+            icon={ArrowCounterClockwise}
             label="Reset this workspace"
             title="Put the arrangement back the way it ships"
             onSelect={() => {
@@ -4527,9 +4531,8 @@ export function BoardSurface({
               >
                 {activeProjectName}
               </span>
-              <ChevronRight
+              <CaretRight
                 className="size-2.5 shrink-0 text-muted-foreground/60"
-                strokeWidth={2}
               />
             </>
           ) : (
@@ -4585,17 +4588,15 @@ export function BoardSurface({
                       : title
                 }
               >
-                <Layers
+                <Stack
                   className="size-3 shrink-0 text-muted-foreground"
-                  strokeWidth={1.75}
                 />
                 <span className="truncate text-foreground">
                   {savedName ?? title}
                 </span>
                 {onOpenStudio ? (
-                  <ChevronDown
+                  <CaretDown
                     className="size-2.5 shrink-0 opacity-60"
-                    strokeWidth={2}
                   />
                 ) : null}
               </button>
@@ -4606,7 +4607,7 @@ export function BoardSurface({
                 studios.map((b) => (
                   <StudioMenuItem
                     key={b.id}
-                    icon={Layers}
+                    icon={Stack}
                     label={b.name}
                     // How many runs are arranged on it, which is the only
                     // thing about a board that says how much is there.
@@ -4625,7 +4626,7 @@ export function BoardSurface({
                 ))
               ) : (
                 <StudioMenuItem
-                  icon={Save}
+                  icon={FloppyDisk}
                   label="No studios saved yet"
                   disabled
                   title="Save this one under a name and it is listed here"
@@ -4658,7 +4659,7 @@ export function BoardSurface({
               changed is the one this block shows.
             */}
             <StudioMenuItem
-              icon={Save}
+              icon={FloppyDisk}
               label={savedName ? "Save under another name…" : "Save studio…"}
               onSelect={() => {
                 setBoardMenu(false)
@@ -4674,7 +4675,7 @@ export function BoardSurface({
             */}
             {studios.length > 0 && (
               <StudioMenuItem
-                icon={Settings2}
+                icon={SlidersHorizontal}
                 label="Manage studios…"
                 onSelect={() => {
                   setBoardMenu(false)
@@ -4704,7 +4705,7 @@ export function BoardSurface({
               }
               className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Save className="size-3.5" strokeWidth={1.75} />
+              <FloppyDisk className="size-3.5" />
               {saving ? "Saving…" : "Save"}
             </button>
           ) : (

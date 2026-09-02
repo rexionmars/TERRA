@@ -15,25 +15,25 @@
  * registry becomes a second copy of the component tree. The switch lives where
  * the props are.
  */
-import type { LucideIcon } from "lucide-react"
+import type { Icon } from "@phosphor-icons/react"
 import {
-  Box,
-  ChartSpline,
+  Books,
+  ChartLine,
   Crosshair,
+  Cube,
   Fan,
-  FolderTree,
-  Globe2,
-  LibraryBig,
-  GitCompareArrows,
-  ListTree,
+  FlowArrow,
+  GitDiff,
+  Globe,
+  Plant,
   Ruler,
   SlidersHorizontal,
-  Sprout,
-  Table2,
-  TreePine,
+  Table,
+  Tree,
+  TreeStructure,
+  TreeView,
   Waves,
-  Workflow,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 
 export type EditorId =
   | "viewport"
@@ -58,7 +58,7 @@ export interface StudioEditorMeta {
   id: EditorId
   /** Shown in the area header and in the type selector. */
   label: string
-  icon: LucideIcon
+  icon: Icon
   /**
    * The width below which this editor stops being able to say anything.
    *
@@ -97,7 +97,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "viewport",
     label: "Viewport",
-    icon: Box,
+    icon: Cube,
     minRem: 12,
     minRowRem: 8,
     unique: true,
@@ -107,7 +107,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "outliner",
     label: "Outliner",
-    icon: ListTree,
+    icon: TreeView,
     minRem: 11,
     minRowRem: 8,
     hint: "What is in the scene, what data there is, which areas exist",
@@ -123,7 +123,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "compare",
     label: "Comparison",
-    icon: GitCompareArrows,
+    icon: GitDiff,
     // Wider than the columns, because what it shows is a relation between two
     // planes set beside each other, and two of anything need room for both.
     minRem: 24,
@@ -148,7 +148,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "spectra",
     label: "Spectral response",
-    icon: ChartSpline,
+    icon: ChartLine,
     /*
       The same floor the domain-shift editor sets, for the same reason and over
       related content: this is the other half of that diagnostic. Seven ticks
@@ -183,7 +183,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "libraryLimit",
     label: "Library check",
-    icon: LibraryBig,
+    icon: Books,
     /*
       Two panes rather than one body, so the floor is one figure and not three
       stacked. Still the widest reading in the studio: the ranking's own label
@@ -217,7 +217,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "table",
     label: "Data table",
-    icon: Table2,
+    icon: Table,
     minRem: 24,
     minRowRem: 8,
     hint: "The run's own tables, sortable, as the research pack exports them",
@@ -230,7 +230,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
       be a band along. It is a field of cards now and the glyph should say so
       before the area is opened, not after.
     */
-    icon: Workflow,
+    icon: FlowArrow,
     /*
       24rem across and 14 down, where it was 28 and 3.
 
@@ -248,7 +248,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "canopy",
     label: "Canopy",
-    icon: TreePine,
+    icon: Tree,
     /*
       A volume ray-march has to be large enough to read a gap between two
       crowns, and the shading a reader is looking for lives in the last third
@@ -284,7 +284,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "globe",
     label: "Globe",
-    icon: Globe2,
+    icon: Globe,
     /*
       A sphere has to be wide enough to be one: below roughly this the planet
       is smaller than the areas drawn on it, and the editor shows outlines
@@ -315,7 +315,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "canopyParams",
     label: "Canopy run",
-    icon: Sprout,
+    icon: Plant,
     /*
       The canopy's half of what `runParams` is for the classification products,
       and the same floor for the same reason: the parameters scroll sideways
@@ -369,7 +369,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "browser",
     label: "Browser",
-    icon: FolderTree,
+    icon: TreeStructure,
     /*
       Four regions across, in Unreal's shape: sources, toolbar, items, count.
       The sources tree alone is 11.5rem and a tile is 8.5, so anything under

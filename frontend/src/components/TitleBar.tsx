@@ -1,12 +1,12 @@
 import {
-  LogIn,
   Minus,
-  PanelBottom,
-  PanelLeft,
+  SidebarSimple,
+  SignIn,
   Square,
-  UserRound,
+  SquareSplitVertical,
+  User,
   X,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 import { BRAND_TAGLINE } from "@/lib/brand"
 import { AvatarCircle } from "@/components/AvatarCircle"
 import {
@@ -357,9 +357,9 @@ export function TitleBar({
             {user?.avatar_uri ? (
               <AvatarCircle uri={user.avatar_uri} size="sm" />
             ) : user ? (
-              <UserRound className="size-4" />
+              <User className="size-4" />
             ) : (
-              <LogIn className="size-4" />
+              <SignIn className="size-4" />
             )}
           </button>
         )}
@@ -395,9 +395,9 @@ export function TitleBar({
                 the button is read as an action, and showing the current state
                 made every user press it to find out what it did. */}
             {layoutMode === "docked" ? (
-              <PanelBottom className="size-4" />
+              <SquareSplitVertical className="size-4" />
             ) : (
-              <PanelLeft className="size-4" />
+              <SidebarSimple className="size-4" />
             )}
           </button>
         )}

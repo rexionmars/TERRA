@@ -2,18 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   ArrowLeft,
   Camera,
-  ChartColumn,
-  Heart,
+  ChartBar,
+  CircleNotch,
   Download,
+  FloppyDisk,
   FolderOpen,
   HardDrive,
-  Loader2,
-  LogOut,
-  Save,
+  Heart,
+  SignOut,
   Star,
-  Trash2,
+  Trash,
   Upload,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime"
 import {
   ChooseBackupArchive,
@@ -668,7 +668,7 @@ export function ProfilePage({
                       onClick={() => void clearAvatar()}
                       className={btnGhost}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash className="h-3 w-3" />
                       Remove
                     </button>
                   )}
@@ -694,7 +694,7 @@ export function ProfilePage({
                     onClick={() => void saveAccount()}
                     className={btnPrimary}
                   >
-                    <Save className="h-3 w-3" />
+                    <FloppyDisk className="h-3 w-3" />
                     Save
                   </button>
                 </div>
@@ -787,7 +787,7 @@ export function ProfilePage({
                   className={btnGhost}
                 >
                   {backupBusy ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <CircleNotch className="h-3 w-3 animate-spin" />
                   ) : (
                     <Download className="h-3 w-3" />
                   )}
@@ -826,7 +826,7 @@ export function ProfilePage({
                   className={btnGhost}
                 >
                   {storageBusy ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <CircleNotch className="h-3 w-3 animate-spin" />
                   ) : (
                     <HardDrive className="h-3 w-3" />
                   )}
@@ -860,7 +860,7 @@ export function ProfilePage({
                     className={btnGhost}
                   >
                     {restoreBusy ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <CircleNotch className="h-3 w-3 animate-spin" />
                     ) : (
                       <Upload className="h-3 w-3" />
                     )}
@@ -902,7 +902,7 @@ export function ProfilePage({
                         className={btnPrimary}
                       >
                         {restoreBusy && (
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <CircleNotch className="h-3 w-3 animate-spin" />
                         )}
                         Replace my data
                       </button>
@@ -1031,7 +1031,7 @@ export function ProfilePage({
                   onClick={() => void logout()}
                   className={btnGhost}
                 >
-                  <LogOut className="h-3 w-3" />
+                  <SignOut className="h-3 w-3" />
                   Sign out
                 </button>
               </SettingRow>

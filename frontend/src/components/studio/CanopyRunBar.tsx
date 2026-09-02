@@ -23,14 +23,14 @@
  */
 import { useEffect } from "react"
 import {
-  Loader2,
+  CircleNotch,
   Package,
   Pentagon,
+  Plant,
   Ruler,
-  Sprout,
   Sun,
   Timer,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 
 import { NumberField } from "@/components/ui/NumberField"
 import { cn } from "@/lib/utils"
@@ -118,7 +118,7 @@ export function CanopyRunBar() {
 
         <Divider />
 
-        <Group icon={Sprout} label="Species">
+        <Group icon={Plant} label="Species">
           <select
             value={w.stand.species}
             disabled={busy}
@@ -297,7 +297,7 @@ export function CanopyRunBar() {
           )}
         >
           {w.reading ? (
-            <Loader2 className="size-3 animate-spin" />
+            <CircleNotch className="size-3 animate-spin" />
           ) : (
             <Pentagon className="size-3" />
           )}
@@ -329,9 +329,9 @@ export function CanopyRunBar() {
           )}
         >
           {w.growing ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <CircleNotch className="size-3.5 animate-spin" />
           ) : (
-            <Sprout className="size-3.5" />
+            <Plant className="size-3.5" />
           )}
           {w.growing ? "Growing" : w.standStale ? "Regrow" : "Grow"}
         </button>

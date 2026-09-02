@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Columns2, Download, Minus, Plus, RotateCcw, X } from "lucide-react"
+import {
+  ArrowCounterClockwise,
+  Columns,
+  Download,
+  Minus,
+  Plus,
+  X,
+} from "@phosphor-icons/react"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import {
@@ -245,7 +252,7 @@ function PlotViewport({
           disabled={scale <= MIN_ZOOM + 0.01 && Math.abs(tx) < 1 && Math.abs(ty) < 1}
           className="flex size-8 items-center justify-center text-white/90 hover:bg-white/10 disabled:opacity-35"
         >
-          <RotateCcw className="size-3.5" />
+          <ArrowCounterClockwise className="size-3.5" />
         </button>
       </div>
 
@@ -520,7 +527,7 @@ export function AnalysisPlotModal({
                   )}
                   title="Swipe compare"
                 >
-                  <Columns2 className="size-3.5" />
+                  <Columns className="size-3.5" />
                   Swipe
                 </button>
                 {swipeOn && (

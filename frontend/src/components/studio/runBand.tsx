@@ -14,7 +14,7 @@
  * one user: the next workflow to take a foot should look like the last one,
  * and that is easier to honour from a module than from another band's file.
  */
-import type { LucideIcon } from "lucide-react"
+import type { Icon } from "@phosphor-icons/react"
 
 /** A named group of controls. */
 export function BandGroup({
@@ -23,7 +23,7 @@ export function BandGroup({
   children,
 }: {
   /** The group's subject, the same intent as the board tree's layerIcon(). */
-  icon: LucideIcon
+  icon: Icon
   label: string
   children: React.ReactNode
 }) {
@@ -41,11 +41,11 @@ export function BandGroup({
       {/*
         The glyph rides the eyebrow row, which is the cheap one: a label is
         26-55px wide against control rows of 96-388px, so a 12px icon there
-        costs nothing horizontally. .eyebrow sets the colour and lucide strokes
+        costs nothing horizontally. .eyebrow sets the colour and the icons fill
         currentColor, so the glyph is muted with its label without saying so.
       */}
       <span className="eyebrow !text-[9px] flex shrink-0 items-center gap-1.5">
-        <Icon className="size-3 shrink-0" strokeWidth={2} />
+        <Icon className="size-3 shrink-0" />
         {label}
       </span>
       <div className="flex shrink-0 items-center gap-1.5">{children}</div>

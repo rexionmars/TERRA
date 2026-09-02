@@ -20,7 +20,7 @@
  * work that produced it.
  */
 import { Component, type ErrorInfo, type ReactNode } from "react"
-import { AlertTriangle, RotateCcw } from "lucide-react"
+import { Warning, ArrowCounterClockwise } from "@phosphor-icons/react"
 import { btnGhostDense, btnPrimary } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 
@@ -159,7 +159,7 @@ export function AppErrorFallback({ error, componentStack }: ErrorFallbackProps) 
         }}
       >
         <p className="flex items-center gap-1.5 text-meta text-destructive-quiet">
-          <AlertTriangle className="size-3 shrink-0" />
+          <Warning className="size-3 shrink-0" />
           Interface stopped
         </p>
         <h1 className="mt-1 text-heading text-foreground">
@@ -179,7 +179,7 @@ export function AppErrorFallback({ error, componentStack }: ErrorFallbackProps) 
           className={cn(btnPrimary, "mt-4")}
           onClick={() => window.location.reload()}
         >
-          <RotateCcw className="size-3" />
+          <ArrowCounterClockwise className="size-3" />
           Reload the window
         </button>
       </div>
@@ -213,7 +213,7 @@ export function PanelErrorFallback({
       style={{ background: "rgb(var(--p-ink))" }}
     >
       <p className="flex items-center gap-1.5 text-meta text-destructive-quiet">
-        <AlertTriangle className="size-3 shrink-0" />
+        <Warning className="size-3 shrink-0" />
         {panel} stopped drawing
       </p>
       <p className="text-body text-muted-foreground">
@@ -223,7 +223,7 @@ export function PanelErrorFallback({
       </p>
       <CrashDetail error={error} componentStack={componentStack} />
       <button type="button" className={btnGhostDense} onClick={reset}>
-        <RotateCcw className="size-3" />
+        <ArrowCounterClockwise className="size-3" />
         Try again
       </button>
     </div>

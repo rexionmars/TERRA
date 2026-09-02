@@ -9,7 +9,7 @@
  *
  * `sidebar` keeps the older full-height right column when a call site needs it.
  */
-import { ChevronDown, Paintbrush, Sun, Layers } from "lucide-react"
+import { CaretDown, PaintBrush, Sun, Stack } from "@phosphor-icons/react"
 import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
 import { useMemo, useState } from "react"
 import {
@@ -1017,7 +1017,7 @@ export function BoardSolarDetail({
           ? "Prediction"
           : "Detail"
 
-  const TitleIcon = focus === "prediction" || comparing ? Layers : Sun
+  const TitleIcon = focus === "prediction" || comparing ? Stack : Sun
   const showBrushToggle =
     !comparing &&
     focus === "prediction" &&
@@ -1030,7 +1030,7 @@ export function BoardSolarDetail({
       style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <TitleIcon className="size-3 shrink-0 text-primary" strokeWidth={1.75} />
+        <TitleIcon className="size-3 shrink-0 text-primary" />
         <span className="eyebrow !text-foreground">{title}</span>
       </div>
       {showBrushToggle && (
@@ -1051,7 +1051,7 @@ export function BoardSolarDetail({
           }
           aria-pressed={brushOn}
         >
-          <Paintbrush className="size-3" strokeWidth={1.75} />
+          <PaintBrush className="size-3" />
           Brush
         </button>
       )}
@@ -1193,12 +1193,11 @@ export function BoardSolarDetail({
                 aria-label={collapsed ? "Expand the band" : "Collapse the band"}
                 className="absolute left-1.5 flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
               >
-                <ChevronDown
+                <CaretDown
                   className={cn(
                     "size-3 transition-transform",
                     collapsed && "rotate-180"
                   )}
-                  strokeWidth={1.75}
                 />
               </button>
             )}

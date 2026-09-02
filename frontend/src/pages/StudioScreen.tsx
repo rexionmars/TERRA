@@ -1,5 +1,3 @@
-import {
-} from "lucide-react"
 import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import type {
   CompositionOverlay,
@@ -790,7 +788,7 @@ export function StudioScreen(props: StudioScreenProps) {
                     : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
                 )}
               >
-                <Icon className="size-3 shrink-0" strokeWidth={1.75} />
+                <Icon className="size-3 shrink-0" />
                 {/*
                   Every tab named, not only the chosen one. Naming the active
                   tab alone tells a reader what they already know -- they just

@@ -10,7 +10,7 @@
  * the area title when the parent wires `onRenameArea`.
  */
 import { useEffect, useRef, useState } from "react"
-import { Pencil } from "lucide-react"
+import { Pencil } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import type { LayerLegend } from "@/lib/layerLegend"
 import type { LULCAgreement } from "@/lib/types"
@@ -160,7 +160,6 @@ function Entry({ entry }: { entry: StatsEntry }) {
               {onRenameArea && (
                 <Pencil
                   className="size-2.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70"
-                  strokeWidth={1.75}
                   aria-hidden
                 />
               )}

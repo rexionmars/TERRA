@@ -22,7 +22,7 @@
  * 20px controls in a 26px header, 12px glyphs. These are Blender's own
  * proportions, and they are why its headers fit what they fit.
  */
-import { ChevronDown } from "lucide-react"
+import { CaretDown } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
 /** Every control in a header is this tall. */
@@ -97,7 +97,7 @@ export function StudioHeaderToggle({
           : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
       )}
     >
-      <Icon className="size-3 shrink-0" strokeWidth={1.75} />
+      <Icon className="size-3 shrink-0" />
       {showLabel && <span className="text-meta">{label}</span>}
     </button>
   )
@@ -145,9 +145,9 @@ export const StudioHeaderPopoverButton = ({
       rest.className
     )}
   >
-    {Icon && <Icon className="size-3 shrink-0" strokeWidth={1.75} />}
+    {Icon && <Icon className="size-3 shrink-0" />}
     {showLabel && <span className="truncate text-meta">{label}</span>}
-    <ChevronDown className="size-2.5 shrink-0 opacity-60" strokeWidth={2} />
+    <CaretDown className="size-2.5 shrink-0 opacity-60" />
   </button>
 )
 

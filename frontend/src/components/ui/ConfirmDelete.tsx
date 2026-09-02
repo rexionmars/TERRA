@@ -21,7 +21,7 @@
  * beside it, so a second destructive act does not become a third way of asking.
  */
 import { useEffect } from "react"
-import { Trash2 } from "lucide-react"
+import { Trash } from "@phosphor-icons/react"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost } from "@/components/ui/buttons"
 
@@ -83,7 +83,7 @@ export function ConfirmDelete({
           onClick={onConfirm}
           className="flex h-8 items-center gap-1.5 rounded-sm bg-destructive px-3 text-body font-semibold text-destructive-foreground disabled:opacity-50"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash className="h-3 w-3" />
           {busy ? "Deleting…" : confirmLabel}
         </button>
       </div>

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { LogIn, UserPlus } from "lucide-react"
+import { SignIn, UserPlus } from "@phosphor-icons/react"
 import { useAuth } from "@/lib/auth"
 import { PageShell } from "@/components/ui/PageShell"
 import { btnPrimaryCommit } from "@/components/ui/buttons"
@@ -48,7 +48,7 @@ export function AuthPage() {
           <TabButton
             active={mode === "login"}
             onClick={() => setMode("login")}
-            icon={<LogIn className="h-3 w-3" />}
+            icon={<SignIn className="h-3 w-3" />}
           >
             Login
           </TabButton>

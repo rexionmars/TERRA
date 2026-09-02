@@ -29,7 +29,7 @@
  * much light gets through. They are not a picture.
  */
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { Warning, CircleNotch } from "@phosphor-icons/react"
 
 import { CanopyAOIPanes } from "./CanopyAOIEditor"
 import { useCanopyWorkflow } from "./canopyWorkflow"
@@ -245,7 +245,7 @@ function StandPanel() {
             color: "var(--muted-foreground)",
           }}
         >
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <CircleNotch className="h-3 w-3 animate-spin" />
           {busyLabel}
         </div>
       ) : null}
@@ -254,7 +254,7 @@ function StandPanel() {
           className="absolute inset-x-3 bottom-3 flex items-start gap-2 rounded px-2 py-1.5 text-[11px]"
           style={{ background: "rgb(var(--p-surface-raised))", color: "var(--foreground)" }}
         >
-          <AlertTriangle
+          <Warning
             className="mt-px h-3 w-3 shrink-0"
             style={{ color: "var(--warning)" }}
           />

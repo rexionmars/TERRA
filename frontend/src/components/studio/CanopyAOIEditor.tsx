@@ -39,7 +39,7 @@
  * as soon as a second canopy area was opened.
  */
 import { useMemo } from "react"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { Warning, CircleNotch } from "@phosphor-icons/react"
 import {
   CartesianGrid,
   Legend,
@@ -322,7 +322,7 @@ export function CanopyAOIPanes({
           className="m-2 flex items-start gap-2 rounded px-2 py-1.5 text-[11px]"
           style={{ background: "rgb(var(--p-surface-raised))", color: "var(--foreground)" }}
         >
-          <AlertTriangle
+          <Warning
             className="mt-px h-3 w-3 shrink-0"
             style={{ color: "var(--warning)" }}
           />
@@ -333,7 +333,7 @@ export function CanopyAOIPanes({
       {busy && !data ? (
         <Empty>
           <span className="flex items-center justify-center gap-2">
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <CircleNotch className="h-3 w-3 animate-spin" />
             Reading {source?.label ?? "the area"} as a canopy.
           </span>
         </Empty>
