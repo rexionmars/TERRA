@@ -118,11 +118,10 @@ export interface VisibleLayerInput {
   /**
    * The flood envelope, whose agreement raster is the product it ships.
    *
-   * Optional where the other rasters are not, because the map screen holds no
-   * flood result: the envelope is run and read on a screen of its own, and
-   * that screen calls `floodAgreementLayer` for the single raster its MapView
-   * takes. Passing one here draws it with the same order and the same guard
-   * rather than a second set chosen elsewhere.
+   * Optional where the other rasters are not: an envelope is run against an
+   * area rather than being part of a classification's output, so most callers
+   * have none. Passing one draws it with the same order and the same guard as
+   * every other raster here rather than a second set chosen elsewhere.
    */
   flood?: FloodAnalysis | null
   showFloodOverlay?: boolean
@@ -188,10 +187,11 @@ export function predictionSource(
  * both. Not interpolated, for the reason the siting raster is not -- the cell
  * values are N+1 classes and a blend of two of them names no class.
  *
- * Exported because two surfaces draw it: the table below, and the flood
- * screen, whose MapView takes one raster per prop rather than a layer list.
+ * Local. It was exported for a second caller -- the flood screen, whose
+ * MapView took one raster per prop rather than a layer list -- and that screen
+ * is gone. The table below is the only surface that draws it.
  */
-export function floodAgreementLayer(
+function floodAgreementLayer(
   flood: FloodAnalysis | null | undefined,
   visible: boolean,
   opacity: number

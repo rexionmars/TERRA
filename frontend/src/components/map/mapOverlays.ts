@@ -13,7 +13,6 @@
  */
 import type { Map as MapLibreMap, ImageSource } from "maplibre-gl"
 
-import { SCALAR_ENCODING } from "@/components/map/scalarTiles"
 import type { Bounds } from "@/lib/types"
 
 export interface OverlaySpec {
@@ -22,30 +21,6 @@ export interface OverlaySpec {
   url: string
   bounds: Bounds
   opacity: number
-  /**
-   * Present where the run wrote its values as well as its colours.
-   *
-   * The layer is then a `color-relief` over a `raster-dem` rather than a raster
-   * over an image: the measurement is what is on the map, and `colour` is the
-   * expression that paints it. See scalarTiles.ts for why that is the only
-   * layer type in MapLibre that can do a palette lookup.
-   */
-  scalar?: {
-    /** Tile template from registerScalarRaster, already registered. */
-    tiles: string
-    colour: unknown[]
-  }
-}
-
-/**
- * Whether two specs need the same kind of source and layer.
- *
- * A layer that changes between an image and a scalar field has to be rebuilt,
- * because the two are different source types; opacity and url changes on the
- * same kind do not.
- */
-function sameKind(a: OverlaySpec, b: OverlaySpec): boolean {
-  return !!a.scalar === !!b.scalar
 }
 
 /** The four corners an image source takes, clockwise from the top left. */
@@ -79,13 +54,15 @@ export function syncOverlays(
   beforeId: string | undefined
 ): string[] {
   const ids = specs.map((s) => s.id)
+  /*
+    The set alone. It also asked whether each spec still wanted the same KIND
+    of source, because an overlay could be either an image or a scalar field
+    packed into a raster-dem, and those are different source types. Nothing
+    produces the scalar field any more -- it was the map screen's, and the
+    screen is gone -- so every overlay is an image and there is one kind.
+  */
   const sameSet =
-    ids.length === previous.length &&
-    ids.every((id, i) => id === previous[i]) &&
-    specs.every((spec) => {
-      const before = lastSpecs.get(spec.id)
-      return !before || sameKind(before, spec)
-    })
+    ids.length === previous.length && ids.every((id, i) => id === previous[i])
 
   if (!sameSet) {
     for (const id of previous) {
@@ -94,31 +71,6 @@ export function syncOverlays(
       lastSpecs.delete(id)
     }
     for (const spec of specs) {
-      if (spec.scalar) {
-        map.addSource(SOURCE(spec.id), {
-          type: "raster-dem",
-          tiles: [spec.scalar.tiles],
-          tileSize: 256,
-          // The area is one raster; past this the protocol would be asked for
-          // tiles that only magnify what it already sent.
-          maxzoom: 14,
-          ...SCALAR_ENCODING,
-        })
-        map.addLayer(
-          {
-            id: LAYER(spec.id),
-            type: "color-relief",
-            source: SOURCE(spec.id),
-            paint: {
-              "color-relief-color": spec.scalar.colour as never,
-              "color-relief-opacity": spec.opacity,
-            },
-          },
-          beforeId
-        )
-        lastSpecs.set(spec.id, spec)
-        continue
-      }
       map.addSource(SOURCE(spec.id), {
         type: "image",
         url: spec.url,
@@ -153,21 +105,6 @@ export function syncOverlays(
 
   for (const spec of specs) {
     lastSpecs.set(spec.id, spec)
-    if (spec.scalar) {
-      if (map.getLayer(LAYER(spec.id))) {
-        map.setPaintProperty(
-          LAYER(spec.id),
-          "color-relief-color",
-          spec.scalar.colour as never
-        )
-        map.setPaintProperty(
-          LAYER(spec.id),
-          "color-relief-opacity",
-          spec.opacity
-        )
-      }
-      continue
-    }
     const src = map.getSource<ImageSource>(SOURCE(spec.id))
     if (src) {
       const corners = extentCorners(spec.bounds)

@@ -8,10 +8,10 @@
  * selection, the names, which runs are on the board.
  *
  * An arrangement is not work. Which areas exist, what each holds and where the
- * divisions fall is a preference in the same sense `layout_mode` already is,
- * and that one carries the argument verbatim: the two layouts are different
- * enough that landing in the other one reads as the application having changed
- * rather than as a setting having persisted. A reader who widens a column and
+ * divisions fall is a preference, and it is stored for the reason any of them
+ * is: landing somewhere other than where you left off reads as the application
+ * having changed rather than as a setting having persisted. A reader who
+ * widens a column and
  * finds it narrow again tomorrow reads the same way.
  *
  * So: the arrangement persists, the contents do not. Reopening the studio
@@ -52,8 +52,9 @@ const KNOWN_WORKSPACES = new Set(STUDIO_WORKSPACES.map((w) => w.id))
  * fraction that is not a number. Any of those reaching `areaRects` would place
  * an area nobody can see or throw while the studio opens, so a tree that fails
  * to parse is discarded and the preset takes over -- which is what a reader
- * expects from a layout that has gone stale, and is what `layoutModeFromPrefs`
- * already does by defaulting through exception.
+ * expects from a layout that has gone stale. Defaulting through exception,
+ * which is how every other stored preference here resolves a value it cannot
+ * make sense of.
  */
 export function parseStudioTree(value: unknown): StudioTree | null {
   if (!value || typeof value !== "object") return null
