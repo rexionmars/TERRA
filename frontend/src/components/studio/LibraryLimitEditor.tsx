@@ -28,7 +28,7 @@
  */
 import { useMemo, useRef, useState } from "react"
 import { useTheme } from "next-themes"
-import { Info } from "lucide-react"
+import { Info } from "@phosphor-icons/react"
 
 import { StudioPopover } from "@/components/studio/StudioPopover"
 
@@ -464,7 +464,7 @@ export function LibraryLimitEditor({
                       : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
                   )}
                 >
-                  <Info className="size-3.5" strokeWidth={1.75} />
+                  <Info className="size-3.5" />
                 </button>
               )}
             >

@@ -12,7 +12,7 @@
  * and take no pointer events at all.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Maximize2 } from "lucide-react"
+import { ArrowsOut } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { NODE_W, PORT_Y, type Place } from "./runGraph"
 
@@ -383,7 +383,7 @@ export function NodeCanvas({
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         )}
       >
-        <Maximize2 className="size-3.5" />
+        <ArrowsOut className="size-3.5" />
       </button>
     </div>
   )

@@ -17,7 +17,7 @@
  * at all: "how many scenes did that use" is asked once the map is on screen,
  * not while the spinner is turning.
  */
-import { Info } from "lucide-react"
+import { Info } from "@phosphor-icons/react"
 import { useState } from "react"
 import type { MethodBrief } from "@/lib/methodBrief"
 import type { RunLogEntry } from "@/lib/runLog"
@@ -182,7 +182,7 @@ export function MethodPanel({
                 : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
           )}
         >
-          <Info className="size-3 shrink-0" strokeWidth={1.75} />
+          <Info className="size-3 shrink-0" />
           Method
         </button>
       )}

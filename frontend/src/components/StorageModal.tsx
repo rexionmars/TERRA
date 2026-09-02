@@ -12,7 +12,7 @@
  * having if it is believed, so it reports what it can see.
  */
 import { useMemo, useState } from "react"
-import { Loader2, RefreshCw, Trash2 } from "lucide-react"
+import { CircleNotch, ArrowsClockwise, Trash } from "@phosphor-icons/react"
 import { ModalShell, ModalHeader } from "@/components/ui/ModalShell"
 import { btnGhost } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
@@ -69,7 +69,7 @@ export function StorageModal({
             disabled={busy}
             className={btnGhost}
           >
-            <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
+            <ArrowsClockwise className={cn("size-3.5", busy && "animate-spin")} />
             Measure again
           </button>
         }
@@ -211,9 +211,9 @@ function Overview({
               className={cn(btnGhost, "mt-2")}
             >
               {busy ? (
-                <Loader2 className="size-3.5 animate-spin" />
+                <CircleNotch className="size-3.5 animate-spin" />
               ) : (
-                <Trash2 className="size-3.5" />
+                <Trash className="size-3.5" />
               )}
               Clear them
             </button>

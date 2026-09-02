@@ -1,4 +1,9 @@
-import { Loader2, X, ImageOff, Boxes } from "lucide-react"
+import {
+  CircleNotch,
+  CubeTransparent,
+  ImageBroken,
+  X,
+} from "@phosphor-icons/react"
 import type { DataCubeResult } from "@/lib/types"
 import { btnIcon } from "@/components/ui/buttons"
 
@@ -40,7 +45,7 @@ export function DataCubeModal({
         <div className="flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3">
           <div className="min-w-0">
             <p className="eyebrow !text-foreground flex items-center gap-1.5">
-              <Boxes className="size-3.5 text-primary" />
+              <CubeTransparent className="size-3.5 text-primary" />
               Data cube
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -69,7 +74,7 @@ export function DataCubeModal({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {loading && (
             <div className="flex flex-col items-center justify-center gap-2 py-16 text-xs text-muted-foreground">
-              <Loader2 className="size-5 animate-spin text-primary" />
+              <CircleNotch className="size-5 animate-spin text-primary" />
               Querying STAC catalog…
             </div>
           )}
@@ -104,7 +109,7 @@ export function DataCubeModal({
                       />
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
-                        <ImageOff className="size-4 opacity-60" />
+                        <ImageBroken className="size-4 opacity-60" />
                         <span className="text-[9px]">No preview</span>
                       </div>
                     )}

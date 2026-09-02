@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
-import { Braces, Download, Map as MapIcon, Shapes, Table2, X } from "lucide-react"
+import {
+  BracketsCurly,
+  Download,
+  MapTrifold as MapIcon,
+  Shapes,
+  Table,
+  X,
+} from "@phosphor-icons/react"
 import { ModalShell } from "@/components/ui/ModalShell"
 import { btnGhost, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
@@ -59,10 +66,10 @@ function parseGeometry(raw?: string): GeoJSONGeometry | null {
 }
 
 function iconFor(kind: EntryKind) {
-  if (kind === "manifest") return <Braces className="h-3.5 w-3.5 shrink-0" />
+  if (kind === "manifest") return <BracketsCurly className="h-3.5 w-3.5 shrink-0" />
   if (kind === "aoi") return <Shapes className="h-3.5 w-3.5 shrink-0" />
   if (kind === "raster") return <MapIcon className="h-3.5 w-3.5 shrink-0" />
-  return <Table2 className="h-3.5 w-3.5 shrink-0" />
+  return <Table className="h-3.5 w-3.5 shrink-0" />
 }
 
 export function ResearchPackModal({

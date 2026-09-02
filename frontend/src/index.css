@@ -262,8 +262,8 @@
   --font-telemetry: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /*
-    Shapes for the map controls Leaflet renders outside React, where a lucide
-    component cannot go. Masks, not images: the colour stays in CSS, so these
+    Shapes for the map controls Leaflet renders outside React, where a React
+    icon component cannot go. Masks, not images: the colour stays in CSS, so these
     follow the theme and the hover state. The stroke is fixed at black because a
     mask reads only the alpha channel -- the colour in the path is discarded.
   */

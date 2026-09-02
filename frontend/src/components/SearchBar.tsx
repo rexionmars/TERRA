@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Search, Loader2, MapPin } from "lucide-react"
+import { MagnifyingGlass, CircleNotch, MapPin } from "@phosphor-icons/react"
 import { notifyError, notifyInfo } from "@/lib/notify"
 import { GeocodeSearch } from "../../wailsjs/go/main/App"
 import type { GeocodeResult } from "@/lib/types"
@@ -58,7 +58,7 @@ export function SearchBar({
   return (
     <div className={className}>
       <div className="panel flex items-center gap-2 rounded-lg px-2.5 py-1.5">
-        <Search className="size-3.5 shrink-0 text-muted-foreground" />
+        <MagnifyingGlass className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           autoFocus={autoFocus}
           value={query}
@@ -70,7 +70,7 @@ export function SearchBar({
           className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
         {loading ? (
-          <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+          <CircleNotch className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
         ) : (
           <button
             onClick={runSearch}

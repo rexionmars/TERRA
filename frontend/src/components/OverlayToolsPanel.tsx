@@ -1,17 +1,17 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import {
-  Blend,
-  SlidersHorizontal,
+  CaretDown,
+  CaretUp,
+  Code,
   Download,
-  Palette,
-  Code2,
-  X,
-  ChevronDown,
-  ChevronUp,
-  ImageIcon,
+  Drop,
   Eye,
-} from "lucide-react"
+  Image,
+  Palette,
+  SlidersHorizontal,
+  X,
+} from "@phosphor-icons/react"
 import { exportPng, exportTif, runAssets } from "@/lib/runAssets"
 import type {
   CompositionOverlay,
@@ -92,9 +92,9 @@ function Section({
         <span className="text-primary">{icon}</span>
         <span className="eyebrow !text-foreground flex-1">{title}</span>
         {open ? (
-          <ChevronUp className="size-3.5 text-muted-foreground" />
+          <CaretUp className="size-3.5 text-muted-foreground" />
         ) : (
-          <ChevronDown className="size-3.5 text-muted-foreground" />
+          <CaretDown className="size-3.5 text-muted-foreground" />
         )}
       </button>
       {open && <div className="flex flex-col gap-2 pl-0.5">{children}</div>}
@@ -153,7 +153,7 @@ function OverlayAssetCard({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <ImageIcon className="size-5 opacity-50" />
+            <Image className="size-5 opacity-50" />
           </div>
         )}
       </button>
@@ -355,7 +355,7 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
           <hr className="hairline" />
           <div className="panel-scroll flex flex-col gap-4 overflow-y-auto p-3">
             <Section
-              icon={<ImageIcon className="size-3.5" />}
+              icon={<Image className="size-3.5" />}
               title="Generated overlays"
             >
               {cards.length === 0 ? (
@@ -534,7 +534,7 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
             <hr className="hairline" />
 
             <Section
-              icon={<Code2 className="size-3.5" />}
+              icon={<Code className="size-3.5" />}
               title="Composition script"
               defaultOpen={false}
             >
@@ -594,7 +594,7 @@ export function OverlayToolsButton({
         and overlapping discs say what this panel actually governs: how the
         layers sit over one another, their opacity and their comparison.
       */}
-      <Blend className="size-3.5" strokeWidth={1.75} />
+      <Drop className="size-3.5" />
     </button>
   )
 }

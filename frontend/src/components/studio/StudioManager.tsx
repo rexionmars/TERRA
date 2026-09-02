@@ -14,7 +14,7 @@
  * "delete" beside a list of analyses does not answer it.
  */
 import { useEffect, useState } from "react"
-import { Check, Layers, Pencil, Trash2, X } from "lucide-react"
+import { Check, Stack, Pencil, Trash, X } from "@phosphor-icons/react"
 
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import { ModalShell } from "@/components/ui/ModalShell"
@@ -143,12 +143,11 @@ export function StudioManager({
                 className="flex items-center gap-2 border-b py-1.5 pl-1 pr-0.5 last:border-b-0"
                 style={{ borderColor: "rgb(var(--p-line) / 0.2)" }}
               >
-                <Layers
+                <Stack
                   className={cn(
                     "size-3.5 shrink-0",
                     isOpen ? "text-primary" : "text-muted-foreground"
                   )}
-                  strokeWidth={2}
                 />
                 {editing === b.id ? (
                   <input
@@ -194,7 +193,7 @@ export function StudioManager({
                   />
                 )}
                 <RowButton
-                  icon={Trash2}
+                  icon={Trash}
                   label={`Delete ${b.name}`}
                   danger
                   onClick={() => setPendingDelete(b)}
@@ -211,7 +210,7 @@ export function StudioManager({
           disabled={busy}
           className="rounded-sm px-2.5 py-1 text-body text-muted-foreground transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
-          <X className="mr-1 inline size-3" strokeWidth={2} />
+          <X className="mr-1 inline size-3" />
           Close
         </button>
       </div>
@@ -244,7 +243,7 @@ function RowButton({
           : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
       )}
     >
-      <Icon className="size-3.5" strokeWidth={2} />
+      <Icon className="size-3.5" />
     </button>
   )
 }

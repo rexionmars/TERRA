@@ -1,4 +1,4 @@
-import { UserRound } from "lucide-react"
+import { User } from "@phosphor-icons/react"
 
 export function AvatarCircle({
   uri,
@@ -21,7 +21,7 @@ export function AvatarCircle({
     <span
       className={`${dim} flex shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-muted-foreground`}
     >
-      <UserRound className={size === "lg" ? "h-7 w-7" : "h-3.5 w-3.5"} />
+      <User className={size === "lg" ? "h-7 w-7" : "h-3.5 w-3.5"} />
     </span>
   )
 }

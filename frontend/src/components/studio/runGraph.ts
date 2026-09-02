@@ -21,24 +21,24 @@
  * says which choice put them on screen.
  */
 import {
-  CalendarRange,
-  Contrast,
-  Droplet,
-  History,
-  Images,
-  Layers,
-  Mountain,
+  CalendarBlank,
+  CircleHalf,
+  ClockCounterClockwise,
+  Drop,
   Fan,
-  Ruler,
-  Waves,
+  Images,
+  Mountains,
   Network,
   Package,
   Palette,
   Pentagon,
   Repeat,
-  SunSnow,
-  type LucideIcon,
-} from "lucide-react"
+  Ruler,
+  Stack,
+  ThermometerSimple,
+  type Icon,
+  Waves,
+} from "@phosphor-icons/react"
 import type { BoardToolId } from "@/lib/mapTools"
 
 export type RunNodeId =
@@ -66,7 +66,7 @@ export interface RunNodeSpec {
   id: RunNodeId
   label: string
   /** The same glyph the band used for the group, so the vocabulary survives. */
-  icon: LucideIcon
+  icon: Icon
   /** Distance from the left of the default layout, in whole node widths. */
   col: number
   /**
@@ -100,22 +100,22 @@ export const PORT_Y = 17
 
 const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   area: { id: "area", label: "Area", icon: Pentagon, h: 74 },
-  period: { id: "period", label: "Period", icon: CalendarRange, h: 168 },
+  period: { id: "period", label: "Period", icon: CalendarBlank, h: 168 },
   model: { id: "model", label: "Model", icon: Network, h: 74 },
   mode: { id: "mode", label: "Mode", icon: Repeat, h: 74 },
   scene: { id: "scene", label: "Scene", icon: Images, h: 92 },
-  composite: { id: "composite", label: "Composite", icon: Layers, h: 78 },
+  composite: { id: "composite", label: "Composite", icon: Stack, h: 78 },
   bands: { id: "bands", label: "Bands", icon: Palette, h: 74 },
   spectralIndex: { id: "spectralIndex", label: "Index", icon: Palette, h: 74 },
-  stretch: { id: "stretch", label: "Stretch", icon: Contrast, h: 116 },
-  waterIndex: { id: "waterIndex", label: "Index", icon: Droplet, h: 78 },
+  stretch: { id: "stretch", label: "Stretch", icon: CircleHalf, h: 116 },
+  waterIndex: { id: "waterIndex", label: "Index", icon: Drop, h: 78 },
   product: { id: "product", label: "Product", icon: Package, h: 78 },
-  record: { id: "record", label: "Record", icon: History, h: 78 },
-  season: { id: "season", label: "Season", icon: SunSnow, h: 116 },
-  slope: { id: "slope", label: "Slope", icon: Mountain, h: 116 },
+  record: { id: "record", label: "Record", icon: ClockCounterClockwise, h: 78 },
+  season: { id: "season", label: "Season", icon: ThermometerSimple, h: 116 },
+  slope: { id: "slope", label: "Slope", icon: Mountains, h: 116 },
   turbine: { id: "turbine", label: "Turbine", icon: Fan, h: 116 },
   roughness: { id: "roughness", label: "Roughness", icon: Waves, h: 116 },
-  models: { id: "models", label: "Elevation models", icon: Layers, h: 140 },
+  models: { id: "models", label: "Elevation models", icon: Stack, h: 140 },
   threshold: { id: "threshold", label: "Threshold", icon: Ruler, h: 116 },
   // The run node draws its own header from the tool, so it carries no icon of
   // its own here; TOOL_ICON in BoardRunGraph names it.

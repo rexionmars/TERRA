@@ -16,7 +16,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { CaretLeft, CaretRight } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
 const DAY_MS = 86_400_000
@@ -278,7 +278,7 @@ export function DateField({
               aria-label="Previous month"
               className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
             >
-              <ChevronLeft className="size-3" />
+              <CaretLeft className="size-3" />
             </button>
             <span className="text-meta text-foreground">
               {monthLabel(anchor)}
@@ -289,7 +289,7 @@ export function DateField({
               aria-label="Next month"
               className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
             >
-              <ChevronRight className="size-3" />
+              <CaretRight className="size-3" />
             </button>
           </div>
 

@@ -21,14 +21,14 @@
  * has just performed is a row that says nothing.
  */
 import {
-  AlignVerticalJustifyEnd,
+  AlignBottom,
+  CornersOut,
   Eye,
-  EyeOff,
-  Layers,
-  Map as MapIcon,
-  Maximize,
-  Trash2,
-} from "lucide-react"
+  EyeSlash,
+  MapTrifold as MapIcon,
+  Stack,
+  Trash,
+} from "@phosphor-icons/react"
 import {
   StudioContextMenu,
   StudioMenuItem,
@@ -123,7 +123,7 @@ export function PlaneContextMenu({
       */}
       {!target.isBase && (
         <StudioMenuItem
-          icon={AlignVerticalJustifyEnd}
+          icon={AlignBottom}
           label={target.flat ? "Return to its own height" : "Drop to base level"}
           checked={target.flat}
           onSelect={() => {
@@ -133,7 +133,7 @@ export function PlaneContextMenu({
         />
       )}
       <StudioMenuItem
-        icon={target.visible ? EyeOff : Eye}
+        icon={target.visible ? EyeSlash : Eye}
         label={target.visible ? "Hide this plane" : "Show this plane"}
         onSelect={() => {
           onToggleVisible()
@@ -146,7 +146,7 @@ export function PlaneContextMenu({
         eleven presses in a tree.
       */}
       <StudioMenuItem
-        icon={Layers}
+        icon={Stack}
         label={target.soloed ? "Show every plane" : "Hide every other plane"}
         title={
           target.soloed
@@ -164,7 +164,7 @@ export function PlaneContextMenu({
         direction they are already looking.
       */}
       <StudioMenuItem
-        icon={Maximize}
+        icon={CornersOut}
         label="Zoom to fit this plane"
         onSelect={() => {
           onFit()
@@ -189,7 +189,7 @@ export function PlaneContextMenu({
         <>
           <StudioMenuRule />
           <StudioMenuItem
-            icon={Trash2}
+            icon={Trash}
             label="Remove from the studio"
             title="The run keeps it; the studio stops drawing it"
             onSelect={() => {

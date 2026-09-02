@@ -52,7 +52,7 @@
  * the answer or the evidence for it.
  */
 import { useId, useState } from "react"
-import { ChevronDown, Trash2 } from "lucide-react"
+import { CaretDown, Trash } from "@phosphor-icons/react"
 
 import { Chip, Stat, WaterFigure } from "@/components/analysisPrimitives"
 import { btnIcon } from "@/components/ui/buttons"
@@ -123,7 +123,7 @@ export function FloodReadingColumn({
             title="Clear the flood envelope result"
             aria-label="Clear the flood envelope result"
           >
-            <Trash2 className="size-3.5" />
+            <Trash className="size-3.5" />
           </button>
         </div>
         {/* Verbatim from the payload. Nothing here composes a shorter
@@ -371,7 +371,7 @@ function Block({
         className="app-no-drag -mx-1 flex items-center justify-between gap-2 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-surface-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         <span className="eyebrow !text-foreground">{title}</span>
-        <ChevronDown
+        <CaretDown
           className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${
             open ? "" : "-rotate-90"
           }`}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, Check, Copy, Table2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Check, Copy, Table } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { btnGhostDense } from "@/components/ui/buttons"
@@ -99,7 +99,7 @@ export function DataTableView({
               className={btnGhostDense}
               title={`Save ${table.csvName}`}
             >
-              <Table2 className="h-3 w-3" />
+              <Table className="h-3 w-3" />
               Save CSV
             </button>
           )}

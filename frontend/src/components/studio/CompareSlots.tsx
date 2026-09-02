@@ -19,7 +19,7 @@
  * Unpinned is the old behaviour, unchanged, so nothing anyone already does
  * stops working -- an empty slot follows the selection and says so.
  */
-import { Pin, PinOff } from "lucide-react"
+import { PushPin, PushPinSlash } from "@phosphor-icons/react"
 import type { PredictionCompareSide } from "@/components/studio/BoardSolarDetail"
 import {
   StudioMenuGroup,
@@ -108,7 +108,7 @@ function Slot({
       trigger={(p) => (
         <StudioHeaderPopoverButton
           {...p}
-          icon={pinned ? Pin : undefined}
+          icon={pinned ? PushPin : undefined}
           /*
             The letter before the name, because the figures below this header
             are signed B minus A: a reader checking which way a delta points
@@ -129,7 +129,7 @@ function Slot({
     >
       <StudioMenuGroup label={`Side ${letter}`}>
         <StudioMenuItem
-          icon={PinOff}
+          icon={PushPinSlash}
           label="Follow selection"
           checked={!pinned}
           title="Take this side from whatever prediction planes are selected"
@@ -141,7 +141,7 @@ function Slot({
         {available.map((s) => (
           <StudioMenuItem
             key={s.areaId}
-            icon={Pin}
+            icon={PushPin}
             label={s.label}
             note={s.period ?? undefined}
             checked={pinned === s.areaId}
@@ -198,7 +198,7 @@ export function SourceSlot({
       trigger={(p) => (
         <StudioHeaderPopoverButton
           {...p}
-          icon={Pin}
+          icon={PushPin}
           label={`Source: ${source?.label ?? "none"}`}
           showLabel
           open={open}
@@ -214,7 +214,7 @@ export function SourceSlot({
     >
       <StudioMenuGroup label="Fitted on">
         <StudioMenuItem
-          icon={PinOff}
+          icon={PushPinSlash}
           label="No source"
           checked={!source}
           title="Clear the source; the cohort has no centre without one"
@@ -226,7 +226,7 @@ export function SourceSlot({
         {available.map((s) => (
           <StudioMenuItem
             key={s.areaId}
-            icon={Pin}
+            icon={PushPin}
             label={s.label}
             note={s.period ?? undefined}
             checked={source?.areaId === s.areaId}

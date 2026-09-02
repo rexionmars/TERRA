@@ -37,7 +37,7 @@
  * its label in the text colour.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Trash } from "@phosphor-icons/react"
 
 import { Chip, WaterFigure } from "@/components/analysisPrimitives"
 import {
@@ -221,7 +221,7 @@ export function ReadingPanel({ groups, onClear, empty }: ReadingPanelProps) {
                     title={`Clear the ${g.label} result`}
                     aria-label={`Clear the ${g.label} result`}
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash className="size-3.5" />
                   </button>
                 )}
               </div>

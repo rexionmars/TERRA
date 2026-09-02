@@ -31,7 +31,7 @@
  * it does not scroll away from the list it adds to.
  */
 import { useMemo, useState } from "react"
-import { Plus, Search } from "lucide-react"
+import { Plus, MagnifyingGlass } from "@phosphor-icons/react"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { datesByMonth, runRowLine } from "@/lib/runSummary"
 import type { InferenceRun, Project } from "@/lib/types"
@@ -119,7 +119,7 @@ export function RunPicker({
               : "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
           )}
         >
-          <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
+          <Plus className="size-3.5 shrink-0" />
           {busy ? "Loading…" : "Add a run"}
         </button>
       )}
@@ -139,7 +139,7 @@ export function RunPicker({
             className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5"
             style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
           >
-            <Search className="size-3 shrink-0 text-muted-foreground" />
+            <MagnifyingGlass className="size-3 shrink-0 text-muted-foreground" />
             <input
               autoFocus
               value={query}

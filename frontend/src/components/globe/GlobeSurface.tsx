@@ -24,15 +24,15 @@ import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useRef, useState } from "react"
 import {
-  Globe2,
-  Mountain,
-  Satellite,
+  Broadcast,
+  Globe,
+  MagnifyingGlass,
+  Mountains,
+  Path,
   Pencil,
-  Search,
-  Spline,
-  TriangleAlert,
-  Trash2,
-} from "lucide-react"
+  Trash,
+  Warning,
+} from "@phosphor-icons/react"
 import {
   Map as MapLibreMap,
   type GeoJSONSource,
@@ -1160,7 +1160,7 @@ export function GlobeSurface({
             active={searching}
             onClick={() => setSearching((v) => !v)}
           >
-            <Search className="size-4" strokeWidth={1.5} />
+            <MagnifyingGlass className="size-4" />
           </MapButton>
           {/*
             BETWEEN FINDING THE PLACE AND LIGHTING IT, because choosing which
@@ -1175,14 +1175,14 @@ export function GlobeSurface({
             active={recent}
             onClick={() => setRecent((v) => !v)}
           >
-            <Satellite className="size-4" strokeWidth={1.5} />
+            <Broadcast className="size-4" />
           </MapButton>
           <MapButton
             label="Relief"
             active={relief}
             onClick={() => setRelief((r) => !r)}
           >
-            <Mountain className="size-4" strokeWidth={1.5} />
+            <Mountains className="size-4" />
           </MapButton>
           {canDraw && (
             <>
@@ -1191,17 +1191,17 @@ export function GlobeSurface({
                 active={mode === "draw"}
                 onClick={() => setMode((m) => (m === "draw" ? "idle" : "draw"))}
               >
-                <Pencil className="size-4" strokeWidth={1.5} />
+                <Pencil className="size-4" />
               </MapButton>
               <MapButton
                 label="Edit the area"
                 active={mode === "edit"}
                 onClick={() => setMode((m) => (m === "edit" ? "idle" : "edit"))}
               >
-                <Spline className="size-4" strokeWidth={1.5} />
+                <Path className="size-4" />
               </MapButton>
               <MapButton label="Delete the area" onClick={clear}>
-                <Trash2 className="size-4" strokeWidth={1.5} />
+                <Trash className="size-4" />
               </MapButton>
             </>
           )}
@@ -1236,9 +1236,8 @@ export function GlobeSurface({
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
           {failure ? (
             <>
-              <TriangleAlert
+              <Warning
                 className="size-5 text-destructive-quiet"
-                strokeWidth={1.5}
               />
               <p className="max-w-[22rem] text-body text-muted-foreground">
                 {ready
@@ -1251,9 +1250,8 @@ export function GlobeSurface({
             </>
           ) : (
             <>
-              <Globe2
+              <Globe
                 className="size-5 animate-pulse text-muted-foreground"
-                strokeWidth={1.5}
               />
               <p className="text-body text-muted-foreground">Opening the globe</p>
             </>

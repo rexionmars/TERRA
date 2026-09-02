@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client"
+import { IconContext } from "@phosphor-icons/react"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "sonner"
 import "./index.css"
@@ -66,9 +67,26 @@ root.render(
       every part of the tree, and an error nobody foresaw is not obliged to
       happen where a smaller ring was put.
     */}
-    <ErrorBoundary fallback={(state) => <AppErrorFallback {...state} />}>
-      <App />
-    </ErrorBoundary>
+    {/*
+      THE ICONS' WEIGHT, SET ONCE.
+
+      Phosphor carries stroke weight as a named variant rather than as a
+      settable width, and it draws with fill -- so the `strokeWidth={1.75}`
+      this application had scattered through it under Lucide did nothing at
+      all, and 29 of those props were removed rather than translated. This is
+      where the setting lives now: one default for every icon in the tree,
+      which is what a weight should be. An icon that wants another one says so
+      with `weight` at its own call site.
+
+      `light` rather than `regular`. Phosphor is drawn on a 256 grid against
+      Lucide's 24 and reads heavier at the same nominal size; at regular the
+      chrome of a dense studio panel competes with the content it labels.
+    */}
+    <IconContext.Provider value={{ weight: "light" }}>
+      <ErrorBoundary fallback={(state) => <AppErrorFallback {...state} />}>
+        <App />
+      </ErrorBoundary>
+    </IconContext.Provider>
     <Toaster
       theme="system"
       position="bottom-right"

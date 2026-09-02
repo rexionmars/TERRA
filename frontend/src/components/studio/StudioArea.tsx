@@ -29,13 +29,7 @@
  * recorded in this codebase: "present in the code, invisible in use".
  */
 import { useRef, useState } from "react"
-import {
-  Columns2,
-  Maximize2,
-  Minimize2,
-  Rows2,
-  X,
-} from "lucide-react"
+import { Columns, ArrowsOut, ArrowsIn, Rows, X } from "@phosphor-icons/react"
 import {
   STUDIO_EDITORS,
   studioEditor,
@@ -329,7 +323,7 @@ export function StudioArea({
           )}
         >
           <StudioMenuItem
-            icon={Columns2}
+            icon={Columns}
             label="Split side by side"
             onSelect={() => {
               onSplit("row")
@@ -337,7 +331,7 @@ export function StudioArea({
             }}
           />
           <StudioMenuItem
-            icon={Rows2}
+            icon={Rows}
             label="Split above and below"
             onSelect={() => {
               onSplit("col")
@@ -346,7 +340,7 @@ export function StudioArea({
           />
           <StudioMenuRule />
           <StudioMenuItem
-            icon={maximized ? Minimize2 : Maximize2}
+            icon={maximized ? ArrowsIn : ArrowsOut}
             label={maximized ? "Restore areas" : "Maximise area"}
             note="Ctrl Space"
             onSelect={() => {

@@ -26,25 +26,25 @@
  */
 import { type ReactNode, useRef, useState } from "react"
 import {
-  ChevronDown,
-  ChevronRight,
+  CaretDown,
+  CaretRight,
   Download,
-  Droplet,
+  Drop,
   Eye,
-  EyeOff,
+  EyeSlash,
   Gauge,
-  Grid2x2,
+  GridFour,
   Image as ImageIcon,
-  Layers,
-  type LucideIcon,
   Minus,
   Pentagon,
   Plus,
+  Stack,
   Sun,
-  Trash2,
+  Trash,
+  type Icon,
   Wrench,
   X,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 import {
   StudioContextMenu,
   StudioMenuItem,
@@ -169,12 +169,12 @@ export const sceneKey = (areaId: string, sceneId: string) =>
  * it reads words, and the icon is what keeps the tree legible at the size this
  * column can reach.
  */
-function layerIcon(id: string): LucideIcon {
+function layerIcon(id: string): Icon {
   if (id.startsWith("solar:")) return Sun
-  if (id === "water") return Droplet
+  if (id === "water") return Drop
   if (id === "composition") return ImageIcon
   if (id === "confidence") return Gauge
-  return Grid2x2
+  return GridFour
 }
 
 /**
@@ -261,7 +261,6 @@ function AreasPane({
           ) : (
             <Pentagon
               className="size-5 shrink-0 text-muted-foreground/50"
-              strokeWidth={1.5}
             />
           )}
           {editing === a.id ? (
@@ -344,7 +343,7 @@ function AreasPane({
               }
               className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
             >
-              <Trash2 className="size-3" />
+              <Trash className="size-3" />
             </button>
           )}
         </li>
@@ -359,7 +358,7 @@ interface Row {
   areaId: string
   layerId: string | null
   title: string
-  icon: LucideIcon
+  icon: Icon
   /** The word the Type column prints. See `layerKind`. */
   kind: string
   /** Indent level: the stack at 0, its rasters at 1, their modifiers at 2. */
@@ -639,7 +638,7 @@ export function BoardSidebar({
       areaId: area.id,
       layerId: null,
       title: names[stackRow(area.id)] ?? area.title,
-      icon: Layers,
+      icon: Stack,
       kind: "Area",
       depth: 0,
       visible: allVisible,
@@ -989,7 +988,7 @@ export function BoardSidebar({
         >
           {(
             [
-              ["scene", "Scene", Layers],
+              ["scene", "Scene", Stack],
               ["data", "Data", ImageIcon],
               ["areas", "Areas", Pentagon],
             ] as const
@@ -1008,7 +1007,7 @@ export function BoardSidebar({
                   : "text-muted-foreground hover:bg-surface-raised/40"
               )}
             >
-              <Icon className="size-3" strokeWidth={1.75} />
+              <Icon className="size-3" />
               {label}
             </button>
           ))}
@@ -1063,7 +1062,7 @@ export function BoardSidebar({
           style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
         >
           <span className="flex w-6 shrink-0 justify-center">
-            <Eye className="size-3" strokeWidth={1.75} />
+            <Eye className="size-3" />
           </span>
           <span className="min-w-0 flex-1 pl-1.5">Item Label</span>
           <span className="w-[74px] shrink-0 pr-2 text-right">Type</span>
@@ -1189,7 +1188,7 @@ export function BoardSidebar({
                     {row.visible ? (
                       <Eye className="size-3.5" />
                     ) : (
-                      <EyeOff className="size-3.5" />
+                      <EyeSlash className="size-3.5" />
                     )}
                   </button>
                 </span>
@@ -1221,9 +1220,9 @@ export function BoardSidebar({
                     className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {isOpen ? (
-                      <ChevronDown className="size-3" />
+                      <CaretDown className="size-3" />
                     ) : (
-                      <ChevronRight className="size-3" />
+                      <CaretRight className="size-3" />
                     )}
                   </button>
                 ) : (
@@ -1403,13 +1402,12 @@ export function BoardSidebar({
                   className="flex cursor-default select-none items-center gap-1.5 py-[3px] pl-1.5 pr-2 transition-colors hover:bg-surface-raised/40"
                 >
                   {isOpen ? (
-                    <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                    <CaretDown className="size-3 shrink-0 text-muted-foreground" />
                   ) : (
-                    <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                    <CaretRight className="size-3 shrink-0 text-muted-foreground" />
                   )}
-                  <Layers
+                  <Stack
                     className="size-3.5 shrink-0 text-muted-foreground"
-                    strokeWidth={1.75}
                   />
                   <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
                     {row.run.title}
@@ -1479,7 +1477,7 @@ export function BoardSidebar({
                       title="Delete this run from disk"
                       className="shrink-0 rounded-sm text-muted-foreground/40 transition-colors hover:text-destructive"
                     >
-                      <Trash2 className="size-3.5" />
+                      <Trash className="size-3.5" />
                     </button>
                   )}
                 </div>
@@ -1712,7 +1710,7 @@ export function BoardSidebar({
               <>
                 <StudioMenuRule />
                 <StudioMenuItem
-                  icon={Trash2}
+                  icon={Trash}
                   label="Drop from the project"
                   title="Removes this composition from the project's gallery"
                   onSelect={() => {

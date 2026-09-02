@@ -50,21 +50,21 @@
  */
 import { useEffect, useMemo, useState } from "react"
 import {
-  ChartColumn,
+  CaretRight,
+  ChartBar,
   Check,
-  ChevronRight,
   Folder,
   FolderOpen,
   FolderPlus,
   Folders,
-  Inbox,
-  LayoutGrid,
   List,
-  Search,
-  Trash2,
+  MagnifyingGlass,
+  SquaresFour,
+  Trash,
+  Tray,
   Waves,
   X,
-} from "lucide-react"
+} from "@phosphor-icons/react"
 
 import {
   CreateProject,
@@ -435,7 +435,7 @@ export function StudioBrowser({
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
       >
         <label className="relative flex min-w-0 flex-1 items-center">
-          <Search className="pointer-events-none absolute left-1.5 size-3 text-muted-foreground" />
+          <MagnifyingGlass className="pointer-events-none absolute left-1.5 size-3 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -516,7 +516,7 @@ export function StudioBrowser({
           style={{ borderColor: "rgb(var(--p-line) / 0.28)" }}
         >
           {[
-            { on: tiles, icon: LayoutGrid, label: "Tiles" },
+            { on: tiles, icon: SquaresFour, label: "Tiles" },
             { on: !tiles, icon: List, label: "Rows" },
           ].map(({ on, icon: Icon, label }) => (
             <button
@@ -797,7 +797,7 @@ export function StudioBrowser({
           onClose={() => setRunMenu(null)}
         >
           <StudioMenuItem
-            icon={ChartColumn}
+            icon={ChartBar}
             label="Open in the studio"
             disabled={busy || !onOpenRun}
             onSelect={() => {
@@ -844,7 +844,7 @@ export function StudioBrowser({
             style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
           />
           <StudioMenuItem
-            icon={Trash2}
+            icon={Trash}
             label="Delete"
             onSelect={() => {
               setDeleting({ kind: "run", run: runMenu.run })
@@ -884,7 +884,7 @@ export function StudioBrowser({
             }}
           />
           <StudioMenuItem
-            icon={Trash2}
+            icon={Trash}
             label="Delete"
             onSelect={() => {
               setDeleting({ kind: "project", project: projectMenu.project })
@@ -1040,7 +1040,7 @@ function SourceNode({
           aria-label={`${open ? "Collapse" : "Expand"} ${label}`}
           className="flex size-4 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
-          <ChevronRight
+          <CaretRight
             className={cn("size-3 transition-transform", open && "rotate-90")}
           />
         </button>
@@ -1146,7 +1146,7 @@ function FolderBranch({
         hasChildren={branching}
         on={sameSource(source, here)}
         marked={marked}
-        icon={id === "unfiled" ? Inbox : undefined}
+        icon={id === "unfiled" ? Tray : undefined}
         onToggle={branching ? onToggle : undefined}
         onSelect={() => onSelect(undefined)}
         onContext={onContext}
@@ -1255,7 +1255,7 @@ function FolderRow({
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
-      <Folder className="size-4 shrink-0" strokeWidth={1.75} />
+      <Folder className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
         {name}
       </span>
@@ -1269,7 +1269,7 @@ function FolderRow({
 /** The plate a tile and a row share: a product's glyph over its own colour. */
 function KindPlate({ run, size }: { run: InferenceRun; size: "tile" | "row" }) {
   const kind = KIND_BY_ID.get(runKindLabel(run.kind) as KindId) ?? KINDS[0]
-  const Icon = kind.id === "water" || kind.id === "flood" ? Waves : ChartColumn
+  const Icon = kind.id === "water" || kind.id === "flood" ? Waves : ChartBar
   return (
     <div
       className={cn(

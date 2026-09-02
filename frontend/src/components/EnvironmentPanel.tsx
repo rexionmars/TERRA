@@ -18,7 +18,13 @@
  * overriding the choice offered here.
  */
 import { useCallback, useEffect, useRef, useState } from "react"
-import { AlertTriangle, Check, Loader2, RefreshCw, X } from "lucide-react"
+import {
+  ArrowsClockwise,
+  Check,
+  CircleNotch,
+  Warning,
+  X,
+} from "@phosphor-icons/react"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import {
   BuildManagedEnvironment,
@@ -221,7 +227,7 @@ export function EnvironmentPanel() {
         <p className="eyebrow mb-3">In use</p>
         {loading && !active ? (
           <p className="flex items-center gap-2 text-body text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
+            <CircleNotch className="size-3.5 animate-spin" />
             checking
           </p>
         ) : !active ? (
@@ -351,7 +357,7 @@ export function EnvironmentPanel() {
             disabled={loading || building}
             className={btnGhost}
           >
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            <ArrowsClockwise className={cn("size-3.5", loading && "animate-spin")} />
             Check again
           </button>
           {building && (
@@ -441,7 +447,7 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
           : "bg-secondary text-muted-foreground"
       )}
     >
-      {ok ? <Check className="size-3" /> : <AlertTriangle className="size-3" />}
+      {ok ? <Check className="size-3" /> : <Warning className="size-3" />}
       {label}
     </span>
   )
@@ -504,7 +510,7 @@ function PathRow({ path }: { path: main.ResolvedPath }) {
           )}
           {!path.exists && (
             <span className="telemetry flex items-center gap-1 rounded-sm bg-destructive-quiet/15 px-1 text-micro uppercase text-destructive-quiet">
-              <AlertTriangle className="size-3" />
+              <Warning className="size-3" />
               not found
             </span>
           )}
@@ -555,7 +561,7 @@ function CandidateRow({
           disabled={disabled || active}
           className={btnGhost}
         >
-          {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
+          {busy ? <CircleNotch className="size-3.5 animate-spin" /> : null}
           Use as is
         </button>
         <button
