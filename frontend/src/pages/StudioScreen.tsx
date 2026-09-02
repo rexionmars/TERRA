@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { Suspense, lazy, useEffect, useState, useSyncExternalStore } from "react"
 import type {
   CompositionOverlay,
   CompositeIndex,
@@ -59,7 +59,6 @@ const BoardSurface = lazy(() =>
     default: m.BoardSurface,
   }))
 )
-const prefetchBoard = () => void import("@/components/studio/BoardSurface")
 
 /**
  * The run band's height, in rem.
@@ -319,27 +318,6 @@ export function StudioScreen(props: StudioScreenProps) {
   )
   const onLeftPanelChange = selectPanel
   /**
-   * Which right-edge drawer is open, at most one.
-   *
-   * The two occupy the same slot -- same anchor, same width, same layer -- and
-   * a user reading run parameters is not simultaneously adjusting overlay
-   * opacity, so they exclude each other rather than being stacked or offset.
-   * A boolean per drawer would let both open onto the same rectangle.
-   *
-   * The docked layout never sets "config", so its behaviour is unchanged.
-   */
-  const [rightDrawer, setRightDrawer] = useState<"config" | "overlays" | null>(
-    null
-  )
-  /**
-   * The workspace island's measured width, so the period track can retract past
-   * it the way it already retracts past the docked column.
-   *
-   * Measured rather than declared: the island sizes to its contents, and the
-   * run button's label changes with the product and with whether it is running.
-   */
-  const [barWidthPx, setBarWidthPx] = useState(0)
-  /**
    * The band's own tool, which is the map's plus solar.
    *
    * Not `leftPanel`, and the difference is the point: `leftPanel` is a
@@ -383,8 +361,14 @@ export function StudioScreen(props: StudioScreenProps) {
     are derived from the same partition, and a divided owner is how the seams
     drifted apart in the first place.
   */
-  const [leftRem, setLeftRem] = useState(BOARD_LEFT_REM)
-  const [rightRem, setRightRem] = useState(BOARD_RIGHT_REM)
+  /*
+    Fixed. These were state because the map screen's columns could be dragged;
+    the studio resizes its areas at their own seams, so nothing ever wrote
+    them. Kept as the partition's inputs rather than inlined, because
+    boardPartition is what reconciles the two edges against the detail band.
+  */
+  const leftRem = BOARD_LEFT_REM
+  const rightRem = BOARD_RIGHT_REM
   const partition = boardPartition({
     leftRem,
     rightRem,
@@ -397,35 +381,11 @@ export function StudioScreen(props: StudioScreenProps) {
    *
    * A saved studio and the opening-surface preference both arrive as the
    * nonce, and both mean the same thing: this reader wants the studio, not the
-   * studio OF something.
+   * studio OF something. Zero is the resting value, not a request.
    */
   const nonce = props.openBoardNonce ?? 0
-  useEffect(() => {
-    // Zero is the resting value, not a request.
-    if (nonce > 0) {
-      setRightDrawer(null)
-    }
-  }, [nonce])
   const setLeftPanel = onLeftPanelChange
 
-  // The three status panels share one slot at the bottom of the map, so only
-  // the one matching the open tool is shown. Water keeps its own rule: with no
-  // classification to compete for the slot it takes it whatever tab is open,
-  // because this screen is remounted on every return from the analysis page,
-  // which resets the tab to classify and would otherwise leave a restored water
-  // raster on the map with nothing naming it and no way to clear it.
-  //
-  // The solar chain used to sit above water here and to gate the two below it.
-  // Its rasters are now drawn on the energy screen, which names and clears them
-  // beside the run that produced them, so nothing on this map can be a solar
-  // layer and the gate had no case left to exclude.
-  const showWaterStatus =
-    (leftPanel === "water" || !props.result) && !!props.water
-  const showCompositionStatus =
-    !showWaterStatus &&
-    (leftPanel === "compose" || (!props.result && !!props.composition))
-  const showPredictionStatus =
-    !showWaterStatus && !showCompositionStatus && !!props.result
 
   /*
     What the board draws, from the same table the map reads. Every control in
@@ -566,9 +526,6 @@ export function StudioScreen(props: StudioScreenProps) {
     }
   }
 
-  const selectedSceneDate =
-    props.composeScenes.find((s) => s.id === props.selectedSceneId)?.date ??
-    null
 
   /**
    * The run action for whichever product is in view.

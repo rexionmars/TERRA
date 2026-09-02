@@ -14,7 +14,6 @@ import { Pencil } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 import type { LayerLegend } from "@/lib/layerLegend"
 import type { LULCAgreement } from "@/lib/types"
-import { BOARD_RIGHT_REM } from "@/lib/boardPartition"
 import {
   ClassAccuracyChart,
   DisagreementBar,

@@ -8,7 +8,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { ModalShell } from "@/components/ui/ModalShell"
-import { btnGhost, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
+import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import { ExportResearchPack } from "../../wailsjs/go/main/App"

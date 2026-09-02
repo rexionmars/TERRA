@@ -5,7 +5,6 @@ import {
   Download,
   Minus,
   Plus,
-  X,
 } from "@phosphor-icons/react"
 import { ModalHeader, ModalShell } from "@/components/ui/ModalShell"
 import { notifyExportFail, notifyExportOk } from "@/lib/notify"

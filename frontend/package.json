@@ -17,7 +17,6 @@
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
     "@tmcw/togeojson": "^7.1.2",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "d3-array": "^3.2.4",
     "d3-scale": "^4.0.2",

@@ -57,7 +57,6 @@ import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
 import { cn } from "@/lib/utils"
-import { BOARD_LEFT_REM } from "@/lib/boardPartition"
 
 /**
  * What the column is listing.
@@ -437,9 +436,7 @@ export function BoardSidebar({
   onDropRun,
   onRemoveArea,
   onDeleteRun,
-  flat,
   onReorder,
-  canLink,
   onToggleExpanded,
   onLayerChange,
   onSmoothChange,
@@ -502,13 +499,6 @@ export function BoardSidebar({
   /** Ends the run everywhere, unlike onDropRun which only unloads it. */
   onDeleteRun?: (runId: string, title: string) => void
   /**
-   * Layers dropped to the base of their stack, by scene key.
-   *
-   * The base layer of an area is never in it: it IS the level, so there is
-   * nothing for it to descend to.
-   */
-  flat: ReadonlySet<string>
-  /**
    * A new stack order for one area, given TOP FIRST -- as the tree reads.
    *
    * The tree is the only place the order is visible, so it is the place to
@@ -516,9 +506,6 @@ export function BoardSidebar({
    * hands back rather than making the caller reverse what it just showed.
    */
   onReorder: (areaId: string, layerIdsTopFirst: string[]) => void
-  /** Lines joining each area's rasters to one another. */
-  /** False until some area holds more than one raster. */
-  canLink: boolean
   /** Each raster's name, shown over it on the board. */
   mode: OutlinerMode
   /** The geometries on the board, for the Areas tab. */
@@ -734,9 +721,6 @@ export function BoardSidebar({
     if (!expanded.has(stackRow(r.areaId))) return false
     return r.depth === 1 || expanded.has(layerRow(r.areaId, r.layerId!))
   })
-
-  const active = allRows.find((r) => r.id === activeRow) ?? null
-  const activeTarget = rowTarget(activeRow)
 
   /*
     The data tree, flattened: a run, then its assets. Same shape as the scene
