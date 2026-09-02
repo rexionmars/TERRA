@@ -22,7 +22,7 @@
  */
 import "maplibre-gl/dist/maplibre-gl.css"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Broadcast,
   Globe,
@@ -45,6 +45,10 @@ import "@/lib/maplibreWorker"
 import type { GlobeArea } from "@/components/globe/globeArea"
 import { MapBar, MapButton } from "@/components/globe/MapChrome"
 import { syncOverlays } from "@/components/globe/mapOverlays"
+import {
+  OverlayCallouts,
+  type OverlayCaption,
+} from "@/components/globe/OverlayCallout"
 import {
   fetchEsriImageryHere,
   type ImageryHere,
@@ -265,7 +269,18 @@ export function GlobeSurface({
    * `solar:terrain`, and keying on that would let the second replace the
    * first while claiming to be a second overlay.
    */
-  overlays?: readonly { key: string; layer: RasterLayer }[]
+  overlays?: readonly {
+    key: string
+    layer: RasterLayer
+    /**
+     * What its colours mean, for the callout tied to it on the ground.
+     *
+     * Absent where the legend is not a ramp, and nothing is drawn there: a
+     * class legend is a list of swatches, and MapBiomas alone runs to dozens.
+     * The properties panel remains where those are read.
+     */
+    caption?: OverlayCaption
+  }[]
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -285,6 +300,27 @@ export function GlobeSurface({
     turns a picture of a place into the ground the areas are drawn on.
   */
   const [relief, setRelief] = useState(false)
+  /**
+   * Where each tied legend's dot lands: the centre of its raster's extent.
+   *
+   * Unambiguous about ownership and free of the edges, which is where an
+   * outline and a neighbouring raster compete for the same pixels. A raster
+   * with no caption contributes none, so a class raster draws no callout.
+   */
+  const captions = useMemo(
+    () =>
+      overlays
+        .filter((o) => o.caption && !isZeroExtent(o.layer.extent))
+        .map((o) => ({
+          key: o.key,
+          at: [
+            (o.layer.extent.lon_min + o.layer.extent.lon_max) / 2,
+            (o.layer.extent.lat_min + o.layer.extent.lat_max) / 2,
+          ] as [number, number],
+          caption: o.caption!,
+        })),
+    [overlays]
+  )
   /*
     REVEALED, NOT ALWAYS UP. The work map carries its search bar permanently
     because it has the width for it and the bar is one of few things over the
@@ -1215,6 +1251,18 @@ export function GlobeSurface({
         Bounded by the pane rather than given a width, so a narrow area gets a
         narrow bar instead of one that runs off the edge.
       */}
+      {/*
+        The tied legends. They render nothing themselves -- each is a MapLibre
+        marker, positioned by the library on every frame -- so this mounts
+        beside the chrome rather than inside a stacking context that would fight
+        the map's own.
+      */}
+      <OverlayCallouts
+        map={mapRef.current}
+        ready={ready && !failure}
+        captions={captions}
+      />
+
       {searching && ready && !failure && (
         <SearchBar
           className="app-no-drag absolute left-3 right-[3.5rem] top-3 z-[401] max-w-[22rem]"
