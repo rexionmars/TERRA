@@ -3222,10 +3222,27 @@ function AppBody(props: {
                   */
                   solarParams={solar.params}
                   onSolarParamsChange={setSolarParams}
+                  /*
+                    All four the table declares. Two of them -- the resource
+                    and the energy model -- had no way in between the energy
+                    screen going and this: they report figures rather than a
+                    raster, and the band only offered what the board could
+                    draw. The Solar result editor reads figures now, so the
+                    band offers the product and the sidecar decides.
+                  */
                   onRunSolar={(product) => {
-                    if (product === "terrain") void handleRunSolarTerrain()
-                    else void handleRunSolarSiting()
+                    if (product === "resource") void handleRunSolar()
+                    else if (product === "terrain") void handleRunSolarTerrain()
+                    else if (product === "siting") void handleRunSolarSiting()
+                    else void handleRunEnergyModel()
                   }}
+                  solarResults={solar.results}
+                  onSolarLossChange={(group, key, pct) =>
+                    solarDispatch({ type: "params/loss", group, key, pct })
+                  }
+                  onClearSolar={(product) =>
+                    solarDispatch({ type: "result/clear", product })
+                  }
                   // Any solar product blocks the rest: one sidecar run at a time.
                   solarBusy={solar.run.active !== null}
                   solarProgress={solar.run.progress}

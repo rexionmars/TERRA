@@ -25,7 +25,13 @@ import {
   isMapTool,
   type BoardToolId,
 } from "@/lib/mapTools"
-import type { SolarParams, WindParams } from "@/lib/energyState"
+import type {
+  SolarParams,
+  SolarProductId,
+  SolarResults,
+  WindParams,
+} from "@/lib/energyState"
+import { solarProduct as solarProductEntry } from "@/components/energy/solarProducts"
 import {
   FLOOD_DEM_PRODUCTS,
   type FloodParams,
@@ -260,7 +266,15 @@ export interface StudioScreenProps {
   solarParams?: SolarParams
   onSolarParamsChange?: (patch: Partial<SolarParams>) => void
   /** Absent where solar cannot be run; the band then does not offer it. */
-  onRunSolar?: (product: "terrain" | "siting") => void
+  onRunSolar?: (product: SolarProductId) => void
+  /** What each product has produced, for the reading editor and the stale note. */
+  solarResults?: SolarResults
+  onSolarLossChange?: (
+    group: "declared" | "optional",
+    key: string,
+    pct: number
+  ) => void
+  onClearSolar?: (product: SolarProductId) => void
   solarBusy?: boolean
   solarProgress?: number
   solarProgressMsg?: string
@@ -329,10 +343,14 @@ export function StudioScreen(props: StudioScreenProps) {
    * Null until the band is used, so it opens on whatever the map was showing.
    */
   const [boardTool, setBoardTool] = useState<BoardToolId | null>(null)
-  /** Which of the two raster-producing solar products the band will run. */
-  const [solarProduct, setSolarProduct] = useState<"terrain" | "siting">(
-    "terrain"
-  )
+  /**
+   * Which photovoltaic product the band will run.
+   *
+   * All four the table declares, not the two that draw a raster. The other two
+   * report figures, and the studio reads figures now: the Solar result editor
+   * carries what the energy screen's reading column did.
+   */
+  const [solarProduct, setSolarProduct] = useState<SolarProductId>("terrain")
   /**
    * Whether the board is showing a map to draw an area on.
    *
@@ -608,11 +626,11 @@ export function StudioScreen(props: StudioScreenProps) {
           running: props.solarBusy ?? false,
           progress: props.solarProgress ?? 0,
           progressMsg: props.solarProgressMsg ?? "",
+          /* The table's own verb, so a product added there arrives with its
+             label rather than with a fifth branch written here. */
           label: props.solarBusy
-            ? "Running"
-            : solarProduct === "terrain"
-              ? "Map irradiation"
-              : "Map siting",
+            ? `${solarProductEntry(solarProduct).runningLabel}`
+            : solarProductEntry(solarProduct).runVerb,
           // One sidecar run at a time, which solar already enforces across its
           // own products; the board must not be a second way past it.
           canRun: props.hasArea && !props.solarBusy,
@@ -1053,6 +1071,12 @@ export function StudioScreen(props: StudioScreenProps) {
             onNewStudio={props.onNewStudio}
             onStudiosMenu={props.onStudiosMenu}
             polygonGeoJSON={props.polygonGeoJSON}
+            solarProduct={solarProduct}
+            solarParams={props.solarParams}
+            solarResults={props.solarResults}
+            onSolarParamsChange={props.onSolarParamsChange}
+            onSolarLossChange={props.onSolarLossChange}
+            onClearSolar={props.onClearSolar}
             windResult={props.windResult}
             onClearWind={props.onClearWind}
             floodResult={props.floodResult}

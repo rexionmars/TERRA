@@ -28,6 +28,7 @@ import {
   Plant,
   Ruler,
   SlidersHorizontal,
+  Sun,
   Table,
   Tree,
   TreeStructure,
@@ -50,6 +51,8 @@ export type EditorId =
   | "canopy"
   | "canopyParams"
   | "globe"
+  | "solarParams"
+  | "solarReading"
   | "windReading"
   | "floodReading"
   | "browser"
@@ -334,6 +337,35 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     */
     unique: true,
     hint: "Species, age and sowing for the stand, and which area is read",
+  },
+  {
+    id: "solarParams",
+    label: "Solar parameters",
+    icon: Sun,
+    /*
+      One surface owns solar configuration, as `canopyParams` owns the stand's.
+      The energy model alone sends a reporting basis, an analysis period, a
+      degradation rate, two ground-cover ratios, a tracker limit, a density
+      basis, a buildable fraction, a UTC offset, a shading switch and two
+      tables of loss terms; below this width the loss tables wrap a label onto
+      three lines and stop being tables.
+    */
+    minRem: 20,
+    minRowRem: 12,
+    /*
+      Unique. It shows the groups of the product the run band has selected, so
+      a second one would be the same panel over the same choice.
+    */
+    unique: true,
+    hint: "What the selected photovoltaic product sends, and nothing it does not",
+  },
+  {
+    id: "solarReading",
+    label: "Solar result",
+    icon: Sun,
+    minRem: 20,
+    minRowRem: 16,
+    hint: "The resource, the terrain, the siting and the energy model, as each was measured",
   },
   {
     id: "windReading",
