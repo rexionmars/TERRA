@@ -317,11 +317,9 @@ def flood_routing(req, work_dir):
     a coordinate the caller gives. Rain needs no such point.
     """
     from terra import aoi
-    from terra.flood import envelope as flood_mod
-    from terra.flood import routing as route_mod
+    from terra.flood import envelope as flood_mod, routing as route_mod
     from terra.imagery import composite as comp
-    from terra.terrain import dem as dem_mod
-    from terra.terrain import hand
+    from terra.terrain import dem as dem_mod, hand
 
     cog.configure()
 

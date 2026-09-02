@@ -18,6 +18,10 @@ export function AnalyzeFlood(arg1) {
   return window['go']['main']['App']['AnalyzeFlood'](arg1);
 }
 
+export function AnalyzeFloodRouting(arg1) {
+  return window['go']['main']['App']['AnalyzeFloodRouting'](arg1);
+}
+
 export function AnalyzeGridCongestion(arg1) {
   return window['go']['main']['App']['AnalyzeGridCongestion'](arg1);
 }
@@ -28,9 +32,6 @@ export function AnalyzeGridCurtailment(arg1) {
 
 export function AnalyzeGridFigure(arg1) {
   return window['go']['main']['App']['AnalyzeGridFigure'](arg1);
-
-export function AnalyzeFloodRouting(arg1) {
-  return window['go']['main']['App']['AnalyzeFloodRouting'](arg1);
 }
 
 export function AnalyzeLULC(arg1) {

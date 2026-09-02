@@ -1258,6 +1258,9 @@ export function StudioScreen(props: StudioScreenProps) {
         }
       >
         <BoardSurface
+          // The same handler the run graph's area card uses, so importing a
+          // shape means one thing wherever it is offered.
+          onImportPolygon={props.onImportPolygon}
           /*
               REMOUNTED WHEN A BOARD IS OPENED, which is what makes opening
               one from inside the studio work at all.
