@@ -29,8 +29,10 @@ every interface decision below follows from it.
 
 Earlier versions worked the map. Each product that arrived brought a screen with
 it, and each screen brought navigation, its own state, its own chrome and its own
-way of failing. Six of them exist today — Map, Energy, Flood, Analysis, Profile,
-Auth — and four are from that period.
+way of failing. Six exist today — Studio, Energy, Flood, Analysis, Profile and
+the sign-in — and Energy, Flood and Analysis are from that period. The sixth was
+the map, and the section below says where it went: it did not leave the count,
+it became the studio.
 
 The cost was not the screens. It was that a screen is a fixed answer to "what do
 you want to see", and the questions this application exists to ask do not have
@@ -86,30 +88,39 @@ viewport: a plane can be sent to it and drawn over the ground it measures. Two
 panels, two questions, side by side — rather than one surface asked to answer
 both and failing at one of them.
 
-## Where the map stands now
+## The map screen is gone
 
-It is the earlier stage, still underneath.
+It was the earlier stage, kept alive underneath, and the survey that was meant
+to decide its fate found no capability it held alone.
 
-The studio's run panel carries the acquisition window, the cloud limit, the
-model, and the index for compositions and for water — the parameters that used
-to be the map's. Its globe draws areas through the same `useAreaDrawing` the
-map uses. Which surface a session opens on is a stored preference with two
-values, `explorer` and `studio`.
+The run band carries the acquisition window, the cloud limit, the model and the
+composition and water indices. The globe draws areas through the same
+`useAreaDrawing`, reaches a place by name and lifts the terrain. Comparison is
+arrangement over any number of rasters rather than a swipe between two. The
+map's dock panels governed what the band already governed.
 
-Two things record the transition rather than the destination:
+Two things had marked the transition rather than the destination, and both are
+answered by removing it: opening on the studio used to mean mounting the map
+and immediately covering it, and the run band told the reader to go "to the map"
+for two things the band itself offers.
 
-- Opening on the studio is implemented as mounting the map and immediately
-  covering it — `setOpenBoardNonce` in `App.tsx`. The map is built for a reader
-  who asked for the studio.
-- The run band's `blockedBy` still says *"Draw an area on the map first"* and
-  *"Choose a scene under Compositions on the map"*, for two things the run panel
-  itself now offers.
+WHAT STAYED. `MapSurface` is mounted by the Energy and Flood screens, so this
+removed a screen and not the map component. The DEM panel inside it is ungated
+and is still on both of those. `scalarTiles` — a raster served as terrain tiles
+so its palette is a paint expression, recoloured without re-running the analysis
+— is passed only from `MapSurface`, and the globe does not ask for it. That
+capability is reachable, since the globe calls the same `syncOverlays`, and has
+not been carried over.
 
-Neither is an argument for keeping the map, and neither is an argument for
-removing it tomorrow. What decides that is a list — every control the map
-offers, checked against whether the studio offers it — and that list has not
-been made. It is worth making before the question is settled by opinion, which
-is how it has been discussed so far.
+WHAT IT COST AND BOUGHT. Two decisions were not deletions. `onClose` is called
+when a WebGL context cannot be created; it used to close onto the map, and now
+takes a destination that needs no GL. Escape stopped closing the studio, because
+dismissing an overlay is not the same gesture as leaving the screen you work in.
+
+Measured on one base commit, the entry chunk fell from 1,801 kB to 609 kB. The
+reason is not the deleted lines: nothing the shell imports statically reaches
+MapLibre any more, so it arrives with the globe editor instead of with the
+application.
 
 ## How this is practised elsewhere
 
