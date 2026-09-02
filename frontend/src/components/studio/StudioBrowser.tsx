@@ -96,6 +96,19 @@ import type { InferenceRun, Project } from "@/lib/types"
 const SOURCES_REM = 11.5
 
 /**
+ * The plate every tile carries, folder and run alike.
+ *
+ * One class so the two cannot drift: a grid where a folder and a run are
+ * different heights is a grid that reflows into ragged rows, and the folder is
+ * meant to sit among the runs rather than above them.
+ *
+ * 4.5rem over a 7.5rem tile, which is close to the 4:3 an icon is drawn at.
+ * The first pass was 8.5 by 52px -- a 2.5:1 slab, on which a folder's tab is
+ * lost and what reads is a grey rectangle.
+ */
+const TILE_PLATE = "h-[4.5rem] w-full shrink-0 overflow-hidden rounded-sm"
+
+/**
  * The products, in the order the run band offers them, with the colour each
  * one's plate carries.
  *
@@ -473,9 +486,22 @@ export function StudioBrowser({
                     : undefined
                 }
               >
+                {/*
+                  FILLED WHEN ON, HOLLOW WHEN OFF.
+
+                  The swatch was filled either way, so the only thing saying
+                  whether a chip was pressed was a border at 0.55 and a wash at
+                  0.12 -- and a row of five permanently coloured squares under
+                  five product names reads as a legend, which is a thing you
+                  look at rather than a thing you press.
+                */}
                 <span
                   className="size-1.5 rounded-[1px]"
-                  style={{ background: `hsl(${k.hue})` }}
+                  style={
+                    on
+                      ? { background: `hsl(${k.hue})` }
+                      : { boxShadow: `inset 0 0 0 1px hsl(${k.hue} / 0.85)` }
+                  }
                 />
                 {k.id}
               </button>
@@ -659,25 +685,41 @@ export function StudioBrowser({
             answered across all of them at once.
           */}
           {folders.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2">
-              {folders.map((f) => (
-                <FolderTile
-                  key={f.id}
-                  name={f.name}
-                  count={f.count}
-                  onOpen={() =>
-                    setSource(
-                      f.id === "unfiled"
-                        ? { scope: "unfiled" }
-                        : { scope: "project", id: f.id }
-                    )
-                  }
-                  onContext={(at) => {
-                    const p = projects.find((x) => x.id === f.id)
-                    if (p) setProjectMenu({ project: p, at })
-                  }}
-                />
-              ))}
+            <div
+              className={cn(
+                "mb-2",
+                tiles ? "flex flex-wrap gap-2" : "flex flex-col"
+              )}
+            >
+              {folders.map((f) => {
+                const enter = () =>
+                  setSource(
+                    f.id === "unfiled"
+                      ? { scope: "unfiled" }
+                      : { scope: "project", id: f.id }
+                  )
+                const context = (at: { x: number; y: number }) => {
+                  const p = projects.find((x) => x.id === f.id)
+                  if (p) setProjectMenu({ project: p, at })
+                }
+                return tiles ? (
+                  <FolderTile
+                    key={f.id}
+                    name={f.name}
+                    count={f.count}
+                    onOpen={enter}
+                    onContext={context}
+                  />
+                ) : (
+                  <FolderRow
+                    key={f.id}
+                    name={f.name}
+                    count={f.count}
+                    onOpen={enter}
+                    onContext={context}
+                  />
+                )
+              })}
             </div>
           )}
 
@@ -1129,10 +1171,16 @@ function FolderBranch({
 /**
  * A folder in the grid.
  *
- * The same silhouette Unreal gives one -- a tab across the top of a wide
- * plate -- because that shape is what makes a folder legible beside the item
- * tiles without a word being read. Drawn from two boxes rather than an icon
- * scaled up, so its edge stays one pixel at any tile size.
+ * The same silhouette Unreal gives one -- a tab over a body -- because that
+ * shape is what makes a folder legible beside the run tiles without a word
+ * being read. Drawn from two boxes rather than a scaled icon, so its edge
+ * stays one pixel at any tile size.
+ *
+ * PROPORTION IS THE WHOLE OF IT. Drawn to the full width of the tile over a
+ * 52px plate, the two boxes are a 2.5:1 slab: the tab is lost against a shape
+ * that wide and what reads is a grey rectangle, not a folder. So the plate is
+ * the run tiles' new height and the shape is inset within it, at close to the
+ * 4:3 a folder is drawn at everywhere it is drawn.
  */
 function FolderTile({
   name,
@@ -1155,23 +1203,63 @@ function FolderTile({
       }}
       title={`${name} — ${count} ${count === 1 ? "analysis" : "analyses"}. Double-click to open.`}
       className={cn(
-        "flex w-[8.5rem] flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors",
+        "flex w-[7.5rem] flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors",
         "hover:bg-surface-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
-      <span className="flex h-[52px] w-full flex-col justify-end">
-        {/* The tab, a third of the width, sitting on the plate below it. */}
-        <span
-          className="h-2 w-[38%] rounded-t-[3px]"
-          style={{ background: "rgb(var(--p-line) / 0.5)" }}
-        />
-        <span
-          className="h-[34px] w-full rounded-b-sm rounded-tr-sm"
-          style={{ background: "rgb(var(--p-line) / 0.32)" }}
-        />
+      <span className={cn(TILE_PLATE, "flex items-center justify-center")}>
+        <span className="flex h-[3.25rem] w-[4.25rem] flex-col">
+          {/* The tab, a little over a third of the width. */}
+          <span
+            className="h-[0.5rem] w-[42%] rounded-t-[3px]"
+            style={{ background: "rgb(var(--p-line) / 0.55)" }}
+          />
+          <span
+            className="flex-1 rounded-b-[3px] rounded-tr-[3px]"
+            style={{ background: "rgb(var(--p-line) / 0.34)" }}
+          />
+        </span>
       </span>
       <span className="truncate text-emphasis text-foreground">{name}</span>
       <span className="truncate text-micro text-muted-foreground">
+        {count} {count === 1 ? "analysis" : "analyses"}
+      </span>
+    </button>
+  )
+}
+
+/** The same folder, in the row view. Entered the same way. */
+function FolderRow({
+  name,
+  count,
+  onOpen,
+  onContext,
+}: {
+  name: string
+  count: number
+  onOpen: () => void
+  onContext: (at: { x: number; y: number }) => void
+}) {
+  return (
+    <button
+      type="button"
+      onDoubleClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContext({ x: e.clientX, y: e.clientY })
+      }}
+      title={`${name} — double-click to open`}
+      className={cn(
+        "flex h-8 items-center gap-2 rounded-sm px-1 text-left transition-colors",
+        "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      )}
+    >
+      <Folder className="size-4 shrink-0" strokeWidth={1.75} />
+      <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
+        {name}
+      </span>
+      <span className="shrink-0 tabular-nums text-micro text-muted-foreground/70">
         {count} {count === 1 ? "analysis" : "analyses"}
       </span>
     </button>
@@ -1186,12 +1274,12 @@ function KindPlate({ run, size }: { run: InferenceRun; size: "tile" | "row" }) {
     <div
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden rounded-sm",
-        size === "tile" ? "h-[52px] w-full" : "size-6"
+        size === "tile" ? TILE_PLATE : "size-6"
       )}
       style={{ background: `hsl(${kind.hue} / 0.14)` }}
     >
       <Icon
-        className={size === "tile" ? "size-5" : "size-3.5"}
+        className={size === "tile" ? "size-6" : "size-3.5"}
         style={{ color: `hsl(${kind.hue})` }}
         strokeWidth={1.75}
       />
@@ -1227,7 +1315,7 @@ function RunTile({
       aria-current={on ? "true" : undefined}
       title={`${runLabel(run)} — ${runRowLine(run)}`}
       className={cn(
-        "flex w-[8.5rem] flex-col gap-1 rounded-sm border p-1 text-left transition-colors",
+        "flex w-[7.5rem] flex-col gap-1 rounded-sm border p-1 text-left transition-colors",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         on
           ? "border-primary/60 bg-primary/10"
