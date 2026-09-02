@@ -28,6 +28,9 @@ import {
   Images,
   Layers,
   Mountain,
+  Fan,
+  Ruler,
+  Waves,
   Network,
   Package,
   Palette,
@@ -53,6 +56,10 @@ export type RunNodeId =
   | "record"
   | "season"
   | "slope"
+  | "turbine"
+  | "roughness"
+  | "models"
+  | "threshold"
   | "run"
 
 export interface RunNodeSpec {
@@ -106,6 +113,10 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   record: { id: "record", label: "Record", icon: History, h: 78 },
   season: { id: "season", label: "Season", icon: SunSnow, h: 116 },
   slope: { id: "slope", label: "Slope", icon: Mountain, h: 116 },
+  turbine: { id: "turbine", label: "Turbine", icon: Fan, h: 116 },
+  roughness: { id: "roughness", label: "Roughness", icon: Waves, h: 116 },
+  models: { id: "models", label: "Elevation models", icon: Layers, h: 140 },
+  threshold: { id: "threshold", label: "Threshold", icon: Ruler, h: 116 },
   // The run node draws its own header from the tool, so it carries no icon of
   // its own here; TOOL_ICON in BoardRunGraph names it.
   run: { id: "run", label: "Run", icon: Package, h: 96 },
@@ -155,6 +166,40 @@ export function runGraph(
         ["area", "run"],
         ["product", "slope"],
         ["slope", "run"],
+      ],
+    }
+  }
+
+  /*
+    WIND READS NO IMAGERY, so it has no period card. The record is a span of
+    NASA POWER hours at the centroid, and the area is what locates that
+    centroid -- which is why the area still fans in while the acquisition
+    window does not appear at all.
+  */
+  if (tool === "wind") {
+    return {
+      nodes: [at("area", 0), at("record", 0), at("turbine", 1), at("roughness", 1), at("run", 2)],
+      edges: [
+        ["area", "run"],
+        ["record", "run"],
+        ["turbine", "run"],
+        ["roughness", "run"],
+      ],
+    }
+  }
+
+  /*
+    NEITHER DOES FLOOD. The envelope is terrain and drainage: several elevation
+    models over one polygon, compared against each other. No scene search, no
+    cloud ceiling, and nothing dated.
+  */
+  if (tool === "flood") {
+    return {
+      nodes: [at("area", 0), at("models", 0), at("threshold", 1), at("run", 2)],
+      edges: [
+        ["area", "run"],
+        ["models", "threshold"],
+        ["threshold", "run"],
       ],
     }
   }

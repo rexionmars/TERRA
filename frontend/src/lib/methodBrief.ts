@@ -60,6 +60,18 @@ export interface MethodInputs {
     slopeAcceptableDeg: number
     slopeRestrictiveDeg: number
   }
+  wind?: {
+    recordYears: number
+    hubHeightM: number
+    calmThresholdMS: number
+    roughnessLowM: number
+    roughnessHighM: number
+  }
+  flood?: {
+    demIds: string[]
+    referenceThresholdM: number
+    drainageKm2: number
+  }
 }
 
 /** MapBiomas legend the three classifiers share, named once. */
@@ -313,6 +325,79 @@ function solarBrief(i: MethodInputs): MethodBrief {
   }
 }
 
+function windBrief(i: MethodInputs): MethodBrief {
+  const w = i.wind
+  return {
+    subtitle: "Wind resource screening at hub height",
+    source: "sidecar/terra/energy · wind screening",
+    sections: [
+      {
+        title: "Record",
+        lines: [
+          "NASA POWER hourly wind at the area's centroid",
+          w ? `${w.recordYears} years of record` : "the configured record",
+          "no Sentinel-2 is read: the resource is a wind field, not a surface",
+        ],
+      },
+      {
+        title: "Extrapolation",
+        lines: [
+          w ? `hub height ${w.hubHeightM} m` : "the configured hub height",
+          w
+            ? `surface roughness swept from ${w.roughnessLowM} to ${w.roughnessHighM} m`
+            : "surface roughness swept across a range",
+          "the range is reported rather than one roughness chosen, because the class is not observed here",
+        ],
+      },
+      {
+        title: "Output",
+        lines: [
+          w
+            ? `hours below ${w.calmThresholdMS} m/s reported as calm`
+            : "calm hours reported against the configured threshold",
+          "a screening, not a siting study",
+        ],
+        note: "The extrapolation is a log profile over an assumed roughness. Two roughness values that both fit the ground give materially different hub-height speeds, which is why the sweep is reported instead of a single figure.",
+      },
+    ],
+  }
+}
+
+function floodBrief(i: MethodInputs): MethodBrief {
+  const f = i.flood
+  return {
+    subtitle: "Flood extent from height above nearest drainage",
+    source: "sidecar/terra/flood · HAND envelope",
+    sections: [
+      {
+        title: "Terrain",
+        lines: [
+          f?.demIds.length
+            ? `${f.demIds.length} elevation models compared: ${f.demIds.join(", ")}`
+            : "several elevation models compared",
+          f ? `cells above ${f.drainageKm2} km² of contributing area count as drainage` : "drainage by contributing area",
+          "no imagery and no precipitation: this is terrain and drainage alone",
+        ],
+      },
+      {
+        title: "Envelope",
+        lines: [
+          f ? `agreement raster built at ${f.referenceThresholdM} m` : "agreement raster at the reference threshold",
+          "each model votes, and the extent carries how many agreed",
+        ],
+        note: "Two products are the minimum the sidecar accepts. One yields an extent with no measure of how much of it that product chose, which is the whole reason the envelope exists.",
+      },
+      {
+        title: "Output",
+        lines: [
+          "the extent, the agreement raster, and the area of each",
+          "GLO-30 is a SURFACE model, so closed forest carries canopy height into the height above drainage",
+        ],
+      },
+    ],
+  }
+}
+
 /**
  * The brief for what the band is currently set to run.
  *
@@ -330,5 +415,9 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return composeBrief(i)
     case "solar":
       return solarBrief(i)
+    case "wind":
+      return windBrief(i)
+    case "flood":
+      return floodBrief(i)
   }
 }
