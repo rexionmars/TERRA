@@ -8,7 +8,8 @@
  * paints, so an edit that breaks one fails a check instead of shipping.
  *
  * Thresholds are WCAG 2.x: 4.5 for text (1.4.3) and 3.0 for a component
- * boundary or a focus indicator (1.4.11).
+ * boundary or a focus indicator (1.4.11). APCA's Lc is reported beside each
+ * ratio and gates nothing -- see the note above `apca` for why both are here.
  *
  * The scientific ramps are deliberately absent. inferno, viridis, rdbu_r,
  * blues and rdylgn are perceptually uniform sequences painted by the Python
@@ -33,6 +34,83 @@ export function contrast(a: Channels, b: Channels): number {
   const hi = Math.max(la, lb)
   const lo = Math.min(la, lb)
   return (hi + 0.05) / (lo + 0.05)
+}
+
+/*
+  APCA, BESIDE THE RATIO AND NOT INSTEAD OF IT.
+
+  WCAG 2.x is what an audit asks for and it stays the gate. It is also known to
+  overstate contrast in the dark: its prediction degrades once the LIGHTER of a
+  pair falls below about #a0a0a0, and this palette is dark-first -- ink 33,
+  surface 47, raised 67, line 75. Two of the pairs listed as accepted failures
+  below sit in exactly that range, so the number they failed on may be
+  describing the ruler rather than the tone.
+
+  Lc says what the ratio cannot: it is perceptual and signed, so Lc 60 means the
+  same readability whether the text is dark on light or light on dark, and the
+  sign says which. Reported, never enforced -- adopting it as the gate is a
+  decision about what this project promises, not a thing to slip in beside a
+  formula that is already load-bearing.
+
+  Constants and order of operations are APCA-W3 0.1.9 (SA98G / 0.98G-4g), taken
+  from the reference implementation rather than restated from a description.
+
+  LICENCE: APCA's own terms prohibit some use-cases without written permission,
+  naming medical, clinical evaluation, human-safety, aerospace, transportation
+  and military applications. This is a research tool for Earth observation and
+  the figure is advisory here, but the flood envelope borders on the third of
+  those and this note is where that is on the record.
+*/
+const SA98G = {
+  mainTRC: 2.4,
+  sRco: 0.2126729,
+  sGco: 0.7151522,
+  sBco: 0.072175,
+  normBG: 0.56,
+  normTXT: 0.57,
+  revTXT: 0.62,
+  revBG: 0.65,
+  blkThrs: 0.022,
+  blkClmp: 1.414,
+  scaleBoW: 1.14,
+  scaleWoB: 1.14,
+  loBoWoffset: 0.027,
+  loWoBoffset: 0.027,
+  loClip: 0.1,
+  deltaYmin: 0.0005,
+} as const
+
+/** Screen luminance as APCA defines it: a simple power curve, not WCAG's. */
+function apcaY([r, g, b]: Channels): number {
+  const e = (c: number) => (c / 255) ** SA98G.mainTRC
+  return SA98G.sRco * e(r) + SA98G.sGco * e(g) + SA98G.sBco * e(b)
+}
+
+/**
+ * Lightness contrast, signed.
+ *
+ * Positive is dark text on a light background, negative is light on dark. The
+ * magnitude is what compares: roughly Lc 45 is a floor for large text, 60 for
+ * body, 75 for small or thin text.
+ */
+export function apca(text: Channels, background: Channels): number {
+  const clamp = (y: number) =>
+    y > SA98G.blkThrs ? y : y + (SA98G.blkThrs - y) ** SA98G.blkClmp
+  const txt = clamp(apcaY(text))
+  const bg = clamp(apcaY(background))
+  if (Math.abs(bg - txt) < SA98G.deltaYmin) return 0
+
+  let sapc: number
+  let out: number
+  if (bg > txt) {
+    // Normal polarity: dark text on a light ground.
+    sapc = (bg ** SA98G.normBG - txt ** SA98G.normTXT) * SA98G.scaleBoW
+    out = sapc < SA98G.loClip ? 0 : sapc - SA98G.loBoWoffset
+  } else {
+    sapc = (bg ** SA98G.revBG - txt ** SA98G.revTXT) * SA98G.scaleWoB
+    out = sapc > -SA98G.loClip ? 0 : sapc + SA98G.loWoBoffset
+  }
+  return out * 100
 }
 
 /** The channel values in index.css, per theme. Edited together with it. */
@@ -231,6 +309,8 @@ export interface ContrastResult {
   fg: TokenName
   bg: TokenName
   ratio: number
+  /** APCA lightness contrast, signed. Reported; nothing is gated on it. */
+  lc: number
   min: number
   passes: boolean
   why: string
@@ -248,6 +328,7 @@ export function checkContrast(): ContrastResult[] {
           fg: rule.fg,
           bg,
           ratio: Math.round(ratio * 100) / 100,
+          lc: Math.round(apca(t[rule.fg], t[bg]) * 10) / 10,
           min: rule.min,
           passes: ratio >= rule.min,
           why: rule.why,
