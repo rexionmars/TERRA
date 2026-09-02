@@ -2301,6 +2301,19 @@ export function BoardSurface({
     }))
   )
   const [gap, setGap] = useKept("gap", STACK_GAP)
+  /**
+   * How far apart the globe stacks one area's rasters, in metres.
+   *
+   * A SECOND NUMBER, and deliberately not the one above. The viewport's spread
+   * is in units where the area's longest side is one, because there the
+   * rasters are lifted off their coordinates and the ground is not to scale.
+   * On the globe they are over the ground they measure, so the only figure
+   * that means anything is metres.
+   *
+   * Zero by default: coplanar is what a map does, and a raster floating over
+   * its own field is a claim the reader should have to make.
+   */
+  const [mapSpreadM, setMapSpreadM] = useKept("mapSpread", 0)
 
   /**
    * The active row of the outliner, and through it the plane the board
@@ -3955,6 +3968,8 @@ export function BoardSurface({
       >
         <GlobeSurface
           className="h-full w-full"
+          spreadM={mapSpreadM}
+          onSpreadChange={setMapSpreadM}
           areas={globeAreas}
           onPickArea={(id) => onActivateArea?.(id.slice(id.indexOf(":") + 1))}
           polygon={customPolygon}
