@@ -2301,6 +2301,12 @@ export function BoardSurface({
     }))
   )
   const [gap, setGap] = useKept("gap", STACK_GAP)
+  /*
+    Through a ref for the reason every other callback the scene holds is:
+    createBoard runs once and closes over the scope it was built in.
+  */
+  const setGapRef = useRef(setGap)
+  setGapRef.current = setGap
 
   /**
    * The active row of the outliner, and through it the plane the board
@@ -3099,6 +3105,7 @@ export function BoardSurface({
         // The separation in force at the moment of the build, so a plane lands
         // at its true height rather than at the base for a frame.
         gap: gapRef.current,
+        gapMax: GAP_MAX,
         // Current at the moment of the build, whatever the cards were created
         // with -- the cards are kept stable on purpose and are older than this.
         appearance: appearanceRef.current,
@@ -3161,6 +3168,13 @@ export function BoardSurface({
         // while it has no rasters, so pressing it chooses the area's own row.
         onAreaPick: (groupId) => chooseRowRef.current(stackRow(groupId)),
         onLabels: (spots) => placeLabelsRef.current(spots),
+        /*
+          The handle changed the spread. Written into the same state the
+          Overlays menu's field shows and the effect below pushes back down --
+          which is a round trip the scene has already applied, so it settles on
+          the first render rather than moving anything a second time.
+        */
+        onGap: (g) => setGapRef.current(g),
         onMove: (groupId, layerId, x, z) => {
           // Into the kept object rather than replacing the ref: replacing it
           // would leave the memory pointing at the object from before the drag.
