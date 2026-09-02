@@ -105,27 +105,9 @@ import { ThemeSync } from "@/components/ThemeSync"
 import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
-import { AppNav } from "@/components/AppNav"
 import { StudioScreen } from "@/pages/StudioScreen"
 import type { MapToolId } from "@/lib/mapTools"
 import type { BasemapKind } from "@/lib/basemaps"
-import { type EnergyTab } from "@/pages/EnergyScreen"
-/*
-  Loaded when opened, not at startup.
-
-  These two screens pull recharts (493 KB) and most of the analysis UI, and
-  neither is reachable from the map -- yet both were parsed on every launch,
-  including the many that never leave the map. The map is what the application
-  opens on, so it is the one screen that should not wait on the others.
-*/
-const EnergyScreen = lazy(() =>
-  import("@/pages/EnergyScreen").then((m) => ({ default: m.EnergyScreen }))
-)
-/* Same argument: the flood screen is not reachable from the map, and it pulls
-   the reading, its legend and the setup panel with it. */
-const FloodScreen = lazy(() =>
-  import("@/pages/FloodScreen").then((m) => ({ default: m.FloodScreen }))
-)
 import {
   FLOOD_DEFAULT_PARAMS,
   floodRequestBlocker,
@@ -141,9 +123,6 @@ import type {
 } from "@/lib/energyState"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
-const AnalysisPage = lazy(() =>
-  import("@/pages/AnalysisPage").then((m) => ({ default: m.AnalysisPage }))
-)
 
 /*
   What a lazily-loaded screen shows while its chunk arrives.
@@ -705,10 +684,7 @@ function AppBody(props: {
     refreshRuns,
     refreshProjects,
     screen,
-    goAnalysis,
     goStudio,
-    goEnergy,
-    goFlood,
     goProfile,
     runs,
     projects,
@@ -729,13 +705,6 @@ function AppBody(props: {
   /*
     A request to show a restored energy result, counted rather than flagged.
 
-    Same mechanism as the board nonce beside it and for the same reason:
-    restoring the same solar run twice in a row has to open its result both
-    times, and a boolean already true does nothing the second time.
-  */
-  const [openEnergyResultNonce, setOpenEnergyResultNonce] = useState(0)
-  /* The same, for a restored flood envelope. */
-  const [openFloodResultNonce, setOpenFloodResultNonce] = useState(0)
 
   /*
     The flood envelope: its parameters, its result and its run status.
@@ -1040,13 +1009,6 @@ function AppBody(props: {
     },
     [prefs, savePrefs]
   )
-  /**
-   * Open tab of the energy screen, held here for the same reason as the dock
-   * tab above: that screen unmounts on every navigation away, so a local value
-   * put a returning user back on Solar after they had been reading Wind. The
-   * navigation column also reads it, to name which resource is in view.
-   */
-  const [energyTab, setEnergyTab] = useState<EnergyTab>("solar")
   /**
    * Title of the run whose result is on screen, for the title bar.
    *
@@ -1889,9 +1851,7 @@ function AppBody(props: {
           is exactly the claim that comment exists to withdraw. A reader told a
           run was saved goes looking for it in the hub.
         */
-        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}%${res.run_id ? " (saved)" : ""}.`,
-        undefined,
-        { action: { label: "View analysis", onClick: () => goAnalysis() } }
+        `Surface water mapped: ${res.n_dates} dates, peak ${res.peak_water_fraction_pct.toFixed(1)}%${res.run_id ? " (saved)" : ""}.`
       )
       void refreshRuns()
       void refreshProjects()
@@ -2392,11 +2352,7 @@ function AppBody(props: {
         claim.
       */
       notifySuccess(
-        `Classification complete — ${res.n_dates} scenes${res.run_id ? " (saved)" : ""}.`,
-        undefined,
-        res.run_id
-          ? { action: { label: "View analysis", onClick: () => goAnalysis() } }
-          : undefined
+        `Classification complete — ${res.n_dates} scenes${res.run_id ? " (saved)" : ""}.`
       )
       void refreshRuns()
       void refreshProjects()
@@ -2472,9 +2428,7 @@ function AppBody(props: {
         phenology_states: prev?.phenology_states ?? [],
         lulc,
       })
-      notifySuccess("Land cover / land use ready on map.", undefined, {
-        action: { label: "Open analysis", onClick: () => goAnalysis() },
-      })
+      notifySuccess("Land cover / land use ready on map.")
       goStudio()
     } catch (e) {
       notifyError("LULC analysis error", e)
@@ -2596,21 +2550,15 @@ function AppBody(props: {
           can still override -- the project menu asks for the map, because a run
           picked from there is a request to see it on the map.
         */
-        const kind =
-          run.kind === "solar" || run.kind === "wind"
-            ? "energy"
-            : run.kind === "flood"
-              ? "flood"
-              : null
-        const land = opts?.land ?? kind ?? "analysis"
-        if (land === "studio") goStudio()
-        else if (land === "energy") {
-          goEnergy()
-          setOpenEnergyResultNonce((n) => n + 1)
-        } else if (land === "flood") {
-          goFlood()
-          setOpenFloodResultNonce((n) => n + 1)
-        } else goAnalysis()
+        /*
+          One destination. This chose between four -- the hub for a
+          classification, the energy screen for solar and wind, the flood
+          screen for an envelope -- because each product was read where it was
+          run. Every one of them is read in the studio now: the classification
+          as planes, the other three in their own editors, which is what the
+          `kind` was for.
+        */
+        goStudio()
         notifySuccess("Analysis restored.")
       } catch (e) {
         notifyError("Could not load analysis", e)
@@ -2621,9 +2569,7 @@ function AppBody(props: {
     // props setters are stable from useState in parent
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      goAnalysis,
       goStudio,
-      goFlood,
       solarDispatch,
       windDispatch,
       props.analysisLabel,
@@ -2646,9 +2592,9 @@ function AppBody(props: {
     props.setShowPredictionOverlay(true)
     props.setAnalysisLabel(undefined)
     props.setSwipeCompare(false)
-    goAnalysis()
+    goStudio()
   }, [
-    goAnalysis,
+    goStudio,
     solarDispatch,
     windDispatch,
     props.setResult,
@@ -2770,15 +2716,11 @@ function AppBody(props: {
    * defines its own AOI on its own screen and clears nothing here.
    */
   const startNewRun = useCallback(
-    (product: MapToolId | "energy") => {
-      if (product === "energy") {
-        goEnergy()
-        return
-      }
+    (product: MapToolId) => {
       selectPanel(product)
       startNewClassification()
     },
-    [goEnergy, startNewClassification]
+    [startNewClassification]
   )
 
   const areaLabel = useMemo(() => {
@@ -3296,37 +3238,6 @@ function AppBody(props: {
     props.retainRun(leaving.result, leaving.id)
   }, [props.activeAreaId, resultWithWater, props.retainRun])
 
-  /**
-   * The hub, from wherever the click came from.
-   *
-   * ONE CALLBACK FOR EVERY CONTROL THAT SAYS "project hub". It was written
-   * inline on the navigation column, and the project switcher's own item went
-   * on calling `goAnalysis()` directly -- so the same destination had two
-   * implementations, one of which had the fix and one of which did not. That is
-   * the shape of the defect this replaced, restated one control over: the
-   * detail header's "Saved analyses" already cleared the payload and the
-   * navigation column did not.
-   *
-   * `screen === "analysis"` is deliberately not the test. It assumed arriving
-   * at the analysis screen from anywhere else lands on the hub, and it does
-   * not: that screen picks between the hub and the detail view by whether a
-   * result exists, so a run still loaded from an earlier visit captures the
-   * destination and draws its own detail page. For solar and wind that page is
-   * now empty, their sections having moved to the energy screen, so the button
-   * appeared to lead nowhere.
-   *
-   * Tested on the payload the page is actually showing rather than on the
-   * classification: a water or solar run has no classification and would
-   * otherwise leave the list unreachable.
-   *
-   * Clearing costs nothing unrecoverable. `retainRun` holds the outgoing
-   * classification for the board, and the run itself is in the store, reachable
-   * from the hub this opens.
-   */
-  const openProjectHub = useCallback(() => {
-    if (resultWithWater) backToAnalysesList()
-    else goAnalysis()
-  }, [resultWithWater, backToAnalysesList, goAnalysis])
 
   /**
    * Go to a destination from the dock layout's bar.
@@ -3336,28 +3247,19 @@ function AppBody(props: {
    * just above. The navigation table in lib/navigation carries the structure
    * and deliberately not this, so the table cannot reach into either.
    *
-   * MOVED DOWN to sit beside `openProjectHub`, which it now calls. It read
-   * `goAnalysis()` directly, and `NAV_GROUPS` labels that destination "Project
-   * hub" -- so this was the third control carrying that label, and the second
-   * of the three that did not have the fix. Its own dependencies were all
-   * declared far above; what it could not reach from where it was is
-   * `resultWithWater`, and reaching it is the whole correction.
    */
   const navigateTo = useCallback(
-    (groupId: string, itemId?: string) => {
-      if (groupId === "energy") {
-        if (itemId) setEnergyTab(itemId as EnergyTab)
-        goEnergy()
-      } else if (groupId === "flood") {
-        goFlood()
-      } else if (groupId === "analysis") {
-        openProjectHub()
-      } else {
-        if (itemId) selectPanel(itemId as MapToolId)
-        goStudio()
-      }
+    (_groupId: string, itemId?: string) => {
+      /*
+        One destination, so the group is not read. The parameter stays because
+        the studio's bar passes a group and an item, and a signature that
+        dropped it would have to be changed back the moment a second
+        destination exists.
+      */
+      if (itemId) selectPanel(itemId as MapToolId)
+      goStudio()
     },
-    [goEnergy, goFlood, openProjectHub, goStudio]
+    [goStudio]
   )
 
   const analysisPolygonGeoJSON = useMemo(
@@ -3382,17 +3284,15 @@ function AppBody(props: {
         onLayoutModeChange={changeLayoutMode}
         credit={credit}
         /*
-          Wherever a run is filed under the active project. The energy handlers
-          send project_id exactly as the classification ones do, so a solar or
-          wind run lands in a project the energy screen never named and offered
-          no way to change -- the user could only discover it afterwards, in the
-          hub.
+          Wherever a run is filed under the active project. Every product sends
+          project_id -- the solar, wind and flood handlers exactly as the
+          classification ones do -- so a run lands in a project, and the header
+          is where which project that is can be read and changed.
 
-          Not on the project hub itself, which selects a project as its whole
-          purpose, and not on settings or sign-in, which have no project.
+          Not on settings or sign-in, which have no project.
         */
         projectSwitcher={
-          screen === "studio" || screen === "energy" || screen === "flood" ? (
+          screen === "studio" ? (
             <ProjectSwitcher
               projects={projects}
               activeProjectId={activeProjectId}
@@ -3423,7 +3323,6 @@ function AppBody(props: {
                   await openSavedAnalysis(run, { land: "studio" })
                 })()
               }}
-              onOpenHub={openProjectHub}
             />
           ) : undefined
         }
@@ -3431,28 +3330,17 @@ function AppBody(props: {
 
       <div className="flex min-h-0 flex-1">
         {/*
-          The dock layout replaces this column with surfaces inside the map, so
-          it is withheld on the three screens that draw one. The project hub and
-          settings keep it: they have no map to put a bar over, and hiding it
-          there would leave them with no navigation at all.
+          NO NAVIGATION COLUMN. There is one destination that is work.
 
-          The column is in flow, not floating, so omitting it returns 13.5rem
-          of width to the stage and the map fills it without being told.
+          The column named five, four of which were screens the studio has
+          since absorbed -- the map it grew out of, the two energy products and
+          the flood envelope, all of which are cards on the run band now, and
+          the project hub, whose management moved into the studio itself. What
+          was left named the studio, and a list of one is not navigation.
+
+          Settings and sign-in are reached from the title bar, which is where
+          an account control belongs and where this column had put it too.
         */}
-        <AnimatePresence initial={false}>
-          {(layoutMode === "docked" ||
-            (screen !== "studio" &&
-              screen !== "energy" &&
-              screen !== "flood")) && (
-            <AppNav
-              key="app-nav"
-              hasAnalysis={!!props.result || runs.length > 0}
-              onAnalysisClick={openProjectHub}
-              energyTab={energyTab}
-              onEnergyTabChange={setEnergyTab}
-            />
-          )}
-        </AnimatePresence>
         <div className="relative min-h-0 min-w-0 flex-1">
           {/*
             NOT mode="wait". Under it the leaving screen has to finish its exit
@@ -3700,133 +3588,6 @@ function AppBody(props: {
                   waterOpacity={waterOpacity}
                   onWaterOpacityChange={setWaterOpacity}
                 />
-              </motion.div>
-            )}
-            {screen === "energy" && (
-              <motion.div
-                key="screen-energy"
-                className="absolute inset-0 min-h-0"
-                initial={{ opacity: 0, x: 18 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <Suspense fallback={<ScreenLoading />}>
-                <EnergyScreen
-                  onCreditChange={setCredit}
-                  layoutMode={layoutMode}
-                  onNavigate={navigateTo}
-                  solar={solar}
-                  solarDispatch={solarDispatch}
-                  wind={wind}
-                  windDispatch={windDispatch}
-                  onRunSolar={(product: SolarProductId) => {
-                    if (product === "resource") void handleRunSolar()
-                    else if (product === "terrain") void handleRunSolarTerrain()
-                    else if (product === "siting") void handleRunSolarSiting()
-                    else void handleRunEnergyModel()
-                  }}
-                  onRunWind={() => void handleRunWind()}
-                  openResultNonce={openEnergyResultNonce}
-                  onLocationSelect={(lat, lon) =>
-                    props.setFlyTo({ lat, lon, key: Date.now() })
-                  }
-                  hasArea={props.hasArea}
-                  customPolygon={props.customPolygon}
-                  onPolygonDrawn={handlePolygonDrawn}
-                  onImportPolygon={handleImportPolygon}
-                  onClearArea={clearAreaAndComposition}
-                  areaLabel={areaLabel}
-                  onAreaLabelChange={(label) => {
-                    void applyAoiRename(label)
-                  }}
-                  aoiContourScheme={props.aoiContourScheme}
-                  onAoiContourSchemeChange={props.setAoiContourScheme}
-                  // The same live ref and the same debounced map_view write the
-                  // map screen uses, so panning here and returning there lands
-                  // in the same place.
-                  initialView={initialMapView}
-                  onViewChange={handleViewChange}
-                  flyTo={props.flyTo}
-                  tab={energyTab}
-                  onTabChange={setEnergyTab}
-                />
-                </Suspense>
-              </motion.div>
-            )}
-
-            {screen === "flood" && (
-              <motion.div
-                key="screen-flood"
-                className="absolute inset-0 min-h-0"
-                initial={{ opacity: 0, x: 18 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <Suspense fallback={<ScreenLoading />}>
-                <FloodScreen
-                  layoutMode={layoutMode}
-                  onNavigate={navigateTo}
-                  params={floodParams}
-                  onParamsChange={setFloodParamsPatch}
-                  result={flood}
-                  onClearResult={() => setFlood(null)}
-                  run={floodRun}
-                  onRun={() => void handleRunFlood()}
-                  openResultNonce={openFloodResultNonce}
-                  onCreditChange={setCredit}
-                  onLocationSelect={(lat, lon) =>
-                    props.setFlyTo({ lat, lon, key: Date.now() })
-                  }
-                  hasArea={props.hasArea}
-                  customPolygon={props.customPolygon}
-                  onPolygonDrawn={handlePolygonDrawn}
-                  onImportPolygon={handleImportPolygon}
-                  onClearArea={clearAreaAndComposition}
-                  areaLabel={areaLabel}
-                  onAreaLabelChange={(label) => {
-                    void applyAoiRename(label)
-                  }}
-                  aoiContourScheme={props.aoiContourScheme}
-                  onAoiContourSchemeChange={props.setAoiContourScheme}
-                  // The same live ref and the same debounced map_view the map
-                  // and energy screens use, so panning here and returning
-                  // there lands in the same place.
-                  initialView={initialMapView}
-                  onViewChange={handleViewChange}
-                  flyTo={props.flyTo}
-                />
-                </Suspense>
-              </motion.div>
-            )}
-            {screen === "analysis" && (
-              <motion.div
-                key="screen-analysis"
-                className="absolute inset-0 min-h-0"
-                initial={{ opacity: 0, x: 18 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <Suspense fallback={<ScreenLoading />}>
-                <AnalysisPage
-                  result={resultWithWater}
-                  modelKind={props.modelKind}
-                  areaLabel={areaLabel}
-                  polygonGeoJSON={analysisPolygonGeoJSON}
-                  loadingRun={loadingRun}
-                  onOpenRun={openSavedAnalysis}
-                  onBackToList={backToAnalysesList}
-                  onStartRun={startNewRun}
-                  onAreaLabelChange={(label) => {
-                    void applyAoiRename(label)
-                  }}
-                  onActivateProject={(id) => void activateProject(id)}
-                  onShowComposition={showCompositionFromHub}
-                  activeProjectId={activeProjectId}
-                />
-                </Suspense>
               </motion.div>
             )}
           </AnimatePresence>

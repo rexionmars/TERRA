@@ -23,13 +23,15 @@ import {
 } from "../../wailsjs/go/main/App"
 import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
 
-export type AppScreen =
-  | "studio"
-  | "auth"
-  | "profile"
-  | "analysis"
-  | "energy"
-  | "flood"
+/*
+  Three, and only one of them is work.
+
+  It carried six. Four were screens the studio has since absorbed -- the map it
+  grew out of, the two energy products, the flood envelope -- and the fifth was
+  the project hub, whose management moved into the studio itself. What is left
+  beside the studio is the account: signing in, and settings.
+*/
+export type AppScreen = "studio" | "auth" | "profile"
 
 /**
  * A page of the settings screen, when something wants to open a particular one.
@@ -51,15 +53,6 @@ interface AuthContextValue {
   goStudio: () => void
   goAuth: () => void
   goProfile: (page?: SettingsPage) => void
-  goAnalysis: () => void
-  goEnergy: () => void
-  /**
-   * The flood envelope, a destination of its own rather than a tab of Energy.
-   * It reads no radiation and no reanalysis: it compares DEM products over
-   * terrain, and a tab inside Energy would file it under a resource it does
-   * not measure.
-   */
-  goFlood: () => void
   /** Which settings page to open on arrival, consumed once by ProfilePage. */
   settingsPage: SettingsPage | null
   /** Clears the above, so it steers one arrival rather than every one. */
@@ -303,9 +296,6 @@ export function AuthProvider({
   */
   const goStudio = useCallback(() => setScreen("studio"), [])
   const goAuth = useCallback(() => setScreen("auth"), [])
-  const goAnalysis = useCallback(() => setScreen("analysis"), [])
-  const goEnergy = useCallback(() => setScreen("energy"), [])
-  const goFlood = useCallback(() => setScreen("flood"), [])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -318,9 +308,6 @@ export function AuthProvider({
       goStudio,
       goAuth,
       goProfile,
-      goAnalysis,
-      goEnergy,
-      goFlood,
       settingsPage,
       consumeSettingsPage,
       settingsReturnTo,
@@ -350,9 +337,6 @@ export function AuthProvider({
       goStudio,
       goAuth,
       goProfile,
-      goAnalysis,
-      goEnergy,
-      goFlood,
       login,
       register,
       logout,

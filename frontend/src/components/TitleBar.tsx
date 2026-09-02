@@ -169,7 +169,7 @@ export function TitleBar({
       cancelled = true
     }
   }, [])
-  const hasMap = screen === "studio" || screen === "energy"
+  const hasMap = screen === "studio"
   // The map's own readings, which need the map to be on screen to mean
   // anything. The board slot and the layout toggle stay on `hasMap`: they are
   // how the studio is left, so hiding them inside it would strand the user.

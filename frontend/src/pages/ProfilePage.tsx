@@ -51,7 +51,6 @@ import {
   layoutModeFromPrefs,
   mergePreferenceExtras,
 } from "@/lib/preferenceExtras"
-import { NAV_GROUPS } from "@/lib/navigation"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { formatBytes } from "@/lib/formatBytes"
 import { runRowLine } from "@/lib/runSummary"
@@ -127,7 +126,6 @@ export function ProfilePage({
     savePrefs,
     refreshRuns,
     goAuth,
-    goAnalysis,
     settingsPage,
     consumeSettingsPage,
     settingsReturnTo,
@@ -322,12 +320,12 @@ export function ProfilePage({
   const alwaysShowWhatsNew = alwaysShowWhatsNewFromPrefs(prefs)
 
   /*
-    Named from the navigation table so the button and the column agree on what
-    the destination is called. A screen with no entry there -- there is none
-    today -- would fall back to the neutral word rather than to a blank.
+    Named from the destination itself. This read a navigation table, so that
+    the button and the column would agree on the wording; there is no column
+    now, and one destination is work. Settings can still be reached from
+    sign-in, which is the case the neutral word covers.
   */
-  const returnLabel =
-    NAV_GROUPS.find((g) => g.id === settingsReturnTo)?.label ?? "the map"
+  const returnLabel = settingsReturnTo === "studio" ? "Studio" : "the studio"
 
   const schedulePrefsSave = useCallback(
     (
@@ -733,14 +731,10 @@ export function ProfilePage({
               <SettingRow
                 id="account.analyses"
                 title="Saved analyses"
-                description="Full history lives in the project hub. The most recent are listed here."
+                description="The most recent are listed here. The full history is in the studio, under Analyses."
                 focused={focusedSetting === "account.analyses"}
                 onFocus={() => setFocusedSetting("account.analyses")}
               >
-                <button type="button" onClick={goAnalysis} className={btnGhost}>
-                  <ChartColumn className="h-3 w-3" />
-                  Open project hub
-                </button>
                 {recentRuns.length === 0 ? (
                   <p className="mt-3 text-body text-muted-foreground">
                     No recent analyses yet.
