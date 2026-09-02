@@ -6,7 +6,7 @@
  * could not show a result without re-implementing how a result looks.
  */
 import type { PaletteName } from "@/lib/palettes"
-import { PALETTE_STOPS, paletteGradient } from "@/lib/palettes"
+import { paletteGradient } from "@/lib/palettes"
 import type { PowerProvenance } from "@/lib/types"
 import { cn } from "@/lib/utils"
 

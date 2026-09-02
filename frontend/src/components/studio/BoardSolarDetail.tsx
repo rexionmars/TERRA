@@ -307,7 +307,6 @@ function PredictionBody({
   modelKind,
   period,
   brushOn,
-  onBrushOnChange,
   brushRadius,
   onBrushRadiusChange,
   pixelSizeM,
@@ -320,7 +319,6 @@ function PredictionBody({
   period?: string | null
   brushOn: boolean
   /** Absent where the caller offers no brush; the switch is then withheld. */
-  onBrushOnChange?: (on: boolean) => void
   brushRadius: BrushRadiusPx
   onBrushRadiusChange: (r: BrushRadiusPx) => void
   /** The run's own grid, so the brush states ground and not texels. */
@@ -331,7 +329,6 @@ function PredictionBody({
   compact?: boolean
 }) {
   const classes = result.class_stats ?? []
-  const agreement = result.lulc?.agreement
   const floor = result.confidence_floor
 
   const probeStat: ClassStat | undefined = useMemo(() => {
@@ -991,7 +988,6 @@ export function BoardSolarDetail({
       modelKind={modelKind}
       period={period}
       brushOn={brushOn}
-      onBrushOnChange={onBrushOnChange}
       brushRadius={brushRadius}
       onBrushRadiusChange={(r) => onBrushRadiusChange?.(r)}
       // The run in hand decides the grid, not the caller's default.

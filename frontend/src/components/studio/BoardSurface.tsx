@@ -204,7 +204,6 @@ import {
   Tag,
   Tree,
   Waves,
-  X,
 } from "@phosphor-icons/react"
 import { StudioAreaTree } from "@/components/studio/StudioAreaTree"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
@@ -239,7 +238,6 @@ import {
   STATUS_BAR_PX,
   StudioStatusBar,
 } from "@/components/studio/StudioStatusBar"
-import { DomainShiftSection } from "@/components/DomainShiftSection"
 
 /**
  * Separation between stacked layers, in world units where the AOI's longest
@@ -2599,11 +2597,6 @@ export function BoardSurface({
       ? // The first area's topmost layer, which is the tree's first layer row.
         `layer::${first.id}::${first.layers[first.layers.length - 1]?.id}`
       : null
-  const activeTarget = rowTarget(active)
-  // A modifier's row points at the plane it acts on; an area's row points at
-  // no single one.
-  const selected = activeTarget?.layerId ?? null
-  const selectedArea = activeTarget?.areaId ?? null
 
   /**
    * Which rows are open. The stack starts open, or the tree would present a
@@ -3911,10 +3904,8 @@ export function BoardSurface({
             onDeleteRun={(id, title) =>
               setPendingDelete({ kind: "run", id, title })
             }
-            flat={flat}
             onReorder={reorderArea}
             // Nothing to join until some area holds more than one raster.
-            canLink={areas.some((a) => a.layers.length > 1)}
             onSmoothChange={onSmoothChange}
             hideInvisible={hideInvisible}
           />

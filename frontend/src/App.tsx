@@ -1,7 +1,6 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Dispatch, SetStateAction } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { selectPanel } from "@/lib/panelSelection"
 import {
   TELEMETRY_DEFAULT,
   setStudioTelemetry,
@@ -59,7 +58,6 @@ import type {
   CompositeIndex,
   CompositeResult,
   Project,
-  ProjectOverlay,
   SaveProjectOverlayRequest,
   WaterAnalysis,
   WaterIndex,
@@ -103,7 +101,6 @@ import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { StudioScreen } from "@/pages/StudioScreen"
-import type { MapToolId } from "@/lib/mapTools"
 import type { BasemapKind } from "@/lib/basemaps"
 import {
   FLOOD_DEFAULT_PARAMS,
@@ -120,17 +117,6 @@ import type {
 } from "@/lib/energyState"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
-
-/*
-  What a lazily-loaded screen shows while its chunk arrives.
-
-  Deliberately quiet: the chunk is on local disk, so this is visible for a frame
-  or two and a spinner that appears and vanishes that fast reads as a flicker.
-  It holds the space and the background so the transition does not jump.
-*/
-function ScreenLoading() {
-  return <div className="absolute inset-0 bg-background" aria-busy="true" />
-}
 
 function defaultPeriod(): { start: string; end: string } {
   const now = new Date()
@@ -2382,10 +2368,7 @@ function AppBody(props: {
      * run on the map. Passed rather than corrected afterwards -- navigating to
      * one screen and then to another shows the first one on the way past.
      */
-    async (
-      run: InferenceRun,
-      opts?: { land?: "analysis" | "studio" | "energy" | "flood" }
-    ) => {
+    async (run: InferenceRun) => {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
@@ -2518,38 +2501,6 @@ function AppBody(props: {
   )
 
 
-  const backToAnalysesList = useCallback(() => {
-    props.retainRun(props.result)
-    clearAnalysisResults()
-    props.setShowPredictionOverlay(true)
-    props.setAnalysisLabel(undefined)
-    props.setSwipeCompare(false)
-    goStudio()
-  }, [
-    goStudio,
-    solarDispatch,
-    windDispatch,
-    props.setResult,
-    props.setShowPredictionOverlay,
-    props.setAnalysisLabel,
-    props.setSwipeCompare,
-  ])
-
-  const showCompositionFromHub = useCallback((overlay: ProjectOverlay) => {
-    const entry = projectOverlayToComposition(overlay)
-    if (!entry) {
-      notifyError("Composition preview unavailable")
-      return
-    }
-    setComposition(entry)
-    setCompositionGallery((prev) => {
-      if (prev.some((c) => c.id === entry.id)) return prev
-      return [entry, ...prev].slice(0, 12)
-    })
-    setShowCompositionOverlay(true)
-    props.setShowPredictionOverlay(false)
-  }, [props.setShowPredictionOverlay])
-
   /**
    * Starts a run of any product, from wherever the user is.
    *
@@ -2634,40 +2585,10 @@ function AppBody(props: {
     props.setSwipeRatio,
   ])
 
-  /**
-   * Starts a run of any product, from wherever the user is.
-   *
-   * The hub offered New classification and nothing else, while the application
-   * produces four run kinds and a composition. A user in a project could reach
-   * a classification in one click and everything else by navigating and
-   * remembering which screen holds it.
-   *
-   * The three map products clear the session the same way -- the previous
-   * result, overlay and AOI all belong to the run being replaced -- so they
-   * share startNewClassification and differ only in the panel they open. Energy
-   * defines its own AOI on its own screen and clears nothing here.
-   */
-  const startNewRun = useCallback(
-    (product: MapToolId) => {
-      selectPanel(product)
-      startNewClassification()
-    },
-    [startNewClassification]
-  )
-
   const areaLabel = useMemo(() => {
     if (props.analysisLabel) return props.analysisLabel
     return props.customPolygon ? "Custom AOI" : undefined
   }, [props.analysisLabel, props.customPolygon])
-
-  /**
-   * The one progress pair the dock's solar panel reads.
-   *
-   * That panel predates the two stores and has a single display for all five
-   * products, so the running store supplies it. The energy screen reads each
-   * store's own run state directly and needs no such collapse.
-   */
-  const energyProgress = wind.run.active ? wind.run : solar.run
 
   /**
    * Where the map is, for both screens that carry one.
@@ -3227,7 +3148,7 @@ function AppBody(props: {
                       userInitiated: false,
                     })
                   }
-                  await openSavedAnalysis(run, { land: "studio" })
+                  await openSavedAnalysis(run)
                 })()
               }}
             />

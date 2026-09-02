@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   ArrowLeft,
   Camera,
-  ChartBar,
   CircleNotch,
   Download,
   FloppyDisk,

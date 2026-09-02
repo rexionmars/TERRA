@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, Check, Copy, Table } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import { notifyError, notifySuccess } from "@/lib/notify"
+import { notifyError } from "@/lib/notify"
 import { btnGhostDense } from "@/components/ui/buttons"
 import {
   formatNumber,

@@ -1,9 +1,7 @@
 import {
   Minus,
-  SidebarSimple,
   SignIn,
   Square,
-  SquareSplitVertical,
   User,
   X,
 } from "@phosphor-icons/react"

@@ -31,7 +31,6 @@ import type { ReadingSection } from "@/components/energy/readingSections"
 import {
   capacityFactorPct,
   energyMwh,
-  recordYears,
   speedMs,
 } from "@/lib/energyFormat"
 import { PALETTE_STOPS } from "@/lib/palettes"
