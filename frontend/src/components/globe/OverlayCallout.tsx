@@ -71,9 +71,18 @@ import type { LayerLegend } from "@/lib/layerLegend"
  * point toward the lens rather than across the screen, so the rise is nothing.
  * At the horizon it is the whole of it, and `sin(pitch)` is the curve between.
  *
- * An approximation: it ignores the perspective foreshortening that grows with
- * distance from the centre of the view. For a legend tied to a raster a few
- * tens of metres up, that error is smaller than the dot it moves.
+ * THE SCALE IS MEASURED ACROSS THE SCREEN, NOT UP IT, and that is the whole of
+ * why this failed the first time. Unprojecting a point 100 px UP the screen
+ * under a pitched camera lands far away toward the horizon -- the ground
+ * distance it returns is foreshortened travel, not the scale at the anchor --
+ * so metres-per-pixel came out enormous and every rise rounded to nothing.
+ * Pitch tilts the camera about the horizontal axis, which leaves the screen's
+ * x direction unforeshortened; two points either side of the anchor measure
+ * the scale where the anchor actually is.
+ *
+ * An approximation still: it ignores the perspective foreshortening that grows
+ * with distance from the centre of the view. For a legend tied to a raster a
+ * few tens of metres up, that error is smaller than the dot it moves.
  */
 function riseInPixels(
   map: MapLibreMap,
@@ -84,8 +93,8 @@ function riseInPixels(
   const p = map.project({ lng: at[0], lat: at[1] })
   // Over a hundred pixels: unprojecting two adjacent ones is a distance of
   // centimetres through a projection that is not exact at that scale.
-  const a = map.unproject([p.x, p.y])
-  const b = map.unproject([p.x, p.y - 100])
+  const a = map.unproject([p.x - 50, p.y])
+  const b = map.unproject([p.x + 50, p.y])
   const mPerPx = a.distanceTo(b) / 100
   if (!Number.isFinite(mPerPx) || mPerPx <= 0) return 0
   return (metres / mPerPx) * Math.sin((map.getPitch() * Math.PI) / 180)

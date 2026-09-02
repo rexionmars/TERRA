@@ -18,8 +18,13 @@
  * stack's real geometry. It is resolved against the ground instead: two screen
  * points a hundred pixels apart at the anchor are unprojected and their
  * distance taken, which gives metres per pixel where the reader is pointing.
- * Dragging up by the height of the field raises the stack by the width of it,
- * which is a rate the hand can predict.
+ *
+ * ACROSS the screen, not up it. Under a pitched camera a point 100 px higher
+ * unprojects far away toward the horizon, and the distance to it is
+ * foreshortened travel rather than the scale at the anchor -- which made the
+ * gain fall away to nothing as the camera was tilted, exactly where a stack is
+ * read. Pitch tilts about the horizontal axis, so the screen's x direction
+ * keeps the scale.
  *
  * The rate is read at the PRESS and held for the drag. Recomputed per frame it
  * would change as the anchor moved under the pointer, and a control whose gain
@@ -133,8 +138,8 @@ function Arrow({
         of a few centimetres resolved through a projection that is not exact at
         that scale.
       */
-      const a = map.unproject([e.clientX, e.clientY])
-      const b = map.unproject([e.clientX, e.clientY - 100])
+      const a = map.unproject([e.clientX - 50, e.clientY])
+      const b = map.unproject([e.clientX + 50, e.clientY])
       const mPerPx = a.distanceTo(b) / 100
       from.current = { y: e.clientY, spread: live.current.spreadM, mPerPx }
       setDragging(true)
