@@ -3514,6 +3514,25 @@ function AppBody(props: {
                   solarBusy={solar.run.active !== null}
                   solarProgress={solar.run.progress}
                   solarProgressMsg={solar.run.message}
+                  /*
+                    Wind and flood, in the shape solar established. Each had a
+                    screen of its own until the band grew cards for it; what the
+                    screen carried that the band does not is the reading of a
+                    finished run, which the board already draws as a raster
+                    beside the run that produced it.
+                  */
+                  windParams={wind.params}
+                  onWindParamsChange={setWindParams}
+                  onRunWind={() => void handleRunWind()}
+                  windBusy={!!wind.run.active}
+                  windProgress={wind.run.progress}
+                  windProgressMsg={wind.run.message}
+                  floodParams={floodParams}
+                  onFloodParamsChange={setFloodParamsPatch}
+                  onRunFlood={() => void handleRunFlood()}
+                  floodBusy={floodRun.active}
+                  floodProgress={floodRun.progress}
+                  floodProgressMsg={floodRun.message}
                   initialView={initialMapView}
                   layoutMode={layoutMode}
                   onLayoutModeChange={changeLayoutMode}

@@ -30,7 +30,11 @@ import {
   isMapTool,
   type BoardToolId,
 } from "@/lib/mapTools"
-import type { SolarParams } from "@/lib/energyState"
+import type { SolarParams, WindParams } from "@/lib/energyState"
+import {
+  FLOOD_DEM_PRODUCTS,
+  type FloodParams,
+} from "@/components/flood/floodSetup"
 import { cn } from "@/lib/utils"
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph"
 import { StudioLoading } from "@/components/studio/StudioLoading"
@@ -278,6 +282,23 @@ export interface StudioScreenProps {
   solarBusy?: boolean
   solarProgress?: number
   solarProgressMsg?: string
+  /*
+    Wind and flood, in the shape solar already established: the whole parameter
+    store plus a patch, and a runner that is absent where the product cannot be
+    started. Both were screens of their own until the band grew cards for them.
+  */
+  windParams?: WindParams
+  onWindParamsChange?: (patch: Partial<WindParams>) => void
+  onRunWind?: () => void
+  windBusy?: boolean
+  windProgress?: number
+  windProgressMsg?: string
+  floodParams?: FloodParams
+  onFloodParamsChange?: (patch: Partial<FloodParams>) => void
+  onRunFlood?: () => void
+  floodBusy?: boolean
+  floodProgress?: number
+  floodProgressMsg?: string
   waterIndex: WaterIndex
   waterRunning: boolean
   waterProgress: number
@@ -646,8 +667,33 @@ export function StudioScreen(props: StudioScreenProps) {
   */
   const bandTool: BoardToolId | null = boardTool ?? leftPanel
   const solarRunnable = !!props.solarParams && !!props.onRunSolar
+  const windRunnable = !!props.windParams && !!props.onRunWind
+  const floodRunnable = !!props.floodParams && !!props.onRunFlood
   const boardRun =
-    bandTool === "solar" && solarRunnable
+    bandTool === "wind" && windRunnable
+      ? {
+          running: props.windBusy ?? false,
+          progress: props.windProgress ?? 0,
+          progressMsg: props.windProgressMsg ?? "",
+          label: props.windBusy ? "Running" : "Screen the wind",
+          canRun: props.hasArea && !props.windBusy,
+          onRun: () => props.onRunWind?.(),
+        }
+      : bandTool === "flood" && floodRunnable
+      ? {
+          running: props.floodBusy ?? false,
+          progress: props.floodProgress ?? 0,
+          progressMsg: props.floodProgressMsg ?? "",
+          label: props.floodBusy ? "Running" : "Map the envelope",
+          // Two products or nothing, which the sidecar enforces and the card
+          // refuses to unpick; this is the same rule reported before the run.
+          canRun:
+            props.hasArea &&
+            !props.floodBusy &&
+            (props.floodParams?.demIds.length ?? 0) >= 2,
+          onRun: () => props.onRunFlood?.(),
+        }
+      : bandTool === "solar" && solarRunnable
       ? {
           running: props.solarBusy ?? false,
           progress: props.solarProgress ?? 0,
@@ -703,7 +749,15 @@ export function StudioScreen(props: StudioScreenProps) {
   const runBarHeader = {
     menus: (
       <>
-        {BOARD_TOOLS.filter((t) => t.id !== "solar" || !!props.solarParams).map(
+        {BOARD_TOOLS.filter((t) =>
+          t.id === "solar"
+            ? !!props.solarParams
+            : t.id === "wind"
+              ? !!props.windParams
+              : t.id === "flood"
+                ? !!props.floodParams
+                : true
+        ).map(
           (t) => {
             const on = bandTool === t.id
             const Icon = TOOL_ICON[t.id]
@@ -777,6 +831,44 @@ export function StudioScreen(props: StudioScreenProps) {
         dock. A prop nothing calls is a second way in that does not exist.
       */
       tool={bandTool}
+      wind={
+        props.windParams && props.onRunWind
+          ? {
+              recordYears: props.windParams.recordYears,
+              onRecordYearsChange: (v) =>
+                props.onWindParamsChange?.({ recordYears: v }),
+              hubHeightM: props.windParams.hubHeightM,
+              onHubHeightChange: (v) =>
+                props.onWindParamsChange?.({ hubHeightM: v }),
+              calmThresholdMS: props.windParams.calmThresholdMS,
+              onCalmThresholdChange: (v) =>
+                props.onWindParamsChange?.({ calmThresholdMS: v }),
+              roughnessLowM: props.windParams.roughnessLowM,
+              roughnessHighM: props.windParams.roughnessHighM,
+              onRoughnessChange: (low, high) =>
+                props.onWindParamsChange?.({
+                  roughnessLowM: low,
+                  roughnessHighM: high,
+                }),
+            }
+          : undefined
+      }
+      flood={
+        props.floodParams && props.onRunFlood
+          ? {
+              demIds: props.floodParams.demIds,
+              onDemIdsChange: (ids) =>
+                props.onFloodParamsChange?.({ demIds: ids }),
+              demOptions: FLOOD_DEM_PRODUCTS,
+              referenceThresholdM: props.floodParams.referenceThresholdM,
+              onReferenceThresholdChange: (v) =>
+                props.onFloodParamsChange?.({ referenceThresholdM: v }),
+              drainageKm2: props.floodParams.drainageKm2,
+              onDrainageChange: (v) =>
+                props.onFloodParamsChange?.({ drainageKm2: v }),
+            }
+          : undefined
+      }
       solar={
         props.solarParams && props.onRunSolar
           ? {
@@ -854,12 +946,17 @@ export function StudioScreen(props: StudioScreenProps) {
       canRun={boardRun.canRun}
       blockedBy={
         !props.hasArea
-          ? "Draw an area on the map first."
-          : bandTool === "solar" && props.solarBusy
+          ? "Draw an area on the globe, or bring one in from the Areas tab."
+          : (bandTool === "solar" && props.solarBusy) ||
+              (bandTool === "wind" && props.windBusy) ||
+              (bandTool === "flood" && props.floodBusy)
             ? "The sidecar runs one analysis at a time."
-            : bandTool === "compose" && !props.selectedSceneId
-              ? "Choose a scene under Compositions on the map."
-              : undefined
+            : bandTool === "flood" &&
+                (props.floodParams?.demIds.length ?? 0) < 2
+              ? "Pick at least two elevation models: the envelope is what they disagree about."
+              : bandTool === "compose" && !props.selectedSceneId
+                ? "List the scenes for this period and choose one."
+                : undefined
       }
       onRun={boardRun.onRun}
       onAnalyzeLULC={props.onAnalyzeLULC}

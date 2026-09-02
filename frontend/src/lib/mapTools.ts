@@ -23,29 +23,30 @@ export const MAP_TOOLS: readonly MapTool[] = [
 ]
 
 /**
- * The tools the studio's band offers, which is MAP_TOOLS plus solar.
+ * Every product the studio's band can start.
  *
- * A separate table, and deliberately NOT a fourth MapToolId. `MapToolId` is the
- * map's product table and it feeds more than the band: the navigation column
- * lists it under Map, the map screen's dock renders a panel per id, and its run
- * resolution is a ternary chain whose final branch is classification. A fourth
- * id would compile everywhere except one Record, and then read "Classify" on
- * the run button while launching a classification -- the map screen removed
- * solar from itself on purpose, and widening this union would put it back.
+ * A separate table from MAP_TOOLS, which is now only the three the navigation
+ * column lists as children and the three the panel selection is written in.
+ * The distinction survived the map screen because it still means something:
+ * `MapToolId` is what a stored panel selection can be, and widening it would
+ * make a value the store has never written suddenly representable.
  *
- * Solar belongs on the BOARD because the board can do the thing the map could
- * not: name a solar raster, set its opacity and remove it, beside the run that
- * produced it. Two of the four solar products draw a raster; the band offers
- * those two and not the other two.
+ * Solar, wind and flood joined by being ported rather than by being wrapped.
+ * Each had a screen of its own -- Energy carried solar and wind, Flood carried
+ * the envelope -- and each screen was a fixed answer to "what do you want to
+ * see" for a product whose parameters are a handful of numbers. They are cards
+ * on the graph now, beside the area and the period they read.
  */
-export type BoardToolId = MapToolId | "solar"
+export type BoardToolId = MapToolId | "solar" | "wind" | "flood"
 
 export const BOARD_TOOLS: readonly { id: BoardToolId; label: string }[] = [
   ...MAP_TOOLS,
   { id: "solar", label: "Solar" },
+  { id: "wind", label: "Wind" },
+  { id: "flood", label: "Flood envelope" },
 ]
 
-/** Whether a board tool is one the map screen also understands. */
+/** Whether a board tool is one the stored panel selection can hold. */
 export function isMapTool(id: BoardToolId): id is MapToolId {
-  return id !== "solar"
+  return id !== "solar" && id !== "wind" && id !== "flood"
 }

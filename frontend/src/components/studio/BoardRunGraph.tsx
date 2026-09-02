@@ -31,6 +31,8 @@ import {
   type LucideIcon,
   Play,
   Sun,
+  Fan,
+  Waves,
   Trash2,
   Upload,
 } from "lucide-react"
@@ -79,6 +81,10 @@ export const TOOL_ICON: Record<BoardToolId, LucideIcon> = {
   compose: ImageIcon,
   water: Droplet,
   solar: Sun,
+  wind: Fan,
+  // Waves rather than a droplet: the envelope reads terrain and no
+  // precipitation at all, so a rain glyph would name an input it does not have.
+  flood: Waves,
 }
 
 /**
@@ -269,6 +275,37 @@ export interface BoardRunGraphProps {
     slopeAcceptableDeg: number
     slopeRestrictiveDeg: number
     onSlopeChange: (acceptable: number, restrictive: number) => void
+  }
+
+  /**
+   * Everything the wind screening needs, or absent where it cannot be run.
+   *
+   * One object for the reason the solar bundle is one: they arrive and leave
+   * together, and a graph with no way to start a wind run must not draw cards
+   * for one.
+   */
+  wind?: {
+    recordYears: number
+    onRecordYearsChange: (v: number) => void
+    hubHeightM: number
+    onHubHeightChange: (v: number) => void
+    calmThresholdMS: number
+    onCalmThresholdChange: (v: number) => void
+    roughnessLowM: number
+    roughnessHighM: number
+    onRoughnessChange: (low: number, high: number) => void
+  }
+
+  /** Everything the flood envelope needs, or absent where it cannot be run. */
+  flood?: {
+    demIds: string[]
+    onDemIdsChange: (ids: string[]) => void
+    /** Every product the sidecar can compare, for the card to offer. */
+    demOptions: readonly { id: string; label: string }[]
+    referenceThresholdM: number
+    onReferenceThresholdChange: (v: number) => void
+    drainageKm2: number
+    onDrainageChange: (v: number) => void
   }
 
   /**
@@ -791,22 +828,44 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       </div>
     ),
 
-    record: props.solar ? (
-      <NumberField
-        label="Hourly"
-        value={props.solar.hourlyYears}
-        min={3}
-        max={20}
-        step={1}
-        disabled={busy}
-        format={(v) => `${Math.round(v)} yr`}
-        parse={(t) => {
-          const v = parseFloat(t.replace("yr", "").trim())
-          return Number.isFinite(v) ? v : null
-        }}
-        onChange={(v) => props.solar?.onHourlyYearsChange(Math.round(v))}
-      />
-    ) : null,
+    /*
+      SHARED BY TWO PRODUCTS, because it is one question: how many years of the
+      NASA POWER hourly record to read. Solar reads it for irradiation and wind
+      reads it for the speed distribution, and the card writes to whichever
+      bundle is present -- the graph only ever places it under one of them.
+    */
+    record:
+      props.tool === "wind" && props.wind ? (
+        <NumberField
+          label="Hourly"
+          value={props.wind.recordYears}
+          min={3}
+          max={20}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)} yr`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("yr", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.wind?.onRecordYearsChange(Math.round(v))}
+        />
+      ) : props.solar ? (
+        <NumberField
+          label="Hourly"
+          value={props.solar.hourlyYears}
+          min={3}
+          max={20}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)} yr`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("yr", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.solar?.onHourlyYearsChange(Math.round(v))}
+        />
+      ) : null,
 
     season: (
       /*
@@ -866,6 +925,148 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
               Math.round(v)
             )
           }
+        />
+      </>
+    ) : null,
+
+    turbine: props.wind ? (
+      <>
+        <NumberField
+          label="Hub height"
+          value={props.wind.hubHeightM}
+          min={10}
+          max={200}
+          step={5}
+          disabled={busy}
+          format={(v) => `${Math.round(v)} m`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("m", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.wind?.onHubHeightChange(Math.round(v))}
+        />
+        <NumberField
+          label="Calm below"
+          value={props.wind.calmThresholdMS}
+          min={0.5}
+          max={10}
+          step={0.5}
+          disabled={busy}
+          format={(v) => `${v.toFixed(1)} m/s`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("m/s", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.wind?.onCalmThresholdChange(v)}
+        />
+      </>
+    ) : null,
+
+    /*
+      TWO VALUES AND NOT ONE, which is the reading rather than a setting.
+
+      Hub-height speed comes from a log profile over an assumed surface
+      roughness, and two roughnesses that both describe the ground plausibly
+      give materially different speeds. The screening reports the span instead
+      of choosing, so the span is what the card edits.
+    */
+    roughness: props.wind ? (
+      <>
+        <NumberField
+          label="Low"
+          value={props.wind.roughnessLowM}
+          min={0.001}
+          max={2}
+          step={0.01}
+          disabled={busy}
+          format={(v) => `${v.toFixed(3)} m`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("m", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.wind?.onRoughnessChange(v, props.wind.roughnessHighM)
+          }
+        />
+        <NumberField
+          label="High"
+          value={props.wind.roughnessHighM}
+          min={0.001}
+          max={2}
+          step={0.01}
+          disabled={busy}
+          format={(v) => `${v.toFixed(3)} m`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("m", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.wind?.onRoughnessChange(props.wind.roughnessLowM, v)
+          }
+        />
+      </>
+    ) : null,
+
+    /*
+      A MULTIPLE CHOICE, and the only one on this graph.
+
+      The envelope is the disagreement between products, so one product is not
+      a smaller run -- it is a different claim, an extent with no measure of how
+      much of it that product chose. The sidecar refuses fewer than two, and the
+      card refuses to unpick the second.
+    */
+    models: props.flood ? (
+      <div className="flex flex-wrap gap-1">
+        {props.flood.demOptions.map((o) => {
+          const on = props.flood!.demIds.includes(o.id)
+          return (
+            <Choice
+              key={o.id}
+              label={o.label}
+              chosen={on}
+              disabled={busy || (on && props.flood!.demIds.length <= 2)}
+              onPick={() =>
+                props.flood?.onDemIdsChange(
+                  on
+                    ? props.flood.demIds.filter((d) => d !== o.id)
+                    : [...props.flood.demIds, o.id]
+                )
+              }
+            />
+          )
+        })}
+      </div>
+    ) : null,
+
+    threshold: props.flood ? (
+      <>
+        <NumberField
+          label="Reference"
+          value={props.flood.referenceThresholdM}
+          min={0.5}
+          max={20}
+          step={0.5}
+          disabled={busy}
+          format={(v) => `${v.toFixed(1)} m`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("m", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.flood?.onReferenceThresholdChange(v)}
+        />
+        <NumberField
+          label="Drainage"
+          value={props.flood.drainageKm2}
+          min={0.05}
+          max={50}
+          step={0.05}
+          disabled={busy}
+          format={(v) => `${v.toFixed(2)} km²`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("km²", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.flood?.onDrainageChange(v)}
         />
       </>
     ) : null,
