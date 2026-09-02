@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, Database, GitDiff, Table, Tree, Waves } from "@phosphor-icons/react"
+import { Cube, Database, Drop, GitDiff, Table, Tree, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import type { EditorId } from "@/lib/studioEditors"
@@ -195,6 +195,53 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         col("w-data-right", 0.55, leaf("a-table", "table"), leaf("a-browser", "browser"))
+      ),
+  },
+  {
+    id: "routing",
+    // Diagnose already carries Waves in this bar.
+    icon: Drop,
+    label: "Routing",
+    hint: "Water routed over the area's terrain, and the ground it reaches",
+    /*
+      A board of its own rather than a type swapped into Simulation.
+
+      Simulation is the canopy's arrangement and its fractions are argued from
+      the canopy's needs: the stand takes the width because where light falls
+      between crowns is not readable in a column. A routed flood wants the
+      opposite proportion -- the map wide, because the answer IS where the
+      water went, and the parameters in a column beside it because a run is a
+      member of a sweep and the controls are turned far more often than they
+      are read.
+
+      The panel was reachable before this preset existed, by retyping an area,
+      and that was not the same thing: a product nobody can find without
+      already knowing it is there has not been added to the studio, only to the
+      type selector.
+
+      THE VIEWPORT IS HERE AND IS NOT IN SIMULATION. The canopy preset leaves
+      it out on the argument that a stack of rasters and a shaded orchard are
+      two answers to two questions and sitting them side by side invites
+      reading one as an overlay of the other. Routing has the opposite
+      relation: the depth raster IS an overlay of the ground it was computed
+      on, and the map is where it belongs.
+
+      Fractions at the 1000x700 minimum, after the 28px workspace bar, the 22px
+      status bar and each area's 26px header: the viewport is 660x420 against
+      its 192x128 floor, the outliner 660x186 against 176x128, and the routing
+      column 340x624 against the 208x224 this editor asks for.
+    */
+    build: () =>
+      row(
+        "w-route-split",
+        0.66,
+        col(
+          "w-route-left",
+          0.68,
+          leaf("a-viewport", "viewport"),
+          leaf("a-outliner", "outliner")
+        ),
+        leaf("a-routing", "floodRouting")
       ),
   },
   {

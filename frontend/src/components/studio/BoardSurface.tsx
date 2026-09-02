@@ -270,6 +270,7 @@ import {
 } from "@/components/studio/LibraryLimitEditor"
 import { SpectraEditor } from "@/components/studio/SpectraEditor"
 import { SeparabilityEditor } from "@/components/studio/SeparabilityEditor"
+import { FloodRoutingPanel } from "./FloodRoutingPanel"
 import { StudioTables } from "@/components/studio/StudioTables"
 import { StudioLoading } from "@/components/studio/StudioLoading"
 import {
@@ -440,6 +441,7 @@ function isSoloed(
 
 export function BoardSurface({
   layers,
+  onImportPolygon,
   retainedRuns = [],
   onDropRetainedRun,
   legendSources,
@@ -490,6 +492,8 @@ export function BoardSurface({
   reveal = null,
   onRevealed,
 }: {
+  /** Put a shape from a file on the map as the active AOI. */
+  onImportPolygon: () => void
   /**
    * Every layer the run could draw, drawn or not.
    *
@@ -1979,6 +1983,17 @@ export function BoardSurface({
     whose two ids differ would otherwise slip through as a plane that nothing
     could find again.
   */
+  /*
+    The routed flood's overlay, held here because the board owns the stack.
+
+    Not an `added` asset and not a run: routing is not persisted, so there is
+    no RunAsset to read and nothing for `extrasFor` to find. It sits above the
+    extras for the reason those sit above the map's own -- it was asked for, and
+    burying it under the stack it joined would be a strange reading of the
+    request.
+  */
+  const [routingLayer, setRoutingLayer] = useState<RasterLayer | null>(null)
+
   const extrasFor = (areaId: string, startOrder: number): RasterLayer[] =>
     (added[areaId] ?? [])
       .map((sid) => assetOf(areaId, sid))
@@ -2123,6 +2138,7 @@ export function BoardSurface({
       layers: applyOrder(live, [
         ...layers.filter((l) => !removed.has(sceneKey(live, l.id))),
         ...extrasFor(live, 1000),
+        ...(routingLayer ? [routingLayer] : []),
       ]),
     },
     /*
@@ -4447,6 +4463,70 @@ export function BoardSurface({
       band is for the classification products.
     */
     canopyParams: <CanopyRunBar />,
+    /*
+      THE LIVE AREA, NOT THIS PANE'S.
+
+      The first version matched areaInfo against `areaId`, which reads as the
+      obvious thing and is wrong: the id renderEditor is given is the LAYOUT
+      LEAF's -- "a-routing", the rectangle -- while areaInfo is keyed by the
+      board's data areas. The find never matched, so a freshly drawn AOI showed
+      as no area at all no matter what was on the map.
+
+      A pane does not own an area here. The ones that read per-pane state hold
+      a pin for it, the way comparePins does for the comparison editor; until
+      routing has one of those, the ground it routes over is the ground the map
+      is on. `current` is that area, and it is also the one a reader has just
+      finished drawing, which is when they reach for this panel.
+    */
+    floodRouting: (
+      <FloodRoutingPanel
+        /*
+          THE ACTIVE AOI, from the map's own shape first.
+
+          `areaInfo` was the obvious source and is the wrong one. It is built
+          from the LIVE area plus the retained runs, and the live area follows
+          the SHOWN RUN -- so a shape just drawn or just imported, while a
+          result is on the board, is not in that list at all and the panel read
+          "nothing drawn" with an AOI plainly on the map.
+
+          `customPolygon` is what the globe is drawing and what createArea sets
+          on import, so it answers for both gestures. The area entry is still
+          consulted, for its name and for the case where the board opened on a
+          catalogued area without the map holding a shape.
+        */
+        geometry={
+          customPolygon ??
+          areaInfo.find((a) => a.current)?.geometry ??
+          catalogAreas.find((a) => a.id === activeAreaId)?.geometry ??
+          null
+        }
+        areaLabel={
+          catalogAreas.find((a) => a.id === activeAreaId)?.name ??
+          areaInfo.find((a) => a.current)?.title
+        }
+        onImport={onImportPolygon}
+        onResult={(res) =>
+          setRoutingLayer(
+            res?.depth_uri
+              ? {
+                  id: "flood-routing",
+                  title: `Routed depth, to ${res.depth_png_max_m.toFixed(1)} m`,
+                  uri: res.depth_uri,
+                  extent: res.extent,
+                  opacity: 1,
+                  order: 1100,
+                  // A depth field is continuous, so interpolating it is not a
+                  // claim about where a boundary is -- unlike a class raster,
+                  // which is why that one is pixelated and this is not.
+                  pixelated: false,
+                  smooth: false,
+                  visible: true,
+                }
+              : null
+          )
+        }
+      />
+    ),
     /*
       No longer `sides ? ... : null`. An editor that renders nothing at all
       when it cannot answer is indistinguishable from one that is broken, and

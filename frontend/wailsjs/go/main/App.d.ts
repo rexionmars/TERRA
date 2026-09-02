@@ -14,13 +14,13 @@ export function AnalyzeEnergyModel(arg1:analysis.EnergyModelRequest):Promise<ana
 
 export function AnalyzeFlood(arg1:analysis.FloodRequest):Promise<analysis.FloodAnalysis>;
 
+export function AnalyzeFloodRouting(arg1:analysis.FloodRoutingRequest):Promise<analysis.FloodRoutingAnalysis>;
+
 export function AnalyzeGridCongestion(arg1:analysis.GridCongestionRequest):Promise<analysis.GridCongestionAnalysis>;
 
 export function AnalyzeGridCurtailment(arg1:analysis.GridCurtailmentRequest):Promise<analysis.GridCurtailmentAnalysis>;
 
 export function AnalyzeGridFigure(arg1:analysis.GridFigureRequest):Promise<analysis.GridFigureAnalysis>;
-
-export function AnalyzeFloodRouting(arg1:analysis.FloodRoutingRequest):Promise<analysis.FloodRoutingAnalysis>;
 
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
 

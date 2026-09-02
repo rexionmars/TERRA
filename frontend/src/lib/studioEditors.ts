@@ -23,6 +23,7 @@ import {
   ChartLine,
   Crosshair,
   Cube,
+  Drop,
   Fan,
   FlowArrow,
   GitDiff,
@@ -52,6 +53,7 @@ export type EditorId =
   | "runParams"
   | "canopy"
   | "canopyParams"
+  | "floodRouting"
   | "globe"
   | "solarReading"
   | "windReading"
@@ -288,6 +290,27 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     // described the voxel view this editor replaced. A hint that outlives the
     // thing it describes sends a reader to the wrong area.
     hint: "A stand: specified and drawn, or the one an AOI's season implies",
+  },
+  {
+    id: "floodRouting",
+    label: "Routing",
+    // Droplets and not Waves. Waves is already the domain-shift editor's, and
+    // an icon that means two things in one list is a label that disagrees with
+    // itself -- the same argument this file makes for naming the editors once.
+    icon: Drop,
+    minRem: 13,
+    minRowRem: 14,
+    /*
+      Not unique. Two of these on one board is the point: a sweep is read by
+      comparison, and the panel holds its own parameters precisely so that two
+      areas can carry two floods rather than sharing one set of controls.
+
+      The row floor is the tallest of the panels here because the result is
+      three spreads, a self-consistency block and the assumptions under them.
+      Below about 14rem the assumptions are the part that scrolls away, and
+      they are the part that says what the depths are not.
+    */
+    hint: "Water routed over the terrain: depth, speed and when it arrives",
   },
   {
     id: "globe",
