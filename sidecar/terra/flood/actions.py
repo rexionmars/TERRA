@@ -299,3 +299,298 @@ def flood_envelope(req, work_dir):
     protocol.emit_progress(100, 'done')
     sys.stdout.write(json.dumps({'flood': payload}))
     sys.stdout.flush()
+
+
+def flood_routing(req, work_dir):
+    """Route rainfall over the AOI and report depth, speed and arrival.
+
+    A different product from flood_envelope and deliberately a separate action.
+    The envelope is static and measures disagreement between DEM products; this
+    moves water over one of them and is answered by fields in time.
+
+    A second mode routed a breach hydrograph and has been removed. Not for want
+    of hydraulics -- the equations are the same either way -- but because
+    nothing could reliably decide WHERE a channel enters a drawn polygon:
+    ranking the boundary by accumulated flow finds the outlet, which carries
+    every cell upstream of it, and ranking it by how far the water then travels
+    finds the outlet too on a short AOI. It can return once the inlet arrives as
+    a coordinate the caller gives. Rain needs no such point.
+    """
+    from terra import aoi
+    from terra.flood import envelope as flood_mod
+    from terra.flood import routing as route_mod
+    from terra.imagery import composite as comp
+    from terra.terrain import dem as dem_mod
+    from terra.terrain import hand
+
+    cog.configure()
+
+    if not req.get('polygon_geojson'):
+        protocol.fail('no polygon provided (polygon_geojson required)')
+    polygon = aoi.polygon_from_geojson(req['polygon_geojson'])
+    if polygon.is_empty:
+        protocol.fail('the AOI polygon is empty, so there is no window to read a DEM over')
+
+    # A caller sending the keys of the mode that used to exist expects a
+    # different product, and quietly routing rain for them would answer a
+    # question they did not ask.
+    for gone in ('mode', 'volume_m3', 'peak_minutes'):
+        if req.get(gone) is not None:
+            protocol.fail(f'{gone!r} is not a parameter of this action. Routing a '
+                          f'breach needs an inlet location, and no reliable way to '
+                          f'find one from a drawn polygon was found, so the mode was '
+                          f'removed rather than left guessing. What remains is '
+                          f'rainfall over the area: give rain_mm_h.')
+
+    dem_id = req.get('dem_id') or 'cop30'
+    try:
+        product = dem_mod.resolve(dem_id)
+    except ValueError as e:
+        protocol.fail(str(e))
+
+    # One product, not the envelope's four. This is not a disagreement measure,
+    # and reading four DEMs to route over one of them would quadruple the read
+    # for nothing. Which one was used travels in the payload, because the extent
+    # a route produces moves with the DEM exactly as the envelope shows.
+    buffer_m = protocol.request_number(req, 'buffer_m', None)
+    if buffer_m is None:
+        buffer_m = dem_mod.recommended_buffer_m(polygon.bounds)
+    elif buffer_m < 0:
+        protocol.fail(f'buffer_m is a distance beyond the AOI and cannot be negative, '
+                      f'got {buffer_m}')
+
+    minutes = protocol.request_positive(req, 'minutes', 60.0)
+    manning = protocol.request_positive(req, 'manning', route_mod.MANNING_DEFAULT)
+    snapshots = int(protocol.request_number(req, 'snapshots', 0) or 0)
+    rain_mm_h = protocol.request_number(req, 'rain_mm_h', None)
+    rain_minutes = protocol.request_number(req, 'rain_minutes', None)
+    if not rain_mm_h:
+        protocol.fail('rain_mm_h is required: the rainfall rate in millimetres per '
+                      'hour to put on every cell of the AOI.')
+
+    protocol.emit_progress(10, f'reading {product.id}')
+    z, transform, crs = dem_mod.fetch(polygon, product.collection, buffer_m,
+                                      progress=lambda m: protocol.emit_progress(15, m))
+    z = np.asarray(z, dtype=float)
+    z[z < dem_mod.VOID_BELOW_M] = np.nan
+    if np.isnan(z).all():
+        protocol.fail(f'{product.id} is void over this AOI, so there is no surface to route on')
+    n_void = int(np.isnan(z).sum())
+    if n_void:
+        # Voids are filled to the surrounding median rather than left as NaN: a
+        # NaN cell poisons every flux that touches it and the hole spreads
+        # across the domain in a few steps. How many were filled is reported.
+        z = np.where(np.isnan(z), float(np.nanmedian(z)), z)
+
+    lat = float(polygon.centroid.y)
+    dx, dy = hand.pixel_size_m(lat, abs(transform.a), abs(transform.e))
+
+    # Coarsen before routing, if asked. The explicit scheme costs cells times
+    # steps, and halving the cell size roughly quadruples both: the same AOI
+    # that routes in a minute at 90 m does not finish in ten at 30 m, which is
+    # the difference between a control a user turns and a run they abandon.
+    #
+    # What it costs is measured rather than assumed. On one confined reach
+    # (n=1), refining 60 m to 45 m moved the median peak stage by 1%, the 90th
+    # percentile by 3% and the flooded area by 2% -- the geometry of the valley,
+    # not the cell size, was setting the answer at that scale.
+    resolution_m = protocol.request_number(req, 'resolution_m', None)
+    native_m = float(max(dx, dy))
+    coarsened_from = None
+    if resolution_m and resolution_m > native_m * 1.05:
+        from scipy.ndimage import zoom
+
+        factor = native_m / float(resolution_m)
+        z = zoom(z, factor, order=1)
+        if min(z.shape) < 16:
+            protocol.fail(f'resolution_m of {resolution_m:.0f} m leaves a '
+                          f'{z.shape[1]} by {z.shape[0]} grid over this AOI, which is '
+                          f'too coarse to route on. Ask for a finer cell or a larger AOI.')
+        transform = transform * transform.scale(1 / factor, 1 / factor)
+        coarsened_from = native_m
+        dx, dy = dx / factor, dy / factor
+
+    grid = dem_mod.Grid.of(z, transform, crs)
+    n_cells = int(z.size)
+    # A ceiling, because the cost is the user's wait and nothing in the request
+    # bounds it. Refused with the arithmetic rather than silently coarsened: a
+    # run that quietly changed its own resolution would report figures the
+    # caller did not ask for.
+    if n_cells > 400_000:
+        protocol.fail(f'this AOI is {grid.width} by {grid.height} = {n_cells:,} cells at '
+                      f'{max(dx, dy):.0f} m, and the explicit solver costs cells times '
+                      f'timesteps. Set resolution_m coarser (about '
+                      f'{max(dx, dy) * (n_cells / 400_000) ** 0.5:.0f} m for this AOI) '
+                      f'or draw a smaller area.')
+
+    protocol.emit_progress(30, 'terrain: filling depressions')
+    # Filled and nothing more. The D8 graph and the flow accumulation were
+    # computed here only to locate a breach inlet; rain falls everywhere and
+    # needs neither, so a run is shorter by that whole chain.
+    zf = hand.fill_depressions(z)
+
+    # The scheme is well balanced or the run is not reportable. Checked on the
+    # actual bed rather than trusted, because an unbalanced scheme manufactures
+    # currents on every slope and each depth below would be that error plus the
+    # flow, with nothing in the output to say so.
+    residual = route_mod.lake_at_rest_residual(zf, dx, dy)
+    if residual > 1e-6:
+        protocol.fail(f'the scheme failed its lake-at-rest check on this terrain: a '
+                      f'motionless lake developed {residual:.3e} m/s. Depths from '
+                      f'such a run are the balancing error plus the flow and are '
+                      f'not reported.')
+
+    protocol.emit_progress(45, f'routing {minutes:.0f} min over '
+                               f'{grid.width} by {grid.height} cells')
+    try:
+        result = route_mod.route(
+            zf, dx, dy, minutes=minutes, rain_mm_h=rain_mm_h,
+            rain_minutes=rain_minutes, manning=manning, snapshots=snapshots,
+            progress=lambda m: protocol.emit_progress(60, m),
+        )
+    except ValueError as e:
+        protocol.fail(str(e))
+
+    protocol.emit_progress(85, 'measuring')
+    aoi_mask = flood_mod.aoi_reporting_mask(polygon, grid)
+    depth = result['peak_depth_m']
+    speed = result['peak_speed_ms']
+    arrival = result['arrival_s']
+    cell_km2 = dx * dy / 1e6
+
+    wet = (depth > route_mod.HMIN) & aoi_mask
+    inside_n = int(aoi_mask.sum())
+    wet_vals = depth[wet]
+
+    # DOES THE CHANNEL RUN THROUGH THIS AREA, OR ONLY CLIP IT?
+    #
+    # A drawn AOI need not contain the valley it overlaps. Where it catches a
+    # corner the routing is still correct, but the reach inside the polygon is a
+    # fragment, the flow hugs one edge, and every figure below describes that
+    # fragment. The map shows it plainly and a reader who is not looking at the
+    # map cannot see it at all, so it is measured: the share of flooded cells
+    # lying on the AOI's own boundary ring. A channel crossing an area touches
+    # that ring twice, where it enters and where it leaves.
+    from scipy.ndimage import binary_erosion
+
+    interior = binary_erosion(aoi_mask, np.ones((3, 3), bool), border_value=0)
+    rim = aoi_mask & ~interior
+    rim_fraction = round(int((wet & rim).sum()) / int(wet.sum()), 4) if wet.any() else 0.0
+
+    payload = {
+        'dem_id': product.id,
+        'minutes': float(minutes),
+        'manning': float(manning),
+        'steps': int(result['steps']),
+        'lake_at_rest_residual_ms': float(residual),
+        'resolution_m': round(float(max(dx, dy)), 1),
+        'coarsened_from_m': round(coarsened_from, 1) if coarsened_from else None,
+        'void_cells_filled': n_void,
+        'grid': dem_mod.payload_grid(grid),
+        'cell_size_m': {'x': float(dx), 'y': float(dy)},
+        'aoi': {
+            'cells': inside_n,
+            'area_km2': round(inside_n * cell_km2, 4),
+            'flooded_cells': int(wet.sum()),
+            'flooded_km2': round(int(wet.sum()) * cell_km2, 4),
+            'flooded_fraction': round(float(wet.sum()) / inside_n, 4) if inside_n else 0.0,
+            'on_boundary_fraction': rim_fraction,
+        },
+        'depth_m': _spread(wet_vals),
+        'speed_ms': _spread(speed[wet]),
+        'arrival_min': _spread(arrival[wet] / 60.0),
+        'rain': {'mm_h': float(rain_mm_h), 'minutes': float(rain_minutes or minutes)},
+        'volume': {
+            'in_m3': round(result['volume_in_m3'], 1),
+            'stored_m3': round(result['volume_stored_m3'], 1),
+            'out_m3': round(result['volume_out_m3'], 1),
+            'clipped_m3': round(result['volume_clipped_m3'], 1),
+            'left_fraction': (round(result['volume_out_m3'] / result['volume_in_m3'], 4)
+                              if result['volume_in_m3'] else 0.0),
+        },
+    }
+
+    payload['assumptions'] = {
+        'water': (
+            'Clear water over a fixed bed, depth-averaged, with one Manning n '
+            f'of {manning} for the whole domain, and no infiltration: every '
+            'millimetre that falls stays on the surface. A real catchment '
+            'absorbs some of it, so the depths here are an upper bound on what '
+            'the same rain would leave.'
+        ),
+        'terrain': (
+            f'{product.id} at {max(dx, dy):.0f} m'
+            + (f', coarsened from {coarsened_from:.0f} m' if coarsened_from else '')
+            + f', read {buffer_m:.0f} m beyond the AOI, with its closed '
+            'depressions filled before routing. The filling is not cosmetic: a '
+            'solver takes a sampling artefact in a channel literally, water runs '
+            'in and stops, and the run reports a pond level instead of a flow. '
+            'Every figure above is taken over the cells inside the AOI polygon; '
+            'the buffer exists so the flow arrives correctly and is not '
+            'reported on.'
+        ),
+        'boundary': (
+            'Every edge is free outflow, and one-way: water reaching a boundary '
+            f'leaves, and {payload["volume"]["left_fraction"] * 100:.0f}% of what '
+            'fell had left by the end of the run. A domain that stores '
+            'everything it was given never reached an outlet, and its depths are '
+            'a filling level rather than a flow.'
+        ),
+        'aoi_fit': (
+            f'{rim_fraction * 100:.0f}% of the flooded cells lie on the AOI '
+            'boundary itself. A channel crossing an area touches that ring '
+            'twice, where it enters and where it leaves, so a low share means '
+            'the reach is inside the polygon. A high one means the polygon clips '
+            'the valley rather than holding it: the routing is still correct, '
+            'but what is reported is the fragment that fell inside the drawing.'
+        ),
+    }
+
+    # Rasters, on the same footing the envelope puts them: the GeoTIFF over the
+    # whole computed window, the PNG clipped to the AOI so the map overlay
+    # covers the ground the figures are measured over and no more.
+    depth_tif = Path(work_dir) / 'flood_depth.tif'
+    with rasterio.open(
+        depth_tif, 'w', driver='GTiff', width=grid.width, height=grid.height,
+        count=1, dtype='float32', crs=grid.crs, transform=grid.transform,
+        nodata=0.0, compress='deflate',
+    ) as dst:
+        dst.write(depth.astype('float32'), 1)
+
+    rows = np.flatnonzero(aoi_mask.any(axis=1))
+    cols = np.flatnonzero(aoi_mask.any(axis=0))
+    ar0, ar1 = int(rows[0]), int(rows[-1]) + 1
+    ac0, ac1 = int(cols[0]), int(cols[-1]) + 1
+    dmax = float(np.percentile(wet_vals, 98)) if wet_vals.size else 1.0
+    depth_png = Path(work_dir) / 'flood_depth.png'
+    comp.write_rgba_png(
+        route_mod.depth_rgba(depth[ar0:ar1, ac0:ac1], dmax,
+                             inside=aoi_mask[ar0:ar1, ac0:ac1]),
+        depth_png,
+    )
+    payload['depth_tif'] = str(depth_tif)
+    payload['depth_png'] = str(depth_png)
+    payload['depth_png_max_m'] = round(dmax, 3)
+    payload['extent'] = comp.extent_from_profile({
+        'transform': rasterio.windows.transform(
+            rasterio.windows.Window(ac0, ar0, ac1 - ac0, ar1 - ar0), grid.transform
+        ),
+        'height': ar1 - ar0,
+        'width': ac1 - ac0,
+        'crs': grid.crs,
+    })
+
+    protocol.emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'flood_routing': payload}))
+    sys.stdout.flush()
+
+
+def _spread(values):
+    """Median and the range that matters, or nulls when nothing is wet."""
+    v = np.asarray(values, dtype=float)
+    v = v[np.isfinite(v)]
+    if v.size == 0:
+        return {'median': None, 'p90': None, 'max': None}
+    return {'median': round(float(np.median(v)), 3),
+            'p90': round(float(np.percentile(v, 90)), 3),
+            'max': round(float(v.max()), 3)}
