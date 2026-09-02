@@ -115,6 +115,7 @@ import type {
   PredictResult,
   WindAnalysis,
 } from "@/lib/types"
+import { SURFACE } from "@/lib/motion"
 import { ReadingPanel } from "@/components/studio/ReadingPanel"
 import { SolarParamsEditor } from "@/components/studio/SolarParamsEditor"
 import type {
@@ -4330,7 +4331,7 @@ export function BoardSurface({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      transition={SURFACE}
     >
       {/*
         The canvas, at the viewport area's rectangle and never unmounted.

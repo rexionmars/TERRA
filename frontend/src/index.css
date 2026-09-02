@@ -405,6 +405,40 @@
   }
 
   /*
+    THE PRESS, on every button rather than on the ones somebody remembered.
+
+    The same shape of fix as the focus ring above, and for the same reason: the
+    application had twelve `active:` treatments across 140 buttons, three of
+    which were only a cursor. Chasing each site would leave the next button
+    arriving without one, exactly as the last hundred-odd did.
+
+    NOT A COLOUR, and that is forced. This palette is a grey ramp and ONE
+    accent -- see the tokens at the top of this file. Hover already spends the
+    raised surface and selection already spends the accent, so a press asking
+    for a colour would have to reach for a shade one of them is using and say
+    the same thing twice. Scale is the channel that is free.
+
+    Three percent. Enough to see on a 28px icon button, small enough that a
+    114px primary does not appear to jump.
+
+    `scale`, not `transform: scale()`. The standalone property composes with
+    the transform utilities rather than being overridden by them -- a button
+    positioned with -translate-x-1/2 would otherwise get no press at all, and
+    the ones that do would be an accident of which utilities they carried.
+
+    Withheld under prefers-reduced-motion. It is small, and it is still a thing
+    moving because a pointer moved, which is what the setting is about. The
+    focus ring above is not withheld: an outline appearing is a state being
+    reported, not motion.
+  */
+  @media (prefers-reduced-motion: no-preference) {
+    button:not(:disabled):active,
+    [role="button"]:not([aria-disabled="true"]):active {
+      scale: 0.97;
+    }
+  }
+
+  /*
     NO POINTER ON A BUTTON. The hand means a link, and it is spent if it means
     anything a hand can click.
 
