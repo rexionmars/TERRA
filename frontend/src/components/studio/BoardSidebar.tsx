@@ -35,7 +35,9 @@ import {
   Gauge,
   GridFour,
   Image as ImageIcon,
+  MapTrifold,
   Minus,
+  Note,
   Pentagon,
   Plus,
   Stack,
@@ -437,6 +439,7 @@ export function BoardSidebar({
   onRemoveArea,
   onDeleteRun,
   onReorder,
+  globe,
   onToggleExpanded,
   onLayerChange,
   onSmoothChange,
@@ -506,6 +509,22 @@ export function BoardSidebar({
    * hands back rather than making the caller reverse what it just showed.
    */
   onReorder: (areaId: string, layerIdsTopFirst: string[]) => void
+  /**
+   * The globe's two acts, for the tree's own menu.
+   *
+   * One bundle rather than four props, because they are one subject and a
+   * caller that could pass the sets without the callbacks would draw entries
+   * that report a state and do nothing. Absent where there is no globe to act
+   * on, and the entries are withheld rather than shown refusing.
+   */
+  globe?: {
+    /** Scene keys the globe is drawing. */
+    onGlobe: ReadonlySet<string>
+    /** Of those, the ones drawing their legend beside them. */
+    withProperty: ReadonlySet<string>
+    onToggleGlobe: (areaId: string, sceneId: string) => void
+    onToggleProperty: (areaId: string, sceneId: string) => void
+  }
   /** Each raster's name, shown over it on the board. */
   mode: OutlinerMode
   /** The geometries on the board, for the Areas tab. */
@@ -1649,6 +1668,77 @@ export function BoardSidebar({
                   }}
                 />
               ))}
+            {/*
+              THE SAME PAIR THE PLANE'S OWN MENU CARRIES, so a raster can be
+              put on the globe and given its legend from wherever it is being
+              read. The tree lists what a run produced; the viewport draws it;
+              the two are the same rasters, and an act offered in one and not
+              the other is an act whose availability depends on where the
+              reader happened to be looking.
+
+              Offered only for a raster that HAS a place on the ground.
+              `extent` is what says so, and it is the same test the board entry
+              above makes.
+            */}
+            {globe && menuAsset.extent && (
+              <>
+                <StudioMenuItem
+                  icon={MapTrifold}
+                  label={
+                    globe.onGlobe.has(
+                      sceneKey(menuRow.run.areaId, menuAsset.sceneId)
+                    )
+                      ? "Take off the globe"
+                      : "Show on the globe"
+                  }
+                  checked={globe.onGlobe.has(
+                    sceneKey(menuRow.run.areaId, menuAsset.sceneId)
+                  )}
+                  onSelect={() => {
+                    globe.onToggleGlobe(menuRow.run.areaId, menuAsset.sceneId)
+                    setAssetMenu(null)
+                  }}
+                />
+                {/*
+                  Disabled rather than hidden without the raster on the globe:
+                  the entry is what says a legend can be drawn beside it, and
+                  one that appeared only once it was already there would never
+                  teach that.
+                */}
+                <StudioMenuItem
+                  icon={Note}
+                  label={
+                    globe.withProperty.has(
+                      sceneKey(menuRow.run.areaId, menuAsset.sceneId)
+                    )
+                      ? "Hide the property on the map"
+                      : "Show the property on the map"
+                  }
+                  title={
+                    globe.onGlobe.has(
+                      sceneKey(menuRow.run.areaId, menuAsset.sceneId)
+                    )
+                      ? "Its legend, tied to the ground it measures"
+                      : "Show it on the globe first; the legend is drawn beside it"
+                  }
+                  checked={globe.withProperty.has(
+                    sceneKey(menuRow.run.areaId, menuAsset.sceneId)
+                  )}
+                  disabled={
+                    !globe.onGlobe.has(
+                      sceneKey(menuRow.run.areaId, menuAsset.sceneId)
+                    )
+                  }
+                  onSelect={() => {
+                    globe.onToggleProperty(
+                      menuRow.run.areaId,
+                      menuAsset.sceneId
+                    )
+                    setAssetMenu(null)
+                  }}
+                />
+              </>
+            )}
             {/*
               Only where it would change something. The button this replaces was
               disabled and relabelled "On board" when the composition was
