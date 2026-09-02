@@ -43,12 +43,10 @@ import {
 import { cn } from "@/lib/utils"
 import type {
   InferenceRun,
-  LayoutMode,
   Preferences,
 } from "@/lib/types"
 import {
   alwaysShowWhatsNewFromPrefs,
-  layoutModeFromPrefs,
   mergePreferenceExtras,
 } from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
@@ -275,7 +273,6 @@ export function ProfilePage({
   const persistPreferences = useCallback(
     async (next: {
       theme: string
-      layoutMode?: LayoutMode
       alwaysShowWhatsNew?: boolean
     }) => {
       if (!user) return
@@ -285,7 +282,6 @@ export function ProfilePage({
         overlay_opacity: prefs?.overlay_opacity ?? 0.75,
         theme: next.theme,
         extras_json: mergePreferenceExtras(prefs?.extras_json, {
-          ...(next.layoutMode ? { layout_mode: next.layoutMode } : {}),
           /*
             Tested against undefined, not for truth, unlike the two above.
             Those carry strings whose absent value is falsy anyway; this one is
@@ -316,7 +312,6 @@ export function ProfilePage({
     ]
   )
 
-  const layoutMode = layoutModeFromPrefs(prefs)
   const alwaysShowWhatsNew = alwaysShowWhatsNewFromPrefs(prefs)
 
   /*
@@ -331,7 +326,6 @@ export function ProfilePage({
     (
       patch: Partial<{
         theme: string
-        layoutMode: LayoutMode
         alwaysShowWhatsNew: boolean
       }>
     ) => {
@@ -953,34 +947,6 @@ export function ProfilePage({
                   <option value="light">Light</option>
                   <option value="system">System</option>
                 </select>
-              </SettingRow>
-
-              <SettingRow
-                id="account.layout"
-                title="Map layout"
-                description="How the map and energy screens are arranged. The title bar switches between them too; this is where the choice is explained and where it is restored from on start."
-                focused={focusedSetting === "account.layout"}
-                onFocus={() => setFocusedSetting("account.layout")}
-              >
-                <div className="flex max-w-md flex-col gap-2">
-                  <select
-                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
-                    value={layoutMode}
-                    onChange={(e) =>
-                      schedulePrefsSave({
-                        layoutMode: e.target.value as LayoutMode,
-                      })
-                    }
-                  >
-                    <option value="docked">Sidebar and column</option>
-                    <option value="workspace">Dock</option>
-                  </select>
-                  <p className="text-meta leading-relaxed text-muted-foreground">
-                    {layoutMode === "workspace"
-                      ? "Controls sit in a bar at the foot of the map, with parameters in a drawer. The map takes the full width."
-                      : "A navigation column on the left and the product's controls in a panel beside it."}
-                  </p>
-                </div>
               </SettingRow>
 
               {/*

@@ -433,7 +433,6 @@ export function BoardSurface({
   onClearWind,
   floodResult = null,
   onClearFlood,
-  onClose,
 }: {
   /**
    * Every layer the run could draw, drawn or not.
@@ -588,15 +587,6 @@ export function BoardSurface({
   onClearWind?: () => void
   floodResult?: FloodAnalysis | null
   onClearFlood?: () => void
-  /**
-   * Where to go when the surface cannot be built.
-   *
-   * Called only from the WebGL failure path: a context can be refused even
-   * where the capability exists, and a blank board says nothing. It used to
-   * close the studio back onto the map; the studio is the screen now, so the
-   * caller supplies a destination.
-   */
-  onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
@@ -944,6 +934,13 @@ export function BoardSurface({
   const [boardMenu, setBoardMenu] = useState(false)
   /** Whether the rename-and-remove dialog is up. */
   const [managing, setManaging] = useState(false)
+  /**
+   * The renderer refused a context, so there is no surface to draw on.
+   *
+   * A state rather than a way out. See the scene effect: this used to navigate
+   * away, from when there was somewhere to navigate to.
+   */
+  const [surfaceFailed, setSurfaceFailed] = useState(false)
   /** Whether the research pack dialog is up. Opened from the table header. */
   const [packOpen, setPackOpen] = useState(false)
   /**
@@ -2102,15 +2099,14 @@ export function BoardSurface({
     Read through refs by the effect that builds the scene, so neither can put
     the scene in that effect's dependencies.
 
-    `onClose` was in them, and it is written inline at the call site -- a new
-    function on every render of the map screen. So the GL context was disposed
-    and recreated on EVERY RENDER, which defeated the structural comparison
+    A callback written inline at the call site is a new function on every
+    render, and one of those was in this effect's dependencies. So the GL
+    context was disposed and recreated on EVERY RENDER, which defeated the
+    structural comparison
     below entirely and, worse, rebuilt each plane from a card that no longer
     described the current state. Toggling a layer hid it and then immediately
     restored it from the rebuild, which read as the eye not working at all.
   */
-  const closeRef = useRef(onClose)
-  closeRef.current = onClose
   /**
    * Where things were left: areas by their id, planes by their scene key.
    *
@@ -2251,8 +2247,9 @@ export function BoardSurface({
     })
   }
   /*
-    Read through a ref for the same reason `onClose` is: the scene is built once
-    and an inline closure here is new on every render, which would rebuild it.
+    Read through a ref for the reason the scene effect above gives: the scene
+    is built once, and an inline closure here is new on every render, which
+    would rebuild it.
   */
   const chooseRowRef = useRef(chooseRow)
   chooseRowRef.current = chooseRow
@@ -3001,8 +2998,8 @@ export function BoardSurface({
           area. So pressing any plane selected the confidence raster, whatever
           had been pressed, and the outline followed it.
 
-          Read through refs for the same reason `onClose` is: an inline closure
-          here is new on every render and would rebuild the scene.
+          Read through refs for the reason the scene effect gives: an inline
+          closure here is new on every render and would rebuild the scene.
         */
         /*
           Through chooseRow, not setActiveRow. This path set the active row and
@@ -3047,12 +3044,21 @@ export function BoardSurface({
         },
       })
     } catch {
-      // A context can fail to be created even where the capability exists --
-      // too many live contexts, or a driver reset. The board closes rather
-      // than sitting blank, because a blank surface says nothing.
-      closeRef.current()
+      /*
+        A context can fail to be created even where the capability exists --
+        too many live contexts, or a driver reset.
+
+        This used to call `onClose`, from when the studio was an overlay and
+        closing it gave back the map underneath. The studio is the application
+        now, so there is nothing to close to: the caller's "destination" was
+        the studio itself, which left the reader on a blank surface that said
+        nothing about why. It says so here instead, over the rectangle the
+        viewport would have filled.
+      */
+      setSurfaceFailed(true)
       return
     }
+    setSurfaceFailed(false)
     boardRef.current = board
     return () => {
       boardRef.current = null
@@ -3166,14 +3172,11 @@ export function BoardSurface({
   }, [labels, groups])
 
   /*
-    ESCAPE NO LONGER LEAVES. It closed the board back onto the map underneath,
-    which was right while the studio was an overlay. It is the screen now, and
-    there is nothing behind it -- so a stray Escape would have navigated the
-    reader out of the surface they are working in.
-
-    `onClose` stays for the one caller that still needs it: a WebGL context
-    that cannot be created, where a blank board says nothing and the caller
-    supplies somewhere to land.
+    ESCAPE NO LONGER LEAVES, and neither does anything else. Escape closed the
+    board back onto the map underneath, which was right while the studio was an
+    overlay; it is the screen now, and there is nothing behind it. The app
+    menu's "Close the studio" went with the same reasoning -- it named a
+    shortcut nothing bound any more, and led to the surface it was leaving.
   */
 
   /*
@@ -4183,6 +4186,32 @@ export function BoardSurface({
       />
 
       {/*
+        WHY THE SURFACE IS BLANK, said where the surface would be.
+
+        A refused context is not a crash: every panel around it still works,
+        the outliner still lists, the browser still opens. So the studio stays
+        up and this states the one thing that is missing and what recovers it.
+        Reloading is the recovery, because a context is taken at mount.
+      */}
+      {surfaceFailed && viewportRect && (
+        <div
+          className="absolute z-[5] flex items-center justify-center p-4"
+          style={{
+            left: viewportRect.x,
+            top: viewportRect.y + AREA_HEADER_PX,
+            width: viewportRect.w,
+            height: Math.max(0, viewportRect.h - AREA_HEADER_PX),
+          }}
+        >
+          <p className="max-w-[26rem] text-center text-meta leading-relaxed text-muted-foreground">
+            The viewport could not take a graphics context. Every other panel
+            still works; only the 3D surface is missing. Reloading the window
+            usually recovers it, since a context is taken once, at mount.
+          </p>
+        </div>
+      )}
+
+      {/*
         The names, over the canvas and out of the way of it.
 
         HTML rather than sprites: the text is the application's own, it stays
@@ -4438,13 +4467,6 @@ export function BoardSurface({
               setRestoreTree((p) => ({ ...p, [workspaceId]: null }))
               setAppMenu(false)
             }}
-          />
-          <StudioMenuRule />
-          <StudioMenuItem
-            icon={X}
-            label="Close the studio"
-            note="Esc"
-            onSelect={onClose}
           />
         </StudioPopover>
 

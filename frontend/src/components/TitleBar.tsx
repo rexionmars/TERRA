@@ -24,7 +24,7 @@ import {
 } from "../../wailsjs/runtime/runtime"
 import { ELEVATION_CREDIT } from "@/components/map/terrain"
 import { mapPose, subscribeMapPose } from "@/lib/mapPose"
-import type { LayoutMode, PredictResult } from "@/lib/types"
+import type { PredictResult } from "@/lib/types"
 import {
   MAPLIBRE_CREDIT,
   basemapByKind,
@@ -39,16 +39,6 @@ interface TitleBarProps {
   result: PredictResult | null
   projectSwitcher?: ReactNode
   /**
-   * The map layout, and the way to change it.
-   *
-   * This bar is the only chrome mounted in both layouts, which is why the
-   * control lives here: in the workspace layout the navigation column is gone,
-   * so a toggle placed there would be unreachable from the mode it exits.
-   *
-   * It is a view mode rather than a destination, so it does not contradict this
-   * bar's rule against per-page navigation icons.
-   */
-  /**
    * Where the map screen hangs its studio toggle.
    *
    * A host element handed BACK, rather than a ReactNode taken in like
@@ -61,8 +51,6 @@ interface TitleBarProps {
    * same reason -- a control with one owner that has to be drawn inside
    * another's DOM.
    */
-  layoutMode?: LayoutMode
-  onLayoutModeChange?: (mode: LayoutMode) => void
   /**
    * Whether the studio covers the map.
    *
@@ -120,8 +108,6 @@ export function TitleBar({
   view,
   result,
   projectSwitcher,
-  layoutMode = "docked",
-  onLayoutModeChange,
   credit,
   boardOpen = false,
 }: TitleBarProps) {
@@ -324,17 +310,16 @@ export function TitleBar({
         )}
 
         {/*
-          The way into settings while the navigation column is withheld.
-          Exactly when the column is gone: on the two screens that draw a map,
-          in the layout that replaces the column with surfaces inside it. The
-          column carries this item everywhere else, and two of them at once
-          would be two answers to one question.
+          THE ONLY WAY INTO SETTINGS. It was drawn when the navigation column
+          was withheld, since the column carried this item everywhere else and
+          two of them at once would be two answers to one question. There is no
+          column, so the condition is gone and this is where an account lives.
 
-          Icon only. The column can afford the word beside it down 13.5rem;
+          Icon only. The column could afford the word beside it down 13.5rem;
           here it would sit between the coordinate readout and the window
           buttons, which is the narrowest part of the bar.
         */}
-        {hasMap && layoutMode === "workspace" && !loading && (
+        {hasMap && !loading && (
           <button
             type="button"
             onClick={() => (user ? goProfile() : goAuth())}
@@ -351,43 +336,6 @@ export function TitleBar({
           </button>
         )}
 
-
-        {/*
-          Wherever there is a map to lay out, and NOT while the studio covers
-          it.
-
-          The board draws its own 15rem column and the shell's navigation
-          column would fight it for the left edge, so StudioScreen pins the layout
-          to workspace for as long as the board is up and restores the previous
-          one on close. That makes this control inert in that mode rather than
-          merely redundant: a press sets docked and the pinning effect sets it
-          back on the same beat, so the icon flickers and the layout does not
-          move. A control whose only outcome is to be undone is one to withhold.
-        */}
-        {hasMap && !boardOpen && onLayoutModeChange && (
-          <button
-            type="button"
-            onClick={() =>
-              onLayoutModeChange(layoutMode === "docked" ? "workspace" : "docked")
-            }
-            className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            title={
-              layoutMode === "docked"
-                ? "Switch to workspace layout"
-                : "Switch to docked layout"
-            }
-            aria-pressed={layoutMode === "workspace"}
-          >
-            {/* The icon names the layout it switches TO, not the one in use:
-                the button is read as an action, and showing the current state
-                made every user press it to find out what it did. */}
-            {layoutMode === "docked" ? (
-              <SquareSplitVertical className="size-4" />
-            ) : (
-              <SidebarSimple className="size-4" />
-            )}
-          </button>
-        )}
 
         {/*
           NOT ON macOS, where the platform draws them itself.

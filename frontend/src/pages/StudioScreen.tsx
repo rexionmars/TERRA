@@ -52,7 +52,6 @@ import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
 import { useRunLog } from "@/lib/runLog"
 import { polygonOuterRing } from "@/lib/geometry"
-import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
 
 /*
@@ -88,17 +87,6 @@ export interface StudioScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
-  /** Which layout draws this screen. See lib/types LayoutMode. */
-  layoutMode?: LayoutMode
-  /**
-   * Switch the shell layout. Used when the studio opens: Sidebar and
-   * column leaves the navigation column beside the board's own column, so the
-   * board forces Dock (workspace) for as long as it is up.
-   */
-  onLayoutModeChange?: (
-    mode: LayoutMode,
-    opts?: { persist?: boolean }
-  ) => void
   /**
    * The title bar's host for this screen's studio toggle.
    *
@@ -115,8 +103,6 @@ export interface StudioScreenProps {
    * is a report of it, not a lift.
    */
   onBoardOpenChange?: (open: boolean) => void
-  /** Go to another destination, for the dock layout's bar. */
-  onNavigate: (groupId: string, itemId?: string) => void
   customPolygon: GeoJSONGeometry | null
   flyTo: { lat: number; lon: number; key: number } | null
   result: PredictResult | null
@@ -358,7 +344,6 @@ export function StudioScreen(props: StudioScreenProps) {
    * run button's label changes with the product and with whether it is running.
    */
   const [barWidthPx, setBarWidthPx] = useState(0)
-  const workspace = props.layoutMode === "workspace"
   /**
    * The band's own tool, which is the map's plus solar.
    *
@@ -520,42 +505,6 @@ export function StudioScreen(props: StudioScreenProps) {
     return () => reportBoardOpen?.(false)
   }, [reportBoardOpen])
 
-  /*
-    The studio and "Sidebar and column" fight for the left edge: the shell
-    keeps AppNav while the board draws its own 15rem column. Dock (workspace)
-    already clears the navigation column, which is the arrangement the board
-    was drawn for. Remember the mode we left so closing the board puts it back
-    rather than silently rewriting the user's preference.
-  */
-  const layoutBeforeBoardRef = useRef<LayoutMode | null>(null)
-  const onLayoutModeChange = props.onLayoutModeChange
-  const layoutMode = props.layoutMode ?? "docked"
-  useEffect(() => {
-    if (!onLayoutModeChange) return
-    if (layoutMode !== "workspace") {
-      if (layoutBeforeBoardRef.current == null) {
-        layoutBeforeBoardRef.current = layoutMode
-      }
-      // Not persisted: this is what the surface requires, not what the reader
-      // chose, and storing it edits their layout setting behind their back --
-      // every launch, since this screen is where a session opens.
-      onLayoutModeChange("workspace", { persist: false })
-    }
-  }, [layoutMode, onLayoutModeChange])
-
-  /*
-    And put it back on the way out, which used to happen when the board closed.
-    A ref rather than the effect above, so leaving the screen restores the mode
-    without the restore re-running every time the mode changes under it.
-  */
-  const restoreLayout = useRef<(() => void) | null>(null)
-  restoreLayout.current = () => {
-    const prev = layoutBeforeBoardRef.current
-    if (prev == null || !onLayoutModeChange) return
-    layoutBeforeBoardRef.current = null
-    onLayoutModeChange(prev, { persist: false })
-  }
-  useEffect(() => () => restoreLayout.current?.(), [])
 
   /*
     The same table the overlay tools panel lists, so the board's data mode and
@@ -1165,7 +1114,6 @@ export function StudioScreen(props: StudioScreenProps) {
               underneath, so it has to be a destination: the analysis list,
               which needs no GL and is somewhere a reader can work from.
             */
-            onClose={() => props.onNavigate("analysis")}
           />
         </Suspense>
 

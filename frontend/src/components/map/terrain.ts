@@ -22,8 +22,8 @@ import type { Map as MapLibreMap } from "maplibre-gl"
 
 import type { CreditPart } from "@/lib/basemaps"
 
-export const DEM_SOURCE = "terrain-dem"
-export const HILLSHADE_LAYER = "terrain-hillshade"
+const DEM_SOURCE = "terrain-dem"
+const HILLSHADE_LAYER = "terrain-hillshade"
 
 /**
  * AWS Terrain Tiles, in Terrarium encoding, which MapLibre decodes natively.

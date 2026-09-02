@@ -42,7 +42,6 @@ import {
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
-  LayoutMode,
   PredictResult,
   PredictRequest,
   ProgressEvent,
@@ -79,8 +78,6 @@ import type {
   FloodRequest,
 } from "@/lib/types"
 import {
-  layoutModeFromPrefs,
-  mergePreferenceExtras,
   parsePreferenceExtras,
 } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
@@ -949,66 +946,6 @@ function AppBody(props: {
     /** Relief on: a second provider is on screen and is credited with it. */
     terrain?: boolean
   }>({ kind: "esri", date: null })
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>("docked")
-
-  /**
-   * The last value this component wrote, so its own save does not echo back.
-   *
-   * The mode is state rather than derived from prefs because savePrefs
-   * round-trips to Go and SQLite before the context updates, and a layout
-   * toggle that waits on a disk write does not feel like a toggle. But the
-   * settings page writes the same preference, so a stored value this component
-   * did not write is one to follow -- which is also how it is seeded on start.
-   */
-  const lastWrittenLayoutRef = useRef<LayoutMode | null>(null)
-  useEffect(() => {
-    if (!prefs) return
-    const stored = layoutModeFromPrefs(prefs)
-    if (stored === lastWrittenLayoutRef.current) return
-    lastWrittenLayoutRef.current = stored
-    setLayoutMode(stored)
-  }, [prefs])
-
-  /*
-    `persist: false` applies a layout for this session without storing it.
-
-    The studio forces Dock while it is up -- the two fight for the left
-    edge -- and puts the previous one back on close. That is an arrangement the
-    surface requires, not a choice the reader made, and writing it to
-    preferences turned "open the studio, quit" into a silent edit of the Map
-    layout setting. With a session that OPENS on the studio the edit would have
-    happened on every launch.
-
-    The ref is left alone in that case, on purpose: it records what this
-    component wrote, and the seeding effect follows any stored value that
-    differs from it. A forced mode written into the ref would make the next
-    preference refresh look like the reader's own change and flip the layout
-    out from under the board.
-  */
-  const changeLayoutMode = useCallback(
-    (mode: LayoutMode, opts?: { persist?: boolean }) => {
-      setLayoutMode(mode)
-      if (opts?.persist === false) return
-      lastWrittenLayoutRef.current = mode
-      if (!prefs) return
-      // Silent: this fires on a toggle the user just watched happen, and a
-      // "Preferences saved" toast on every flip is noise about a result that
-      // is already on screen.
-      void savePrefs(
-        {
-          ...prefs,
-          extras_json: mergePreferenceExtras(prefs.extras_json, {
-            layout_mode: mode,
-          }),
-        },
-        { silent: true }
-      ).catch(() => {
-        // A layout that fails to persist still applies for this session. The
-        // next start falls back to docked, which is the safe direction.
-      })
-    },
-    [prefs, savePrefs]
-  )
   /**
    * Title of the run whose result is on screen, for the title bar.
   /*
@@ -3234,28 +3171,6 @@ function AppBody(props: {
   }, [props.activeAreaId, resultWithWater, props.retainRun])
 
 
-  /**
-   * Go to a destination from the dock layout's bar.
-   *
-   * Written here because navigating is two moves that live at this level: the
-   * screen, which is in the auth context, and the sub-tab, which is the state
-   * just above. The navigation table in lib/navigation carries the structure
-   * and deliberately not this, so the table cannot reach into either.
-   *
-   */
-  const navigateTo = useCallback(
-    (_groupId: string, itemId?: string) => {
-      /*
-        One destination, so the group is not read. The parameter stays because
-        the studio's bar passes a group and an item, and a signature that
-        dropped it would have to be changed back the moment a second
-        destination exists.
-      */
-      if (itemId) selectPanel(itemId as MapToolId)
-      goStudio()
-    },
-    [goStudio]
-  )
 
   const analysisPolygonGeoJSON = useMemo(
     () => (props.customPolygon ? JSON.stringify(props.customPolygon) : ""),
@@ -3274,8 +3189,6 @@ function AppBody(props: {
         */
         boardOpen={boardOpen}
         result={props.result}
-        layoutMode={layoutMode}
-        onLayoutModeChange={changeLayoutMode}
         credit={credit}
         /*
           Wherever a run is filed under the active project. Every product sends
@@ -3424,9 +3337,6 @@ function AppBody(props: {
                   floodResult={flood}
                   onClearFlood={() => setFlood(null)}
                   initialView={initialMapView}
-                  layoutMode={layoutMode}
-                  onLayoutModeChange={changeLayoutMode}
-                  onNavigate={navigateTo}
                   customPolygon={props.customPolygon}
                   flyTo={props.flyTo}
                   result={props.result}

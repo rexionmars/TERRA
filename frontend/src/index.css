@@ -803,14 +803,6 @@
   );
 }
 
-.geosense-draw-vertex {
-  background: rgb(var(--p-accent));
-  border: 1px solid rgb(var(--p-ink));
-  border-radius: 1px;
-  margin: -5px 0 0 -5px !important;
-  width: 10px !important;
-  height: 10px !important;
-}
 
 .overlay-thumb-crisp {
   image-rendering: pixelated;
@@ -934,48 +926,7 @@ a.maplibregl-ctrl-logo,
   cursor: var(--cursor-col-resize);
 }
 
-/* AOI name chip — glued to contour edge, rotation applied inline */
-.aoi-label {
-  background: transparent !important;
-  border: none !important;
-}
-.aoi-label-chip {
-  display: inline-block;
-  padding: 3px 9px;
-  border-radius: var(--radius-sm);
-  /* Default chip chrome; MapView may override via inline scheme colors */
-  background: rgb(245 245 243 / 0.97);
-  color: rgb(55 55 55);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0;
-  line-height: 1.25;
-  white-space: nowrap;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
-  pointer-events: none;
-  user-select: none;
-  transform-origin: center center;
-}
 
-/* Confidence overlay legend — same ramp as sidecar write_confidence_png.
-   Sits in the bottom-right tool column, above the draw and zoom bars. */
-.confidence-legend {
-  right: 10px;
-  bottom: 15.25rem; /* clear gap above draw + edit + zoom stack */
-  width: 2.5rem;
-}
-.confidence-legend-bar {
-  height: 5.5rem;
-  background: linear-gradient(
-    to top,
-    rgb(0 0 255) 0%,
-    rgb(0 76 223) 25%,
-    rgb(0 153 191) 50%,
-    rgb(128 230 159) 75%,
-    rgb(255 255 128) 100%
-  );
-}
 
 /*
   The tile credit is not here any more. It moved to the title bar, where it sits
