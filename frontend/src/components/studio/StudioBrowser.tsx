@@ -11,13 +11,22 @@
  * store of assets that has to be searched, filtered, grouped and acted on
  * without leaving the tool. Four regions, and each earns its place:
  *
- *   - SOURCES on the left. A store with no grouping is a list that grows until
- *     it cannot be read. The groups here are the projects, plus the two that
- *     are not projects: everything, and the runs filed under nothing.
+ *   - SOURCES on the left, a tree. A store with no grouping is a list that
+ *     grows until it cannot be read. Two levels, rooted at All: the folders are
+ *     the projects plus the runs filed under none, and inside each folder are
+ *     the products it actually holds. A folder holding one product draws no
+ *     children, because one product is not a choice between products.
  *   - THE TOOLBAR across the top: what is being looked for. Search narrows by
  *     name, the type chips narrow by product, and the view toggle chooses
  *     between tiles and rows.
- *   - THE ITEMS, the region the other three are in service of.
+ *   - THE ITEMS, the region the other three are in service of. Folders are
+ *     drawn here too, before the runs, and entered with a double-click. That
+ *     is Unreal's model and the reason its browser scales: the tree is for
+ *     jumping, the grid is for walking, and entering a folder is a press on
+ *     the thing already under the pointer. Standing at the root with nothing
+ *     asked, the grid is folders alone; ask a search or a type, and it answers
+ *     ACROSS the folders, since a query answered only inside the one already
+ *     open is a query you repeat once per folder.
  *   - THE STATUS BAR at the foot, stating the count. Unreal puts it there, and
  *     the studio already has one across its own foot for the same reason: a
  *     count is what tells you whether a filter did what you meant.
@@ -43,6 +52,9 @@ import { useEffect, useMemo, useState } from "react"
 import {
   ChartColumn,
   Check,
+  ChevronRight,
+  Folder,
+  FolderOpen,
   FolderPlus,
   Folders,
   Inbox,
@@ -72,8 +84,16 @@ import {
 import { cn } from "@/lib/utils"
 import type { InferenceRun, Project } from "@/lib/types"
 
-/** Width of the sources column, in rem. The narrowest a project name reads at. */
-const SOURCES_REM = 9.5
+/**
+ * Width of the sources column, in rem.
+ *
+ * A tree, so the floor is not the longest name but the deepest row: two levels
+ * of indent and a disclosure triangle spend 1.75rem before a product's name
+ * starts, and "Classification" is the longest of the five. Below this the
+ * products truncate to where they no longer name themselves, which is the one
+ * thing the second level is for.
+ */
+const SOURCES_REM = 11.5
 
 /**
  * The products, in the order the run band offers them, with the colour each
@@ -109,8 +129,29 @@ type KindId = (typeof KINDS)[number]["id"]
 
 const KIND_BY_ID = new Map(KINDS.map((k) => [k.id, k]))
 
-/** "all", "unfiled", or a project id. */
-type SourceId = string
+/**
+ * Where in the store the reader is standing.
+ *
+ * A path of up to two parts, the way Unreal's is a path of folders: the root
+ * holds the projects and the unfiled runs, and each of those holds its runs
+ * grouped by product. The second part is optional because a project is a place
+ * you can stand; the product under it is a narrower one.
+ */
+type Source =
+  | { scope: "all" }
+  | { scope: "unfiled"; kind?: KindId }
+  | { scope: "project"; id: string; kind?: KindId }
+
+/** One string per node, for the expansion set and for React keys. */
+function sourceKey(src: Source): string {
+  if (src.scope === "all") return "all"
+  const head = src.scope === "unfiled" ? "unfiled" : src.scope + ":" + src.id
+  return src.kind ? head + "/" + src.kind : head
+}
+
+function sameSource(a: Source, b: Source): boolean {
+  return sourceKey(a) === sourceKey(b)
+}
 
 export function StudioBrowser({
   surface,
@@ -131,7 +172,14 @@ export function StudioBrowser({
 }) {
   const { runs, projects, refreshRuns, refreshProjects } = useAuth()
 
-  const [source, setSource] = useState<SourceId>("all")
+  const [source, setSource] = useState<Source>({ scope: "all" })
+  /*
+    Which folders are open. The root starts open, because a tree whose only
+    visible row is its own root shows nothing about the store it indexes.
+  */
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    new Set(["all"])
+  )
   const [query, setQuery] = useState("")
   const [kinds, setKinds] = useState<ReadonlySet<KindId>>(new Set())
   const [tiles, setTiles] = useState(true)
@@ -169,22 +217,56 @@ export function StudioBrowser({
     every keystroke in the search field, which narrows the items and not these.
   */
   const counts = useMemo(() => {
-    const byProject = new Map<string, number>()
-    let unfiled = 0
-    for (const r of runs) {
-      if (r.project_id) {
-        byProject.set(r.project_id, (byProject.get(r.project_id) ?? 0) + 1)
-      } else unfiled += 1
+    /** Per folder, and per product inside it: the tree draws both. */
+    const byFolder = new Map<string, { total: number; kinds: Map<KindId, number> }>()
+    const bump = (folder: string, kind: KindId) => {
+      let e = byFolder.get(folder)
+      if (!e) {
+        e = { total: 0, kinds: new Map() }
+        byFolder.set(folder, e)
+      }
+      e.total += 1
+      e.kinds.set(kind, (e.kinds.get(kind) ?? 0) + 1)
     }
-    return { byProject, unfiled, all: runs.length }
+    for (const r of runs) {
+      bump(r.project_id || "unfiled", runKindLabel(r.kind) as KindId)
+    }
+    return { byFolder, all: runs.length }
   }, [runs])
+
+  const folderCount = (id: string) => counts.byFolder.get(id)?.total ?? 0
+  /*
+    The products present in a folder, in the table's order rather than in the
+    order the runs happen to be in. A folder holding only classifications draws
+    one child, which is honest: there is nothing to choose between.
+  */
+  const folderKinds = (id: string): readonly KindId[] => {
+    const k = counts.byFolder.get(id)?.kinds
+    return k ? KINDS.map((x) => x.id).filter((x) => k.has(x)) : []
+  }
+
+  /*
+    Whether anything is narrowing the view.
+
+    It decides what the root shows. Standing at the root with nothing asked,
+    the grid holds folders -- which is Unreal's model and the reason a store
+    with many runs is navigable at all. Ask something, and the search runs
+    THROUGH the folders and the grid holds what it found, which is what a
+    filter is for: a query answered only within the folder you already opened
+    is a query you have to repeat once per folder.
+  */
+  const filtering = query.trim().length > 0 || kinds.size > 0
 
   const items = useMemo(() => {
     const q = query.trim().toLowerCase()
+    if (source.scope === "all" && !filtering) return []
     return runs.filter((r) => {
-      if (source === "unfiled") {
-        if (r.project_id) return false
-      } else if (source !== "all" && r.project_id !== source) return false
+      const folder = r.project_id || "unfiled"
+      if (source.scope === "unfiled" && folder !== "unfiled") return false
+      if (source.scope === "project" && folder !== source.id) return false
+      if (source.scope !== "all" && source.kind) {
+        if (runKindLabel(r.kind) !== source.kind) return false
+      }
       if (kinds.size && !kinds.has(runKindLabel(r.kind) as KindId)) return false
       if (!q) return true
       return (
@@ -192,7 +274,25 @@ export function StudioBrowser({
         runRowLine(r).toLowerCase().includes(q)
       )
     })
-  }, [runs, source, kinds, query])
+  }, [runs, source, kinds, query, filtering])
+
+  /** The folders drawn in the grid, which is the root with nothing asked. */
+  const folders = useMemo(() => {
+    if (source.scope !== "all" || filtering) return []
+    const out: { id: string; name: string; count: number }[] = []
+    if (folderCount("unfiled") > 0) {
+      out.push({
+        id: "unfiled",
+        name: "Unfiled",
+        count: folderCount("unfiled"),
+      })
+    }
+    for (const p of projects) {
+      out.push({ id: p.id, name: p.name, count: folderCount(p.id) })
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, filtering, projects, counts])
 
   /*
     A selection that survives the filter that hid it is a selection the status
@@ -204,12 +304,29 @@ export function StudioBrowser({
     if (selected && !items.some((r) => r.id === selected)) setSelected(null)
   }, [items, selected])
 
-  const sourceName =
-    source === "all"
-      ? "All analyses"
-      : source === "unfiled"
-        ? "Unfiled"
-        : (projects.find((p) => p.id === source)?.name ?? "Project")
+  /* The path, as Unreal writes it in its own breadcrumb: where you are, and
+     under it the product if one is chosen. */
+  const sourceName = (() => {
+    const head =
+      source.scope === "all"
+        ? "All"
+        : source.scope === "unfiled"
+          ? "Unfiled"
+          : (projects.find((p) => p.id === source.id)?.name ?? "Project")
+    const kind =
+      source.scope !== "all" && source.kind
+        ? KIND_BY_ID.get(source.kind)?.label
+        : null
+    return kind ? head + " / " + kind : head
+  })()
+
+  const toggleOpen = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
 
   const toggleKind = (id: KindId) =>
     setKinds((prev) => {
@@ -231,7 +348,7 @@ export function StudioBrowser({
         await refreshProjects()
         /* Straight to what was just made. Creating a project and then having
            to find it in the column is the step this saves. */
-        if (created?.id) setSource(created.id)
+        if (created?.id) setSource({ scope: "project", id: created.id })
       } else {
         const project = projects.find((p) => p.id === id)
         if (!project || name === project.name) return
@@ -275,7 +392,9 @@ export function StudioBrowser({
         */
         await refreshRuns()
         await refreshProjects()
-        if (source === deleting.project.id) setSource("all")
+        if (source.scope === "project" && source.id === deleting.project.id) {
+          setSource({ scope: "all" })
+        }
         notifySuccess(`Project "${deleting.project.name}" deleted.`)
       }
       setDeleting(null)
@@ -404,68 +523,109 @@ export function StudioBrowser({
             borderColor: "rgb(var(--p-line) / 0.22)",
           }}
         >
-          <div className="min-h-0 flex-1 overflow-y-auto py-1">
-            <SourceRow
-              icon={Folders}
-              label="All analyses"
+          {/*
+            A SECTION HEADER, as Unreal puts one over each of its source trees.
+            One section here rather than its two: it separates a favourites
+            list from a project's own content, and there are no favourites to
+            separate from.
+          */}
+          <div
+            className="flex h-6 shrink-0 items-center gap-1.5 border-b px-2 text-micro uppercase tracking-wider text-muted-foreground/70"
+            style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
+          >
+            <Folders className="size-3" />
+            <span className="min-w-0 flex-1 truncate">Sources</span>
+          </div>
+
+          <div
+            role="tree"
+            aria-label="Projects and products"
+            className="min-h-0 flex-1 overflow-y-auto py-1"
+          >
+            {/*
+              THE ROOT. It is a place to stand and not just a heading: standing
+              here is what draws the folders in the grid, which is how the
+              store is entered.
+            */}
+            <SourceNode
+              depth={0}
+              label="All"
               count={counts.all}
-              on={source === "all"}
-              onSelect={() => setSource("all")}
-            />
-            <SourceRow
-              icon={Inbox}
-              label="Unfiled"
-              count={counts.unfiled}
-              on={source === "unfiled"}
-              onSelect={() => setSource("unfiled")}
+              open={expanded.has("all")}
+              hasChildren
+              on={sameSource(source, { scope: "all" })}
+              onToggle={() => toggleOpen("all")}
+              onSelect={() => setSource({ scope: "all" })}
             />
 
-            <div
-              aria-hidden
-              className="mt-1.5 border-t px-2 pb-0.5 pt-1.5 text-micro uppercase tracking-wider text-muted-foreground/70"
-              style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-            >
-              Projects
-            </div>
+            {expanded.has("all") && (
+              <>
+                {folderCount("unfiled") > 0 && (
+                  <FolderBranch
+                    id="unfiled"
+                    name="Unfiled"
+                    depth={1}
+                    source={source}
+                    expanded={expanded}
+                    kinds={folderKinds("unfiled")}
+                    count={folderCount("unfiled")}
+                    counts={counts.byFolder.get("unfiled")?.kinds}
+                    onToggle={() => toggleOpen("unfiled")}
+                    onSelect={(kind) => setSource({ scope: "unfiled", kind })}
+                  />
+                )}
 
-            {projects.length === 0 ? (
-              <p className="px-2 py-1 text-micro leading-relaxed text-muted-foreground">
-                None yet.
-              </p>
-            ) : (
-              projects.map((p) =>
-                naming?.id === p.id ? (
+                {projects.map((p) =>
+                  naming?.id === p.id ? (
+                    <NameField
+                      key={p.id}
+                      indent={1}
+                      value={naming.name}
+                      label={`Rename ${p.name}`}
+                      onChange={(name) => setNaming({ id: p.id, name })}
+                      onCommit={() => void commitName()}
+                      onCancel={() => setNaming(null)}
+                    />
+                  ) : (
+                    <FolderBranch
+                      key={p.id}
+                      id={p.id}
+                      name={p.name}
+                      depth={1}
+                      source={source}
+                      expanded={expanded}
+                      kinds={folderKinds(p.id)}
+                      count={folderCount(p.id)}
+                      counts={counts.byFolder.get(p.id)?.kinds}
+                      /* The dot marks the project new runs are filed under,
+                         which is a different fact from which one is open. */
+                      marked={p.id === activeProjectId}
+                      onToggle={() => toggleOpen(p.id)}
+                      onSelect={(kind) =>
+                        setSource({ scope: "project", id: p.id, kind })
+                      }
+                      onContext={(at) => setProjectMenu({ project: p, at })}
+                    />
+                  )
+                )}
+
+                {naming?.id === null && (
                   <NameField
-                    key={p.id}
+                    indent={1}
                     value={naming.name}
-                    label={`Rename ${p.name}`}
-                    onChange={(name) => setNaming({ id: p.id, name })}
+                    label="Name the new project"
+                    onChange={(name) => setNaming({ id: null, name })}
                     onCommit={() => void commitName()}
                     onCancel={() => setNaming(null)}
                   />
-                ) : (
-                  <SourceRow
-                    key={p.id}
-                    label={p.name}
-                    count={counts.byProject.get(p.id) ?? 0}
-                    on={source === p.id}
-                    /* The dot marks the project new runs are filed under, which
-                       is a different fact from which one is being looked at. */
-                    marked={p.id === activeProjectId}
-                    onSelect={() => setSource(p.id)}
-                    onContext={(at) => setProjectMenu({ project: p, at })}
-                  />
-                )
-              )
-            )}
-            {naming?.id === null && (
-              <NameField
-                value={naming.name}
-                label="Name the new project"
-                onChange={(name) => setNaming({ id: null, name })}
-                onCommit={() => void commitName()}
-                onCancel={() => setNaming(null)}
-              />
+                )}
+
+                {projects.length === 0 && folderCount("unfiled") === 0 && (
+                  <p className="py-1 pl-6 pr-2 text-micro leading-relaxed text-muted-foreground">
+                    Nothing filed yet.
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -488,11 +648,46 @@ export function StudioBrowser({
 
         {/* THE ITEMS. */}
         <div className="panel-scroll min-h-0 min-w-0 flex-1 overflow-y-auto p-2">
-          {items.length === 0 ? (
+          {/*
+            FOLDERS FIRST, and in the grid rather than only in the tree. This is
+            what Unreal does and it is the reason its browser scales: entering
+            a folder is a double-click on the thing you are already looking at,
+            so the tree is for jumping and the grid is for walking.
+
+            Only at the root, and only with nothing asked. There are two levels
+            here, so a folder inside a folder does not arise; and a search is
+            answered across all of them at once.
+          */}
+          {folders.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {folders.map((f) => (
+                <FolderTile
+                  key={f.id}
+                  name={f.name}
+                  count={f.count}
+                  onOpen={() =>
+                    setSource(
+                      f.id === "unfiled"
+                        ? { scope: "unfiled" }
+                        : { scope: "project", id: f.id }
+                    )
+                  }
+                  onContext={(at) => {
+                    const p = projects.find((x) => x.id === f.id)
+                    if (p) setProjectMenu({ project: p, at })
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {items.length === 0 && folders.length === 0 ? (
             <p className="p-2 text-meta leading-relaxed text-muted-foreground">
               {runs.length === 0
                 ? "No saved analyses yet. A run is recorded here once it finishes."
-                : "Nothing here matches. Clear the search or the type filters."}
+                : filtering
+                  ? "Nothing here matches. Clear the search or the type filters."
+                  : "This folder is empty."}
             </p>
           ) : tiles ? (
             <div className="flex flex-wrap gap-2">
@@ -541,8 +736,12 @@ export function StudioBrowser({
         style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
       >
         <span className="min-w-0 truncate">
-          {items.length} {items.length === 1 ? "item" : "items"}
-          {items.length !== runs.length && ` of ${runs.length}`}
+          {/* Folders are counted as items, because they are what is on screen.
+              A root reading "0 items" over a grid of five folders is a count
+              of the wrong thing. */}
+          {folders.length + items.length}{" "}
+          {folders.length + items.length === 1 ? "item" : "items"}
+          {filtering && ` of ${runs.length}`}
           {selected && " · 1 selected"}
         </span>
         <span className="ml-auto min-w-0 truncate">{sourceName}</span>
@@ -668,7 +867,7 @@ export function StudioBrowser({
         <ConfirmDelete
           eyebrow="Delete project"
           title={deleting.project.name}
-          subtitle={`${counts.byProject.get(deleting.project.id) ?? 0} analyses are filed here. They are not deleted -- they move to Unfiled.`}
+          subtitle={`${folderCount(deleting.project.id)} analyses are filed here. They are not deleted -- they move to Unfiled.`}
           confirmLabel="Delete the project"
           busy={working}
           onCancel={() => setDeleting(null)}
@@ -702,12 +901,15 @@ function runLabel(run: InferenceRun): string {
 function NameField({
   value,
   label,
+  indent = 0,
   onChange,
   onCommit,
   onCancel,
 }: {
   value: string
   label: string
+  /** Tree depth of the row it stands in for, so it does not step out of it. */
+  indent?: number
   onChange: (v: string) => void
   onCommit: () => void
   onCancel: () => void
@@ -715,6 +917,10 @@ function NameField({
   return (
     <input
       autoFocus
+      style={{
+        marginLeft: `${0.25 + indent * 0.75}rem`,
+        borderColor: "rgb(var(--p-line) / 0.4)",
+      }}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onCommit}
@@ -724,67 +930,249 @@ function NameField({
       }}
       aria-label={label}
       placeholder={label}
-      className="mx-1 h-6 w-[calc(100%-0.5rem)] rounded-sm border bg-transparent px-1.5 text-emphasis placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      style={{ borderColor: "rgb(var(--p-line) / 0.4)" }}
+      className="mr-1 h-6 w-[calc(100%-1.5rem)] rounded-sm border bg-transparent px-1.5 text-emphasis placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     />
   )
 }
 
-function SourceRow({
-  icon: Icon,
+/**
+ * One row of the sources tree.
+ *
+ * TWO CONTROLS, NOT ONE, as the outliner's rows are and for the same reason:
+ * opening a folder and standing in it are different intentions, and a triangle
+ * that only reported which it was made the second impossible without doing the
+ * first. They are siblings rather than nested because a button inside a button
+ * is invalid, and a screen reader would announce one control where there are
+ * two.
+ *
+ * The indent is inline because depth is data. A Tailwind class per level is a
+ * fixed set of levels, and it would put the disclosure triangle at a different
+ * distance from the name at each one.
+ */
+function SourceNode({
+  depth,
   label,
   count,
+  open,
+  hasChildren,
   on,
   marked,
+  icon: Icon,
+  swatch,
+  onToggle,
   onSelect,
   onContext,
 }: {
-  icon?: React.ComponentType<{ className?: string }>
+  depth: number
   label: string
   count: number
+  open?: boolean
+  hasChildren?: boolean
   on: boolean
-  /** Where new runs are filed, which is not the same as what is being read. */
+  /** Where new runs are filed, which is not the same as what is open. */
   marked?: boolean
+  icon?: React.ComponentType<{ className?: string }>
+  /** A product's colour, for the rows that are products. */
+  swatch?: string
+  onToggle?: () => void
   onSelect: () => void
   onContext?: (at: { x: number; y: number }) => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      onContextMenu={
-        onContext
-          ? (e) => {
-              e.preventDefault()
-              onContext({ x: e.clientX, y: e.clientY })
-            }
-          : undefined
-      }
-      aria-current={on ? "true" : undefined}
-      title={label}
+    <div
+      role="treeitem"
+      aria-expanded={hasChildren ? !!open : undefined}
+      aria-selected={on}
       className={cn(
-        "flex h-6 w-full items-center gap-1.5 px-2 text-left text-emphasis transition-colors",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "group flex h-6 items-center transition-colors",
         on
           ? "bg-surface-raised text-foreground"
-          : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
+          : "text-muted-foreground hover:bg-surface-raised/60"
+      )}
+      style={{ paddingLeft: `${0.25 + depth * 0.75}rem` }}
+    >
+      {hasChildren ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={`${open ? "Collapse" : "Expand"} ${label}`}
+          className="flex size-4 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <ChevronRight
+            className={cn("size-3 transition-transform", open && "rotate-90")}
+          />
+        </button>
+      ) : (
+        // Keeps the names of childless rows on the same left edge as the ones
+        // with a triangle.
+        <span className="size-4 shrink-0" />
+      )}
+
+      <button
+        type="button"
+        onClick={onSelect}
+        onDoubleClick={onToggle}
+        onContextMenu={
+          onContext
+            ? (e) => {
+                e.preventDefault()
+                onContext({ x: e.clientX, y: e.clientY })
+              }
+            : undefined
+        }
+        title={label}
+        className={cn(
+          "flex h-full min-w-0 flex-1 items-center gap-1.5 pr-2 text-left text-emphasis",
+          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          !on && "group-hover:text-foreground"
+        )}
+      >
+        {swatch ? (
+          <span
+            className="size-2 shrink-0 rounded-[1px]"
+            style={{ background: `hsl(${swatch})` }}
+          />
+        ) : Icon ? (
+          <Icon className="size-3.5 shrink-0" />
+        ) : open ? (
+          <FolderOpen className="size-3.5 shrink-0" />
+        ) : (
+          <Folder className="size-3.5 shrink-0" />
+        )}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {marked && (
+          <span
+            className="size-1.5 shrink-0 rounded-full bg-primary"
+            title="New runs are filed here"
+          />
+        )}
+        <span className="shrink-0 tabular-nums text-micro text-muted-foreground/70">
+          {count}
+        </span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A folder and, when it is open, the products inside it.
+ *
+ * The children are the products present, not the five that exist: a folder
+ * offering a filter for a product it holds none of is a row that can only
+ * empty the grid.
+ */
+function FolderBranch({
+  id,
+  name,
+  depth,
+  source,
+  expanded,
+  kinds,
+  count,
+  counts,
+  marked,
+  onToggle,
+  onSelect,
+  onContext,
+}: {
+  id: string
+  name: string
+  depth: number
+  source: Source
+  expanded: ReadonlySet<string>
+  kinds: readonly KindId[]
+  count: number
+  counts?: ReadonlyMap<KindId, number>
+  marked?: boolean
+  onToggle: () => void
+  onSelect: (kind?: KindId) => void
+  onContext?: (at: { x: number; y: number }) => void
+}) {
+  const here: Source =
+    id === "unfiled" ? { scope: "unfiled" } : { scope: "project", id }
+  const open = expanded.has(id)
+  /* One product is not a choice between products. The row still stands for the
+     folder, and drawing a single child under it would say otherwise. */
+  const branching = kinds.length > 1
+  return (
+    <>
+      <SourceNode
+        depth={depth}
+        label={name}
+        count={count}
+        open={open}
+        hasChildren={branching}
+        on={sameSource(source, here)}
+        marked={marked}
+        icon={id === "unfiled" ? Inbox : undefined}
+        onToggle={branching ? onToggle : undefined}
+        onSelect={() => onSelect(undefined)}
+        onContext={onContext}
+      />
+      {branching &&
+        open &&
+        kinds.map((k) => (
+          <SourceNode
+            key={k}
+            depth={depth + 1}
+            label={KIND_BY_ID.get(k)?.label ?? k}
+            count={counts?.get(k) ?? 0}
+            swatch={KIND_BY_ID.get(k)?.hue}
+            on={sameSource(source, { ...here, kind: k })}
+            onSelect={() => onSelect(k)}
+          />
+        ))}
+    </>
+  )
+}
+
+/**
+ * A folder in the grid.
+ *
+ * The same silhouette Unreal gives one -- a tab across the top of a wide
+ * plate -- because that shape is what makes a folder legible beside the item
+ * tiles without a word being read. Drawn from two boxes rather than an icon
+ * scaled up, so its edge stays one pixel at any tile size.
+ */
+function FolderTile({
+  name,
+  count,
+  onOpen,
+  onContext,
+}: {
+  name: string
+  count: number
+  onOpen: () => void
+  onContext: (at: { x: number; y: number }) => void
+}) {
+  return (
+    <button
+      type="button"
+      onDoubleClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContext({ x: e.clientX, y: e.clientY })
+      }}
+      title={`${name} — ${count} ${count === 1 ? "analysis" : "analyses"}. Double-click to open.`}
+      className={cn(
+        "flex w-[8.5rem] flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors",
+        "hover:bg-surface-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
-      {Icon ? (
-        <Icon className="size-3 shrink-0" />
-      ) : (
-        <span className="flex size-3 shrink-0 items-center justify-center">
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              marked ? "bg-primary" : "bg-transparent"
-            )}
-          />
-        </span>
-      )}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="shrink-0 tabular-nums text-micro text-muted-foreground/70">
-        {count}
+      <span className="flex h-[52px] w-full flex-col justify-end">
+        {/* The tab, a third of the width, sitting on the plate below it. */}
+        <span
+          className="h-2 w-[38%] rounded-t-[3px]"
+          style={{ background: "rgb(var(--p-line) / 0.5)" }}
+        />
+        <span
+          className="h-[34px] w-full rounded-b-sm rounded-tr-sm"
+          style={{ background: "rgb(var(--p-line) / 0.32)" }}
+        />
+      </span>
+      <span className="truncate text-emphasis text-foreground">{name}</span>
+      <span className="truncate text-micro text-muted-foreground">
+        {count} {count === 1 ? "analysis" : "analyses"}
       </span>
     </button>
   )
