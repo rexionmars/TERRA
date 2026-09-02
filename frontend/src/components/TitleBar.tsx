@@ -11,8 +11,7 @@ import {
   useEffect,
   useState,
   useSyncExternalStore,
-  type ReactNode,
-} from "react"
+  } from "react"
 import {
   BrowserOpenURL,
   Environment,
@@ -35,7 +34,6 @@ import { cn } from "@/lib/utils"
 interface TitleBarProps {
   view: { lat: number; lon: number; zoom: number }
   result: PredictResult | null
-  projectSwitcher?: ReactNode
   /**
    * Where the map screen hangs its studio toggle.
    *
@@ -105,7 +103,6 @@ function fmtCoord(v: number, pos: string, neg: string): string {
 export function TitleBar({
   view,
   result,
-  projectSwitcher,
   credit,
   boardOpen = false,
 }: TitleBarProps) {
@@ -229,7 +226,17 @@ export function TitleBar({
           nothing on screen said which project the areas drawn and the runs
           made there were being filed under.
         */}
-        {!boardOpen && projectSwitcher}
+        {/*
+          NO PROJECT SWITCHER HERE. It was withheld while the board was up, on
+          the reasoning that the studio names the open project in its own
+          block -- and the board is up whenever the studio is, which is now
+          always. So the condition was never false and the control was never
+          drawn: a switcher nobody could reach, and a project name in the
+          studio that could be read and not changed.
+
+          The studio's own block carries it now, as the first half of
+          `project > board`, which is where the name already was.
+        */}
         </span>
         {/*
           NO RUN NAME HERE.
