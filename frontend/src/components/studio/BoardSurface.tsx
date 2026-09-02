@@ -990,6 +990,36 @@ export function BoardSurface({
   const [sentToGlobe, setSentToGlobe] = useState<ReadonlySet<string>>(
     () => new Set()
   )
+  /**
+   * Which of those draw their legend on the ground beside them.
+   *
+   * A second set rather than a flag on the first, because they answer
+   * different questions: one is whether the raster is on the globe, the other
+   * is whether its legend is. A raster can be on the globe with the reader
+   * knowing perfectly well what its colours mean.
+   *
+   * Names planes for the reason the set above does -- keys, not copies -- and
+   * a plane that leaves the globe takes its legend with it because the
+   * overlay it belonged to is no longer built.
+   */
+  const [propertyOnMap, setPropertyOnMap] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const toggleGlobe = useCallback((key: string) => {
+    setSentToGlobe((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
+  }, [])
+  const toggleProperty = useCallback((key: string) => {
+    setPropertyOnMap((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
   const [naming, setNaming] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   /** Whether the title block's catalog is open. */
@@ -2524,6 +2554,11 @@ export function BoardSurface({
         // By the PLANE, area and layer together, which is what the set holds
         // and why -- see its docblock.
         onMap: sentToGlobeRef.current.has(sceneKey(groupId, id)),
+        propertyOnMap: propertyOnMapRef.current.has(sceneKey(groupId, id)),
+        /* Whether anything published what its colours mean. Resolved here, so
+           the entry is disabled rather than drawing an empty box. */
+        hasLegend: !!legendByAreaRef.current.get(groupId) &&
+          !!legendFor(id, legendByAreaRef.current.get(groupId)!),
       })
     },
     []
@@ -2563,33 +2598,37 @@ export function BoardSurface({
           255 on three stops. The globe draws what this resolved and nothing
           else.
 
-          Ramps only. A class legend is a list of swatches and belongs in the
-          panel; `caption` is absent there and the callout is not drawn.
+          Only where the reader asked. It was drawn for every raster that had
+          one, which made it a property of the raster rather than something
+          wanted: six overlays meant six boxes nobody had asked for.
         */
-        const src = legendByArea.get(a.id)
+        const src = propertyOnMap.has(key) ? legendByArea.get(a.id) : null
         const legend = src ? legendFor(l.id, src) : null
-        const caption: OverlayCaption | undefined =
-          legend?.kind === "ramp"
-            ? {
-                subject: legend.subject,
-                gradient: legend.gradient,
-                low: legend.low,
-                high: legend.high,
-                area: a.title,
-                period:
-                  assetRuns.find((r) => r.areaId === a.id)?.period ?? null,
-              }
-            : undefined
+        const caption: OverlayCaption | undefined = legend
+          ? {
+              legend,
+              area: a.title,
+              period: assetRuns.find((r) => r.areaId === a.id)?.period ?? null,
+            }
+          : undefined
         out.push({ key, layer: l, caption })
       }
     }
     return out
     // `areas` is a new array on every render, which is what keeps an edit to a
     // layer reaching the globe; sentToGlobe changes only when one is sent.
-  }, [areas, sentToGlobe, legendByArea, assetRuns])
+  }, [areas, sentToGlobe, propertyOnMap, legendByArea, assetRuns])
 
   const areasRef = useRef(areas)
   areasRef.current = areas
+  /*
+    Through refs for the reason the ones below are: openPlaneMenu is handed to
+    the scene, which holds the scope it was built in.
+  */
+  const propertyOnMapRef = useRef(propertyOnMap)
+  propertyOnMapRef.current = propertyOnMap
+  const legendByAreaRef = useRef(legendByArea)
+  legendByAreaRef.current = legendByArea
   const flatRef = useRef(flat)
   flatRef.current = flat
   /*
@@ -3972,6 +4011,14 @@ export function BoardSurface({
             sceneIds={sceneIds}
             onAddToScene={addToScene}
             onRemoveFromScene={removeFromScene}
+            globe={{
+              onGlobe: sentToGlobe,
+              withProperty: propertyOnMap,
+              onToggleGlobe: (areaId, sceneId) =>
+                toggleGlobe(sceneKey(areaId, sceneId)),
+              onToggleProperty: (areaId, sceneId) =>
+                toggleProperty(sceneKey(areaId, sceneId)),
+            }}
             names={names}
             onRename={renameRow}
             mode={modeOf(areaId)}
@@ -4930,15 +4977,13 @@ export function BoardSurface({
           that is everything needed to place it and nothing about where it sat
           in the viewport.
         */
-        onSendToMap={() => {
-          if (!planeMenu) return
-          const key = sceneKey(planeMenu.areaId, planeMenu.layerId)
-          setSentToGlobe((prev) => {
-            const next = new Set(prev)
-            if (!next.delete(key)) next.add(key)
-            return next
-          })
-        }}
+        onToggleProperty={() =>
+          planeMenu && toggleProperty(sceneKey(planeMenu.areaId, planeMenu.layerId))
+        }
+        onSendToMap={() =>
+          planeMenu &&
+          toggleGlobe(sceneKey(planeMenu.areaId, planeMenu.layerId))
+        }
         onRemove={() =>
           planeMenu && removeFromScene(planeMenu.areaId, planeMenu.layerId)
         }

@@ -24,10 +24,18 @@
  * which is what lets it stretch: the dot keeps saying which raster this is
  * while the box goes wherever it is not in the way.
  *
- * RAMPS ONLY. A class legend is a list of swatches -- MapBiomas alone runs to
- * dozens -- and a list that long over imagery is a panel that happens to be
- * floating. Where the legend is not a ramp, nothing is drawn and the panel
- * remains the place it is read.
+ * EVERY KIND OF LEGEND, CUT TO WHAT A FLOATING BOX CAN HOLD. A ramp is a bar
+ * and two ends and fits whole. A class list does not: MapBiomas runs to dozens,
+ * and that many swatches over imagery is a panel that happens to be floating.
+ * So the classes are cut to the largest few, ordered by share, with a line
+ * saying how many were left -- and the panel, which has the height for all of
+ * them, stays where the whole list is read.
+ *
+ * SHOWN BY ASKING. It used to appear for every ramp raster sent to the globe,
+ * which made it a property of the raster rather than a thing the reader wanted:
+ * six overlays meant six boxes nobody had asked for. It is a toggle now, on
+ * the plane and on the tree row, and several can be up at once because
+ * comparing two legends is the case that needs them both.
  *
  * Position is per session and per raster, not stored. Where a reader wants a
  * legend is a function of what they are looking at right now, which is exactly
@@ -42,6 +50,8 @@ import {
 } from "react"
 import { Marker, type Map as MapLibreMap } from "maplibre-gl"
 import { createRoot, type Root } from "react-dom/client"
+
+import type { LayerLegend } from "@/lib/layerLegend"
 
 /** Where the box starts, in pixels from the anchor. Up and to the left of it. */
 const START_X = -232
@@ -62,13 +72,19 @@ const BOX_H_GUESS = 92
 /** The straight run the leader takes off the box before it turns. */
 const STUB = 22
 
+/** How many classes or figures a floating box carries before it is a panel. */
+const MAX_ROWS = 5
+
 export interface OverlayCaption {
-  /** What is measured, and in what unit: "Irradiation · kWh/m2/year". */
-  subject: string
-  /** The CSS gradient the raster was painted from, never written by hand. */
-  gradient: string
-  low: string
-  high: string
+  /**
+   * The legend itself, as the panel resolved it.
+   *
+   * The whole model rather than a flattened copy of the parts a ramp needs.
+   * lib/layerLegend.ts records what a second, hand-kept description of a
+   * raster's colours cost the last time there was one: a disagreement with the
+   * renderer of up to 40 of 255 on three stops.
+   */
+  legend: NonNullable<LayerLegend>
   /** The ground it was measured over. */
   area: string
   /** The acquisition window, where the product has one. */
@@ -187,6 +203,122 @@ function leaderPath(dx: number, dy: number, boxH: number): string {
   const x = Math.min(Math.max(0, left + 24), right - 24)
   const stub = bottom < 0 ? STUB : -STUB
   return `M ${x} ${y} L ${x} ${y + stub} L 0 0`
+}
+
+/** A gradient bar and the two ends it runs between. */
+function Ramp({
+  gradient,
+  low,
+  high,
+}: {
+  gradient: string
+  low: string
+  high: string
+}) {
+  return (
+    <>
+      <div
+        className="mt-1.5 h-1.5 w-full rounded-[1px]"
+        style={{ background: gradient }}
+      />
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        <span className="telemetry text-micro text-muted-foreground">{low}</span>
+        <span className="telemetry text-micro text-muted-foreground">
+          {high}
+        </span>
+      </div>
+    </>
+  )
+}
+
+/**
+ * What the legend says, cut to what a floating box can hold.
+ *
+ * The three kinds are the panel's own -- a ramp, a list of classes, or the
+ * figures a run measured where its colour mapping is not published. Only the
+ * first fits whole; the other two are cut to MAX_ROWS with a line saying what
+ * was left, because the alternative to cutting is a box as tall as the panel
+ * standing over the raster it describes.
+ *
+ * Classes are cut BY SHARE, largest first. Cut in the order the payload lists
+ * them, a legend over a soybean field could report five classes covering four
+ * percent of it and omit the one covering ninety.
+ */
+function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
+  if (legend.kind === "ramp") {
+    return (
+      <Ramp gradient={legend.gradient} low={legend.low} high={legend.high} />
+    )
+  }
+
+  if (legend.kind === "classes") {
+    const ordered = [...legend.entries].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
+    const shown = ordered.slice(0, MAX_ROWS)
+    const rest = ordered.length - shown.length
+    return (
+      <div className="mt-1.5 flex flex-col gap-0.5">
+        {shown.map((c) => (
+          <div key={c.name} className="flex items-baseline gap-1.5">
+            <span
+              className="size-2 shrink-0 translate-y-[1px] rounded-[1px]"
+              style={{ background: c.color }}
+            />
+            <span className="min-w-0 flex-1 truncate text-micro text-foreground">
+              {c.name}
+            </span>
+            {c.pct != null && (
+              <span className="telemetry shrink-0 text-micro text-muted-foreground">
+                {c.pct.toFixed(1)}%
+              </span>
+            )}
+          </div>
+        ))}
+        {rest > 0 && (
+          <p className="mt-0.5 text-micro text-muted-foreground/70">
+            {rest} more {rest === 1 ? "class" : "classes"} in the properties
+            panel
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (legend.kind === "note") {
+    return (
+      <p className="mt-1.5 text-micro leading-relaxed text-muted-foreground">
+        {legend.note}
+      </p>
+    )
+  }
+
+  const shown = legend.rows.slice(0, MAX_ROWS)
+  const rest = legend.rows.length - shown.length
+  return (
+    <div className="mt-1.5 flex flex-col gap-0.5">
+      {shown.map((r) => (
+        <div key={r.label} className="flex items-baseline justify-between gap-2">
+          <span className="min-w-0 truncate text-micro text-muted-foreground">
+            {r.label}
+          </span>
+          <span className="telemetry shrink-0 text-micro text-foreground">
+            {r.value}
+          </span>
+        </div>
+      ))}
+      {rest > 0 && (
+        <p className="mt-0.5 text-micro text-muted-foreground/70">
+          {rest} more in the properties panel
+        </p>
+      )}
+      {legend.ramp && (
+        <Ramp
+          gradient={legend.ramp.gradient}
+          low={legend.ramp.low}
+          high={legend.ramp.high}
+        />
+      )}
+    </div>
+  )
 }
 
 function CalloutBody({ caption }: { caption: OverlayCaption }) {
@@ -326,7 +458,7 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
         }}
       >
         <p className="eyebrow !text-[9px] truncate text-primary">
-          {caption.subject}
+          {caption.legend.subject}
         </p>
         <p className="mt-0.5 truncate text-emphasis italic text-foreground">
           {caption.area}
@@ -336,18 +468,7 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
             {caption.period}
           </p>
         )}
-        <div
-          className="mt-1.5 h-1.5 w-full rounded-[1px]"
-          style={{ background: caption.gradient }}
-        />
-        <div className="mt-1 flex items-baseline justify-between gap-2">
-          <span className="telemetry text-micro text-muted-foreground">
-            {caption.low}
-          </span>
-          <span className="telemetry text-micro text-muted-foreground">
-            {caption.high}
-          </span>
-        </div>
+        <LegendBody legend={caption.legend} />
       </div>
     </div>
   )

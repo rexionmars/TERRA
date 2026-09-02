@@ -26,6 +26,7 @@ import {
   Eye,
   EyeSlash,
   MapTrifold as MapIcon,
+  Note,
   Stack,
   Trash,
 } from "@phosphor-icons/react"
@@ -62,6 +63,15 @@ export interface PlaneContextTarget {
    * the gesture. The label says which way the entry goes.
    */
   onMap: boolean
+  /** Whether its legend is drawn on the globe beside it. */
+  propertyOnMap: boolean
+  /**
+   * Whether anything published what its colours mean.
+   *
+   * A raster can have none -- see lib/layerLegend.ts, which returns null
+   * rather than composing a description of a mapping nobody stated.
+   */
+  hasLegend: boolean
 }
 
 export function PlaneContextMenu({
@@ -73,6 +83,7 @@ export function PlaneContextMenu({
   onSolo,
   onFit,
   onSendToMap,
+  onToggleProperty,
   onRemove,
 }: {
   target: PlaneContextTarget | null
@@ -99,6 +110,8 @@ export function PlaneContextMenu({
    * result appeared somewhere they had to leave the studio to find.
    */
   onSendToMap: () => void
+  /** Draw this raster's legend on the globe, tied to the ground it measures. */
+  onToggleProperty: () => void
   onRemove: () => void
 }) {
   return (
@@ -182,6 +195,41 @@ export function PlaneContextMenu({
         checked={target.onMap}
         onSelect={() => {
           onSendToMap()
+          onClose()
+        }}
+      />
+      {/*
+        The legend, on the ground rather than in the panel at the edge.
+
+        DISABLED RATHER THAN HIDDEN where the plane is not on the globe. The
+        entry is what says the legend is drawn beside the raster, and one that
+        appeared only once the raster was already there would never teach that.
+        Its title says what is missing.
+
+        Also disabled where the layer HAS no legend: lib/layerLegend.ts returns
+        none for a raster whose colours nothing published, and an entry that
+        drew an empty box would be a control that appears to fail.
+      */}
+      <StudioMenuItem
+        icon={Note}
+        label={
+          target.propertyOnMap
+            ? "Hide the property on the map"
+            : "Show the property on the map"
+        }
+        title={
+          !target.hasLegend
+            ? "Nothing published what this raster's colours mean"
+            : !target.onMap
+              ? "Show it on the globe first; the legend is drawn beside it"
+              : target.propertyOnMap
+                ? "The globe keeps the raster and stops drawing its legend"
+                : "Its legend, tied to the ground it measures"
+        }
+        checked={target.propertyOnMap}
+        disabled={!target.onMap || !target.hasLegend}
+        onSelect={() => {
+          onToggleProperty()
           onClose()
         }}
       />
