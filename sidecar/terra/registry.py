@@ -33,6 +33,7 @@ ACTIONS: dict[str, str] = {
     'domain_shift_cohort': 'terra.landcover.actions:domain_shift_cohort',
     'water': 'terra.water.actions:water',
     'flood_envelope': 'terra.flood.actions:flood_envelope',
+    'flood_routing': 'terra.flood.actions:flood_routing',
     'solar_resource': 'terra.energy.actions:solar_resource',
     'solar_terrain': 'terra.energy.actions:solar_terrain',
     'solar_siting': 'terra.energy.actions:solar_siting',
