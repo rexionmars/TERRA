@@ -67,7 +67,6 @@ interface TitleBarProps {
    * same reason -- a control with one owner that has to be drawn inside
    * another's DOM.
    */
-  boardSlotRef?: (el: HTMLDivElement | null) => void
   layoutMode?: LayoutMode
   onLayoutModeChange?: (mode: LayoutMode) => void
   /**
@@ -128,7 +127,6 @@ export function TitleBar({
   result,
   projectSwitcher,
   runLabel,
-  boardSlotRef,
   layoutMode = "docked",
   onLayoutModeChange,
   credit,
@@ -171,8 +169,7 @@ export function TitleBar({
       cancelled = true
     }
   }, [])
-  const onMap = screen === "studio"
-  const hasMap = onMap || screen === "energy"
+  const hasMap = screen === "studio" || screen === "energy"
   // The map's own readings, which need the map to be on screen to mean
   // anything. The board slot and the layout toggle stay on `hasMap`: they are
   // how the studio is left, so hiding them inside it would strand the user.
@@ -324,7 +321,7 @@ export function TitleBar({
             )}
             {/* The pill counts the scenes behind a classification, which the
                 energy products never read, so it stays on the map screen. */}
-            {onMap && result && (
+            {screen === "studio" && result && (
               <>
                 <span className="hairline h-4 w-px self-center border-l" />
                 <span className="status-pill text-place/80">
@@ -367,23 +364,6 @@ export function TitleBar({
           </button>
         )}
 
-        {/*
-          The studio toggle, between the account and the layout switch.
-
-          Up here rather than on the surfaces that used to carry it, because
-          those two mounts each had a layout they could not serve: the island's
-          copy exists only in the workspace layout, and Leaflet's copy goes
-          UNDER the board, an entry with no matching exit. This bar is above
-          the board in both layouts -- it is the first child of a full-height
-          flex column and the board is inset within the screen below it -- so
-          one mount now does what two could not.
-
-          Only where there is a map: an empty host still takes a gap-3 from
-          this row, which would open a hole on every other screen.
-        */}
-        {hasMap && (
-          <div ref={boardSlotRef} className="app-no-drag flex items-center" />
-        )}
 
         {/*
           Wherever there is a map to lay out, and NOT while the studio covers

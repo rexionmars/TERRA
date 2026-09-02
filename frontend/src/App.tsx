@@ -759,26 +759,14 @@ function AppBody(props: {
     []
   )
 
-  /**
-   * The title bar's host element for the map screen's studio toggle.
-   *
-   * A DOM node, not a board state. The button is drawn in the bar because the
-   * bar is above the board in both layouts, and the two surfaces that used to
-   * carry it each had a layout they could not serve. What stays in the map
-   * screen is whether the board is open -- deliberately, so leaving the screen
-   * and coming back gives the map. Same bridge as MapView's BottomRightSlot.
-   */
   /*
-    Whether the studio covers the map, mirrored here for the title bar alone.
+    Whether the studio's board is up, mirrored here for the title bar.
 
-    The state itself stays in the map screen -- it must not survive a trip to
-    another screen -- and this is a report of it, reset when the screen changes
-    so a stale `true` cannot outlive the screen that set it.
+    It is always true while the studio screen is mounted -- the board is the
+    screen now -- and false everywhere else, which is what the bar reads to
+    decide whether the map's own telemetry has anything to describe.
   */
   const [boardOpen, setBoardOpen] = useState(false)
-  const [boardSlotHost, setBoardSlotHost] = useState<HTMLDivElement | null>(
-    null
-  )
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
 
   /*
@@ -3387,7 +3375,6 @@ function AppBody(props: {
           open stays in the screen, which is the only place it can stay without
           surviving a trip to another screen.
         */
-        boardSlotRef={setBoardSlotHost}
         boardOpen={boardOpen}
         result={props.result}
         runLabel={currentRunLabel}
@@ -3498,7 +3485,6 @@ function AppBody(props: {
                   retainedRuns={props.retainedRuns}
                   onDropRetainedRun={props.onDropRetainedRun}
                   onCreditChange={setCredit}
-                  titleBarSlot={boardSlotHost}
                   onBoardOpenChange={setBoardOpen}
                   /*
                     The two solar rasters, so the board can lift them like any

@@ -21,7 +21,7 @@ import {
   ChartColumn,
   ChevronRight,
   LogIn,
-  Map as MapIcon,
+  Layers3,
   UserRound,
   Waves,
   Zap,
@@ -88,7 +88,7 @@ export function AppNav({
     goFlood,
   } = useAuth()
 
-  const onMap = screen === "studio"
+  const onStudio = screen === "studio"
   const onEnergy = screen === "energy"
 
   /**
@@ -106,7 +106,7 @@ export function AppNav({
    * stored preference.
    */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    map: true,
+    studio: true,
     energy: true,
   })
   const toggle = (id: string) =>
@@ -115,7 +115,7 @@ export function AppNav({
   const mapChildren: NavChild[] = MAP_TOOLS.map((t) => ({
     key: t.id,
     label: t.label,
-    active: onMap && leftPanel === t.id,
+    active: onStudio && leftPanel === t.id,
     onSelect: () => {
       selectPanel(t.id)
       goStudio()
@@ -159,12 +159,12 @@ export function AppNav({
       <nav aria-label="Sections" className="flex flex-1 flex-col gap-0.5 p-2">
         <NavItem
           id="studio"
-          active={onMap}
-          label="Map"
+          active={onStudio}
+          label="Studio"
           onClick={goStudio}
-          icon={<MapIcon className="size-4" />}
+          icon={<Layers3 className="size-4" />}
           items={mapChildren}
-          expanded={expanded.map}
+          expanded={expanded.studio}
           onToggleExpanded={() => toggle("studio")}
         />
         {/* Zap rather than Sun or Wind: the screen holds both resources, and
