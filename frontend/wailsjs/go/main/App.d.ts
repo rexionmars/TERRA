@@ -20,6 +20,8 @@ export function AnalyzeGridCurtailment(arg1:analysis.GridCurtailmentRequest):Pro
 
 export function AnalyzeGridFigure(arg1:analysis.GridFigureRequest):Promise<analysis.GridFigureAnalysis>;
 
+export function AnalyzeFloodRouting(arg1:analysis.FloodRoutingRequest):Promise<analysis.FloodRoutingAnalysis>;
+
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
 
 export function AnalyzeSolar(arg1:analysis.SolarRequest):Promise<analysis.SolarAnalysis>;

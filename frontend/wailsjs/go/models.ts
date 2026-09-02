@@ -3618,6 +3618,212 @@ export namespace analysis {
 		    return a;
 		}
 	}
+	export class FloodRoutingAOI {
+	    cells: number;
+	    area_km2: number;
+	    flooded_cells: number;
+	    flooded_km2: number;
+	    flooded_fraction: number;
+	    on_boundary_fraction: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRoutingAOI(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cells = source["cells"];
+	        this.area_km2 = source["area_km2"];
+	        this.flooded_cells = source["flooded_cells"];
+	        this.flooded_km2 = source["flooded_km2"];
+	        this.flooded_fraction = source["flooded_fraction"];
+	        this.on_boundary_fraction = source["on_boundary_fraction"];
+	    }
+	}
+	export class FloodRoutingRain {
+	    mm_h: number;
+	    minutes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRoutingRain(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mm_h = source["mm_h"];
+	        this.minutes = source["minutes"];
+	    }
+	}
+	export class FloodRoutingVolume {
+	    in_m3: number;
+	    stored_m3: number;
+	    out_m3: number;
+	    clipped_m3: number;
+	    left_fraction: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRoutingVolume(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.in_m3 = source["in_m3"];
+	        this.stored_m3 = source["stored_m3"];
+	        this.out_m3 = source["out_m3"];
+	        this.clipped_m3 = source["clipped_m3"];
+	        this.left_fraction = source["left_fraction"];
+	    }
+	}
+	export class FloodRoutingSpread {
+	    median?: number;
+	    p90?: number;
+	    max?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRoutingSpread(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.median = source["median"];
+	        this.p90 = source["p90"];
+	        this.max = source["max"];
+	    }
+	}
+	export class FloodRoutingCellSize {
+	    x: number;
+	    y: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRoutingCellSize(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	    }
+	}
+	export class FloodRoutingAnalysis {
+	    dem_id: string;
+	    minutes: number;
+	    manning: number;
+	    steps: number;
+	    void_cells_filled: number;
+	    lake_at_rest_residual_ms: number;
+	    resolution_m: number;
+	    coarsened_from_m?: number;
+	    grid: FloodGrid;
+	    cell_size_m: FloodRoutingCellSize;
+	    aoi: FloodRoutingAOI;
+	    depth_m: FloodRoutingSpread;
+	    speed_ms: FloodRoutingSpread;
+	    arrival_min: FloodRoutingSpread;
+	    volume: FloodRoutingVolume;
+	    rain: FloodRoutingRain;
+	    assumptions: Record<string, string>;
+	    depth_tif: string;
+	    depth_png: string;
+	    depth_uri?: string;
+	    depth_png_max_m: number;
+	    extent: Bounds;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRoutingAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dem_id = source["dem_id"];
+	        this.minutes = source["minutes"];
+	        this.manning = source["manning"];
+	        this.steps = source["steps"];
+	        this.void_cells_filled = source["void_cells_filled"];
+	        this.lake_at_rest_residual_ms = source["lake_at_rest_residual_ms"];
+	        this.resolution_m = source["resolution_m"];
+	        this.coarsened_from_m = source["coarsened_from_m"];
+	        this.grid = this.convertValues(source["grid"], FloodGrid);
+	        this.cell_size_m = this.convertValues(source["cell_size_m"], FloodRoutingCellSize);
+	        this.aoi = this.convertValues(source["aoi"], FloodRoutingAOI);
+	        this.depth_m = this.convertValues(source["depth_m"], FloodRoutingSpread);
+	        this.speed_ms = this.convertValues(source["speed_ms"], FloodRoutingSpread);
+	        this.arrival_min = this.convertValues(source["arrival_min"], FloodRoutingSpread);
+	        this.volume = this.convertValues(source["volume"], FloodRoutingVolume);
+	        this.rain = this.convertValues(source["rain"], FloodRoutingRain);
+	        this.assumptions = source["assumptions"];
+	        this.depth_tif = source["depth_tif"];
+	        this.depth_png = source["depth_png"];
+	        this.depth_uri = source["depth_uri"];
+	        this.depth_png_max_m = source["depth_png_max_m"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class FloodRoutingRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    dem_id?: string;
+	    resolution_m?: number;
+	    buffer_m?: number;
+	    minutes?: number;
+	    manning?: number;
+	    rain_mm_h?: number;
+	    rain_minutes?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FloodRoutingRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.dem_id = source["dem_id"];
+	        this.resolution_m = source["resolution_m"];
+	        this.buffer_m = source["buffer_m"];
+	        this.minutes = source["minutes"];
+	        this.manning = source["manning"];
+	        this.rain_mm_h = source["rain_mm_h"];
+	        this.rain_minutes = source["rain_minutes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	export class GridAttachment {
 	    id_ons: string;

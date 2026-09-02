@@ -344,6 +344,25 @@ func (a *App) AnalyzeFlood(req analysis.FloodRequest) (*analysis.FloodAnalysis, 
 	return res, nil
 }
 
+/*
+AnalyzeFloodRouting routes a flow over the AOI: depth, speed and arrival.
+
+DELIBERATELY NOT PERSISTED, unlike every analysis above it. This is a temporary
+module and a run of it is a parameter sweep -- volume, peak, roughness, cell
+size -- where the interesting object is the comparison between runs and not any
+one of them. Persisting each would fill the run store with sweep members before
+anyone has decided what a keepable run of this product even is. The result
+lives as long as the panel holds it; that is the whole contract for now, and it
+is why this returns no RunID while its neighbours do.
+*/
+func (a *App) AnalyzeFloodRouting(req analysis.FloodRoutingRequest) (*analysis.FloodRoutingAnalysis, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	return runner.AnalyzeFloodRouting(a.ctx, req)
+}
+
 // floodProductIDs lists which DEM products the envelope was measured over, for
 // the run row. The envelope is a property of the set, so a range listed without
 // the set it spans is not attributable to anything.

@@ -1,0 +1,75 @@
+{
+ "flood_routing": {
+  "dem_id": "cop30",
+  "minutes": 60.0,
+  "manning": 0.05,
+  "steps": 1800,
+  "lake_at_rest_residual_ms": 2.2292147019970933e-14,
+  "resolution_m": 90.0,
+  "coarsened_from_m": 30.7,
+  "void_cells_filled": 0,
+  "grid": {
+   "width": 132,
+   "height": 157,
+   "bounds": {
+    "lon_min": 85.28152777777778,
+    "lat_min": 28.11731185794986,
+    "lon_max": 85.38900018595582,
+    "lat_max": 28.24513888888889
+   }
+  },
+  "cell_size_m": {
+   "x": 79.89115609520027,
+   "y": 90.0
+  },
+  "aoi": {
+   "cells": 9184,
+   "area_km2": 66.0348,
+   "flooded_cells": 6219,
+   "flooded_km2": 44.7159,
+   "flooded_fraction": 0.6772,
+   "on_boundary_fraction": 0.0399
+  },
+  "depth_m": {
+   "median": 0.037,
+   "p90": 0.114,
+   "max": 10.569
+  },
+  "speed_ms": {
+   "median": 0.035,
+   "p90": 0.104,
+   "max": 0.687
+  },
+  "arrival_min": {
+   "median": 15.1,
+   "p90": 20.367,
+   "max": 59.533
+  },
+  "rain": {
+   "mm_h": 80.0,
+   "minutes": 30.0
+  },
+  "volume": {
+   "in_m3": 5967014.2,
+   "stored_m3": 5899485.4,
+   "out_m3": 67528.8,
+   "clipped_m3": 0.0,
+   "left_fraction": 0.0113
+  },
+  "assumptions": {
+   "water": "Clear water over a fixed bed, depth-averaged, with one Manning n of 0.05 for the whole domain, and no infiltration: every millimetre that falls stays on the surface. A real catchment absorbs some of it, so the depths here are an upper bound on what the same rain would leave.",
+   "terrain": "cop30 at 90 m, coarsened from 31 m, read 2018 m beyond the AOI, with its closed depressions filled before routing. The filling is not cosmetic: a solver takes a sampling artefact in a channel literally, water runs in and stops, and the run reports a pond level instead of a flow. Every figure above is taken over the cells inside the AOI polygon; the buffer exists so the flow arrives correctly and is not reported on.",
+   "boundary": "Every edge is free outflow, and one-way: water reaching a boundary leaves, and 1% of what fell had left by the end of the run. A domain that stores everything it was given never reached an outlet, and its depths are a filling level rather than a flow.",
+   "aoi_fit": "4% of the flooded cells lie on the AOI boundary itself. A channel crossing an area touches that ring twice, where it enters and where it leaves, so a low share means the reach is inside the polygon. A high one means the polygon clips the valley rather than holding it: the routing is still correct, but what is reported is the fragment that fell inside the drawing."
+  },
+  "depth_tif": "<work_dir>/flood_depth.tif",
+  "depth_png": "<work_dir>/flood_depth.png",
+  "depth_png_max_m": 0.683,
+  "extent": {
+   "lon_min": 85.30188240053877,
+   "lat_min": 28.135223925979535,
+   "lon_max": 85.36864556319483,
+   "lat_max": 28.226412635948776
+  }
+ }
+}

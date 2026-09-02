@@ -1957,6 +1957,88 @@ func (r *Runner) AnalyzeFlood(ctx context.Context, req FloodRequest) (*FloodAnal
 	return wrapped.Flood, nil
 }
 
+/*
+AnalyzeFloodRouting routes rainfall over the AOI and returns depth, speed and
+arrival as fields.
+
+Separate from AnalyzeFlood because the products are separate: the envelope is a
+static disagreement measure over four DEMs, this moves water over one. They
+share a slice in the sidecar and nothing else.
+*/
+func (r *Runner) AnalyzeFloodRouting(ctx context.Context, req FloodRoutingRequest) (*FloodRoutingAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.PolygonGeoJSON == nil {
+		return nil, fmt.Errorf("no polygon provided")
+	}
+
+	workDir, err := os.MkdirTemp("", "terra-flood-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create work dir: %w", err)
+	}
+	// Kept, for the reason AnalyzeFlood gives: DepthTIF is a path into this
+	// directory and nothing copies it out, so a defer would hand the caller a
+	// path to a file that no longer exists. The prefix is in
+	// keptWorkDirPrefixes, which is what bounds the directory.
+
+	payload := map[string]any{
+		"action":          "flood_routing",
+		"polygon_geojson": req.PolygonGeoJSON,
+		"work_dir":        workDir,
+	}
+	// Each parameter travels only when the caller set it, so absence keeps
+	// selecting the sidecar's default rather than sending a zero that the
+	// sidecar would have to distinguish from a real request.
+	if req.DEMID != "" {
+		payload["dem_id"] = req.DEMID
+	}
+	for key, value := range map[string]*float64{
+		"resolution_m": req.ResolutionM,
+		"buffer_m":     req.BufferM,
+		"minutes":      req.Minutes,
+		"manning":      req.Manning,
+		"rain_mm_h":    req.RainMMH,
+		"rain_minutes": req.RainMinutes,
+	} {
+		if value != nil {
+			payload[key] = *value
+		}
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Routing *FloodRoutingAnalysis `json:"flood_routing"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse flood routing result: %w", err)
+	}
+	if wrapped.Routing == nil {
+		return nil, fmt.Errorf("sidecar returned empty flood routing payload")
+	}
+
+	// The overlay becomes a data URI here, as every other raster does: the
+	// webview is served from its own origin and cannot open a path on disk. A
+	// failure to read it leaves DepthURI empty rather than discarding the run,
+	// because every figure in the payload stands without the picture.
+	if wrapped.Routing.DepthPNG != "" {
+		if uri, uerr := pngToDataURI(wrapped.Routing.DepthPNG); uerr == nil {
+			wrapped.Routing.DepthURI = uri
+		}
+	}
+	wrapped.Routing.NormalizeNilSlices()
+	return wrapped.Routing, nil
+}
+
 // The largest field the runner will carry back to the webview.
 //
 // The grid crosses as base64 inside a Wails return, so its cost is memory on
