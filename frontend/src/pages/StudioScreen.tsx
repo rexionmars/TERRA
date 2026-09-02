@@ -7,6 +7,7 @@ import type {
   CompositeKind,
   DataCubeResult,
   DataCubeScene,
+  FloodAnalysis,
   GeoJSONGeometry,
   ModelKind,
   PredictResult,
@@ -14,6 +15,7 @@ import type {
   SolarTerrainAnalysis,
   WaterAnalysis,
   WaterIndex,
+  WindAnalysis,
 } from "@/lib/types"
 import {
   panelSelection,
@@ -293,12 +295,19 @@ export interface StudioScreenProps {
   windBusy?: boolean
   windProgress?: number
   windProgressMsg?: string
+  /** The AOI as GeoJSON text, for the research pack's manifest. */
+  polygonGeoJSON?: string
+  /** What the screening found, for the editor that reads it. */
+  windResult?: WindAnalysis | null
+  onClearWind?: () => void
   floodParams?: FloodParams
   onFloodParamsChange?: (patch: Partial<FloodParams>) => void
   onRunFlood?: () => void
   floodBusy?: boolean
   floodProgress?: number
   floodProgressMsg?: string
+  floodResult?: FloodAnalysis | null
+  onClearFlood?: () => void
   waterIndex: WaterIndex
   waterRunning: boolean
   waterProgress: number
@@ -1141,6 +1150,11 @@ export function StudioScreen(props: StudioScreenProps) {
             onOpenStudio={props.onOpenStudio}
             onNewStudio={props.onNewStudio}
             onStudiosMenu={props.onStudiosMenu}
+            polygonGeoJSON={props.polygonGeoJSON}
+            windResult={props.windResult}
+            onClearWind={props.onClearWind}
+            floodResult={props.floodResult}
+            onClearFlood={props.onClearFlood}
             /*
               WHERE A FAILED SURFACE GOES, which used to be the map underneath.
 

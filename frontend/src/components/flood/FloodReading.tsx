@@ -55,7 +55,6 @@ import { useId, useState } from "react"
 import { ChevronDown, Trash2 } from "lucide-react"
 
 import { Chip, Stat, WaterFigure } from "@/components/analysisPrimitives"
-import { PanelShell } from "@/components/ui/PanelShell"
 import { btnIcon } from "@/components/ui/buttons"
 import {
   agreementDry,
@@ -80,25 +79,26 @@ export function FloodReadingColumn({
   flood,
   overlay,
   onClear,
-  onCollapse,
 }: {
   flood: FloodAnalysis
   /**
-   * The raster on the map, controlled from beside its legend.
+   * The raster on a map, controlled from beside its legend.
    *
-   * The switch is here, where the colours are named, and not in the parameters
-   * column. The state is the screen's, so the map and this column cannot
-   * disagree about what is drawn.
+   * Optional, and absent in the studio. On the flood screen this switch sat
+   * here, where the colours are named, rather than in the parameters column,
+   * and the state was the screen's so the map and this reading could not
+   * disagree about what was drawn. The studio has no second place to disagree
+   * with: what is drawn is what the outliner lists, and a visibility control
+   * here as well would be the duplication that rule exists to prevent.
    */
-  overlay: {
+  overlay?: {
     visible: boolean
     opacity: number
     onVisibleChange: (v: boolean) => void
     onOpacityChange: (v: number) => void
   }
-  /** Drops the result. The AOI it was measured over stays on the map. */
+  /** Drops the result. The AOI it was measured over stays. */
   onClear: () => void
-  onCollapse: () => void
 }) {
   const levels = agreementLevels(flood.agreement, flood.cell_size_m)
   const dry = agreementDry(flood.agreement, flood.cell_size_m)
@@ -109,12 +109,8 @@ export function FloodReadingColumn({
   const ordered = [...levels].reverse()
 
   return (
-    <PanelShell
-      placement="reading"
-      title="Flood envelope"
-      onCollapse={onCollapse}
-    >
-      <div className="-mx-4 flex shrink-0 flex-col gap-1.5 border-b border-[var(--hairline)] px-4 pb-2">
+    <div className="flex h-full min-h-0 flex-col gap-2 p-3">
+      <div className="flex shrink-0 flex-col gap-1.5 border-b border-[var(--hairline)] pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-wrap gap-1">
             <Chip>{`HAND <= ${flood.reference_threshold_m} m`}</Chip>
@@ -138,13 +134,15 @@ export function FloodReadingColumn({
         </p>
       </div>
 
-      <div className="panel-scroll relative -mx-4 -mb-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
+      <div className="panel-scroll relative flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <Block title="Agreement over the AOI" defaultOpen={true}>
-          <MapLayerControl
-            drawn={!!flood.agreement_uri}
-            threshold={flood.reference_threshold_m}
-            overlay={overlay}
-          />
+          {overlay && (
+            <MapLayerControl
+              drawn={!!flood.agreement_uri}
+              threshold={flood.reference_threshold_m}
+              overlay={overlay}
+            />
+          )}
           <AgreementLegend levels={ordered} dry={dry} />
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
             <WaterFigure
@@ -326,7 +324,7 @@ export function FloodReadingColumn({
           </div>
         </Block>
       </div>
-    </PanelShell>
+    </div>
   )
 }
 
