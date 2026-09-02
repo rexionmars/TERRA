@@ -119,18 +119,18 @@ export const TOKENS = {
     ink: [33, 33, 33],
     surface: [47, 47, 47],
     surfaceRaised: [67, 67, 67],
-    line: [75, 75, 75],
-    lineStrong: [127, 127, 127],
+    line: [91, 91, 91],
+    lineStrong: [145, 145, 145],
     text: [221, 221, 221],
-    muted: [161, 161, 161],
+    muted: [184, 184, 184],
     accent: [237, 135, 68],
     accentQuiet: [240, 155, 99],
     accentDim: [83, 40, 12],
-    destructive: [160, 44, 44],
+    destructive: [159, 43, 58],
     success: [111, 156, 90],
-    warning: [217, 164, 65],
+    warning: [213, 190, 75],
     destructiveForeground: [221, 221, 221],
-    destructiveQuiet: [224, 138, 120],
+    destructiveQuiet: [248, 152, 158],
   },
   light: {
     ink: [241, 241, 241],
@@ -143,11 +143,11 @@ export const TOKENS = {
     accent: [186, 58, 18],
     accentQuiet: [158, 48, 14],
     accentDim: [240, 214, 198],
-    destructive: [179, 58, 26],
+    destructive: [178, 54, 69],
     success: [63, 107, 44],
-    warning: [138, 90, 16],
+    warning: [135, 112, 0],
     destructiveForeground: [249, 249, 249],
-    destructiveQuiet: [158, 43, 37],
+    destructiveQuiet: [163, 43, 59],
   },
 } as const satisfies Record<string, Record<string, Channels>>
 
@@ -175,14 +175,17 @@ export type ThemeName = keyof typeof TOKENS
  * you whether it still needed to be there. An entry that no longer describes a
  * failure is itself reported as a failure.
  */
-export const ACCEPTED: Record<string, string> = {
-  "dark.muted.surfaceRaised":
-    "secondary text on a card; 175 would clear 4.5 and was not taken",
-  "dark.lineStrong.surfaceRaised":
-    "the border between a card and its panel; 142 would clear 3.0",
-  "dark.destructiveQuiet.surfaceRaised":
-    "error text on a card; #E59E8F would clear 4.5",
-}
+/*
+  EMPTY, AND THE THREE THAT WERE HERE WERE TAKEN.
+
+  Each named the value that would have cleared its floor -- 175 for muted, 142
+  for lineStrong, #E59E8F for destructiveQuiet -- and each said the value "was
+  not taken". What changed is that APCA now reports beside the ratio, and it
+  put every one of those pairs between Lc 41 and 49, under the floor for body
+  text. A pair excused at 3.83 that also reads at Lc -41 is not a pair anyone
+  is choosing to keep; it is one nobody had a second opinion on.
+*/
+export const ACCEPTED: Record<string, string> = {}
 export type TokenName = keyof (typeof TOKENS)["dark"]
 
 export interface ContrastRule {

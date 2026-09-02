@@ -109,34 +109,33 @@ const SOURCES_REM = 11.5
 const TILE_PLATE = "h-[4.5rem] w-full shrink-0 overflow-hidden rounded-sm"
 
 /**
- * The products, in the order the run band offers them, with the colour each
- * one's plate carries.
+ * The products, and the token each one's plate is tinted with.
  *
- * CATEGORICAL, and declared here because there is nowhere else. The palette
- * tokens name roles in the interface -- primary, accent, destructive -- and a
- * product is not a role; the rasters' own scales are continuous and per-run,
- * so a product has no established colour to borrow. These are five hues chosen
- * to be told apart at tile size, which is the only job they do.
+ * THE COLOURS ARE NOT HERE ANY MORE. They were: five HSL triples invented in
+ * this file at the moment the grid needed them, because the palette declared
+ * no categorical scale and a product is not a role the semantic tokens name.
+ * One of them landed on the accent's own hue -- a solar tile and the primary
+ * action were the same orange -- which is what a scale nobody declares costs.
  *
- * The classification is neutral rather than a sixth hue. It is the ordinary
- * case and by far the most common, so a grid of them reads as a grid of runs,
- * and the four specialised products are what stand out -- which is the question
- * the colour is here to answer. Giving it a hue of its own also put it 18
- * degrees from the flood's, which is not a distinction at 52 pixels.
+ * They are `--p-kind-*` in index.css now, spread by hue in OKLCH and held at
+ * lower chroma than the semantic tokens so a label does not compete with the
+ * things that are asking for something. The argument is written there.
  *
- * These are literal because they are data, not theme: a run's product does not
- * change between light and dark. The plate holds them at 0.14 and the glyph at
- * full, so neither is carrying small text on a tinted ground -- see
- * lib/contrast.ts, which the check script measures the tokens against and
- * cannot measure these.
+ * The classification is the neutral one. It is the ordinary case and by far
+ * the most common, so a grid of them reads as a grid of runs and the four
+ * specialised products are what stand out -- which is the question the colour
+ * is here to answer.
  */
 const KINDS = [
-  { id: "class", label: "Classification", hue: "215 16% 62%" },
-  { id: "water", label: "Surface water", hue: "173 80% 40%" },
-  { id: "solar", label: "Solar", hue: "38 92% 50%" },
-  { id: "wind", label: "Wind", hue: "262 83% 58%" },
-  { id: "flood", label: "Flood", hue: "217 91% 60%" },
+  { id: "class", label: "Classification", token: "--p-kind-class" },
+  { id: "water", label: "Surface water", token: "--p-kind-water" },
+  { id: "solar", label: "Solar", token: "--p-kind-solar" },
+  { id: "wind", label: "Wind", token: "--p-kind-wind" },
+  { id: "flood", label: "Flood", token: "--p-kind-flood" },
 ] as const
+
+/** The token as a colour, at an alpha. One place, so the syntax is right once. */
+const tint = (token: string, alpha = 1) => `rgb(var(${token}) / ${alpha})`
 
 type KindId = (typeof KINDS)[number]["id"]
 
@@ -480,8 +479,8 @@ export function StudioBrowser({
                 style={
                   on
                     ? {
-                        borderColor: `hsl(${k.hue} / 0.55)`,
-                        background: `hsl(${k.hue} / 0.12)`,
+                        borderColor: tint(k.token, 0.55),
+                        background: tint(k.token, 0.12),
                       }
                     : undefined
                 }
@@ -499,8 +498,8 @@ export function StudioBrowser({
                   className="size-1.5 rounded-[1px]"
                   style={
                     on
-                      ? { background: `hsl(${k.hue})` }
-                      : { boxShadow: `inset 0 0 0 1px hsl(${k.hue} / 0.85)` }
+                      ? { background: tint(k.token) }
+                      : { boxShadow: `inset 0 0 0 1px ${tint(k.token, 0.85)}` }
                   }
                 />
                 {k.id}
@@ -1014,7 +1013,7 @@ function SourceNode({
   /** Where new runs are filed, which is not the same as what is open. */
   marked?: boolean
   icon?: React.ComponentType<{ className?: string }>
-  /** A product's colour, for the rows that are products. */
+  /** A product's colour token, for the rows that are products. */
   swatch?: string
   onToggle?: () => void
   onSelect: () => void
@@ -1072,7 +1071,7 @@ function SourceNode({
         {swatch ? (
           <span
             className="size-2 shrink-0 rounded-[1px]"
-            style={{ background: `hsl(${swatch})` }}
+            style={{ background: tint(swatch) }}
           />
         ) : Icon ? (
           <Icon className="size-3.5 shrink-0" />
@@ -1159,7 +1158,7 @@ function FolderBranch({
             depth={depth + 1}
             label={KIND_BY_ID.get(k)?.label ?? k}
             count={counts?.get(k) ?? 0}
-            swatch={KIND_BY_ID.get(k)?.hue}
+            swatch={KIND_BY_ID.get(k)?.token}
             on={sameSource(source, { ...here, kind: k })}
             onSelect={() => onSelect(k)}
           />
@@ -1276,11 +1275,11 @@ function KindPlate({ run, size }: { run: InferenceRun; size: "tile" | "row" }) {
         "flex shrink-0 items-center justify-center overflow-hidden rounded-sm",
         size === "tile" ? TILE_PLATE : "size-6"
       )}
-      style={{ background: `hsl(${kind.hue} / 0.14)` }}
+      style={{ background: tint(kind.token, 0.14) }}
     >
       <Icon
         className={size === "tile" ? "size-6" : "size-3.5"}
-        style={{ color: `hsl(${kind.hue})` }}
+        style={{ color: tint(kind.token) }}
         strokeWidth={1.75}
       />
     </div>
@@ -1327,7 +1326,7 @@ function RunTile({
           carries and what makes the grid readable by product at a glance. */}
       <span
         className="h-[2px] w-full rounded-full"
-        style={{ background: `hsl(${kind.hue})` }}
+        style={{ background: tint(kind.token) }}
       />
       <span className="line-clamp-2 text-emphasis leading-snug text-foreground">
         {runLabel(run)}
