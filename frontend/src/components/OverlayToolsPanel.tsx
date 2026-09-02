@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { SURFACE } from "@/lib/motion"
 import { AnimatePresence, motion } from "motion/react"
 import {
   CaretDown,
@@ -336,7 +337,7 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
           initial={{ opacity: 0, x: 16, y: 8 }}
           animate={{ opacity: 1, x: 0, y: 0 }}
           exit={{ opacity: 0, x: 16, y: 8 }}
-          transition={{ type: "spring", stiffness: 380, damping: 32 }}
+          transition={SURFACE}
         >
           <div className="flex items-center justify-between px-3 py-2">
             <div className="flex items-center gap-2">

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { IconContext } from "@phosphor-icons/react"
+import { MotionConfig } from "motion/react"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "sonner"
 import "./index.css"
@@ -82,11 +83,26 @@ root.render(
       Lucide's 24 and reads heavier at the same nominal size; at regular the
       chrome of a dense studio panel competes with the content it labels.
     */}
+    {/*
+      MOTION HONOURS THE SYSTEM SETTING, which it does not do on its own.
+
+      `motion` reads prefers-reduced-motion only when it is told to, and it was
+      not: every screen transition, every dialog and every panel animated
+      regardless. index.css had the one exception -- the splash, with the
+      argument written beside it -- and the rest of the application ignored a
+      preference a reader had set deliberately.
+
+      "user" rather than "always": transforms and layout animations are
+      replaced by an instant change, and opacity is left alone. A fade is not
+      what the setting is about; a screen sliding across the stage is.
+    */}
+    <MotionConfig reducedMotion="user">
     <IconContext.Provider value={{ weight: "light" }}>
       <ErrorBoundary fallback={(state) => <AppErrorFallback {...state} />}>
         <App />
       </ErrorBoundary>
     </IconContext.Provider>
+    </MotionConfig>
     <Toaster
       theme="system"
       position="bottom-right"

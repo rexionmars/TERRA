@@ -25,6 +25,7 @@
  * the panels and the bands it was written to outrank.
  */
 import type { ReactNode } from "react"
+import { SURFACE, SCRIM } from "@/lib/motion"
 import { useEffect } from "react"
 import { createPortal } from "react-dom"
 import { motion } from "motion/react"
@@ -123,7 +124,7 @@ export function ModalShell({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.12 }}
+      transition={SCRIM}
     >
       <motion.div
         role="dialog"
@@ -137,7 +138,7 @@ export function ModalShell({
         onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 12, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: "spring", stiffness: 380, damping: 32 }}
+        transition={SURFACE}
       >
         {children}
       </motion.div>
