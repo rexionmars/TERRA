@@ -39,12 +39,6 @@ interface TitleBarProps {
   result: PredictResult | null
   projectSwitcher?: ReactNode
   /**
-   * Title of the run on screen. Absent until one is made or opened, which is
-   * not the same as an untitled run, so nothing is shown rather than a
-   * placeholder standing in for a run that does not exist.
-   */
-  runLabel?: string | null
-  /**
    * The map layout, and the way to change it.
    *
    * This bar is the only chrome mounted in both layouts, which is why the
@@ -126,7 +120,6 @@ export function TitleBar({
   view,
   result,
   projectSwitcher,
-  runLabel,
   layoutMode = "docked",
   onLayoutModeChange,
   credit,
@@ -174,7 +167,6 @@ export function TitleBar({
   // anything. The board slot and the layout toggle stay on `hasMap`: they are
   // how the studio is left, so hiding them inside it would strand the user.
   const showMapTelemetry = hasMap && !boardOpen
-  const run = runLabel?.trim()
 
   return (
     <header className={cn(
@@ -255,21 +247,16 @@ export function TitleBar({
         */}
         {!boardOpen && projectSwitcher}
         </span>
-        {run && (
-          <>
-            <span className="hairline hidden h-4 w-px self-center border-l sm:inline-block" />
-            {/* The full title, truncated by width rather than shortened here:
-                the stamp at its end is what tells two runs of one AOI apart,
-                so a middle ellipsis would remove the discriminating part. The
-                title attribute carries the whole string. */}
-            <span
-              className="telemetry hidden max-w-[16rem] truncate text-[11px] text-muted-foreground sm:inline-block"
-              title={run}
-            >
-              {run}
-            </span>
-          </>
-        )}
+        {/*
+          NO RUN NAME HERE.
+
+          The bar printed the open run's title after a rule, beside the
+          wordmark. A run is named where it is listed -- the browser files it
+          and the outliner shows it on the board -- so this was the same fact
+          stated a third time, at the top of whatever surface happened to be
+          up, and it was the only thing the bar said about the work rather than
+          about the window.
+        */}
       </div>
 
       <div className="flex items-center gap-3">

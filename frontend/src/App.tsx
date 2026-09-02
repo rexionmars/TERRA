@@ -1011,13 +1011,6 @@ function AppBody(props: {
   )
   /**
    * Title of the run whose result is on screen, for the title bar.
-   *
-   * Every action already generates one and sends it to be persisted, but the
-   * generated value was discarded, so the running session had no name for what
-   * it had just produced. Set when a run is made and when a saved one is
-   * opened; cleared wherever the result is.
-   */
-  const [currentRunLabel, setCurrentRunLabel] = useState<string | null>(null)
   /*
     The saved run on screen, by id.
 
@@ -1031,17 +1024,21 @@ function AppBody(props: {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null)
 
   /**
-   * Name a run about to be sent, and record the name.
+   * Name a run about to be sent.
    *
-   * One call so the title shown and the title persisted cannot be two different
-   * strings: makeRunLabel stamps the current time, so calling it twice for one
-   * run yields two labels a second apart.
+   * It also held the name in state, so the title bar could print it beside the
+   * wordmark. Nothing reads it now: a run is named where it is listed, which is
+   * the browser and the outliner, and the bar was stating the same fact a third
+   * time over whichever surface happened to be up.
+   *
+   * Still one call rather than a bare `makeRunLabel` at each site: it stamps
+   * the current time, so calling it twice for one run yields two labels a
+   * second apart, and the label sent is the label saved.
    */
-  const nameThisRun = useCallback((aoiHint?: string | null): string => {
-    const label = makeRunLabel(aoiHint)
-    setCurrentRunLabel(label)
-    return label
-  }, [])
+  const nameThisRun = useCallback(
+    (aoiHint?: string | null): string => makeRunLabel(aoiHint),
+    []
+  )
   const [dataCubeOpen, setDataCubeOpen] = useState(false)
   const [dataCubeLoading, setDataCubeLoading] = useState(false)
   const [dataCubeError, setDataCubeError] = useState<string | null>(null)
@@ -1316,7 +1313,6 @@ function AppBody(props: {
   */
   const clearAnalysisResults = useCallback(() => {
     props.setResult(null)
-    setCurrentRunLabel(null)
     setCurrentRunId(null)
     setWater(null)
     solarDispatch({ type: "results/clearAll" })
@@ -2466,7 +2462,6 @@ function AppBody(props: {
           !!res.lulc ||
           res.n_dates > 0
         props.setResult(isClassification ? res : null)
-        setCurrentRunLabel(run.label ?? null)
         setCurrentRunId(run.id)
         props.setShowPredictionOverlay(true)
         if (isModelKind(run.model_kind)) props.setModelKind(run.model_kind)
@@ -3279,7 +3274,6 @@ function AppBody(props: {
         */
         boardOpen={boardOpen}
         result={props.result}
-        runLabel={currentRunLabel}
         layoutMode={layoutMode}
         onLayoutModeChange={changeLayoutMode}
         credit={credit}
