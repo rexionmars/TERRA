@@ -87,6 +87,11 @@ import {
   useCameraNavigation,
 } from "@/components/map/cameraNavigation"
 import { cropWestOf } from "@/components/map/cropOverlay"
+import { fetchEsriImageryHere } from "@/components/map/imageryDate"
+import {
+  ensureMosaic,
+  fetchLatestSceneDate,
+} from "@/lib/recentImagery"
 import {
   clearOverlays,
   syncOverlays,
@@ -103,6 +108,7 @@ import {
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import { AnalyzeSurfaceModel } from "../../../wailsjs/go/main/App"
 import { publishMapPose } from "@/lib/mapPose"
+import { zoomOfLevel } from "@/lib/mapScale"
 import { paletteColor } from "@/lib/palettes"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
 import type {
@@ -115,6 +121,20 @@ import { cn } from "@/lib/utils"
 
 const BASE_SOURCE = "basemap"
 const BASE_LAYER = "basemap"
+/*
+  WHAT IS DRAWN WHERE THE CHOSEN BASEMAP CANNOT BE. Only one basemap has a
+  floor -- the Sentinel-2 mosaic, composed on demand, which the service refuses
+  to compose below z9 -- and without something under it the map would go blank
+  on the zoom out rather than on the zoom in. s2cloudless fills that band: it
+  is the wide imagery the globe already uses, so zooming out of a recent
+  Sentinel-2 view lands on a Sentinel-2 mosaic rather than on a third look.
+
+  Always in the style and hidden by default. Adding it on selection would mean
+  adding a source and a layer to a live style, in the one place a reader is
+  waiting to see a picture change.
+*/
+const BASE_WIDE_SOURCE = "basemap-wide"
+const BASE_WIDE_LAYER = "basemap-wide"
 const AOI_SOURCE = "aoi"
 const AOI_LINE = "aoi-line"
 
@@ -331,12 +351,24 @@ export function MapSurface({
             tileSize: 256,
             maxzoom: first.maxNativeZoom ?? first.maxZoom,
           },
+          [BASE_WIDE_SOURCE]: {
+            type: "raster",
+            tiles: [basemapByKind("eox").url],
+            tileSize: 256,
+            maxzoom: 14,
+          },
           [AOI_SOURCE]: {
             type: "geojson",
             data: { type: "FeatureCollection", features: [] },
           },
         },
         layers: [
+          {
+            id: BASE_WIDE_LAYER,
+            type: "raster",
+            source: BASE_WIDE_SOURCE,
+            layout: { visibility: "none" },
+          },
           { id: BASE_LAYER, type: "raster", source: BASE_SOURCE },
           /*
             Added at style time and kept LAST, so every overlay added later goes
@@ -445,13 +477,41 @@ export function MapSurface({
     // setTiles rather than replacing the source: a new source would drop every
     // layer built on it and take the whole stack above with it.
     ;(src as unknown as { setTiles?: (t: string[]) => void })?.setTiles?.([b.url])
+    /*
+      The floor, and what stands in below it. Set through setLayerZoomRange
+      rather than on the source, because the source is created once and shared
+      by every basemap -- and a layer that is out of range asks for no tiles at
+      all, which is what keeps the mosaic from being asked for the 204s it
+      would answer with down there.
+    */
+    // The layers have to exist to be ranged. They do on a live style; they do
+    // not for the frames after a hot reload replaces this module while the
+    // style of the map it built is still loading, which is the same window
+    // addTerrainSources throws in.
+    if (!map.getLayer(BASE_LAYER) || !map.getLayer(BASE_WIDE_LAYER)) return
+    const floor = b.minLevel ? zoomOfLevel(b.minLevel) : 0
+    map.setLayerZoomRange(BASE_LAYER, floor, 24)
+    map.setLayoutProperty(
+      BASE_WIDE_LAYER,
+      "visibility",
+      floor > 0 ? "visible" : "none"
+    )
+    if (floor > 0) map.setLayerZoomRange(BASE_WIDE_LAYER, 0, floor)
+    // After the tiles are already in flight: the id is pinned, so this only
+    // makes sure the service still holds the search behind it.
+    if (b.minLevel) void ensureMosaic()
   }, [basemap, ready])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
+    /*
+      Stated by the product rather than asked of it. The year was written here
+      as a literal; it is in the basemap table now, beside the URL whose own
+      path carries it, so the two cannot drift apart.
+    */
     if (basemap === "eox") {
-      setDateLabel("2025")
+      setDateLabel(basemapByKind(basemap).imageryDate ?? null)
       return
     }
     if (basemap === "osm") {
@@ -468,12 +528,17 @@ export function MapSurface({
         abort = new AbortController()
         const c = map.getCenter()
         try {
-          const d = await fetchEsriImageryDate(
-            c.lat,
-            c.lng,
-            map.getZoom(),
-            abort.signal
-          )
+          const d =
+            basemap === "s2recent"
+              ? await fetchLatestSceneDate(c.lat, c.lng, abort.signal)
+              : (
+                  await fetchEsriImageryHere(
+                    c.lat,
+                    c.lng,
+                    map.getZoom(),
+                    abort.signal
+                  )
+                ).date
           if (!cancelled) setDateLabel(d)
         } catch (err) {
           if ((err as Error)?.name === "AbortError") return
@@ -1223,69 +1288,4 @@ function geometryBounds(geometry: GeoJSONGeometry): Bounds | null {
     if (lat > lat_max) lat_max = lat
   }
   return { lon_min, lat_min, lon_max, lat_max }
-}
-
-function formatYmd(ymd: string): string {
-  if (/^\d{8}$/.test(ymd)) {
-    return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`
-  }
-  return ymd
-}
-
-function normalizeImageryDate(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  if (/^\d{8}$/.test(trimmed)) return formatYmd(trimmed)
-  const us = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (us) return `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}`
-  return trimmed
-}
-
-function dateSortKey(raw: string): string {
-  const n = normalizeImageryDate(raw)
-  return n ? n.replace(/-/g, "") : ""
-}
-
-/** Esri World Imagery identify, for the acquisition date under the centre. */
-async function fetchEsriImageryDate(
-  lat: number,
-  lon: number,
-  zoom: number,
-  signal?: AbortSignal
-): Promise<string | null> {
-  const pad = Math.max(0.02, 180 / 2 ** Math.max(zoom, 1))
-  const params = new URLSearchParams({
-    f: "json",
-    tolerance: "5",
-    returnGeometry: "false",
-    imageDisplay: "800,600,96",
-    geometry: JSON.stringify({ x: lon, y: lat }),
-    geometryType: "esriGeometryPoint",
-    sr: "4326",
-    mapExtent: `${lon - pad},${lat - pad},${lon + pad},${lat + pad}`,
-    layers: "top:0",
-  })
-  const res = await fetch(
-    `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/identify?${params}`,
-    { signal }
-  )
-  if (!res.ok) return null
-  const data = (await res.json()) as {
-    results?: Array<{ attributes?: Record<string, string> }>
-  }
-  const results = data.results ?? []
-  if (!results.length) return null
-  const withLevels = results.map((r) => {
-    const a = r.attributes ?? {}
-    return {
-      date: a["DATE (YYYYMMDD)"] || a.SRC_DATE2 || "",
-      min: Number(a.MinMapLevel ?? 0),
-      max: Number(a.MaxMapLevel ?? 22),
-    }
-  })
-  const matching = withLevels.filter((r) => zoom >= r.min && zoom <= r.max && r.date)
-  const pool = matching.length ? matching : withLevels.filter((r) => r.date)
-  if (!pool.length) return null
-  pool.sort((a, b) => dateSortKey(b.date).localeCompare(dateSortKey(a.date)))
-  return normalizeImageryDate(pool[0].date)
 }

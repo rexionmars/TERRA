@@ -13,7 +13,9 @@
  * drifted from the source the map claimed to be showing.
  */
 
-export type BasemapKind = "esri" | "eox" | "osm"
+import { MOSAIC_MIN_LEVEL, MOSAIC_TILES } from "@/lib/recentImagery"
+
+export type BasemapKind = "esri" | "eox" | "s2recent" | "osm"
 
 export interface CreditPart {
   label: string
@@ -29,6 +31,30 @@ export interface Basemap {
   maxZoom: number
   maxNativeZoom?: number
   credit: readonly CreditPart[]
+  /**
+   * When this imagery was taken, where the product states it once for the
+   * whole world.
+   *
+   * s2cloudless is a single mosaic of a named year, so its date is a property
+   * of the basemap and belongs beside the URL that fetches it -- the year was
+   * written out in four places, and a table whose layers and credit line are
+   * two readers of one fact should hold it too. Esri's date is not this kind
+   * of fact: it is per footprint and per level, and has to be asked of the
+   * service point by point -- see components/map/imageryDate.ts. OSM is a
+   * drawing rather than an acquisition. Absent means the date is not something
+   * this table can answer.
+   */
+  imageryDate?: string
+  /**
+   * The shallowest LEVEL this basemap can be drawn at, where it has one.
+   *
+   * The recent Sentinel-2 mosaic is composed on demand and the service refuses
+   * to compose one below level 9, so a surface offering it has to draw
+   * something else under the zoom that asks for it -- which is not the same
+   * number; see lib/mapScale.ts. Absent means the basemap covers the world at
+   * every zoom, which is true of the other three.
+   */
+  minLevel?: number
 }
 
 export const BASEMAPS: readonly Basemap[] = [
@@ -45,10 +71,36 @@ export const BASEMAPS: readonly Basemap[] = [
     url: "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2025_3857/default/g/{z}/{y}/{x}.jpg",
     maxNativeZoom: 14,
     maxZoom: 19,
+    imageryDate: "2025",
     credit: [
       { label: "© EOX", href: "https://cloudless.eox.at" },
       {
         label: "modified Copernicus Sentinel data 2025",
+        href: "https://sentinel.esa.int/web/sentinel/user-guides/sentinel-2-msi",
+      },
+    ],
+  },
+  /*
+    THE SECOND OPINION, for where the Esri footprint is old. Its own module
+    carries the search, the pinned mosaic id and the measurements behind the
+    choice; this row is only what the map and the credit need to know about it.
+  */
+  {
+    kind: "s2recent",
+    name: "Sentinel-2 recent (Planetary Computer)",
+    url: MOSAIC_TILES,
+    minLevel: MOSAIC_MIN_LEVEL,
+    // 10 m is about z14 at these latitudes. The service answers past it by
+    // magnifying its own pixels, which is the same picture at more bytes.
+    maxNativeZoom: 14,
+    maxZoom: 19,
+    credit: [
+      {
+        label: "Microsoft Planetary Computer",
+        href: "https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a",
+      },
+      {
+        label: "modified Copernicus Sentinel data",
         href: "https://sentinel.esa.int/web/sentinel/user-guides/sentinel-2-msi",
       },
     ],

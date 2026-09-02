@@ -26,6 +26,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   Globe2,
   Mountain,
+  Satellite,
   Pencil,
   Search,
   Spline,
@@ -44,6 +45,10 @@ import "@/lib/maplibreWorker"
 import type { GlobeArea } from "@/components/globe/globeArea"
 import { MapBar, MapButton } from "@/components/map/MapChrome"
 import { syncOverlays } from "@/components/map/mapOverlays"
+import {
+  fetchEsriImageryHere,
+  type ImageryHere,
+} from "@/components/map/imageryDate"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import {
   ELEVATION_CREDIT,
@@ -62,29 +67,71 @@ import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
 import {
   MAPLIBRE_CREDIT,
   basemapByKind,
+  type Basemap,
   type BasemapKind,
 } from "@/lib/basemaps"
+import { zoomOfLevel } from "@/lib/mapScale"
 import { onPaletteChange } from "@/lib/paletteWatch"
+import { ensureMosaic, fetchLatestSceneDate } from "@/lib/recentImagery"
 import { cn } from "@/lib/utils"
 
 /**
- * The imagery the globe draws, named once so the surface and the credit
- * beneath it cannot disagree about which one it is.
+ * The two imageries the globe draws, and the level where one hands over to the
+ * other, named once so the surface and the credit beneath it cannot disagree
+ * about which one is on screen.
  *
- * ESRI, WHICH IS WHAT THE MAP ALREADY OPENS ON. This was s2cloudless, and the
- * choice cost twice over. Measured against the same six tiles, z8 through z13:
- * EOX answers in 801 ms on average, Esri in 142 ms. And s2cloudless is a 10 m
- * product, so its imagery stops at z14 -- past that a reader turns the wheel
- * and the picture does not sharpen, because there is nothing further to fetch.
- * Esri carries five more levels.
+ * ESRI ABOVE THE HANDOVER, for the reason it was chosen for the whole globe.
+ * Measured against the same six tiles, z8 through z13: EOX answers in 801 ms
+ * on average, Esri in 142 ms. And s2cloudless is a 10 m product, so its
+ * imagery stops at z14 -- past that a reader turns the wheel and the picture
+ * does not sharpen, because there is nothing further to fetch. Esri carries
+ * five more levels.
  *
- * s2cloudless is not worse; it is a different thing. It is one cloud-free
- * Sentinel-2 mosaic of a stated year, which is what makes it the right ground
- * for reading a classification against on the map screen, where it is offered.
- * This screen is for finding where the work is, and for that the faster and
- * deeper basemap is the one that answers.
+ * S2CLOUDLESS BELOW IT, because Esri's World Imagery is not one picture and
+ * the globe was spending its whole working range in the oldest part of it.
+ * The service says which part where: over the opening view its low-resolution
+ * layer reports one footprint, TerraColor NextGen at 15 m with SRC_DATE null,
+ * covering MinMapLevel 0 to MaxMapLevel 11, while every high-resolution
+ * footprint at that point -- the 2020 to 2025 acquisitions -- begins at
+ * MinMapLevel 12. A globe on Esri alone
+ * therefore draws a Landsat-derived composite of no stated year at every zoom
+ * a planet is read at, which is what made the ground look years out of date.
+ * s2cloudless is a cloud-free Sentinel-2 mosaic of a stated year, and it is
+ * the same product the map screen offers for reading a classification against.
+ *
+ * The latency it costs is bounded by where it is used. Measured on three tiles
+ * per level, z2 through z6: EOX 620 to 705 ms against Esri 50 to 72 ms -- a
+ * ratio that holds from the earlier measurement, over a viewport that holds
+ * single figures of tiles rather than the dozens a z13 view does.
+ *
+ * The handover is where Esri's own footprints begin -- level 12 -- expressed
+ * as the zoom that fetches it. A zoom and a level are not the same number:
+ * see lib/mapScale.ts, which holds the conversion and the measurement behind
+ * it. Written as the conversion rather than as 11, so it cannot drift from the
+ * level it means.
  */
 export const GLOBE_BASEMAP: BasemapKind = "esri"
+export const GLOBE_WIDE_BASEMAP: BasemapKind = "eox"
+const ESRI_FIRST_LEVEL = 12
+const HANDOVER_ZOOM = zoomOfLevel(ESRI_FIRST_LEVEL)
+
+/**
+ * Where the recent mosaic stops being drawn, whatever the reader asked for.
+ *
+ * NOT A PREFERENCE, A SCALE. Sentinel-2 is 10 m, and a screen pixel over
+ * Curitiba is 8.7 m at z13 and 4.3 m at z14: at z13 the recent picture costs
+ * no sharpness at all and buys months, one zoom in the same data is being
+ * magnified twofold, and by z15.3 -- where this was measured against an Esri
+ * acquisition from 2026-01-03 that resolves buildings -- the 2026-08-25 mosaic
+ * resolves blocks. Seven months newer and unreadable is not a trade a reader
+ * should be asked to make, so above this the button stops applying and Esri is
+ * what stays on screen.
+ *
+ * Half open, like every layer range here: drawn through 13, gone at 14. Taken
+ * from the mosaic's own native level so the two cannot disagree.
+ */
+const RECENT_MAX_ZOOM =
+  zoomOfLevel(basemapByKind("s2recent").maxNativeZoom ?? 14) + 1
 
 /*
   THE SHAPE BEING DRAWN GETS ITS OWN SOURCE, not a feature in the catalog's.
@@ -148,13 +195,19 @@ function toFeatureCollection(areas: readonly GlobeArea[]) {
 }
 
 /**
- * The deepest level this imagery actually has. Past it MapLibre magnifies the
+ * The deepest level a basemap actually has. Past it MapLibre magnifies the
  * last real one, which looks identical to a slow network from the outside.
+ *
+ * Asked of the basemap being drawn rather than fixed: the two that can be
+ * drawn above the handover end in different places -- Esri at 19 as a product,
+ * the Sentinel-2 mosaic at 14, where 10 m runs out. The wide imagery has no
+ * such reading, since it stops being drawn at 12 and has levels to 14.
  */
-const NATIVE_MAX = (() => {
-  const b = basemapByKind(GLOBE_BASEMAP)
-  return b.maxNativeZoom ?? b.maxZoom
-})()
+function nativeMax(b: Basemap): number {
+  // Both figures in the table are LEVELS -- Esri's 19, the mosaic's 14 -- and
+  // what this is compared against is a zoom.
+  return zoomOfLevel(b.maxNativeZoom ?? b.maxZoom)
+}
 
 export function GlobeSurface({
   areas,
@@ -279,6 +332,40 @@ export function GlobeSurface({
   stopRef.current = stop
   const [zoom, setZoom] = useState(initialView?.zoom ?? START_ZOOM)
   const [busy, setBusy] = useState(false)
+  /*
+    WHEN THE GROUND UNDER THE CENTRE WAS PHOTOGRAPHED, above the handover.
+
+    The globe credited who the imagery belongs to and said nothing about when
+    it was taken, which is the question the handover made worth answering here:
+    the picture changes at z12, and a reader crossing that level should be able
+    to read that they crossed from a mosaic of one stated year to an
+    acquisition of a particular day, rather than infer it from the ground
+    looking different.
+
+    THE ESRI ANSWER ONLY. The wide imagery's year is a property of the product
+    and is read from the basemap table at render, off the same zoom the credit
+    picks its source with -- so the two cannot disagree over the frames between
+    a gesture moving the camera and the moveend that ends it, which is what one
+    date in state for both would have allowed: the name Esri beside a year that
+    belongs to EOX.
+  */
+  /*
+    WHICH IMAGERY IS DRAWN ABOVE THE HANDOVER, and it is a question rather than
+    a setting because neither answer is better.
+
+    Esri resolves roofs where it has a recent footprint and stops at z17 on a
+    2026 acquisition one town over -- its resolution and its date vary together
+    and neither is stated in advance. The Sentinel-2 mosaic is 10 m everywhere
+    and a few weeks old everywhere, at several seconds for the first look at a
+    place. So the button is the reader's, held here and not remembered: it
+    belongs to the question being asked, not to the session.
+  */
+  const [recent, setRecent] = useState(false)
+  const [esriHere, setEsriHere] = useState<ImageryHere>({
+    date: null,
+    maxLevel: null,
+    magnified: false,
+  })
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
@@ -289,6 +376,7 @@ export function GlobeSurface({
     const host = hostRef.current
     if (!host) return
     const imagery = basemapByKind(GLOBE_BASEMAP)
+    const wide = basemapByKind(GLOBE_WIDE_BASEMAP)
     let map: MapLibreMap
     try {
       map = new MapLibreMap({
@@ -348,15 +436,36 @@ export function GlobeSurface({
               type: "raster",
               tiles: [imagery.url],
               /*
-                256, not the 512 this defaults to. EOX serves 256px tiles, and
-                the wrong figure does not fail -- it scales every tile by two
-                and reports the world as half its resolution.
+                256, not the 512 this defaults to. Both servers here answer
+                with 256px tiles, and the wrong figure does not fail -- it
+                scales every tile by two and reports the world as half its
+                resolution.
               */
               tileSize: 256,
               // The deepest level that exists. Past it MapLibre would ask for
               // tiles the server does not have; stopping here lets it magnify
               // the last real level instead, which is what a map does.
               maxzoom: imagery.maxNativeZoom ?? imagery.maxZoom,
+            },
+            "imagery-recent": {
+              type: "raster",
+              tiles: [basemapByKind("s2recent").url],
+              tileSize: 256,
+              /*
+                ITS OWN SOURCE RATHER THAN setTiles ON THE ESRI ONE, and the
+                reason is this line: a source's maxzoom is fixed at creation,
+                Esri's product runs to 19 and 10 m runs out at 14. Sharing one
+                source would have MapLibre asking the mosaic to compose levels
+                it can only answer by magnifying its own pixels -- the same
+                picture, at a second per tile.
+              */
+              maxzoom: basemapByKind("s2recent").maxNativeZoom ?? 14,
+            },
+            "imagery-wide": {
+              type: "raster",
+              tiles: [wide.url],
+              tileSize: 256,
+              maxzoom: wide.maxNativeZoom ?? wide.maxZoom,
             },
             [AREA_SOURCE]: {
               type: "geojson",
@@ -379,7 +488,51 @@ export function GlobeSurface({
               type: "background",
               paint: { "background-color": "#0b1d2e" },
             },
-            { id: "imagery", type: "raster", source: "imagery" },
+            /*
+              VISIBLE FROM ONE LEVEL BELOW THE HANDOVER, under the wide layer
+              that hides it there. Starting it exactly at 12 would show it with
+              no tiles: crossing the level would put the planet's background
+              colour on screen for as long as the first ones took to arrive. A
+              level early it is already fetching beneath something opaque, so
+              the handover is a change of picture rather than a gap in one.
+            */
+            {
+              id: "imagery",
+              type: "raster",
+              source: "imagery",
+              minzoom: HANDOVER_ZOOM - 1,
+            },
+            /*
+              OVER THE ESRI LAYER RATHER THAN INSTEAD OF IT, and Esri is left
+              drawing underneath. The mosaic is composed on demand: measured
+              over Curitiba, twelve z14 tiles took 7.5 seconds on a first visit
+              and 0.5 once the CDN held them. With nothing under it those
+              seconds are a hole in the planet; with Esri under it they are a
+              picture that arrives and then updates.
+
+              Which is also why the credit names both while this is on. Both
+              are on screen -- one of them only until the other lands, but a
+              licence does not ask about duration.
+            */
+            {
+              id: "imagery-recent",
+              type: "raster",
+              source: "imagery-recent",
+              minzoom: HANDOVER_ZOOM - 1,
+              maxzoom: RECENT_MAX_ZOOM,
+              layout: { visibility: "none" },
+            },
+            /*
+              Above them and stopping where they begin. A layer's zoom range is
+              half open -- visible at minzoom, gone at maxzoom -- so these meet
+              at 12 without overlapping in what is shown.
+            */
+            {
+              id: "imagery-wide",
+              type: "raster",
+              source: "imagery-wide",
+              maxzoom: HANDOVER_ZOOM,
+            },
             /*
               A fill under the line, and it is what makes a press work. The hand
               written globe raycast the outline and had to fall back on nearest
@@ -424,6 +577,16 @@ export function GlobeSurface({
       return
     }
     mapRef.current = map
+
+    /*
+      DEV ONLY, for the reason MapSurface keeps its own: a map's sources, its
+      camera and the events it fires are not reachable from the DOM, and the
+      tile counter in lib/mapTelemetry.ts was written against a guess about
+      which of them carry a `tile` until this handle let it be read.
+    */
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __globe?: MapLibreMap }).__globe = map
+    }
 
     /*
       Every subscription is kept and unsubscribed. In 5 and later `map.on`
@@ -678,6 +841,96 @@ export function GlobeSurface({
   }, [fitKey, ready])
 
   /*
+    Showing the layer is what fetches it: MapLibre marks a source unused when
+    no visible layer references it, so the mosaic costs nothing until it is
+    asked for.
+  */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !map.getLayer("imagery-recent")) return
+    map.setLayoutProperty(
+      "imagery-recent",
+      "visibility",
+      recent ? "visible" : "none"
+    )
+    // After the layer is already asking for tiles: the id is pinned, so this
+    // only makes sure the service still holds the search behind it.
+    if (recent) void ensureMosaic()
+  }, [recent, ready])
+
+  /*
+    THE DATE, FOLLOWING THE HANDOVER, and asked for in the two ways the two
+    imageries answer.
+
+    Below it the wide basemap is one mosaic of a stated year, which the basemap
+    table holds -- no request, and no request is possible: there is no per-point
+    date to ask for. Above it Esri's date is a property of the footprint under
+    the centre, so it is fetched, on the same identify the map screen uses.
+
+    ON moveend, NOT ON move, and behind the same 350 ms the map screen debounces
+    with: the answer only changes when the centre lands somewhere else, and a
+    request per frame of a drag would be several hundred of them for one
+    gesture. The in-flight one is aborted rather than left to resolve into a
+    date for a place the reader has already left.
+  */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let abort: AbortController | undefined
+    const refresh = () => {
+      if (timer) clearTimeout(timer)
+      if (map.getZoom() < HANDOVER_ZOOM) {
+        // Dropped below the handover: the Esri answer no longer describes
+        // anything on screen, and leaving it in place would let it reappear as
+        // the reader climbs back through 12 over somewhere else entirely.
+        abort?.abort()
+        setEsriHere({ date: null, maxLevel: null, magnified: false })
+        return
+      }
+      timer = setTimeout(async () => {
+        abort?.abort()
+        abort = new AbortController()
+        const c = map.getCenter()
+        try {
+          const here: ImageryHere = recent && map.getZoom() < RECENT_MAX_ZOOM
+            ? {
+                date: await fetchLatestSceneDate(c.lat, c.lng, abort.signal),
+                // The mosaic has no ceiling to report: it composes at any level
+                // the service will serve, and magnifies its own pixels past 14.
+                maxLevel: null,
+                magnified: false,
+              }
+            : await fetchEsriImageryHere(
+                c.lat,
+                c.lng,
+                map.getZoom(),
+                abort.signal
+              )
+          if (!cancelled) setEsriHere(here)
+        } catch (err) {
+          if ((err as Error)?.name === "AbortError") return
+          // Not a failure worth reporting: the credit stands, and neither the
+          // date nor the ceiling is a part the licence asks for.
+          if (!cancelled)
+            setEsriHere({ date: null, maxLevel: null, magnified: false })
+        }
+      }, 350)
+    }
+    refresh()
+    const a = map.on("moveend", refresh)
+    const b = map.on("zoomend", refresh)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      abort?.abort()
+      a.unsubscribe()
+      b.unsubscribe()
+    }
+  }, [ready, recent])
+
+  /*
     The DEM and its shading, added once the style exists and inserted UNDER the
     catalog: an outline is about where work is and hillshade is the ground it
     is on, so shading over the ring would be the ground drawn on top of the
@@ -717,6 +970,40 @@ export function GlobeSurface({
     )
   }, [polygon, ready])
 
+  /*
+    BOTH HALVES OF THE CREDIT FROM ONE ZOOM, AND FROM WHAT IS DRAWN. Who the
+    imagery is from and when it was taken are one sentence, and a frame in
+    which they came from different sides of the handover -- or from a mosaic
+    the level has already put away -- would read as a claim nobody made.
+  */
+  const wide = zoom < HANDOVER_ZOOM
+  /* The reader's ask AND the level agreeing. Above the cap the button is still
+     down and the picture is Esri again, so everything below says Esri. */
+  const recentDrawn = !wide && recent && zoom < RECENT_MAX_ZOOM
+  const shownBasemap = basemapByKind(
+    wide ? GLOBE_WIDE_BASEMAP : recentDrawn ? "s2recent" : GLOBE_BASEMAP
+  )
+  const shownDate = wide ? (shownBasemap.imageryDate ?? null) : esriHere.date
+  /*
+    WHERE THE IMAGERY ENDS UNDER THE CENTRE, which is not where the product
+    ends. World Imagery's ceiling is per footprint: one town reads to z20, the
+    next stops at z17, and the reader who turns the wheel past it sees the same
+    two causes with one appearance this readout exists to separate. The service
+    states the level, so the message can name the one that applies here and
+    fall back on the product's own only while the answer is still in flight.
+
+    Only about Esri: the mosaic composes at whatever level it is asked for, and
+    it is not asked past the cap.
+  */
+  const ceiling =
+    !recentDrawn && !wide && esriHere.magnified && esriHere.maxLevel !== null
+      ? zoomOfLevel(esriHere.maxLevel)
+      : null
+  /* Both, while the mosaic is drawn OVER Esri rather than in place of it. */
+  const creditParts = recentDrawn
+    ? [...shownBasemap.credit, ...basemapByKind(GLOBE_BASEMAP).credit]
+    : shownBasemap.credit
+
   return (
     <div className={cn("relative min-h-0 min-w-0", className)}>
       {/*
@@ -755,13 +1042,33 @@ export function GlobeSurface({
       {ready && !failure && (
         <div className="telemetry pointer-events-none absolute bottom-3 left-3 right-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
           <span className="tabular-nums text-foreground">z{zoom.toFixed(1)}</span>
-          {busy ? (
+          {/*
+            AHEAD OF `busy`, ALONE AMONG THESE. The others are answers to "why
+            is the picture not changing", and while tiles are in flight the
+            true answer is that they are in flight. This one answers a
+            different question -- why did pressing the button do nothing --
+            and it is asked at the moment of pressing, which is exactly when
+            something is always loading.
+          */}
+          {!wide && recent && !recentDrawn ? (
+            <span>
+              recent imagery ends at z{RECENT_MAX_ZOOM}; below 10 m this is
+              Esri
+            </span>
+          ) : busy ? (
             <span>loading imagery</span>
-          ) : zoom > NATIVE_MAX ? (
+          ) : ceiling !== null ? (
             /* Not an error. The imagery ends and the picture is magnified from
                its last real level, which is what a map does; saying so is the
                difference between a limit and a fault. */
-            <span>magnified past z{NATIVE_MAX}, the finest this imagery has</span>
+            <span>
+              magnified past z{ceiling}, the finest this imagery has here
+            </span>
+          ) : !wide && zoom > nativeMax(shownBasemap) ? (
+            <span>
+              magnified past z{nativeMax(shownBasemap)}, the finest this
+              imagery has
+            </span>
           ) : null}
           {/*
             WHO THE GROUND BELONGS TO, in the title bar's own order and with its
@@ -787,7 +1094,10 @@ export function GlobeSurface({
           */}
           <span className="pointer-events-auto font-sans normal-case opacity-80">
             <Credit part={MAPLIBRE_CREDIT} />
-            {basemapByKind(GLOBE_BASEMAP).credit.map((c, i) => (
+            {/* The title bar's own order and wording, so the date reads the
+                same on both surfaces. */}
+            {shownDate ? ` \u00b7 imagery ${shownDate}` : ""}
+            {creditParts.map((c, i) => (
               <span key={c.label}>
                 {i === 0 ? " | " : " \u2014 "}
                 <Credit part={c} />
@@ -838,6 +1148,21 @@ export function GlobeSurface({
             onClick={() => setSearching((v) => !v)}
           >
             <Search className="size-4" strokeWidth={1.5} />
+          </MapButton>
+          {/*
+            BETWEEN FINDING THE PLACE AND LIGHTING IT, because choosing which
+            imagery answers is part of looking rather than part of drawing.
+          */}
+          <MapButton
+            label={
+              recent
+                ? "Imagery: recent Sentinel-2"
+                : "Imagery: Esri, deepest available"
+            }
+            active={recent}
+            onClick={() => setRecent((v) => !v)}
+          >
+            <Satellite className="size-4" strokeWidth={1.5} />
           </MapButton>
           <MapButton
             label="Relief"
