@@ -2997,13 +2997,37 @@ function AppBody(props: {
       return
     }
     try {
-      const { kml } = await import("@tmcw/togeojson")
       const input = document.createElement("input")
       input.type = "file"
       input.accept = ".kml,.geojson,.json"
+      /*
+        THE INPUT IS PUT IN THE DOCUMENT BEFORE IT IS CLICKED.
+
+        It used to be a detached element, created and clicked without ever being
+        attached, which is the form every snippet for this uses and which this
+        webview ignores: WKWebView opens a file picker for an input that is in
+        the document and silently does nothing for one that is not. The button
+        looked dead and reported nothing. The avatar upload on the profile page
+        never had the problem because its input is rendered into the page and
+        clicked through a ref -- the same property, arrived at by writing it in
+        JSX rather than by knowing the rule.
+
+        Hidden rather than off-screen, and removed once the dialog has been
+        answered, so nothing is left behind on a cancel either.
+
+        THE PICKER IS ALSO OPENED BEFORE ANYTHING IS AWAITED.
+
+        togeojson used to be imported first, and a dynamic import is a promise:
+        after awaiting it the call below is no longer running inside the user
+        gesture that started it, and a WKWebView refuses a programmatic click on
+        a file input outside one. The dialog then never appeared and nothing
+        said why -- the button looked dead. The parser is only needed once a
+        file has been chosen, so it is loaded there instead.
+      */
       input.onchange = async () => {
         const file = input.files?.[0]
         if (!file) return
+        const { kml } = await import("@tmcw/togeojson")
         const text = await file.text()
         let geom: GeoJSONGeometry | null = null
         try {
@@ -3035,10 +3059,18 @@ function AppBody(props: {
           notifyError("No polygon found in the file.")
           return
         }
+        input.remove()
         const entry = await createArea(geom, file.name.replace(/\.[^.]+$/, ""))
         if (!entry) return
         notifySuccess(`Polygon saved as \u201c${entry.name}\u201d.`)
       }
+      input.style.display = "none"
+      document.body.appendChild(input)
+      const cleanup = () => input.remove()
+      // Covers the cancel, where onchange never fires. Not perfectly: a webview
+      // that reports no focus event would leave the node, which is why it is
+      // display:none and carries no listeners of its own.
+      window.addEventListener("focus", cleanup, { once: true })
       input.click()
     } catch (e) {
       notifyError("Import failed", e)
