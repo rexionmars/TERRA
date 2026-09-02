@@ -115,6 +115,44 @@ import type {
   WindAnalysis,
 } from "@/lib/types"
 import { ReadingPanel } from "@/components/studio/ReadingPanel"
+import { SolarParamsEditor } from "@/components/studio/SolarParamsEditor"
+import type {
+  SolarParams,
+  SolarProductId,
+  SolarResults,
+} from "@/lib/energyState"
+
+/**
+ * No solar result at all, as a constant.
+ *
+ * A default object literal in the parameter list is a NEW object on every
+ * render, which would make every memo that reads it recompute for a value that
+ * never changed.
+ */
+const EMPTY_SOLAR_RESULTS: SolarResults = {
+  resource: null,
+  terrain: null,
+  siting: null,
+  energy: null,
+}
+
+/**
+ * What an editor says when it has nothing to show.
+ *
+ * One shape, because the alternative is each editor inventing its own measure
+ * and alignment for the same sentence -- which is how three of them ended up
+ * with three different paddings.
+ */
+function EditorEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center p-4">
+      <p className="max-w-[26rem] text-center text-meta leading-relaxed text-muted-foreground">
+        {children}
+      </p>
+    </div>
+  )
+}
+import { solarReadingGroups } from "@/components/energy/readingSections"
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { windReadingGroups } from "@/components/energy/readingSections"
@@ -427,6 +465,12 @@ export function BoardSurface({
   onNewStudio,
   onStudiosMenu,
   polygonGeoJSON,
+  solarProduct,
+  solarParams,
+  solarResults = EMPTY_SOLAR_RESULTS,
+  onSolarParamsChange,
+  onSolarLossChange,
+  onClearSolar,
   windResult = null,
   onClearWind,
   floodResult = null,
@@ -568,6 +612,25 @@ export function BoardSurface({
    * from the one the pack claims to describe.
    */
   polygonGeoJSON?: string
+  /**
+   * Solar, whole: which product the run band has selected, what every product
+   * sends, and what each has produced.
+   *
+   * The parameters do not travel as cards on the band the way the other
+   * products' do. The energy model sends more settings than a band can carry,
+   * so one editor owns them -- which is `canopyParams`' arrangement, applied
+   * for the same reason.
+   */
+  solarProduct?: SolarProductId
+  solarParams?: SolarParams
+  solarResults?: SolarResults
+  onSolarParamsChange?: (patch: Partial<SolarParams>) => void
+  onSolarLossChange?: (
+    group: "declared" | "optional",
+    key: string,
+    pct: number
+  ) => void
+  onClearSolar?: (product: SolarProductId) => void
   /**
    * The two products whose result is read rather than drawn.
    *
@@ -4026,6 +4089,28 @@ export function BoardSurface({
       is a comparison, and neither carries a control the other could disagree
       with.
     */
+    solarParams:
+      solarParams && solarProduct && onSolarParamsChange && onSolarLossChange ? (
+        <SolarParamsEditor
+          product={solarProduct}
+          params={solarParams}
+          results={solarResults}
+          onSet={onSolarParamsChange}
+          onLossSet={onSolarLossChange}
+        />
+      ) : (
+        <EditorEmpty>
+          Solar is not available in this session, so there are no parameters to
+          set.
+        </EditorEmpty>
+      ),
+    solarReading: (
+      <ReadingPanel
+        groups={solarReadingGroups(solarResults)}
+        onClear={onClearSolar ? (key) => onClearSolar(key as SolarProductId) : undefined}
+        empty="No solar result yet. Draw an area, choose a product in the run band, and run it."
+      />
+    ),
     windReading: (
       <ReadingPanel
         groups={windReadingGroups(windResult)}
@@ -4039,12 +4124,10 @@ export function BoardSurface({
         onClear={() => onClearFlood?.()}
       />
     ) : (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="max-w-[22rem] text-center text-meta leading-relaxed text-muted-foreground">
-          No flood envelope yet. Draw an area, choose at least two elevation
-          products in the run band, then map the envelope.
-        </p>
-      </div>
+      <EditorEmpty>
+        No flood envelope yet. Draw an area, choose at least two elevation
+        products in the run band, then map the envelope.
+      </EditorEmpty>
     ),
     /*
       Four readings of one canopy, and the canopy is the workflow's rather than

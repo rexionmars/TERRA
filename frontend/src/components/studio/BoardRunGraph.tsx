@@ -20,7 +20,29 @@
  * carry it, the monthly toggle is boxed rather than native because the theme
  * does not own platform chrome, and the model stays a menu because "Random
  * Forest" and "Temporal Transformer" are names rather than pictures.
+ */import {
+  SOLAR_PRODUCTS,
+  type SolarProductEntry,
+} from "@/components/energy/solarProducts"
+import type { SolarProductId } from "@/lib/energyState"
+
+/**
+ * The head of each product's name, for a card 8rem wide.
+ *
+ * Not derived by truncating the table's label: "Resource at the AOI centroid"
+ * cut to its first word is "Resource", but "Photovoltaic energy model" cut the
+ * same way is "Photovoltaic", which names the other three as much as it names
+ * that one. Written out, and typed against the table so a fifth product cannot
+ * be added without one.
  */
+const SHORT_SOLAR: Record<SolarProductEntry["id"], string> = {
+  resource: "Resource",
+  terrain: "Irradiation",
+  siting: "Siting",
+  energy: "Energy model",
+}
+
+
 import {
   ArrowDown,
   Check,
@@ -266,8 +288,8 @@ export interface BoardRunGraphProps {
    * cards, and absence is how it says so.
    */
   solar?: {
-    product: "terrain" | "siting"
-    onProductChange: (p: "terrain" | "siting") => void
+    product: SolarProductId
+    onProductChange: (p: SolarProductId) => void
     hourlyYears: number
     onHourlyYearsChange: (v: number) => void
     season: SolarSeason
@@ -809,20 +831,27 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       </div>
     ) : null,
 
+    /*
+      ALL FOUR, from the table that declares them. It offered the two that
+      draw a raster, which was the whole of what the board could show at the
+      time; the resource and the energy model report figures, and the studio
+      reads those in the Solar result editor now.
+
+      The labels are the table's own, cut to their head: "Resource at the AOI
+      centroid" and "Photovoltaic energy model" are the names a reading gives
+      them, and a card 8rem wide is not where a name is spelled in full.
+    */
     product: (
       <div className="flex flex-wrap gap-1">
-        <Choice
-          label="Irradiation"
-          chosen={props.solar?.product === "terrain"}
-          disabled={busy}
-          onPick={() => props.solar?.onProductChange("terrain")}
-        />
-        <Choice
-          label="Siting"
-          chosen={props.solar?.product === "siting"}
-          disabled={busy}
-          onPick={() => props.solar?.onProductChange("siting")}
-        />
+        {SOLAR_PRODUCTS.map((p) => (
+          <Choice
+            key={p.id}
+            label={SHORT_SOLAR[p.id]}
+            chosen={props.solar?.product === p.id}
+            disabled={busy}
+            onPick={() => props.solar?.onProductChange(p.id)}
+          />
+        ))}
       </div>
     ),
 

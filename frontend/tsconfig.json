@@ -12,6 +12,12 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    // Chosen per defect, as the Go lint set is. Removing four screens left 39
+    // things nothing called -- handlers, state, whole callbacks -- and two of
+    // them were products that had quietly become unreachable. `tsc` knew all
+    // along and was not being asked.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",

@@ -39,6 +39,7 @@ import {
   type Icon,
   Waves,
 } from "@phosphor-icons/react"
+import type { SolarProductId } from "@/lib/energyState"
 import type { BoardToolId } from "@/lib/mapTools"
 
 export type RunNodeId =
@@ -135,7 +136,7 @@ export interface RunGraph {
  */
 export function runGraph(
   tool: BoardToolId | null,
-  solarProduct: "terrain" | "siting" | null,
+  solarProduct: SolarProductId | null,
   /** Which recipe a composition is built from; gates bands against an index. */
   compositeKind: "rgb" | "index" | null = null
 ): RunGraph | null {
@@ -146,26 +147,29 @@ export function runGraph(
     col,
   })
 
+  /*
+    SOLAR IS AREA, PRODUCT, RUN -- and its parameters are not on the graph.
+
+    They were, for the two products that draw a raster: a record card for the
+    irradiation and a slope card for the siting, which between them covered
+    everything those two send. The other two send more. The energy model alone
+    carries a reporting basis, an analysis period, a degradation rate, two
+    ground-cover ratios, a tracker limit, a density basis, a buildable
+    fraction, a UTC offset, a shading switch and two tables of loss terms;
+    there is no arrangement of cards that holds that and still reads as a
+    graph.
+
+    So one editor owns solar configuration, the way `canopyParams` owns the
+    stand's, and the band keeps what a band is for: which product, and go. See
+    lib/studioEditors.ts.
+  */
   if (tool === "solar") {
     if (!solarProduct) return null
-    if (solarProduct === "terrain") {
-      return {
-        nodes: [at("area", 0), at("product", 0), at("record", 1), at("season", 1), at("run", 2)],
-        edges: [
-          ["area", "run"],
-          ["product", "record"],
-          ["product", "season"],
-          ["record", "run"],
-          ["season", "run"],
-        ],
-      }
-    }
     return {
-      nodes: [at("area", 0), at("product", 0), at("slope", 1), at("run", 2)],
+      nodes: [at("area", 0), at("product", 1), at("run", 2)],
       edges: [
-        ["area", "run"],
-        ["product", "slope"],
-        ["slope", "run"],
+        ["area", "product"],
+        ["product", "run"],
       ],
     }
   }

@@ -22,6 +22,7 @@
  * they chose, and the cadence that follows from the toggle beside them.
  */
 import { MODEL_OPTIONS } from "@/lib/classifyOptions"
+import type { SolarProductId } from "@/lib/energyState"
 import type { BoardToolId } from "@/lib/mapTools"
 import type { ModelKind } from "@/lib/types"
 
@@ -54,7 +55,7 @@ export interface MethodInputs {
   maxCloud: number
   monthlyBest: boolean
   solar?: {
-    product: "terrain" | "siting"
+    product: SolarProductId
     hourlyYears: number
     season: string
     slopeAcceptableDeg: number
