@@ -30,7 +30,7 @@ import {
   Mountains,
   Path,
   Pencil,
-  Stack,
+  ArrowsOutCardinal,
   Trash,
   Warning,
 } from "@phosphor-icons/react"
@@ -49,6 +49,7 @@ import {
   raisedRasterLayer,
   type RaisedRasterLayer,
 } from "@/components/globe/raisedRasters"
+import { SpreadHandle } from "@/components/globe/SpreadHandle"
 import {
   OverlayCallouts,
   type OverlayCaption,
@@ -298,6 +299,8 @@ export function GlobeSurface({
    */
   overlays?: readonly {
     key: string
+    /** The ground it belongs to, which is what the stack is per. */
+    areaId: string
     layer: RasterLayer
     /**
      * What its colours mean, for the callout tied to it on the ground.
@@ -358,12 +361,40 @@ export function GlobeSurface({
    * doing nothing.
    */
   const stacked = useMemo(() => {
-    const perArea = new Map<string, number>()
+    const perArea = new Map<string, typeof overlays>()
     for (const o of overlays) {
-      const area = o.key.split("::")[0] ?? o.key
-      perArea.set(area, (perArea.get(area) ?? 0) + 1)
+      if (isZeroExtent(o.layer.extent)) continue
+      perArea.set(o.areaId, [...(perArea.get(o.areaId) ?? []), o])
     }
-    return [...perArea.values()].some((n) => n > 1)
+    /*
+      The first area holding more than one, and where its handle stands.
+
+      One handle, not one per area: the spread is a single number for the
+      globe, so a second arrow would be a second control over the same value,
+      and moving either would move both. The first stacked area is where it is
+      drawn because that is the one the reader put a stack on.
+    */
+    for (const [, list] of perArea) {
+      if (list.length < 2) continue
+      const b = list[0].layer.extent
+      let lonMin = b.lon_min
+      let lonMax = b.lon_max
+      let latMin = b.lat_min
+      let latMax = b.lat_max
+      for (const o of list) {
+        lonMin = Math.min(lonMin, o.layer.extent.lon_min)
+        lonMax = Math.max(lonMax, o.layer.extent.lon_max)
+        latMin = Math.min(latMin, o.layer.extent.lat_min)
+        latMax = Math.max(latMax, o.layer.extent.lat_max)
+      }
+      return {
+        at: [(lonMin + lonMax) / 2, (latMin + latMax) / 2] as [number, number],
+        /* The top raster's index: what a height has to be divided by to be a
+           gap. See SpreadHandle. */
+        steps: list.length - 1,
+      }
+    }
+    return null
   }, [overlays])
 
   const captions = useMemo(
@@ -890,9 +921,8 @@ export function GlobeSurface({
     const raised = overlays
       .filter((o) => !isZeroExtent(o.layer.extent))
       .map((o) => {
-        const area = o.key.split("::")[0] ?? o.key
-        const index = perArea.get(area) ?? 0
-        perArea.set(area, index + 1)
+        const index = perArea.get(o.areaId) ?? 0
+        perArea.set(o.areaId, index + 1)
         return {
           id: `sent-${o.key}`,
           url: o.layer.uri,
@@ -1292,11 +1322,11 @@ export function GlobeSurface({
           */}
           {stacked && onSpreadChange && (
             <MapButton
-              label="Spread the stack"
+              label={`Move the stack apart — ${spreadM.toFixed(0)} m`}
               active={spreadOpen}
               onClick={() => setSpreadOpen((v) => !v)}
             >
-              <Stack className="size-4" />
+              <ArrowsOutCardinal className="size-4" />
             </MapButton>
           )}
           {/*
@@ -1365,41 +1395,23 @@ export function GlobeSurface({
       />
 
       {/*
-        In METRES, which is what the ground is measured in: a reader can hold
-        "80 m" against the field they are looking at in a way they cannot hold
-        the viewport's own spread, whose unit is the area's longest side.
+        THE MOVE HANDLE, on the stack rather than in a panel.
+
+        A slider in the corner stood here first. It worked and it was the wrong
+        shape: the thing being moved is on the map, and a control for it at the
+        edge of the screen makes the reader look away from the result to change
+        it. This is Blender's arrangement -- a tool that is turned on, and a
+        handle on the thing while it is.
       */}
-      {spreadOpen && stacked && onSpreadChange && ready && !failure && (
-        <div
-          className="app-no-drag absolute right-[3.5rem] top-3 z-[401] flex w-[13rem] flex-col gap-1 rounded-sm px-2.5 py-2"
-          style={{
-            background: "rgb(var(--p-ink) / 0.94)",
-            border: "1px solid rgb(var(--p-line) / 0.35)",
-          }}
-        >
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="eyebrow !text-[9px] text-primary">
-              Stack spread
-            </span>
-            <span className="telemetry text-micro text-foreground">
-              {spreadM.toFixed(0)} m
-            </span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={SPREAD_MAX_M}
-            step={1}
-            value={spreadM}
-            aria-label="Metres between stacked rasters"
-            onChange={(e) => onSpreadChange(Number(e.target.value))}
-            className="w-full"
-          />
-          <p className="text-micro leading-relaxed text-muted-foreground">
-            Zero draws them on the ground, one over the other.
-          </p>
-        </div>
-      )}
+      <SpreadHandle
+        map={mapRef.current}
+        ready={ready && !failure && spreadOpen && !!onSpreadChange}
+        at={stacked?.at ?? null}
+        spreadM={spreadM}
+        maxM={SPREAD_MAX_M}
+        steps={stacked?.steps ?? 1}
+        onChange={(m) => onSpreadChange?.(m)}
+      />
 
       {searching && ready && !failure && (
         <SearchBar

@@ -2597,6 +2597,16 @@ export function BoardSurface({
   const globeOverlays = useMemo(() => {
     const out: {
       key: string
+      /**
+       * The ground it belongs to.
+       *
+       * Passed rather than parsed back out of `key`. The globe did the latter,
+       * splitting on "::" -- and sceneKey joins with a NUL byte, so every
+       * raster read as its own area, every index came out zero, and a stack of
+       * two was drawn at one height. A format owned by another module is not a
+       * thing to re-derive.
+       */
+      areaId: string
       layer: RasterLayer
       caption?: OverlayCaption
     }[] = []
@@ -2624,7 +2634,7 @@ export function BoardSurface({
               period: assetRuns.find((r) => r.areaId === a.id)?.period ?? null,
             }
           : undefined
-        out.push({ key, layer: l, caption })
+        out.push({ key, areaId: a.id, layer: l, caption })
       }
     }
     return out
