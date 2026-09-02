@@ -37,6 +37,13 @@
  * the plane and on the tree row, and several can be up at once because
  * comparing two legends is the case that needs them both.
  *
+ * IT RIDES THE RASTER'S HEIGHT, not the ground under it. The rasters are drawn
+ * at an elevation now, and a marker is anchored to a coordinate, which is on
+ * the surface -- so the legend for the top of a stack was tied to the ground
+ * beneath it while the raster it described floated above. There is no public
+ * way to project an elevated point in MapLibre, so the anchor is offset in
+ * pixels instead: see `riseInPixels`.
+ *
  * Position is per session and per raster, not stored. Where a reader wants a
  * legend is a function of what they are looking at right now, which is exactly
  * what a preference outliving the session gets wrong.
@@ -52,6 +59,37 @@ import { Marker, type Map as MapLibreMap } from "maplibre-gl"
 import { createRoot, type Root } from "react-dom/client"
 
 import type { LayerLegend } from "@/lib/layerLegend"
+
+/**
+ * How far up the screen a height of `metres` lands, at this camera.
+ *
+ * MapLibre will not project an elevated point, so this is worked out from the
+ * two things it will answer: the ground scale where the anchor is, and the
+ * pitch.
+ *
+ * At pitch 0 the camera looks straight down and a vertical offset moves the
+ * point toward the lens rather than across the screen, so the rise is nothing.
+ * At the horizon it is the whole of it, and `sin(pitch)` is the curve between.
+ *
+ * An approximation: it ignores the perspective foreshortening that grows with
+ * distance from the centre of the view. For a legend tied to a raster a few
+ * tens of metres up, that error is smaller than the dot it moves.
+ */
+function riseInPixels(
+  map: MapLibreMap,
+  at: [number, number],
+  metres: number
+): number {
+  if (metres <= 0) return 0
+  const p = map.project({ lng: at[0], lat: at[1] })
+  // Over a hundred pixels: unprojecting two adjacent ones is a distance of
+  // centimetres through a projection that is not exact at that scale.
+  const a = map.unproject([p.x, p.y])
+  const b = map.unproject([p.x, p.y - 100])
+  const mPerPx = a.distanceTo(b) / 100
+  if (!Number.isFinite(mPerPx) || mPerPx <= 0) return 0
+  return (metres / mPerPx) * Math.sin((map.getPitch() * Math.PI) / 180)
+}
 
 /** Where the box starts, in pixels from the anchor. Up and to the left of it. */
 const START_X = -232
@@ -104,6 +142,8 @@ export function OverlayCallouts({
     key: string
     /** Where the dot lands, [lon, lat]: the centre of the raster's extent. */
     at: [number, number]
+    /** How far above the ground the raster it describes is drawn, in metres. */
+    elevationM: number
     caption: OverlayCaption
   }[]
 }) {
@@ -116,6 +156,23 @@ export function OverlayCallouts({
     middle of.
   */
   const markers = useRef(new Map<string, { marker: Marker; root: Root }>())
+  /** The captions as they are now, for a handler bound to the map's events. */
+  const liveCaptions = useRef(captions)
+  liveCaptions.current = captions
+  /**
+   * Put every anchor at its raster's height.
+   *
+   * As a pixel offset on the marker, since a marker's coordinate is on the
+   * surface and there is no elevated one to give it. Negative Y is up.
+   */
+  const liftAll = useCallback(() => {
+    if (!map) return
+    for (const c of liveCaptions.current) {
+      const held = markers.current.get(c.key)
+      if (!held) continue
+      held.marker.setOffset([0, -riseInPixels(map, c.at, c.elevationM)])
+    }
+  }, [map])
 
   useEffect(() => {
     if (!map || !ready) return
@@ -156,7 +213,25 @@ export function OverlayCallouts({
       }
       held.root.render(<CalloutBody caption={c.caption} />)
     }
-  }, [map, ready, captions])
+    liftAll()
+  }, [map, ready, captions, liftAll])
+
+  /*
+    The lift is re-applied on every camera move, because it is a function of
+    the camera: a zoom changes the ground scale under the anchor and a pitch
+    changes how much of a height is visible at all. Without this the legend
+    stayed where it was drawn and slid off its raster as the reader turned.
+
+    `move` covers zoom, pitch and rotate; it fires per frame during an
+    animation, and the work per marker is one project and two unprojects.
+  */
+  useEffect(() => {
+    if (!map || !ready) return
+    map.on("move", liftAll)
+    return () => {
+      map.off("move", liftAll)
+    }
+  }, [map, ready, liftAll])
 
   useEffect(
     () => () => {

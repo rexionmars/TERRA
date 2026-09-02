@@ -397,6 +397,41 @@ export function GlobeSurface({
     return null
   }, [overlays])
 
+  /**
+   * The stack's heights, worked out once.
+   *
+   * The custom layer draws at these and the tied legends are anchored at them,
+   * and two derivations of one rule is two rules that can disagree -- which is
+   * how the legend for a raised raster came to sit on the ground under it.
+   */
+  const raisedRasters = useMemo(() => {
+    const perArea = new Map<string, number>()
+    return overlays
+      .filter((o) => !isZeroExtent(o.layer.extent))
+      .map((o) => {
+        /*
+          IN THE ORDER THE CALLER GIVES. The array already carries the reader's
+          stack -- the board applies each area's stored order before building
+          it -- so the index is what the scene tree says.
+        */
+        const index = perArea.get(o.areaId) ?? 0
+        perArea.set(o.areaId, index + 1)
+        return {
+          id: `sent-${o.key}`,
+          key: o.key,
+          url: o.layer.uri,
+          bounds: o.layer.extent,
+          opacity: o.layer.opacity,
+          /*
+            The lowest sits a metre up rather than at zero: at zero it shares a
+            depth with the ground it is drawn over, and two surfaces at one
+            depth flicker against each other as the camera moves.
+          */
+          elevationM: BASE_LIFT_M + index * spreadM,
+        }
+      })
+  }, [overlays, spreadM])
+
   const captions = useMemo(
     () =>
       overlays
@@ -407,9 +442,13 @@ export function GlobeSurface({
             (o.layer.extent.lon_min + o.layer.extent.lon_max) / 2,
             (o.layer.extent.lat_min + o.layer.extent.lat_max) / 2,
           ] as [number, number],
+          /* The height its raster is drawn at, so the tie is to the raster and
+             not to the ground under it. */
+          elevationM:
+            raisedRasters.find((r) => r.key === o.key)?.elevationM ?? 0,
           caption: o.caption!,
         })),
-    [overlays]
+    [overlays, raisedRasters]
   )
   /*
     REVEALED, NOT ALWAYS UP. The work map carries its search bar permanently
@@ -917,21 +956,6 @@ export function GlobeSurface({
       with the ground it is drawn over, and two surfaces at one depth flicker
       against each other as the camera moves.
     */
-    const perArea = new Map<string, number>()
-    const raised = overlays
-      .filter((o) => !isZeroExtent(o.layer.extent))
-      .map((o) => {
-        const index = perArea.get(o.areaId) ?? 0
-        perArea.set(o.areaId, index + 1)
-        return {
-          id: `sent-${o.key}`,
-          url: o.layer.uri,
-          bounds: o.layer.extent,
-          opacity: o.layer.opacity,
-          elevationM: BASE_LIFT_M + index * spreadM,
-        }
-      })
-
     let layer = raisedRef.current
     if (!layer) {
       layer = raisedRasterLayer(RAISED_LAYER, map)
@@ -941,7 +965,7 @@ export function GlobeSurface({
       if (!map.getLayer(RAISED_LAYER)) {
         map.addLayer(layer, map.getLayer(AREA_LINE) ? AREA_LINE : undefined)
       }
-      layer.set(raised)
+      layer.set(raisedRasters)
     } catch {
       /*
         The style is being replaced and addLayer throws. The same guard the
@@ -953,7 +977,7 @@ export function GlobeSurface({
         map.off("styledata", retry)
       }
     }
-  }, [overlays, spreadM, ready, styleNonce])
+  }, [raisedRasters, ready, styleNonce])
 
   /*
     And the camera comes to what is drawn, when the SET changes.
