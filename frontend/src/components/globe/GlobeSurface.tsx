@@ -30,6 +30,7 @@ import {
   Mountains,
   Path,
   Pencil,
+  Stack,
   Trash,
   Warning,
 } from "@phosphor-icons/react"
@@ -44,7 +45,10 @@ import "@/lib/maplibreWorker"
 
 import type { GlobeArea } from "@/components/globe/globeArea"
 import { MapBar, MapButton } from "@/components/globe/MapChrome"
-import { syncOverlays } from "@/components/globe/mapOverlays"
+import {
+  raisedRasterLayer,
+  type RaisedRasterLayer,
+} from "@/components/globe/raisedRasters"
 import {
   OverlayCallouts,
   type OverlayCaption,
@@ -172,6 +176,27 @@ const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
 const AREA_LINE = "terra-areas-line"
 
+/** The custom layer's id, so it is added once and found again. */
+const RAISED_LAYER = "raised-rasters"
+/**
+ * How far the lowest raster sits above the ground, in metres.
+ *
+ * At zero it shares a depth with the imagery it is drawn over, and two
+ * surfaces at one depth flicker against each other as the camera moves. A
+ * metre is below the resolution of anything drawn here and above the depth
+ * buffer's ability to confuse them.
+ */
+const BASE_LIFT_M = 1
+/**
+ * The furthest apart the stack may be drawn, in metres.
+ *
+ * A ceiling rather than an open number: the camera frames the extent, so a
+ * spread of a kilometre over a field two hundred metres across puts the upper
+ * raster outside the view the globe just flew to. Two hundred is roughly the
+ * long side of the fields this is read over.
+ */
+const SPREAD_MAX_M = 200
+
 /** A palette token's channels as a CSS colour MapLibre will parse. */
 function token(name: string, fallback: string): string {
   const raw = getComputedStyle(document.documentElement)
@@ -222,6 +247,8 @@ export function GlobeSurface({
   initialView = null,
   onViewChange,
   overlays = [],
+  spreadM = 0,
+  onSpreadChange,
   className,
 }: {
   areas: readonly GlobeArea[]
@@ -281,6 +308,21 @@ export function GlobeSurface({
      */
     caption?: OverlayCaption
   }[]
+  /**
+   * How far apart the rasters of one area are stacked, in metres.
+   *
+   * Metres because that is what the ground is measured in: a spread of 40
+   * means the second raster floats forty metres over the first, which is a
+   * figure a reader can hold against the field they are looking at. The
+   * viewport's own spread is in units where the area's longest side is one --
+   * a different space, and deliberately a different number.
+   *
+   * Zero draws them coplanar, which is where this started: the upper hides the
+   * lower and opacity is the only lever.
+   */
+  spreadM?: number
+  /** Where the reader left it. Held by the caller, so it survives a remount. */
+  onSpreadChange?: (m: number) => void
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -307,6 +349,23 @@ export function GlobeSurface({
    * outline and a neighbouring raster compete for the same pixels. A raster
    * with no caption contributes none, so a class raster draws no callout.
    */
+  /**
+   * Whether any one area has more than one raster on the globe.
+   *
+   * The spread separates the rasters OF AN AREA. Two rasters over two fields
+   * are not stacked -- they are beside each other on the ground -- so lifting
+   * one would say they were, and the control is withheld rather than offered
+   * doing nothing.
+   */
+  const stacked = useMemo(() => {
+    const perArea = new Map<string, number>()
+    for (const o of overlays) {
+      const area = o.key.split("::")[0] ?? o.key
+      perArea.set(area, (perArea.get(area) ?? 0) + 1)
+    }
+    return [...perArea.values()].some((n) => n > 1)
+  }, [overlays])
+
   const captions = useMemo(
     () =>
       overlays
@@ -333,6 +392,15 @@ export function GlobeSurface({
     name at all, which is half of what the drawing modal was for.
   */
   const [searching, setSearching] = useState(false)
+  /**
+   * Whether the stack's spread control is showing.
+   *
+   * Revealed rather than always up, as the search bar beside it is: it answers
+   * a question asked once and then not again for a while, and a slider
+   * standing across the corner of a sphere is chrome spent on a setting that
+   * is already where it was wanted.
+   */
+  const [spreadOpen, setSpreadOpen] = useState(false)
   /*
     THE TWO THINGS A READER CANNOT OTHERWISE TELL APART.
 
@@ -800,48 +868,62 @@ export function GlobeSurface({
     covers the window where the style is being replaced and addSource throws;
     the work map carries the same guard and the note explaining it.
   */
-  const overlayIdsRef = useRef<string[]>([])
+  const raisedRef = useRef<RaisedRasterLayer | null>(null)
   const [styleNonce, setStyleNonce] = useState(0)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
     /*
-      Bottom to top, IN THE ORDER THE CALLER GIVES.
+      IN THE ORDER THE CALLER GIVES, and lifted by position in it.
 
-      It sorted by `RasterLayer.order`, which is each product's own number --
-      a classification over surface water, confidence over the classification.
-      That is the DEFAULT stack and it is applied where the board builds its
-      areas, so the array arriving here already carries it. Sorting again threw
-      away what the reader put on top of it: the scene tree can restack an area
-      by hand, and the globe went on drawing the table's order, so the raster
-      the tree showed on top was covered on the map by the one under it.
+      The array arriving here already carries the reader's stack -- the board
+      applies each area's stored order before it builds this -- so the index is
+      what the scene tree says, and the elevation follows from it. A second
+      sort here would be the board's decision made twice; it was, and the
+      second one won.
 
-      syncOverlays takes the array AS the ordering; this is now the only thing
-      deciding it, which is what makes the two surfaces agree.
+      The lowest sits a metre up rather than at zero: at zero it shares a depth
+      with the ground it is drawn over, and two surfaces at one depth flicker
+      against each other as the camera moves.
     */
-    const specs = [...overlays]
+    const perArea = new Map<string, number>()
+    const raised = overlays
       .filter((o) => !isZeroExtent(o.layer.extent))
-      .map((o) => ({
-        id: `sent-${o.key}`,
-        url: o.layer.uri,
-        bounds: o.layer.extent,
-        opacity: o.layer.opacity,
-      }))
+      .map((o) => {
+        const area = o.key.split("::")[0] ?? o.key
+        const index = perArea.get(area) ?? 0
+        perArea.set(area, index + 1)
+        return {
+          id: `sent-${o.key}`,
+          url: o.layer.uri,
+          bounds: o.layer.extent,
+          opacity: o.layer.opacity,
+          elevationM: BASE_LIFT_M + index * spreadM,
+        }
+      })
+
+    let layer = raisedRef.current
+    if (!layer) {
+      layer = raisedRasterLayer(RAISED_LAYER, map)
+      raisedRef.current = layer
+    }
     try {
-      overlayIdsRef.current = syncOverlays(
-        map,
-        specs,
-        overlayIdsRef.current,
-        map.getLayer(AREA_LINE) ? AREA_LINE : undefined
-      )
+      if (!map.getLayer(RAISED_LAYER)) {
+        map.addLayer(layer, map.getLayer(AREA_LINE) ? AREA_LINE : undefined)
+      }
+      layer.set(raised)
     } catch {
+      /*
+        The style is being replaced and addLayer throws. The same guard the
+        image path carried, and for the same window.
+      */
       const retry = () => setStyleNonce((n) => n + 1)
       map.once("styledata", retry)
       return () => {
         map.off("styledata", retry)
       }
     }
-  }, [overlays, ready, styleNonce])
+  }, [overlays, spreadM, ready, styleNonce])
 
   /*
     And the camera comes to what is drawn, when the SET changes.
@@ -1203,6 +1285,21 @@ export function GlobeSurface({
             <MagnifyingGlass className="size-4" />
           </MapButton>
           {/*
+            THE STACK'S SPREAD, and only where there is a stack. A raster here
+            is drawn at a height above the ground rather than draped on it, so
+            two over one field can both be read; at zero they are coplanar and
+            the upper hides the lower, which is where this started.
+          */}
+          {stacked && onSpreadChange && (
+            <MapButton
+              label="Spread the stack"
+              active={spreadOpen}
+              onClick={() => setSpreadOpen((v) => !v)}
+            >
+              <Stack className="size-4" />
+            </MapButton>
+          )}
+          {/*
             BETWEEN FINDING THE PLACE AND LIGHTING IT, because choosing which
             imagery answers is part of looking rather than part of drawing.
           */}
@@ -1266,6 +1363,43 @@ export function GlobeSurface({
         ready={ready && !failure}
         captions={captions}
       />
+
+      {/*
+        In METRES, which is what the ground is measured in: a reader can hold
+        "80 m" against the field they are looking at in a way they cannot hold
+        the viewport's own spread, whose unit is the area's longest side.
+      */}
+      {spreadOpen && stacked && onSpreadChange && ready && !failure && (
+        <div
+          className="app-no-drag absolute right-[3.5rem] top-3 z-[401] flex w-[13rem] flex-col gap-1 rounded-sm px-2.5 py-2"
+          style={{
+            background: "rgb(var(--p-ink) / 0.94)",
+            border: "1px solid rgb(var(--p-line) / 0.35)",
+          }}
+        >
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="eyebrow !text-[9px] text-primary">
+              Stack spread
+            </span>
+            <span className="telemetry text-micro text-foreground">
+              {spreadM.toFixed(0)} m
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={SPREAD_MAX_M}
+            step={1}
+            value={spreadM}
+            aria-label="Metres between stacked rasters"
+            onChange={(e) => onSpreadChange(Number(e.target.value))}
+            className="w-full"
+          />
+          <p className="text-micro leading-relaxed text-muted-foreground">
+            Zero draws them on the ground, one over the other.
+          </p>
+        </div>
+      )}
 
       {searching && ready && !failure && (
         <SearchBar
