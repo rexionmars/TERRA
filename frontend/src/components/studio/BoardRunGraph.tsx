@@ -574,7 +574,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       /*
         Choices rather than the header's radio, and this is the correction as
         much as the move is: `modeBlockedBy` says cumulative retention runs on
-        Random Forest, ControlPanel has honoured that since it was written, and
+        Random Forest, and the map's control panel honoured that before this one,
         StudioHeaderRadio has no refused state to honour it with -- so the
         studio let a reader pick a mode the model does not produce. Here the
         rule both disables the option and says why.

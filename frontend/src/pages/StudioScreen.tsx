@@ -1,12 +1,6 @@
 import {
-  Droplet,
-  Grid2x2,
-  Image as ImageIcon,
-  type LucideIcon,
 } from "lucide-react"
 import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { createPortal } from "react-dom"
-import { AnimatePresence } from "motion/react"
 import type {
   CompositionOverlay,
   CompositeIndex,
@@ -32,18 +26,9 @@ import type { AoiContourSchemeId } from "@/lib/aoiStyle"
   component, so they moved together; the studio's own drawing map is the last
   Leaflet map left. See components/map/MapSurface.tsx.
 */
-import { MapSurface } from "@/components/map/MapSurface"
-import { SearchBar } from "@/components/SearchBar"
-import { PeriodTimeline } from "@/components/PeriodTimeline"
-import { ControlPanel } from "@/components/ControlPanel"
-import { CompositionPanel } from "@/components/CompositionPanel"
-import { WaterPanel } from "@/components/WaterPanel"
-import { WaterStatusPanel } from "@/components/WaterStatusPanel"
 import {
-  MAP_TOOLS,
   isMapTool,
   type BoardToolId,
-  type MapToolId,
 } from "@/lib/mapTools"
 import type { SolarParams } from "@/lib/energyState"
 import { cn } from "@/lib/utils"
@@ -55,19 +40,16 @@ import {
   BOARD_LEFT_REM,
   BOARD_RIGHT_REM,
   boardPartition,
-  clampColumn,
   clampDetail,
   partitionVars,
 } from "@/lib/boardPartition"
-import { rasterLayers, type RasterLayer } from "@/lib/mapLayers"
+import { rasterLayers } from "@/lib/mapLayers"
 import { solarOverlayList } from "@/lib/solarLayers"
 import { runAssets } from "@/lib/runAssets"
 import { useRunLog } from "@/lib/runLog"
 import { polygonOuterRing } from "@/lib/geometry"
 import type { LayoutMode } from "@/lib/types"
 import type { BasemapKind } from "@/lib/basemaps"
-import { WorkspaceBar } from "@/components/WorkspaceBar"
-import { BoardButton } from "@/components/studio/BoardButton"
 
 /*
   Lazy, and reached only from here. BoardSurface imports the scene, which
@@ -94,18 +76,11 @@ const prefetchBoard = () => void import("@/components/studio/BoardSurface")
   six other files, and each repetition was a promise that two numbers written
   apart would stay equal -- a promise that broke four times.
 */
-import type { PanelPlacement } from "@/components/ui/PanelShell"
-import { ResultsPanel } from "@/components/ResultsPanel"
-import { CompositionStatusPanel } from "@/components/CompositionStatusPanel"
 import { DataCubeModal } from "@/components/DataCubeModal"
-import { ConfidenceLegend } from "@/components/ConfidenceLegend"
-import { statusPanelInset } from "@/components/analysisPrimitives"
 import {
-  OverlayToolsButton,
-  OverlayToolsPanel,
 } from "@/components/OverlayToolsPanel"
 
-export interface MapScreenProps {
+export interface StudioScreenProps {
   /** Where the map was left last session; null starts at the default view. */
   initialView?: { lat: number; lon: number; zoom: number } | null
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
@@ -317,7 +292,7 @@ export interface MapScreenProps {
   onWaterOpacityChange: (v: number) => void
 }
 
-export function MapScreen(props: MapScreenProps) {
+export function StudioScreen(props: StudioScreenProps) {
   // Held by the caller, not here. This screen is unmounted whenever the user
   // goes to another one, so local state put the dock back on "classify" on
   // every return -- including a return from a water run, which left a water
@@ -355,15 +330,6 @@ export function MapScreen(props: MapScreenProps) {
    */
   const [barWidthPx, setBarWidthPx] = useState(0)
   const workspace = props.layoutMode === "workspace"
-  /**
-   * Whether the analysis is lifted off the map onto the board.
-   *
-   * Local, and deliberately not persisted -- the opposite of the reasoning
-   * that holds leftPanel in the caller. This screen remounts on every return,
-   * and coming back to the map should give the map, not a board left open
-   * twenty minutes ago.
-   */
-  const [board, setBoard] = useState(false)
   /**
    * The band's own tool, which is the map's plus solar.
    *
@@ -428,10 +394,6 @@ export function MapScreen(props: MapScreenProps) {
   useEffect(() => {
     // Zero is the resting value, not a request.
     if (nonce > 0) {
-      setBoard(true)
-      // What the two toggle handlers do inline. This path skipped it, and with
-      // the island withheld there is no longer a button on screen to shut a
-      // drawer that opened before the board did.
       setRightDrawer(null)
     }
   }, [nonce])
@@ -514,28 +476,6 @@ export function MapScreen(props: MapScreenProps) {
    * both. That is the existing model rather than something introduced here:
    * the map's own panel has one slider for the pair.
    */
-  /**
-   * Whether the board is actually up. The state, and nothing else.
-   *
-   * IT USED TO REQUIRE SOMETHING TO SHOW: a visible raster, or another area
-   * the board had fetched, or an AOI on the map, or the nonce that opens a
-   * studio by name. The rule existed because an empty board was a dead end --
-   * a surface that could only ARRANGE runs, mounted over a map, with nothing
-   * on it and no way to put anything there.
-   *
-   * That stopped being true when the studio gained a globe to draw on and a
-   * run graph to run from. An empty studio is now where work starts, not a
-   * screen you have to back out of, and the nonce exception -- which existed
-   * precisely because "a studio opened by name stands with nothing on it" --
-   * was the rule already admitting its own case.
-   *
-   * The dead end the old rule was itself written to close is closed by this
-   * too: the sidebar's eye can hide every layer, and under the old condition
-   * that unmounted the surface holding the control, taking the search field,
-   * the overlay tools and the button back in with it.
-   */
-  const boardOpen = board
-
   /*
     Reported to the title bar, which withholds the map's latitude, longitude,
     zoom and imagery credit while the studio covers the map. Coerced, because
@@ -544,12 +484,12 @@ export function MapScreen(props: MapScreenProps) {
   */
   const reportBoardOpen = props.onBoardOpenChange
   useEffect(() => {
-    reportBoardOpen?.(!!boardOpen)
+    reportBoardOpen?.(true)
     // Leaving the screen closes it as far as the title bar is concerned:
     // otherwise a true outlives the surface that justified it, and the map's
     // readings stay hidden on a screen that has a map.
     return () => reportBoardOpen?.(false)
-  }, [boardOpen, reportBoardOpen])
+  }, [reportBoardOpen])
 
   /*
     The studio and "Sidebar and column" fight for the left edge: the shell
@@ -563,23 +503,30 @@ export function MapScreen(props: MapScreenProps) {
   const layoutMode = props.layoutMode ?? "docked"
   useEffect(() => {
     if (!onLayoutModeChange) return
-    if (boardOpen) {
-      if (layoutMode !== "workspace") {
-        if (layoutBeforeBoardRef.current == null) {
-          layoutBeforeBoardRef.current = layoutMode
-        }
-        // Not persisted: this is what the surface requires, not what the
-        // reader chose, and storing it edits the Map layout setting behind
-        // their back -- every launch, for a session that opens on the studio.
-        onLayoutModeChange("workspace", { persist: false })
+    if (layoutMode !== "workspace") {
+      if (layoutBeforeBoardRef.current == null) {
+        layoutBeforeBoardRef.current = layoutMode
       }
-      return
+      // Not persisted: this is what the surface requires, not what the reader
+      // chose, and storing it edits their layout setting behind their back --
+      // every launch, since this screen is where a session opens.
+      onLayoutModeChange("workspace", { persist: false })
     }
+  }, [layoutMode, onLayoutModeChange])
+
+  /*
+    And put it back on the way out, which used to happen when the board closed.
+    A ref rather than the effect above, so leaving the screen restores the mode
+    without the restore re-running every time the mode changes under it.
+  */
+  const restoreLayout = useRef<(() => void) | null>(null)
+  restoreLayout.current = () => {
     const prev = layoutBeforeBoardRef.current
-    if (prev == null) return
+    if (prev == null || !onLayoutModeChange) return
     layoutBeforeBoardRef.current = null
-    if (layoutMode !== prev) onLayoutModeChange(prev, { persist: false })
-  }, [boardOpen, layoutMode, onLayoutModeChange])
+    onLayoutModeChange(prev, { persist: false })
+  }
+  useEffect(() => () => restoreLayout.current?.(), [])
 
   /*
     The same table the overlay tools panel lists, so the board's data mode and
@@ -728,120 +675,6 @@ export function MapScreen(props: MapScreenProps) {
     progress: boardRun.progress,
     message: boardRun.progressMsg,
   })
-
-  /**
-   * The three products' controls, in whichever container the layout gives
-   * them. One switch, called from two places: the docked column below, and
-   * the workspace layout's right drawer. Writing it twice would let the two
-   * layouts drift in which props each panel receives.
-   */
-  const renderPanel = (placement: PanelPlacement, show: boolean) => {
-    /*
-      Dismissing means different things in the two containers. Closing the
-      docked column clears the open tool, because the column IS the tool
-      selection -- there is nothing left selected once it is gone. In the
-      workspace layout the bar keeps the selection, so closing the drawer must
-      close only the drawer; clearing the tool there would empty the segmented
-      control and leave the run button acting on nothing.
-    */
-    const dismiss =
-      placement === "drawer"
-        ? () => setRightDrawer(null)
-        : () => setLeftPanel(null)
-    return (
-      <AnimatePresence mode="wait" initial={false}>
-        {!show ? null : leftPanel === "classify" ? (
-          <ControlPanel
-            key="classify"
-            placement={placement}
-            customPolygon={props.customPolygon}
-            hasArea={props.hasArea}
-            onClearArea={props.onClearArea}
-            onImportPolygon={props.onImportPolygon}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            mode={props.mode}
-            onModeChange={props.onModeChange}
-            modelKind={props.modelKind}
-            onModelKindChange={props.onModelKindChange}
-            prithviMode={props.prithviMode}
-            onPrithviModeChange={props.onPrithviModeChange}
-            running={props.running}
-            progress={props.progress}
-            progressMsg={props.progressMsg}
-            onRun={props.onRun}
-            onAnalyzeLULC={props.onAnalyzeLULC}
-            lulcRunning={props.lulcRunning}
-            onCollapse={dismiss}
-          />
-        ) : leftPanel === "water" ? (
-          <WaterPanel
-            key="water"
-            placement={placement}
-            hasArea={props.hasArea}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            index={props.waterIndex}
-            onIndexChange={props.onWaterIndexChange}
-            running={props.waterRunning}
-            progress={props.waterProgress}
-            progressMsg={props.waterProgressMsg}
-            hasResult={!!props.water}
-            onRun={props.onRunWater}
-            onClear={props.onClearWater}
-            onCollapse={dismiss}
-          />
-        ) : leftPanel === "compose" ? (
-          <CompositionPanel
-            key="compose"
-            placement={placement}
-            hasArea={props.hasArea}
-            start={props.start}
-            end={props.end}
-            onStartChange={props.onStartChange}
-            onEndChange={props.onEndChange}
-            maxCloud={props.maxCloud}
-            onMaxCloudChange={props.onMaxCloudChange}
-            monthlyBest={props.monthlyBest}
-            onMonthlyBestChange={props.onMonthlyBestChange}
-            scenes={props.composeScenes}
-            scenesLoading={props.composeScenesLoading}
-            scenesError={props.composeScenesError}
-            selectedSceneId={props.selectedSceneId}
-            onSelectScene={props.onSelectScene}
-            kind={props.composeKind}
-            onKindChange={props.onComposeKindChange}
-            bands={props.composeBands}
-            onBandsChange={props.onComposeBandsChange}
-            index={props.composeIndex}
-            onIndexChange={props.onComposeIndexChange}
-            stretchLow={props.composeStretchLow}
-            stretchHigh={props.composeStretchHigh}
-            onStretchChange={props.onComposeStretchChange}
-            running={props.composeRunning}
-            progress={props.composeProgress}
-            progressMsg={props.composeProgressMsg}
-            hasOverlay={!!props.composition}
-            onApply={props.onApplyComposition}
-            onClear={props.onClearComposition}
-            onCollapse={dismiss}
-          />
-        ) : null}
-      </AnimatePresence>
-    )
-  }
 
   /**
    * The studio's Run tab: which product, and its own parameters.
@@ -1074,449 +907,156 @@ export function MapScreen(props: MapScreenProps) {
             columns publish their widths too, so the scene can read them
             instead of holding a copy of a number it cannot import.
           */
-          ...partitionVars(partition, !!boardOpen),
+          ...partitionVars(partition, true),
         } as React.CSSProperties
       }
     >
       {/*
-        The studio toggle, drawn into the title bar.
+        A real surface, not null.
 
-        Portalled rather than passed up because of where the state is: `board`
-        below is this screen's, and the bar belongs to the shell. This keeps the
-        two facts apart -- the shell owns WHERE the button goes, this screen
-        owns WHAT it does. Rendered here beside the board's other chrome, since
-        that is what it is, whatever DOM it lands in.
+        The studio is a lazy chunk carrying three.js, so the first paint of a
+        session downloads and parses it before anything of the studio exists. A
+        blank frame there reads as an application that did not start.
       */}
-      {props.titleBarSlot &&
-        createPortal(
-          <BoardButton
-            active={boardOpen}
-            onClick={() =>
-              setBoard((o) => {
-                // Closing the overlay drawer on the way in: the sidebar carries
-                // what governs the board, and a drawer left open from the map
-                // would be a second surface for the same controls, floating
-                // over a surface that already has them.
-                if (!o) setRightDrawer(null)
-                return !o
-              })
+      <Suspense
+          fallback={
+            <div className="app-no-drag absolute inset-0 z-[500]">
+              <StudioLoading />
+            </div>
+          }
+        >
+          <BoardSurface
+            /*
+              REMOUNTED WHEN A BOARD IS OPENED, which is what makes opening
+              one from inside the studio work at all.
+
+              Everything the surface holds is seeded from `boardMemory` on
+              mount -- that is how a restored board arrives -- so a restore
+              into a surface already up would write the memory and change
+              nothing on screen. The nonce is the same request that opens the
+              studio in the first place; keying by it turns a second request
+              into the mount the restore path already expects.
+            */
+            key={`studio-${nonce}`}
+            /*
+              The band's height, and the two gestures that change it. Clamped
+              here rather than in the band: the reservation --map-foot is
+              derived from this number, so the bound belongs with the value
+              the layout is computed from.
+            */
+            detailHeightRem={statsRem}
+            // Bounded by the partition, which owns them: the reservation is
+            // derived from this number, so the bound belongs with the value.
+            onDetailResize={(rem) => setStatsRem(clampDetail(rem))}
+            detailCollapsed={statsCollapsed}
+            onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
+            runBar={runBarNode}
+            runBarHeader={runBarHeader}
+            layers={boardLayers}
+            assets={boardAssets}
+            retainedRuns={props.retainedRuns}
+            onDropRetainedRun={props.onDropRetainedRun}
+            /*
+              What this run's colours mean. Not derivable from the layers:
+              a layer is what is drawn, and class_stats, the water index and
+              the solar scale are what it means -- they live on the payload
+              and stop here otherwise.
+            */
+            /*
+              Straight to the same handler the drawing map and the map itself
+              use. Reusing a shape and drawing one land in one place, so the
+              application cannot come to hold two ideas of what the area is.
+            */
+            onUseArea={props.onAdoptAreaGeometry ?? props.onPolygonDrawn}
+            /*
+              And the same handler again for the globe, which DRAWS rather
+              than adopts. `onUseArea` cannot carry a removal -- it takes a
+              geometry, not a geometry or nothing -- and clearing the shape is
+              half of what a drawing tool does.
+            */
+            customPolygon={props.customPolygon}
+            onPolygonDrawn={props.onPolygonDrawn}
+            catalogAreas={props.areas}
+            initialView={props.initialView}
+            onViewChange={props.onViewChange}
+            activeProjectId={props.activeProjectId}
+            activeProjectName={props.activeProjectName}
+            activeAreaId={props.activeAreaId}
+            onActivateArea={props.onActivateArea}
+            onRenameArea={props.onRenameArea}
+            onDeleteArea={props.onDeleteArea}
+            legendSources={{
+              result: props.result,
+              water: props.water,
+              solarTerrain: props.solarTerrain,
+              solarSiting: props.solarSiting,
+              composition: props.composition,
+            }}
+            /*
+              The run on screen may never have been saved, so it has no id of
+              its own to give. The board only needs one that is stable while
+              it is open, and distinct from the ids of runs loaded beside it.
+            */
+            runId={props.result?.run_id || "current"}
+            /*
+              The period the run covered, which is what tells two runs of one
+              area apart. The result's own range where the sidecar reported
+              one, since it names the scenes actually used rather than the
+              window that was asked for.
+            */
+            /*
+              What was actually drawn. The board outlines the AREA rather
+              than the raster's box, and a box around an area claims ground
+              the analysis never saw.
+            */
+            aoiPolygon={
+              polygonOuterRing(
+                props.customPolygon ??
+                  ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
+              ) ?? undefined
             }
-            onPrefetch={prefetchBoard}
-          />,
-          props.titleBarSlot
-        )}
-
-      <MapSurface
-        initialView={props.initialView}
-        customPolygon={props.customPolygon}
-        onPolygonDrawn={props.onPolygonDrawn}
-        flyTo={props.flyTo}
-        result={props.result}
-        overlayOpacity={props.overlayOpacity}
-        showConfidence={props.showConfidence}
-        confidenceOnTop={props.confidenceOnTop}
-        smoothOverlay={props.smoothOverlay}
-        showPredictionOverlay={props.showPredictionOverlay}
-        showCompositionOverlay={props.showCompositionOverlay}
-        composition={props.composition}
-        waterOverlay={
-          props.water && props.showWaterOverlay
-            ? {
-                uri: props.water.occurrence_uri,
-                extent: props.water.extent,
-                opacity: props.waterOpacity,
-              }
-            : null
-        }
-        swipeCompare={props.swipeCompare}
-        swipeRatio={props.swipeRatio}
-        onSwipeRatioChange={props.onSwipeRatioChange}
-        areaLabel={props.areaLabel}
-        onAreaLabelChange={props.onAreaLabelChange}
-        aoiContourScheme={props.aoiContourScheme}
-        onAoiContourSchemeChange={props.onAoiContourSchemeChange}
-        onClearArea={props.onClearArea}
-        onViewChange={props.onViewChange}
-        onCreditChange={props.onCreditChange}
-        // Placed in the surface's own bottom-right stack, above the zoom and
-        // draw controls, so a panel opening no longer reads as something this
-        // button produced.
-        bottomRightSlot={
-          <>
-            {/*
-              Not while the board is open: it takes the top instead, and this
-              one would be a second mount of the same control sitting unclickable
-              under the board.
-            */}
-            {!boardOpen && (
-              <OverlayToolsButton
-                active={rightDrawer === "overlays"}
-                onClick={() =>
-                  setRightDrawer((d) => (d === "overlays" ? null : "overlays"))
-                }
-              />
-            )}
-          </>
-        }
-      />
-
-      {/*
-        The search field finds a place on Earth. The board has no Earth on it:
-        the rasters are lifted off their coordinates, which is the point, so
-        there is nowhere for a result to fly to.
-      */}
-      {!boardOpen && <SearchBar onSelectLocation={props.onLocationSelect} />}
-
-      {/*
-        Overlay tools have no button while the board is open. What governs the
-        board is in its sidebar: the visibility and opacity of each raster as a
-        row per plane, and the majority filter, which is the one control in
-        that panel that changes what the board DRAWS.
-
-        What stays behind is map vocabulary with nothing to act on here -- the
-        swipe compares an overlay against the basemap, and the palette colours
-        an AOI contour the board does not draw. The generated-overlay gallery
-        is the exception, and it is deliberate: choosing what to bring onto the
-        board is the multi-AOI step, and it needs a surface of its own rather
-        than a panel borrowed from the map.
-      */}
-
-      {/*
-        The foot carries the period on the map and the run on the board.
-
-        The timeline is a control ABOUT THE MAP -- a window dragged over the
-        scenes that fall in it, read against the view. With the map covered
-        there is nothing to read it against, and the band is the widest space
-        this application has: exactly what nine small choices need and what a
-        15rem column cannot give them.
-      */}
-      {!boardOpen && (
-      <PeriodTimeline
-        start={props.start}
-        end={props.end}
-        onStartChange={props.onStartChange}
-        onEndChange={props.onEndChange}
-        scenes={props.composeScenes}
-        scenesLoading={props.composeScenesLoading}
-        onListScenes={props.onListComposeScenes}
-        onOpenListing={props.onViewDataCube}
-        disabled={props.running || props.composeRunning}
-        /*
-          Retracted past whatever occupies the foot's left end: the docked
-          column at its fixed 19rem plus its two 0.75rem gutters, or the
-          workspace island, which is flush into the corner and so needs only
-          the gap between the two segments added to its measured width.
-        */
-        flushLeft={workspace}
-        leftOffset={
-          workspace
-            ? barWidthPx
-              ? `calc(${barWidthPx}px + 0.75rem)`
-              : undefined
-            : leftPanel
-              ? "20.5rem"
-              : undefined
-        }
-      />
-      )}
-
-      <AnimatePresence>
-        {boardOpen && (
-          /*
-            A real surface, not null.
-
-            The studio is a lazy chunk carrying three.js, so the first open of
-            a session downloads and parses it before anything of the studio
-            exists. A blank frame between the press and the board reads as a
-            button that did not work, and a reader who sees no change presses
-            again.
-          */
-          <Suspense
-            fallback={
-              <div className="app-no-drag absolute inset-0 z-[500]">
-                <StudioLoading />
-              </div>
+            runPeriod={
+              props.result?.date_range?.length === 2
+                ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`
+                : `${props.start} → ${props.end}`
             }
-          >
-            <BoardSurface
-              /*
-                REMOUNTED WHEN A BOARD IS OPENED, which is what makes opening
-                one from inside the studio work at all.
+            onLayerChange={changeBoardLayer}
+            onSelectComposition={props.onSelectComposition}
+            onRemoveComposition={props.onRemoveComposition}
+            smooth={props.smoothOverlay}
+            onSmoothChange={props.onSmoothOverlayChange}
+            /*
+              The subject's own name, and only a generic one when there is
+              genuinely no subject.
 
-                Everything the surface holds is seeded from `boardMemory` on
-                mount -- that is how a restored board arrives -- so a restore
-                into a surface already up would write the memory and change
-                nothing on screen. The nonce is the same request that opens the
-                studio in the first place; keying by it turns a second request
-                into the mount the restore path already expects.
-              */
-              key={`studio-${nonce}`}
-              /*
-                The band's height, and the two gestures that change it. Clamped
-                here rather than in the band: the reservation --map-foot is
-                derived from this number, so the bound belongs with the value
-                the layout is computed from.
-              */
-              detailHeightRem={statsRem}
-              // Bounded by the partition, which owns them: the reservation is
-              // derived from this number, so the bound belongs with the value.
-              onDetailResize={(rem) => setStatsRem(clampDetail(rem))}
-              detailCollapsed={statsCollapsed}
-              onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
-              runBar={runBarNode}
-              runBarHeader={runBarHeader}
-              layers={boardLayers}
-              assets={boardAssets}
-              retainedRuns={props.retainedRuns}
-              onDropRetainedRun={props.onDropRetainedRun}
-              /*
-                What this run's colours mean. Not derivable from the layers:
-                a layer is what is drawn, and class_stats, the water index and
-                the solar scale are what it means -- they live on the payload
-                and stop here otherwise.
-              */
-              /*
-                Straight to the same handler the drawing map and the map itself
-                use. Reusing a shape and drawing one land in one place, so the
-                application cannot come to hold two ideas of what the area is.
-              */
-              onUseArea={props.onAdoptAreaGeometry ?? props.onPolygonDrawn}
-              /*
-                And the same handler again for the globe, which DRAWS rather
-                than adopts. `onUseArea` cannot carry a removal -- it takes a
-                geometry, not a geometry or nothing -- and clearing the shape is
-                half of what a drawing tool does.
-              */
-              customPolygon={props.customPolygon}
-              onPolygonDrawn={props.onPolygonDrawn}
-              catalogAreas={props.areas}
-              initialView={props.initialView}
-              onViewChange={props.onViewChange}
-              activeProjectId={props.activeProjectId}
-              activeProjectName={props.activeProjectName}
-              activeAreaId={props.activeAreaId}
-              onActivateArea={props.onActivateArea}
-              onRenameArea={props.onRenameArea}
-              onDeleteArea={props.onDeleteArea}
-              legendSources={{
-                result: props.result,
-                water: props.water,
-                solarTerrain: props.solarTerrain,
-                solarSiting: props.solarSiting,
-                composition: props.composition,
-              }}
-              /*
-                The run on screen may never have been saved, so it has no id of
-                its own to give. The board only needs one that is stable while
-                it is open, and distinct from the ids of runs loaded beside it.
-              */
-              runId={props.result?.run_id || "current"}
-              /*
-                The period the run covered, which is what tells two runs of one
-                area apart. The result's own range where the sidecar reported
-                one, since it names the scenes actually used rather than the
-                window that was asked for.
-              */
-              /*
-                What was actually drawn. The board outlines the AREA rather
-                than the raster's box, and a box around an area claims ground
-                the analysis never saw.
-              */
-              aoiPolygon={
-                polygonOuterRing(
-                  props.customPolygon ??
-                    ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
-                ) ?? undefined
-              }
-              runPeriod={
-                props.result?.date_range?.length === 2
-                  ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`
-                  : `${props.start} → ${props.end}`
-              }
-              onLayerChange={changeBoardLayer}
-              onSelectComposition={props.onSelectComposition}
-              onRemoveComposition={props.onRemoveComposition}
-              smooth={props.smoothOverlay}
-              onSmoothChange={props.onSmoothOverlayChange}
-              /*
-                The subject's own name, and only a generic one when there is
-                genuinely no subject.
-
-                This read `props.areaLabel || "Analysis"`, and "Analysis" is
-                what a reader saw whenever the AOI label was empty -- a row in
-                the tree named after no ground, indistinguishable from a saved
-                run and impossible to place. The label is the last resort now
-                rather than the only source: the run's own name first, then the
-                active AOI's, then the map's label.
-              */
-              title={
-                props.areas?.find((a) => a.id === props.activeAreaId)?.name ||
-                props.areaLabel ||
-                ""
-              }
-              studios={props.studios}
-              onOpenStudio={props.onOpenStudio}
-              onNewStudio={props.onNewStudio}
-              onStudiosMenu={props.onStudiosMenu}
-              onClose={() => setBoard(false)}
-            />
-          </Suspense>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {/*
-          Withheld while the board is up, like the search field above and the
-          overlay-tools button beside it. What it carried that the board also
-          carries is now said once, on the band; what it carried that the board
-          does not -- the destinations outside this screen, and the parameter
-          drawer -- comes back the moment the board closes.
-
-          The child is what comes and goes, not the AnimatePresence: gating the
-          presence itself unmounts the thing that was supposed to animate the
-          exit, which this file already learned once further down.
-        */}
-        {workspace && !boardOpen && (
-          <WorkspaceBar
-            key="workspace-bar"
-            groupId="map"
-            activeId={leftPanel}
-            onNavigate={props.onNavigate}
-            running={run.running}
-            progress={run.progress}
-            progressMsg={run.progressMsg}
-            runLabel={run.label}
-            canRun={run.canRun}
-            onRun={run.onRun}
-            onWidthChange={setBarWidthPx}
-            configOpen={rightDrawer === "config"}
-            onConfigToggle={() =>
-              setRightDrawer((d) => (d === "config" ? null : "config"))
+              This read `props.areaLabel || "Analysis"`, and "Analysis" is
+              what a reader saw whenever the AOI label was empty -- a row in
+              the tree named after no ground, indistinguishable from a saved
+              run and impossible to place. The label is the last resort now
+              rather than the only source: the run's own name first, then the
+              active AOI's, then the map's label.
+            */
+            title={
+              props.areas?.find((a) => a.id === props.activeAreaId)?.name ||
+              props.areaLabel ||
+              ""
             }
+            studios={props.studios}
+            onOpenStudio={props.onOpenStudio}
+            onNewStudio={props.onNewStudio}
+            onStudiosMenu={props.onStudiosMenu}
+            /*
+              WHERE A FAILED SURFACE GOES, which used to be the map underneath.
+
+              BoardSurface calls this when a WebGL context cannot be created --
+              too many live contexts, or a driver reset -- because a blank board
+              says nothing. With the studio as the screen there is nothing
+              underneath, so it has to be a destination: the analysis list,
+              which needs no GL and is somewhere a reader can work from.
+            */
+            onClose={() => props.onNavigate("analysis")}
           />
-        )}
-      </AnimatePresence>
-
-      {/*
-        Pushed clear of the board's right column rather than withheld: this is a
-        TOOL drawer, not a readout, so hiding it would remove function instead
-        of removing duplication -- the trade the two status panels above make
-        because the column repeats them.
-      */}
-      <OverlayToolsPanel
-        /*
-          The studio has no fixed right column any more -- the properties area
-          is a fraction of the area tree and moves with a drag. Withheld
-          entirely instead, like every other map readout while the studio is up.
-        */
-        insetRight={undefined}
-        open={rightDrawer === "overlays"}
-        onClose={() => setRightDrawer(null)}
-        result={props.result}
-        composition={props.composition}
-        compositionGallery={props.compositionGallery ?? []}
-        onSelectComposition={props.onSelectComposition}
-        onRemoveComposition={props.onRemoveComposition}
-        areaLabel={props.areaLabel}
-        modelKind={props.modelKind}
-        composeSceneDate={
-          props.composeScenes.find((s) => s.id === props.selectedSceneId)
-            ?.date ?? null
-        }
-        showPredictionOverlay={props.showPredictionOverlay}
-        onShowPredictionOverlayChange={props.onShowPredictionOverlayChange}
-        showCompositionOverlay={props.showCompositionOverlay}
-        onShowCompositionOverlayChange={props.onShowCompositionOverlayChange}
-        water={props.water}
-        showWaterOverlay={props.showWaterOverlay}
-        onShowWaterOverlayChange={props.onShowWaterOverlayChange}
-        waterOpacity={props.waterOpacity}
-        onWaterOpacityChange={props.onWaterOpacityChange}
-        showConfidence={props.showConfidence}
-        onShowConfidenceChange={props.onShowConfidenceChange}
-        confidenceOnTop={props.confidenceOnTop}
-        onConfidenceOnTopChange={props.onConfidenceOnTopChange}
-        smoothOverlay={props.smoothOverlay}
-        onSmoothOverlayChange={props.onSmoothOverlayChange}
-        swipeCompare={props.swipeCompare}
-        onSwipeCompareChange={props.onSwipeCompareChange}
-        overlayOpacity={props.overlayOpacity}
-        onOverlayOpacityChange={props.onOpacityChange}
-        composeOpacity={props.composeOpacity}
-        onComposeOpacityChange={props.onComposeOpacityChange}
-        aoiContourScheme={props.aoiContourScheme}
-        onAoiContourSchemeChange={props.onAoiContourSchemeChange}
-      />
-
-      <ConfidenceLegend
-        visible={
-          // Withheld while the studio is up, like every sibling readout on
-          // this screen. It was the one without the gate, so it painted over
-          // the studio's right column at z-1100.
-          !boardOpen &&
-          !!props.showConfidence &&
-          !!props.result?.confidence_uri &&
-          (props.result.n_dates ?? 0) > 0
-        }
-      />
-
-      {/*
-        The docked column. The workspace layout has no column to dock to -- its
-        parameters open in a drawer from the bar instead, which is the same
-        switch in the other container.
-      */}
-      {renderPanel("docked", !workspace)}
-      {/*
-        The presence stays mounted and its child is what comes and goes. Gating
-        the AnimatePresence itself removed the exit animation: closing the
-        drawer unmounted the thing that was supposed to be animating it out.
-      */}
-      {renderPanel("drawer", workspace && rightDrawer === "config")}
-
-      <AnimatePresence mode="wait" initial={false}>
-        {/*
-          Each gated on the board being closed, the water and composition ones
-          newly so. They paint at right-16 z-[1000], which lands inside the
-          board's 15rem right column and a layer above it -- and the column
-          already carries the same figures for whichever plane is selected. The
-          prediction arm below had the gate and the reasoning; its two siblings
-          did not, and being earlier in this chain they won over it.
-        */}
-        {showWaterStatus && !boardOpen ? (
-          <WaterStatusPanel
-            leftOffsetClass={statusPanelInset(workspace)}
-            key="water-status"
-            water={props.water ?? null}
-            onClear={props.onClearWater}
-          />
-        ) : showCompositionStatus && !boardOpen ? (
-          <CompositionStatusPanel
-            leftOffsetClass={statusPanelInset(workspace)}
-            key="composition-status"
-            composition={props.composition}
-            sceneDate={selectedSceneDate}
-            composeOpacity={props.composeOpacity}
-            onClear={props.onClearComposition}
-          />
-        ) : showPredictionStatus && !boardOpen ? (
-          /*
-            Withheld while the board is up. Its statistics band carries the same
-            composition, and the panel's header repeats even the subject line,
-            so collapsing it only shrank the repetition rather than ending it.
-            Analysis, New and Close moved to that band with the figures.
-
-            Gated here rather than in the predicate above: `boardOpen` is
-            derived from the board's layer list, which is built further down.
-          */
-          <ResultsPanel
-            leftOffsetClass={statusPanelInset(workspace)}
-            key="prediction-status"
-            result={props.result!}
-            onClose={props.onCloseResult}
-            onNewClassification={props.onNewClassification}
-          />
-        ) : null}
-      </AnimatePresence>
+        </Suspense>
 
       <DataCubeModal
         open={!!props.dataCubeOpen}

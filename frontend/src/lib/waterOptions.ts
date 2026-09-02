@@ -1,7 +1,7 @@
 /**
  * The water indices, named once.
  *
- * They were a private constant inside WaterPanel, which was correct while that
+ * They were a private constant inside the map's water panel, which was correct while that
  * panel was the only surface offering them. The run graph offers them too, and
  * lib/classifyOptions.ts and lib/solarOptions.ts already establish where a set
  * of choices lives when more than one surface renders it: two renderings are a

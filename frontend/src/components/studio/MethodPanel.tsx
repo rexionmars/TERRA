@@ -135,7 +135,7 @@ function Trace({
  *
  * Open state is held here rather than lifted: nothing else in the band needs
  * to know, and a parent that owned it would be a prop threaded through
- * MapScreen for one glyph.
+ * StudioScreen for one glyph.
  */
 export function MethodPanel({
   brief,

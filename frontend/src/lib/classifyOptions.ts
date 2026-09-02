@@ -1,7 +1,7 @@
 /**
  * What a classification can be run with, named once.
  *
- * These lists were inline in ControlPanel, which was fine while one surface
+ * These lists were inline in the map's control panel, which was fine while one surface
  * drew them. The studio draws the same choices in its own vocabulary --
  * rows in a column rather than cards in a panel -- and a second copy of the
  * list is a second place a model can be added to, or a constraint forgotten.

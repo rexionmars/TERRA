@@ -6,9 +6,9 @@
  * coordinates is what makes the comparison possible at all, which is why this
  * surface exists rather than another map mode.
  *
- * Loaded lazily. It is the only route to `three`, and the map screen must not
- * pay for it until the board is opened; see BoardButton for the other
- * half of that boundary.
+ * Loaded lazily. It is the only route to `three`, so the shell reaches its
+ * first paint without parsing a 3D library -- the screen puts a loading surface
+ * up while this arrives.
  */
 import {
   Suspense,
@@ -136,7 +136,7 @@ import {
 
 /** The tab strip's height; the areas divide what is left below it. */
 /*
-  Lazy, for the reason MapScreen loads this file lazily: the surface imports
+  Lazy, for the reason StudioScreen loads this file lazily: the surface imports
   MapLibre and its stylesheet, which is 945 kB. Statically imported it would
   land in the studio's chunk for every board, whether or not an area is ever
   set to the globe. `toGlobeArea` above is pure and stays static, which is why
@@ -544,6 +544,14 @@ export function BoardSurface({
   onNewStudio?: () => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
   onStudiosMenu?: () => void | Promise<void>
+  /**
+   * Where to go when the surface cannot be built.
+   *
+   * Called only from the WebGL failure path: a context can be refused even
+   * where the capability exists, and a blank board says nothing. It used to
+   * close the studio back onto the map; the studio is the screen now, so the
+   * caller supplies a destination.
+   */
   onClose: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -3111,13 +3119,16 @@ export function BoardSurface({
     boardRef.current?.setLabels(labels)
   }, [labels, groups])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
+  /*
+    ESCAPE NO LONGER LEAVES. It closed the board back onto the map underneath,
+    which was right while the studio was an overlay. It is the screen now, and
+    there is nothing behind it -- so a stray Escape would have navigated the
+    reader out of the surface they are working in.
+
+    `onClose` stays for the one caller that still needs it: a WebGL context
+    that cannot be created, where a blank board says nothing and the caller
+    supplies somewhere to land.
+  */
 
   /*
     Ctrl-Space maximises the area under the pointer, and restores it.

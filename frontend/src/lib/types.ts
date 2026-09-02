@@ -635,29 +635,6 @@ export type LeftDockTabsMode = "retracted_only" | "always"
  */
 export type LayoutMode = "docked" | "workspace"
 
-/**
- * Whether a session opens with the studio already up
- * (stored in extras_json.start_surface).
- *
- * IT IS A BOOLEAN WEARING TWO NAMES. The studio opens over the map and closes
- * back onto it -- the title bar toggles it at any moment -- so this decides
- * whether it is up at the start and nothing else. It was once described as
- * choosing between two surfaces, and describing it that way is what taught
- * readers there were two applications.
- *
- * The stored strings stay as they are. They are a preference people already
- * have, and rewriting the values to match a better name would silently reset
- * every one of them; `store.go` makes the same argument for the database file
- * that kept its old name through the application's rename.
- *
- * A preference and not a restored state. The studio's open flag is deliberately
- * local to the map screen -- see the note on `board` in MapScreen, which argues
- * that coming back to the map should give the map rather than a board left open
- * twenty minutes ago. This says where a SESSION begins, which is a different
- * question and the only one a reader can answer in advance.
- */
-export type StartSurface = "explorer" | "studio"
-
 export interface InferenceRun {
   id: string
   user_id: string

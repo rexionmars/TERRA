@@ -2,9 +2,8 @@ import type {
   LayoutMode,
   LeftDockTabsMode,
   Preferences,
-  StartSurface,
 } from "@/lib/types"
-export type { LayoutMode, LeftDockTabsMode, StartSurface }
+export type { LayoutMode, LeftDockTabsMode }
 
 export interface PreferenceExtras {
   left_dock_tabs?: LeftDockTabsMode
@@ -23,7 +22,6 @@ export interface PreferenceExtras {
    * reason: landing somewhere other than where the work is read as the
    * application having changed.
    */
-  start_surface?: StartSurface
   active_project_id?: string
   /** Last custom AOI display name (survives restart with active project / prefs). */
   aoi_label?: string
@@ -97,20 +95,6 @@ export function layoutModeFromPrefs(
 ): LayoutMode {
   const mode = parsePreferenceExtras(prefs?.extras_json).layout_mode
   return mode === "workspace" ? "workspace" : "docked"
-}
-
-/**
- * Where a session opens, defaulting by exception.
- *
- * The map, unless the stored value is exactly the other string -- so an absent
- * key, a value written by a newer build or a corrupted blob all resolve to the
- * surface that needs nothing to be on screen before it can be shown.
- */
-export function startSurfaceFromPrefs(
-  prefs: Preferences | null | undefined
-): StartSurface {
-  const surface = parsePreferenceExtras(prefs?.extras_json).start_surface
-  return surface === "studio" ? "studio" : "explorer"
 }
 
 /**

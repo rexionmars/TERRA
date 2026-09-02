@@ -45,13 +45,11 @@ import type {
   InferenceRun,
   LayoutMode,
   Preferences,
-  StartSurface,
 } from "@/lib/types"
 import {
   alwaysShowWhatsNewFromPrefs,
   layoutModeFromPrefs,
   mergePreferenceExtras,
-  startSurfaceFromPrefs,
 } from "@/lib/preferenceExtras"
 import { NAV_GROUPS } from "@/lib/navigation"
 import { displayRunLabel } from "@/lib/aoiLabel"
@@ -280,7 +278,6 @@ export function ProfilePage({
     async (next: {
       theme: string
       layoutMode?: LayoutMode
-      startSurface?: StartSurface
       alwaysShowWhatsNew?: boolean
     }) => {
       if (!user) return
@@ -291,7 +288,6 @@ export function ProfilePage({
         theme: next.theme,
         extras_json: mergePreferenceExtras(prefs?.extras_json, {
           ...(next.layoutMode ? { layout_mode: next.layoutMode } : {}),
-          ...(next.startSurface ? { start_surface: next.startSurface } : {}),
           /*
             Tested against undefined, not for truth, unlike the two above.
             Those carry strings whose absent value is falsy anyway; this one is
@@ -323,7 +319,6 @@ export function ProfilePage({
   )
 
   const layoutMode = layoutModeFromPrefs(prefs)
-  const startSurface = startSurfaceFromPrefs(prefs)
   const alwaysShowWhatsNew = alwaysShowWhatsNewFromPrefs(prefs)
 
   /*
@@ -339,7 +334,6 @@ export function ProfilePage({
       patch: Partial<{
         theme: string
         layoutMode: LayoutMode
-        startSurface: StartSurface
         alwaysShowWhatsNew: boolean
       }>
     ) => {
@@ -996,54 +990,9 @@ export function ProfilePage({
               </SettingRow>
 
               {/*
-                Beside the layout, because the two are read together: one is
-                how a screen is arranged, the other is what is on screen when
-                the application opens.
-
-                THIS ROW USED TO ASSERT A CHOICE THAT DOES NOT EXIST. It
-                offered "TERRA Explorer" and "TERRA Studio" as two products to
-                pick between, and there is one: the studio opens OVER the map
-                and closes back onto it, which is why the title bar can toggle
-                it at any moment. Asking a reader to choose between two names
-                is what taught them there were two applications.
-
-                The stored value still reads "explorer" or "studio". It is a
-                preference somebody already has, and rewriting the key to match
-                a better label would silently reset it -- the same reason the
-                data directory kept its file name through the rename.
-              */}
-              <SettingRow
-                id="account.start"
-                title="Open the studio at start"
-                description="The studio is the panel tree that opens over the map, where runs are arranged and read. It can be opened and closed from the title bar at any time; this decides whether it is already up when a session begins."
-                focused={focusedSetting === "account.start"}
-                onFocus={() => setFocusedSetting("account.start")}
-              >
-                <div className="flex max-w-md flex-col gap-2">
-                  <select
-                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
-                    value={startSurface}
-                    onChange={(e) =>
-                      schedulePrefsSave({
-                        startSurface: e.target.value as StartSurface,
-                      })
-                    }
-                  >
-                    <option value="explorer">No, start on the map</option>
-                    <option value="studio">Yes, open it with the map</option>
-                  </select>
-                  <p className="text-meta leading-relaxed text-muted-foreground">
-                    {startSurface === "studio"
-                      ? "The studio comes up over the map, empty until a run is on it. Its run band draws an area and starts a run without leaving it."
-                      : "The map is what you see first. The studio is a press away in the title bar, once there is an area or a run to put on it."}
-                  </p>
-                </div>
-              </SettingRow>
-
-              {/*
-                After the two that decide what a session opens WITH, because
+                After the one that decides what a session opens WITH, because
                 this decides what it opens THROUGH -- the notes stand in front
-                of whichever surface those two chose.
+                of the surface it chose.
               */}
               <SettingRow
                 id="account.whatsnew"

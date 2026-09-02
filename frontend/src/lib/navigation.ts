@@ -14,7 +14,7 @@
  */
 import {
   ChartColumn,
-  Map as MapIcon,
+  Layers3,
   Waves,
   Zap,
   type LucideIcon,
@@ -29,7 +29,7 @@ export interface NavItem {
 
 export interface NavGroup {
   /** The screen this group is, so the active one is found by comparison. */
-  id: Extract<AppScreen, "map" | "energy" | "flood" | "analysis">
+  id: Extract<AppScreen, "studio" | "energy" | "flood" | "analysis">
   label: string
   icon: LucideIcon
   /**
@@ -52,7 +52,7 @@ export const ENERGY_TABS: readonly NavItem[] = [
 ]
 
 export const NAV_GROUPS: readonly NavGroup[] = [
-  { id: "map", label: "Map", icon: MapIcon, items: MAP_TOOLS },
+  { id: "studio", label: "Studio", icon: Layers3, items: MAP_TOOLS },
   {
     // Zap rather than Sun or Wind: the screen holds both resources, and either
     // weather glyph would name one of them and read as a forecast rather than

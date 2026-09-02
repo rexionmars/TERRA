@@ -1086,7 +1086,7 @@ export function BoardSolarDetail({
 
           The bound is the reservation, so the band can never eat more foot than
           --map-foot accounts for. That variable keeps its value either way --
-          boardScene parses it to lift the axis gizmo and MapScreen derives it
+          boardScene parses it to lift the axis gizmo and StudioScreen derives it
           from FOOT_REM -- and what varies is the painted box inside it.
         */
         className="app-no-drag absolute z-[20] flex flex-col overflow-hidden border-t"
