@@ -177,6 +177,8 @@ export interface StudioScreenProps {
   areas?: import("@/lib/areas").Area[]
   activeAreaId?: string
   activeProjectId?: string | null
+  /** File new runs under another project, offered by the browser per project. */
+  onActivateProject?: (id: string) => void
   activeProjectName?: string | null
   onActivateArea?: (id: string) => void
   onRenameArea?: (id: string, name: string) => void
@@ -1085,6 +1087,7 @@ export function StudioScreen(props: StudioScreenProps) {
             initialView={props.initialView}
             onViewChange={props.onViewChange}
             activeProjectId={props.activeProjectId}
+            onActivateProject={props.onActivateProject}
             activeProjectName={props.activeProjectName}
             activeAreaId={props.activeAreaId}
             onActivateArea={props.onActivateArea}

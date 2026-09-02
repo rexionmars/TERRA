@@ -21,6 +21,7 @@ import {
   ChartSpline,
   Crosshair,
   Fan,
+  FolderTree,
   Globe2,
   LibraryBig,
   GitCompareArrows,
@@ -51,6 +52,7 @@ export type EditorId =
   | "globe"
   | "windReading"
   | "floodReading"
+  | "browser"
 
 export interface StudioEditorMeta {
   id: EditorId
@@ -363,6 +365,26 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 20,
     minRowRem: 16,
     hint: "How far the elevation products disagree about what the area floods",
+  },
+  {
+    id: "browser",
+    label: "Browser",
+    icon: FolderTree,
+    /*
+      Four regions across, in Unreal's shape: sources, toolbar, items, count.
+      The sources column alone is 9.5rem and a tile is 8.5, so anything under
+      this draws one column of one tile -- which is a list with a sidebar
+      taking half of it. Tall enough for the toolbar, a few rows of tiles and
+      the status bar, which is what makes the count worth drawing.
+    */
+    minRem: 30,
+    minRowRem: 14,
+    /*
+      Not unique. Two browsers is one project beside another, which is how a
+      run is moved between them by reading both -- and neither holds a control
+      the other could disagree with, since what they show is the store.
+    */
+    hint: "Every saved analysis, filed under its project",
   },
 ]
 
