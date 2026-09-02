@@ -33,7 +33,6 @@ import {
   Clock,
   Color,
   ConeGeometry,
-  CylinderGeometry,
   DoubleSide,
   EdgesGeometry,
   Float32BufferAttribute,
@@ -109,27 +108,6 @@ function gridAlpha(): number {
 /** Arrowhead size, in board units where the largest area's side is 1. */
 const ARROW_RADIUS = 0.018
 const ARROW_LENGTH = 0.055
-
-/*
-  THE SPREAD HANDLE, in world units where the largest area's longest side is 1.
-
-  It is the one gesture on this surface that acts on the arrangement rather
-  than on a plane, so it is drawn as a handle and not as a plane's decoration:
-  a shaft standing off the top of a stack, with a head to grab.
-
-  Sized like the arrowheads beside it -- a head of the same radius reads as the
-  same vocabulary -- and then scaled per frame to hold its size on screen, or
-  it would be a speck at the board's overview distance and fill the canvas
-  close in.
-*/
-const HANDLE_SHAFT_R = 0.005
-const HANDLE_SHAFT_LEN = 0.09
-const HANDLE_HEAD_R = 0.022
-const HANDLE_HEAD_LEN = 0.06
-/** Clear of the top plane, so the shaft is not read as part of the raster. */
-const HANDLE_LIFT = 0.03
-/** Apparent size is held at this many world units per unit of camera distance. */
-const HANDLE_SCREEN_SCALE = 0.12
 
 export function tokenColor(name: string, fallback: string): string {
   const raw = getComputedStyle(document.documentElement)
@@ -392,15 +370,6 @@ export function createBoard(
      */
     gap: number
     /**
-     * The largest spread the handle may drag to.
-     *
-     * Given rather than chosen here, because the Overlays menu's field caps
-     * the same number and two controls for one value that disagree about its
-     * range is a value with two ranges. The field is where the ceiling is
-     * declared; this is it, handed down.
-     */
-    gapMax: number
-    /**
      * How each plane starts.
      *
      * Passed apart from the cards, and read again as each texture lands rather
@@ -483,15 +452,6 @@ export function createBoard(
       x: number,
       z: number
     ) => void
-    /**
-     * The stack was spread or gathered by its handle, and where it came to rest.
-     *
-     * Reported so the caller can keep the number it also shows in the Overlays
-     * menu. The scene applies the change as the drag happens -- it owns the
-     * heights -- and this is what stops the two from disagreeing the moment the
-     * pointer is let go.
-     */
-    onGap?: (gap: number) => void
     /**
      * UV under the pointer on the probe target, or null when the brush misses.
      *
@@ -751,28 +711,6 @@ export function createBoard(
    * expressed relative to its area, so moving one needs the other.
    */
   let dragged: { rt: GroupRuntime; mesh: Mesh | null } | null = null
-  /**
-   * The spread drag: where the top plane was, and how tall the stack was then.
-   *
-   * `index` is the top DRAWN plane's position in the stack, which is what
-   * turns a height into a gap: pulling the handle up by one unit raises that
-   * plane by one unit, so the gap it implies is that height over its index.
-   * Reading it once at the press is what keeps the arithmetic stable while the
-   * plane it is derived from is moving.
-   */
-  let spreading: { index: number; startY: number; startGap: number } | null =
-    null
-  /**
-   * The plane the spread drag is measured on: vertical, through the handle,
-   * facing the camera.
-   *
-   * The board plane the other drag uses is horizontal, and a ray cast at it
-   * from a camera looking down answers with a point that barely moves as the
-   * pointer rises. Height needs a surface the pointer's vertical travel
-   * actually crosses.
-   */
-  const spreadPlane = new Plane()
-  const spreadNormal = new Vector3()
   /**
    * Plane the brush is reading. Null while the probe is off — pointermove then
    * only serves drag, as before.
@@ -1138,48 +1076,6 @@ export function createBoard(
     raycaster.setFromCamera(pointer, camera)
 
     /*
-      THE SPREAD HANDLE FIRST, ahead of everything.
-
-      It stands off the top of a stack in open board, so a press that lands on
-      it was meant for it -- and it is drawn at a constant size on screen,
-      which means at a distance it covers planes it is nowhere near in world
-      space. Testing it first is what makes a small target reliable.
-    */
-    if (handle.visible && handleOn) {
-      const handleHit = raycaster.intersectObject(handle, true)[0]
-      if (handleHit) {
-        let index = 0
-        let topY = 0
-        for (let i = 0; i < handleOn.meshes.length; i++) {
-          const m = handleOn.meshes[i]
-          if (m && m.visible && m.position.y >= topY) {
-            topY = m.position.y
-            index = i
-          }
-        }
-        // A stack whose top plane is at index 0 has no height to divide by --
-        // every drawn plane is dropped to the base -- so there is nothing to
-        // spread and the press falls through to the planes below.
-        if (index > 0) {
-          spreading = { index, startY: topY, startGap: currentGap }
-          spreadNormal
-            .copy(camera.position)
-            .sub(handle.position)
-            .setY(0)
-          if (spreadNormal.lengthSq() < 1e-6) spreadNormal.set(0, 0, 1)
-          spreadPlane.setFromNormalAndCoplanarPoint(
-            spreadNormal.normalize(),
-            handle.position
-          )
-          controls.enabled = false
-          dragging = true
-          renderer.domElement.setPointerCapture(e.pointerId)
-          return
-        }
-      }
-    }
-
-    /*
       An arrowhead first, and it wins over the plane behind it. The head sits in
       open board between two planes, so a press that lands on one was meant for
       it; and the pair it joins is the question the reader is asking -- how do
@@ -1391,29 +1287,6 @@ export function createBoard(
     }
     toPointer(e)
     raycaster.setFromCamera(pointer, camera)
-
-    /*
-      The spread, from where the pointer is on the vertical plane through the
-      handle. The height it lands at is what the TOP plane should sit at, and
-      the gap is that height over the top plane's index -- so the handle stays
-      under the pointer while every plane below redistributes evenly.
-
-      Clamped at zero: a negative gap would stack the layers in the reverse of
-      the order the tree sets, which is the one thing the ordering exists to
-      decide.
-    */
-    if (spreading) {
-      if (!raycaster.ray.intersectPlane(spreadPlane, hitPoint)) return
-      const y = hitPoint.y - handleOn!.root.position.y - HANDLE_LIFT
-      const gap = Math.min(opts.gapMax, Math.max(0, y / spreading.index))
-      if (gap !== currentGap) {
-        currentGap = gap
-        applyHeights()
-        render()
-      }
-      return
-    }
-
     if (!raycaster.ray.intersectPlane(dragPlane, hitPoint)) return
     if (!dragged) return
     /*
@@ -1455,17 +1328,6 @@ export function createBoard(
       const i = mesh ? rt.meshes.indexOf(mesh) : -1
       const p = mesh ? mesh.position : rt.root.position
       opts.onMove(rt.id, i >= 0 ? rt.cards[i].id : null, p.x, p.z)
-    }
-    /*
-      The spread, on release and for the same reason: where the stack came to
-      rest is the arrangement. Reported even where it did not move, because a
-      press that opened the drag and changed nothing still leaves the caller's
-      number and the scene's agreeing, which is what it is for.
-    */
-    if (spreading) {
-      spreading = null
-      opts.onGap?.(currentGap)
-      updateHandle()
     }
     /*
       Below the slop a press is a pick, not a drag of nothing. Four pixels is
@@ -1791,20 +1653,6 @@ export function createBoard(
       lastFrameAt = began
       controls.update()
       updateFog()
-      /*
-        The handle holds its size on screen.
-
-        Scaled by distance to the camera rather than left in world units: this
-        board is looked at from a metre away and from across the room, and a
-        grab target that is a speck at one and fills the canvas at the other is
-        not a grab target. Done here, per frame, because it changes with every
-        notch of the orbit control's dolly and nothing else would notice.
-      */
-      if (handle.visible) {
-        const d = camera.position.distanceTo(handle.position)
-        const k = Math.max(0.35, d * HANDLE_SCREEN_SCALE)
-        handle.scale.setScalar(k)
-      }
       renderer.clear()
       renderer.render(scene, camera)
       // After the scene and without clearing it: the helper draws into a
@@ -2081,78 +1929,6 @@ export function createBoard(
     [{ groupId: string; id: string }, { groupId: string; id: string }]
   >()
 
-  /*
-    THE SPREAD HANDLE: a shaft and a head, standing off the top of the stack
-    the selection belongs to.
-
-    Built once and moved, like the arrowheads: a selection changes often, and a
-    mesh per change is an allocation per click.
-
-    Drawn only where there is a spread to change -- an area of one plane has no
-    relation between planes to adjust, and a handle on it would be a control
-    whose only outcome is nothing. See updateHandle.
-  */
-  const handle = new Group()
-  handle.visible = false
-  handle.renderOrder = pending * 4 + 2
-  const handleShaft = new Mesh(
-    new CylinderGeometry(HANDLE_SHAFT_R, HANDLE_SHAFT_R, HANDLE_SHAFT_LEN, 8),
-    arrowMaterial
-  )
-  handleShaft.position.y = HANDLE_SHAFT_LEN / 2
-  const handleHead = new Mesh(
-    new ConeGeometry(HANDLE_HEAD_R, HANDLE_HEAD_LEN, 10),
-    arrowMaterial
-  )
-  handleHead.position.y = HANDLE_SHAFT_LEN + HANDLE_HEAD_LEN / 2
-  handle.add(handleShaft, handleHead)
-  world.add(handle)
-  disposables.push(handleShaft.geometry, handleHead.geometry)
-
-  /** The area the handle is currently standing on, for the drag to read. */
-  let handleOn: GroupRuntime | null = null
-
-  /**
-   * Put the handle on the selected area's top plane, or withhold it.
-   *
-   * The area is the one owning the selection. With planes from two areas
-   * selected the handle is withheld rather than picking one: the spread is one
-   * number for the whole board, so a handle standing on one area while
-   * changing both would say something untrue about what it acts on.
-   */
-  const updateHandle = () => {
-    handleOn = null
-    if (selectedKeys.length) {
-      const owners = new Set<GroupRuntime>()
-      for (const rt of runtimes) {
-        for (let i = 0; i < rt.meshes.length; i++) {
-          const m = rt.meshes[i]
-          if (m && selectedKeys.includes(planeKey(rt.id, rt.cards[i].id))) {
-            owners.add(rt)
-          }
-        }
-      }
-      if (owners.size === 1) {
-        const rt = [...owners][0]
-        // More than one plane DRAWN. A stack whose second raster is hidden has
-        // no visible relation to spread apart.
-        if (rt.meshes.filter((m) => m && m.visible).length > 1) handleOn = rt
-      }
-    }
-    handle.visible = !!handleOn
-    if (!handleOn) return
-    let topY = 0
-    for (let i = 0; i < handleOn.meshes.length; i++) {
-      const m = handleOn.meshes[i]
-      if (m && m.visible) topY = Math.max(topY, m.position.y)
-    }
-    handle.position.set(
-      handleOn.root.position.x,
-      handleOn.root.position.y + topY + HANDLE_LIFT,
-      handleOn.root.position.z
-    )
-  }
-
   const updatePath = () => {
     const points: Vector3[] = []
     const pointOwners: { groupId: string; id: string }[] = []
@@ -2279,7 +2055,6 @@ export function createBoard(
     }
     updateLinks()
     updatePath()
-    updateHandle()
   }
 
   /**
@@ -2608,7 +2383,6 @@ export function createBoard(
         })
       }
       updatePath()
-      updateHandle()
       render()
     },
     setLabels(on) {
@@ -2751,11 +2525,9 @@ export function createBoard(
       }
       if (changed) {
         // Hiding a raster takes its line with it: a line to something that is
-        // not drawn points at nothing -- and its handle, since a stack with one
-        // raster left drawn has no spread to adjust.
+        // not drawn points at nothing.
         updateLinks()
         updatePath()
-        updateHandle()
         render()
       }
     },
