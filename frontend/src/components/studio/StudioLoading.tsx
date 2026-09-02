@@ -21,6 +21,20 @@
  *
  * PAINTED IN THE BOARD'S OWN INK, so the arrival is the board appearing rather
  * than one surface being swapped for another.
+ *
+ * THE MARK, NOT A DRAWING OF THE BOARD. This showed a few lines of the
+ * studio's grid and horizon, on the argument that they were "the cheapest
+ * honest promise of the surface being built". They were also a fourth thing
+ * that stands for this application -- after the splash, the title bar and the
+ * window icon -- drawn nowhere else and recognisable as nothing. What a reader
+ * waiting on a chunk needs to know is that the application is doing something,
+ * and the application has a mark for saying so.
+ *
+ * QUIETER THAN THE SPLASH, deliberately. That one is the first thing shown and
+ * fills the window; this stands inside a panel that may be a quarter of it,
+ * for a second or two. Same mark and same face, at the title bar's size rather
+ * than the splash's, and without the tagline -- a signature belongs where the
+ * application introduces itself, not where it is busy.
  */
 
 export function StudioLoading({
@@ -48,40 +62,24 @@ export function StudioLoading({
       aria-live="polite"
     >
       {/*
-        The board's own grid, faint, rather than a spinner.
+        The same two elements the title bar and the splash carry, in the same
+        order: the mark, then the name in the display face. Held at the title
+        bar's measure -- this is chrome inside a panel, not an arrival.
 
-        A spinner says only that something is happening; this says WHAT is
-        coming. The studio's ground is a grid and a horizon, so a few lines of
-        it are the cheapest honest promise of the surface being built.
+        `alt=""` because the name is written beside it in text: given one to a
+        screen reader as well, the application would announce itself twice
+        before saying what it is waiting for.
       */}
-      <svg
-        viewBox="0 0 120 60"
-        className="w-40 text-muted-foreground/25"
-        aria-hidden
-      >
-        {[0, 1, 2, 3, 4].map((i) => (
-          <line
-            key={`h${i}`}
-            x1={0}
-            x2={120}
-            y1={12 + i * 11}
-            y2={12 + i * 11}
-            stroke="currentColor"
-            strokeWidth={0.5}
-          />
-        ))}
-        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-          <line
-            key={`v${i}`}
-            x1={10 + i * 16.6}
-            x2={60 + (i - 3) * 5}
-            y1={56}
-            y2={12}
-            stroke="currentColor"
-            strokeWidth={0.5}
-          />
-        ))}
-      </svg>
+      <div className="flex items-center gap-2 opacity-60">
+        <img
+          src="/terra-logo.png"
+          alt=""
+          className="h-7 w-7 object-contain"
+        />
+        <span className="font-display text-sm font-semibold tracking-[0.14em] text-foreground">
+          TERRA
+        </span>
+      </div>
 
       <p className="text-meta text-muted-foreground">
         {measured
