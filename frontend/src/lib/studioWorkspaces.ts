@@ -177,6 +177,12 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
       components have existed all along -- DataTableView and the builders in
       analysisTables, which the research pack already writes to disk. Reading
       them required exporting them.
+
+      The browser under them, where the store is: this workspace is where a run
+      is read rather than made, and what a reader does before reading one is
+      find it. It replaced the project hub, which was a screen you left the
+      work to visit -- so the arrangement that answers "which run" puts it
+      beside the tables that answer "what does it say".
     */
     build: () =>
       row(
@@ -188,7 +194,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-viewport", "viewport"),
           leaf("a-outliner", "outliner")
         ),
-        leaf("a-table", "table")
+        col("w-data-right", 0.55, leaf("a-table", "table"), leaf("a-browser", "browser"))
       ),
   },
   {

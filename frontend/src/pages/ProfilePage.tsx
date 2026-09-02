@@ -731,7 +731,7 @@ export function ProfilePage({
               <SettingRow
                 id="account.analyses"
                 title="Saved analyses"
-                description="The most recent are listed here. The full history is in the studio, under Analyses."
+                description="The most recent are listed here. The full history is in the studio's Browser, filed by project."
                 focused={focusedSetting === "account.analyses"}
                 onFocus={() => setFocusedSetting("account.analyses")}
               >

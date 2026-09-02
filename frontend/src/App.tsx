@@ -3417,6 +3417,7 @@ function AppBody(props: {
                   windBusy={!!wind.run.active}
                   windProgress={wind.run.progress}
                   windProgressMsg={wind.run.message}
+                  onActivateProject={(id) => void activateProject(id)}
                   polygonGeoJSON={analysisPolygonGeoJSON}
                   windResult={wind.result}
                   onClearWind={() => windDispatch({ type: "result/clear" })}

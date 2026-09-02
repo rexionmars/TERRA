@@ -110,6 +110,7 @@ import type {
   WindAnalysis,
 } from "@/lib/types"
 import { ReadingPanel } from "@/components/studio/ReadingPanel"
+import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { windReadingGroups } from "@/components/energy/readingSections"
 import { FloodReadingColumn } from "@/components/flood/FloodReading"
@@ -418,6 +419,7 @@ export function BoardSurface({
   onViewChange,
   activeProjectId,
   activeProjectName,
+  onActivateProject,
   studios = [],
   onOpenStudio,
   onNewStudio,
@@ -542,6 +544,8 @@ export function BoardSurface({
   /** Its name, shown in the studio's own block: the title bar's switcher is
    *  withheld while the studio is up, so nothing else on screen says it. */
   activeProjectName?: string | null
+  /** File new runs under another project. The browser offers it per project. */
+  onActivateProject?: (id: string) => void
   studios?: readonly Studio[]
   onOpenStudio?: (board: Studio) => void
   /**
@@ -3994,6 +3998,22 @@ export function BoardSurface({
       />
     ),
     table: <StudioTables runs={selectedRuns} />,
+    /*
+      The store, in the studio rather than on a screen of its own. It reads the
+      runs and the projects from the auth context directly, as the run picker
+      beside it does: they are the user's, not the board's, and threading them
+      through here would make this surface the owner of a list it does not
+      change.
+    */
+    browser: (
+      <StudioBrowser
+        surface={surfaceRef.current}
+        activeProjectId={activeProjectId ?? null}
+        onActivateProject={onActivateProject}
+        onOpenRun={(r) => void addRun(r)}
+        busy={loadingRun}
+      />
+    ),
     /*
       The two readings that are not readings OF a plane.
 
