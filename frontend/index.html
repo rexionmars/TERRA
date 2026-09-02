@@ -6,8 +6,23 @@
     <title>TERRA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <!-- Inter is asked for as a VARIABLE font with its optical size axis, not
+         as three static weights.
+
+         opsz is what makes a typeface hold its colour across sizes: at small
+         sizes the strokes thicken and the spacing opens, at large sizes the
+         contrast increases and the letters tighten. Inter carries the axis over
+         14..32, and `font-optical-sizing: auto` is CSS's initial value -- so
+         asking for the axis is the whole change, and no rule is needed to turn
+         it on. Requested as static weights, as it was, the axis is simply not
+         in the file and the property has nothing to act on.
+
+         This interface runs from 9px telemetry to a 24px display face, which
+         is the range the axis exists for. Verified before the change: the API
+         serves different files for opsz@14 and opsz@32, and rejects an axis
+         that does not exist. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=JetBrains+Mono:wght@400..500&family=Space+Grotesk:wght@500..700&display=swap"
       rel="stylesheet"
     />
     <!-- Must run before Leaflet loads: PointerEvent exists in WKWebView/desktop

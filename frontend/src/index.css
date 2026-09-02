@@ -439,6 +439,38 @@
   }
 
   /*
+    HOW A LINE BREAKS, since this interface is mostly narrow columns of prose.
+
+    `pretty` on paragraphs: it forbids the last line being one word. Every
+    panel here carries a sentence or two explaining what a control does, at
+    measures between 11 and 22rem, which is exactly the width at which an
+    orphan happens and reads as a mistake rather than as a wrap.
+
+    `balance` on headings: it evens the lines instead of filling the first and
+    leaving a stub. Capped by the spec at a few lines, which is all a heading
+    is. Not used on paragraphs -- balance optimises for an even block and
+    `pretty` for the last line, and in a column of body text the second is the
+    problem.
+
+    The slower algorithm the spec warns about is measured against pages of
+    text; nothing here is a page of text.
+
+    A browser that does not know these values ignores them, which is the same
+    typography this application had yesterday.
+  */
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  /*
     NO POINTER ON A BUTTON. The hand means a link, and it is spent if it means
     anything a hand can click.
 

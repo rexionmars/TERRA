@@ -137,7 +137,16 @@ for (const theme of ["dark", "light"] as const) {
     const label = `${r.fg} on ${r.bg}`.padEnd(width)
     const excused = !r.passes && key in ACCEPTED
     const verdict = r.passes ? "ok  " : excused ? "KNOWN" : "FAIL"
-    console.log(`  ${verdict} ${label}  ${r.ratio.toFixed(2)}  (min ${r.min})`)
+    /*
+      The Lc beside the ratio, and nothing gated on it. WCAG 2 is the gate;
+      APCA is the second opinion, and it is worth printing because the two
+      disagree exactly where this palette lives -- see lib/contrast.ts. A
+      reader weighing a token now sees both without running anything else.
+    */
+    const lc = `${r.lc > 0 ? "+" : ""}${r.lc.toFixed(0)}`
+    console.log(
+      `  ${verdict} ${label}  ${r.ratio.toFixed(2).padStart(5)}  (min ${r.min})   Lc ${lc.padStart(4)}`
+    )
     if (excused) {
       accepted.push(`  ${key}  ${r.ratio.toFixed(2)} / ${r.min} -- ${ACCEPTED[key]}`)
     } else if (!r.passes) {
