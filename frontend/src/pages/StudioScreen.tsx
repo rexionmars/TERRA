@@ -483,6 +483,25 @@ export function StudioScreen(props: StudioScreenProps) {
     The same table the overlay tools panel lists, so the board's data mode and
     that panel cannot come to disagree about what the run produced.
   */
+  /**
+   * The id the live area will reopen as, from whichever product recorded one.
+   *
+   * "current" is the sentinel for a ground whose run was never saved -- a run
+   * made while logged out has no row -- and the board keeps it only so the
+   * area has a stable key while it is open. It is not a member of a saved
+   * studio, which is why resolving a real id here is what lets one be saved.
+   */
+  const liveRunId =
+    props.result?.run_id ||
+    props.solarResults?.terrain?.run_id ||
+    props.solarResults?.siting?.run_id ||
+    props.solarResults?.resource?.run_id ||
+    props.solarResults?.energy?.run_id ||
+    props.water?.run_id ||
+    props.windResult?.run_id ||
+    props.floodResult?.run_id ||
+    "current"
+
   const boardAssets = runAssets({
     result: props.result,
     composition: props.composition,
@@ -1021,8 +1040,21 @@ export function StudioScreen(props: StudioScreenProps) {
               The run on screen may never have been saved, so it has no id of
               its own to give. The board only needs one that is stable while
               it is open, and distinct from the ids of runs loaded beside it.
+
+              FROM WHICHEVER PRODUCT MADE ONE, not from the classification
+              alone. This read `props.result?.run_id`, and `props.result` holds
+              a classification -- App sets it to null for every other product.
+              So an area carrying a finished solar, water, wind or flood run
+              reported the sentinel, the save filtered it out, and the studio
+              refused with "none of these areas carries one yet" over a run
+              that was on screen.
+
+              All six stamp their row now; see the `run_id` docblocks in
+              lib/types.ts. Any of them identifies the ground equally well, so
+              the order is only a preference: the classification first because
+              it is the one whose rasters a reopened board is mostly made of.
             */
-            runId={props.result?.run_id || "current"}
+            runId={liveRunId}
             /*
               The period the run covered, which is what tells two runs of one
               area apart. The result's own range where the sidecar reported
