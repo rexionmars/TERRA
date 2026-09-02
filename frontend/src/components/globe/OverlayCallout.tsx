@@ -14,11 +14,15 @@
  * the ground under pan, zoom and pitch rather than staying where it was drawn
  * on the screen.
  *
- * DRAGGABLE, because a legend over the part of the raster you are reading is a
- * legend in the way. It is born at the centre of the raster's extent, where it
- * is unambiguous about ownership, and moved from there. The offset between dot
- * and box is fixed: dragging moves both, so the leader never becomes a line
- * whose length is the thing the reader is asked to interpret.
+ * THE ANCHOR DOES NOT MOVE; THE BOX DOES. Dragging used to move the marker,
+ * which took the dot with it -- so the moment a reader pushed the legend out of
+ * the way, the dot stopped marking the raster and the leader pointed at
+ * wherever the box had been dropped. The line was drawing itself.
+ *
+ * So the marker stays at the centre of the extent and the box carries a screen
+ * offset from it. The leader is recomputed from that offset on every render,
+ * which is what lets it stretch: the dot keeps saying which raster this is
+ * while the box goes wherever it is not in the way.
  *
  * RAMPS ONLY. A class legend is a list of swatches -- MapBiomas alone runs to
  * dozens -- and a list that long over imagery is a panel that happens to be
@@ -29,13 +33,34 @@
  * legend is a function of what they are looking at right now, which is exactly
  * what a preference outliving the session gets wrong.
  */
-import { useEffect, useRef } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import { Marker, type Map as MapLibreMap } from "maplibre-gl"
 import { createRoot, type Root } from "react-dom/client"
 
-/** How far the box sits from its anchor, in pixels. */
-const OFFSET_X = -232
-const OFFSET_Y = -104
+/** Where the box starts, in pixels from the anchor. Up and to the left of it. */
+const START_X = -232
+const START_Y = -112
+
+/** The box's width. Its height is measured: see below. */
+const BOX_W = 216
+
+/**
+ * The height to assume for one frame, before the box has been measured.
+ *
+ * Declared, this was wrong for half the rasters: a product with no acquisition
+ * window draws one line fewer, and a leader computed against a height the box
+ * does not have leaves from an edge that is not there.
+ */
+const BOX_H_GUESS = 92
+
+/** The straight run the leader takes off the box before it turns. */
+const STUB = 22
 
 export interface OverlayCaption {
   /** What is measured, and in what unit: "Irradiation · kWh/m2/year". */
@@ -75,8 +100,6 @@ export function OverlayCallouts({
     middle of.
   */
   const markers = useRef(new Map<string, { marker: Marker; root: Root }>())
-  /** Where the reader dragged each one, so a re-render does not put it back. */
-  const moved = useRef(new Map<string, [number, number]>())
 
   useEffect(() => {
     if (!map || !ready) return
@@ -90,7 +113,6 @@ export function OverlayCallouts({
       const root = held.root
       queueMicrotask(() => root.unmount())
       markers.current.delete(key)
-      moved.current.delete(key)
     }
 
     for (const c of captions) {
@@ -102,19 +124,18 @@ export function OverlayCallouts({
         // relative to the dot rather than to a corner of a card.
         el.style.width = "0"
         el.style.height = "0"
-        const marker = new Marker({ element: el, draggable: true })
-          .setLngLat(moved.current.get(c.key) ?? c.at)
-          .addTo(map)
-        marker.on("dragend", () => {
-          const { lng, lat } = marker.getLngLat()
-          moved.current.set(c.key, [lng, lat])
-        })
+        /*
+          Not `draggable`. The library's drag moves the marker, and the marker
+          IS the anchor: using it would move the dot off the raster, which is
+          the one thing the dot is for. The box does its own dragging below, in
+          screen pixels, and the anchor stays on the ground.
+        */
+        const marker = new Marker({ element: el }).setLngLat(c.at).addTo(map)
         held = { marker, root: createRoot(el) }
         markers.current.set(c.key, held)
-      } else if (!moved.current.has(c.key)) {
-        // Follows the raster while it is where it was put. Once dragged, the
-        // reader's placement wins: a legend that jumped back to the centroid
-        // because the extent was recomputed would undo the drag.
+      } else {
+        // Follows its raster. The box's offset is the reader's and is held
+        // inside the mounted body, which survives this re-render.
         held.marker.setLngLat(c.at)
       }
       held.root.render(<CalloutBody caption={c.caption} />)
@@ -136,7 +157,93 @@ export function OverlayCallouts({
   return null
 }
 
+/**
+ * The leader, from the box's edge to the dot.
+ *
+ * Two segments, as a drawn callout takes: a straight run off the box so the
+ * line leaves it squarely, then one turn to the anchor. Which edge it leaves
+ * from is decided by where the box has been dragged to -- a leader that always
+ * left the bottom would run back THROUGH the box whenever the reader pushed it
+ * below the dot.
+ */
+function leaderPath(dx: number, dy: number, boxH: number): string {
+  // The box's rectangle, in the anchor's own frame.
+  const left = dx
+  const right = dx + BOX_W
+  const top = dy
+  const bottom = dy + boxH
+
+  // Horizontal where the box is clearly to one side, vertical otherwise: the
+  // comparison is against the box's own measure, so a box offset by less than
+  // its width still leaves from the top or bottom rather than sideways.
+  const horizontal = right < 0 || left > 0
+  if (horizontal) {
+    const x = right < 0 ? right : left
+    const y = Math.min(Math.max(0, top + 12), bottom - 12)
+    const stub = right < 0 ? STUB : -STUB
+    return `M ${x} ${y} L ${x + stub} ${y} L 0 0`
+  }
+  const y = bottom < 0 ? bottom : top
+  const x = Math.min(Math.max(0, left + 24), right - 24)
+  const stub = bottom < 0 ? STUB : -STUB
+  return `M ${x} ${y} L ${x} ${y + stub} L 0 0`
+}
+
 function CalloutBody({ caption }: { caption: OverlayCaption }) {
+  /*
+    Where the reader put it, in pixels from the anchor.
+
+    Held here rather than by the parent: this body is rendered into a root that
+    outlives every caption change, so its state is what survives a re-render
+    without the parent having to keep a map of offsets in step with a map of
+    markers.
+  */
+  const [off, setOff] = useState({ x: START_X, y: START_Y })
+  const from = useRef<{ x: number; y: number } | null>(null)
+
+  /*
+    The box's height, measured rather than declared. It changes with the
+    caption -- a product with no acquisition window is a line shorter -- and
+    the leader has to know which edge faces the dot.
+  */
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const [boxH, setBoxH] = useState(BOX_H_GUESS)
+  useLayoutEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const read = () => setBoxH(el.offsetHeight || BOX_H_GUESS)
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      // Left button only, and the map must not also read this as a pan.
+      if (e.button !== 0) return
+      e.stopPropagation()
+      e.preventDefault()
+      from.current = { x: e.clientX - off.x, y: e.clientY - off.y }
+      e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    [off.x, off.y]
+  )
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const start = from.current
+    if (!start) return
+    e.stopPropagation()
+    setOff({ x: e.clientX - start.x, y: e.clientY - start.y })
+  }, [])
+
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    from.current = null
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+  }, [])
+
   return (
     <div className="relative">
       {/*
@@ -150,16 +257,26 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
       <svg
         aria-hidden
         className="pointer-events-none absolute"
-        style={{
-          left: OFFSET_X,
-          top: OFFSET_Y,
-          width: -OFFSET_X,
-          height: -OFFSET_Y,
-          overflow: "visible",
-        }}
+        /*
+          Zero-sized at the anchor with `overflow: visible`, so the path is
+          drawn in the anchor's own coordinates: every number in leaderPath is
+          then a pixel offset from the dot, and the box's position needs no
+          second frame of reference to be reconciled with.
+        */
+        style={{ left: 0, top: 0, width: 0, height: 0, overflow: "visible" }}
       >
+        {/* The halo FIRST. Later elements paint over earlier ones, so drawn
+            second this wider stroke covered the line it exists to separate
+            from the ground. */}
         <path
-          d={`M 96 ${-OFFSET_Y - 96} L 96 ${-OFFSET_Y - 24} L ${-OFFSET_X} ${-OFFSET_Y}`}
+          d={leaderPath(off.x, off.y, boxH)}
+          fill="none"
+          stroke="rgb(var(--p-paper))"
+          strokeWidth={3}
+          strokeOpacity={0.35}
+        />
+        <path
+          d={leaderPath(off.x, off.y, boxH)}
           fill="none"
           stroke="rgb(var(--p-ink))"
           strokeWidth={1}
@@ -178,14 +295,26 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
       />
 
       {/*
-        The box. `cursor-grab` because the whole of it is the drag target --
-        MapLibre listens on the marker's element, and the element is this.
+        The box, and the drag target. The pointer is captured on press, so a
+        drag that leaves the box -- which every drag does, since the box moves
+        out from under the pointer -- keeps reporting to the element that
+        started it.
       */}
       <div
-        className="absolute w-[13.5rem] cursor-grab select-none rounded-sm px-2.5 py-2 shadow-lg active:cursor-grabbing"
+        ref={boxRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className="absolute cursor-grab select-none rounded-sm px-2.5 py-2 shadow-lg active:cursor-grabbing"
         style={{
-          left: OFFSET_X,
-          top: OFFSET_Y,
+          left: off.x,
+          top: off.y,
+          width: BOX_W,
+          /* Touch must not scroll the map out from under a drag that has
+             already started; the pointer is captured, but the browser's own
+             gesture would still fire without this. */
+          touchAction: "none",
           /*
             Opaque, not a wash. This sits over satellite imagery, which is
             arbitrary in tone: lib/contrast.ts records the accent measuring
