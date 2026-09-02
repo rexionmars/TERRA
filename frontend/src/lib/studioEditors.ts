@@ -372,12 +372,12 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     icon: FolderTree,
     /*
       Four regions across, in Unreal's shape: sources, toolbar, items, count.
-      The sources column alone is 9.5rem and a tile is 8.5, so anything under
+      The sources tree alone is 11.5rem and a tile is 8.5, so anything under
       this draws one column of one tile -- which is a list with a sidebar
       taking half of it. Tall enough for the toolbar, a few rows of tiles and
       the status bar, which is what makes the count worth drawing.
     */
-    minRem: 30,
+    minRem: 32,
     minRowRem: 14,
     /*
       Not unique. Two browsers is one project beside another, which is how a
