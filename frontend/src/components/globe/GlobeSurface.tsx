@@ -806,17 +806,21 @@ export function GlobeSurface({
     const map = mapRef.current
     if (!map || !ready) return
     /*
-      Bottom to top, by the layer's own order.
+      Bottom to top, IN THE ORDER THE CALLER GIVES.
 
-      RasterLayer.order already encodes which raster reads over which -- a
-      classification over surface water, confidence over the classification --
-      and syncOverlays takes the array AS the ordering. Sorting here is what
-      makes a stack of several read the way the same set reads on the work map,
-      rather than in whatever sequence they happened to be pressed.
+      It sorted by `RasterLayer.order`, which is each product's own number --
+      a classification over surface water, confidence over the classification.
+      That is the DEFAULT stack and it is applied where the board builds its
+      areas, so the array arriving here already carries it. Sorting again threw
+      away what the reader put on top of it: the scene tree can restack an area
+      by hand, and the globe went on drawing the table's order, so the raster
+      the tree showed on top was covered on the map by the one under it.
+
+      syncOverlays takes the array AS the ordering; this is now the only thing
+      deciding it, which is what makes the two surfaces agree.
     */
     const specs = [...overlays]
       .filter((o) => !isZeroExtent(o.layer.extent))
-      .sort((a, b) => a.layer.order - b.layer.order)
       .map((o) => ({
         id: `sent-${o.key}`,
         url: o.layer.uri,
