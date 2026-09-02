@@ -80,7 +80,7 @@ export function AppNav({
     user,
     loading,
     screen,
-    goMap,
+    goStudio,
     goAuth,
     goProfile,
     goAnalysis,
@@ -88,7 +88,7 @@ export function AppNav({
     goFlood,
   } = useAuth()
 
-  const onMap = screen === "map"
+  const onMap = screen === "studio"
   const onEnergy = screen === "energy"
 
   /**
@@ -118,7 +118,7 @@ export function AppNav({
     active: onMap && leftPanel === t.id,
     onSelect: () => {
       selectPanel(t.id)
-      goMap()
+      goStudio()
     },
   }))
 
@@ -158,14 +158,14 @@ export function AppNav({
 
       <nav aria-label="Sections" className="flex flex-1 flex-col gap-0.5 p-2">
         <NavItem
-          id="map"
+          id="studio"
           active={onMap}
           label="Map"
-          onClick={goMap}
+          onClick={goStudio}
           icon={<MapIcon className="size-4" />}
           items={mapChildren}
           expanded={expanded.map}
-          onToggleExpanded={() => toggle("map")}
+          onToggleExpanded={() => toggle("studio")}
         />
         {/* Zap rather than Sun or Wind: the screen holds both resources, and
             either weather glyph would name one of them and read as a forecast

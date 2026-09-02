@@ -369,7 +369,7 @@ interface AnalysisPageProps {
   onAreaLabelChange?: (label: string) => void
   /** Set map active project when opening a project from the hub. */
   onActivateProject?: (projectId: string) => void | Promise<void>
-  /** Show a saved band composition on the map (then navigate via goMap). */
+  /** Show a saved band composition on the map (then navigate via goStudio). */
   onShowComposition?: (overlay: ProjectOverlay) => void
   /** Currently active project on the map (keeps Analysis list scoped). */
   activeProjectId?: string | null
@@ -397,7 +397,7 @@ export function AnalysisPage({
   onShowComposition,
   activeProjectId,
 }: AnalysisPageProps) {
-  const { goMap, runs, refreshRuns, projects, refreshProjects } = useAuth()
+  const { goStudio, runs, refreshRuns, projects, refreshProjects } = useAuth()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [compare, setCompare] = useState<CompareState | null>(null)
   const [comparing, setComparing] = useState(false)
@@ -997,7 +997,7 @@ export function AnalysisPage({
               if (selectedProjectId && onActivateProject) {
                 await onActivateProject(selectedProjectId)
               }
-              goMap()
+              goStudio()
             })()
           }}
           className={btnGhost}
@@ -1075,7 +1075,7 @@ export function AnalysisPage({
                           if (onActivateProject) {
                             await onActivateProject(selectedProject.id)
                           }
-                          goMap()
+                          goStudio()
                         })()
                       }}
                       className={btnGhost}
@@ -1267,7 +1267,7 @@ export function AnalysisPage({
                 }
                 onShowComposition?.(openedOverlay)
                 setOpenedOverlay(null)
-                goMap()
+                goStudio()
               })()
             }}
           />
@@ -1573,7 +1573,7 @@ export function AnalysisPage({
                   if (selectedProjectId && onActivateProject) {
                     await onActivateProject(selectedProjectId)
                   }
-                  goMap()
+                  goStudio()
                 })()
               }}
               className={btnGhost}

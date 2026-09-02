@@ -82,7 +82,6 @@ import {
   layoutModeFromPrefs,
   mergePreferenceExtras,
   parsePreferenceExtras,
-  startSurfaceFromPrefs,
 } from "@/lib/preferenceExtras"
 import { makeRunLabel, resolveAoiDisplayLabel, aoiLabelFromRunSummary } from "@/lib/aoiLabel"
 import {
@@ -107,7 +106,7 @@ import { TitleBar } from "@/components/TitleBar"
 import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { AppNav } from "@/components/AppNav"
-import { MapScreen } from "@/pages/MapScreen"
+import { StudioScreen } from "@/pages/StudioScreen"
 import type { MapToolId } from "@/lib/mapTools"
 import type { BasemapKind } from "@/lib/basemaps"
 import { type EnergyTab } from "@/pages/EnergyScreen"
@@ -707,7 +706,7 @@ function AppBody(props: {
     refreshProjects,
     screen,
     goAnalysis,
-    goMap,
+    goStudio,
     goEnergy,
     goFlood,
     goProfile,
@@ -760,28 +759,6 @@ function AppBody(props: {
     []
   )
 
-  /*
-    THE SURFACE THE SESSION OPENS ON, asked for once and not again.
-
-    The same nonce a saved studio uses, because it means the same thing: the
-    studio was asked for BY NAME rather than toggled over what happens to be on
-    screen. That distinction is what lets it open with an empty board -- the
-    toggle refuses that, and should, since a press with nothing to work on has
-    no result to show for itself.
-
-    Once per run of the application, guarded by a ref rather than by the
-    preference's value: prefs arrive after the shell is up and change again
-    whenever anything else is saved, and an effect keyed on them alone would
-    reopen the studio over a reader who had just closed it.
-  */
-  const startSurfaceAsked = useRef(false)
-  useEffect(() => {
-    if (!prefs || startSurfaceAsked.current) return
-    startSurfaceAsked.current = true
-    if (startSurfaceFromPrefs(prefs) === "studio") {
-      setOpenBoardNonce((n) => n + 1)
-    }
-  }, [prefs])
   /**
    * The title bar's host element for the map screen's studio toggle.
    *
@@ -853,10 +830,10 @@ function AppBody(props: {
     (runIds: readonly string[], workspace?: string) => {
       writeBoardMemory("pendingRunIds", [...runIds])
       if (workspace) writeBoardMemory("pendingWorkspace", workspace)
-      goMap()
+      goStudio()
       setOpenBoardNonce((n) => n + 1)
     },
-    [goMap]
+    [goStudio]
   )
 
   const handleOpenStudio = useCallback(
@@ -986,7 +963,7 @@ function AppBody(props: {
   /**
    * Open tool tab of the map's left dock.
    *
-   * Held here rather than inside MapScreen because that screen unmounts on
+   * Held here rather than inside StudioScreen because that screen unmounts on
    * every navigation away, so local state reset the dock to the classification
    * panel on every return.
    */
@@ -994,7 +971,7 @@ function AppBody(props: {
    * Which map layout is drawn.
    *
    * Read in exactly two places -- here, to decide whether the navigation column
-   * is rendered, and inside MapScreen -- which are a parent and its direct
+   * is rendered, and inside StudioScreen -- which are a parent and its direct
    * child. That is one level of travel, so it stays a useState rather than
    * joining the auth context, which already carries user, prefs, runs,
    * projects, screen and settings page.
@@ -2510,7 +2487,7 @@ function AppBody(props: {
       notifySuccess("Land cover / land use ready on map.", undefined, {
         action: { label: "Open analysis", onClick: () => goAnalysis() },
       })
-      goMap()
+      goStudio()
     } catch (e) {
       notifyError("LULC analysis error", e)
     } finally {
@@ -2532,7 +2509,7 @@ function AppBody(props: {
      */
     async (
       run: InferenceRun,
-      opts?: { land?: "analysis" | "map" | "energy" | "flood" }
+      opts?: { land?: "analysis" | "studio" | "energy" | "flood" }
     ) => {
       setLoadingRun(true)
       try {
@@ -2638,7 +2615,7 @@ function AppBody(props: {
               ? "flood"
               : null
         const land = opts?.land ?? kind ?? "analysis"
-        if (land === "map") goMap()
+        if (land === "studio") goStudio()
         else if (land === "energy") {
           goEnergy()
           setOpenEnergyResultNonce((n) => n + 1)
@@ -2657,7 +2634,7 @@ function AppBody(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       goAnalysis,
-      goMap,
+      goStudio,
       goFlood,
       solarDispatch,
       windDispatch,
@@ -2730,9 +2707,9 @@ function AppBody(props: {
     // otherwise the previous AOI's overlay stays painted over the empty map.
     // Saved compositions are reloaded from the project on reopen.
     clearAreaAndComposition()
-    goMap()
+    goStudio()
   }, [
-    goMap,
+    goStudio,
     solarDispatch,
     windDispatch,
     clearAreaAndComposition,
@@ -3389,10 +3366,10 @@ function AppBody(props: {
         openProjectHub()
       } else {
         if (itemId) selectPanel(itemId as MapToolId)
-        goMap()
+        goStudio()
       }
     },
-    [goEnergy, goFlood, openProjectHub, goMap]
+    [goEnergy, goFlood, openProjectHub, goStudio]
   )
 
   const analysisPolygonGeoJSON = useMemo(
@@ -3428,7 +3405,7 @@ function AppBody(props: {
           purpose, and not on settings or sign-in, which have no project.
         */
         projectSwitcher={
-          screen === "map" || screen === "energy" || screen === "flood" ? (
+          screen === "studio" || screen === "energy" || screen === "flood" ? (
             <ProjectSwitcher
               projects={projects}
               activeProjectId={activeProjectId}
@@ -3456,7 +3433,7 @@ function AppBody(props: {
                       userInitiated: false,
                     })
                   }
-                  await openSavedAnalysis(run, { land: "map" })
+                  await openSavedAnalysis(run, { land: "studio" })
                 })()
               }}
               onOpenHub={openProjectHub}
@@ -3477,7 +3454,7 @@ function AppBody(props: {
         */}
         <AnimatePresence initial={false}>
           {(layoutMode === "docked" ||
-            (screen !== "map" &&
+            (screen !== "studio" &&
               screen !== "energy" &&
               screen !== "flood")) && (
             <AppNav
@@ -3504,7 +3481,7 @@ function AppBody(props: {
             screen starts building at the moment it is asked for.
           */}
           <AnimatePresence initial={false}>
-            {screen === "map" && (
+            {screen === "studio" && (
               <motion.div
                 key="screen-map"
                 className="absolute inset-0 min-h-0"
@@ -3513,7 +3490,7 @@ function AppBody(props: {
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
               >
-                <MapScreen
+                <StudioScreen
                   activeProjectId={activeProjectId}
                   activeProjectName={
                     projects.find((p) => p.id === activeProjectId)?.name ?? null

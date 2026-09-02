@@ -24,7 +24,7 @@ import {
 import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
 
 export type AppScreen =
-  | "map"
+  | "studio"
   | "auth"
   | "profile"
   | "analysis"
@@ -48,7 +48,7 @@ interface AuthContextValue {
   projects: Project[]
   loading: boolean
   screen: AppScreen
-  goMap: () => void
+  goStudio: () => void
   goAuth: () => void
   goProfile: (page?: SettingsPage) => void
   goAnalysis: () => void
@@ -94,7 +94,7 @@ export function AuthProvider({
   const [runs, setRuns] = useState<InferenceRun[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [screen, setScreen] = useState<AppScreen>("map")
+  const [screen, setScreen] = useState<AppScreen>("studio")
 
   const refreshRuns = useCallback(async () => {
     try {
@@ -159,7 +159,7 @@ export function AuthProvider({
       const u = (await Login(email, password)) as unknown as User
       setUser(u)
       await loadPrefsAndRuns(u)
-      setScreen("map")
+      setScreen("studio")
       notifySuccess(`Welcome back, ${u.display_name}.`)
     },
     [loadPrefsAndRuns]
@@ -170,7 +170,7 @@ export function AuthProvider({
       const u = (await Register(email, password, displayName)) as unknown as User
       setUser(u)
       await loadPrefsAndRuns(u)
-      setScreen("map")
+      setScreen("studio")
       notifySuccess("Account created.")
     },
     [loadPrefsAndRuns]
@@ -180,7 +180,7 @@ export function AuthProvider({
     await Logout()
     setUser(null)
     setPrefs(null)
-    setScreen("map")
+    setScreen("studio")
     notifySuccess("Signed out.")
     await Promise.all([refreshRuns(), refreshProjects()])
   }, [refreshRuns, refreshProjects])
@@ -261,7 +261,7 @@ export function AuthProvider({
    * remembering what you had been doing and landing somewhere adjacent to it
    * rather than back in it.
    */
-  const [settingsReturnTo, setSettingsReturnTo] = useState<AppScreen>("map")
+  const [settingsReturnTo, setSettingsReturnTo] = useState<AppScreen>("studio")
 
   const goProfile = useCallback(
     (page?: SettingsPage) => {
@@ -301,7 +301,7 @@ export function AuthProvider({
     cannot join them: it reads `user` and `screen` to decide where to land and
     what to record, so its identity properly follows those.
   */
-  const goMap = useCallback(() => setScreen("map"), [])
+  const goStudio = useCallback(() => setScreen("studio"), [])
   const goAuth = useCallback(() => setScreen("auth"), [])
   const goAnalysis = useCallback(() => setScreen("analysis"), [])
   const goEnergy = useCallback(() => setScreen("energy"), [])
@@ -315,7 +315,7 @@ export function AuthProvider({
       projects,
       loading,
       screen,
-      goMap,
+      goStudio,
       goAuth,
       goProfile,
       goAnalysis,
@@ -347,7 +347,7 @@ export function AuthProvider({
       consumeSettingsPage,
       settingsReturnTo,
       leaveSettings,
-      goMap,
+      goStudio,
       goAuth,
       goProfile,
       goAnalysis,

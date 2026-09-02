@@ -293,7 +293,7 @@ export function GlobeSurface({
     is asked once and then not again for a while.
 
     It is also withheld from the work map for as long as the studio is up --
-    see MapScreen -- so without this the studio has no way to reach a place by
+    see StudioScreen -- so without this the studio has no way to reach a place by
     name at all, which is half of what the drawing modal was for.
   */
   const [searching, setSearching] = useState(false)

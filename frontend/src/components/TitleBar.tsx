@@ -171,7 +171,7 @@ export function TitleBar({
       cancelled = true
     }
   }, [])
-  const onMap = screen === "map"
+  const onMap = screen === "studio"
   const hasMap = onMap || screen === "energy"
   // The map's own readings, which need the map to be on screen to mean
   // anything. The board slot and the layout toggle stay on `hasMap`: they are
@@ -390,7 +390,7 @@ export function TitleBar({
           it.
 
           The board draws its own 15rem column and the shell's navigation
-          column would fight it for the left edge, so MapScreen pins the layout
+          column would fight it for the left edge, so StudioScreen pins the layout
           to workspace for as long as the board is up and restores the previous
           one on close. That makes this control inert in that mode rather than
           merely redundant: a press sets docked and the pinning effect sets it
