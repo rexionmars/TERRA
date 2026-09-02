@@ -71,6 +71,7 @@ import {
   type BasemapKind,
 } from "@/lib/basemaps"
 import { zoomOfLevel } from "@/lib/mapScale"
+import { attachMapTelemetry } from "@/lib/mapTelemetry"
 import { onPaletteChange } from "@/lib/paletteWatch"
 import { ensureMosaic, fetchLatestSceneDate } from "@/lib/recentImagery"
 import { cn } from "@/lib/utils"
@@ -929,6 +930,18 @@ export function GlobeSurface({
       b.unsubscribe()
     }
   }, [ready, recent])
+
+  /*
+    The figures the studio's status strip reports about this surface, for as
+    long as it is mounted. Attached here rather than measured there, because
+    what is being measured is a map and the strip has none: it is the same
+    shape as the pose the title bar reads, and for the same reason.
+  */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    return attachMapTelemetry(map)
+  }, [ready])
 
   /*
     The DEM and its shading, added once the style exists and inserted UNDER the
