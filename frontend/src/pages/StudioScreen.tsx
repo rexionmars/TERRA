@@ -104,7 +104,6 @@ export interface StudioScreenProps {
    * have meant handing it the state too, and returning to the map would stop
    * giving the map. Null until the bar mounts, and on every screen without one.
    */
-  titleBarSlot?: HTMLElement | null
   /**
    * Reported upward so the title bar can withhold the map's telemetry.
    *
