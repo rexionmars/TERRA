@@ -21,11 +21,6 @@ import {
   subscribePanelSelection,
 } from "@/lib/panelSelection"
 import type { AoiContourSchemeId } from "@/lib/aoiStyle"
-/*
-  MapLibre, not Leaflet. The three screens that mount the work map share one
-  component, so they moved together; the studio's own drawing map is the last
-  Leaflet map left. See components/map/MapSurface.tsx.
-*/
 import {
   isMapTool,
   type BoardToolId,

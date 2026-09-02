@@ -43,27 +43,27 @@ import {
 import "@/lib/maplibreWorker"
 
 import type { GlobeArea } from "@/components/globe/globeArea"
-import { MapBar, MapButton } from "@/components/map/MapChrome"
-import { syncOverlays } from "@/components/map/mapOverlays"
+import { MapBar, MapButton } from "@/components/globe/MapChrome"
+import { syncOverlays } from "@/components/globe/mapOverlays"
 import {
   fetchEsriImageryHere,
   type ImageryHere,
-} from "@/components/map/imageryDate"
+} from "@/components/globe/imageryDate"
 import { isZeroExtent, type RasterLayer } from "@/lib/mapLayers"
 import {
   ELEVATION_CREDIT,
   addTerrainSources,
   setTerrainEnabled,
-} from "@/components/map/terrain"
+} from "@/components/globe/terrain"
 import { Credit } from "@/components/TitleBar"
 import { SearchBar } from "@/components/SearchBar"
-import { useAreaDrawing } from "@/components/map/useAreaDrawing"
+import { useAreaDrawing } from "@/components/globe/useAreaDrawing"
 import type { GeoJSONGeometry } from "@/lib/types"
 import {
   CameraControls,
   useCameraNavigation,
-} from "@/components/map/cameraNavigation"
-import { SpaceBackdrop } from "@/components/map/SpaceBackdrop"
+} from "@/components/globe/cameraNavigation"
+import { SpaceBackdrop } from "@/components/globe/SpaceBackdrop"
 import {
   MAPLIBRE_CREDIT,
   basemapByKind,

@@ -25,7 +25,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { Map as MapLibreMap } from "maplibre-gl"
 
-import { MapBar, MapButton } from "@/components/map/MapChrome"
+import { MapBar, MapButton } from "@/components/globe/MapChrome"
 
 /** MapLibre's own rates, so a middle-drag feels like a Ctrl-drag. */
 const BEARING_PER_PX = 0.8

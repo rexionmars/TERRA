@@ -1,18 +1,17 @@
 /**
- * The tools that act on the map, named once.
+ * The three products a stored panel selection can name.
  *
- * These were a vertical tab rail floating over the map, so their names lived in
- * that component and the navigation column would have had to repeat them. One
- * table instead, because a label that exists twice is a label that can disagree
- * with itself -- the failure this codebase has already had with a palette and
- * with a set of table columns.
+ * They were a vertical tab rail floating over the map, then children of the
+ * navigation column; both are gone and the run band names them now. The table
+ * stays because a label that exists twice is a label that can disagree with
+ * itself -- the failure this codebase has already had with a palette and with
+ * a set of table columns.
  */
 
 export type MapToolId = "classify" | "compose" | "water"
 
 export interface MapTool {
   id: MapToolId
-  /** Shown in the navigation column, under Map. */
   label: string
 }
 
@@ -25,11 +24,10 @@ export const MAP_TOOLS: readonly MapTool[] = [
 /**
  * Every product the studio's band can start.
  *
- * A separate table from MAP_TOOLS, which is now only the three the navigation
- * column lists as children and the three the panel selection is written in.
- * The distinction survived the map screen because it still means something:
- * `MapToolId` is what a stored panel selection can be, and widening it would
- * make a value the store has never written suddenly representable.
+ * A separate table from MAP_TOOLS, and the distinction still means something
+ * with both the map screen and the navigation column gone: `MapToolId` is what
+ * a stored panel selection can be, and widening it would make a value the
+ * store has never written suddenly representable.
  *
  * Solar, wind and flood joined by being ported rather than by being wrapped.
  * Each had a screen of its own -- Energy carried solar and wind, Flood carried

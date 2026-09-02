@@ -40,7 +40,7 @@ export interface Basemap {
    * written out in four places, and a table whose layers and credit line are
    * two readers of one fact should hold it too. Esri's date is not this kind
    * of fact: it is per footprint and per level, and has to be asked of the
-   * service point by point -- see components/map/imageryDate.ts. OSM is a
+   * service point by point -- see components/globe/imageryDate.ts. OSM is a
    * drawing rather than an acquisition. Absent means the date is not something
    * this table can answer.
    */
