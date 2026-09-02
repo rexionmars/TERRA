@@ -22,7 +22,7 @@ import {
   WindowToggleMaximise,
   Quit,
 } from "../../wailsjs/runtime/runtime"
-import { ELEVATION_CREDIT } from "@/components/map/terrain"
+import { ELEVATION_CREDIT } from "@/components/globe/terrain"
 import { mapPose, subscribeMapPose } from "@/lib/mapPose"
 import type { PredictResult } from "@/lib/types"
 import {
@@ -281,7 +281,7 @@ export function TitleBar({
                     Only while relief is drawn, because only then is a second
                     provider on screen. It is also what keeps the elevation
                     mosaic distinct from the DEMs an analysis was computed on --
-                    see components/map/terrain.ts.
+                    see components/globe/terrain.ts.
                   */}
                   {credit.terrain && (
                     <span>
