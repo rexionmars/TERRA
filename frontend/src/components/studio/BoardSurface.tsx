@@ -68,6 +68,7 @@ import {
 } from "@/lib/boardProbe"
 import type { ClassLegendEntry } from "@/lib/classMask"
 import { legendFor, type LegendSources } from "@/lib/layerLegend"
+import type { OverlayCaption } from "@/components/globe/OverlayCallout"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { modelLabel, runAssets } from "@/lib/runAssets"
 import type { CardGroup } from "@/lib/boardLayout"
@@ -2546,17 +2547,46 @@ export function BoardSurface({
     and pruning would quietly forget what the reader had sent.
   */
   const globeOverlays = useMemo(() => {
-    const out: { key: string; layer: RasterLayer }[] = []
+    const out: {
+      key: string
+      layer: RasterLayer
+      caption?: OverlayCaption
+    }[] = []
     for (const a of areas) {
       for (const l of a.layers) {
         const key = sceneKey(a.id, l.id)
-        if (sentToGlobe.has(key)) out.push({ key, layer: l })
+        if (!sentToGlobe.has(key)) continue
+        /*
+          The legend travels with the raster, so the globe never composes one.
+          lib/layerLegend.ts records why: a legend hand-written beside the
+          renderer came to disagree with the raster it described by up to 40 of
+          255 on three stops. The globe draws what this resolved and nothing
+          else.
+
+          Ramps only. A class legend is a list of swatches and belongs in the
+          panel; `caption` is absent there and the callout is not drawn.
+        */
+        const src = legendByArea.get(a.id)
+        const legend = src ? legendFor(l.id, src) : null
+        const caption: OverlayCaption | undefined =
+          legend?.kind === "ramp"
+            ? {
+                subject: legend.subject,
+                gradient: legend.gradient,
+                low: legend.low,
+                high: legend.high,
+                area: a.title,
+                period:
+                  assetRuns.find((r) => r.areaId === a.id)?.period ?? null,
+              }
+            : undefined
+        out.push({ key, layer: l, caption })
       }
     }
     return out
     // `areas` is a new array on every render, which is what keeps an edit to a
     // layer reaching the globe; sentToGlobe changes only when one is sent.
-  }, [areas, sentToGlobe])
+  }, [areas, sentToGlobe, legendByArea, assetRuns])
 
   const areasRef = useRef(areas)
   areasRef.current = areas
