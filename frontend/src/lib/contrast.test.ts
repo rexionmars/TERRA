@@ -140,13 +140,13 @@ describe("checkContrast", () => {
     // pass/fail somewhere else.
     const expected: Record<string, number> = {
       "dark.text.surfaceRaised": 7.28,
-      "dark.muted.surfaceRaised": 3.83,
+      "dark.muted.surfaceRaised": 4.99,
       "dark.accentQuiet.accentDim": 5.71,
-      "dark.lineStrong.surfaceRaised": 2.47,
-      "dark.destructiveForeground.destructive": 5.35,
+      "dark.lineStrong.surfaceRaised": 3.14,
+      "dark.destructiveForeground.destructive": 5.37,
       "light.text.surface": 15.66,
       "light.accent.accentDim": 4.09,
-      "light.warning.surfaceRaised": 4.61,
+      "light.warning.surfaceRaised": 3.76,
     }
     for (const [key, ratio] of Object.entries(expected)) {
       const r = results.find((x) => `${x.theme}.${x.fg}.${x.bg}` === key)

@@ -59,8 +59,8 @@
     127 is where the measurement left it against a raised surface of 54. The
     surface has since reached 67 and the boundary has not followed.
   */
-  --p-line: 75 75 75;
-  --p-line-strong: 127 127 127;
+  --p-line: 91 91 91;
+  --p-line-strong: 145 145 145;
   --p-text: 221 221 221;
   /*
     Muted text must clear WCAG 1.4.3 (4.5:1) on the darkest surface it lands on,
@@ -69,7 +69,7 @@
     not taken -- the pair is accepted by name in scripts/check-contrast.ts.
     Used only as a text colour, never as a background.
   */
-  --p-muted: 161 161 161;
+  --p-muted: 184 184 184;
   /*
     The accent is a fill, a focus ring and an active state.
 
@@ -88,6 +88,35 @@
   --p-accent-dim: 83 40 12;
   --p-place: 120 138 148;
   --p-haze: 144 144 144;
+
+  /*
+    THE PRODUCTS, AS COLOUR. A scale of its own, and not part of the one above.
+
+    These name what a run IS -- a classification, a water map, a solar product,
+    a wind screening, a flood envelope -- and they are read side by side in a
+    grid rather than against text. They were invented inside StudioBrowser, in
+    HSL, at the moment that grid needed them, and one of them landed on the
+    accent's own hue: a solar tile and the primary action were the same orange.
+    That is what a scale nobody declared costs.
+
+    LOWER CHROMA THAN THE SEMANTIC TOKENS, deliberately. The accent means "act
+    on this" and the warning and destructive mean what they say; a product is
+    not a status, and a categorical colour at the same saturation competes with
+    the ones that are asking for something. At C 0.09 against the accent's
+    0.149 they read as labels rather than as calls.
+
+    Spread by hue in OKLCH so the steps are even to the eye: 75, 195, 245, 295,
+    plus a neutral for the classification, which is the ordinary case and the
+    one a grid holds most of. Not gated by check-contrast.ts, for the reason
+    that file gives about the scientific ramps: they answer to the data. Each
+    is drawn as a glyph on a plate of its own tint, never as small text.
+  */
+  --p-kind-class: 158 158 158;
+  --p-kind-solar: 191 150 93;
+  --p-kind-water: 80 176 176;
+  --p-kind-flood: 109 164 211;
+  --p-kind-wind: 162 147 209;
+
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
 
@@ -136,6 +165,14 @@
   --p-accent-dim: 240 214 198;
   --p-place: 90 110 122;
   --p-haze: 176 176 176;
+
+  /* The same five, at the lightness a light ground needs. See the dark block. */
+  --p-kind-class: 113 113 113;
+  --p-kind-solar: 144 105 47;
+  --p-kind-water: 19 130 130;
+  --p-kind-flood: 64 119 163;
+  --p-kind-wind: 117 103 161;
+
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
     scenes have always drawn the grid with. The dark room above was set by eye
@@ -197,9 +234,9 @@
     The fill is dark enough for the light label (5.33) and the quiet variant is
     light enough to read on every surface (6.89 on ink, 5.17 on a raised one).
   */
-  --destructive: #a02c2c;
+  --destructive: #9f2b3a;
   --destructive-foreground: rgb(var(--p-text));
-  --destructive-quiet: #e08a78;
+  --destructive-quiet: #f8989e;
   /*
     An amber of its own, one value per theme, rather than the accent.
 
@@ -211,7 +248,7 @@
     one meaning it must not carry. Measured 7.97 / 7.13 / 5.93 dark and
     5.21 / 5.65 / 4.58 light, so it clears the mark floor on every surface.
   */
-  --warning: #d9a441;
+  --warning: #d5be4b;
   --success: #6f9c5a;
 
   /*
@@ -273,10 +310,10 @@
 }
 
 :root[data-theme="light"] {
-  --destructive: #b33a1a;
+  --destructive: #b23645;
   --destructive-foreground: rgb(var(--p-surface));
-  --destructive-quiet: #9e2b25;
-  --warning: #8a5a10;
+  --destructive-quiet: #a32b3b;
+  --warning: #877000;
   --success: #3f6b2c;
   /* Darkened for the light ground; same four floors, same search. */
   --series-ndvi: #4b9b55;
