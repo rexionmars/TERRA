@@ -72,6 +72,8 @@ import { legendFor, type LegendSources } from "@/lib/layerLegend"
 import type { OverlayCaption } from "@/components/globe/OverlayCallout"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { modelLabel, runAssets } from "@/lib/runAssets"
+import { analysisEntries } from "@/lib/analysisCallout"
+import { usePlantRegister } from "@/lib/plantRegister"
 import type { CardGroup } from "@/lib/boardLayout"
 import { layoutGroups } from "@/lib/boardLayout"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -115,12 +117,13 @@ import type {
   ModelKind,
   PredictResult,
   WindAnalysis,
+  GridStoreReport,
+  GridCurtailmentAnalysis,
+  GridFigureAnalysis,
 } from "@/lib/types"
 import { SURFACE } from "@/lib/motion"
 import { ReadingPanel } from "@/components/studio/ReadingPanel"
-import { SolarParamsEditor } from "@/components/studio/SolarParamsEditor"
 import type {
-  SolarParams,
   SolarProductId,
   SolarResults,
 } from "@/lib/energyState"
@@ -160,6 +163,9 @@ import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { windReadingGroups } from "@/components/energy/readingSections"
 import { FloodReadingColumn } from "@/components/flood/FloodReading"
+import { GridCurtailmentReading } from "@/components/grid/GridCurtailmentReading"
+import { GridFigureReading } from "@/components/grid/GridFigureReading"
+import { GridRecordReading } from "@/components/grid/GridRecordReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
   createBoard,
@@ -170,6 +176,7 @@ import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
   areaLeaves,
+  findEditor,
   areaRects,
   joinArea,
   maximizeArea,
@@ -468,16 +475,17 @@ export function BoardSurface({
   onNewStudio,
   onStudiosMenu,
   polygonGeoJSON,
-  solarProduct,
-  solarParams,
   solarResults = EMPTY_SOLAR_RESULTS,
-  onSolarParamsChange,
-  onSolarLossChange,
   onClearSolar,
   windResult = null,
   onClearWind,
   floodResult = null,
   onClearFlood,
+  gridStore = null,
+  gridCurtailment = null,
+  gridFigure = null,
+  reveal = null,
+  onRevealed,
 }: {
   /**
    * Every layer the run could draw, drawn or not.
@@ -619,20 +627,14 @@ export function BoardSurface({
    * Solar, whole: which product the run band has selected, what every product
    * sends, and what each has produced.
    *
-   * The parameters do not travel as cards on the band the way the other
-   * products' do. The energy model sends more settings than a band can carry,
-   * so one editor owns them -- which is `canopyParams`' arrangement, applied
-   * for the same reason.
+   * THE PARAMETERS ARE NOT HERE, and that is the change rather than an
+   * omission. They lived in an editor of their own, on an argument that was
+   * true about the energy model and was applied to all four products. They are
+   * cards on the run graph now: a panel configures nothing a card cannot, and
+   * what a panel is FOR is showing a result. Only the results reach this
+   * component.
    */
-  solarProduct?: SolarProductId
-  solarParams?: SolarParams
   solarResults?: SolarResults
-  onSolarParamsChange?: (patch: Partial<SolarParams>) => void
-  onSolarLossChange?: (
-    group: "declared" | "optional",
-    key: string,
-    pct: number
-  ) => void
   onClearSolar?: (product: SolarProductId) => void
   /**
    * The two products whose result is read rather than drawn.
@@ -651,7 +653,100 @@ export function BoardSurface({
   onClearWind?: () => void
   floodResult?: FloodAnalysis | null
   onClearFlood?: () => void
+  /**
+   * What the local grid store holds, or why it cannot be reached.
+   *
+   * Not a result and not cleared with one: it describes the installation
+   * rather than a run, and it is the same object whether an analysis has been
+   * made or not.
+   */
+  gridStore?: GridStoreReport | null
+  /** The last curtailment read, or null before one. */
+  gridCurtailment?: GridCurtailmentAnalysis | null
+  /** The last figure of the series read, or null before one. */
+  gridFigure?: GridFigureAnalysis | null
+  /**
+   * An editor a just-finished run needs on screen, or null.
+   *
+   * A one-way signal rather than a handle: the tree lives here, so the parent
+   * cannot place an area itself, and a callback it could call at any time
+   * would let a run rearrange a board long after it finished. Cleared through
+   * onRevealed as soon as it is honoured.
+   */
+  reveal?: EditorId | null
+  onRevealed?: () => void
 }) {
+  /*
+    The plant register, read once and held for the session.
+
+    Here rather than inside the globe because the globe is lazy-loaded and
+    the register is not its to own: a second surface showing the same planet
+    would fetch it again, and the map is not the only thing that has reason
+    to know which plants the record can answer about.
+  */
+  const plantRegister = usePlantRegister()
+
+  /*
+    The readings held right now, and which of them the reader has put on the
+    globe.
+
+    DERIVED, NOT STORED. An entry is a view of a result: it changes when the
+    result does, and a copy kept in state would be a second answer that can
+    disagree with the panel showing the first. Only the CHOICE of what is on the
+    map is state, because nothing else records it.
+  */
+  const analyses = useMemo(
+    () => analysisEntries({ curtailment: gridCurtailment }),
+    [gridCurtailment]
+  )
+  const [analysesOnMap, setAnalysesOnMap] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  /*
+    Where a reading's callout is anchored: the centroid of the ground it was
+    read over.
+
+    THE AREA'S OWN SHAPE, NOT ITS BOUNDING BOX. A concave AOI -- and the drawn
+    ones frequently are -- has a bounding-box centre that can fall outside it,
+    which would put the dot on land the reading is not about. The vertex mean
+    is inside for the shapes this draws and is cheap; a true centroid would be
+    better and neither is exact, so this stays the simpler of the two and the
+    leader is what carries the meaning anyway.
+  */
+  const readingAnchor = useMemo((): [number, number] | null => {
+    const rings = customPolygon?.coordinates as number[][][] | undefined
+    const ring = rings?.[0]
+    if (!ring?.length) return null
+    let lon = 0
+    let lat = 0
+    for (const [x, y] of ring) {
+      lon += x
+      lat += y
+    }
+    return [lon / ring.length, lat / ring.length]
+  }, [customPolygon])
+
+  const readingCaptions = useMemo(
+    () =>
+      readingAnchor === null
+        ? []
+        : analyses
+            .filter((e) => analysesOnMap.has(e.id))
+            .map((e) => ({
+              key: `reading:${e.id}`,
+              at: readingAnchor,
+              caption: { legend: e.legend, area: e.title, period: e.params },
+            })),
+    [analyses, analysesOnMap, readingAnchor]
+  )
+
+  const toggleAnalysisMap = (id: string) =>
+    setAnalysesOnMap((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
   /*
@@ -872,6 +967,45 @@ export function BoardSurface({
     resizes, and a snapshot would leave every area where it was when the studio
     opened.
   */
+  /*
+    A FRESH READING MUST BE VISIBLE, which is the rule the raster products
+    already follow and the reading products never did.
+
+    Running solar sets `showSiting` so the raster it just made is drawn -- the
+    handler says so in as many words. A wind screening, a flood envelope and
+    both grid readings had no equivalent: the run answered, the state updated,
+    and if the arrangement held no editor for it the screen did not change at
+    all. The studio opens on `layout`, which carries none of the four, so the
+    common case was a run that looked like it had not happened.
+
+    THE ARRANGEMENT IS STILL THE READER'S. This only acts when the board holds
+    NO area of that type, and it retypes one rather than splitting: a reader
+    who has put the editor somewhere keeps it where they put it, and one who
+    has not is not left staring at an unchanged board. Which area is sacrificed
+    is the least-specific one present -- properties before an outliner, an
+    outliner before a viewport -- so the pane that goes is the one whose
+    content the others repeat.
+  */
+  const revealEditor = useCallback(
+    (editor: EditorId) => {
+      const root = treeRef.current
+      if (findEditor(root, editor)) return
+      const leaves = areaLeaves(root)
+      const rank = (e: EditorId) =>
+        e === "properties" ? 0 : e === "outliner" ? 1 : e === "browser" ? 2 : 3
+      const victim = [...leaves].sort(
+        (a, b) => rank(a.editor) - rank(b.editor)
+      )[0]
+      if (victim) setTree(retypeArea(root, victim.id, editor))
+    },
+    [setTree]
+  )
+  useEffect(() => {
+    if (!reveal) return
+    revealEditor(reveal)
+    onRevealed?.()
+  }, [reveal, revealEditor, onRevealed])
+
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const [surface, setSurface] = useState({ x: 0, y: 0, w: 0, h: 0 })
   useEffect(() => {
@@ -3997,6 +4131,15 @@ export function BoardSurface({
           onPolygonDrawn={onPolygonDrawn}
           overlays={globeOverlays}
           /*
+            The register, so an area is drawn over something visible.
+
+            Not gated on a grid run having happened: the whole point is that it
+            is there BEFORE one is asked for. Null while it loads, which the
+            globe draws as an empty source rather than as no plants.
+          */
+          plants={plantRegister?.geojson ?? null}
+          readings={readingCaptions}
+          /*
             The same memory the work map keeps. The globe opened over Brazil at
             zoom 1.6 every time, however far the reader had travelled on it,
             while the map beside it came back where it was left -- and the two
@@ -4009,6 +4152,9 @@ export function BoardSurface({
     ),
     outliner: (
           <BoardSidebar
+            analyses={analyses}
+            onAnalysisOnMap={(id) => analysesOnMap.has(id)}
+            onToggleAnalysisMap={toggleAnalysisMap}
             areaInfo={areaInfo}
             /*
               The ring the board is already drawing, handed back as a geometry.
@@ -4202,21 +4348,6 @@ export function BoardSurface({
       is a comparison, and neither carries a control the other could disagree
       with.
     */
-    solarParams:
-      solarParams && solarProduct && onSolarParamsChange && onSolarLossChange ? (
-        <SolarParamsEditor
-          product={solarProduct}
-          params={solarParams}
-          results={solarResults}
-          onSet={onSolarParamsChange}
-          onLossSet={onSolarLossChange}
-        />
-      ) : (
-        <EditorEmpty>
-          Solar is not available in this session, so there are no parameters to
-          set.
-        </EditorEmpty>
-      ),
     solarReading: (
       <ReadingPanel
         groups={solarReadingGroups(solarResults)}
@@ -4231,6 +4362,16 @@ export function BoardSurface({
         empty="No wind screening yet. Draw an area, then run the wind from the run band."
       />
     ),
+    gridRecord: (
+      /*
+        Rendered whether or not the store answers, because the unreachable case
+        is the one a reader most needs this editor for. GridRecordReading draws
+        the sidecar's own sentence; there is no EditorEmpty branch here.
+      */
+      <GridRecordReading report={gridStore} />
+    ),
+    gridCurtailment: <GridCurtailmentReading result={gridCurtailment} />,
+    gridFigure: <GridFigureReading result={gridFigure} />,
     floodReading: floodResult ? (
       <FloodReadingColumn
         flood={floodResult}

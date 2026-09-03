@@ -23,6 +23,8 @@
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+
+import { usePlantLayers } from "@/lib/plantRegister"
 import {
   Broadcast,
   Globe,
@@ -173,6 +175,25 @@ const SHAPE_LINE = "draw-shape-line"
 const START_ZOOM = 1.6
 const START_CENTER: [number, number] = [-51.4, -23.4]
 
+/*
+  The register, drawn under whatever is being asked about it.
+
+  THE MAP WAS BARE AND EVERY AREA WAS DRAWN BLIND. This slice answers about the
+  plants inside a polygon, and until the polygon existed nothing on screen said
+  where a plant was -- so an area over a solar farm the imagery plainly shows
+  could come back with nothing, and an empty answer was indistinguishable from
+  a broken one.
+
+  TWO LAYERS AND NOT ONE, because the two populations are different questions.
+  ANEEL registers 18,639 located photovoltaic enterprises and ONS meters 558 of
+  them: three percent. Only those 558 can be answered about, so drawing all of
+  them alike would invite an area over the other 97 percent. The metered ones
+  are drawn to be aimed at; the rest are drawn to be recognised as context.
+*/
+const PLANT_SOURCE = "terra-plants"
+const PLANT_OTHER = "terra-plants-other"
+const PLANT_METERED = "terra-plants-metered"
+
 const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
 const AREA_LINE = "terra-areas-line"
@@ -248,6 +269,9 @@ export function GlobeSurface({
   initialView = null,
   onViewChange,
   overlays = [],
+  plants = null,
+  onPickPlant,
+  readings = [],
   spreadM = 0,
   onSpreadChange,
   className,
@@ -263,6 +287,29 @@ export function GlobeSurface({
    * globe that showed the saved catalog but not the current area would be
    * missing the one outline they are here about.
    */
+  /**
+   * The plant register, drawn so an area is not drawn blind.
+   *
+   * Null and an empty collection are the same to the map and different to a
+   * reader: null is "not asked for", empty is "asked and there are none here".
+   * The distinction belongs to whoever renders the legend, not here.
+   */
+  plants?: GeoJSON.FeatureCollection | null
+  /** A plant was pressed. Its CEG, as the register writes it. */
+  onPickPlant?: (ceg: string) => void
+  /**
+   * Readings the outliner has put on the globe, tied to the ground they were
+   * read over.
+   *
+   * Given already anchored rather than as results to be placed: where a reading
+   * belongs is a question about the AREA it was run on, which this surface does
+   * not hold and the board does. This draws what it is handed.
+   */
+  readings?: readonly {
+    key: string
+    at: [number, number]
+    caption: OverlayCaption
+  }[]
   polygon?: GeoJSONGeometry | null
   /**
    * A shape was drawn, edited or removed. ABSENT MEANS THIS GLOBE CANNOT DRAW,
@@ -334,6 +381,24 @@ export function GlobeSurface({
   viewChangeRef.current = onViewChange
   const [failure, setFailure] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  // Which of the register's two populations are drawn. Read from the module
+  // the Layers card writes to, because the card is in the run band and this is
+  // on the globe, and neither tree contains the other.
+  const plantLayers = usePlantLayers()
+  /*
+    The plant last pressed, held here rather than lifted.
+
+    A press with no visible consequence reads as a broken control, and the
+    reader has no way to tell it from a dead layer. What a press CAN answer
+    without a run is what the register says -- name, plate rating, municipality,
+    whether the operational record covers it -- and that is enough to make the
+    mark answer for itself. Anything that needs a reading is the parent's
+    business, which is what onPickPlant is for.
+  */
+  const [pickedPlant, setPickedPlant] = useState<{
+    props: Record<string, unknown>
+    at: [number, number]
+  } | null>(null)
   /*
     RELIEF, OFF BY DEFAULT, for the reason terrain.ts states: a DEM tile per
     view and a mesh per tile, in an application with a written history of
@@ -432,7 +497,67 @@ export function GlobeSurface({
       })
   }, [overlays, spreadM])
 
-  const captions = useMemo(
+  /*
+    The pressed plant, as a caption of the same kind a raster's legend is.
+
+    NOT A CARD OF ITS OWN, and the difference is the tie. A box in a corner
+    describes something the reader has to find again; this one hangs off a dot
+    on the plant, travels with the ground under pan and pitch, and is dragged
+    out of the way without stopping saying which mark it is about. The reasons
+    are OverlayCallout.tsx's own and they hold whether the mark is a raster's
+    centre or an enterprise's coordinate.
+
+    kind "stats" because that is what this is: figures the register reported,
+    with no colour mapping to explain. layerLegend.ts makes the same choice for
+    a raster whose ramp is not published -- a legend that has numbers and no
+    bar is honest, and a bar invented for it would not be.
+  */
+  const plantCaption = useMemo(() => {
+    if (!pickedPlant) return null
+    const p = pickedPlant.props
+    const rows: { label: string; value: string }[] = []
+    if (p.mw != null) rows.push({ label: "Plate", value: `${p.mw} MW` })
+    if (p.municipality) rows.push({ label: "Where", value: String(p.municipality) })
+    if (p.since) rows.push({ label: "Operating since", value: String(p.since) })
+    return {
+      key: `plant:${String(p.ceg ?? "")}`,
+      at: pickedPlant.at,
+      // On the ground, not lifted: an enterprise is a place, and riding a
+      // raster's height would tie it to a stack it is not part of.
+      elevationM: 0,
+      caption: {
+        legend: {
+          kind: "stats" as const,
+          /*
+            Short enough to survive the box, which is about 30 characters at
+            this type size: "UFV · in the operational record" was clipped to
+            "UFV · IN THE OPERATIONAL REC…" on screen, which loses the one word
+            that carries the meaning. The long form is in the note below, where
+            there is room for it.
+          */
+          subject: `${String(p.kind ?? "Plant")} · ${
+            p.metered ? "metered" : "not metered"
+          }`,
+          rows,
+          /*
+            Said here because it decides whether asking about this ground
+            returns anything: ONS meters 558 of the 18,639 located photovoltaic
+            enterprises, so most marks on this map cannot be read about at all.
+          */
+          note: p.metered
+            ? "In ONS's operational record, so a curtailment reading over an " +
+              "area containing it returns figures for it."
+            : "The operational record does not cover this plant, so a " +
+              "curtailment reading over it returns nothing. That is an " +
+              "absence of measurement, not a curtailment of zero.",
+        },
+        area: String(p.name ?? "—"),
+        period: null,
+      },
+    }
+  }, [pickedPlant])
+
+  const rasterCaptions = useMemo(
     () =>
       overlays
         .filter((o) => o.caption && !isZeroExtent(o.layer.extent))
@@ -449,6 +574,21 @@ export function GlobeSurface({
           caption: o.caption!,
         })),
     [overlays, raisedRasters]
+  )
+
+  // The plant last, so its box is added over the raster legends rather than
+  // under them where two are up at once.
+  const captions = useMemo(
+    () => [
+      ...rasterCaptions,
+      // On the ground, not lifted: a reading is about a piece of land, not
+      // about a plane in the stack over it.
+      ...readings.map((r) => ({ ...r, elevationM: 0 })),
+      // The plant last, so a mark just pressed is added over whatever was
+      // already up rather than under it.
+      ...(plantCaption ? [plantCaption] : []),
+    ],
+    [rasterCaptions, readings, plantCaption]
   )
   /*
     REVEALED, NOT ALWAYS UP. The work map carries its search bar permanently
@@ -544,6 +684,14 @@ export function GlobeSurface({
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
+  /*
+    Held in a ref for the reason the area one is: the handler is registered
+    once, on the map that is built once, and a callback captured there would
+    stay the one this component had on its first render. The ref is what lets
+    the press reach whatever the parent is holding NOW.
+  */
+  const pickPlantRef = useRef(onPickPlant)
+  pickPlantRef.current = onPickPlant
   /** The most recent error event, which the watchdog reports if it matters. */
   const lastError = useRef<string | null>(null)
 
@@ -650,6 +798,10 @@ export function GlobeSurface({
               type: "geojson",
               data: { type: "FeatureCollection", features: [] },
             },
+            [PLANT_SOURCE]: {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+            },
           },
           layers: [
             /*
@@ -725,6 +877,75 @@ export function GlobeSurface({
               type: "line",
               source: AREA_SOURCE,
               paint: { "line-color": "#ED8744", "line-width": 1.5 },
+            },
+            /*
+              Above the areas and any raster, below the shape being drawn.
+
+              Above, because a point under a 14-percent fill and a continuous
+              irradiation raster is a point nobody can see, and the whole reason
+              it is here is to be aimed at. Below the drawing, because a press
+              that lands on a plant while a polygon is being closed is a press
+              the reader did not mean.
+
+              UNMETERED FIRST, so a metered plant standing beside one is drawn
+              over it rather than under. Where the register puts two enterprises
+              a hundred metres apart -- which it does, constantly, because an
+              array is registered in 40 MW pieces -- the one that can be
+              answered about is the one that has to remain visible.
+            */
+            {
+              id: PLANT_OTHER,
+              type: "circle",
+              source: PLANT_SOURCE,
+              filter: ["!", ["get", "metered"]],
+              paint: {
+                // Small, dim and flat: context, not a target. It says "the
+                // register knows of something here" and nothing more, because
+                // nothing more can be answered about it.
+                "circle-radius": [
+                  "interpolate", ["linear"], ["zoom"],
+                  6, 1.4,
+                  11, 2.6,
+                  15, 4,
+                ],
+                "circle-color": "#9AA0A6",
+                "circle-opacity": 0.5,
+                "circle-stroke-width": 0,
+              },
+            },
+            {
+              id: PLANT_METERED,
+              type: "circle",
+              source: PLANT_SOURCE,
+              filter: ["get", "metered"],
+              paint: {
+                /*
+                  Sized by plate rating, which is the one property that makes
+                  two dots a hundred metres apart worth telling apart: Sol do
+                  Cerrado is seventeen enterprises of 29 to 49 MW, and a row of
+                  identical dots says the array is uniform when the record's
+                  own per-plant curtailment runs 0.238 to 0.322 across it.
+
+                  sqrt, not linear. A circle's area goes as the square of its
+                  radius, so a linear radius reads an 11 GW hydro plant as a
+                  thousand times the area of an 11 MW one, and the solar fleet
+                  disappears beside it.
+                */
+                "circle-radius": [
+                  "interpolate", ["linear"], ["zoom"],
+                  6, ["*", 0.55, ["sqrt", ["max", 1, ["get", "mw"]]]],
+                  11, ["*", 1.1, ["sqrt", ["max", 1, ["get", "mw"]]]],
+                  15, ["*", 1.9, ["sqrt", ["max", 1, ["get", "mw"]]]],
+                ],
+                "circle-color": "#ED8744",
+                "circle-opacity": 0.55,
+                // The ring is what survives against imagery. A filled dot at
+                // 55 percent over a bright array is a smudge; the outline is
+                // what makes it a mark.
+                "circle-stroke-width": 1.2,
+                "circle-stroke-color": "#FFD9B8",
+                "circle-stroke-opacity": 0.9,
+              },
             },
             /*
               ABOVE the catalog, because it is what is being worked on. And
@@ -830,6 +1051,39 @@ export function GlobeSurface({
       })
     )
     subs.push(
+      // Registered before the area handler, and MapLibre delivers to the
+      // topmost layer that has one -- so a press on a plant standing inside an
+      // area selects the plant, which is the smaller and more specific thing
+      // the reader aimed at.
+      map.on("click", PLANT_METERED, (e: MapMouseEvent & { features?: unknown[] }) => {
+        const f = e.features?.[0] as
+          | { properties?: Record<string, unknown> }
+          | undefined
+        const props = f?.properties
+        const g = (f as { geometry?: { coordinates?: number[] } } | undefined)
+          ?.geometry
+        setPickedPlant(
+          props && g?.coordinates?.length === 2
+            ? { props, at: [g.coordinates[0], g.coordinates[1]] as [number, number] }
+            : null
+        )
+        const ceg = props?.ceg
+        if (typeof ceg === "string") pickPlantRef.current?.(ceg)
+      })
+    )
+    subs.push(
+      map.on("mouseenter", PLANT_METERED, () => {
+        // The cursor is the only thing that says a mark is pressable before it
+        // is pressed, and every other clickable layer here sets it.
+        map.getCanvas().style.cursor = "pointer"
+      })
+    )
+    subs.push(
+      map.on("mouseleave", PLANT_METERED, () => {
+        map.getCanvas().style.cursor = ""
+      })
+    )
+    subs.push(
       map.on("click", AREA_FILL, (e: MapMouseEvent & { features?: unknown[] }) => {
         const f = e.features?.[0] as
           | { properties?: Record<string, unknown> }
@@ -917,6 +1171,36 @@ export function GlobeSurface({
     // through a ref, so nothing here should rebuild the map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    /*
+      Visibility rather than filtering the source. Both hide a mark; only this
+      one keeps the other layer's marks drawn without re-uploading seven
+      megabytes of GeoJSON on every toggle, and MapLibre does it on the GPU.
+    */
+    for (const [id, on] of [
+      [PLANT_METERED, plantLayers.metered],
+      [PLANT_OTHER, plantLayers.registered],
+    ] as const) {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, "visibility", on ? "visible" : "none")
+      }
+    }
+  }, [plantLayers, ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const src = map.getSource<GeoJSONSource>(PLANT_SOURCE)
+    // An absent register empties the source rather than leaving the last one
+    // drawn. A layer that keeps showing the plants of the previous project is
+    // worse than a bare map: it is a bare map that lies about where it is.
+    void src?.setData(
+      plants ?? { type: "FeatureCollection", features: [] }
+    )
+  }, [plants, ready])
 
   useEffect(() => {
     const map = mapRef.current

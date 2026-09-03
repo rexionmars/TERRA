@@ -23,7 +23,7 @@
  */
 import { MODEL_OPTIONS } from "@/lib/classifyOptions"
 import type { SolarProductId } from "@/lib/energyState"
-import type { BoardToolId } from "@/lib/mapTools"
+import { energyFamily, type BoardToolId, type EnergyProductId } from "@/lib/mapTools"
 import type { ModelKind } from "@/lib/types"
 
 export interface MethodSection {
@@ -49,6 +49,8 @@ export interface MethodBrief {
 
 export interface MethodInputs {
   tool: BoardToolId
+  /** Which energy product, when the tool is Energy. */
+  energyProduct?: EnergyProductId | null
   modelKind: ModelKind
   start: string
   end: string
@@ -414,11 +416,71 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return waterBrief(i)
     case "compose":
       return composeBrief(i)
-    case "solar":
-      return solarBrief(i)
-    case "wind":
-      return windBrief(i)
     case "flood":
       return floodBrief(i)
+    /*
+      One tab, three briefs, and the product decides which.
+
+      The brief documents a chain of computation, and the three energy families
+      do not share one: irradiation over terrain is a model of the sky and the
+      ground, and curtailment is a reading of what an operator decided. Merging
+      the band entry did not merge the methods, so this asks the product which
+      slice answers rather than assuming the tab did.
+    */
+    case "energy":
+      switch (i.energyProduct ? energyFamily(i.energyProduct) : null) {
+        case "solar":
+          return solarBrief(i)
+        case "wind":
+          return windBrief(i)
+        case "grid":
+          return gridBrief(i)
+        default:
+          // No product chosen yet. The solar brief is the one the band opens
+          // on, so it is what the panel beside it should already be showing.
+          return solarBrief(i)
+      }
+  }
+}
+
+/**
+ * The brief for the operational record.
+ *
+ * IT DESCRIBES A READING, NOT A MODEL, and that is the difference worth
+ * stating first. Every other brief on this screen documents a chain of
+ * assumptions -- a transposition, a roughness sweep, a HAND threshold. This one
+ * documents a ledger: what the system operator published about what it did.
+ * The caveats are therefore of the opposite kind, about coverage rather than
+ * about error.
+ */
+function gridBrief(_i: MethodInputs): MethodBrief {
+  return {
+    subtitle: "What the operator withheld, from the plants it measures",
+    source: "sidecar/terra/grid · ONS operational record",
+    sections: [
+      {
+        title: "Record",
+        lines: [
+          "ONS constrained-off, half-hourly, per plant",
+          "read from a local PostGIS, never fetched during a run",
+          "the operator revises published months in batches, so a run reads whichever revision was loaded",
+        ],
+      },
+      {
+        title: "Geometry",
+        lines: [
+          "plant coordinates come from ANEEL, which the operator never publishes",
+          "an area reaches a plant by that coordinate; a plant without one is invisible to the search",
+        ],
+      },
+      {
+        title: "What it does not say",
+        lines: [
+          "it describes METERED plants and says nothing about a site that has none",
+          "no neighbour's figure is borrowed to fill an empty area",
+          "curtailment is attributed to the cluster a plant belonged to at the time, not to the plant",
+        ],
+      },
+    ],
   }
 }

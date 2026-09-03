@@ -22,7 +22,11 @@
  */
 import {
   CalendarBlank,
+  ChartLineUp,
   CircleHalf,
+  ChartLineDown,
+  Database,
+  Factory,
   ClockCounterClockwise,
   Drop,
   Fan,
@@ -35,12 +39,14 @@ import {
   Repeat,
   Ruler,
   Stack,
+  Sun,
   ThermometerSimple,
   type Icon,
   Waves,
 } from "@phosphor-icons/react"
 import type { SolarProductId } from "@/lib/energyState"
-import type { BoardToolId } from "@/lib/mapTools"
+import type { GridProductId } from "@/lib/gridOptions"
+import { energyFamily, type BoardToolId, type EnergyProductId } from "@/lib/mapTools"
 
 export type RunNodeId =
   | "area"
@@ -61,6 +67,14 @@ export type RunNodeId =
   | "roughness"
   | "models"
   | "threshold"
+  | "store"
+  | "layers"
+  | "window"
+  | "figure"
+  | "radiation"
+  | "plant"
+  | "array"
+  | "losses"
   | "run"
 
 export interface RunNodeSpec {
@@ -118,6 +132,43 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   roughness: { id: "roughness", label: "Roughness", icon: Waves, h: 116 },
   models: { id: "models", label: "Elevation models", icon: Stack, h: 140 },
   threshold: { id: "threshold", label: "Threshold", icon: Ruler, h: 116 },
+  // The local operational record, and the span of it a run reads.
+  //
+  // `store` is at column 0 beside `area` because it is the other thing the
+  // request is OF: the area says which ground, the store says which record.
+  // A run made against a different revision is a different run, so a value
+  // that decides a result belongs on the graph that describes the result --
+  // which is the same argument that keeps the area off a settings screen.
+  store: { id: "store", label: "Store", icon: Database, h: 116 },
+  /*
+    THE MAP'S OWN SOURCES, WHICH ARE NOT A RUN'S INPUT.
+
+    Every other node on this graph feeds the run: change it and the answer
+    changes. This one changes nothing about the answer -- it says what is DRAWN
+    while the question is being set up, which is the register a reader needs in
+    front of them to choose a polygon at all. So it is placed in the first
+    column beside the store and wired to nothing, and the absent edge is the
+    statement: a line from here to the run would claim the layer is read, and it
+    is not.
+
+    It sits on this graph rather than in a map control because the reader is
+    already here. Choosing where to ask and seeing what can be asked about are
+    one gesture, and putting the second behind a toolbar on the other surface is
+    what left the map bare while a product card offered to read it.
+  */
+  layers: { id: "layers", label: "Layers", icon: Stack, h: 148 },
+  // The solar parameters, back on the graph. Named for what they configure,
+  // not for the product that sends them: `radiation` and `slope` are each read
+  // by two products, which is why SolarParams holds one of each for the axis.
+  radiation: { id: "radiation", label: "Radiation", icon: Sun, h: 168 },
+  plant: { id: "plant", label: "Plant", icon: Factory, h: 200 },
+  array: { id: "array", label: "Array", icon: Ruler, h: 168 },
+  losses: { id: "losses", label: "Losses", icon: ChartLineDown, h: 200 },
+  window: { id: "window", label: "Record window", icon: CalendarBlank, h: 116 },
+  // Which analysis of the published series. A card and not a menu inside the
+  // reading, because it is part of the request: a different figure is a
+  // different run, not a different view of one.
+  figure: { id: "figure", label: "Figure", icon: ChartLineUp, h: 200 },
   // The run node draws its own header from the tool, so it carries no icon of
   // its own here; TOOL_ICON in BoardRunGraph names it.
   run: { id: "run", label: "Run", icon: Package, h: 96 },
@@ -134,13 +185,68 @@ export interface RunGraph {
  * `null` while no tool is chosen: there is no run to describe before there is
  * a product, which is the rule the band's method brief already followed.
  */
+/**
+ * The graph for a tool, with the map's sources added where they belong.
+ *
+ * A WRAPPER RATHER THAN A LINE IN EIGHT BRANCHES. The Energy entry has eight
+ * products and each returns its own node list; adding the layers card to each
+ * would be eight places for it to be forgotten, which is the same argument
+ * SPEC itself is built on. It is appended once, here, and only for Energy --
+ * the register it draws is the one this slice can be asked about, and hanging
+ * it off a classification graph would offer a control over a layer that run
+ * has nothing to do with.
+ *
+ * NO EDGE, DELIBERATELY. Everything else on a graph feeds the run. This does
+ * not: it changes what is drawn while the question is set up and changes
+ * nothing about the answer, and a line to the run node would say otherwise.
+ */
 export function runGraph(
   tool: BoardToolId | null,
   solarProduct: SolarProductId | null,
+  compositeKind: "rgb" | "index" | null = null,
+  gridProduct: GridProductId | null = null,
+  energyProduct: EnergyProductId | null = null
+): RunGraph | null {
+  const graph = productGraph(
+    tool,
+    solarProduct,
+    compositeKind,
+    gridProduct,
+    energyProduct
+  )
+  if (!graph || tool !== "energy") return graph
+  return {
+    ...graph,
+    nodes: [...graph.nodes, { ...SPEC.layers, col: 0 }],
+  }
+}
+
+function productGraph(
+  tool: BoardToolId | null,
+  solarProduct: SolarProductId | null,
   /** Which recipe a composition is built from; gates bands against an index. */
-  compositeKind: "rgb" | "index" | null = null
+  compositeKind: "rgb" | "index" | null = null,
+  /** Which grid question is being asked; gates the area and the window. */
+  gridProduct: GridProductId | null = null,
+  /**
+   * Which energy product, when the band is on Energy.
+   *
+   * The three families kept their graphs -- what changed is that the reader no
+   * longer picks the family first. So the branches below still ask which slice
+   * answers, and that question is now answered by the product instead of by
+   * the tool.
+   */
+  energyProduct: EnergyProductId | null = null
 ): RunGraph | null {
   if (!tool) return null
+
+  const family =
+    tool === "energy"
+      ? energyProduct
+        ? energyFamily(energyProduct)
+        : null
+      : tool
+  if (tool === "energy" && !family) return null
 
   const at = (id: RunNodeId, col: number): RunNodeSpec => ({
     ...SPEC[id],
@@ -148,27 +254,99 @@ export function runGraph(
   })
 
   /*
-    SOLAR IS AREA, PRODUCT, RUN -- and its parameters are not on the graph.
+    SOLAR IS AREA, PRODUCT AND WHAT THE PRODUCT SENDS.
 
-    They were, for the two products that draw a raster: a record card for the
-    irradiation and a slope card for the siting, which between them covered
-    everything those two send. The other two send more. The energy model alone
-    carries a reporting basis, an analysis period, a degradation rate, two
-    ground-cover ratios, a tracker limit, a density basis, a buildable
-    fraction, a UTC offset, a shading switch and two tables of loss terms;
-    there is no arrangement of cards that holds that and still reads as a
-    graph.
+    The parameters were moved off this graph and into an editor of their own,
+    on an argument that was true about ONE product and was applied to four:
+    the energy model alone carries a reporting basis, an analysis period, a
+    degradation rate, two ground-cover ratios, a tracker limit, a density
+    basis, a buildable fraction, a UTC offset and two tables of loss terms,
+    and "a card that wide is a panel with a card's chrome" is a fair thing to
+    say about it. It is not a fair thing to say about the siting map, which
+    sends two slope limits, or the terrain map, which sends a window and a
+    season.
 
-    So one editor owns solar configuration, the way `canopyParams` owns the
-    stand's, and the band keeps what a band is for: which product, and go. See
-    lib/studioEditors.ts.
+    A panel configures nothing that a card cannot; what a panel is FOR is
+    showing a result. So the parameters come back, per product, and the
+    heaviest one is split across cards named for what they configure rather
+    than crammed into one.
   */
-  if (tool === "solar") {
+  if (family === "solar") {
     if (!solarProduct) return null
+    if (solarProduct === "resource") {
+      return {
+        nodes: [
+          at("area", 0),
+          at("record", 0),
+          at("product", 1),
+          at("radiation", 1),
+          at("run", 2),
+        ],
+        edges: [
+          ["area", "run"],
+          ["record", "run"],
+          ["radiation", "run"],
+          ["product", "run"],
+        ],
+      }
+    }
+    if (solarProduct === "terrain") {
+      return {
+        nodes: [
+          at("area", 0),
+          at("record", 0),
+          at("product", 1),
+          at("season", 1),
+          at("run", 2),
+        ],
+        edges: [
+          ["area", "run"],
+          ["record", "run"],
+          ["season", "run"],
+          ["product", "run"],
+        ],
+      }
+    }
+    if (solarProduct === "siting") {
+      return {
+        nodes: [at("area", 0), at("product", 1), at("slope", 1), at("run", 2)],
+        edges: [
+          ["area", "run"],
+          ["slope", "run"],
+          ["product", "run"],
+        ],
+      }
+    }
+    /*
+      The energy model, which is the one the panel was built for.
+
+      Six parameter cards, grouped by what they configure rather than by what
+      fits: the radiation chain, the ground it stands on, the plant's own
+      accounting, the array geometry, and the loss stack behind the ratio. It
+      is a dense graph and it is meant to be -- this product sends more than
+      any other, and the density is that fact drawn rather than hidden behind
+      a panel that looked the same as the siting map's.
+    */
     return {
-      nodes: [at("area", 0), at("product", 1), at("run", 2)],
+      nodes: [
+        at("area", 0),
+        at("record", 0),
+        at("radiation", 0),
+        at("product", 1),
+        at("slope", 1),
+        at("plant", 1),
+        at("array", 2),
+        at("losses", 2),
+        at("run", 3),
+      ],
       edges: [
-        ["area", "product"],
+        ["area", "run"],
+        ["record", "run"],
+        ["radiation", "run"],
+        ["slope", "run"],
+        ["plant", "run"],
+        ["array", "run"],
+        ["losses", "run"],
         ["product", "run"],
       ],
     }
@@ -180,7 +358,7 @@ export function runGraph(
     centroid -- which is why the area still fans in while the acquisition
     window does not appear at all.
   */
-  if (tool === "wind") {
+  if (family === "wind") {
     return {
       nodes: [at("area", 0), at("record", 0), at("turbine", 1), at("roughness", 1), at("run", 2)],
       edges: [
@@ -271,15 +449,98 @@ export function runGraph(
     }
   }
 
-  // Surface water: an area, a period, and which index says what water is.
-  return {
-    nodes: [at("area", 0), at("period", 0), at("waterIndex", 0), at("run", 1)],
-    edges: [
-      ["area", "run"],
-      ["period", "run"],
-      ["waterIndex", "run"],
-    ],
+  /*
+    THE OPERATIONAL RECORD, and the store gates the window.
+
+    Two edges leave `store` and both are true. It is an input to the request --
+    the connection travels in it -- and it also GATES the window, because the
+    sidecar clamps every requested span to what the store actually holds and
+    refuses one that falls outside. Until the store has answered there is no
+    window to state, and that edge is that rule drawn. It is the second real
+    gate in this file, after solar's product.
+
+    The area is absent under the record product, and its absence is the
+    content: asking what this installation holds is not a question about any
+    ground.
+  */
+  if (family === "grid") {
+    if (!gridProduct) return null
+    if (gridProduct === "figure") {
+      /*
+        THE SERIES DOES NOT TAKE AN AREA HERE, and the absent card is the
+        statement. Five of the twelve are read over an area and seven are about
+        the system; the site-scoped ones arrive with the area card when they
+        do. Fig. 1, the only one computed today, has n = 87 clusters across the
+        SIN and answering it over one polygon would be a different quantity
+        under the same name.
+      */
+      return {
+        nodes: [
+          at("store", 0),
+          at("product", 1),
+          at("figure", 1),
+          at("window", 2),
+          at("run", 3),
+        ],
+        edges: [
+          ["store", "product"],
+          ["product", "figure"],
+          ["store", "window"],
+          ["figure", "run"],
+          ["window", "run"],
+        ],
+      }
+    }
+    if (gridProduct === "record") {
+      return {
+        nodes: [at("store", 0), at("product", 1), at("run", 2)],
+        edges: [
+          ["store", "product"],
+          ["product", "run"],
+        ],
+      }
+    }
+    return {
+      nodes: [
+        at("store", 0),
+        at("area", 0),
+        at("product", 1),
+        at("window", 1),
+        at("run", 2),
+      ],
+      edges: [
+        ["store", "product"],
+        ["product", "window"],
+        ["area", "run"],
+        ["window", "run"],
+        ["product", "run"],
+      ],
+    }
   }
+
+  /*
+    Surface water: an area, a period, and which index says what water is.
+
+    NAMED RATHER THAN FALLEN THROUGH TO. This was the function's unguarded
+    final return, so a tool with no branch of its own silently drew an
+    area/period/water-index graph and looked like it worked -- a new product
+    would ship a run band describing a run nobody wrote. The exhaustive
+    Records elsewhere (TOOL_ICON, SPEC) fail to compile when they fall behind;
+    this one could not, so it says the tool it is for and returns null
+    otherwise.
+  */
+  if (tool === "water") {
+    return {
+      nodes: [at("area", 0), at("period", 0), at("waterIndex", 0), at("run", 1)],
+      edges: [
+        ["area", "run"],
+        ["period", "run"],
+        ["waterIndex", "run"],
+      ],
+    }
+  }
+
+  return null
 }
 
 export type Place = { x: number; y: number }
