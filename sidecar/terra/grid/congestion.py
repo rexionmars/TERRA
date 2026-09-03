@@ -122,6 +122,107 @@ def attachment(conn, aoi_geojson):
     return out
 
 
+
+def neighbours(conn, aoi_geojson, max_km: float = 30.0, limit: int = 6):
+    """
+    The connection points the plants AROUND this ground attach to.
+
+    THE QUESTION GROUND WITH NO PLANT ACTUALLY HAS. attachment() answers where
+    the plants inside an AOI are joined, which for an AOI drawn over an
+    existing array is a lookup: the reader can see the plant. The AOI that
+    needs answering is the empty one -- someone choosing where to build -- and
+    for that one attachment() is empty and proximity is all that remains.
+
+    Proximity is the weaker half and it was the only half offered. Over one
+    bare polygon east of Jaiba the reading said "nearest bus 14.9 km" while
+    three connection points sat within 8 km, unmentioned: MGJAB-230-A at 4.9,
+    MGJAB-138-A at 7.5, MGJBQ-138-A at 7.8. The strong answer was already in
+    the store.
+
+    IT IS THE NEIGHBOUR'S ATTACHMENT AND NOT A PREDICTION OF THIS GROUND'S, and
+    every caller has to carry that. Where a plant would actually connect is an
+    access opinion the operator issues and does not publish; what this says is
+    that the plants near here enter the network at these points, and that a
+    project here would be asking to join the same part of the system. The
+    distance is measured from the AOI to the PLANT, not to the point: it is a
+    statement about which neighbours are near, and their point may be further
+    away than they are.
+
+    Ordered by distance and capped, because a radius over a dense corridor
+    returns a list nobody reads and the nearest few are the ones a siting
+    decision is actually between.
+    """
+    import json
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass('br.ons_unit')")
+        if cur.fetchone()[0] is None:
+            return []
+        cur.execute(
+            """
+            WITH aoi AS (SELECT ST_GeomFromGeoJSON(%s) AS g),
+            near AS (
+                SELECT u.id_ons, u.name, u.connection_code, u.connection_name,
+                       u.capacity_mw, u.kind,
+                       min(ST_Distance(p.geom::geography,
+                                       (SELECT g FROM aoi)::geography)) / 1000.0
+                           AS km
+                FROM br.plant p
+                JOIN br.plant_cluster pc USING (ceg_core)
+                -- By name, which is the only key these two share:
+                -- br.plant_cluster is derived from the detail record and keys
+                -- on the cluster's own name, while br.ons_unit keys on id_ons.
+                -- 82 of the 95 clusters match; the rest are absent rather than
+                -- wrong, and an absent neighbour understates the list.
+                JOIN br.ons_unit u
+                     ON upper(btrim(u.name)) = upper(btrim(pc.cluster_name)),
+                     aoi
+                WHERE p.geom IS NOT NULL
+                  AND ST_DWithin(p.geom::geography, aoi.g::geography, %s)
+                GROUP BY 1, 2, 3, 4, 5, 6
+            )
+            SELECT n.*, b.bus, b.name AS substation, b.voltage_kv
+            FROM near n
+            LEFT JOIN LATERAL (
+                SELECT s.bus, s.name, s.voltage_kv
+                FROM br.substation s, br.ons_unit u2
+                WHERE u2.id_ons = n.id_ons
+                  AND s.geom IS NOT NULL
+                  AND ST_DWithin(u2.geom_connection::geography,
+                                 s.geom::geography, 1000)
+                ORDER BY (n.connection_code LIKE '%%' || s.voltage_kv::text || '%%'
+                          OR n.connection_name LIKE '%%' || s.voltage_kv::text || '%%')
+                         DESC,
+                         ST_Distance(u2.geom_connection::geography,
+                                     s.geom::geography)
+                LIMIT 1) b ON true
+            ORDER BY n.km
+            LIMIT %s
+            """, (json.dumps(aoi_geojson), float(max_km) * 1000.0, int(limit)))
+        cols = [d.name for d in cur.description]
+        rows = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+    out = []
+    for r in rows:
+        out.append({
+            'id_ons': r['id_ons'],
+            'entity': r['name'],
+            'point_code': r['connection_code'],
+            'point_name': (r['connection_name'] or '').strip(),
+            'capacity_mw': (None if r['capacity_mw'] is None
+                            else float(r['capacity_mw'])),
+            'kind': r['kind'],
+            # From the AOI to the nearest PLANT of this entity, not to its
+            # connection point. Which neighbours are near is the question;
+            # where their point is, is the next line.
+            'distance_km': round(float(r['km']), 2),
+            'bus': r['bus'],
+            'substation': (r['substation'] or '').strip() or None,
+            'voltage_kv': (None if r['voltage_kv'] is None
+                           else float(r['voltage_kv'])),
+        })
+    return out
+
 def bus_headroom(conn, bus: int):
     """
     What leaves a bus, against what is already attached to it.
@@ -209,6 +310,10 @@ def connection_context(conn, aoi_geojson, max_km: float = 100.0):
     # there is. Merging them would let a 500 kV bus 9 km away stand in for the
     # 230 kV bus the plant is actually wired to.
     joined = attachment(conn, aoi_geojson)
+    # Only where this ground has none of its own. An AOI over an existing array
+    # already knows where it is joined, and listing the neighbours beside that
+    # would offer a weaker claim next to a stronger one under one heading.
+    nearby = [] if joined else neighbours(conn, aoi_geojson)
 
     geom = json.dumps(aoi_geojson)
     with conn.cursor() as cur:
@@ -244,6 +349,8 @@ def connection_context(conn, aoi_geojson, max_km: float = 100.0):
             'reachable': False,
             'searched_km': max_km,
             'attachment': joined,
+            'neighbours': nearby,
+            'neighbour_bus_headroom': [],
             'note': (
                 f'No substation or line of the transmission register lies '
                 f'within {max_km:g} km of this AOI. The register covers the '
@@ -271,6 +378,18 @@ def connection_context(conn, aoi_geojson, max_km: float = 100.0):
         # occupancy and loss is -0.025.
         'attachment': joined,
         'attached_bus_headroom': [bus_headroom(conn, b) for b in buses],
+        # The neighbours' attachments, for ground that has none of its own.
+        # NOT A PREDICTION OF WHERE THIS GROUND WOULD JOIN: where a project
+        # actually connects is an access opinion the operator issues and does
+        # not publish. What this says is that the plants near here enter the
+        # network at these points, so a project here would be asking to join
+        # the same part of the system -- and inherit what it does to them.
+        'neighbours': nearby,
+        'neighbour_bus_headroom': [
+            bus_headroom(conn, b)
+            for b in sorted({n['bus'] for n in nearby
+                             if n.get('bus') is not None})
+        ],
         'nearest_substation': (None if nearest_sub is None
                                else summarise(nearest_sub)),
         'nearest_line': (None if nearest_line is None

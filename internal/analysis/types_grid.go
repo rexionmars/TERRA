@@ -195,10 +195,22 @@ type GridRouteNote struct {
 // attachment says where the ground that HAS one is already joined, and the two
 // disagree by a voltage level at the first site anyone checked.
 type GridConnection struct {
-	Reachable                 bool              `json:"reachable"`
-	SearchedKM                float64           `json:"searched_km"`
-	Attachment                []GridAttachment  `json:"attachment"`
-	AttachedBusHeadroom       []GridBusHeadroom `json:"attached_bus_headroom"`
+	Reachable           bool              `json:"reachable"`
+	SearchedKM          float64           `json:"searched_km"`
+	Attachment          []GridAttachment  `json:"attachment"`
+	AttachedBusHeadroom []GridBusHeadroom `json:"attached_bus_headroom"`
+	// Where the plants AROUND this ground attach, for ground that has none of
+	// its own -- which is the case a site is chosen in.
+	//
+	// NOT A PREDICTION OF WHERE THIS GROUND WOULD JOIN. Where a project
+	// actually connects is an access opinion the operator issues and does not
+	// publish. What these say is that the plants near here enter the network
+	// at these points, so a project here would be asking to join the same part
+	// of the system and inherit what it does to them. Empty whenever
+	// Attachment is not: a weaker claim must not stand beside a stronger one
+	// under the same heading.
+	Neighbours                []GridAttachment  `json:"neighbours"`
+	NeighbourBusHeadroom      []GridBusHeadroom `json:"neighbour_bus_headroom"`
 	NearestSubstation         *GridReach        `json:"nearest_substation"`
 	NearestLine               *GridReach        `json:"nearest_line"`
 	Substations               []GridReach       `json:"substations"`

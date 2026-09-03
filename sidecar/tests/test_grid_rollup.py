@@ -167,3 +167,32 @@ def test_the_reading_refuses_rather_than_falling_back(answers, because, capsys):
     with pytest.raises(SystemExit):
         curtailment._require_rollup(_Conn(answers))
     assert 'refresh_rollup' in capsys.readouterr().err, because
+
+
+def test_the_reading_needs_no_default_str_to_serialise(conn):
+    """
+    Every value is a type JSON has, which `default=str` otherwise hides.
+
+    THE ACTION SERIALISES WITH default=str, and that is what made this
+    necessary. It exists for dates, which have no JSON type and must become
+    strings -- but it applies to everything, so a Decimal that leaked in
+    silently became a QUOTED NUMBER. Go then refused the whole payload with
+    "cannot unmarshal string into Go struct field ... of type float64", and the
+    reading died at the transport with a message about nothing that went wrong.
+
+    That is exactly what happened when the query moved from count(*) to sum():
+    sum() over an integer column returns NUMERIC, psycopg hands back a Decimal,
+    and Decimal / Decimal is a Decimal. The two counts were already cast; the
+    quotient of them was not.
+
+    So this dumps STRICTLY. Anything that would have needed default= raises
+    here, next to the frame that produced it, rather than in another language.
+    """
+    import json
+
+    aoi = {'type': 'Polygon', 'coordinates': AREAS['sol-do-cerrado']}
+    got = curtailment.curtailment_context(conn, aoi, START, END)
+    if got is None:
+        pytest.skip('no metered plant in this window')
+    # No default=, deliberately: the point is that none is needed.
+    json.dumps(got)

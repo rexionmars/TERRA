@@ -2477,6 +2477,20 @@ export interface GridConnection {
   searched_km: number
   attachment: GridAttachment[]
   attached_bus_headroom: GridBusHeadroom[]
+  /**
+   * Where the plants AROUND this ground attach, for ground that has none.
+   *
+   * Not a prediction of where this ground would join — that is an access
+   * opinion the operator issues and does not publish. It says the plants near
+   * here enter the network at these points, so a project here would be asking
+   * to join the same part of the system. Empty whenever `attachment` is not.
+   *
+   * `distance_km` is from the area to the nearest PLANT of that entity, not to
+   * its connection point: which neighbours are near is the question, and their
+   * point may be further away than they are.
+   */
+  neighbours: GridAttachment[]
+  neighbour_bus_headroom: GridBusHeadroom[]
   nearest_substation: GridReach | null
   nearest_line: GridReach | null
   substations: GridReach[]

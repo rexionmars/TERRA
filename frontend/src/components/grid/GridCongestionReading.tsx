@@ -58,11 +58,64 @@ export function GridCongestionReading({
   return (
     <div className="panel-scroll flex flex-col gap-4 overflow-y-auto p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Chip tone="accent">{joined.length ? "attached" : "proximity"}</Chip>
+        <Chip tone="accent">
+          {joined.length
+            ? "attached"
+            : (c.neighbours?.length ?? 0) > 0
+              ? "neighbours"
+              : "proximity"}
+        </Chip>
         <span className="text-meta text-muted-foreground">
           searched {c.searched_km.toFixed(0)} km
         </span>
       </div>
+
+      {joined.length === 0 && (c.neighbours?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-1">
+          <div className="eyebrow">Where the neighbours are joined</div>
+          {c.neighbours.map((n) => (
+            <WaterFigure
+              key={`${n.id_ons}:${n.point_code}`}
+              dense
+              label={`${n.entity} · ${km(n.distance_km)}`}
+              value={n.point_code}
+              sub={`${n.substation ?? "—"} · ${kv(n.voltage_kv)} · ${mw(n.capacity_mw)}`}
+            />
+          ))}
+          {c.neighbour_bus_headroom?.map((h) => (
+            <StatGrid key={`nb-${h.bus}`} at="pair">
+              <Stat
+                label={`Bus ${h.bus} · ${h.lines_in_service} circuits`}
+                value={
+                  h.line_capacity_mva === null
+                    ? "rating not published"
+                    : `${Math.round(h.line_capacity_mva).toLocaleString()} MVA`
+                }
+              />
+              <Stat
+                label={`Attached · ${h.units_attached} units`}
+                value={mw(h.attached_mw)}
+              />
+            </StatGrid>
+          ))}
+          {/*
+            THE SENTENCE THAT KEEPS THIS FROM BEING READ AS A GRANT. No plant
+            of the record stands on this ground, so nothing here is published
+            about it. What is published is where its neighbours enter the
+            network -- and whether a project here would be allowed to join them
+            is an access opinion the operator issues and does not publish at
+            all.
+          */}
+          <p className="mt-1 text-meta leading-relaxed text-muted-foreground">
+            No plant of the record stands on this ground, so none of this is
+            published about it. These are the points the plants nearby enter
+            the network at: a project here would be asking to join the same
+            part of the system, and would inherit what it does to them.
+            Whether it would be allowed to is an access opinion, which the
+            operator issues and does not publish.
+          </p>
+        </div>
+      )}
 
       {joined.length > 0 && (
         <div className="flex flex-col gap-1">

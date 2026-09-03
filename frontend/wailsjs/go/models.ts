@@ -3774,6 +3774,8 @@ export namespace analysis {
 	    searched_km: number;
 	    attachment: GridAttachment[];
 	    attached_bus_headroom: GridBusHeadroom[];
+	    neighbours: GridAttachment[];
+	    neighbour_bus_headroom: GridBusHeadroom[];
 	    nearest_substation?: GridReach;
 	    nearest_line?: GridReach;
 	    substations: GridReach[];
@@ -3794,6 +3796,8 @@ export namespace analysis {
 	        this.searched_km = source["searched_km"];
 	        this.attachment = this.convertValues(source["attachment"], GridAttachment);
 	        this.attached_bus_headroom = this.convertValues(source["attached_bus_headroom"], GridBusHeadroom);
+	        this.neighbours = this.convertValues(source["neighbours"], GridAttachment);
+	        this.neighbour_bus_headroom = this.convertValues(source["neighbour_bus_headroom"], GridBusHeadroom);
 	        this.nearest_substation = this.convertValues(source["nearest_substation"], GridReach);
 	        this.nearest_line = this.convertValues(source["nearest_line"], GridReach);
 	        this.substations = this.convertValues(source["substations"], GridReach);

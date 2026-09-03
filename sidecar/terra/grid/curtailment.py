@@ -390,8 +390,18 @@ def curtailment_context(conn, aoi_geojson, start: str, end: str):
         'estimate_gap_when_free_mwh': round(free_gap, 1),
         'periods': int(row['periods']),
         'periods_under_restriction': int(row['restricted'] or 0),
-        'restricted_fraction': (round(row['restricted'] / row['periods'], 4)
-                                if row['periods'] else None),
+        # float(), and it is not decoration. sum() over an integer column
+        # returns NUMERIC in Postgres, so psycopg hands back a Decimal and
+        # Decimal / Decimal is a Decimal -- which json.dumps(default=str)
+        # serialises as a STRING. Go then refuses the whole payload with
+        # "cannot unmarshal string into float64", and the reading fails at the
+        # transport with a message about nothing that went wrong. The two
+        # counts above are already cast; this quotient was the one that was
+        # not, and it only became a Decimal when the query moved from count(*)
+        # to sum().
+        'restricted_fraction': (
+            round(float(row['restricted']) / float(row['periods']), 4)
+            if row['periods'] else None),
         'top_reason': row['top_reason'],
         'top_origin': row['top_origin'],
         # The same quantity where no restriction was in force, and the reason
