@@ -1008,11 +1008,52 @@ export function BoardSurface({
     },
     [setTree]
   )
+  /*
+    A READING ANNOUNCES ITSELF IN THE TREE, NOT BY TAKING A PANEL.
+
+    revealEditor retypes an existing region so the reader is not left staring
+    at an unchanged board, which was right when a reading had nowhere else to
+    appear: the studio opens on `layout`, which carries none of the reading
+    editors, so a run that answered looked like one that had not happened.
+
+    Readings are entries in the Analyses pane now, so that is no longer true --
+    and the retype has a cost this made visible: running Connection replaced
+    whatever the reader had put in the sacrificed region. A run must not
+    rearrange a board somebody arranged.
+
+    So a reading that IS an analysis flips an outliner to the Analyses pane and
+    stops there. Retyping is kept for the case it was written for -- no
+    outliner on the board at all -- and an outliner is the least destructive
+    thing to retype into, because its content is a list of what exists rather
+    than one product's answer.
+  */
+  const ANALYSIS_EDITORS: ReadonlySet<EditorId> = useMemo(
+    () => new Set<EditorId>(["gridCurtailment", "gridConnection"]),
+    []
+  )
+
   useEffect(() => {
     if (!reveal) return
+    if (ANALYSIS_EDITORS.has(reveal)) {
+      const root = treeRef.current
+      const outliners = areaLeaves(root).filter((l) => l.editor === "outliner")
+      if (outliners.length > 0) {
+        // Every outliner on the board, not just the first: two are on the
+        // board precisely when the reader is comparing, and flipping one of
+        // them would leave the other saying something else about the same run.
+        for (const o of outliners) setModeOf(o.id, "analyses")
+      } else {
+        revealEditor("outliner")
+      }
+      onRevealed?.()
+      return
+    }
     revealEditor(reveal)
     onRevealed?.()
-  }, [reveal, revealEditor, onRevealed])
+    // setModeOf is recreated every render and is stable in behaviour; adding
+    // it would re-run this effect on every keystroke elsewhere on the board.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal, revealEditor, onRevealed, ANALYSIS_EDITORS])
 
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const [surface, setSurface] = useState({ x: 0, y: 0, w: 0, h: 0 })
