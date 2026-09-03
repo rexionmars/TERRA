@@ -147,6 +147,52 @@ export function congestionEntry(
   const km = (v: number | null | undefined) =>
     v === null || v === undefined ? "—" : `${v.toFixed(1)} km`
 
+  if (joined.length === 0 && (c.neighbours?.length ?? 0) > 0) {
+    const h = c.neighbour_bus_headroom?.[0]
+    return {
+      id: "grid:connection",
+      title: "Connection",
+      params: `neighbours · nearest ${km(c.neighbours[0].distance_km)}`,
+      legend: {
+        kind: "stats",
+        // Named for whose attachment it is. "Connection · attached" over
+        // somebody else's point would be the strong claim's heading on the
+        // weak claim's content.
+        subject: "Connection · neighbours",
+        rows: [
+          ...c.neighbours.slice(0, 3).map((n) => ({
+            label: `${km(n.distance_km)} · ${n.entity}`,
+            value: `${n.point_code}${n.voltage_kv ? ` · ${n.voltage_kv} kV` : ""}`,
+          })),
+          ...(h
+            ? [
+                {
+                  label: `Nearest bus · ${h.lines_in_service} circuits`,
+                  value:
+                    h.line_capacity_mva == null
+                      ? "rating not published"
+                      : `${Math.round(h.line_capacity_mva).toLocaleString()} MVA`,
+                },
+                {
+                  label: "Already attached there",
+                  value:
+                    h.attached_mw == null
+                      ? "—"
+                      : `${Math.round(h.attached_mw).toLocaleString()} MW`,
+                },
+              ]
+            : []),
+        ],
+        note:
+          "No plant of the record stands on this ground, so none of this is " +
+          "published about it. These are the points the plants nearby enter " +
+          "the network at, and a project here would be asking to join the " +
+          "same part of the system. Whether it would be allowed to is an " +
+          "access opinion, which the operator does not publish.",
+      },
+    }
+  }
+
   if (joined.length === 0) {
     const s = c.nearest_substation
     const l = c.nearest_line
