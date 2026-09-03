@@ -24,7 +24,7 @@
   SOLAR_PRODUCTS,
   type SolarProductEntry,
 } from "@/components/energy/solarProducts"
-import type { SolarProductId } from "@/lib/energyState"
+import type { SolarParams, SolarProductId } from "@/lib/energyState"
 
 /**
  * The head of each product's name, for a card 8rem wide.
@@ -46,9 +46,9 @@ const SHORT_SOLAR: Record<SolarProductEntry["id"], string> = {
 import {
   ArrowDown,
   Check,
+  ArrowsClockwise,
   CircleNotch,
   Drop,
-  Fan,
   GridFour,
   Image as ImageIcon,
   Play,
@@ -67,9 +67,26 @@ import {
   modeBlockedBy,
   type ClassifyMode,
 } from "@/lib/classifyOptions"
-import type { BoardToolId } from "@/lib/mapTools"
+import { SERIES_FIGURES } from "@/lib/gridFigures"
+import { type GridProductId } from "@/lib/gridOptions"
+import {
+  setPlantLayer,
+  usePlantLayers,
+  usePlantRegister,
+} from "@/lib/plantRegister"
+import {
+  ENERGY_PRODUCTS,
+  energyFamily,
+  type BoardToolId,
+  type EnergyProductId,
+} from "@/lib/mapTools"
 import { methodBrief } from "@/lib/methodBrief"
 import type { RunLogEntry } from "@/lib/runLog"
+import {
+  ENERGY_CAPACITY_DENSITY_BASES,
+  ENERGY_DECLARED_LOSSES,
+  ENERGY_OPTIONAL_LOSSES,
+} from "@/lib/energyDefaults"
 import { SOLAR_SEASONS } from "@/lib/solarOptions"
 import { RGB_PRESETS, INDICES } from "@/lib/compositeCatalog"
 import { WATER_INDICES } from "@/lib/waterOptions"
@@ -102,8 +119,11 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
   classify: GridFour,
   compose: ImageIcon,
   water: Drop,
-  solar: Sun,
-  wind: Fan,
+  // The sun for the whole of energy, and it is the honest glyph for it: the
+  // resource is what every product here is ultimately about, including the
+  // curtailment ones -- those measure what the grid did to a resource that
+  // arrived. A fan or a database would name one family and hide two.
+  energy: Sun,
   // Waves rather than a droplet: the envelope reads terrain and no
   // precipitation at all, so a rain glyph would name an input it does not have.
   flood: Waves,
@@ -123,6 +143,53 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
  * dropped, because that exact rule is the board tree's drop indicator. One
  * idiom, one meaning.
  */
+/**
+ * One map layer, with how many marks it puts on screen.
+ *
+ * The count is beside the label and not in a tooltip: the difference between
+ * 558 and 24,140 is the whole reason there are two switches, and a number a
+ * reader has to hover for is a number they will not see before they draw.
+ */
+function LayerSwitch({
+  label,
+  count,
+  on,
+  onToggle,
+}: {
+  label: string
+  count: number
+  on: boolean
+  onToggle: (on: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onToggle(!on)}
+      className="flex items-center gap-1.5 text-left"
+    >
+      <span
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          on ? "bg-accent" : "bg-muted-foreground/40"
+        )}
+      />
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-meta",
+          on ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        {label}
+      </span>
+      <span className="telemetry shrink-0 text-micro text-muted-foreground">
+        {count.toLocaleString()}
+      </span>
+    </button>
+  )
+}
+
 function Choice({
   label,
   chosen,
@@ -216,6 +283,117 @@ function Head({
  * Bounded and scrolled, because a card is a card: a twelve-stage water run
  * would otherwise grow this one past the graph it sits in.
  */
+
+/**
+ * A labelled text value, for the two parameters where BLANK IS A VALUE.
+ *
+ * The performance ratio and the UTC offset both mean something when empty --
+ * the reference ratio, and UTC -- and a NumberField would have to invent a
+ * zero to say it. Zero is a legitimate offset, so the two would then be
+ * indistinguishable.
+ */
+function TextRow({
+  label,
+  value,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: string
+  placeholder?: string
+  disabled?: boolean
+  onChange: (v: string) => void
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2">
+      <span className="shrink-0 text-micro text-muted-foreground">{label}</span>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="telemetry h-6 w-20 min-w-0 rounded-sm border border-border bg-background px-1.5 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
+      />
+    </label>
+  )
+}
+
+/**
+ * A labelled menu, for a choice whose options are references rather than
+ * pictures.
+ *
+ * The same argument the classification card makes for keeping the model a
+ * menu: "Ong T4, above 20 MW, direct array" does not survive being cut to a
+ * chip, and eight of them do not fit a card as chips at all.
+ */
+function SelectRow({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: readonly { id: string; label: string }[]
+  disabled?: boolean
+  onChange: (v: string) => void
+}) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className="text-micro text-muted-foreground">{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-6 w-full rounded-sm border border-border bg-background px-1 text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
+      >
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+/** One loss term, as a percentage. Compact because there are eleven of them. */
+function LossRow({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: number
+  disabled?: boolean
+  onChange: (v: number) => void
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2">
+      <span className="min-w-0 truncate text-micro text-muted-foreground">
+        {label}
+      </span>
+      <input
+        type="number"
+        step={0.1}
+        min={0}
+        max={30}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          const v = parseFloat(e.target.value)
+          if (Number.isFinite(v)) onChange(v)
+        }}
+        className="telemetry h-5 w-12 shrink-0 rounded-sm border border-border bg-background px-1 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
+      />
+    </label>
+  )
+}
+
 function RunLog({ entries }: { entries: RunLogEntry[] }) {
   const endRef = useRef<HTMLLIElement>(null)
   useEffect(() => {
@@ -281,6 +459,23 @@ export interface BoardRunGraphProps {
   tool: BoardToolId | null
 
   /**
+   * Which energy product is chosen, and how to change it.
+   *
+   * ONE CARD FOR THREE FAMILIES. The product card used to render the solar
+   * table or the grid table depending on which tool the band was on, and the
+   * reader had to have chosen the family before they could see what it
+   * offered. It renders one list now, and the family is a property of the
+   * entry rather than a question asked before it.
+   *
+   * `blocked` names the families this installation cannot run, so a product
+   * that will not go is greyed WITH ITS REASON rather than hidden. A missing
+   * option reads as a missing feature; a refused one reads as a setup step.
+   */
+  energyProduct?: EnergyProductId
+  onEnergyProduct?: (id: EnergyProductId) => void
+  blockedFamilies?: Partial<Record<"solar" | "wind" | "grid", string>>
+
+  /**
    * Everything the solar tool needs, or absent where it cannot be run.
    *
    * One object rather than nine loose props, because they arrive and leave
@@ -297,6 +492,35 @@ export interface BoardRunGraphProps {
     slopeAcceptableDeg: number
     slopeRestrictiveDeg: number
     onSlopeChange: (acceptable: number, restrictive: number) => void
+    /*
+      The rest of what solar sends, back on the graph.
+
+      They lived in an editor of their own on an argument that was true about
+      the energy model and was applied to all four products. One object rather
+      than twenty loose props, for the reason the solar bundle already gives:
+      they arrive and leave together.
+    */
+    climatologyYears: number
+    surfaceAzimuth: number
+    performanceRatio: string
+    reportingBasis: "year_one" | "lifetime_mean"
+    degradationPct: number
+    analysisPeriodYears: number
+    densityBasis: string
+    buildableFraction: number
+    gcrFixed: number
+    gcrTracker: number
+    trackerMaxAngleDeg: number
+    utcOffset: string
+    applyShading: boolean
+    declaredLoss: Record<string, number>
+    optionalLoss: Record<string, number>
+    onParamsChange: (patch: Partial<SolarParams>) => void
+    onLossChange: (
+      group: "declared" | "optional",
+      key: string,
+      pct: number
+    ) => void
   }
 
   /**
@@ -316,6 +540,32 @@ export interface BoardRunGraphProps {
     roughnessLowM: number
     roughnessHighM: number
     onRoughnessChange: (low: number, high: number) => void
+  }
+
+  /**
+   * Everything the operational record needs, or absent where it cannot be
+   * read -- which on this tab is the common case rather than the exception,
+   * since most installations have no local store at all.
+   */
+  grid?: {
+    product: GridProductId
+    onProductChange: (p: GridProductId) => void
+    /** The connection as it will be used, already redacted. */
+    dsn: string
+    /** What decided it: "TERRA_BR_DSN", "chosen" or "default". */
+    dsnSource: string
+    reachable: boolean
+    /** Why not, when it is not. The sidecar's own sentence. */
+    unreachable?: string
+    /** The span the store holds, as YYYY-MM, or null before it has answered. */
+    recordFrom: string | null
+    recordTo: string | null
+    start: string
+    end: string
+    onWindowChange: (start: string, end: string) => void
+    onCheckStore: () => void
+    figure: number
+    onFigureChange: (n: number) => void
   }
 
   /** Everything the flood envelope needs, or absent where it cannot be run. */
@@ -462,10 +712,21 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   */
   const pct = Math.round(Math.max(0, Math.min(100, props.progress)))
 
+  // Read here rather than passed in: the register and the switches are held in
+  // a module because the card and the map it controls are in unrelated
+  // subtrees. See lib/plantRegister.ts.
+  const plantRegister = usePlantRegister()
+  const plantLayers = usePlantLayers()
+
   const graph = runGraph(
     props.tool,
     props.solar ? props.solar.product : null,
-    props.compose ? props.compose.kind : null
+    props.compose ? props.compose.kind : null,
+    props.grid ? props.grid.product : null,
+    // Without this the Energy entry has no family to dispatch on and the graph
+    // comes back null, which the surface renders as "pick a product above" --
+    // over a product card that is already showing one picked.
+    props.energyProduct ?? null
   )
 
   /*
@@ -506,6 +767,164 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   }
 
   const body: Record<RunNodeId, React.ReactNode> = {
+    /*
+      WHAT THE MAP IS DRAWING, AND HOW MUCH OF IT CAN BE ASKED ABOUT.
+
+      The count beside each switch is the point of the card rather than a
+      flourish. ANEEL registers 18,639 located photovoltaic enterprises and ONS
+      meters 558 of them, so a reader deciding where to draw needs to know that
+      most of what a "show every plant" layer would put on screen is ground this
+      slice cannot answer for. Two switches state that; one switch would hide it.
+
+      No run and no edge. This changes what is drawn while the question is being
+      set up and changes nothing about the answer.
+    */
+    layers: (
+      <div className="flex flex-col gap-1.5">
+        {plantRegister === null ? (
+          <span className="text-meta text-muted-foreground">
+            Reading the register
+          </span>
+        ) : (
+          <>
+            <LayerSwitch
+              label="Plants in the record"
+              count={plantRegister.counts.metered}
+              on={plantLayers.metered}
+              onToggle={(v) => setPlantLayer("metered", v)}
+            />
+            <LayerSwitch
+              label="Registered only"
+              count={
+                plantRegister.counts.returned - plantRegister.counts.metered
+              }
+              on={plantLayers.registered}
+              onToggle={(v) => setPlantLayer("registered", v)}
+            />
+            <p className="mt-0.5 text-micro leading-relaxed text-muted-foreground">
+              Only the first can be read about. A point is one enterprise as
+              ANEEL registers it, not a footprint.
+            </p>
+          </>
+        )}
+      </div>
+    ),
+    store: (
+      <div className="flex flex-col gap-1.5">
+        {/*
+          The state first and the address second, because the state is what
+          decides whether anything below this card can run, and the address is
+          only interesting once it does not.
+        */}
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              "size-1.5 rounded-full",
+              props.grid?.reachable ? "bg-accent" : "bg-muted-foreground/50"
+            )}
+          />
+          <span className="telemetry text-meta text-foreground">
+            {props.grid?.reachable ? "reachable" : "unreachable"}
+          </span>
+          <span className="ml-auto text-micro text-muted-foreground">
+            {props.grid?.dsnSource === "TERRA_BR_DSN"
+              ? "by variable"
+              : props.grid?.dsnSource === "chosen"
+                ? "chosen"
+                : "default"}
+          </span>
+        </div>
+        <span className="telemetry truncate text-micro text-muted-foreground">
+          {props.grid?.dsn ?? "—"}
+        </span>
+        {/*
+          The sidecar's own sentence, clamped to two lines. It already
+          distinguishes a missing driver from a server that is not running from
+          a database that was never created, and each needs a different action;
+          a card is not the place to read all of it, which is what the Grid
+          record editor is for.
+        */}
+        {!props.grid?.reachable && props.grid?.unreachable && (
+          <span className="line-clamp-2 text-micro leading-snug text-muted-foreground">
+            {props.grid.unreachable}
+          </span>
+        )}
+        <div className="flex items-center gap-0.5">
+          <IconAction
+            icon={ArrowsClockwise}
+            title="Check the store again"
+            disabled={busy}
+            onClick={() => props.grid?.onCheckStore()}
+          />
+        </div>
+      </div>
+    ),
+    figure: (
+      /*
+        A list and not chips: twelve entries with names like "Subsystem
+        decomposition" do not survive being cut to a chip, and the number is
+        how the series refers to them.
+
+        The ones this application does not compute yet are drawn and disabled
+        rather than hidden. Hiding them would say the series has one figure;
+        showing them says which of twelve is ready, which is the true state and
+        the one a reader can act on.
+      */
+      <div className="flex max-h-44 flex-col gap-px overflow-y-auto">
+        {SERIES_FIGURES.map((f) => (
+          <button
+            key={f.number}
+            type="button"
+            disabled={busy || !f.ready}
+            onClick={() => props.grid?.onFigureChange(f.number)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-left text-micro transition-colors",
+              props.grid?.figure === f.number
+                ? "bg-accent/15 text-foreground inset-ring-1 inset-ring-accent"
+                : f.ready
+                  ? "text-muted-foreground hover:bg-surface-raised"
+                  : "text-muted-foreground/40"
+            )}
+          >
+            <span className="telemetry w-4 shrink-0 text-right">
+              {f.number}
+            </span>
+            <span className="min-w-0 truncate">{f.label}</span>
+          </button>
+        ))}
+      </div>
+    ),
+    window: (
+      <div className="flex flex-col gap-1.5">
+        {/*
+          Bounded by what the store holds rather than by a calendar. The hourly
+          resource window is a decade; this record begins when the operator
+          started publishing it, and a request outside that span is refused
+          rather than silently returned short.
+        */}
+        <div className="flex items-center gap-1">
+          <DateField
+            value={props.grid?.start ?? ""}
+            onChange={(v) =>
+              props.grid?.onWindowChange(v, props.grid.end)
+            }
+            disabled={busy}
+          />
+          <DateField
+            value={props.grid?.end ?? ""}
+            onChange={(v) =>
+              props.grid?.onWindowChange(props.grid.start, v)
+            }
+            disabled={busy}
+          />
+        </div>
+        <span className="text-micro text-muted-foreground">
+          {props.grid?.recordFrom && props.grid?.recordTo
+            ? `the record runs ${props.grid.recordFrom}..${props.grid.recordTo}`
+            : "the record's span is unknown until the store answers"}
+        </span>
+      </div>
+    ),
     area: (
       <>
         {/*
@@ -842,16 +1261,36 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       them, and a card 8rem wide is not where a name is spelled in full.
     */
     product: (
+      /*
+        One card, two products, and the tool decides which table it reads.
+
+        Not two node kinds. A `gridProduct` beside `product` would be two cards
+        that are never on screen together, drawn from two tables, saying the
+        same thing about different subjects -- and the graph would have to
+        explain why the choice is called one name under solar and another under
+        the record.
+      */
       <div className="flex flex-wrap gap-1">
-        {SOLAR_PRODUCTS.map((p) => (
-          <Choice
-            key={p.id}
-            label={SHORT_SOLAR[p.id]}
-            chosen={props.solar?.product === p.id}
-            disabled={busy}
-            onPick={() => props.solar?.onProductChange(p.id)}
-          />
-        ))}
+        {props.tool === "energy"
+          ? ENERGY_PRODUCTS.map((p) => (
+              <Choice
+                key={p.id}
+                label={p.label}
+                chosen={props.energyProduct === p.id}
+                disabled={busy}
+                blockedBy={props.blockedFamilies?.[p.family]}
+                onPick={() => props.onEnergyProduct?.(p.id)}
+              />
+            ))
+          : SOLAR_PRODUCTS.map((p) => (
+              <Choice
+                key={p.id}
+                label={SHORT_SOLAR[p.id]}
+                chosen={props.solar?.product === p.id}
+                disabled={busy}
+                onPick={() => props.solar?.onProductChange(p.id)}
+              />
+            ))}
       </div>
     ),
 
@@ -862,7 +1301,10 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       bundle is present -- the graph only ever places it under one of them.
     */
     record:
-      props.tool === "wind" && props.wind ? (
+      props.tool === "energy" &&
+      props.energyProduct &&
+      energyFamily(props.energyProduct) === "wind" &&
+      props.wind ? (
         <NumberField
           label="Hourly"
           value={props.wind.recordYears}
@@ -913,6 +1355,220 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       </div>
     ),
 
+    radiation: props.solar ? (
+      <div className="flex flex-col gap-1.5">
+        <NumberField
+          label="Climatology"
+          value={props.solar.climatologyYears}
+          min={5}
+          max={40}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)} yr`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("yr", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.solar?.onParamsChange({ climatologyYears: v })}
+        />
+        <NumberField
+          label="Azimuth"
+          value={props.solar.surfaceAzimuth}
+          min={-180}
+          max={180}
+          step={5}
+          disabled={busy}
+          format={(v) => `${Math.round(v)}°`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("°", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.solar?.onParamsChange({ surfaceAzimuth: v })}
+        />
+        {/*
+          Blank is a value here and not an omission: it applies the reference
+          ratio, and the result reports both it and the modelled one. A number
+          field would have to invent a zero for that.
+        */}
+        <TextRow
+          label="Ratio"
+          value={props.solar.performanceRatio}
+          placeholder="0.80"
+          disabled={busy}
+          onChange={(v) => props.solar?.onParamsChange({ performanceRatio: v })}
+        />
+      </div>
+    ) : null,
+    plant: props.solar ? (
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap gap-1">
+          <Choice
+            label="Year one"
+            chosen={props.solar.reportingBasis === "year_one"}
+            disabled={busy}
+            onPick={() =>
+              props.solar?.onParamsChange({ reportingBasis: "year_one" })
+            }
+          />
+          <Choice
+            label="Lifetime"
+            chosen={props.solar.reportingBasis === "lifetime_mean"}
+            disabled={busy}
+            onPick={() =>
+              props.solar?.onParamsChange({ reportingBasis: "lifetime_mean" })
+            }
+          />
+        </div>
+        <NumberField
+          label="Degradation"
+          value={props.solar.degradationPct}
+          min={0}
+          max={5}
+          step={0.1}
+          disabled={busy}
+          format={(v) => `${v.toFixed(2)} %/yr`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("%/yr", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.solar?.onParamsChange({ degradationPct: v })}
+        />
+        <NumberField
+          label="Period"
+          value={props.solar.analysisPeriodYears}
+          min={1}
+          max={40}
+          step={1}
+          disabled={busy}
+          format={(v) => `${Math.round(v)} yr`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("yr", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.solar?.onParamsChange({ analysisPeriodYears: v })
+          }
+        />
+        <NumberField
+          label="Buildable"
+          value={props.solar.buildableFraction}
+          min={0.05}
+          max={1}
+          step={0.05}
+          disabled={busy}
+          format={(v) => v.toFixed(2)}
+          parse={(t) => {
+            const v = parseFloat(t.trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.solar?.onParamsChange({ buildableFraction: v })
+          }
+        />
+        {/*
+          A menu and not chips: eight density bases with names like "Ong T4,
+          above 20 MW, direct array" are references rather than pictures, which
+          is the same reason the model stays a menu on the classification card.
+        */}
+        <SelectRow
+          label="Density"
+          value={props.solar.densityBasis}
+          disabled={busy}
+          options={ENERGY_CAPACITY_DENSITY_BASES}
+          onChange={(v) => props.solar?.onParamsChange({ densityBasis: v })}
+        />
+      </div>
+    ) : null,
+    array: props.solar ? (
+      <div className="flex flex-col gap-1.5">
+        <NumberField
+          label="GCR fixed"
+          value={props.solar.gcrFixed}
+          min={0.1}
+          max={0.9}
+          step={0.005}
+          disabled={busy}
+          format={(v) => v.toFixed(3)}
+          parse={(t) => {
+            const v = parseFloat(t.trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.solar?.onParamsChange({ gcrFixed: v })}
+        />
+        <NumberField
+          label="GCR tracker"
+          value={props.solar.gcrTracker}
+          min={0.1}
+          max={0.9}
+          step={0.005}
+          disabled={busy}
+          format={(v) => v.toFixed(3)}
+          parse={(t) => {
+            const v = parseFloat(t.trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) => props.solar?.onParamsChange({ gcrTracker: v })}
+        />
+        <NumberField
+          label="Rotation"
+          value={props.solar.trackerMaxAngleDeg}
+          min={0}
+          max={90}
+          step={5}
+          disabled={busy}
+          format={(v) => `${Math.round(v)}°`}
+          parse={(t) => {
+            const v = parseFloat(t.replace("°", "").trim())
+            return Number.isFinite(v) ? v : null
+          }}
+          onChange={(v) =>
+            props.solar?.onParamsChange({ trackerMaxAngleDeg: v })
+          }
+        />
+        {/*
+          Blank labels the diurnal profile in UTC, which is what POWER
+          publishes. Not zero: an unstated offset and an offset of zero are the
+          same number and different claims.
+        */}
+        <TextRow
+          label="UTC offset"
+          value={props.solar.utcOffset}
+          placeholder="UTC"
+          disabled={busy}
+          onChange={(v) => props.solar?.onParamsChange({ utcOffset: v })}
+        />
+      </div>
+    ) : null,
+    losses: props.solar ? (
+      <div className="flex flex-col gap-1.5">
+        {/*
+          Two tables, and the split between them is not cosmetic. The declared
+          terms are in the modelled ratio; the optional ones are omitted from
+          it and are what the reference ratio covers instead. Merging them
+          would put a term the model applies beside one it does not.
+        */}
+        <span className="eyebrow !text-micro">Declared</span>
+        {ENERGY_DECLARED_LOSSES.map((l) => (
+          <LossRow
+            key={l.key}
+            label={l.label}
+            value={props.solar?.declaredLoss[l.key] ?? l.defaultPct}
+            disabled={busy}
+            onChange={(v) => props.solar?.onLossChange("declared", l.key, v)}
+          />
+        ))}
+        <span className="eyebrow mt-1 !text-micro">Optional</span>
+        {ENERGY_OPTIONAL_LOSSES.map((l) => (
+          <LossRow
+            key={l.key}
+            label={l.label}
+            value={props.solar?.optionalLoss[l.key] ?? l.defaultPct}
+            disabled={busy}
+            onChange={(v) => props.solar?.onLossChange("optional", l.key, v)}
+          />
+        ))}
+      </div>
+    ) : null,
     slope: props.solar ? (
       <>
         <NumberField

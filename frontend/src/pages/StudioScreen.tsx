@@ -1,4 +1,10 @@
-import { Suspense, lazy, useEffect, useState, useSyncExternalStore } from "react"
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type {
   CompositionOverlay,
   CompositeIndex,
@@ -14,32 +20,41 @@ import type {
   WaterAnalysis,
   WaterIndex,
   WindAnalysis,
-} from "@/lib/types"
+  GridStoreReport,
+  GridCurtailmentAnalysis,
+  GridFigureAnalysis,
+} from "@/lib/types";
 import {
   panelSelection,
   selectPanel,
   subscribePanelSelection,
-} from "@/lib/panelSelection"
-import type { AoiContourSchemeId } from "@/lib/aoiStyle"
+} from "@/lib/panelSelection";
+import type { AoiContourSchemeId } from "@/lib/aoiStyle";
 import {
+  ENERGY_PRODUCTS,
+  energyFamily,
+  energyMember,
   isMapTool,
   type BoardToolId,
-} from "@/lib/mapTools"
+  type EnergyProductId,
+} from "@/lib/mapTools";
 import type {
   SolarParams,
   SolarProductId,
   SolarResults,
   WindParams,
-} from "@/lib/energyState"
-import { solarProduct as solarProductEntry } from "@/components/energy/solarProducts"
+} from "@/lib/energyState";
+import { solarProduct as solarProductEntry } from "@/components/energy/solarProducts";
 import {
   FLOOD_DEM_PRODUCTS,
   type FloodParams,
-} from "@/components/flood/floodSetup"
-import { cn } from "@/lib/utils"
-import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph"
-import { StudioLoading } from "@/components/studio/StudioLoading"
-import { BOARD_TOOLS } from "@/lib/mapTools"
+} from "@/components/flood/floodSetup";
+import { cn } from "@/lib/utils";
+import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
+import { StudioLoading } from "@/components/studio/StudioLoading";
+import type { EditorId } from "@/lib/studioEditors"
+import type { GridProductId } from "@/lib/gridOptions";
+import { BOARD_TOOLS } from "@/lib/mapTools";
 import {
   BOARD_DETAIL_REM,
   BOARD_LEFT_REM,
@@ -47,13 +62,13 @@ import {
   boardPartition,
   clampDetail,
   partitionVars,
-} from "@/lib/boardPartition"
-import { rasterLayers } from "@/lib/mapLayers"
-import { solarOverlayList } from "@/lib/solarLayers"
-import { runAssets } from "@/lib/runAssets"
-import { useRunLog } from "@/lib/runLog"
-import { polygonOuterRing } from "@/lib/geometry"
-import type { BasemapKind } from "@/lib/basemaps"
+} from "@/lib/boardPartition";
+import { rasterLayers } from "@/lib/mapLayers";
+import { solarOverlayList } from "@/lib/solarLayers";
+import { runAssets } from "@/lib/runAssets";
+import { useRunLog } from "@/lib/runLog";
+import { polygonOuterRing } from "@/lib/geometry";
+import type { BasemapKind } from "@/lib/basemaps";
 
 /*
   Lazy, and reached only from here. BoardSurface imports the scene, which
@@ -63,8 +78,8 @@ import type { BasemapKind } from "@/lib/basemaps"
 const BoardSurface = lazy(() =>
   import("@/components/studio/BoardSurface").then((m) => ({
     default: m.BoardSurface,
-  }))
-)
+  })),
+);
 
 /**
  * The run band's height, in rem.
@@ -79,13 +94,12 @@ const BoardSurface = lazy(() =>
   six other files, and each repetition was a promise that two numbers written
   apart would stay equal -- a promise that broke four times.
 */
-import { DataCubeModal } from "@/components/DataCubeModal"
-import {
-} from "@/components/OverlayToolsPanel"
+import { DataCubeModal } from "@/components/DataCubeModal";
+import {} from "@/components/OverlayToolsPanel";
 
 export interface StudioScreenProps {
   /** Where the map was left last session; null starts at the default view. */
-  initialView?: { lat: number; lon: number; zoom: number } | null
+  initialView?: { lat: number; lon: number; zoom: number } | null;
   /** Open tool tab, owned by the caller so it survives this screen unmounting. */
   /**
    * The title bar's host for this screen's studio toggle.
@@ -102,102 +116,102 @@ export interface StudioScreenProps {
    * The state stays here -- it must not survive leaving the screen -- and this
    * is a report of it, not a lift.
    */
-  onBoardOpenChange?: (open: boolean) => void
-  customPolygon: GeoJSONGeometry | null
-  flyTo: { lat: number; lon: number; key: number } | null
-  result: PredictResult | null
+  onBoardOpenChange?: (open: boolean) => void;
+  customPolygon: GeoJSONGeometry | null;
+  flyTo: { lat: number; lon: number; key: number } | null;
+  result: PredictResult | null;
   /** Results the map finished with, still placeable on the board. */
-  retainedRuns: readonly { id: string; result: PredictResult }[]
+  retainedRuns: readonly { id: string; result: PredictResult }[];
   /** Let go of one, which the board lists and cannot remove on its own. */
-  onDropRetainedRun?: (id: string) => void
-  overlayOpacity: number
-  showConfidence: boolean
-  confidenceOnTop: boolean
-  smoothOverlay: boolean
-  showPredictionOverlay: boolean
-  showCompositionOverlay: boolean
-  composition: CompositionOverlay | null
+  onDropRetainedRun?: (id: string) => void;
+  overlayOpacity: number;
+  showConfidence: boolean;
+  confidenceOnTop: boolean;
+  smoothOverlay: boolean;
+  showPredictionOverlay: boolean;
+  showCompositionOverlay: boolean;
+  composition: CompositionOverlay | null;
   /** Session gallery of applied compositions (newest first). */
-  compositionGallery?: CompositionOverlay[]
-  onSelectComposition?: (id: string) => void
-  onRemoveComposition?: (id: string) => void
-  swipeCompare: boolean
-  swipeRatio: number
-  areaLabel?: string
-  onAreaLabelChange: (label: string) => void
-  aoiContourScheme: AoiContourSchemeId
-  onAoiContourSchemeChange: (id: AoiContourSchemeId) => void
-  hasArea: boolean
-  start: string
-  end: string
-  maxCloud: number
-  monthlyBest: boolean
-  mode: "single" | "temporal"
-  modelKind: ModelKind
-  prithviMode: "pixel" | "patch"
-  running: boolean
-  progress: number
-  progressMsg: string
-  composeRunning: boolean
-  composeProgress: number
-  composeProgressMsg: string
-  composeScenes: DataCubeScene[]
-  composeScenesLoading: boolean
-  composeScenesError: string | null
-  selectedSceneId: string
-  composeKind: CompositeKind
-  composeBands: [string, string, string]
-  composeIndex: CompositeIndex
-  composeStretchLow: number
-  composeStretchHigh: number
-  composeOpacity: number
-  onViewChange: (v: { lat: number; lon: number; zoom: number }) => void
+  compositionGallery?: CompositionOverlay[];
+  onSelectComposition?: (id: string) => void;
+  onRemoveComposition?: (id: string) => void;
+  swipeCompare: boolean;
+  swipeRatio: number;
+  areaLabel?: string;
+  onAreaLabelChange: (label: string) => void;
+  aoiContourScheme: AoiContourSchemeId;
+  onAoiContourSchemeChange: (id: AoiContourSchemeId) => void;
+  hasArea: boolean;
+  start: string;
+  end: string;
+  maxCloud: number;
+  monthlyBest: boolean;
+  mode: "single" | "temporal";
+  modelKind: ModelKind;
+  prithviMode: "pixel" | "patch";
+  running: boolean;
+  progress: number;
+  progressMsg: string;
+  composeRunning: boolean;
+  composeProgress: number;
+  composeProgressMsg: string;
+  composeScenes: DataCubeScene[];
+  composeScenesLoading: boolean;
+  composeScenesError: string | null;
+  selectedSceneId: string;
+  composeKind: CompositeKind;
+  composeBands: [string, string, string];
+  composeIndex: CompositeIndex;
+  composeStretchLow: number;
+  composeStretchHigh: number;
+  composeOpacity: number;
+  onViewChange: (v: { lat: number; lon: number; zoom: number }) => void;
   /** Which basemap is showing, for the credit in the title bar. */
-  onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void
-  onPolygonDrawn: (geom: GeoJSONGeometry | null) => void
+  onCreditChange?: (c: { kind: BasemapKind; date: string | null }) => void;
+  onPolygonDrawn: (geom: GeoJSONGeometry | null) => void;
   /** Adopt a run polygon as the active AOI without adding a catalog entry. */
-  onAdoptAreaGeometry?: (geom: GeoJSONGeometry | null) => void
+  onAdoptAreaGeometry?: (geom: GeoJSONGeometry | null) => void;
   /** Catalog of drawn/imported AOIs kept beside the active shape. */
-  areas?: import("@/lib/areas").Area[]
-  activeAreaId?: string
-  activeProjectId?: string | null
+  areas?: import("@/lib/areas").Area[];
+  activeAreaId?: string;
+  activeProjectId?: string | null;
   /** File new runs under another project, offered by the browser per project. */
-  onActivateProject?: (id: string) => void
-  activeProjectName?: string | null
-  onActivateArea?: (id: string) => void
-  onRenameArea?: (id: string, name: string) => void
-  onDeleteArea?: (id: string) => void
-  onLocationSelect: (lat: number, lon: number) => void
-  onClearArea: () => void
-  onImportPolygon: () => void
-  onStartChange: (v: string) => void
-  onEndChange: (v: string) => void
-  onMaxCloudChange: (v: number) => void
-  onMonthlyBestChange: (v: boolean) => void
-  onModeChange: (m: "single" | "temporal") => void
-  onModelKindChange: (m: ModelKind) => void
-  onPrithviModeChange: (m: "pixel" | "patch") => void
-  onOpacityChange: (v: number) => void
-  onShowConfidenceChange: (v: boolean) => void
-  onConfidenceOnTopChange: (v: boolean) => void
-  onSmoothOverlayChange: (v: boolean) => void
-  onShowPredictionOverlayChange: (v: boolean) => void
-  onShowCompositionOverlayChange: (v: boolean) => void
-  onSelectScene: (id: string) => void
-  onComposeKindChange: (k: CompositeKind) => void
-  onComposeBandsChange: (b: [string, string, string]) => void
-  onComposeIndexChange: (i: CompositeIndex) => void
-  onComposeStretchChange: (low: number, high: number) => void
-  onComposeOpacityChange: (v: number) => void
-  onListComposeScenes: () => void
-  onApplyComposition: () => void
-  onClearComposition: () => void
-  onSwipeCompareChange: (v: boolean) => void
-  onSwipeRatioChange: (v: number) => void
-  onRun: () => void
-  onAnalyzeLULC: () => void
-  lulcRunning?: boolean
-  onCloseResult: () => void
+  onActivateProject?: (id: string) => void;
+  activeProjectName?: string | null;
+  onActivateArea?: (id: string) => void;
+  onRenameArea?: (id: string, name: string) => void;
+  onDeleteArea?: (id: string) => void;
+  onLocationSelect: (lat: number, lon: number) => void;
+  onClearArea: () => void;
+  onImportPolygon: () => void;
+  onStartChange: (v: string) => void;
+  onEndChange: (v: string) => void;
+  onMaxCloudChange: (v: number) => void;
+  onMonthlyBestChange: (v: boolean) => void;
+  onModeChange: (m: "single" | "temporal") => void;
+  onModelKindChange: (m: ModelKind) => void;
+  onPrithviModeChange: (m: "pixel" | "patch") => void;
+  onOpacityChange: (v: number) => void;
+  onShowConfidenceChange: (v: boolean) => void;
+  onConfidenceOnTopChange: (v: boolean) => void;
+  onSmoothOverlayChange: (v: boolean) => void;
+  onShowPredictionOverlayChange: (v: boolean) => void;
+  onShowCompositionOverlayChange: (v: boolean) => void;
+  onSelectScene: (id: string) => void;
+  onComposeKindChange: (k: CompositeKind) => void;
+  onComposeBandsChange: (b: [string, string, string]) => void;
+  onComposeIndexChange: (i: CompositeIndex) => void;
+  onComposeStretchChange: (low: number, high: number) => void;
+  onComposeOpacityChange: (v: number) => void;
+  onListComposeScenes: () => void;
+  onApplyComposition: () => void;
+  onClearComposition: () => void;
+  onSwipeCompareChange: (v: boolean) => void;
+  onSwipeRatioChange: (v: number) => void;
+  onRun: () => void;
+  onAnalyzeLULC: () => void;
+  lulcRunning?: boolean;
+  onCloseResult: () => void;
   /**
    * A request to open the board, bumped each time one arrives.
    *
@@ -205,26 +219,26 @@ export interface StudioScreenProps {
    * a flag would fire only on its first change -- opening the same studio
    * twice in a row has to work.
    */
-  openBoardNonce?: number
+  openBoardNonce?: number;
   /** Saved studios, for the studio's own title block. */
-  studios?: import("@/lib/studios").Studio[]
-  onOpenStudio?: (board: import("@/lib/studios").Studio) => void
-  onNewStudio?: () => void
+  studios?: import("@/lib/studios").Studio[];
+  onOpenStudio?: (board: import("@/lib/studios").Studio) => void;
+  onNewStudio?: () => void;
   /** Called when the studio's board menu opens, to refresh the list. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
     can wait for it. The menu that opens on hover does not and ignores it; the
     manage dialog does, since it shows the result of its own rename or delete.
   */
-  onStudiosMenu?: () => void | Promise<void>
-  onNewClassification: () => void
-  onViewDataCube: () => void
-  dataCubeLoading?: boolean
-  dataCubeOpen?: boolean
-  dataCubeError?: string | null
-  dataCubeResult?: DataCubeResult | null
-  onCloseDataCube: () => void
-  water?: WaterAnalysis | null
+  onStudiosMenu?: () => void | Promise<void>;
+  onNewClassification: () => void;
+  onViewDataCube: () => void;
+  dataCubeLoading?: boolean;
+  dataCubeOpen?: boolean;
+  dataCubeError?: string | null;
+  dataCubeResult?: DataCubeResult | null;
+  onCloseDataCube: () => void;
+  water?: WaterAnalysis | null;
   /**
    * The two solar products that produce a raster, and the state that draws them.
    *
@@ -237,12 +251,12 @@ export interface StudioScreenProps {
    * Optional throughout: solar is one product among several, and a screen with
    * no solar in hand should not have to say so six times.
    */
-  solarTerrain?: SolarTerrainAnalysis | null
-  solarSiting?: SolarSitingAnalysis | null
-  showSolarTerrain?: boolean
-  showSolarSiting?: boolean
-  solarTerrainOpacity?: number
-  solarSitingOpacity?: number
+  solarTerrain?: SolarTerrainAnalysis | null;
+  solarSiting?: SolarSitingAnalysis | null;
+  showSolarTerrain?: boolean;
+  showSolarSiting?: boolean;
+  solarTerrainOpacity?: number;
+  solarSitingOpacity?: number;
   /**
    * Where the board's eye and opacity for a solar row land.
    *
@@ -253,8 +267,8 @@ export interface StudioScreenProps {
    */
   onSolarLayerChange?: (
     id: "terrain" | "siting",
-    patch: { visible?: boolean; opacity?: number }
-  ) => void
+    patch: { visible?: boolean; opacity?: number },
+  ) => void;
   /**
    * The solar inputs, so the board can START a solar run and not only draw one.
    *
@@ -263,56 +277,72 @@ export interface StudioScreenProps {
    * deciding which parameters exist. The band shows the four that reach a
    * request; the rest are the energy screen's business.
    */
-  solarParams?: SolarParams
-  onSolarParamsChange?: (patch: Partial<SolarParams>) => void
+  solarParams?: SolarParams;
+  onSolarParamsChange?: (patch: Partial<SolarParams>) => void;
   /** Absent where solar cannot be run; the band then does not offer it. */
-  onRunSolar?: (product: SolarProductId) => void
+  onRunSolar?: (product: SolarProductId) => void;
   /** What each product has produced, for the reading editor and the stale note. */
-  solarResults?: SolarResults
+  solarResults?: SolarResults;
   onSolarLossChange?: (
     group: "declared" | "optional",
     key: string,
-    pct: number
-  ) => void
-  onClearSolar?: (product: SolarProductId) => void
-  solarBusy?: boolean
-  solarProgress?: number
-  solarProgressMsg?: string
+    pct: number,
+  ) => void;
+  onClearSolar?: (product: SolarProductId) => void;
+  solarBusy?: boolean;
+  solarProgress?: number;
+  solarProgressMsg?: string;
   /*
     Wind and flood, in the shape solar already established: the whole parameter
     store plus a patch, and a runner that is absent where the product cannot be
     started. Both were screens of their own until the band grew cards for them.
   */
-  windParams?: WindParams
-  onWindParamsChange?: (patch: Partial<WindParams>) => void
-  onRunWind?: () => void
-  windBusy?: boolean
-  windProgress?: number
-  windProgressMsg?: string
+  windParams?: WindParams;
+  onWindParamsChange?: (patch: Partial<WindParams>) => void;
+  onRunWind?: () => void;
+  windBusy?: boolean;
+  windProgress?: number;
+  windProgressMsg?: string;
   /** The AOI as GeoJSON text, for the research pack's manifest. */
-  polygonGeoJSON?: string
+  polygonGeoJSON?: string;
   /** What the screening found, for the editor that reads it. */
-  windResult?: WindAnalysis | null
-  onClearWind?: () => void
-  floodParams?: FloodParams
-  onFloodParamsChange?: (patch: Partial<FloodParams>) => void
-  onRunFlood?: () => void
-  floodBusy?: boolean
-  floodProgress?: number
-  floodProgressMsg?: string
-  floodResult?: FloodAnalysis | null
-  onClearFlood?: () => void
-  waterIndex: WaterIndex
-  waterRunning: boolean
-  waterProgress: number
-  waterProgressMsg: string
-  showWaterOverlay: boolean
-  onWaterIndexChange: (i: WaterIndex) => void
-  onRunWater: () => void
-  onClearWater: () => void
-  onShowWaterOverlayChange: (v: boolean) => void
-  waterOpacity: number
-  onWaterOpacityChange: (v: number) => void
+  windResult?: WindAnalysis | null;
+  onClearWind?: () => void;
+  floodParams?: FloodParams;
+  onFloodParamsChange?: (patch: Partial<FloodParams>) => void;
+  onRunFlood?: () => void;
+  floodBusy?: boolean;
+  floodProgress?: number;
+  floodProgressMsg?: string;
+  floodResult?: FloodAnalysis | null;
+  /** What the local grid store holds, or why it cannot be reached. */
+  gridStore?: GridStoreReport | null;
+  gridProduct?: GridProductId;
+  onGridProductChange?: (p: GridProductId) => void;
+  gridWindow?: { start: string; end: string };
+  onGridWindowChange?: (start: string, end: string) => void;
+  onCheckGridStore?: () => void
+  gridCurtailment?: GridCurtailmentAnalysis | null
+  gridFigure?: GridFigureAnalysis | null
+  gridFigureNumber?: number
+  onGridFigureChange?: (n: number) => void
+  onRunGridFigure?: () => void
+  gridBusy?: boolean
+  onRunGridCurtailment?: () => void;
+  reveal?: EditorId | null;
+  onRevealed?: () => void;
+  onClearFlood?: () => void;
+  waterIndex: WaterIndex;
+  waterRunning: boolean;
+  waterProgress: number;
+  waterProgressMsg: string;
+  showWaterOverlay: boolean;
+  onWaterIndexChange: (i: WaterIndex) => void;
+  onRunWater: () => void;
+  onClearWater: () => void;
+  onShowWaterOverlayChange: (v: boolean) => void;
+  waterOpacity: number;
+  onWaterOpacityChange: (v: number) => void;
 }
 
 export function StudioScreen(props: StudioScreenProps) {
@@ -328,9 +358,9 @@ export function StudioScreen(props: StudioScreenProps) {
   */
   const leftPanel = useSyncExternalStore(
     subscribePanelSelection,
-    panelSelection
-  )
-  const onLeftPanelChange = selectPanel
+    panelSelection,
+  );
+  const onLeftPanelChange = selectPanel;
   /**
    * The band's own tool, which is the map's plus solar.
    *
@@ -342,7 +372,7 @@ export function StudioScreen(props: StudioScreenProps) {
    *
    * Null until the band is used, so it opens on whatever the map was showing.
    */
-  const [boardTool, setBoardTool] = useState<BoardToolId | null>(null)
+  const [boardTool, setBoardTool] = useState<BoardToolId | null>(null);
   /**
    * Which photovoltaic product the band will run.
    *
@@ -350,7 +380,20 @@ export function StudioScreen(props: StudioScreenProps) {
    * report figures, and the studio reads figures now: the Solar result editor
    * carries what the energy screen's reading column did.
    */
-  const [solarProduct, setSolarProduct] = useState<SolarProductId>("terrain")
+  const [solarProduct, setSolarProduct] = useState<SolarProductId>("terrain");
+  /*
+    Which energy product the band is on, across all three families.
+
+    ONE SELECTOR, AND THE FAMILY FALLS OUT OF IT. Solar, wind and grid were
+    three band entries and are one; the family is still what decides which
+    slice answers, so it is read from the product rather than chosen before it.
+
+    solarProduct is kept and synchronised rather than replaced: it is what the
+    solar parameter cards and the run verb are written against, and rewriting
+    those to a prefixed id would be a second spelling of the same choice.
+  */
+  const [energyProduct, setEnergyProduct] =
+    useState<EnergyProductId>("solar:terrain");
   /**
    * Whether the board is showing a map to draw an area on.
    *
@@ -365,13 +408,13 @@ export function StudioScreen(props: StudioScreenProps) {
    * scene's axis gizmo measure from, so a band that grew without telling this
    * level would slide under all three.
    */
-  const [statsRem, setStatsRem] = useState(BOARD_DETAIL_REM)
+  const [statsRem, setStatsRem] = useState(BOARD_DETAIL_REM);
   /*
     Collapsed is remembered SEPARATELY from the height, so unfolding restores
     the height that was dragged rather than resetting it to the default. The
     two are different questions: how tall, and whether shown.
   */
-  const [statsCollapsed, setStatsCollapsed] = useState(false)
+  const [statsCollapsed, setStatsCollapsed] = useState(false);
   /*
     The columns' widths, which the reader owns rather than the source.
 
@@ -385,14 +428,14 @@ export function StudioScreen(props: StudioScreenProps) {
     them. Kept as the partition's inputs rather than inlined, because
     boardPartition is what reconciles the two edges against the detail band.
   */
-  const leftRem = BOARD_LEFT_REM
-  const rightRem = BOARD_RIGHT_REM
+  const leftRem = BOARD_LEFT_REM;
+  const rightRem = BOARD_RIGHT_REM;
   const partition = boardPartition({
     leftRem,
     rightRem,
     detailRem: statsRem,
     detailCollapsed: statsCollapsed,
-  })
+  });
   /**
    * Whether the studio was asked for by name rather than toggled onto what is
    * on screen.
@@ -401,9 +444,8 @@ export function StudioScreen(props: StudioScreenProps) {
    * nonce, and both mean the same thing: this reader wants the studio, not the
    * studio OF something. Zero is the resting value, not a request.
    */
-  const nonce = props.openBoardNonce ?? 0
-  const setLeftPanel = onLeftPanelChange
-
+  const nonce = props.openBoardNonce ?? 0;
+  const setLeftPanel = onLeftPanelChange;
 
   /*
     What the board draws, from the same table the map reads. Every control in
@@ -418,7 +460,7 @@ export function StudioScreen(props: StudioScreenProps) {
     showSiting: props.showSolarSiting ?? true,
     terrainOpacity: props.solarTerrainOpacity ?? 1,
     sitingOpacity: props.solarSitingOpacity ?? 1,
-  })
+  });
 
   const boardLayers = rasterLayers({
     result: props.result,
@@ -449,7 +491,7 @@ export function StudioScreen(props: StudioScreenProps) {
     showWaterOverlay: props.showWaterOverlay,
     waterOpacity: props.waterOpacity,
     solarOverlays,
-  })
+  });
 
   /**
    * Turns a row of the board's layer list back into the state it came from.
@@ -469,15 +511,14 @@ export function StudioScreen(props: StudioScreenProps) {
     the expression above is an `&&` chain that yields undefined rather than
     false when `board` is unset.
   */
-  const reportBoardOpen = props.onBoardOpenChange
+  const reportBoardOpen = props.onBoardOpenChange;
   useEffect(() => {
-    reportBoardOpen?.(true)
+    reportBoardOpen?.(true);
     // Leaving the screen closes it as far as the title bar is concerned:
     // otherwise a true outlives the surface that justified it, and the map's
     // readings stay hidden on a screen that has a map.
-    return () => reportBoardOpen?.(false)
-  }, [reportBoardOpen])
-
+    return () => reportBoardOpen?.(false);
+  }, [reportBoardOpen]);
 
   /*
     The same table the overlay tools panel lists, so the board's data mode and
@@ -500,7 +541,7 @@ export function StudioScreen(props: StudioScreenProps) {
     props.water?.run_id ||
     props.windResult?.run_id ||
     props.floodResult?.run_id ||
-    "current"
+    "current";
 
   const boardAssets = runAssets({
     result: props.result,
@@ -522,27 +563,36 @@ export function StudioScreen(props: StudioScreenProps) {
     showSolarSiting: props.showSolarSiting,
     solarTerrainOpacity: props.solarTerrainOpacity,
     solarSitingOpacity: props.solarSitingOpacity,
-  })
+  });
 
-  const changeBoardLayer = (id: string, patch: { visible?: boolean; opacity?: number }) => {
+  const changeBoardLayer = (
+    id: string,
+    patch: { visible?: boolean; opacity?: number },
+  ) => {
     if (id === "composition") {
-      if (patch.visible !== undefined) props.onShowCompositionOverlayChange(patch.visible)
-      if (patch.opacity !== undefined) props.onComposeOpacityChange(patch.opacity)
-      return
+      if (patch.visible !== undefined)
+        props.onShowCompositionOverlayChange(patch.visible);
+      if (patch.opacity !== undefined)
+        props.onComposeOpacityChange(patch.opacity);
+      return;
     }
     if (id === "water") {
-      if (patch.visible !== undefined) props.onShowWaterOverlayChange(patch.visible)
-      if (patch.opacity !== undefined) props.onWaterOpacityChange(patch.opacity)
-      return
+      if (patch.visible !== undefined)
+        props.onShowWaterOverlayChange(patch.visible);
+      if (patch.opacity !== undefined)
+        props.onWaterOpacityChange(patch.opacity);
+      return;
     }
     if (id === "confidence") {
-      if (patch.visible !== undefined) props.onShowConfidenceChange(patch.visible)
-      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity)
-      return
+      if (patch.visible !== undefined)
+        props.onShowConfidenceChange(patch.visible);
+      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity);
+      return;
     }
     if (id === "prediction") {
-      if (patch.visible !== undefined) props.onShowPredictionOverlayChange(patch.visible)
-      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity)
+      if (patch.visible !== undefined)
+        props.onShowPredictionOverlayChange(patch.visible);
+      if (patch.opacity !== undefined) props.onOpacityChange(patch.opacity);
     }
     /*
       lib/mapLayers.ts names these `solar:terrain` and `solar:siting`, and they
@@ -558,11 +608,10 @@ export function StudioScreen(props: StudioScreenProps) {
     if (id === "solar:terrain" || id === "solar:siting") {
       props.onSolarLayerChange?.(
         id === "solar:terrain" ? "terrain" : "siting",
-        patch
-      )
+        patch,
+      );
     }
-  }
-
+  };
 
   /**
    * The run action for whichever product is in view.
@@ -604,7 +653,7 @@ export function StudioScreen(props: StudioScreenProps) {
             label: props.running ? "Classifying" : "Classify",
             canRun: props.hasArea && !!props.start && !!props.end,
             onRun: props.onRun,
-          }
+          };
 
   /*
     The band's run, which is the island's for the three map tools and its own
@@ -612,12 +661,51 @@ export function StudioScreen(props: StudioScreenProps) {
     that object also feeds the workspace bar, which belongs to the map and has
     no solar to start.
   */
-  const bandTool: BoardToolId | null = boardTool ?? leftPanel
-  const solarRunnable = !!props.solarParams && !!props.onRunSolar
-  const windRunnable = !!props.windParams && !!props.onRunWind
-  const floodRunnable = !!props.floodParams && !!props.onRunFlood
+  const bandTool: BoardToolId | null = boardTool ?? leftPanel;
+  /*
+    Which slice answers what the band is showing.
+
+    The comparisons below were against the tool, when the tool WAS the family.
+    They are against this now, so the Energy entry dispatches on its product and
+    every other entry keeps answering for itself.
+  */
+  /*
+    Whether this installation can answer a family at all.
+
+    Read from the same props the band's own filter reads, so the entry being
+    offered and the product being runnable cannot disagree.
+  */
+  const familyReady = (f: "solar" | "wind" | "grid") =>
+    f === "solar"
+      ? !!props.solarParams
+      : f === "wind"
+        ? !!props.windParams
+        : !!props.gridStore;
+
+  /*
+    THE CHOSEN PRODUCT, OR THE FIRST ONE THAT CAN RUN.
+
+    The band opens on a solar product, and an installation with a grid store
+    and no solar parameters would open Energy onto a graph with no family to
+    dispatch on -- which the surface renders as "pick a product above" over a
+    card that is already showing one picked. Falling back here rather than
+    choosing a default at mount, because availability arrives with the props
+    and can change after: a store probed a second later must not leave the
+    reader on a dead entry.
+  */
+  const effectiveEnergyProduct: EnergyProductId = familyReady(
+    energyFamily(energyProduct),
+  )
+    ? energyProduct
+    : (ENERGY_PRODUCTS.find((p) => familyReady(p.family))?.id ?? energyProduct);
+
+  const bandFamily =
+    bandTool === "energy" ? energyFamily(effectiveEnergyProduct) : bandTool;
+  const solarRunnable = !!props.solarParams && !!props.onRunSolar;
+  const windRunnable = !!props.windParams && !!props.onRunWind;
+  const floodRunnable = !!props.floodParams && !!props.onRunFlood;
   const boardRun =
-    bandTool === "wind" && windRunnable
+    bandFamily === "wind" && windRunnable
       ? {
           running: props.windBusy ?? false,
           progress: props.windProgress ?? 0,
@@ -627,35 +715,91 @@ export function StudioScreen(props: StudioScreenProps) {
           onRun: () => props.onRunWind?.(),
         }
       : bandTool === "flood" && floodRunnable
-      ? {
-          running: props.floodBusy ?? false,
-          progress: props.floodProgress ?? 0,
-          progressMsg: props.floodProgressMsg ?? "",
-          label: props.floodBusy ? "Running" : "Map the envelope",
-          // Two products or nothing, which the sidecar enforces and the card
-          // refuses to unpick; this is the same rule reported before the run.
-          canRun:
-            props.hasArea &&
-            !props.floodBusy &&
-            (props.floodParams?.demIds.length ?? 0) >= 2,
-          onRun: () => props.onRunFlood?.(),
-        }
-      : bandTool === "solar" && solarRunnable
-      ? {
-          running: props.solarBusy ?? false,
-          progress: props.solarProgress ?? 0,
-          progressMsg: props.solarProgressMsg ?? "",
-          /* The table's own verb, so a product added there arrives with its
+        ? {
+            running: props.floodBusy ?? false,
+            progress: props.floodProgress ?? 0,
+            progressMsg: props.floodProgressMsg ?? "",
+            label: props.floodBusy ? "Running" : "Map the envelope",
+            // Two products or nothing, which the sidecar enforces and the card
+            // refuses to unpick; this is the same rule reported before the run.
+            canRun:
+              props.hasArea &&
+              !props.floodBusy &&
+              (props.floodParams?.demIds.length ?? 0) >= 2,
+            onRun: () => props.onRunFlood?.(),
+          }
+        : bandFamily === "solar" && solarRunnable
+          ? {
+              running: props.solarBusy ?? false,
+              progress: props.solarProgress ?? 0,
+              progressMsg: props.solarProgressMsg ?? "",
+              /* The table's own verb, so a product added there arrives with its
              label rather than with a fifth branch written here. */
-          label: props.solarBusy
-            ? `${solarProductEntry(solarProduct).runningLabel}`
-            : solarProductEntry(solarProduct).runVerb,
-          // One sidecar run at a time, which solar already enforces across its
-          // own products; the board must not be a second way past it.
-          canRun: props.hasArea && !props.solarBusy,
-          onRun: () => props.onRunSolar?.(solarProduct),
-        }
-      : run
+              label: props.solarBusy
+                ? `${solarProductEntry(solarProduct).runningLabel}`
+                : solarProductEntry(solarProduct).runVerb,
+              // One sidecar run at a time, which solar already enforces across its
+              // own products; the board must not be a second way past it.
+              canRun: props.hasArea && !props.solarBusy,
+              onRun: () => props.onRunSolar?.(solarProduct),
+            }
+          : bandFamily === "grid" && !!props.gridStore
+            ? /*
+          THE RECORD, AND WHY THIS BRANCH HAD TO EXIST AT ALL.
+
+          The chain below used to end at `run`, which is the classification's.
+          A tool with no branch of its own therefore inherited classify's
+          label, its enablement AND ITS ACTION -- so the grid tab drew a button
+          reading "Classify" that would have started a classification over
+          whatever area was drawn. The same shape as runGraph's unguarded final
+          return, in a place where the consequence is a run rather than a
+          drawing.
+        */
+              props.gridProduct === "figure"
+        ? {
+            running: props.gridBusy ?? false,
+            progress: 0,
+            progressMsg: "",
+            label: props.gridBusy ? "Reading" : "Read the figure",
+            /*
+              No area to check. Fig. 1 is about the SIN, and the sidecar
+              refuses a polygon for a system-scoped figure rather than dropping
+              it -- a national quantity answered over one polygon is a
+              different quantity under the same name.
+            */
+            canRun: !!props.gridStore?.reachable && !props.gridBusy,
+            onRun: () => props.onRunGridFigure?.(),
+          }
+        : props.gridProduct === "record"
+              ? {
+                  running: false,
+                  progress: 0,
+                  progressMsg: "",
+                  label: "Read the record",
+                  // No area, and nothing to refuse on: asking what this
+                  // installation holds is answerable whether or not the store is
+                  // reachable, and the unreachable answer is the useful one.
+                  canRun: true,
+                  onRun: () => props.onCheckGridStore?.(),
+                }
+              : {
+                  running: props.gridBusy ?? false,
+                  progress: 0,
+                  progressMsg: "",
+                  label: props.gridBusy ? "Reading" : "Read the curtailment",
+                  /*
+                    No progress ramp. The sidecar answers this from indexed
+                    tables in about a second, so a bar would appear and vanish;
+                    the button's own busy state is the whole of what there is
+                    to say.
+                  */
+                  canRun:
+                    !!props.gridStore?.reachable &&
+                    props.hasArea &&
+                    !props.gridBusy,
+                  onRun: () => props.onRunGridCurtailment?.(),
+                }
+            : run;
 
   /*
     What the run in progress has said. Built from the SAME resolved run the band
@@ -666,7 +810,7 @@ export function StudioScreen(props: StudioScreenProps) {
     running: boardRun.running,
     progress: boardRun.progress,
     message: boardRun.progressMsg,
-  })
+  });
 
   /**
    * The studio's Run tab: which product, and its own parameters.
@@ -697,37 +841,49 @@ export function StudioScreen(props: StudioScreenProps) {
     menus: (
       <>
         {BOARD_TOOLS.filter((t) =>
-          t.id === "solar"
-            ? !!props.solarParams
-            : t.id === "wind"
-              ? !!props.windParams
-              : t.id === "flood"
-                ? !!props.floodParams
-                : true
-        ).map(
-          (t) => {
-            const on = bandTool === t.id
-            const Icon = TOOL_ICON[t.id]
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                onClick={() => {
-                  setBoardTool(t.id)
-                  if (isMapTool(t.id)) setLeftPanel(t.id)
-                }}
-                title={t.label}
-                className={cn(
-                  "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
-                  on
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
-                )}
-              >
-                <Icon className="size-3 shrink-0" />
-                {/*
+          /*
+            ENERGY IS OFFERED IF ANY OF ITS THREE FAMILIES CAN ANSWER, which is
+            weaker than what the three separate entries required and is the
+            right weakening. A reader with the store probed and no solar
+            parameters used to see a Grid tab and no Solar tab; they now see
+            Energy, and the product card inside it is where the difference
+            belongs -- a product that cannot run is one entry to grey out, not
+            a whole surface to withhold.
+
+            The store is offered whenever it has been PROBED, reachable or not,
+            unlike the other two which are gated on having parameters to send.
+            An unreachable store is the case this most needs to explain: the
+            reader has psycopg installed and no database, or a database and no
+            schema, and hiding it leaves them with no surface that says so.
+          */
+          t.id === "energy"
+            ? !!props.solarParams || !!props.windParams || !!props.gridStore
+            : t.id === "flood"
+              ? !!props.floodParams
+              : true,
+        ).map((t) => {
+          const on = bandTool === t.id;
+          const Icon = TOOL_ICON[t.id];
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => {
+                setBoardTool(t.id);
+                if (isMapTool(t.id)) setLeftPanel(t.id);
+              }}
+              title={t.label}
+              className={cn(
+                "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+                on
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-surface-raised hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3 shrink-0" />
+              {/*
                   Every tab named, not only the chosen one. Naming the active
                   tab alone tells a reader what they already know -- they just
                   pressed it -- and leaves the three they have not tried as
@@ -735,11 +891,10 @@ export function StudioScreen(props: StudioScreenProps) {
                   needs saying. `header-label` withdraws them together when the
                   area is too narrow to carry four names.
                 */}
-                <span className={cn(!on && "header-label")}>{t.label}</span>
-              </button>
-            )
-          }
-        )}
+              <span className={cn(!on && "header-label")}>{t.label}</span>
+            </button>
+          );
+        })}
       </>
     ),
     /*
@@ -758,7 +913,7 @@ export function StudioScreen(props: StudioScreenProps) {
       offering a mode the run would not honour. A card can say why.
     */
     options: null,
-  }
+  };
 
   /*
     The run controls, handed to the studio as a node.
@@ -778,6 +933,64 @@ export function StudioScreen(props: StudioScreenProps) {
         dock. A prop nothing calls is a second way in that does not exist.
       */
       tool={bandTool}
+      energyProduct={effectiveEnergyProduct}
+      /*
+        ONE PICK, ROUTED TO WHICHEVER FAMILY OWNS IT.
+
+        The product state is unified and the family states are not: the solar
+        parameter cards and the run verb read `solarProduct`, and the grid
+        window and figure cards read the `grid.product` the parent holds. So
+        this sets the band's own choice and forwards the member to whichever of
+        the two is behind it, rather than rewriting both to a prefixed id that
+        neither of their tables uses.
+      */
+      onEnergyProduct={(id) => {
+        setEnergyProduct(id);
+        const member = energyMember(id);
+        if (energyFamily(id) === "solar") {
+          setSolarProduct(member as SolarProductId);
+        } else if (energyFamily(id) === "grid") {
+          props.onGridProductChange?.(member as GridProductId);
+        }
+      }}
+      /*
+        Greyed with a reason rather than hidden. A product this installation
+        cannot run is a setup step the reader can act on; an absent one is a
+        feature they will conclude does not exist.
+      */
+      blockedFamilies={{
+        solar: props.solarParams ? undefined : "no solar parameters in this run",
+        wind: props.windParams ? undefined : "no wind parameters in this run",
+        grid: props.gridStore ? undefined : "the grid store has not answered",
+      }}
+      grid={
+        props.gridStore
+          ? {
+              product: props.gridProduct ?? "record",
+              onProductChange: (p) => props.onGridProductChange?.(p),
+              dsn: props.gridStore.dsn,
+              dsnSource: props.gridStore.dsn_source,
+              reachable: props.gridStore.reachable,
+              unreachable: props.gridStore.unreachable,
+              /*
+                The span the store actually holds, taken from the first record
+                it reports. Both photovoltaic records are published over the
+                same months, so one span describes the window a run can ask
+                for; a store holding several with different spans would need
+                this per record, and would say so rather than pick one.
+              */
+              recordFrom: props.gridStore.coverage?.datasets[0]?.from ?? null,
+              recordTo: props.gridStore.coverage?.datasets[0]?.to ?? null,
+              start: props.gridWindow?.start ?? "",
+              end: props.gridWindow?.end ?? "",
+              onWindowChange: (start, end) =>
+                props.onGridWindowChange?.(start, end),
+              onCheckStore: () => props.onCheckGridStore?.(),
+              figure: props.gridFigureNumber ?? 1,
+              onFigureChange: (n) => props.onGridFigureChange?.(n),
+            }
+          : undefined
+      }
       wind={
         props.windParams && props.onRunWind
           ? {
@@ -834,6 +1047,30 @@ export function StudioScreen(props: StudioScreenProps) {
                   slopeAcceptableDeg: acceptable,
                   slopeRestrictiveDeg: restrictive,
                 }),
+              /*
+                The rest of what the energy model sends, passed straight
+                through the way the three above are. One patch callback rather
+                than one per field, so a write cannot reach the store by a path
+                the others do not take.
+              */
+              climatologyYears: props.solarParams.climatologyYears,
+              surfaceAzimuth: props.solarParams.surfaceAzimuth,
+              performanceRatio: props.solarParams.performanceRatio,
+              reportingBasis: props.solarParams.reportingBasis,
+              degradationPct: props.solarParams.degradationPct,
+              analysisPeriodYears: props.solarParams.analysisPeriodYears,
+              densityBasis: props.solarParams.densityBasis,
+              buildableFraction: props.solarParams.buildableFraction,
+              gcrFixed: props.solarParams.gcrFixed,
+              gcrTracker: props.solarParams.gcrTracker,
+              trackerMaxAngleDeg: props.solarParams.trackerMaxAngleDeg,
+              utcOffset: props.solarParams.utcOffset,
+              applyShading: props.solarParams.applyShading,
+              declaredLoss: props.solarParams.declaredLoss,
+              optionalLoss: props.solarParams.optionalLoss,
+              onParamsChange: (patch) => props.onSolarParamsChange?.(patch),
+              onLossChange: (group, key, pct) =>
+                props.onSolarLossChange?.(group, key, pct),
             }
           : undefined
       }
@@ -892,18 +1129,44 @@ export function StudioScreen(props: StudioScreenProps) {
       progressMsg={boardRun.progressMsg}
       canRun={boardRun.canRun}
       blockedBy={
-        !props.hasArea
-          ? "Draw an area on the globe, or bring one in from the Areas tab."
-          : (bandTool === "solar" && props.solarBusy) ||
-              (bandTool === "wind" && props.windBusy) ||
-              (bandTool === "flood" && props.floodBusy)
-            ? "The sidecar runs one analysis at a time."
-            : bandTool === "flood" &&
-                (props.floodParams?.demIds.length ?? 0) < 2
-              ? "Pick at least two elevation models: the envelope is what they disagree about."
-              : bandTool === "compose" && !props.selectedSceneId
-                ? "List the scenes for this period and choose one."
+        /*
+          THE RECORD IS ASKED BEFORE THE AREA, so the chain cannot open on one.
+
+          Every other product here is about a piece of ground, and "draw an
+          area" was therefore a safe first branch. Asking what this
+          installation holds is not, and the grid tab reached this chain with
+          no branch of its own -- so a reader who had drawn nothing was told to
+          draw something the run does not read, and one who had drawn something
+          was told the wrong reason the curtailment button was dark. A reason
+          that is wrong is worse than none: it sends someone to fix what is not
+          broken.
+        */
+        bandFamily === "grid"
+          ? props.gridProduct === "record"
+            ? undefined
+            : props.gridProduct === "figure"
+              ? !props.gridStore?.reachable
+                ? "The grid store is not reachable. Settings > System says why."
                 : undefined
+              : !props.gridStore?.reachable
+              ? "The grid store is not reachable. Settings > System says why."
+              : !props.hasArea
+                ? "Draw an area on the globe: the curtailment is read at the plants inside it."
+                : props.gridBusy
+                  ? "The sidecar runs one analysis at a time."
+                  : undefined
+          : !props.hasArea
+            ? "Draw an area on the globe, or bring one in from the Areas tab."
+            : (bandFamily === "solar" && props.solarBusy) ||
+                (bandFamily === "wind" && props.windBusy) ||
+                (bandTool === "flood" && props.floodBusy)
+              ? "The sidecar runs one analysis at a time."
+              : bandTool === "flood" &&
+                  (props.floodParams?.demIds.length ?? 0) < 2
+                ? "Pick at least two elevation models: the envelope is what they disagree about."
+                : bandTool === "compose" && !props.selectedSceneId
+                  ? "List the scenes for this period and choose one."
+                  : undefined
       }
       onRun={boardRun.onRun}
       onAnalyzeLULC={props.onAnalyzeLULC}
@@ -915,7 +1178,7 @@ export function StudioScreen(props: StudioScreenProps) {
       */
       runLog={runLog}
     />
-  )
+  );
 
   return (
     <div
@@ -943,7 +1206,7 @@ export function StudioScreen(props: StudioScreenProps) {
       */
       style={
         {
-/*
+          /*
             Published by the partition, not written here. Everything anchored
             to the bottom measures from --map-foot -- the result panel, the
             drawers, the status panels and the scene's axis helper -- and the
@@ -962,14 +1225,14 @@ export function StudioScreen(props: StudioScreenProps) {
         blank frame there reads as an application that did not start.
       */}
       <Suspense
-          fallback={
-            <div className="app-no-drag absolute inset-0 z-[500]">
-              <StudioLoading />
-            </div>
-          }
-        >
-          <BoardSurface
-            /*
+        fallback={
+          <div className="app-no-drag absolute inset-0 z-[500]">
+            <StudioLoading />
+          </div>
+        }
+      >
+        <BoardSurface
+          /*
               REMOUNTED WHEN A BOARD IS OPENED, which is what makes opening
               one from inside the studio work at all.
 
@@ -980,63 +1243,63 @@ export function StudioScreen(props: StudioScreenProps) {
               studio in the first place; keying by it turns a second request
               into the mount the restore path already expects.
             */
-            key={`studio-${nonce}`}
-            /*
+          key={`studio-${nonce}`}
+          /*
               The band's height, and the two gestures that change it. Clamped
               here rather than in the band: the reservation --map-foot is
               derived from this number, so the bound belongs with the value
               the layout is computed from.
             */
-            detailHeightRem={statsRem}
-            // Bounded by the partition, which owns them: the reservation is
-            // derived from this number, so the bound belongs with the value.
-            onDetailResize={(rem) => setStatsRem(clampDetail(rem))}
-            detailCollapsed={statsCollapsed}
-            onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
-            runBar={runBarNode}
-            runBarHeader={runBarHeader}
-            layers={boardLayers}
-            assets={boardAssets}
-            retainedRuns={props.retainedRuns}
-            onDropRetainedRun={props.onDropRetainedRun}
-            /*
+          detailHeightRem={statsRem}
+          // Bounded by the partition, which owns them: the reservation is
+          // derived from this number, so the bound belongs with the value.
+          onDetailResize={(rem) => setStatsRem(clampDetail(rem))}
+          detailCollapsed={statsCollapsed}
+          onDetailToggleCollapsed={() => setStatsCollapsed((v) => !v)}
+          runBar={runBarNode}
+          runBarHeader={runBarHeader}
+          layers={boardLayers}
+          assets={boardAssets}
+          retainedRuns={props.retainedRuns}
+          onDropRetainedRun={props.onDropRetainedRun}
+          /*
               What this run's colours mean. Not derivable from the layers:
               a layer is what is drawn, and class_stats, the water index and
               the solar scale are what it means -- they live on the payload
               and stop here otherwise.
             */
-            /*
+          /*
               Straight to the same handler the drawing map and the map itself
               use. Reusing a shape and drawing one land in one place, so the
               application cannot come to hold two ideas of what the area is.
             */
-            onUseArea={props.onAdoptAreaGeometry ?? props.onPolygonDrawn}
-            /*
+          onUseArea={props.onAdoptAreaGeometry ?? props.onPolygonDrawn}
+          /*
               And the same handler again for the globe, which DRAWS rather
               than adopts. `onUseArea` cannot carry a removal -- it takes a
               geometry, not a geometry or nothing -- and clearing the shape is
               half of what a drawing tool does.
             */
-            customPolygon={props.customPolygon}
-            onPolygonDrawn={props.onPolygonDrawn}
-            catalogAreas={props.areas}
-            initialView={props.initialView}
-            onViewChange={props.onViewChange}
-            activeProjectId={props.activeProjectId}
-            onActivateProject={props.onActivateProject}
-            activeProjectName={props.activeProjectName}
-            activeAreaId={props.activeAreaId}
-            onActivateArea={props.onActivateArea}
-            onRenameArea={props.onRenameArea}
-            onDeleteArea={props.onDeleteArea}
-            legendSources={{
-              result: props.result,
-              water: props.water,
-              solarTerrain: props.solarTerrain,
-              solarSiting: props.solarSiting,
-              composition: props.composition,
-            }}
-            /*
+          customPolygon={props.customPolygon}
+          onPolygonDrawn={props.onPolygonDrawn}
+          catalogAreas={props.areas}
+          initialView={props.initialView}
+          onViewChange={props.onViewChange}
+          activeProjectId={props.activeProjectId}
+          onActivateProject={props.onActivateProject}
+          activeProjectName={props.activeProjectName}
+          activeAreaId={props.activeAreaId}
+          onActivateArea={props.onActivateArea}
+          onRenameArea={props.onRenameArea}
+          onDeleteArea={props.onDeleteArea}
+          legendSources={{
+            result: props.result,
+            water: props.water,
+            solarTerrain: props.solarTerrain,
+            solarSiting: props.solarSiting,
+            composition: props.composition,
+          }}
+          /*
               The run on screen may never have been saved, so it has no id of
               its own to give. The board only needs one that is stable while
               it is open, and distinct from the ids of runs loaded beside it.
@@ -1054,35 +1317,35 @@ export function StudioScreen(props: StudioScreenProps) {
               the order is only a preference: the classification first because
               it is the one whose rasters a reopened board is mostly made of.
             */
-            runId={liveRunId}
-            /*
+          runId={liveRunId}
+          /*
               The period the run covered, which is what tells two runs of one
               area apart. The result's own range where the sidecar reported
               one, since it names the scenes actually used rather than the
               window that was asked for.
             */
-            /*
+          /*
               What was actually drawn. The board outlines the AREA rather
               than the raster's box, and a box around an area claims ground
               the analysis never saw.
             */
-            aoiPolygon={
-              polygonOuterRing(
-                props.customPolygon ??
-                  ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry)
-              ) ?? undefined
-            }
-            runPeriod={
-              props.result?.date_range?.length === 2
-                ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`
-                : `${props.start} → ${props.end}`
-            }
-            onLayerChange={changeBoardLayer}
-            onSelectComposition={props.onSelectComposition}
-            onRemoveComposition={props.onRemoveComposition}
-            smooth={props.smoothOverlay}
-            onSmoothChange={props.onSmoothOverlayChange}
-            /*
+          aoiPolygon={
+            polygonOuterRing(
+              props.customPolygon ??
+                ({ type: "Polygon", coordinates: [] } as GeoJSONGeometry),
+            ) ?? undefined
+          }
+          runPeriod={
+            props.result?.date_range?.length === 2
+              ? `${props.result.date_range[0]} → ${props.result.date_range[1]}`
+              : `${props.start} → ${props.end}`
+          }
+          onLayerChange={changeBoardLayer}
+          onSelectComposition={props.onSelectComposition}
+          onRemoveComposition={props.onRemoveComposition}
+          smooth={props.smoothOverlay}
+          onSmoothChange={props.onSmoothOverlayChange}
+          /*
               The subject's own name, and only a generic one when there is
               genuinely no subject.
 
@@ -1093,27 +1356,28 @@ export function StudioScreen(props: StudioScreenProps) {
               rather than the only source: the run's own name first, then the
               active AOI's, then the map's label.
             */
-            title={
-              props.areas?.find((a) => a.id === props.activeAreaId)?.name ||
-              props.areaLabel ||
-              ""
-            }
-            studios={props.studios}
-            onOpenStudio={props.onOpenStudio}
-            onNewStudio={props.onNewStudio}
-            onStudiosMenu={props.onStudiosMenu}
-            polygonGeoJSON={props.polygonGeoJSON}
-            solarProduct={solarProduct}
-            solarParams={props.solarParams}
-            solarResults={props.solarResults}
-            onSolarParamsChange={props.onSolarParamsChange}
-            onSolarLossChange={props.onSolarLossChange}
-            onClearSolar={props.onClearSolar}
-            windResult={props.windResult}
-            onClearWind={props.onClearWind}
-            floodResult={props.floodResult}
-            onClearFlood={props.onClearFlood}
-            /*
+          title={
+            props.areas?.find((a) => a.id === props.activeAreaId)?.name ||
+            props.areaLabel ||
+            ""
+          }
+          studios={props.studios}
+          onOpenStudio={props.onOpenStudio}
+          onNewStudio={props.onNewStudio}
+          onStudiosMenu={props.onStudiosMenu}
+          polygonGeoJSON={props.polygonGeoJSON}
+          solarResults={props.solarResults}
+          onClearSolar={props.onClearSolar}
+          windResult={props.windResult}
+          onClearWind={props.onClearWind}
+          floodResult={props.floodResult}
+          gridStore={props.gridStore}
+          gridCurtailment={props.gridCurtailment}
+          gridFigure={props.gridFigure}
+          reveal={props.reveal}
+          onRevealed={props.onRevealed}
+          onClearFlood={props.onClearFlood}
+          /*
               WHERE A FAILED SURFACE GOES, which used to be the map underneath.
 
               BoardSurface calls this when a WebGL context cannot be created --
@@ -1122,8 +1386,8 @@ export function StudioScreen(props: StudioScreenProps) {
               underneath, so it has to be a destination: the analysis list,
               which needs no GL and is somewhere a reader can work from.
             */
-          />
-        </Suspense>
+        />
+      </Suspense>
 
       <DataCubeModal
         open={!!props.dataCubeOpen}
@@ -1133,5 +1397,5 @@ export function StudioScreen(props: StudioScreenProps) {
         onClose={props.onCloseDataCube}
       />
     </div>
-  )
+  );
 }
