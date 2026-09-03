@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"geosense-infer/internal/analysis"
+	"geosense-infer/internal/pyenv"
 
 	"github.com/google/uuid"
 )
@@ -352,4 +353,50 @@ func floodProductIDs(products []analysis.FloodProduct) []string {
 		ids = append(ids, p.ID)
 	}
 	return ids
+}
+
+/*
+AnalyzeGridCurtailment reads the operational record over an area.
+
+THE CONNECTION IS RESOLVED HERE AND NOT IN THE RUNNER. analysis.Runner holds
+paths and nothing else -- it knows no data directory and no AppConfig -- and
+keeping it that way means the DSN is decided in one place. gridDSN also encodes
+the precedence the sidecar cannot: store.connect reads the request key BEFORE
+the environment, so an unconditional send would make TERRA_BR_DSN dead.
+
+NOT PERSISTED YET. Every other analysis here files a run row; this one does not,
+because RunKindGrid and its summary do not exist. A row written under a kind no
+reader branches on would list, summarise and reopen as a classification.
+*/
+func (a *App) AnalyzeGridCurtailment(
+	req analysis.GridCurtailmentRequest,
+) (*analysis.GridCurtailmentAnalysis, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	if data := a.dataDir(); data != "" {
+		req.StoreDSN = gridDSN(pyenv.LoadAppConfig(data))
+	}
+	return runner.AnalyzeGridCurtailment(a.ctx, req)
+}
+
+// AnalyzeGridFigure computes one analysis of the published research series.
+//
+// The connection is resolved here rather than in the runner, for the reason
+// AnalyzeGridCurtailment gives: analysis.Runner holds paths and knows no
+// AppConfig, and gridDSN encodes a precedence the sidecar cannot -- it reads
+// the request key before the environment, so an unconditional send would make
+// TERRA_BR_DSN dead.
+func (a *App) AnalyzeGridFigure(
+	req analysis.GridFigureRequest,
+) (*analysis.GridFigureAnalysis, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	if data := a.dataDir(); data != "" {
+		req.StoreDSN = gridDSN(pyenv.LoadAppConfig(data))
+	}
+	return runner.AnalyzeGridFigure(a.ctx, req)
 }

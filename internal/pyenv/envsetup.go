@@ -294,6 +294,14 @@ type OptionalPackage struct {
 	// Roughly what the download costs, since these are large enough that the
 	// number changes whether someone starts it.
 	Size string `json:"size"`
+	// Companion distributions an extra pulls in, which pip does not remove with
+	// the package that asked for them.
+	//
+	// `pip install psycopg[binary]` installs psycopg AND psycopg-binary, and
+	// `pip uninstall psycopg` removes only the first. Without this a Remove
+	// that reports success leaves most of the bytes on disk, which is the one
+	// thing the button exists to reclaim.
+	Also []string `json:"also,omitempty"`
 }
 
 // OptionalPackages are what Settings can add and remove.
@@ -307,6 +315,22 @@ var OptionalPackages = []OptionalPackage{
 		Name:    "torch",
 		Enables: "Temporal Transformer and Prithvi-EO 2.0",
 		Size:    "about 2-3 GB",
+	},
+	{
+		// [binary] and not bare psycopg: the pure-Python distribution builds
+		// against a system libpq, which a desktop user has no reason to have
+		// and no obvious way to get. The wheel carries its own.
+		//
+		// INSTALLING THIS DOES NOT MAKE THE PRODUCTS WORK, and the panel has to
+		// keep the two apart: this is the driver, and the record also needs a
+		// PostgreSQL with PostGIS and the ONS files loaded into it. The doctor
+		// answers the first; only opening the connection answers the second,
+		// which is what the grid store report beside this is for.
+		Spec:    "psycopg[binary]>=3.2",
+		Name:    "psycopg",
+		Enables: "the Brazilian electrical-system products",
+		Size:    "about 4 MB",
+		Also:    []string{"psycopg-binary"},
 	},
 }
 
@@ -349,9 +373,13 @@ func (b *EnvBuilder) RemoveOptional(
 	if !ok {
 		return fmt.Errorf("%q is not an optional package this application manages", name)
 	}
-	return b.runPip(ctx, python, sidecarDir, emit,
-		"removing "+pkg.Name,
-		"-m", "pip", "uninstall", "-y", pkg.Name)
+	// The companions go in the same command, so a removal is one pip run and
+	// cannot half-succeed. pip ignores a name it does not find, which is what
+	// makes this safe for an environment where only the pure-Python
+	// distribution was ever installed.
+	args := []string{"-m", "pip", "uninstall", "-y", pkg.Name}
+	args = append(args, pkg.Also...)
+	return b.runPip(ctx, python, sidecarDir, emit, "removing "+pkg.Name, args...)
 }
 
 func findOptional(name string) (OptionalPackage, bool) {

@@ -2251,3 +2251,251 @@ export interface FloodAnalysis {
   agreement_values_uri?: string
   agreement_values_png?: string
 }
+
+/* ---------------------------------------------------------------- grid store
+ *
+ * The Brazilian electrical system, mirrored from internal/analysis/types_grid.go.
+ *
+ * A SIBLING OF THE ENERGY TYPES, NOT AN EXTENSION. The energy interfaces above
+ * describe a site's resource; these describe the system the site would join.
+ * Neither carries the other, and nothing in this block belongs inside
+ * SolarAnalysis or FloodAnalysis.
+ */
+
+export interface GridDatasetCoverage {
+  dataset: string
+  periods: number
+  /** First and last period loaded, as YYYY-MM. */
+  from: string
+  to: string
+  rows: number
+  /** When this store last loaded a period, not when ONS published it. */
+  loaded_utc: string
+}
+
+export interface GridPlantCoverage {
+  registered: number
+  /**
+   * Plants carrying a usable coordinate. The gap is ANEEL writing an absent
+   * coordinate as 0.0, which is stored as no geometry rather than as a point
+   * in the Gulf of Guinea.
+   */
+  with_geometry: number
+}
+
+export interface GridNetworkCoverage {
+  substations: number
+  lines_in_service: number
+}
+
+export interface GridLoadConflicts {
+  total: number
+  identical: number
+  note?: string
+}
+
+export interface GridCoverage {
+  datasets: GridDatasetCoverage[]
+  plants: GridPlantCoverage
+  network: GridNetworkCoverage
+  load_conflicts: GridLoadConflicts
+}
+
+export interface GridStoreReport {
+  /** The connection as it will be used, with any password removed. */
+  dsn: string
+  /** What decided it: "TERRA_BR_DSN", "chosen" or "default". */
+  dsn_source: string
+  reachable: boolean
+  /**
+   * Why not, when it is not. A string rather than a thrown error, because the
+   * settings screen has to render the reason rather than flash it.
+   */
+  unreachable?: string
+  coverage?: GridCoverage
+}
+
+/**
+ * What was asked for, what the record covers, and what was read.
+ *
+ * All three, because they differ: the sidecar clamps a request to the record's
+ * own span, and a response carrying only the last would look like it honoured
+ * a window it had narrowed.
+ */
+export interface GridWindow {
+  requested: string[]
+  record: string[]
+  used: string[]
+}
+
+export interface GridCurtailmentSummary {
+  plants_in_aoi: number
+  window: string
+  expected_mwh: number
+  delivered_mwh: number
+  withheld_mwh: number
+  withheld_fraction: number
+  /**
+   * The total splits in two and both halves are carried, because they do not
+   * add up the naive way. withheld_mwh spans every half hour, so it holds the
+   * energy taken under restriction AND the operator's estimate error while
+   * free -- and the second is frequently negative.
+   */
+  withheld_under_restriction_mwh: number
+  estimate_gap_when_free_mwh: number
+  periods: number
+  periods_under_restriction: number
+  restricted_fraction: number
+  top_reason: string
+  top_origin: string
+  /** The floor below which withheld_fraction is model error, not curtailment. */
+  unrestricted_baseline_fraction: number
+  kind: string
+  basis: string
+  source: string
+}
+
+export interface GridReasonRow {
+  reason: string
+  origin: string
+  periods: number
+  withheld_mwh: number
+  share: number
+  meaning: string
+  /** "local" or "systemic" — whether moving the project could avoid it. */
+  scope: string
+}
+
+export interface GridReasonBreakdown {
+  by_reason: GridReasonRow[]
+  share_local: number
+  note: string
+}
+
+export interface GridHourRow {
+  hour: number
+  periods: number
+  restricted: number
+  expected_mwh: number
+  withheld_mwh: number
+  /** Null at an hour with no expected generation, which is not a zero. */
+  withheld_fraction: number | null
+  restricted_fraction: number | null
+}
+
+export interface GridMonthRow {
+  month: string
+  expected_mwh: number
+  withheld_mwh: number
+  restricted: number
+  periods: number
+  withheld_fraction: number | null
+}
+
+export interface GridPlantRow {
+  id_ons: string
+  plant: string
+  cluster: string
+  expected_mwh: number
+  withheld_mwh: number
+  restricted: number
+  periods: number
+  withheld_fraction: number | null
+  restricted_fraction: number | null
+  /**
+   * Where the plant stands, so the row can be drawn and not only listed.
+   *
+   * The spread inside one AOI is the reason this is here rather than a
+   * convenience: over the seventeen plants of one connection point the
+   * withheld fraction runs 0.238 to 0.322, and a table sorted by energy puts
+   * the highest and the lowest eleven rows apart. Null where the register
+   * carries no coordinate -- 432 of 25,130 enterprises -- which keeps the
+   * plant in the table and off the map.
+   */
+  lat: number | null
+  lon: number | null
+}
+
+export interface GridCurtailmentRequest {
+  polygon_geojson?: GeoJSONGeometry
+  start?: string
+  end?: string
+  utc_offset?: number
+  plant_limit?: number
+  br_store_dsn?: string
+  label?: string
+  run_label?: string
+  project_id?: string
+  area_id?: string
+}
+
+export interface GridCurtailmentAnalysis {
+  window: GridWindow
+  /**
+   * Null when the area holds no metered plant, with `note` saying so. Not a
+   * zero: zero would read as "nothing was curtailed here" where the truth is
+   * "nothing here is measured".
+   */
+  summary: GridCurtailmentSummary | null
+  by_reason?: GridReasonBreakdown
+  by_hour?: GridHourRow[]
+  by_month?: GridMonthRow[]
+  by_plant?: GridPlantRow[]
+  note?: string
+  run_id?: string
+}
+
+/**
+ * One panel's data, in the shape terra's own tables use.
+ *
+ * Columns and rows rather than a typed shape per panel: there are about forty
+ * panels across the series and each has its own columns. The reading draws
+ * from this and the research pack exports from the same object, so a figure
+ * read on screen can be cited from the CSV without being re-derived.
+ */
+export interface GridFigureTable {
+  columns: string[]
+  rows: (string | number | boolean | null)[][]
+}
+
+export interface GridFigureRequest {
+  figure: number
+  polygon_geojson?: GeoJSONGeometry
+  start?: string
+  end?: string
+  br_store_dsn?: string
+  label?: string
+  run_label?: string
+  project_id?: string
+  area_id?: string
+}
+
+/**
+ * One analysis of the published research series, as numbers rather than as a
+ * picture.
+ *
+ * The published figure is 183 mm at 7 pt, which lib/figure.ts measures at about
+ * 7.3 px in a 540 px panel — under the 9 px floor this interface holds in
+ * twenty-one places. So Python computes and the screen draws, which is also
+ * what makes the port checkable against the research's own CSVs.
+ */
+export interface GridFigureAnalysis {
+  number: number
+  title: string
+  /** "site" needs an area; "system" refuses one. */
+  scope: string
+  /**
+   * Figures whose reading this one corrects, delimits or demotes.
+   *
+   * Shown with the result because four of the twelve retire an earlier one: a
+   * reader seeing Fig. 10 without Fig. 12 is reading a result the series itself
+   * demoted to one robustness test in three.
+   */
+  supersedes: number[]
+  caveats: string[]
+  /** Keys differ per figure, which is why this is not a typed shape. */
+  headline: Record<string, unknown> | null
+  integrity: Record<string, unknown> | null
+  tables: Record<string, GridFigureTable>
+  run_id?: string
+}

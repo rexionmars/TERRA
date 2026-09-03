@@ -18,6 +18,14 @@ export function AnalyzeFlood(arg1) {
   return window['go']['main']['App']['AnalyzeFlood'](arg1);
 }
 
+export function AnalyzeGridCurtailment(arg1) {
+  return window['go']['main']['App']['AnalyzeGridCurtailment'](arg1);
+}
+
+export function AnalyzeGridFigure(arg1) {
+  return window['go']['main']['App']['AnalyzeGridFigure'](arg1);
+}
+
 export function AnalyzeLULC(arg1) {
   return window['go']['main']['App']['AnalyzeLULC'](arg1);
 }
@@ -150,8 +158,16 @@ export function GetStudio(arg1) {
   return window['go']['main']['App']['GetStudio'](arg1);
 }
 
+export function GridPlants(arg1, arg2) {
+  return window['go']['main']['App']['GridPlants'](arg1, arg2);
+}
+
 export function InspectEnvironment() {
   return window['go']['main']['App']['InspectEnvironment']();
+}
+
+export function InspectGridStore() {
+  return window['go']['main']['App']['InspectGridStore']();
 }
 
 export function InspectPython(arg1) {
@@ -264,6 +280,10 @@ export function SaveStudio(arg1) {
 
 export function SetAvatar(arg1) {
   return window['go']['main']['App']['SetAvatar'](arg1);
+}
+
+export function SetGridStore(arg1) {
+  return window['go']['main']['App']['SetGridStore'](arg1);
 }
 
 export function SetProjectLastArea(arg1, arg2) {

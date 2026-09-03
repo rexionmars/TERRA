@@ -92,6 +92,14 @@ NEEDS = [
     Need("pyhelios", "pyhelios3d", "growing a 3D crop", optional=True,
          floor=(0, 1, 27),
          why="plantarchitecture growth and the organ labels the bridge reads"),
+    # The grid slice reads a local PostgreSQL with PostGIS and has no
+    # file-reading fallback by design, so that answering a plant-and-window
+    # question has exactly one implementation. Optional because nothing else in
+    # the sidecar touches it: an install that never asks about the Brazilian
+    # record is complete without it, and one that does needs the database as
+    # well as the driver -- which this cannot see and does not claim to.
+    Need("psycopg", "psycopg", "the Brazilian grid record", optional=True,
+         why="terra/grid/store.py connects to a local PostGIS"),
 ]
 
 # The interpreter the trained artifacts and the wheels were built against.
