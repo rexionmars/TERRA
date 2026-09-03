@@ -58,6 +58,7 @@ const GO_FILES = [
   "types_wind.go",
   "types_canopy.go",
   "types_flood.go",
+  "types_grid.go",
 ]
 const TS = join(here, "..", "src", "lib", "types.ts")
 

@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, GitDiff, Table, Tree, Waves } from "@phosphor-icons/react"
+import { Cube, Database, GitDiff, Table, Tree, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import type { EditorId } from "@/lib/studioEditors"
@@ -240,6 +240,57 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         leaf("a-canopy-run", "canopyParams")
+      ),
+  },
+  {
+    id: "grid",
+    icon: Database,
+    label: "System",
+    hint: "The operational record, and what the grid did to the plants on it",
+    /*
+      NO VIEWPORT, and here it is not a preference. The other presets spend
+      their width on one because their products draw a raster; nothing in this
+      family does -- there is no overlay, no extent, no plane to select. An
+      editor that has nothing to show should not open holding half the screen.
+
+      The globe takes its place because "where on the ground" is a real
+      question here and has a real answer: the plants carry coordinates, which
+      is the whole reason the store keeps geometry at all.
+
+      THE RUN GRAPH IS ON SCREEN BESIDE THE READING, which no other preset
+      does, and it is the reason this one exists. The record is revised in
+      batches, so "which revision is this figure about" is asked OF a result --
+      and the store card is where it is answered. Layout puts the graph in a
+      foot at 0.86, which at the 1000x700 minimum is about 98 px against
+      runParams' own 24 rem floor.
+
+      Fractions against that minimum: the left column is 460 px, clearing the
+      globe's 16 rem and runParams' 24; the right is 540, clearing
+      gridCurtailment's 28 rem and gridRecord's 26. The left split at 0.58
+      gives the globe about 341 px and the graph 247, which is where a
+      three-column graph stops needing to be panned to be read.
+
+      The right column is split at 0.66 rather than evenly: a series figure is
+      four panels and what retires it, and the record is a connection line and
+      a short table. Splitting them in half would give the shorter one room it
+      does not use and take it from the one whose whole content is a shape.
+    */
+    build: () =>
+      row(
+        "w-grid-split",
+        0.46,
+        col(
+          "w-grid-left",
+          0.58,
+          leaf("a-globe", "globe"),
+          leaf("a-grid-run", "runParams")
+        ),
+        col(
+          "w-grid-right",
+          0.66,
+          leaf("a-grid-figure", "gridFigure"),
+          leaf("a-grid-record", "gridRecord")
+        )
       ),
   },
 ]
