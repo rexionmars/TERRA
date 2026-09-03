@@ -248,6 +248,30 @@ func (a *App) GridPlants(bbox []float64, kinds []string) (*analysis.GridPlantsLa
 }
 
 /*
+GridNetwork reads the transmission network for the map.
+
+Sibling of GridPlants and separate for the same reason it is in the runner: the
+plant register is about 7 MB and this is about 1, and a surface that wants the
+network should not wait for the register to arrive.
+
+`minKV` drops the lower circuits, which is what makes the layer legible at
+national zoom: 1,062 of the 1,830 in service are 230 kV, and drawing all of them
+over Brazil is a mesh rather than a map.
+*/
+func (a *App) GridNetwork(bbox []float64, minKV float64) (*analysis.GridNetworkLayer, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	data := a.dataDir()
+	if data == "" {
+		return nil, fmt.Errorf("the local store is not open")
+	}
+	cfg := pyenv.LoadAppConfig(data)
+	return runner.GridNetwork(a.ctx, gridDSN(cfg), bbox, minKV)
+}
+
+/*
 SetGridStore records which database the electrical-system products read.
 
 REFUSES A CONNECTION IT CANNOT REACH, the way UseInterpreter refuses to record

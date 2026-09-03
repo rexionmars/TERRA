@@ -335,6 +335,48 @@ def grid_plants(req: Request, work_dir: Path) -> None:
     }, default=str, allow_nan=False))
 
 
+
+def grid_network(req: Request, work_dir: Path) -> None:
+    """
+    The transmission network as a layer, sibling of grid_plants.
+
+    SEPARATE FROM THE REGISTER AND NOT FOLDED INTO IT, because the two cost
+    very differently and are wanted at different moments. The register is 7 MB
+    and answers "what can be asked about"; the network is 1 MB and answers "what
+    could this ground reach". A caller looking at one does not always want the
+    other, and one action returning both would make the cheap layer wait for the
+    expensive one.
+
+    LIKE grid_plants, IT TAKES NO WINDOW. A register is not a reading. What it
+    says is where the network is, not what happened on it, and an AOI only
+    narrows the extent rather than turning it into a question about that place.
+    """
+    from terra.grid import store
+
+    bbox = req.get('bbox')
+    if bbox is None and req.get('polygon_geojson'):
+        pad = float(req.get('pad_degrees') or 1.0)
+        xs, ys = [], []
+        for ring in req['polygon_geojson'].get('coordinates') or []:
+            for pt in ring:
+                xs.append(float(pt[0]))
+                ys.append(float(pt[1]))
+        if xs:
+            bbox = [min(xs) - pad, min(ys) - pad,
+                    max(xs) + pad, max(ys) + pad]
+
+    protocol.emit_progress(20, 'opening the grid store')
+    with store.connect(req) as conn:
+        protocol.emit_progress(50, 'reading the network register')
+        layer = store.network_geojson(
+            conn, bbox=bbox,
+            min_kv=float(req.get('min_kv') or 0.0))
+
+    protocol.emit_progress(100, 'done')
+    sys.stdout.write(json.dumps({'grid_network': layer},
+                                default=str, allow_nan=False))
+
+
 def grid_coverage(req: Request, work_dir: Path) -> None:
     """
     What the store holds, and which revision of it.

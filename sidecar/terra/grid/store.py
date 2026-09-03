@@ -1048,6 +1048,132 @@ def register_geojson(conn, bbox=None, kinds=None, limit: int = 40000) -> dict:
     }
 
 
+
+def network_geojson(conn, bbox=None, min_kv: float = 0.0) -> dict:
+    """
+    The transmission network as two layers, so a site's distance to it is
+    visible before it is measured.
+
+    TWO COLLECTIONS AND NOT ONE. A line is drawn as a line and a bus as a point,
+    and MapLibre needs them apart; merging them would make the caller split
+    them again by geometry type, which is a decision this already made.
+
+    THE GEOMETRY IS THE SEGMENT BETWEEN TERMINALS, NOT THE ROUTE, and that has
+    to travel with the layer rather than sit in documentation. ONS publishes a
+    line's two ends and its length and never its path, so a line drawn from
+    this is in the right place and on the wrong course. Measured against the
+    published lengths, the real conductor runs 7.7 percent longer than its
+    segment at the median and 40.8 percent at the ninetieth percentile.
+
+    IT IS TRANSMISSION AND NOT DISTRIBUTION. The lines in service run 230 kV and
+    above; the substations reach down to 69 kV because a 500/230/138 station has
+    all three buses, but the circuits joining anything below 230 are not in this
+    register. A site that cannot reach 230 kV is not thereby unconnectable --
+    it is unanswerable from here.
+
+    capacity_mva is null on 41 percent of lines in service. Null is a rating
+    the register does not publish, never a line of no capacity, and no
+    published value is zero.
+    """
+    lines_where = ['l.geom IS NOT NULL']
+    subs_where = ['s.geom IS NOT NULL']
+    lp: list = []
+    sp: list = []
+    if bbox:
+        lines_where.append('l.geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326)')
+        lp.extend(float(v) for v in bbox)
+        subs_where.append('s.geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326)')
+        sp.extend(float(v) for v in bbox)
+    if min_kv:
+        lines_where.append('l.voltage_kv >= %s')
+        lp.append(float(min_kv))
+        subs_where.append('s.voltage_kv >= %s')
+        sp.append(float(min_kv))
+
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            SELECT l.line_id, l.name, l.voltage_kv, l.capacity_mva,
+                   l.in_service, l.published_length_km, l.straight_length_km,
+                   ST_AsGeoJSON(l.geom) AS g
+            FROM br.transmission_line l
+            WHERE {' AND '.join(lines_where)}
+            ORDER BY l.voltage_kv DESC NULLS LAST
+        """, lp)
+        cols = [d.name for d in cur.description]
+        line_rows = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+        cur.execute(f"""
+            SELECT s.bus, s.name, s.voltage_kv, s.uf, s.subsystem, s.operator,
+                   ST_X(s.geom) AS lon, ST_Y(s.geom) AS lat
+            FROM br.substation s
+            WHERE {' AND '.join(subs_where)}
+            ORDER BY s.voltage_kv DESC NULLS LAST
+        """, sp)
+        cols = [d.name for d in cur.description]
+        sub_rows = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+    import json as _json
+
+    lines = {
+        'type': 'FeatureCollection',
+        'features': [{
+            'type': 'Feature',
+            'geometry': _json.loads(r['g']),
+            'properties': {
+                'id': r['line_id'],
+                'name': (r['name'] or '').strip(),
+                'kv': r['voltage_kv'],
+                'mva': r['capacity_mva'],
+                'in_service': bool(r['in_service']),
+                # Both lengths, because their ratio is the route factor for
+                # THIS line and a reader measuring a distance to it needs the
+                # one that applies rather than the fleet median.
+                'published_km': r['published_length_km'],
+                'straight_km': (None if r['straight_length_km'] is None
+                                else round(r['straight_length_km'], 1)),
+            },
+        } for r in line_rows],
+    }
+    substations = {
+        'type': 'FeatureCollection',
+        'features': [{
+            'type': 'Feature',
+            'geometry': {'type': 'Point',
+                         'coordinates': [round(r['lon'], 5),
+                                         round(r['lat'], 5)]},
+            'properties': {
+                'bus': r['bus'],
+                'name': (r['name'] or '').strip(),
+                'kv': r['voltage_kv'],
+                'uf': r['uf'],
+                'subsystem': r['subsystem'],
+                'operator': (r['operator'] or '').strip() or None,
+            },
+        } for r in sub_rows],
+    }
+    rated = sum(1 for r in line_rows
+                if r['in_service'] and r['capacity_mva'] is not None)
+    in_service = sum(1 for r in line_rows if r['in_service'])
+    return {
+        'lines': lines,
+        'substations': substations,
+        'counts': {
+            'lines': len(line_rows),
+            'lines_in_service': in_service,
+            'lines_with_rating': rated,
+            'substations': len(sub_rows),
+        },
+        'route_factor': {'median': 1.077, 'p90': 1.408},
+        'note': (
+            'Lines are drawn as the straight segment between their terminals, '
+            'which is all the register publishes. The conductor runs about 8 '
+            'percent longer at the median and 41 percent at the ninetieth '
+            'percentile. Transmission only: circuits below 230 kV are not in '
+            'this register.'
+        ),
+    }
+
+
 def series(conn, dataset: str, start: str, end: str, ceg_core=None,
            id_ons=None, aoi=None, columns=None):
     """

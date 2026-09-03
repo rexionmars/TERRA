@@ -2387,6 +2387,80 @@ func (r *Runner) GridPlants(ctx context.Context, dsn string, bbox []float64, kin
 	return wrapped.Plants, nil
 }
 
+// GridNetworkLayer is the transmission network drawn on the map, so a site's
+// distance to it is visible before it is measured.
+//
+// GeoJSON passes through unparsed for the reason GridPlantsLayer's does: the
+// payload is built by the sidecar and consumed by MapLibre, and a struct in
+// between would be a third spelling of a schema neither end reads from it.
+type GridNetworkLayer struct {
+	Lines       json.RawMessage   `json:"lines"`
+	Substations json.RawMessage   `json:"substations"`
+	Counts      GridNetworkCounts `json:"counts"`
+	RouteFactor GridRouteFactor   `json:"route_factor"`
+	Note        string            `json:"note"`
+}
+
+// GridNetworkCounts is what the layer holds.
+//
+// LinesWithRating against LinesInService is the one a reader needs: the
+// register publishes an operating capacity for 1,082 of the 1,830 circuits in
+// service, so a nearby line with no rating is a line whose usefulness the
+// register does not state.
+type GridNetworkCounts struct {
+	Lines           int `json:"lines"`
+	LinesInService  int `json:"lines_in_service"`
+	LinesWithRating int `json:"lines_with_rating"`
+	Substations     int `json:"substations"`
+}
+
+// GridRouteFactor is how much longer the conductor runs than the segment drawn.
+//
+// CARRIED WITH THE LAYER AND NOT LEFT IN DOCUMENTATION. ONS publishes a line's
+// two terminals and its length, never its path, so every line on this map is in
+// the right place and on the wrong course. A distance measured against the
+// drawn segment is short by this much.
+type GridRouteFactor struct {
+	Median float64 `json:"median"`
+	P90    float64 `json:"p90"`
+}
+
+// GridNetwork reads the transmission network for the map.
+//
+// A sibling of GridPlants and separate from it on purpose: the register is
+// about 7 MB and this is about 1, and a caller wanting one does not always want
+// the other.
+func (r *Runner) GridNetwork(ctx context.Context, dsn string, bbox []float64, minKV float64) (*GridNetworkLayer, error) {
+	payload := map[string]any{"action": "grid_network"}
+	if dsn != "" {
+		payload["br_store_dsn"] = dsn
+	}
+	if len(bbox) == 4 {
+		payload["bbox"] = bbox
+	}
+	if minKV > 0 {
+		payload["min_kv"] = minKV
+	}
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Network *GridNetworkLayer `json:"grid_network"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("could not read the network's answer: %w", err)
+	}
+	if wrapped.Network == nil {
+		return nil, fmt.Errorf("the store answered with an empty network payload")
+	}
+	return wrapped.Network, nil
+}
+
 // RedactDSN removes a password from a connection string so it can be shown.
 //
 // The environment surface renders the resolved DSN beside the interpreter path,

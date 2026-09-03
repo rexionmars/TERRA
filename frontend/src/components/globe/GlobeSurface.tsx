@@ -24,7 +24,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { usePlantLayers } from "@/lib/plantRegister"
+import { usePlantLayers, useNetwork } from "@/lib/plantRegister"
 import {
   Broadcast,
   Globe,
@@ -190,6 +190,24 @@ const START_CENTER: [number, number] = [-51.4, -23.4]
   them alike would invite an area over the other 97 percent. The metered ones
   are drawn to be aimed at; the rest are drawn to be recognised as context.
 */
+/*
+  The transmission network, under the register that is asked about it.
+
+  DRAWN AS THE SEGMENT BETWEEN TERMINALS, WHICH IS ALL THERE IS. ONS publishes
+  a circuit's two ends and its length and never its path, so every line here is
+  in the right place and on the wrong course -- about 8 percent short at the
+  median and 41 at the ninetieth percentile. The layer says so where it is
+  switched on, because a map invites measuring with the eye.
+
+  Transmission only: the circuits in service run 230 kV and above. The
+  substations reach 69 kV because a 500/230/138 station has all three buses,
+  but nothing joins them below 230 in this register.
+*/
+const NETWORK_SOURCE = "terra-network"
+const NETWORK_LINES = "terra-network-lines"
+const BUS_SOURCE = "terra-buses"
+const BUS_POINTS = "terra-network-buses"
+
 const PLANT_SOURCE = "terra-plants"
 const PLANT_OTHER = "terra-plants-other"
 const PLANT_METERED = "terra-plants-metered"
@@ -385,6 +403,9 @@ export function GlobeSurface({
   // the Layers card writes to, because the card is in the run band and this is
   // on the globe, and neither tree contains the other.
   const plantLayers = usePlantLayers()
+  // Fetched only once a layer that needs it is on: about a megabyte, and most
+  // sessions never turn it on.
+  const network = useNetwork(plantLayers.network || plantLayers.buses)
   /*
     The plant last pressed, held here rather than lifted.
 
@@ -802,6 +823,14 @@ export function GlobeSurface({
               type: "geojson",
               data: { type: "FeatureCollection", features: [] },
             },
+            [NETWORK_SOURCE]: {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+            },
+            [BUS_SOURCE]: {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+            },
           },
           layers: [
             /*
@@ -893,6 +922,59 @@ export function GlobeSurface({
               array is registered in 40 MW pieces -- the one that can be
               answered about is the one that has to remain visible.
             */
+            /*
+              Below the plants, because the plants are what is asked about and
+              the network is the context they sit in. A circuit drawn over a
+              mark would hide the mark at exactly the zoom where a reader is
+              choosing between two of them.
+            */
+            {
+              id: NETWORK_LINES,
+              type: "line",
+              source: NETWORK_SOURCE,
+              paint: {
+                // Width by voltage rather than one width for all: 1,062 of the
+                // 1,830 circuits in service are 230 kV, and drawn alike they
+                // read as a uniform mesh where the 500 kV spine is the thing a
+                // site is actually trying to reach.
+                "line-width": [
+                  "interpolate", ["linear"], ["zoom"],
+                  4, ["interpolate", ["linear"], ["get", "kv"], 230, 0.4, 800, 1.4],
+                  10, ["interpolate", ["linear"], ["get", "kv"], 230, 1.1, 800, 3],
+                ],
+                "line-color": [
+                  "interpolate", ["linear"], ["get", "kv"],
+                  230, "#6E7B8B",
+                  500, "#8FA3B8",
+                  800, "#C6D4E1",
+                ],
+                // Out of service dimmed rather than dropped: it is a corridor
+                // that exists, and its absence from the map would read as
+                // ground with no line near it.
+                "line-opacity": ["case", ["get", "in_service"], 0.75, 0.28],
+              },
+            },
+            {
+              id: BUS_POINTS,
+              type: "circle",
+              source: BUS_SOURCE,
+              paint: {
+                "circle-radius": [
+                  "interpolate", ["linear"], ["zoom"],
+                  4, ["interpolate", ["linear"], ["get", "kv"], 69, 0.8, 800, 2.4],
+                  10, ["interpolate", ["linear"], ["get", "kv"], 69, 2, 800, 5],
+                ],
+                "circle-color": "#0F1620",
+                "circle-stroke-width": 1,
+                "circle-stroke-color": [
+                  "interpolate", ["linear"], ["get", "kv"],
+                  69, "#6E7B8B",
+                  500, "#9FB3C8",
+                  800, "#D8E3EE",
+                ],
+                "circle-opacity": 0.85,
+              },
+            },
             {
               id: PLANT_OTHER,
               type: "circle",
@@ -1183,6 +1265,8 @@ export function GlobeSurface({
     for (const [id, on] of [
       [PLANT_METERED, plantLayers.metered],
       [PLANT_OTHER, plantLayers.registered],
+      [NETWORK_LINES, plantLayers.network],
+      [BUS_POINTS, plantLayers.buses],
     ] as const) {
       if (map.getLayer(id)) {
         map.setLayoutProperty(id, "visibility", on ? "visible" : "none")
@@ -1201,6 +1285,18 @@ export function GlobeSurface({
       plants ?? { type: "FeatureCollection", features: [] }
     )
   }, [plants, ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const empty = { type: "FeatureCollection" as const, features: [] }
+    void map
+      .getSource<GeoJSONSource>(NETWORK_SOURCE)
+      ?.setData(network?.lines ?? empty)
+    void map
+      .getSource<GeoJSONSource>(BUS_SOURCE)
+      ?.setData(network?.substations ?? empty)
+  }, [network, ready])
 
   useEffect(() => {
     const map = mapRef.current

@@ -23,7 +23,7 @@
  */
 import { useEffect, useState } from "react"
 
-import { GridPlants } from "../../wailsjs/go/main/App"
+import { GridNetwork, GridPlants } from "../../wailsjs/go/main/App"
 
 export interface PlantRegister {
   geojson: GeoJSON.FeatureCollection
@@ -114,11 +114,15 @@ export function usePlantRegister(): PlantRegister | null {
   the second value with the same lifetime -- one per session, read by two
   unrelated subtrees -- so it lives beside it.
 */
-export type PlantLayerId = "metered" | "registered"
+export type PlantLayerId = "metered" | "registered" | "network" | "buses"
 
 export interface PlantLayerState {
   metered: boolean
   registered: boolean
+  /** The transmission circuits. */
+  network: boolean
+  /** The substations they meet at. */
+  buses: boolean
 }
 
 /*
@@ -129,7 +133,21 @@ export interface PlantLayerState {
   nothing here can be asked about and 558 that can. The layer that answers is
   the one that is up; the other is available and is a deliberate choice.
 */
-let layerState: PlantLayerState = { metered: true, registered: false }
+/*
+  The register's metered half on; everything else off.
+
+  Not a neutral default in either case. 558 of the 18,639 located photovoltaic
+  enterprises are in the operational record, so opening on all of them would be
+  opening on noise. And 1,062 of the 1,830 circuits in service are 230 kV --
+  drawn over Brazil at once they are a mesh rather than a map, so the network is
+  asked for rather than assumed.
+*/
+let layerState: PlantLayerState = {
+  metered: true,
+  registered: false,
+  network: false,
+  buses: false,
+}
 const layerListeners = new Set<(s: PlantLayerState) => void>()
 
 export function setPlantLayer(id: PlantLayerId, on: boolean): void {
@@ -150,4 +168,77 @@ export function usePlantLayers(): PlantLayerState {
     }
   }, [])
   return state
+}
+
+
+/**
+ * The transmission network, fetched once and held.
+ *
+ * Separate from the register and fetched separately, because the two cost very
+ * differently: the register is about 7 MB and this about 1, and a reader who
+ * turns the network on should not wait for the other.
+ *
+ * LAZY, UNLIKE THE REGISTER. The register is drawn by default because an area
+ * drawn without it is a guess; the network is off by default, so fetching it at
+ * startup would spend a second on a layer most sessions never turn on.
+ */
+export interface NetworkLayer {
+  lines: GeoJSON.FeatureCollection
+  substations: GeoJSON.FeatureCollection
+  counts: {
+    lines: number
+    lines_in_service: number
+    lines_with_rating: number
+    substations: number
+  }
+  route_factor: { median: number; p90: number }
+  note: string
+}
+
+let networkPending: Promise<NetworkLayer | null> | null = null
+
+export function loadNetwork(): Promise<NetworkLayer | null> {
+  if (networkPending) return networkPending
+  networkPending = GridNetwork([], 0)
+    .then((layer) => {
+      // json.RawMessage in Go is []byte, so the generator types these as
+      // number[]; at runtime they are the GeoJSON objects themselves. Same
+      // deliberate cast as the register's, and for the same reason.
+      const parse = (v: unknown) =>
+        (typeof v === "string" ? JSON.parse(v) : v) as GeoJSON.FeatureCollection
+      return {
+        lines: parse(layer.lines),
+        substations: parse(layer.substations),
+        counts: layer.counts,
+        route_factor: layer.route_factor,
+        note: layer.note,
+      } as NetworkLayer
+    })
+    .catch((e) => {
+      networkPending = null
+      console.warn("[network] the register could not be read:", e)
+      return null
+    })
+  return networkPending
+}
+
+/**
+ * The network, fetched the first time a layer that needs it is switched on.
+ *
+ * `wanted` rather than an unconditional fetch: the hook is mounted wherever the
+ * layer might be drawn, and mounting is not asking.
+ */
+export function useNetwork(wanted: boolean): NetworkLayer | null {
+  const [layer, setLayer] = useState<NetworkLayer | null>(null)
+  useEffect(() => {
+    if (!wanted) return
+    let live = true
+    void loadNetwork().then((n) => {
+      if (live) setLayer(n)
+    })
+    return () => {
+      live = false
+    }
+  }, [wanted])
+  return layer
 }

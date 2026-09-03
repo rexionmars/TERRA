@@ -71,6 +71,7 @@ import { SERIES_FIGURES } from "@/lib/gridFigures"
 import { type GridProductId } from "@/lib/gridOptions"
 import {
   setPlantLayer,
+  useNetwork,
   usePlantLayers,
   usePlantRegister,
 } from "@/lib/plantRegister"
@@ -717,6 +718,10 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   // subtrees. See lib/plantRegister.ts.
   const plantRegister = usePlantRegister()
   const plantLayers = usePlantLayers()
+  // Same lazy fetch the globe does, so the counts beside the network switches
+  // arrive with the layer rather than before anyone asked for it. Both share
+  // one module promise, so this is not a second request.
+  const network = useNetwork(plantLayers.network || plantLayers.buses)
 
   const graph = runGraph(
     props.tool,
@@ -804,6 +809,31 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
             <p className="mt-0.5 text-micro leading-relaxed text-muted-foreground">
               Only the first can be read about. A point is one enterprise as
               ANEEL registers it, not a footprint.
+            </p>
+            <div className="mt-1 border-t border-border/40 pt-1.5" />
+            <LayerSwitch
+              label="Transmission lines"
+              count={network?.counts.lines_in_service ?? 1830}
+              on={plantLayers.network}
+              onToggle={(v) => setPlantLayer("network", v)}
+            />
+            <LayerSwitch
+              label="Substations"
+              count={network?.counts.substations ?? 1677}
+              on={plantLayers.buses}
+              onToggle={(v) => setPlantLayer("buses", v)}
+            />
+            {/*
+              Said where the layer is switched on, because a map invites
+              measuring with the eye and this one cannot be measured that way.
+              ONS publishes a circuit's terminals and its length, never its
+              path, so the drawn segment is short of the conductor by about 8
+              percent at the median and 41 at the ninetieth percentile.
+            */}
+            <p className="mt-0.5 text-micro leading-relaxed text-muted-foreground">
+              Drawn terminal to terminal, not along the route: the conductor
+              runs ~8% longer at the median, 41% at p90. Transmission only —
+              nothing below 230 kV is in the register.
             </p>
           </>
         )}
