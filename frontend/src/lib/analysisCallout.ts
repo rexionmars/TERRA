@@ -24,7 +24,10 @@
  * map than in a table, because a map invites being read at a glance.
  */
 import type { LayerLegend } from "@/lib/layerLegend"
-import type { GridCurtailmentAnalysis } from "@/lib/types"
+import type {
+  GridCongestionAnalysis,
+  GridCurtailmentAnalysis,
+} from "@/lib/types"
 
 /** One reading that can be listed, and put on the map. */
 export interface AnalysisEntry {
@@ -119,11 +122,139 @@ export function curtailmentEntry(
   }
 }
 
+
+/**
+ * The connection reading as an entry, or null where there is nothing to show.
+ *
+ * ATTACHMENT AND PROXIMITY ARE DIFFERENT SUBJECTS, so the entry says which one
+ * it is carrying rather than presenting both under one heading. Where a plant
+ * of this ground is joined, the bus is published and the figures are about it;
+ * where none is, what remains is a distance to a register, and a callout that
+ * blurred the two would put the weaker claim on a map under the stronger one's
+ * name.
+ *
+ * THE OCCUPANCY CAVEAT TRAVELS. Line capacity against attached megawatts looks
+ * like headroom and is not: across the 29 points where both are known its
+ * correlation with the curtailment actually suffered is -0.025. On a map, two
+ * numbers side by side are read as a ratio unless something says otherwise.
+ */
+export function congestionEntry(
+  result: GridCongestionAnalysis | null | undefined
+): AnalysisEntry | null {
+  if (!result) return null
+  const c = result.connection
+  const joined = c.attachment ?? []
+  const km = (v: number | null | undefined) =>
+    v === null || v === undefined ? "—" : `${v.toFixed(1)} km`
+
+  if (joined.length === 0) {
+    const s = c.nearest_substation
+    const l = c.nearest_line
+    if (!c.reachable) {
+      return {
+        id: "grid:connection",
+        title: "Connection",
+        params: `nothing within ${c.searched_km.toFixed(0)} km`,
+        legend: { kind: "note", subject: "Connection", note: c.note },
+      }
+    }
+    return {
+      id: "grid:connection",
+      title: "Connection",
+      params: `no attachment · nearest ${km(s?.distance_km ?? l?.distance_km)}`,
+      legend: {
+        kind: "stats",
+        subject: "Connection · proximity only",
+        rows: [
+          ...(s
+            ? [
+                { label: "Nearest bus", value: km(s.distance_km) },
+                { label: "At", value: `${s.name} · ${s.voltage_kv ?? "?"} kV` },
+              ]
+            : []),
+          ...(l
+            ? [
+                { label: "Nearest line", value: km(l.distance_km) },
+                {
+                  label: "Rating",
+                  value:
+                    l.capacity_mva == null
+                      ? "not published"
+                      : `${l.capacity_mva} MVA`,
+                },
+              ]
+            : []),
+        ],
+        note:
+          "No plant of the record stands here, so there is no published " +
+          "attachment and this is a distance rather than a connection. " +
+          "Line distances are to the straight segment between terminals; the " +
+          `conductor runs about ${Math.round((c.route_factor.median - 1) * 100)}% longer at the median.`,
+      },
+    }
+  }
+
+  const a = joined[0]
+  const h = c.attached_bus_headroom?.[0]
+  return {
+    id: "grid:connection",
+    title: "Connection",
+    params: `${a.point_code} · ${a.substation ?? "—"} ${a.voltage_kv ?? "?"} kV`,
+    legend: {
+      kind: "stats",
+      subject: "Connection · attached",
+      rows: [
+        { label: "Point", value: a.point_code },
+        {
+          label: "Bus",
+          value: `${a.substation ?? "—"} · ${a.voltage_kv ?? "?"} kV`,
+        },
+        {
+          label: "This entity",
+          value:
+            a.capacity_mw == null
+              ? "—"
+              : `${Math.round(a.capacity_mw).toLocaleString()} MW`,
+        },
+        ...(h
+          ? [
+              {
+                label: "Attached to the bus",
+                value:
+                  h.attached_mw == null
+                    ? "—"
+                    : `${Math.round(h.attached_mw).toLocaleString()} MW`,
+              },
+              {
+                label: `Line capacity · ${h.lines_in_service} circuits`,
+                value:
+                  h.line_capacity_mva == null
+                    ? "not published"
+                    : `${Math.round(h.line_capacity_mva).toLocaleString()} MVA`,
+              },
+            ]
+          : []),
+      ],
+      note: a.voltage_confirmed
+        ? "Published by the operator, not inferred from distance: a station's " +
+          "voltages share one coordinate, so the nearest bus can be the wrong " +
+          "level of the right station. Capacity and attachment are not a " +
+          "headroom ratio — their correlation with the curtailment actually " +
+          "suffered is -0.025."
+        : "The bus was matched by position alone; its voltage is not confirmed " +
+          "by the connection code, so this may be the wrong level of the " +
+          "right station.",
+    },
+  }
+}
+
 /** Every reading held for one area, in the order the tree lists them. */
 export function analysisEntries(sources: {
   curtailment?: GridCurtailmentAnalysis | null
+  congestion?: GridCongestionAnalysis | null
 }): AnalysisEntry[] {
-  return [curtailmentEntry(sources.curtailment)].filter(
-    (e): e is AnalysisEntry => e !== null
-  )
+  return [
+    curtailmentEntry(sources.curtailment),
+    congestionEntry(sources.congestion),
+  ].filter((e): e is AnalysisEntry => e !== null)
 }
