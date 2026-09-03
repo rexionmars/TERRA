@@ -30,6 +30,15 @@ type AppConfig struct {
 	// Set when the interpreter above is an environment this application
 	// created, so it knows which one it may rebuild without asking.
 	Managed bool `json:"managed,omitempty"`
+	// Connection to the local PostGIS the grid analyses read, in libpq form.
+	// Empty means the sidecar's own default, which is a peer-authenticated
+	// `terra_br` on this machine.
+	//
+	// Here for the same reason PythonPath is: which database holds the
+	// operational record is a property of THIS INSTALLATION, not of the person
+	// signed in, and TERRA_BR_DSN does not reach an application opened from
+	// Finder. The variable still wins when it is set.
+	GridDSN string `json:"grid_dsn,omitempty"`
 }
 
 // ConfigPath is the settings file for this installation.

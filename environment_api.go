@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -76,6 +77,49 @@ type EnvironmentState struct {
 	// The settings file itself, so the screen can point at what to delete when
 	// a saved choice needs undoing outside the application.
 	ConfigPath string `json:"config_path"`
+	// The local PostGIS the electrical-system products read, inspected the way
+	// the interpreter above is. Nil when there is no runner to ask with.
+	//
+	// Inspected here rather than left to the products because the two failures
+	// a user meets are different questions: whether psycopg imports is what the
+	// doctor answers, and whether there is a prepared database behind it is
+	// what only opening the connection can. A screen that reported the first as
+	// readiness would send someone to draw an area and wait for a run to die.
+	GridStore *analysis.GridStoreReport `json:"grid_store"`
+}
+
+/*
+gridDSN is the connection the sidecar should be told to use, or empty to let it
+resolve its own.
+
+THE VARIABLE HAS TO BE ABLE TO WIN, and only Go can arrange that. store.connect
+reads the request key BEFORE the environment:
+
+	dsn = (req or {}).get('br_store_dsn') or os.environ.get('TERRA_BR_DSN')
+
+so a Go side that always sends the configured value makes TERRA_BR_DSN dead --
+inverting the discipline appconfig.go states for the interpreter, where the
+variable still wins when it is set. Returning empty here is how the sidecar is
+allowed to read the variable it inherits.
+*/
+func gridDSN(cfg pyenv.AppConfig) string {
+	if os.Getenv("TERRA_BR_DSN") != "" {
+		return ""
+	}
+	return cfg.GridDSN
+}
+
+// gridDSNSource names what decided the connection, for the same reason
+// EnvOverride names TERRA_PYTHON: a saved choice being overruled has to say so
+// rather than appear to apply.
+func gridDSNSource(cfg pyenv.AppConfig) string {
+	if os.Getenv("TERRA_BR_DSN") != "" {
+		return "TERRA_BR_DSN"
+	}
+	if cfg.GridDSN != "" {
+		return "chosen"
+	}
+	return "default"
 }
 
 func (a *App) sidecarDir() string {
@@ -131,7 +175,112 @@ func (a *App) InspectEnvironment() (*EnvironmentState, error) {
 		appDir = filepath.Dir(sidecar)
 	}
 	state.Candidates = pyenv.DiscoverPythons(appDir, managed, "")
+	if runner != nil {
+		state.GridStore = a.inspectGridStore(runner, cfg)
+	}
 	return state, nil
+}
+
+// inspectGridStore asks the store what it holds and labels the answer with what
+// decided the connection. Shared by the environment screen and by the bound
+// method the run graph's store node refreshes with, so the two cannot report
+// different things about one database.
+func (a *App) inspectGridStore(runner *analysis.Runner, cfg pyenv.AppConfig) *analysis.GridStoreReport {
+	report := runner.InspectGridStore(a.ctx, gridDSN(cfg))
+	report.DSNSource = gridDSNSource(cfg)
+	if report.DSN == "" {
+		// What the sidecar will resolve to on its own, so the screen shows the
+		// connection that will actually be made rather than a blank.
+		if v := os.Getenv("TERRA_BR_DSN"); v != "" {
+			report.DSN = analysis.RedactDSN(v)
+		} else {
+			report.DSN = "postgresql:///terra_br"
+		}
+	}
+	return report
+}
+
+// InspectGridStore refreshes just the store, without re-inspecting Python.
+//
+// Separate from InspectEnvironment because the two cost very different things:
+// inspecting an interpreter imports rasterio and torch and takes seconds, and
+// the run graph's store node needs to be able to say "still there" without
+// paying for that.
+func (a *App) InspectGridStore() (*analysis.GridStoreReport, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	data := a.dataDir()
+	if data == "" {
+		return nil, fmt.Errorf("the local store is not open")
+	}
+	return a.inspectGridStore(runner, pyenv.LoadAppConfig(data)), nil
+}
+
+/*
+GridPlants reads the plant register for the map, so an area is not drawn blind.
+
+SEPARATE FROM THE RUN PATH, for the reason InspectGridStore is separate from
+InspectEnvironment: the cost and the meaning are different. A run answers about
+a polygon and is worth recording; this says where the plants are, takes about a
+second, is asked again whenever the view moves, and keeps nothing.
+
+`bbox` is west, south, east, north. Empty asks for the whole located register --
+24,698 points and about 7 MB, which the map draws without help and which is
+cheaper to hold than to re-fetch on every pan.
+*/
+func (a *App) GridPlants(bbox []float64, kinds []string) (*analysis.GridPlantsLayer, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	data := a.dataDir()
+	if data == "" {
+		return nil, fmt.Errorf("the local store is not open")
+	}
+	// gridDSN, not the raw field: it is the one place that resolves the
+	// configured connection against TERRA_BR_DSN and the sidecar's own default,
+	// and reading the field directly is how a second answer to "which database"
+	// gets written.
+	cfg := pyenv.LoadAppConfig(data)
+	return runner.GridPlants(a.ctx, gridDSN(cfg), bbox, kinds)
+}
+
+/*
+SetGridStore records which database the electrical-system products read.
+
+REFUSES A CONNECTION IT CANNOT REACH, the way UseInterpreter refuses to record
+an unusable interpreter. A DSN saved without being tried is a setting that looks
+applied and fails at the first run, in a screen whose whole job is to say what
+works before anything is drawn.
+
+An empty string clears the choice, which is not the same as an unreachable one:
+it asks the sidecar to resolve its own default, and that is always allowed.
+*/
+func (a *App) SetGridStore(dsn string) (*analysis.GridStoreReport, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	data := a.dataDir()
+	if data == "" {
+		return nil, fmt.Errorf("the local store is not open")
+	}
+
+	if dsn != "" {
+		trial := runner.InspectGridStore(a.ctx, dsn)
+		if !trial.Reachable {
+			return nil, fmt.Errorf("that connection could not be used: %s", trial.Unreachable)
+		}
+	}
+
+	cfg := pyenv.LoadAppConfig(data)
+	cfg.GridDSN = dsn
+	if err := pyenv.SaveAppConfig(data, cfg); err != nil {
+		return nil, fmt.Errorf("could not save the connection: %w", err)
+	}
+	return a.inspectGridStore(runner, cfg), nil
 }
 
 /*

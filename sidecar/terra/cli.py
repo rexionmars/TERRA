@@ -30,6 +30,14 @@ def main() -> None:
         # product module: those do not end the process, and this is where the
         # process is owned.
         protocol.fail(str(e))
+    except protocol.Unavailable as e:
+        # Something the run needs is not there and no code change will make it
+        # appear: a database that is not running, a record that was never
+        # loaded. Reported as the sentence the raiser wrote, for the same
+        # reason MissingDependency is -- the alternative reaches the settings
+        # screen as a traceback, which says the process failed without saying
+        # what to do about it.
+        protocol.fail(str(e))
 
 
 # Lightweight health check used by the desktop boot footer.

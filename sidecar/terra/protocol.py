@@ -39,6 +39,18 @@ class MissingDependency(RuntimeError):
     """An optional package this path needs is not in this interpreter."""
 
 
+class Unavailable(RuntimeError):
+    """
+    Something this run needs exists outside the code and is not there.
+
+    A database that is not running, a record that was never loaded, a file the
+    user has to provide. Distinct from MissingDependency, which is answered by
+    an install this application can perform, and distinct from a bug, which is
+    answered by a traceback. This is answered by the user doing something in the
+    world, so the message has to say which thing.
+    """
+
+
 def require_torch(product: str) -> None:
     """
     Fail with an explanation when PyTorch is absent.

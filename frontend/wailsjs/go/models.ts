@@ -3619,6 +3619,608 @@ export namespace analysis {
 		}
 	}
 	
+	export class GridLoadConflicts {
+	    total: number;
+	    identical: number;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridLoadConflicts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.identical = source["identical"];
+	        this.note = source["note"];
+	    }
+	}
+	export class GridNetworkCoverage {
+	    substations: number;
+	    lines_in_service: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridNetworkCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.substations = source["substations"];
+	        this.lines_in_service = source["lines_in_service"];
+	    }
+	}
+	export class GridPlantCoverage {
+	    registered: number;
+	    with_geometry: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridPlantCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.registered = source["registered"];
+	        this.with_geometry = source["with_geometry"];
+	    }
+	}
+	export class GridDatasetCoverage {
+	    dataset: string;
+	    periods: number;
+	    from: string;
+	    to: string;
+	    rows: number;
+	    loaded_utc: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridDatasetCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dataset = source["dataset"];
+	        this.periods = source["periods"];
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.rows = source["rows"];
+	        this.loaded_utc = source["loaded_utc"];
+	    }
+	}
+	export class GridCoverage {
+	    datasets: GridDatasetCoverage[];
+	    plants: GridPlantCoverage;
+	    network: GridNetworkCoverage;
+	    load_conflicts: GridLoadConflicts;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridCoverage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.datasets = this.convertValues(source["datasets"], GridDatasetCoverage);
+	        this.plants = this.convertValues(source["plants"], GridPlantCoverage);
+	        this.network = this.convertValues(source["network"], GridNetworkCoverage);
+	        this.load_conflicts = this.convertValues(source["load_conflicts"], GridLoadConflicts);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GridPlantRow {
+	    id_ons: string;
+	    plant: string;
+	    cluster: string;
+	    expected_mwh: number;
+	    withheld_mwh: number;
+	    restricted: number;
+	    periods: number;
+	    withheld_fraction?: number;
+	    restricted_fraction?: number;
+	    lat?: number;
+	    lon?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridPlantRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id_ons = source["id_ons"];
+	        this.plant = source["plant"];
+	        this.cluster = source["cluster"];
+	        this.expected_mwh = source["expected_mwh"];
+	        this.withheld_mwh = source["withheld_mwh"];
+	        this.restricted = source["restricted"];
+	        this.periods = source["periods"];
+	        this.withheld_fraction = source["withheld_fraction"];
+	        this.restricted_fraction = source["restricted_fraction"];
+	        this.lat = source["lat"];
+	        this.lon = source["lon"];
+	    }
+	}
+	export class GridMonthRow {
+	    month: string;
+	    expected_mwh: number;
+	    withheld_mwh: number;
+	    restricted: number;
+	    periods: number;
+	    withheld_fraction?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridMonthRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.month = source["month"];
+	        this.expected_mwh = source["expected_mwh"];
+	        this.withheld_mwh = source["withheld_mwh"];
+	        this.restricted = source["restricted"];
+	        this.periods = source["periods"];
+	        this.withheld_fraction = source["withheld_fraction"];
+	    }
+	}
+	export class GridHourRow {
+	    hour: number;
+	    periods: number;
+	    restricted: number;
+	    expected_mwh: number;
+	    withheld_mwh: number;
+	    withheld_fraction?: number;
+	    restricted_fraction?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridHourRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hour = source["hour"];
+	        this.periods = source["periods"];
+	        this.restricted = source["restricted"];
+	        this.expected_mwh = source["expected_mwh"];
+	        this.withheld_mwh = source["withheld_mwh"];
+	        this.withheld_fraction = source["withheld_fraction"];
+	        this.restricted_fraction = source["restricted_fraction"];
+	    }
+	}
+	export class GridReasonRow {
+	    reason: string;
+	    origin: string;
+	    periods: number;
+	    withheld_mwh: number;
+	    share: number;
+	    meaning: string;
+	    scope: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridReasonRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reason = source["reason"];
+	        this.origin = source["origin"];
+	        this.periods = source["periods"];
+	        this.withheld_mwh = source["withheld_mwh"];
+	        this.share = source["share"];
+	        this.meaning = source["meaning"];
+	        this.scope = source["scope"];
+	    }
+	}
+	export class GridReasonBreakdown {
+	    by_reason: GridReasonRow[];
+	    share_local: number;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridReasonBreakdown(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.by_reason = this.convertValues(source["by_reason"], GridReasonRow);
+	        this.share_local = source["share_local"];
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GridCurtailmentSummary {
+	    plants_in_aoi: number;
+	    window: string;
+	    expected_mwh: number;
+	    delivered_mwh: number;
+	    withheld_mwh: number;
+	    withheld_fraction: number;
+	    withheld_under_restriction_mwh: number;
+	    estimate_gap_when_free_mwh: number;
+	    periods: number;
+	    periods_under_restriction: number;
+	    restricted_fraction: number;
+	    top_reason: string;
+	    top_origin: string;
+	    unrestricted_baseline_fraction: number;
+	    kind: string;
+	    basis: string;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridCurtailmentSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plants_in_aoi = source["plants_in_aoi"];
+	        this.window = source["window"];
+	        this.expected_mwh = source["expected_mwh"];
+	        this.delivered_mwh = source["delivered_mwh"];
+	        this.withheld_mwh = source["withheld_mwh"];
+	        this.withheld_fraction = source["withheld_fraction"];
+	        this.withheld_under_restriction_mwh = source["withheld_under_restriction_mwh"];
+	        this.estimate_gap_when_free_mwh = source["estimate_gap_when_free_mwh"];
+	        this.periods = source["periods"];
+	        this.periods_under_restriction = source["periods_under_restriction"];
+	        this.restricted_fraction = source["restricted_fraction"];
+	        this.top_reason = source["top_reason"];
+	        this.top_origin = source["top_origin"];
+	        this.unrestricted_baseline_fraction = source["unrestricted_baseline_fraction"];
+	        this.kind = source["kind"];
+	        this.basis = source["basis"];
+	        this.source = source["source"];
+	    }
+	}
+	export class GridWindow {
+	    requested: string[];
+	    record: string[];
+	    used: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GridWindow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.requested = source["requested"];
+	        this.record = source["record"];
+	        this.used = source["used"];
+	    }
+	}
+	export class GridCurtailmentAnalysis {
+	    window: GridWindow;
+	    summary?: GridCurtailmentSummary;
+	    by_reason?: GridReasonBreakdown;
+	    by_hour?: GridHourRow[];
+	    by_month?: GridMonthRow[];
+	    by_plant?: GridPlantRow[];
+	    note?: string;
+	    run_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridCurtailmentAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.window = this.convertValues(source["window"], GridWindow);
+	        this.summary = this.convertValues(source["summary"], GridCurtailmentSummary);
+	        this.by_reason = this.convertValues(source["by_reason"], GridReasonBreakdown);
+	        this.by_hour = this.convertValues(source["by_hour"], GridHourRow);
+	        this.by_month = this.convertValues(source["by_month"], GridMonthRow);
+	        this.by_plant = this.convertValues(source["by_plant"], GridPlantRow);
+	        this.note = source["note"];
+	        this.run_id = source["run_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GridCurtailmentRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    start?: string;
+	    end?: string;
+	    utc_offset?: number;
+	    plant_limit?: number;
+	    br_store_dsn?: string;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
+	    area_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridCurtailmentRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.utc_offset = source["utc_offset"];
+	        this.plant_limit = source["plant_limit"];
+	        this.br_store_dsn = source["br_store_dsn"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
+	        this.area_id = source["area_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class GridFigureTable {
+	    columns: string[];
+	    rows: any[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new GridFigureTable(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = source["columns"];
+	        this.rows = source["rows"];
+	    }
+	}
+	export class GridFigureAnalysis {
+	    number: number;
+	    title: string;
+	    scope: string;
+	    supersedes: number[];
+	    caveats: string[];
+	    headline: Record<string, any>;
+	    integrity: Record<string, any>;
+	    tables: Record<string, GridFigureTable>;
+	    run_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridFigureAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.number = source["number"];
+	        this.title = source["title"];
+	        this.scope = source["scope"];
+	        this.supersedes = source["supersedes"];
+	        this.caveats = source["caveats"];
+	        this.headline = source["headline"];
+	        this.integrity = source["integrity"];
+	        this.tables = this.convertValues(source["tables"], GridFigureTable, true);
+	        this.run_id = source["run_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GridFigureRequest {
+	    figure: number;
+	    polygon_geojson?: GeoJSONGeometry;
+	    start?: string;
+	    end?: string;
+	    br_store_dsn?: string;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
+	    area_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridFigureRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.figure = source["figure"];
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.br_store_dsn = source["br_store_dsn"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
+	        this.area_id = source["area_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	
+	
+	
+	export class GridPlantsCounts {
+	    returned: number;
+	    metered: number;
+	    registered: number;
+	    located: number;
+	    truncated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridPlantsCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.returned = source["returned"];
+	        this.metered = source["metered"];
+	        this.registered = source["registered"];
+	        this.located = source["located"];
+	        this.truncated = source["truncated"];
+	    }
+	}
+	export class GridPlantsLayer {
+	    geojson: number[];
+	    counts: GridPlantsCounts;
+	    bbox: number[];
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridPlantsLayer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.geojson = source["geojson"];
+	        this.counts = this.convertValues(source["counts"], GridPlantsCounts);
+	        this.bbox = source["bbox"];
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class GridStoreReport {
+	    dsn: string;
+	    dsn_source: string;
+	    reachable: boolean;
+	    unreachable?: string;
+	    coverage?: GridCoverage;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridStoreReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dsn = source["dsn"];
+	        this.dsn_source = source["dsn_source"];
+	        this.reachable = source["reachable"];
+	        this.unreachable = source["unreachable"];
+	        this.coverage = this.convertValues(source["coverage"], GridCoverage);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class LULCAgreementBlock {
 	    row: number;
 	    col: number;
@@ -5707,6 +6309,7 @@ export namespace main {
 	    paths: ResolvedPath[];
 	    retired_vars: string[];
 	    config_path: string;
+	    grid_store?: analysis.GridStoreReport;
 	
 	    static createFrom(source: any = {}) {
 	        return new EnvironmentState(source);
@@ -5723,6 +6326,7 @@ export namespace main {
 	        this.paths = this.convertValues(source["paths"], ResolvedPath);
 	        this.retired_vars = source["retired_vars"];
 	        this.config_path = source["config_path"];
+	        this.grid_store = this.convertValues(source["grid_store"], analysis.GridStoreReport);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5852,6 +6456,7 @@ export namespace pyenv {
 	    name: string;
 	    enables: string;
 	    size: string;
+	    also?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new OptionalPackage(source);
@@ -5863,6 +6468,7 @@ export namespace pyenv {
 	        this.name = source["name"];
 	        this.enables = source["enables"];
 	        this.size = source["size"];
+	        this.also = source["also"];
 	    }
 	}
 	export class PythonCandidate {

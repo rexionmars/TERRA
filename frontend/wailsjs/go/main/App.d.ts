@@ -14,6 +14,10 @@ export function AnalyzeEnergyModel(arg1:analysis.EnergyModelRequest):Promise<ana
 
 export function AnalyzeFlood(arg1:analysis.FloodRequest):Promise<analysis.FloodAnalysis>;
 
+export function AnalyzeGridCurtailment(arg1:analysis.GridCurtailmentRequest):Promise<analysis.GridCurtailmentAnalysis>;
+
+export function AnalyzeGridFigure(arg1:analysis.GridFigureRequest):Promise<analysis.GridFigureAnalysis>;
+
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
 
 export function AnalyzeSolar(arg1:analysis.SolarRequest):Promise<analysis.SolarAnalysis>;
@@ -80,7 +84,11 @@ export function GetProject(arg1:string):Promise<store.Project>;
 
 export function GetStudio(arg1:string):Promise<store.Studio>;
 
+export function GridPlants(arg1:Array<number>,arg2:Array<string>):Promise<analysis.GridPlantsLayer>;
+
 export function InspectEnvironment():Promise<main.EnvironmentState>;
+
+export function InspectGridStore():Promise<analysis.GridStoreReport>;
 
 export function InspectPython(arg1:string):Promise<pyenv.EnvReport>;
 
@@ -137,6 +145,8 @@ export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<
 export function SaveStudio(arg1:store.Studio):Promise<store.Studio>;
 
 export function SetAvatar(arg1:string):Promise<store.User>;
+
+export function SetGridStore(arg1:string):Promise<analysis.GridStoreReport>;
 
 export function SetProjectLastArea(arg1:string,arg2:string):Promise<store.Project>;
 

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -2261,4 +2262,334 @@ func (r *Runner) BuildCanopyField(ctx context.Context, req CanopyFieldRequest) (
 	}
 	field.FieldBase64 = base64.StdEncoding.EncodeToString(gridBytes)
 	return field, nil
+}
+
+// InspectGridStore asks the store what it holds, which is also the only honest
+// way to learn whether it can be reached at all.
+//
+// FAILURE IS RECORDED, NOT RETURNED, and that is the whole reason this is not
+// simply an Analyze method. pyenv.InspectPython does the same for an
+// interpreter, for the same reason: the environment surface exists to say WHY
+// something is unusable, and a returned error reaches the frontend as a toast
+// that disappears. Three failures land here and each needs a different action —
+// psycopg absent is an install, a refused connection is a server that is not
+// running, and a database with no PostGIS is one that was never prepared. All
+// three arrive as the sidecar's own message, which already names them.
+//
+// dsn empty lets the sidecar resolve it: TERRA_BR_DSN first, then a
+// peer-authenticated terra_br on this machine. Sending an empty key rather than
+// omitting it would defeat that, since store.connect reads the request key
+// before the variable.
+func (r *Runner) InspectGridStore(ctx context.Context, dsn string) *GridStoreReport {
+	report := &GridStoreReport{DSN: RedactDSN(dsn)}
+	if _, err := os.Stat(r.sidecar); err != nil {
+		report.Unreachable = fmt.Sprintf("sidecar not found at %s", r.sidecar)
+		return report
+	}
+
+	payload := map[string]any{"action": "grid_coverage"}
+	if dsn != "" {
+		payload["br_store_dsn"] = dsn
+	}
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		report.Unreachable = err.Error()
+		return report
+	}
+
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		report.Unreachable = err.Error()
+		return report
+	}
+
+	var wrapped struct {
+		Coverage *GridCoverage `json:"grid_coverage"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		report.Unreachable = fmt.Sprintf("could not read the store's answer: %v", err)
+		return report
+	}
+	if wrapped.Coverage == nil {
+		report.Unreachable = "the store answered with an empty coverage payload"
+		return report
+	}
+	report.Reachable = true
+	report.Coverage = wrapped.Coverage
+	return report
+}
+
+// GridPlantsLayer is the register drawn on the map, so an area is not drawn
+// blind.
+//
+// GEOJSON PASSES THROUGH UNPARSED. Go has no reason to know what a Feature is
+// here: the payload is built by the sidecar and consumed by MapLibre, and a
+// struct in between would be a third spelling of a schema neither end reads
+// from it. json.RawMessage forwards it and cannot disagree with either side.
+type GridPlantsLayer struct {
+	GeoJSON json.RawMessage  `json:"geojson"`
+	Counts  GridPlantsCounts `json:"counts"`
+	BBox    []float64        `json:"bbox"`
+	Note    string           `json:"note"`
+}
+
+// GridPlantsCounts is what the layer holds, counted over what was RETURNED.
+//
+// Metered against returned is the number that decides whether an area drawn
+// here can be answered at all: ANEEL registers 18,639 located photovoltaic
+// enterprises and ONS meters 558 of them.
+type GridPlantsCounts struct {
+	Returned   int  `json:"returned"`
+	Metered    int  `json:"metered"`
+	Registered int  `json:"registered"`
+	Located    int  `json:"located"`
+	Truncated  bool `json:"truncated"`
+}
+
+// GridPlants reads the plant register for the map.
+//
+// NOT A RUN, AND THAT IS WHY IT IS HERE RATHER THAN IN THE RUN PATH. Every
+// other grid action answers about a polygon over a window and produces a
+// result worth keeping. This answers "where are the plants", which is context
+// for drawing the polygon in the first place: it takes no window, it is not
+// recorded, and asking it again costs a second.
+func (r *Runner) GridPlants(ctx context.Context, dsn string, bbox []float64, kinds []string) (*GridPlantsLayer, error) {
+	payload := map[string]any{"action": "grid_plants"}
+	if dsn != "" {
+		payload["br_store_dsn"] = dsn
+	}
+	// Sent only when set. An empty slice marshals as [] and the sidecar reads
+	// that as "a bbox was given and nothing is inside it", which is a different
+	// answer from "no bbox, return the register".
+	if len(bbox) == 4 {
+		payload["bbox"] = bbox
+	}
+	if len(kinds) > 0 {
+		payload["kinds"] = kinds
+	}
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Plants *GridPlantsLayer `json:"grid_plants"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("could not read the register's answer: %w", err)
+	}
+	if wrapped.Plants == nil {
+		return nil, fmt.Errorf("the store answered with an empty register payload")
+	}
+	return wrapped.Plants, nil
+}
+
+// RedactDSN removes a password from a connection string so it can be shown.
+//
+// The environment surface renders the resolved DSN beside the interpreter path,
+// and a libpq connection string may carry a password in either of two shapes:
+// a URL userinfo (postgresql://user:secret@host/db) or a keyword pair
+// (host=... password=secret). Both are handled, because handling one and
+// missing the other is how a secret reaches a screenshot.
+func RedactDSN(dsn string) string {
+	if dsn == "" {
+		return ""
+	}
+	if u, err := url.Parse(dsn); err == nil && u.Scheme != "" && u.User != nil {
+		if _, hasPassword := u.User.Password(); hasPassword {
+			// The userinfo is replaced IN THE ORIGINAL STRING rather than the
+			// URL being re-serialised, for two reasons. url.String() percent-
+			// escapes the mask, so a redacted DSN reads as
+			// terra:%2A%2A%2A@... on the screen it exists to be read on. And
+			// dropping the password instead -- url.User(name) alone -- leaves
+			// a string that reads as a connection with no password at all,
+			// which on a settings screen is a different claim from the truth
+			// and the opposite of what the keyword branch below says about the
+			// same secret.
+			return strings.Replace(dsn, u.User.String(), u.User.Username()+":***", 1)
+		}
+		return dsn
+	}
+	// Keyword form. Split on whitespace rather than parsing properly: a value
+	// containing a space must be quoted in libpq, and a quoted password still
+	// begins with password= on its own token.
+	fields := strings.Fields(dsn)
+	changed := false
+	for i, f := range fields {
+		if strings.HasPrefix(strings.ToLower(f), "password=") {
+			fields[i] = "password=***"
+			changed = true
+		}
+	}
+	if !changed {
+		return dsn
+	}
+	return strings.Join(fields, " ")
+}
+
+// AnalyzeGridCurtailment reads what the operator withheld at the plants inside
+// an AOI, over a window the store bounds.
+//
+// NO WORK DIR. Every other Analyze method makes one because the sidecar writes
+// a raster or a mesh into it; this one produces figures and tables only, so a
+// temporary directory would be created, passed, and removed empty on every run.
+//
+// A NIL SUMMARY IS A RESULT, NOT A FAILURE. An AOI containing no plant of the
+// record comes back with Summary nil and Note set, and this returns it as it
+// stands. Turning that into an error would make "nothing here is measured"
+// indistinguishable from "the run broke", which is the distinction the whole
+// slice is careful about.
+func (r *Runner) AnalyzeGridCurtailment(
+	ctx context.Context,
+	req GridCurtailmentRequest,
+) (*GridCurtailmentAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.PolygonGeoJSON == nil {
+		return nil, errors.New("no polygon provided")
+	}
+
+	payload := map[string]any{
+		"action":          "grid_curtailment",
+		"polygon_geojson": req.PolygonGeoJSON,
+	}
+	// Only when set, so the sidecar resolves an absent key to its own
+	// documented default and echoes back what it used. A zero sent from here
+	// would silently replace one -- and for the UTC offset zero is a value
+	// somebody can mean.
+	if req.Start != "" {
+		payload["start"] = req.Start
+	}
+	if req.End != "" {
+		payload["end"] = req.End
+	}
+	if req.UTCOffset != nil {
+		payload["utc_offset"] = *req.UTCOffset
+	}
+	if req.PlantLimit != nil {
+		payload["plant_limit"] = *req.PlantLimit
+	}
+	if req.StoreDSN != "" {
+		payload["br_store_dsn"] = req.StoreDSN
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Curtailment *GridCurtailmentAnalysis `json:"grid_curtailment"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse grid curtailment result: %w", err)
+	}
+	if wrapped.Curtailment == nil {
+		return nil, errors.New("sidecar returned empty grid curtailment payload")
+	}
+	return wrapped.Curtailment, nil
+}
+
+// AnalyzeGridFigure computes one analysis of the published research series.
+//
+// NO WORK DIR AND NO IMAGE. The figure comes back as tables; the interface
+// draws them at its own type scale. That is the split experiments/ states for
+// this repository's own research figures, and frontend/src/lib/figure.ts
+// records the measurement behind it -- a 183 mm figure at 7 pt renders about
+// 7.3 px in a 540 px panel, under the 9 px floor the interface holds in
+// twenty-one places.
+//
+// THE WINDOW IS WORTH SENDING. Left empty the sidecar reads the whole record,
+// which is one month more than the research did and moves every energy figure
+// by 3.6 percent -- a difference that is entirely window and looks exactly like
+// a broken port.
+func (r *Runner) AnalyzeGridFigure(
+	ctx context.Context,
+	req GridFigureRequest,
+) (*GridFigureAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.Figure <= 0 {
+		return nil, errors.New("no figure number given")
+	}
+
+	payload := map[string]any{
+		"action": "grid_figure",
+		"figure": req.Figure,
+	}
+	// Sent only when set. A system-scoped figure REFUSES a polygon, so an
+	// empty key must not become a present one -- and the sidecar resolves an
+	// absent window to the whole record and echoes back what it used.
+	if req.PolygonGeoJSON != nil {
+		payload["polygon_geojson"] = req.PolygonGeoJSON
+	}
+	if req.Start != "" {
+		payload["start"] = req.Start
+	}
+	if req.End != "" {
+		payload["end"] = req.End
+	}
+	if req.StoreDSN != "" {
+		payload["br_store_dsn"] = req.StoreDSN
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Figure *GridFigureAnalysis `json:"grid_figure"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse grid figure result: %w", err)
+	}
+	if wrapped.Figure == nil {
+		return nil, errors.New("sidecar returned empty grid figure payload")
+	}
+	wrapped.Figure.NormalizeNilSlices()
+	return wrapped.Figure, nil
+}
+
+// NormalizeNilSlices turns nil slices into empty ones, so the frontend reads
+// `[]` rather than `null` where it maps.
+//
+// Named on the type for the reason every other product's is: a caller that
+// forgets it produces a payload the interface crashes on, and the compiler
+// cannot see the omission.
+func (a *GridFigureAnalysis) NormalizeNilSlices() {
+	if a == nil {
+		return
+	}
+	if a.Supersedes == nil {
+		a.Supersedes = []int{}
+	}
+	if a.Caveats == nil {
+		a.Caveats = []string{}
+	}
+	if a.Tables == nil {
+		a.Tables = map[string]GridFigureTable{}
+	}
+	for name, t := range a.Tables {
+		if t.Columns == nil {
+			t.Columns = []string{}
+		}
+		if t.Rows == nil {
+			t.Rows = [][]any{}
+		}
+		a.Tables[name] = t
+	}
 }
