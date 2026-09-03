@@ -93,6 +93,7 @@ export type EnergyProductId =
   | "solar:energy"
   | "wind:resource"
   | "grid:curtailment"
+  | "grid:connection"
   | "grid:figure"
   | "grid:record"
 
@@ -137,6 +138,13 @@ export const ENERGY_PRODUCTS: readonly EnergyProduct[] = [
     family: "grid",
     label: "Curtailment",
     hint: "What the operator withheld at the metered plants inside an area",
+    needsArea: true,
+  },
+  {
+    id: "grid:connection",
+    family: "grid",
+    label: "Connection",
+    hint: "The network this ground could reach, and what its plants are joined to",
     needsArea: true,
   },
   {

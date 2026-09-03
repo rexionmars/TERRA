@@ -491,6 +491,23 @@ function productGraph(
         ],
       }
     }
+    if (gridProduct === "connection") {
+      /*
+        NO WINDOW CARD, AND ITS ABSENCE IS THE STATEMENT. Every other question
+        in this slice is a reading over a period. This one asks where the
+        network is and what the plants on this ground are joined to, and both
+        are facts about a register: asking them "over 2025" would be asking a
+        map when it was drawn.
+      */
+      return {
+        nodes: [at("store", 0), at("area", 0), at("product", 1), at("run", 2)],
+        edges: [
+          ["store", "product"],
+          ["area", "run"],
+          ["product", "run"],
+        ],
+      }
+    }
     if (gridProduct === "record") {
       return {
         nodes: [at("store", 0), at("product", 1), at("run", 2)],

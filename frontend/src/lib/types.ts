@@ -2416,6 +2416,85 @@ export interface GridPlantRow {
   lon: number | null
 }
 
+/**
+ * Where a plant of this area actually joins the network, as the operator
+ * states it.
+ *
+ * NOT THE NEAREST SUBSTATION. Sol do Cerrado sits 9.01 km from a bus named
+ * JAIBA, and a distance ordering answers JAIBA 500 kV because ONS publishes
+ * that station's 500, 230 and 138 kV buses at one coordinate. The plant
+ * connects at MGJAB-230-A. Same name, same point, wrong voltage.
+ */
+export interface GridAttachment {
+  id_ons: string
+  entity: string
+  point_code: string
+  point_name: string
+  capacity_mw: number | null
+  kind: string
+  distance_km: number | null
+  bus: number | null
+  substation: string | null
+  voltage_kv: number | null
+  /** Whether the code or name carried the bus's own voltage: 221 of 223. */
+  voltage_confirmed: boolean
+}
+
+/**
+ * What leaves a bus, against what is already attached to it.
+ *
+ * REPORTED, NEVER SCORED. Across the 29 connection points where both are known
+ * the correlation between local occupancy and the curtailment suffered is
+ * -0.025 -- Barreiras II carries 350 MW on 3,475 MVA and loses 37 percent,
+ * because the binding constraint is upstream of the bus.
+ */
+export interface GridBusHeadroom {
+  bus: number
+  lines_in_service: number
+  lines_with_published_rating: number
+  line_capacity_mva: number | null
+  units_attached: number
+  attached_mw: number | null
+  note: string
+}
+
+/** One substation or circuit within the search radius. */
+export interface GridReach {
+  name: string
+  distance_km: number
+  voltage_kv: number | null
+  capacity_mva?: number | null
+}
+
+export interface GridRouteNote {
+  median: number
+  p90: number
+  note: string
+}
+
+export interface GridConnection {
+  reachable: boolean
+  searched_km: number
+  attachment: GridAttachment[]
+  attached_bus_headroom: GridBusHeadroom[]
+  nearest_substation: GridReach | null
+  nearest_line: GridReach | null
+  substations: GridReach[]
+  lines: GridReach[]
+  highest_voltage_kv: number | null
+  capacity_published_fraction: number
+  route_factor: GridRouteNote
+  source: string
+  note: string
+}
+
+export interface GridCongestionAnalysis {
+  connection: GridConnection
+  curtailment_at_connected_plants: GridCurtailmentSummary | null
+  window: GridWindow
+  note: string
+}
+
 export interface GridCurtailmentRequest {
   polygon_geojson?: GeoJSONGeometry
   start?: string

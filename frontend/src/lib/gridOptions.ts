@@ -7,7 +7,11 @@
  * columns that drifted while nothing compared them.
  */
 
-export type GridProductId = "curtailment" | "record" | "figure"
+export type GridProductId =
+  | "curtailment"
+  | "connection"
+  | "record"
+  | "figure"
 
 /**
  * What a product leaves behind, which decides whether it can be a plane.
@@ -48,6 +52,16 @@ export const GRID_PRODUCTS: readonly GridProduct[] = [
     // by_plant returns a coordinate per plant, and the spread is why it is
     // worth drawing: across one connection point the withheld fraction runs
     // 0.238 to 0.322, which a table sorted by energy scatters.
+    output: "vector",
+  },
+  {
+    id: "connection",
+    // Not "Congestion", which names a conclusion. This reports distance and
+    // attachment and refuses to combine them into one; the reader decides
+    // whether what it shows amounts to congestion.
+    label: "Connection",
+    hint: "The network this ground could reach, and what its plants are joined to",
+    needsArea: true,
     output: "vector",
   },
   {
