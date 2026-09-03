@@ -421,6 +421,19 @@ export function GlobeSurface({
     at: [number, number]
   } | null>(null)
   /*
+    The circuit or bus last pressed.
+
+    ANCHORED WHERE THE PRESS LANDED, not at the feature's centre. A 2,084 km
+    circuit has a midpoint that can be a thousand kilometres from the reader's
+    finger, and a leader stretching across the country says nothing about which
+    line was meant. A bus is a point and the two coincide there anyway.
+  */
+  const [pickedNet, setPickedNet] = useState<{
+    kind: "line" | "bus"
+    props: Record<string, unknown>
+    at: [number, number]
+  } | null>(null)
+  /*
     RELIEF, OFF BY DEFAULT, for the reason terrain.ts states: a DEM tile per
     view and a mesh per tile, in an application with a written history of
     paying for graphics it did not ask for.
@@ -578,6 +591,100 @@ export function GlobeSurface({
     }
   }, [pickedPlant])
 
+  /*
+    The circuit or bus pressed, as a caption of the same kind everything else
+    on this surface uses.
+
+    THE ROUTE FACTOR IS A ROW, NOT A FOOTNOTE. This is the moment a reader is
+    measuring: they pressed a line to find out how far it is and what it can
+    carry, and the drawn segment is short of the conductor by a factor the
+    register publishes per circuit. Stating it here, against THIS line's own
+    two lengths rather than the fleet median, is the difference between a
+    caveat and a correction.
+
+    A NULL RATING IS SAID, NOT OMITTED. The register publishes an operating
+    capacity for 1,082 of the 1,830 circuits in service; a row left out would
+    read as a line with nothing to report, and what it has is a rating nobody
+    published.
+  */
+  const netCaption = useMemo(() => {
+    if (!pickedNet) return null
+    const p = pickedNet.props
+    const rows: { label: string; value: string }[] = []
+    const kv = typeof p.kv === "number" ? p.kv : null
+
+    if (pickedNet.kind === "line") {
+      if (kv) rows.push({ label: "Voltage", value: `${kv} kV` })
+      rows.push({
+        label: "Rating",
+        value: p.mva == null ? "not published" : `${p.mva} MVA`,
+      })
+      const straight = typeof p.straight_km === "number" ? p.straight_km : null
+      const published =
+        typeof p.published_km === "number" ? p.published_km : null
+      if (straight !== null) {
+        rows.push({ label: "Drawn", value: `${straight.toFixed(0)} km` })
+      }
+      if (published !== null) {
+        rows.push({ label: "Route", value: `${published.toFixed(0)} km` })
+      }
+      if (straight && published) {
+        rows.push({
+          label: "Longer than drawn",
+          value: `${(((published - straight) / straight) * 100).toFixed(0)}%`,
+        })
+      }
+      return {
+        key: "net:line",
+        at: pickedNet.at,
+        elevationM: 0,
+        caption: {
+          legend: {
+            kind: "stats" as const,
+            subject: p.in_service ? "Circuit · in service" : "Circuit · out",
+            rows,
+            note:
+              "Drawn terminal to terminal, which is all the register " +
+              "publishes. A distance measured against this line on screen is " +
+              "short of the conductor.",
+          },
+          area: String(p.name ?? "—"),
+          period: null,
+        },
+      }
+    }
+
+    if (kv) rows.push({ label: "Voltage", value: `${kv} kV` })
+    if (p.subsystem) rows.push({ label: "Subsystem", value: String(p.subsystem) })
+    if (p.uf) rows.push({ label: "State", value: String(p.uf) })
+    if (p.operator) rows.push({ label: "Operator", value: String(p.operator) })
+    return {
+      key: "net:bus",
+      at: pickedNet.at,
+      elevationM: 0,
+      caption: {
+        legend: {
+          kind: "stats" as const,
+          subject: "Substation bus",
+          rows,
+          /*
+            Said because it is the trap this whole slice ran into: the 500, 230
+            and 138 kV buses of one station are published at ONE coordinate, so
+            "the nearest substation" answers whichever the planner reached
+            first. Sol do Cerrado is wired to Jaiba's 230 kV bus and proximity
+            alone names the 500.
+          */
+          note:
+            "A station's buses are published at one coordinate, so the marks " +
+            "of several voltages sit on top of each other. Which one a plant " +
+            "attaches to is published separately and is not this.",
+        },
+        area: String(p.name ?? "—"),
+        period: null,
+      },
+    }
+  }, [pickedNet])
+
   const rasterCaptions = useMemo(
     () =>
       overlays
@@ -605,11 +712,12 @@ export function GlobeSurface({
       // On the ground, not lifted: a reading is about a piece of land, not
       // about a plane in the stack over it.
       ...readings.map((r) => ({ ...r, elevationM: 0 })),
+      ...(netCaption ? [netCaption] : []),
       // The plant last, so a mark just pressed is added over whatever was
       // already up rather than under it.
       ...(plantCaption ? [plantCaption] : []),
     ],
-    [rasterCaptions, readings, plantCaption]
+    [rasterCaptions, readings, netCaption, plantCaption]
   )
   /*
     REVEALED, NOT ALWAYS UP. The work map carries its search bar permanently
@@ -1132,6 +1240,44 @@ export function GlobeSurface({
         console.error("[globe]", e.error ?? message)
       })
     )
+    subs.push(
+      map.on("click", NETWORK_LINES, (e: MapMouseEvent & { features?: unknown[] }) => {
+        const f = e.features?.[0] as
+          | { properties?: Record<string, unknown> }
+          | undefined
+        if (!f?.properties) return
+        setPickedNet({
+          kind: "line",
+          props: f.properties,
+          at: [e.lngLat.lng, e.lngLat.lat],
+        })
+      })
+    )
+    subs.push(
+      map.on("click", BUS_POINTS, (e: MapMouseEvent & { features?: unknown[] }) => {
+        const f = e.features?.[0] as
+          | { properties?: Record<string, unknown> }
+          | undefined
+        if (!f?.properties) return
+        setPickedNet({
+          kind: "bus",
+          props: f.properties,
+          at: [e.lngLat.lng, e.lngLat.lat],
+        })
+      })
+    )
+    for (const layer of [NETWORK_LINES, BUS_POINTS] as const) {
+      subs.push(
+        map.on("mouseenter", layer, () => {
+          map.getCanvas().style.cursor = "pointer"
+        })
+      )
+      subs.push(
+        map.on("mouseleave", layer, () => {
+          map.getCanvas().style.cursor = ""
+        })
+      )
+    }
     subs.push(
       // Registered before the area handler, and MapLibre delivers to the
       // topmost layer that has one -- so a press on a plant standing inside an

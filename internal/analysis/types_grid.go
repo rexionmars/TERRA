@@ -110,6 +110,119 @@ type GridStoreReport struct {
 	Coverage *GridCoverage `json:"coverage,omitempty"`
 }
 
+// GridCongestionRequest asks what network an AOI could reach, and what its
+// plants are already attached to.
+//
+// The same shape GridCurtailmentRequest has, minus the window: proximity and
+// attachment are facts about a register rather than readings over a period.
+type GridCongestionRequest struct {
+	PolygonGeoJSON *GeoJSONGeometry `json:"polygon_geojson,omitempty"`
+	// How far to look. Omitted means 100 km, which is the sidecar's own
+	// default and is stated there rather than duplicated here.
+	SearchRadiusKM *float64 `json:"search_radius_km,omitempty"`
+	StoreDSN       string   `json:"br_store_dsn,omitempty"`
+	Label          string   `json:"label,omitempty"`
+	RunLabel       string   `json:"run_label,omitempty"`
+	ProjectID      string   `json:"project_id,omitempty"`
+	AreaID         string   `json:"area_id,omitempty"`
+}
+
+// GridReach is one substation or circuit within the search radius.
+//
+// DistanceKM is to the DRAWN geometry, which for a line is the straight
+// segment between its terminals. The conductor runs about 8 percent longer at
+// the median and 41 at the ninetieth percentile, so this is a lower bound and
+// is knowably one.
+type GridReach struct {
+	Name        string   `json:"name"`
+	DistanceKM  float64  `json:"distance_km"`
+	VoltageKV   *float64 `json:"voltage_kv"`
+	CapacityMVA *float64 `json:"capacity_mva,omitempty"`
+}
+
+// GridAttachment is where a plant of this AOI actually joins the network.
+//
+// NOT THE NEAREST SUBSTATION, AND THAT IS THE WHOLE POINT. Sol do Cerrado sits
+// 9.01 km from a bus named JAIBA, and a distance ordering answers JAIBA 500 kV
+// because ONS publishes that station's 500, 230 and 138 kV buses at one
+// coordinate. The plant connects at MGJAB-230-A. Same name, same point, wrong
+// voltage, and every headroom figure computed from it is about the wrong
+// circuit.
+type GridAttachment struct {
+	IDONS            string   `json:"id_ons"`
+	Entity           string   `json:"entity"`
+	PointCode        string   `json:"point_code"`
+	PointName        string   `json:"point_name"`
+	CapacityMW       *float64 `json:"capacity_mw"`
+	Kind             string   `json:"kind"`
+	DistanceKM       *float64 `json:"distance_km"`
+	Bus              *int     `json:"bus"`
+	Substation       *string  `json:"substation"`
+	VoltageKV        *float64 `json:"voltage_kv"`
+	VoltageConfirmed bool     `json:"voltage_confirmed"`
+}
+
+// GridBusHeadroom is what leaves a bus against what is already attached to it.
+//
+// REPORTED, NEVER SCORED. Across the 29 connection points where both are known
+// the correlation between local occupancy and the curtailment actually
+// suffered is -0.025: Barreiras II carries 350 MW on 3,475 MVA of line, ten
+// percent, and the plants there lose 37 percent of their output. Local
+// headroom does not explain the loss, because the binding constraint is
+// upstream of the bus. A caller adding these into a suitability number asserts
+// a relationship the record does not contain.
+type GridBusHeadroom struct {
+	Bus                      int      `json:"bus"`
+	LinesInService           int      `json:"lines_in_service"`
+	LinesWithPublishedRating int      `json:"lines_with_published_rating"`
+	LineCapacityMVA          *float64 `json:"line_capacity_mva"`
+	UnitsAttached            int      `json:"units_attached"`
+	AttachedMW               *float64 `json:"attached_mw"`
+	Note                     string   `json:"note"`
+}
+
+// GridRouteNote is how much longer a conductor runs than the segment measured.
+type GridRouteNote struct {
+	Median float64 `json:"median"`
+	P90    float64 `json:"p90"`
+	Note   string  `json:"note"`
+}
+
+// GridConnection is what an AOI can reach, and what it is already joined to.
+//
+// PROXIMITY AND ATTACHMENT ARE REPORTED APART AND NEVER MERGED. Distance says
+// whether reaching the network is plausible for ground that has no plant;
+// attachment says where the ground that HAS one is already joined, and the two
+// disagree by a voltage level at the first site anyone checked.
+type GridConnection struct {
+	Reachable                 bool              `json:"reachable"`
+	SearchedKM                float64           `json:"searched_km"`
+	Attachment                []GridAttachment  `json:"attachment"`
+	AttachedBusHeadroom       []GridBusHeadroom `json:"attached_bus_headroom"`
+	NearestSubstation         *GridReach        `json:"nearest_substation"`
+	NearestLine               *GridReach        `json:"nearest_line"`
+	Substations               []GridReach       `json:"substations"`
+	Lines                     []GridReach       `json:"lines"`
+	HighestVoltageKV          *float64          `json:"highest_voltage_kv"`
+	CapacityPublishedFraction float64           `json:"capacity_published_fraction"`
+	RouteFactor               GridRouteNote     `json:"route_factor"`
+	Source                    string            `json:"source"`
+	Note                      string            `json:"note"`
+}
+
+// GridCongestionAnalysis is the network beside what the plants on it suffer.
+//
+// The two are carried in one payload and are NOT combined, which is the
+// docstring of the action that builds it: a site 1.3 km from a 440 kV line
+// rated 2,664 MVA can still lose 14 percent of its output, because the
+// constraint is upstream of the connection.
+type GridCongestionAnalysis struct {
+	Connection                   GridConnection          `json:"connection"`
+	CurtailmentAtConnectedPlants *GridCurtailmentSummary `json:"curtailment_at_connected_plants"`
+	Window                       GridWindow              `json:"window"`
+	Note                         string                  `json:"note"`
+}
+
 // GridCurtailmentRequest asks what was withheld at the plants inside an AOI.
 //
 // The window is optional in both ends because the record has its own span and

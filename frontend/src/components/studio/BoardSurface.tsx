@@ -118,6 +118,7 @@ import type {
   PredictResult,
   WindAnalysis,
   GridStoreReport,
+  GridCongestionAnalysis,
   GridCurtailmentAnalysis,
   GridFigureAnalysis,
 } from "@/lib/types"
@@ -163,6 +164,7 @@ import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { windReadingGroups } from "@/components/energy/readingSections"
 import { FloodReadingColumn } from "@/components/flood/FloodReading"
+import { GridCongestionReading } from "@/components/grid/GridCongestionReading"
 import { GridCurtailmentReading } from "@/components/grid/GridCurtailmentReading"
 import { GridFigureReading } from "@/components/grid/GridFigureReading"
 import { GridRecordReading } from "@/components/grid/GridRecordReading"
@@ -483,6 +485,7 @@ export function BoardSurface({
   onClearFlood,
   gridStore = null,
   gridCurtailment = null,
+  gridCongestion = null,
   gridFigure = null,
   reveal = null,
   onRevealed,
@@ -663,6 +666,7 @@ export function BoardSurface({
   gridStore?: GridStoreReport | null
   /** The last curtailment read, or null before one. */
   gridCurtailment?: GridCurtailmentAnalysis | null
+  gridCongestion?: GridCongestionAnalysis | null
   /** The last figure of the series read, or null before one. */
   gridFigure?: GridFigureAnalysis | null
   /**
@@ -4371,6 +4375,7 @@ export function BoardSurface({
       <GridRecordReading report={gridStore} />
     ),
     gridCurtailment: <GridCurtailmentReading result={gridCurtailment} />,
+    gridConnection: <GridCongestionReading result={gridCongestion} />,
     gridFigure: <GridFigureReading result={gridFigure} />,
     floodReading: floodResult ? (
       <FloodReadingColumn

@@ -58,6 +58,7 @@ export type EditorId =
   | "floodReading"
   | "gridRecord"
   | "gridCurtailment"
+  | "gridConnection"
   | "gridFigure"
   | "browser"
 
@@ -424,6 +425,22 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 28,
     minRowRem: 22,
     hint: "What the operator withheld at the metered plants inside the area, and why",
+  },
+  {
+    id: "gridConnection",
+    label: "Connection",
+    icon: Lightning,
+    /*
+      Two answers that must not be merged, which is what sets this editor's
+      height. Where the plants of this ground are ATTACHED is published;
+      how far the nearest bus is, is MEASURED -- and at the first site anyone
+      checked the two disagree by a voltage level, because a station's 500, 230
+      and 138 kV buses are published at one coordinate. Both blocks have to be
+      readable at once or the panel would invite reading one as the other.
+    */
+    minRem: 26,
+    minRowRem: 16,
+    hint: "The network this ground could reach, and what its plants are joined to",
   },
   {
     id: "gridFigure",
