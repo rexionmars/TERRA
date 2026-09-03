@@ -18,6 +18,10 @@ export function AnalyzeFlood(arg1) {
   return window['go']['main']['App']['AnalyzeFlood'](arg1);
 }
 
+export function AnalyzeGridCongestion(arg1) {
+  return window['go']['main']['App']['AnalyzeGridCongestion'](arg1);
+}
+
 export function AnalyzeGridCurtailment(arg1) {
   return window['go']['main']['App']['AnalyzeGridCurtailment'](arg1);
 }

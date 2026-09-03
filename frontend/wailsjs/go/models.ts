@@ -3619,6 +3619,289 @@ export namespace analysis {
 		}
 	}
 	
+	export class GridAttachment {
+	    id_ons: string;
+	    entity: string;
+	    point_code: string;
+	    point_name: string;
+	    capacity_mw?: number;
+	    kind: string;
+	    distance_km?: number;
+	    bus?: number;
+	    substation?: string;
+	    voltage_kv?: number;
+	    voltage_confirmed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridAttachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id_ons = source["id_ons"];
+	        this.entity = source["entity"];
+	        this.point_code = source["point_code"];
+	        this.point_name = source["point_name"];
+	        this.capacity_mw = source["capacity_mw"];
+	        this.kind = source["kind"];
+	        this.distance_km = source["distance_km"];
+	        this.bus = source["bus"];
+	        this.substation = source["substation"];
+	        this.voltage_kv = source["voltage_kv"];
+	        this.voltage_confirmed = source["voltage_confirmed"];
+	    }
+	}
+	export class GridBusHeadroom {
+	    bus: number;
+	    lines_in_service: number;
+	    lines_with_published_rating: number;
+	    line_capacity_mva?: number;
+	    units_attached: number;
+	    attached_mw?: number;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridBusHeadroom(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bus = source["bus"];
+	        this.lines_in_service = source["lines_in_service"];
+	        this.lines_with_published_rating = source["lines_with_published_rating"];
+	        this.line_capacity_mva = source["line_capacity_mva"];
+	        this.units_attached = source["units_attached"];
+	        this.attached_mw = source["attached_mw"];
+	        this.note = source["note"];
+	    }
+	}
+	export class GridWindow {
+	    requested: string[];
+	    record: string[];
+	    used: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GridWindow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.requested = source["requested"];
+	        this.record = source["record"];
+	        this.used = source["used"];
+	    }
+	}
+	export class GridCurtailmentSummary {
+	    plants_in_aoi: number;
+	    window: string;
+	    expected_mwh: number;
+	    delivered_mwh: number;
+	    withheld_mwh: number;
+	    withheld_fraction: number;
+	    withheld_under_restriction_mwh: number;
+	    estimate_gap_when_free_mwh: number;
+	    periods: number;
+	    periods_under_restriction: number;
+	    restricted_fraction: number;
+	    top_reason: string;
+	    top_origin: string;
+	    unrestricted_baseline_fraction: number;
+	    kind: string;
+	    basis: string;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridCurtailmentSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plants_in_aoi = source["plants_in_aoi"];
+	        this.window = source["window"];
+	        this.expected_mwh = source["expected_mwh"];
+	        this.delivered_mwh = source["delivered_mwh"];
+	        this.withheld_mwh = source["withheld_mwh"];
+	        this.withheld_fraction = source["withheld_fraction"];
+	        this.withheld_under_restriction_mwh = source["withheld_under_restriction_mwh"];
+	        this.estimate_gap_when_free_mwh = source["estimate_gap_when_free_mwh"];
+	        this.periods = source["periods"];
+	        this.periods_under_restriction = source["periods_under_restriction"];
+	        this.restricted_fraction = source["restricted_fraction"];
+	        this.top_reason = source["top_reason"];
+	        this.top_origin = source["top_origin"];
+	        this.unrestricted_baseline_fraction = source["unrestricted_baseline_fraction"];
+	        this.kind = source["kind"];
+	        this.basis = source["basis"];
+	        this.source = source["source"];
+	    }
+	}
+	export class GridRouteNote {
+	    median: number;
+	    p90: number;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridRouteNote(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.median = source["median"];
+	        this.p90 = source["p90"];
+	        this.note = source["note"];
+	    }
+	}
+	export class GridReach {
+	    name: string;
+	    distance_km: number;
+	    voltage_kv?: number;
+	    capacity_mva?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridReach(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.distance_km = source["distance_km"];
+	        this.voltage_kv = source["voltage_kv"];
+	        this.capacity_mva = source["capacity_mva"];
+	    }
+	}
+	export class GridConnection {
+	    reachable: boolean;
+	    searched_km: number;
+	    attachment: GridAttachment[];
+	    attached_bus_headroom: GridBusHeadroom[];
+	    nearest_substation?: GridReach;
+	    nearest_line?: GridReach;
+	    substations: GridReach[];
+	    lines: GridReach[];
+	    highest_voltage_kv?: number;
+	    capacity_published_fraction: number;
+	    route_factor: GridRouteNote;
+	    source: string;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridConnection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reachable = source["reachable"];
+	        this.searched_km = source["searched_km"];
+	        this.attachment = this.convertValues(source["attachment"], GridAttachment);
+	        this.attached_bus_headroom = this.convertValues(source["attached_bus_headroom"], GridBusHeadroom);
+	        this.nearest_substation = this.convertValues(source["nearest_substation"], GridReach);
+	        this.nearest_line = this.convertValues(source["nearest_line"], GridReach);
+	        this.substations = this.convertValues(source["substations"], GridReach);
+	        this.lines = this.convertValues(source["lines"], GridReach);
+	        this.highest_voltage_kv = source["highest_voltage_kv"];
+	        this.capacity_published_fraction = source["capacity_published_fraction"];
+	        this.route_factor = this.convertValues(source["route_factor"], GridRouteNote);
+	        this.source = source["source"];
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GridCongestionAnalysis {
+	    connection: GridConnection;
+	    curtailment_at_connected_plants?: GridCurtailmentSummary;
+	    window: GridWindow;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridCongestionAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connection = this.convertValues(source["connection"], GridConnection);
+	        this.curtailment_at_connected_plants = this.convertValues(source["curtailment_at_connected_plants"], GridCurtailmentSummary);
+	        this.window = this.convertValues(source["window"], GridWindow);
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GridCongestionRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    search_radius_km?: number;
+	    br_store_dsn?: string;
+	    label?: string;
+	    run_label?: string;
+	    project_id?: string;
+	    area_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GridCongestionRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.search_radius_km = source["search_radius_km"];
+	        this.br_store_dsn = source["br_store_dsn"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.project_id = source["project_id"];
+	        this.area_id = source["area_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class GridLoadConflicts {
 	    total: number;
 	    identical: number;
@@ -3856,66 +4139,6 @@ export namespace analysis {
 		    }
 		    return a;
 		}
-	}
-	export class GridCurtailmentSummary {
-	    plants_in_aoi: number;
-	    window: string;
-	    expected_mwh: number;
-	    delivered_mwh: number;
-	    withheld_mwh: number;
-	    withheld_fraction: number;
-	    withheld_under_restriction_mwh: number;
-	    estimate_gap_when_free_mwh: number;
-	    periods: number;
-	    periods_under_restriction: number;
-	    restricted_fraction: number;
-	    top_reason: string;
-	    top_origin: string;
-	    unrestricted_baseline_fraction: number;
-	    kind: string;
-	    basis: string;
-	    source: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new GridCurtailmentSummary(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.plants_in_aoi = source["plants_in_aoi"];
-	        this.window = source["window"];
-	        this.expected_mwh = source["expected_mwh"];
-	        this.delivered_mwh = source["delivered_mwh"];
-	        this.withheld_mwh = source["withheld_mwh"];
-	        this.withheld_fraction = source["withheld_fraction"];
-	        this.withheld_under_restriction_mwh = source["withheld_under_restriction_mwh"];
-	        this.estimate_gap_when_free_mwh = source["estimate_gap_when_free_mwh"];
-	        this.periods = source["periods"];
-	        this.periods_under_restriction = source["periods_under_restriction"];
-	        this.restricted_fraction = source["restricted_fraction"];
-	        this.top_reason = source["top_reason"];
-	        this.top_origin = source["top_origin"];
-	        this.unrestricted_baseline_fraction = source["unrestricted_baseline_fraction"];
-	        this.kind = source["kind"];
-	        this.basis = source["basis"];
-	        this.source = source["source"];
-	    }
-	}
-	export class GridWindow {
-	    requested: string[];
-	    record: string[];
-	    used: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new GridWindow(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.requested = source["requested"];
-	        this.record = source["record"];
-	        this.used = source["used"];
-	    }
 	}
 	export class GridCurtailmentAnalysis {
 	    window: GridWindow;
@@ -4250,6 +4473,8 @@ export namespace analysis {
 		    return a;
 		}
 	}
+	
+	
 	
 	
 	
