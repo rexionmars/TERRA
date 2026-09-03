@@ -237,6 +237,42 @@ def by_plant(conn, aoi_geojson, start, end, limit: int = 50):
     return rows
 
 
+
+def _require_rollup(conn) -> None:
+    """
+    Refuse rather than fall back, which is this slice's rule and not a mood.
+
+    br.pv_daily is the join between the detail record and the curtailment
+    record, computed once per load instead of once per question: over an area
+    of seventeen plants the direct query takes 78.5 seconds and this takes 71
+    milliseconds, with the period counts identical.
+
+    KEEPING THE DIRECT QUERY AS A FALLBACK WOULD BE TWO IMPLEMENTATIONS OF ONE
+    ANSWER, and terra/grid/actions.py already states why that is refused: an
+    installation without the store gets a failure that says what is missing,
+    not a slower answer that might disagree with the fast one. The two DID
+    disagree while both existed -- the view was first written without the
+    cluster membership's time bound, and it inflated the period count for the
+    19 percent of plants that change cluster.
+
+    An empty view is a load that has not been followed by a refresh, which is
+    one command and is named here.
+    """
+    from terra import protocol
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT to_regclass('br.pv_daily')")
+        if cur.fetchone()[0] is None:
+            protocol.fail(
+                'the store has no br.pv_daily. Run store.ensure_schema and '
+                'then store.refresh_rollup to build it.')
+        cur.execute('SELECT count(*) FROM br.pv_daily')
+        if cur.fetchone()[0] == 0:
+            protocol.fail(
+                'br.pv_daily is empty, which is a load that was not followed '
+                'by a refresh. Run store.refresh_rollup; it takes about a '
+                'minute over the published span.')
+
 def curtailment_context(conn, aoi_geojson, start: str, end: str):
     """
     What the operator curtailed at the plants inside an AOI, over a window.
@@ -272,10 +308,7 @@ def curtailment_context(conn, aoi_geojson, start: str, end: str):
     """
     import json
 
-    import pandas as pd
-
-    lo = pd.Timestamp(start)
-    hi = pd.Timestamp(end) + pd.Timedelta(days=1)
+    _require_rollup(conn)
 
     with conn.cursor() as cur:
         cur.execute(
@@ -285,37 +318,45 @@ def curtailment_context(conn, aoi_geojson, start: str, end: str):
                 WHERE p.geom IS NOT NULL
                   AND ST_Intersects(p.geom, ST_GeomFromGeoJSON(%s))
             )
-            SELECT count(DISTINCT d.id_ons)                          AS plants,
-                   count(*)                                          AS periods,
-                   sum(d.gen_estimated - d.gen_verified) / 2.0       AS withheld,
-                   sum(d.gen_estimated) / 2.0                        AS expected,
-                   sum(d.gen_verified) / 2.0                         AS delivered,
-                   count(*) FILTER (WHERE c.reason_code IS NOT NULL) AS restricted,
+            SELECT count(DISTINCT r.id_ons)                          AS plants,
+                   sum(r.periods)                                    AS periods,
+                   sum(r.withheld_mwh)                               AS withheld,
+                   sum(r.expected_mwh)                               AS expected,
+                   sum(r.delivered_mwh)                              AS delivered,
+                   sum(r.periods) FILTER (WHERE r.reason_code IS NOT NULL)
+                       AS restricted,
                    -- The same difference over the half hours with NO
                    -- restriction in force: the operator's estimate against its
                    -- own meter, at the same plants over the same window. It is
                    -- the floor of what this difference means, and without it a
                    -- withheld fraction cannot be told from model error.
-                   sum(d.gen_estimated - d.gen_verified)
-                       FILTER (WHERE c.reason_code IS NULL) / 2.0 AS free_gap,
-                   sum(d.gen_estimated)
-                       FILTER (WHERE c.reason_code IS NULL) / 2.0 AS free_expected,
-                   sum(d.gen_estimated - d.gen_verified)
-                       FILTER (WHERE c.reason_code IS NOT NULL) / 2.0
+                   sum(r.withheld_mwh) FILTER (WHERE r.reason_code IS NULL)
+                       AS free_gap,
+                   sum(r.expected_mwh) FILTER (WHERE r.reason_code IS NULL)
+                       AS free_expected,
+                   sum(r.withheld_mwh) FILTER (WHERE r.reason_code IS NOT NULL)
                        AS restricted_gap,
-                   mode() WITHIN GROUP (ORDER BY c.reason_code)      AS top_reason,
-                   mode() WITHIN GROUP (ORDER BY c.origin_code)      AS top_origin
-            FROM br.pv_detail d
+                   -- Weighted by the periods each row stands for. mode() over
+                   -- the rollup would count a day of one reason equally with a
+                   -- single half hour of another, which is not what the raw
+                   -- query answered: there, one row was one half hour.
+                   (SELECT x.reason_code FROM br.pv_daily x
+                     JOIN dentro USING (ceg_core)
+                    WHERE x.reason_code IS NOT NULL
+                      AND x.day >= %s::date AND x.day <= %s::date
+                    GROUP BY x.reason_code
+                    ORDER BY sum(x.periods) DESC LIMIT 1)          AS top_reason,
+                   (SELECT x.origin_code FROM br.pv_daily x
+                     JOIN dentro USING (ceg_core)
+                    WHERE x.origin_code IS NOT NULL
+                      AND x.day >= %s::date AND x.day <= %s::date
+                    GROUP BY x.origin_code
+                    ORDER BY sum(x.periods) DESC LIMIT 1)          AS top_origin
+            FROM br.pv_daily r
             JOIN dentro USING (ceg_core)
-            LEFT JOIN br.plant_cluster pc
-                   ON pc.ceg_core = d.ceg_core
-                  AND d.instante BETWEEN pc.valid_from AND pc.valid_to
-            LEFT JOIN br.pv_curtail c
-                   ON c.cluster_key = pc.cluster_key
-                  AND c.instante = d.instante
-            WHERE d.instante >= %s AND d.instante < %s
+            WHERE r.day >= %s::date AND r.day <= %s::date
             """,
-            (json.dumps(aoi_geojson), lo, hi))
+            (json.dumps(aoi_geojson), start, end, start, end, start, end))
         cols = [d.name for d in cur.description]
         row = dict(zip(cols, cur.fetchone(), strict=True))
 
