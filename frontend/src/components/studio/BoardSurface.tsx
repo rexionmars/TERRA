@@ -700,8 +700,12 @@ export function BoardSurface({
     map is state, because nothing else records it.
   */
   const analyses = useMemo(
-    () => analysisEntries({ curtailment: gridCurtailment }),
-    [gridCurtailment]
+    () =>
+      analysisEntries({
+        curtailment: gridCurtailment,
+        congestion: gridCongestion,
+      }),
+    [gridCurtailment, gridCongestion]
   )
   const [analysesOnMap, setAnalysesOnMap] = useState<ReadonlySet<string>>(
     () => new Set()
