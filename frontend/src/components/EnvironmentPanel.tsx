@@ -279,13 +279,20 @@ export function EnvironmentPanel() {
         out where pip lived. Removal is offered for the same reason it is
         optional: it is gigabytes, and someone who tried the neural models
         should be able to reclaim them without rebuilding the environment.
+
+        NOT ONLY MODELS ANY MORE, which is why this no longer says so. psycopg
+        joined the list at about 4 MB -- optional because nothing degrades
+        until someone asks about the Brazilian electrical system, not because
+        it is large. A heading of "Optional models" over a database driver, and
+        a line about large downloads over four megabytes, were each wrong about
+        one of the two entries.
       */}
       {optional.length > 0 && active && !active.unreachable && (
         <section className="rounded-sm border border-border bg-secondary/50 p-4">
-          <p className="eyebrow mb-1">Optional models</p>
+          <p className="eyebrow mb-1">Optional components</p>
           <p className="mb-3 text-body text-muted-foreground">
-            Large downloads TERRA does not install by default. Everything else
-            works without them.
+            Not installed by default, because nothing else needs them. Each one
+            says what it unlocks and what it costs.
           </p>
           <ul className="flex flex-col gap-2">
             {optional.map((pkg) => {
@@ -318,6 +325,58 @@ export function EnvironmentPanel() {
               )
             })}
           </ul>
+        </section>
+      )}
+
+      {/*
+        The grid store, which is an external service and not a package.
+
+        HERE BECAUSE IT ANSWERS THE SAME QUESTION AS THE REST OF THIS SCREEN:
+        not "run this analysis" but "can anything be run at all". And because
+        it is the second half of a question the optional-package list above can
+        only half-answer -- psycopg being installed says the driver imports, and
+        says nothing about whether there is a prepared database behind it. A
+        reader who saw only the first would install the driver and then watch a
+        run die.
+      */}
+      {state?.grid_store && (
+        <section className="rounded-sm border border-border bg-secondary/50 p-4">
+          <p className="eyebrow mb-1">Grid store</p>
+          <p className="mb-3 text-body text-muted-foreground">
+            The local PostgreSQL the Brazilian electrical-system products read.
+            Nothing else in TERRA uses it.
+          </p>
+          <div className="rounded-sm border border-border bg-background px-3 py-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="telemetry min-w-0 truncate text-body text-foreground">
+                {state.grid_store.dsn}
+              </span>
+              <span className="text-meta text-muted-foreground">
+                {state.grid_store.dsn_source === "TERRA_BR_DSN"
+                  ? "set by TERRA_BR_DSN"
+                  : state.grid_store.dsn_source === "chosen"
+                    ? "chosen here"
+                    : "default"}
+              </span>
+            </div>
+            {state.grid_store.reachable ? (
+              <p className="mt-1 text-meta text-muted-foreground">
+                Reachable
+                {state.grid_store.coverage
+                  ? ` · ${state.grid_store.coverage.datasets.length} record(s), ${state.grid_store.coverage.plants.registered.toLocaleString()} plants`
+                  : ""}
+              </p>
+            ) : (
+              /*
+                The sidecar's own sentence, verbatim. It already distinguishes a
+                missing driver from a server that is not running from a database
+                that was never created, and each needs a different action.
+              */
+              <p className="mt-1 text-meta text-muted-foreground">
+                {state.grid_store.unreachable}
+              </p>
+            )}
+          </div>
         </section>
       )}
 
