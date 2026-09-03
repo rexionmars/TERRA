@@ -21,6 +21,7 @@ import type {
   WaterIndex,
   WindAnalysis,
   GridStoreReport,
+  GridCongestionAnalysis,
   GridCurtailmentAnalysis,
   GridFigureAnalysis,
 } from "@/lib/types";
@@ -323,6 +324,8 @@ export interface StudioScreenProps {
   onGridWindowChange?: (start: string, end: string) => void;
   onCheckGridStore?: () => void
   gridCurtailment?: GridCurtailmentAnalysis | null
+  gridCongestion?: GridCongestionAnalysis | null
+  onRunGridConnection?: () => void
   gridFigure?: GridFigureAnalysis | null
   gridFigureNumber?: number
   onGridFigureChange?: (n: number) => void
@@ -770,7 +773,30 @@ export function StudioScreen(props: StudioScreenProps) {
             canRun: !!props.gridStore?.reachable && !props.gridBusy,
             onRun: () => props.onRunGridFigure?.(),
           }
-        : props.gridProduct === "record"
+        : props.gridProduct === "connection"
+              ? {
+                  running: props.gridBusy ?? false,
+                  progress: 0,
+                  progressMsg: "",
+                  label: props.gridBusy ? "Reading" : "Read the connection",
+                  /*
+                    ITS OWN BRANCH, and the comment above this chain says why
+                    it had to have one: a product with no branch inherits the
+                    label, the enablement AND THE ACTION of whatever the chain
+                    falls through to. Connection fell through to curtailment,
+                    so selecting it drew a button reading "Read the
+                    curtailment" that ran one -- and an area chosen precisely
+                    because it holds no plant came back with the curtailment
+                    refusal instead of the proximity answer this product
+                    exists to give.
+                  */
+                  canRun:
+                    !!props.gridStore?.reachable &&
+                    props.hasArea &&
+                    !props.gridBusy,
+                  onRun: () => props.onRunGridConnection?.(),
+                }
+              : props.gridProduct === "record"
               ? {
                   running: false,
                   progress: 0,
@@ -1373,6 +1399,7 @@ export function StudioScreen(props: StudioScreenProps) {
           floodResult={props.floodResult}
           gridStore={props.gridStore}
           gridCurtailment={props.gridCurtailment}
+          gridCongestion={props.gridCongestion}
           gridFigure={props.gridFigure}
           reveal={props.reveal}
           onRevealed={props.onRevealed}

@@ -38,6 +38,7 @@ import {
   AnalyzeEnergyModel,
   AnalyzeWind,
   AnalyzeFlood,
+  AnalyzeGridCongestion,
   AnalyzeGridCurtailment,
   AnalyzeGridFigure,
   InspectGridStore,
@@ -46,6 +47,7 @@ import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type { EditorId } from "@/lib/studioEditors"
 import type { GridProductId } from "@/lib/gridOptions"
 import type {
+  GridCongestionAnalysis,
   GridCurtailmentAnalysis,
   GridFigureAnalysis,
   PredictResult,
@@ -735,6 +737,8 @@ function AppBody(props: {
   })
   const [gridCurtailment, setGridCurtailment] =
     useState<GridCurtailmentAnalysis | null>(null)
+  const [gridCongestion, setGridCongestion] =
+    useState<GridCongestionAnalysis | null>(null)
   const [gridBusy, setGridBusy] = useState(false)
   /*
     The editor a just-finished run needs on screen, consumed once.
@@ -800,7 +804,18 @@ function AppBody(props: {
         zeros.
       */
       if (!res.summary) {
-        notifySuccess("No plant of the operational record lies inside this area.")
+        /*
+          NOT A SUCCESS, and the tick was saying it was. An area with no
+          metered plant is a real answer -- the record does not cover this
+          ground -- but it is a refusal to report, not a reading that came
+          back. Dressed with a green check it reads as "done", which is
+          exactly what a reader who drew over bare ground on purpose must not
+          conclude.
+        */
+        notifyInfo(
+          "No plant of the operational record lies inside this area. That is " +
+            "an absence of measurement, not a curtailment of zero."
+        )
       } else {
         notifySuccess(
           `Curtailment: ${(res.summary.withheld_fraction * 100).toFixed(1)}% withheld ` +
@@ -813,6 +828,57 @@ function AppBody(props: {
       setGridBusy(false)
     }
   }, [props.customPolygon, gridWindow.start, gridWindow.end])
+
+  /*
+    The network an area could reach, and what its plants are joined to.
+
+    NO WINDOW IN THE DEPENDENCIES, and that is not an oversight: the register
+    does not have one. Curtailment is a reading over a period and this is two
+    facts about a cadastre, so a run repeated after the window moved would
+    return the same answer under a different label.
+  */
+  const runGridCongestion = useCallback(async () => {
+    if (!props.customPolygon) {
+      notifyError("Grid connection", new Error("draw an area first"))
+      return
+    }
+    setGridBusy(true)
+    try {
+      const res = (await AnalyzeGridCongestion({
+        polygon_geojson: props.customPolygon,
+      } as never)) as unknown as GridCongestionAnalysis
+      setGridCongestion(res)
+      setReveal("gridConnection")
+      const joined = res.connection.attachment ?? []
+      if (joined.length > 0) {
+        const a = joined[0]
+        notifySuccess(
+          `Joined at ${a.point_code} — ${a.substation ?? "?"} ` +
+            `${a.voltage_kv ?? "?"} kV${joined.length > 1 ? ` and ${joined.length - 1} more` : ""}.`
+        )
+      } else if (res.connection.reachable) {
+        /*
+          Ground with no metered plant still has an answer here, and it is the
+          case this product exists for -- proximity is what a site being
+          chosen has instead of an attachment. Reported as information rather
+          than success, because nothing was READ about this ground; the
+          register was measured against it.
+        */
+        const s = res.connection.nearest_substation
+        notifyInfo(
+          "No plant of the record stands here, so there is no published " +
+            "attachment. Nearest bus: " +
+            (s ? `${s.name} at ${s.distance_km.toFixed(1)} km.` : "none within reach.")
+        )
+      } else {
+        notifyInfo(res.connection.note)
+      }
+    } catch (e) {
+      notifyError("Grid connection error", e)
+    } finally {
+      setGridBusy(false)
+    }
+  }, [props.customPolygon])
   /*
     `announce` separates the probe that runs on open from the one a person
     asked for.
@@ -3382,6 +3448,8 @@ function AppBody(props: {
                   gridCurtailment={gridCurtailment}
                   gridBusy={gridBusy}
                   onRunGridCurtailment={() => void handleRunGridCurtailment()}
+                  gridCongestion={gridCongestion}
+                  onRunGridConnection={() => void runGridCongestion()}
                   gridFigure={gridFigure}
                   gridFigureNumber={gridFigureNumber}
                   onGridFigureChange={setGridFigureNumber}

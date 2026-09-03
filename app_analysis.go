@@ -381,6 +381,26 @@ func (a *App) AnalyzeGridCurtailment(
 	return runner.AnalyzeGridCurtailment(a.ctx, req)
 }
 
+/*
+AnalyzeGridCongestion reads the network an area could reach.
+
+Sibling of AnalyzeGridCurtailment and resolves its connection the same way, for
+the same reason: analysis.Runner holds paths and nothing else, so the DSN is
+decided in one place and gridDSN encodes the precedence the sidecar cannot.
+*/
+func (a *App) AnalyzeGridCongestion(
+	req analysis.GridCongestionRequest,
+) (*analysis.GridCongestionAnalysis, error) {
+	runner := a.currentRunner()
+	if runner == nil {
+		return nil, errors.New("runner not initialized")
+	}
+	if data := a.dataDir(); data != "" {
+		req.StoreDSN = gridDSN(pyenv.LoadAppConfig(data))
+	}
+	return runner.AnalyzeGridCongestion(a.ctx, req)
+}
+
 // AnalyzeGridFigure computes one analysis of the published research series.
 //
 // The connection is resolved here rather than in the runner, for the reason

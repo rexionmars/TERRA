@@ -2516,6 +2516,57 @@ func RedactDSN(dsn string) string {
 // stands. Turning that into an error would make "nothing here is measured"
 // indistinguishable from "the run broke", which is the distinction the whole
 // slice is careful about.
+// AnalyzeGridCongestion reads what an area could reach and what it is joined to.
+//
+// NO WINDOW, AND THAT IS THE DIFFERENCE FROM ITS SIBLING. Curtailment is a
+// reading over a period; this asks where the network is and where the plants
+// on this ground attach, and both are facts about a register. Asking them
+// "over 2025" would be asking a map when it was drawn.
+func (r *Runner) AnalyzeGridCongestion(
+	ctx context.Context,
+	req GridCongestionRequest,
+) (*GridCongestionAnalysis, error) {
+	if _, err := os.Stat(r.sidecar); err != nil {
+		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
+	}
+	if req.PolygonGeoJSON == nil {
+		return nil, errors.New("no polygon provided")
+	}
+
+	payload := map[string]any{
+		"action":          "grid_congestion",
+		"polygon_geojson": req.PolygonGeoJSON,
+	}
+	// Only when set, so the sidecar resolves an absent key to its own
+	// documented default and echoes back what it used.
+	if req.SearchRadiusKM != nil {
+		payload["search_radius_km"] = *req.SearchRadiusKM
+	}
+	if req.StoreDSN != "" {
+		payload["br_store_dsn"] = req.StoreDSN
+	}
+
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+	raw, err := r.runSidecarJSON(ctx, reqBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapped struct {
+		Congestion *GridCongestionAnalysis `json:"grid_congestion"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
+		return nil, fmt.Errorf("failed to parse grid congestion result: %w", err)
+	}
+	if wrapped.Congestion == nil {
+		return nil, errors.New("sidecar returned empty grid congestion payload")
+	}
+	return wrapped.Congestion, nil
+}
+
 func (r *Runner) AnalyzeGridCurtailment(
 	ctx context.Context,
 	req GridCurtailmentRequest,
