@@ -158,6 +158,10 @@ export function GetStudio(arg1) {
   return window['go']['main']['App']['GetStudio'](arg1);
 }
 
+export function GridNetwork(arg1, arg2) {
+  return window['go']['main']['App']['GridNetwork'](arg1, arg2);
+}
+
 export function GridPlants(arg1, arg2) {
   return window['go']['main']['App']['GridPlants'](arg1, arg2);
 }

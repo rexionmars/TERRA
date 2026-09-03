@@ -84,6 +84,8 @@ export function GetProject(arg1:string):Promise<store.Project>;
 
 export function GetStudio(arg1:string):Promise<store.Studio>;
 
+export function GridNetwork(arg1:Array<number>,arg2:number):Promise<analysis.GridNetworkLayer>;
+
 export function GridPlants(arg1:Array<number>,arg2:Array<string>):Promise<analysis.GridPlantsLayer>;
 
 export function InspectEnvironment():Promise<main.EnvironmentState>;

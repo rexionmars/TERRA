@@ -44,6 +44,7 @@ ACTIONS: dict[str, str] = {
     'grid_curtailment': 'terra.grid.actions:grid_curtailment',
     'grid_congestion': 'terra.grid.actions:grid_congestion',
     'grid_plants': 'terra.grid.actions:grid_plants',
+    'grid_network': 'terra.grid.actions:grid_network',
     'grid_coverage': 'terra.grid.actions:grid_coverage',
     'grid_figure': 'terra.grid.actions:grid_figure',
     'canopy_field': 'terra.canopy.actions:canopy_field',
