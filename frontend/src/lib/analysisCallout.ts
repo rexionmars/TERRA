@@ -164,17 +164,29 @@ export function congestionEntry(
             label: `${km(n.distance_km)} · ${n.entity}`,
             value: `${n.point_code}${n.voltage_kv ? ` · ${n.voltage_kv} kV` : ""}`,
           })),
+          /*
+            NAMED, NOT CALLED "NEAREST". The headroom list follows the
+            neighbours' own order, which is by distance -- but the nearest
+            neighbour's point does not always RESOLVE to a bus, and when it
+            does not the first headroom belongs to the one after it. Over one
+            area east of Jaiba the closest point is a distribution cluster
+            whose code matches no substation in the transmission register, so
+            "nearest bus" would have named a bus 7 km further out.
+
+            So the row carries the point it is about and lets the neighbour
+            list above supply the distance.
+          */
           ...(h
             ? [
                 {
-                  label: `Nearest bus · ${h.lines_in_service} circuits`,
+                  label: `Bus ${h.bus} · ${h.lines_in_service} circuits`,
                   value:
                     h.line_capacity_mva == null
                       ? "rating not published"
                       : `${Math.round(h.line_capacity_mva).toLocaleString()} MVA`,
                 },
                 {
-                  label: "Already attached there",
+                  label: `Already attached to bus ${h.bus}`,
                   value:
                     h.attached_mw == null
                       ? "—"

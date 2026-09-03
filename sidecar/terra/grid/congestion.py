@@ -223,6 +223,26 @@ def neighbours(conn, aoi_geojson, max_km: float = 30.0, limit: int = 6):
         })
     return out
 
+
+def _first_seen(values):
+    """
+    The values in the order they arrive, without repeats.
+
+    dict.fromkeys would do it in one line and hides what is load-bearing: the
+    ORDER is the caller's and the deduplication is incidental. Two neighbours
+    can share a bus -- Sol do Cerrado and Jaiba V both sit on 3389 -- and the
+    headroom of that bus is asked once, at the distance of whichever of them is
+    nearer.
+    """
+    seen = set()
+    out = []
+    for v in values:
+        if v in seen:
+            continue
+        seen.add(v)
+        out.append(v)
+    return out
+
 def bus_headroom(conn, bus: int):
     """
     What leaves a bus, against what is already attached to it.
@@ -385,10 +405,20 @@ def connection_context(conn, aoi_geojson, max_km: float = 100.0):
         # network at these points, so a project here would be asking to join
         # the same part of the system -- and inherit what it does to them.
         'neighbours': nearby,
+        # IN THE NEIGHBOURS' OWN ORDER, WHICH IS BY DISTANCE. Built from a set
+        # this was ordered by BUS NUMBER, so the first entry was whichever id
+        # sorted lowest -- and a caller labelling it "nearest" named the
+        # furthest: over one area east of Jaiba the neighbours run 0.5, 3.2 and
+        # 15.4 km while bus 3389 (the 15.4) sorted before 4391 (the 3.2).
+        #
+        # A neighbour whose point resolved to no bus is skipped rather than
+        # holding a place: 'Conj. Jaiba 4 (Distribuicao)' has a connection code
+        # that matches no substation in the transmission register, which is the
+        # register saying it is not on the transmission system.
         'neighbour_bus_headroom': [
             bus_headroom(conn, b)
-            for b in sorted({n['bus'] for n in nearby
-                             if n.get('bus') is not None})
+            for b in _first_seen(n['bus'] for n in nearby
+                                 if n.get('bus') is not None)
         ],
         'nearest_substation': (None if nearest_sub is None
                                else summarise(nearest_sub)),
