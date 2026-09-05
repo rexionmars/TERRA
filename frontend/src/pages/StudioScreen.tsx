@@ -1,5 +1,4 @@
 import {
-  Fragment,
   Suspense,
   lazy,
   useEffect,
@@ -53,7 +52,12 @@ import {
   type FloodParams,
 } from "@/components/flood/floodSetup";
 import { cn } from "@/lib/utils";
+import { CaretDown } from "@phosphor-icons/react";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
+import {
+  StudioMenuItem,
+  StudioPopover,
+} from "@/components/studio/StudioPopover";
 import { StudioLoading } from "@/components/studio/StudioLoading";
 import { STUDIO_GROUPS, type EditorId } from "@/lib/studioEditors"
 import type { GridProductId } from "@/lib/gridOptions";
@@ -389,6 +393,12 @@ export function StudioScreen(props: StudioScreenProps) {
    * Null until the band is used, so it opens on whatever the map was showing.
    */
   const [boardTool, setBoardTool] = useState<BoardToolId | null>(null);
+  /*
+    Which subject's menu is down, by id rather than a boolean per group: the
+    band carries one entrance per subject and only one of them may be open at
+    a time, which a boolean each would not enforce.
+  */
+  const [bandMenu, setBandMenu] = useState<string | null>(null);
   /**
    * Which photovoltaic product the band will run.
    *
@@ -903,78 +913,96 @@ export function StudioScreen(props: StudioScreenProps) {
                 : true,
           );
           /*
-            GROUPED BY THE STUDIO'S OWN FOUR SUBJECTS, AND WITH A RULE RATHER
-            THAN A MENU.
+            ONE ENTRANCE PER SUBJECT, WHICH IS THE SHAPE THE OTHER TWO BARS
+            ALREADY HAVE.
 
-            The workspace bar and the editor menu both took the groups as named
-            sections, and repeating that here would be repeating a pattern past
-            where it fits: this row is five entries at most and two of them
-            withdraw when their parameters are absent, so four entrances would
-            cost a press on a row that already fits, and on a store with no
-            energy and no flood it would be four entrances over three items.
+            A row of five with a rule between the groups was tried first, on
+            the argument that four entrances cost a press on a row that fits.
+            That argument weighs a press against a bar's width and misses what
+            actually costs a reader more: three bars in one application, each
+            saying "these things belong together" in a different way. The
+            workspace bar and the editor menu both name their subjects and open
+            them; a third that grouped by hairline would make the grouping
+            itself something to learn twice.
 
-            What the groups buy in a row this short is not navigation but a
-            statement -- Surface water and Flood envelope are two readings of
-            one subject and stand together, Energy is not a third of them --
-            and a hairline makes it without spending a name's width on a header
-            the bar would have to withdraw first. The names are still said, in
-            the title, where there is room for them.
+            EVERY GROUP IS A MENU, including the ones holding one product. A
+            menu of one is a press for nothing, and a bar where some names open
+            and others act is a bar whose affordance cannot be predicted --
+            which costs on every entry rather than on the short ones. The
+            groups also have room to grow: the app has editors for solar
+            readings, wind screening and flood envelopes that no product starts
+            yet.
 
-            Empty groups draw neither entries nor a rule, so a filtered row
-            never opens or ends with a divider standing on its own.
+            `document.body` as the surface is the popover's own documented
+            path for a panel with no studio to sit inside: this row is built
+            here and rendered into an area header, so it never holds the
+            surface the areas are clamped in. Detached, it positions fixed at
+            the layer this band's other floating panels already use.
           */
-          return STUDIO_GROUPS.map((g, gi) => {
+          return STUDIO_GROUPS.map((g) => {
             const members = offered.filter((t) => t.group === g.id);
             if (!members.length) return null;
-            const first = STUDIO_GROUPS.slice(0, gi).every(
-              (prev) => !offered.some((t) => t.group === prev.id),
-            );
+            const active = members.find((t) => t.id === bandTool) ?? null;
+            const ActiveIcon = active ? TOOL_ICON[active.id] : null;
             return (
-              <Fragment key={g.id}>
-                {!first && (
-                  <span
-                    className="mx-0.5 h-4 w-px shrink-0 self-center"
-                    style={{ background: "rgb(var(--p-line) / 0.45)" }}
-                    aria-hidden
-                  />
-                )}
-                {members.map((t) => {
-                  const on = bandTool === t.id;
-                  const Icon = TOOL_ICON[t.id];
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={on}
-                      onClick={() => {
-                        setBoardTool(t.id);
-                        if (isMapTool(t.id)) setLeftPanel(t.id);
-                      }}
-                      title={`${g.label}: ${t.label}`}
-                      className={cn(
-                        "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
-                        on
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground hover:bg-hover hover:text-foreground",
-                      )}
-                    >
-                      <Icon className="size-3 shrink-0" />
-                      {/*
-                        Every tab named, not only the chosen one. Naming the
-                        active tab alone tells a reader what they already know
-                        -- they just pressed it -- and leaves the others as
-                        bare glyphs, which is the half of the choice that
-                        actually needs saying. `header-label` withdraws them
-                        together when the area is too narrow to carry them.
-                      */}
-                      <span className={cn(!on && "header-label")}>
-                        {t.label}
+              <StudioPopover
+                key={g.id}
+                open={bandMenu === g.id}
+                onOpenChange={(open) => setBandMenu(open ? g.id : null)}
+                surface={document.body}
+                widthRem={13}
+                trigger={(p) => (
+                  <button
+                    ref={p.ref as React.Ref<HTMLButtonElement>}
+                    type="button"
+                    onClick={p.onClick}
+                    aria-expanded={p["aria-expanded"]}
+                    aria-haspopup="menu"
+                    title={
+                      active
+                        ? `${g.label}: ${active.label}`
+                        : `${g.label}: ${members.map((t) => t.label).join(", ")}`
+                    }
+                    className={cn(
+                      "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+                      active
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-hover hover:text-foreground",
+                    )}
+                  >
+                    {ActiveIcon && <ActiveIcon className="size-3 shrink-0" />}
+                    {g.label}
+                    {/*
+                      WHICH product, beside which subject, so the band still
+                      says what it is showing without being opened -- the same
+                      relation the workspace bar's entrance carries. It
+                      withdraws first when the header runs out of room, because
+                      between the two the subject is the one that says where a
+                      reader is.
+                    */}
+                    {active && (
+                      <span className="header-label text-accent-foreground/70">
+                        {active.label}
                       </span>
-                    </button>
-                  );
-                })}
-              </Fragment>
+                    )}
+                    <CaretDown className="size-2.5 shrink-0 opacity-70" />
+                  </button>
+                )}
+              >
+                {members.map((t) => (
+                  <StudioMenuItem
+                    key={t.id}
+                    icon={TOOL_ICON[t.id]}
+                    label={t.label}
+                    checked={t.id === bandTool}
+                    onSelect={() => {
+                      setBoardTool(t.id);
+                      if (isMapTool(t.id)) setLeftPanel(t.id);
+                      setBandMenu(null);
+                    }}
+                  />
+                ))}
+              </StudioPopover>
             );
           });
         })()}
