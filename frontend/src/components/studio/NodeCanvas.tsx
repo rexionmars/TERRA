@@ -281,13 +281,19 @@ const PANE_SATURATE = 1.7
  * is `pending`, so the tint below is the ONLY thing that decides what the
  * surface looks like, and at 0.42 it decided on eight saturated bands.
  *
- * At 0.16 a pending wire lands between rgb(54 61 62) and rgb(62 58 62) -- four
- * bands differing by four levels at most, which is the point. The part's hue
- * arrives as a cast on near-black, a shade off the ground rather than a colour
- * on it, and the scale that supplies it has since been quietened to C 0.045
- * for the same reason the tint was: colour on this board means an outcome, not
- * a category. What separates a wire from the field is the lift and the cut
- * edge, not the hue, and what happens the moment a wire reports something is that an
+ * 0.28 AFTER 0.16, WHICH WENT TOO FAR THE OTHER WAY. At a sixth the four
+ * bands landed within four levels of each other and the board at rest was
+ * grey: the part a wire carries stopped being readable off the wire at all,
+ * and the only colour on a board nobody had run yet was the one button. The
+ * reference does not do that -- its waiting bands are dark, not colourless,
+ * and its three greens are three greens.
+ *
+ * At 0.28 a wire is its part's hue over lifted ink and stays well inside the
+ * floor: the reading measures 5.59:1 where two panes cross and 6.55 on the
+ * open field, against 4.5. Which is the same lesson as the last correction
+ * from the other side -- the ceiling here was never the tint's colour, it was
+ * the ground's lightness. What separates a wire from the field is still the
+ * lift and the cut edge as much as the hue, and what happens the moment a wire reports something is that an
  * opaque lime band crosses a quiet board. That contrast is the information.
  *
  * A GRADIENT ALONG THE RUN, AND IT FALLS RATHER THAN PEAKS. It was symmetric
@@ -304,13 +310,13 @@ const PANE_SATURATE = 1.7
  *
  * THE CONTRAST CEILING THAT USED TO BIND HERE NO LONGER DOES. At 0.42 the
  * reading measured 4.55:1 against the worst hue where two panes crossed, a
- * twentieth clear of its floor; at 0.16 it measures 6.80, and on the open
- * field 8.19. A quiet band is a legible one -- which is worth recording,
+ * twentieth clear of its floor; at 0.28 it measures 5.59, and on the open
+ * field 6.55. A quiet band is a legible one -- which is worth recording,
  * because the version that looked least like the reference was also the one
  * whose text had the least room.
  */
-const PANE_TINT_HEAD = 0.16
-const PANE_TINT_TAIL = 0.09
+const PANE_TINT_HEAD = 0.28
+const PANE_TINT_TAIL = 0.16
 
 /**
  * A wire's colour at a weight, whatever form the colour arrived in.
@@ -1516,13 +1522,11 @@ export function NodeCanvas({
                   other card, so this reads as the same header in a different
                   temperature rather than as a header that went missing.
                 */
-                n.tone === "action"
-                  ? "bg-accent-dim"
-                  : n.tone === "aside"
-                    ? "bg-aside/22"
-                    : n.subject
-                      ? undefined
-                      : "bg-selected"
+                n.tone === "aside"
+                  ? "bg-aside/22"
+                  : n.tone === "action" || n.subject
+                    ? undefined
+                    : "bg-selected"
               )}
               /*
                 THE PART IS A TINT ON THE HEADER, NOT A HEADER OF ITS OWN.
@@ -1536,12 +1540,37 @@ export function NodeCanvas({
                 has -- so a part reads as the same header in a different
                 temperature, which is what --p-aside already does above.
               */
+              /*
+                THE ACTION HEADER IS A WASH NOW TOO, and it was the last one
+                that was not.
+
+                It was `bg-accent-dim`: an opaque plate, laid instead of the
+                raised surface rather than over it. The note above records that
+                exact construction being wrong for the aside card and the note
+                below records it being wrong for a card with a part -- "a card
+                with a part lost that lift and became a flat plate of colour
+                instead" -- and the action card kept it through both
+                corrections, so on a board of washed headers it was the one
+                solid band.
+
+                0.30 of the accent, which is the weight a HEAVY part takes (see
+                PART_WASH). It stays the loudest header on the field, because
+                the accent is the loudest hue and nothing else on the board is
+                painted in it; what it no longer is is a different KIND of
+                header. --p-accent-dim is left to the things it was measured
+                for, which are fills that carry a label.
+              */
               style={
-                n.tone !== "action" && n.tone !== "aside" && n.subject
-                  ? {
-                      background: `linear-gradient(${n.subject.wash}, ${n.subject.wash}), var(--s-panel-head)`,
+                n.tone === "aside"
+                  ? undefined
+                  : {
+                      background:
+                        n.tone === "action"
+                          ? "linear-gradient(rgb(var(--p-accent) / 0.3), rgb(var(--p-accent) / 0.3)), var(--s-panel-head)"
+                          : n.subject
+                            ? `linear-gradient(${n.subject.wash}, ${n.subject.wash}), var(--s-panel-head)`
+                            : undefined,
                     }
-                  : undefined
               }
             >
               {n.header}
