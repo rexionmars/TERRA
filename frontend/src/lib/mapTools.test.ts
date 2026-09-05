@@ -16,6 +16,7 @@
  */
 import { describe, expect, it } from "vitest"
 
+import { STUDIO_GROUPS } from "./studioEditors"
 import { BOARD_TOOLS, MAP_TOOLS, isMapTool, type BoardToolId } from "./mapTools"
 
 describe("MAP_TOOLS", () => {
@@ -56,14 +57,22 @@ describe("BOARD_TOOLS", () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it("is ordered so each subject's products stand together", () => {
-    // The band draws a rule wherever the group changes, so an entry out of
-    // order would put one product on the far side of a divider from the
-    // subject it belongs to -- the one thing the grouping exists to prevent.
-    const seen: string[] = []
+  it("names a subject the studio has, for every product", () => {
+    /*
+      The band asks STUDIO_GROUPS for the subjects and filters the products
+      into them, so a product carrying a group no longer in that table would
+      not be drawn at all -- it would go missing from the bar rather than fail,
+      which is the failure mode worth a test.
+
+      The array's ORDER is no longer asserted. It was, while the band drew a
+      rule wherever the group changed and an entry out of place would have put
+      a product on the far side of a divider from its own subject. The band
+      walks the groups now and collects each one's members, so order within the
+      table decides only where a product sits inside its own menu.
+    */
+    const known = new Set(STUDIO_GROUPS.map((g) => g.id))
     for (const tool of BOARD_TOOLS) {
-      if (seen[seen.length - 1] !== tool.group) seen.push(tool.group)
+      expect(known.has(tool.group), tool.id).toBe(true)
     }
-    expect(new Set(seen).size).toBe(seen.length)
   })
 })
