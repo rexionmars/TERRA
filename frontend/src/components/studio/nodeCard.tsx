@@ -78,7 +78,27 @@ export function Head({
         rather than the exception, and a name that cannot be read is a card
         that does not say which run it is.
       */}
-      <span className="eyebrow !text-[9px] truncate" title={label}>
+      {/*
+        `!text-foreground`, OVERRIDING THE EYEBROW'S OWN MUTED COLOUR.
+
+        `.eyebrow` is drawn in --p-muted, which is measured against the
+        surfaces a panel is made of. This one sits on a card header, and every
+        card header on the board is a WASH: the part's hue at three tenths over
+        the raised plate, the accent at the same weight on the run card, the
+        aside at 0.22. Muted reads 3.77 to 3.92 on the four part washes and
+        3.81 on the run's -- under the 4.5 floor on all of them, and only the
+        aside's lighter wash clears at 4.51.
+
+        The floor lives here rather than in check-contrast because the ground
+        is a composite: a token laid over another token at an alpha, which the
+        checker compares tokens to tokens and cannot see. Measured at the full
+        weight: 5.51, 5.61, 5.62, 5.72 for the parts, 5.56 for the run, 6.59
+        for the aside.
+
+        Small and letter-spaced is what keeps it quiet at this weight. Quiet
+        was never the muted TOKEN's job here; it is the size's.
+      */}
+      <span className="eyebrow !text-[9px] truncate !text-foreground" title={label}>
         {label}
       </span>
     </>

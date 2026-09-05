@@ -235,32 +235,36 @@
     and if they are also the same hue the board stops distinguishing a question
     from its answer. 160 holds 36 degrees of separation.
 
-    L 0.699 AND C 0.045, WHERE THE CHROMA WAS 0.112 AND THEN 0.078. Three
-    settings have been wrong here, each in the direction of the last argument.
-    The product scale's 0.090 was tried first and four cards read as four
-    greys behind a header wash; it went to 0.112, which is where the wires were
-    flat fills; then to 0.078 when they became panes.
+    L 0.699 AND C 0.118, AFTER GOING TOO QUIET ONCE. Four settings have been
+    tried and each answered the last one's failure. The product scale's 0.090
+    read as four greys behind a header wash; 0.112 was where the wires were
+    flat fills; 0.078 when they became panes; then 0.045, on a reading of a set
+    of reference palettes that took the wrong half of them.
 
-    0.045 is what a set of reference palettes settled. Measured, they hold two
-    kinds of colour and nothing between: grounds at C 0.012 to 0.030 -- Toxic
+    WHAT THE REFERENCES ACTUALLY SPEND COLOUR ON. Measured, they hold two kinds
+    of colour and nothing between: grounds at C 0.012 to 0.030 -- Toxic
     Forest's #0B2027, Graphite 900's #23262C -- and accents at C 0.18 to 0.20,
-    which is #B1FA63 and #FE7733. This scale paints SURFACES: a card's header
-    wash, its border, and a waiting wire's pane. It belongs on the ground side
-    of that split, and at 0.078 it was in the gap, too coloured to be a ground
-    and too quiet to be an accent, so a board at rest was four muted hues
-    competing with the one control that is actually asking to be pressed.
+    which is #B1FA63, #FE7733 and Toxic Forest's three greens. The error was
+    putting this scale on the GROUND side of that split because it paints
+    surfaces. It paints the surfaces a reader is looking AT: a card's header,
+    its border, its glyph, and the pane of a wire between two cards. Those are
+    the subject, not the field they stand on -- and at 0.045 a board at rest
+    was four greys with one orange button on it.
 
-    THE TWO WARM ONES CAME ACROSS. 291 and 345 are now 280 and 325, which puts
-    the whole scale on the cool side of the wheel and leaves warmth to mean one
-    thing on this surface: the accent, the run that is reading, the route that
-    failed. The reference palettes are built the same way -- a cool near-black
-    field, one green, one orange -- and it is why they read as a field with two
-    things happening on it rather than as six colours.
+    0.118 is five thousandths under what the tightest of these hues can hold at
+    this lightness: the cyan leaves sRGB at 0.123. So it is as much colour as
+    the set can carry in common, which is where a scale of accents belongs. The
+    ground stays where the references put a ground, on the neutral ramp above.
 
-  --p-part-source: 135 167 149;
-  --p-part-when: 126 166 174;
-  --p-part-method: 152 156 186;
-  --p-part-value: 173 149 174;
+    THE TWO WARM ONES STAY WHERE THE COOLING PUT THEM, at 288 and 338 rather
+    than 291 and 345, and source at 160 rather than 155. Those moves were about
+    CLEARANCE and survive the chroma coming back: 160 holds 36 degrees off the
+    lime a taken route is painted in, where 155 held 31.
+
+  --p-part-source: 81 180 133;
+  --p-part-when: 31 176 204;
+  --p-part-method: 155 146 227;
+  --p-part-value: 205 128 184;
 
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
@@ -355,15 +359,15 @@
   --p-kind-flood: 64 119 163;
   --p-kind-wind: 117 103 161;
 
-  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.038
-     rather than the dark theme's 0.045 -- a light ground holds less chroma at
-     these hues, and the two themes keep the ratio between their chromas that
-     they had before the scale was quietened. 3.34, 3.32, 3.42 and 3.45 against
-     the deepest light ground, which is the one that binds here. */
-  --p-part-source: 94 120 106;
-  --p-part-when: 87 120 126;
-  --p-part-method: 108 111 136;
-  --p-part-value: 125 106 126;
+  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.094
+     rather than the dark theme's 0.118 -- 0.094 is where the cyan leaves sRGB
+     at this lightness, so each theme sits at its own ceiling rather than at a
+     shared number neither could hold. 3.23, 3.26, 3.47 and 3.55 against the
+     deepest light ground, which is the one that binds here. */
+  --p-part-source: 55 130 94;
+  --p-part-when: 15 127 147;
+  --p-part-method: 111 104 165;
+  --p-part-value: 149 91 132;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
