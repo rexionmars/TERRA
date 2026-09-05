@@ -72,7 +72,29 @@
     next block down: these say how deep, and the roles say what for. Nothing
     outside that block should reach for one of these.
   */
-  --p-sunk: 24 24 24;
+  /*
+    TWELVE, NOT BLENDER'S TWENTY-FOUR, AND THE GAP IS WHY.
+
+    Blender's deepest step is 24 and its areas meet FLUSH -- that value paints
+    a status bar, a band with its own edges, where a step of 1.35 against a
+    panel is plenty. Ours also paints the gap between every two panels, five
+    pixels wide with a panel on each side, and a five-pixel strip at 1.35 is a
+    strip a reader has to look for. A gap that has to be looked for is a border
+    with extra steps.
+
+    1.48 against the panel step, which is where the return flattens: pure black
+    would reach only 1.59, because contrast at this end of the range is
+    compressed and the last twelve levels buy a tenth of what the first twelve
+    do. Twelve is most of what is available without the ground becoming a hole.
+
+    STILL NEUTRAL, WHICH IS A DECISION AND NOT AN OMISSION. A tint here was the
+    obvious other answer and it is the one this chassis has already refused:
+    the note at the top of this block records two predecessors that put the hue
+    in the surfaces, and the reason for taking it out is that the accent is
+    then the only colour on screen that is not data. A coloured ground would be
+    a second one, permanently, behind everything.
+  */
+  --p-sunk: 12 12 12;
   --p-ink: 30 30 30;
   --p-control: 40 40 40;
   --p-surface: 48 48 48;
@@ -287,7 +309,15 @@
     ladder is narrower in absolute terms and the same in ratio, which is what
     the eye is reading.
   */
-  --p-sunk: 223 223 223;
+  /*
+    215, which is the floor rather than a choice: --p-line-strong needs a
+    ground at or above it to clear 3:1, and it is measured on every step. The
+    light theme therefore separates its ground from its panels by 1.31 where
+    the dark one manages 1.48 -- less room, and the reason is the range itself.
+    A light chassis has forty levels between its deepest surface and white; a
+    dark one has sixty-seven below its panels.
+  */
+  --p-sunk: 215 215 215;
   --p-ink: 231 231 231;
   --p-control: 238 238 238;
   --p-surface: 244 244 244;
