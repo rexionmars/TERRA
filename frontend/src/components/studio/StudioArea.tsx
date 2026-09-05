@@ -28,7 +28,14 @@
  * domain-shift section was once fitted into a 15rem band and the outcome is
  * recorded in this codebase: "present in the code, invisible in use".
  */
-import { useRef, useState, useSyncExternalStore } from "react"
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
+import { createPortal } from "react-dom"
 import { Columns, ArrowsOut, ArrowsIn, Rows, X } from "@phosphor-icons/react"
 import { AREA_RADIUS_PX } from "@/lib/boardAreas"
 import {
@@ -81,6 +88,37 @@ export interface AreaHeaderSlots {
   toolbar?: React.ReactNode
   /** A second strip under the header, for the active tool's settings. */
   toolSettings?: React.ReactNode
+}
+
+/**
+ * Where an editor may put a control of its own, in its own area's header.
+ *
+ * THE SLOTS ABOVE ARE THE PARENT'S. `AreaHeaderSlots` is built by whoever
+ * renders the area -- BoardSurface for most of them, the studio screen for the
+ * run band -- which works while the control's state is the parent's too. It
+ * does not work for a control that acts on state the EDITOR owns: the
+ * browser's "New project" opens a naming field inside StudioBrowser, and
+ * getting it into the header through a prop would mean either lifting that
+ * field's state to a component that has no other use for it, or sending a
+ * command down, which is the direction React data does not flow.
+ *
+ * So the header exposes a place instead of asking for a node. An editor
+ * renders `AreaHeaderOptions` anywhere in its tree and its children land at
+ * the header's right end, beside the parent's own options and before the
+ * arrangement menu. The state stays where it is used.
+ *
+ * A state rather than a ref for the host, because a portal has to re-render
+ * once the node exists and a ref does not say when that happened.
+ */
+const AreaHeaderOptionsHost = createContext<HTMLElement | null>(null)
+
+export function AreaHeaderOptions({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const host = useContext(AreaHeaderOptionsHost)
+  return host ? createPortal(children, host) : null
 }
 
 export function StudioArea({
@@ -148,6 +186,7 @@ export function StudioArea({
     preference it has no use for.
   */
   const gutter = useSyncExternalStore(subscribeStudioGutter, studioGutterOn)
+  const [optionsHost, setOptionsHost] = useState<HTMLElement | null>(null)
 
   /*
     THE HEADER NAMES THE PANE, NOT THE EDITOR THAT HOLDS IT.
@@ -370,6 +409,12 @@ export function StudioArea({
         {slots?.centre}
         {slots?.centre && slots?.options ? <span className="flex-1" /> : null}
         {slots?.options}
+        {/*
+          `contents`, so an editor's own controls sit in the header's flex row
+          as siblings of the parent's rather than inside a box of their own --
+          which would give them a gap the parent's options do not have.
+        */}
+        <div ref={setOptionsHost} className="contents" />
 
         {/*
           The arrangement lives here, on the context menu, and costs the header
@@ -477,7 +522,15 @@ export function StudioArea({
           )}
         >
           {fits ? (
-            children
+            /*
+              The header's place, offered to whatever this area holds. Wrapped
+              around the BODY rather than the whole area so an editor that is
+              too narrow to draw -- the branch below -- contributes nothing to
+              a header it is not filling.
+            */
+            <AreaHeaderOptionsHost.Provider value={optionsHost}>
+              {children}
+            </AreaHeaderOptionsHost.Provider>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-1 px-2 text-center">
               <meta.icon

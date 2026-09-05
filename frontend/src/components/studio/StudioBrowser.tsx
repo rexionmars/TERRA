@@ -77,6 +77,7 @@ import { useAuth } from "@/lib/auth"
 import { notifyError, notifySuccess } from "@/lib/notify"
 import { runKindLabel, runRowLine } from "@/lib/runSummary"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
+import { AreaHeaderOptions } from "@/components/studio/StudioArea"
 import {
   StudioContextMenu,
   StudioMenuItem,
@@ -654,21 +655,50 @@ export function StudioBrowser({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setNaming({ id: null, name: "" })}
-            disabled={working}
-            className={cn(
-              "flex h-7 shrink-0 items-center gap-1.5 border-t px-2 text-emphasis transition-colors",
-              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              "text-muted-foreground hover:bg-hover hover:text-foreground",
-              working && "cursor-not-allowed opacity-50"
-            )}
-            style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-          >
-            <FolderPlus className="size-3.5" />
-            New project
-          </button>
+          {/*
+            NEW PROJECT IS IN THE AREA'S HEADER, NOT AT THE FOOT OF THIS
+            COLUMN.
+
+            It was a full-width button under the source tree, which is the one
+            place in this editor it does not belong: the tree lists what
+            EXISTS, and a control that makes a new one sat inside the list of
+            the old, tied to the width of a column that is one of two. Filing
+            a run into a project is done from the grid on the right just as
+            often as from the tree on the left, and the button was reachable
+            from only one of them.
+
+            The header is the panel's own edge, so it holds for both. It is
+            also where every other act on a whole editor already lives -- the
+            research pack on the tables, the arrangement menu at the far right
+            -- and it survives this column being scrolled or narrowed.
+
+            Portalled rather than passed up: the naming field it opens is this
+            component's state, and getting the button into a header the parent
+            builds would mean lifting that state to a component with no other
+            use for it. See AreaHeaderOptions.
+          */}
+          <AreaHeaderOptions>
+            <button
+              type="button"
+              onClick={() => setNaming({ id: null, name: "" })}
+              disabled={working}
+              title="Create a project to file runs into"
+              className={cn(
+                "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                "text-muted-foreground hover:bg-hover hover:text-foreground",
+                working && "cursor-not-allowed opacity-50"
+              )}
+            >
+              <FolderPlus className="size-3 shrink-0" />
+              {/*
+                Withdrawn with the header's other labels when the area is too
+                narrow to carry them, which is what `header-label` is for. The
+                glyph is a folder with a plus and says the act on its own.
+              */}
+              <span className="header-label">New project</span>
+            </button>
+          </AreaHeaderOptions>
         </div>
 
         {/* THE ITEMS. */}
