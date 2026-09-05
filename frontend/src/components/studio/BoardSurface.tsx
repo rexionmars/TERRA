@@ -11,7 +11,6 @@
  * up while this arrives.
  */
 import {
-  Fragment,
   Suspense,
   lazy,
   useCallback,
@@ -2910,7 +2909,13 @@ export function BoardSurface({
   restoreTreeRef.current = restoreTree
   surfaceRef2.current = surface
   const [appMenu, setAppMenu] = useState(false)
-  const [workspaceMenu, setWorkspaceMenu] = useState(false)
+  /*
+    WHICH GROUP'S MENU IS OPEN, by id rather than a boolean, because the bar
+    carries one entrance per group and only one of them may be down at a time.
+    A boolean per group would let two open together, which is the one thing a
+    menu bar must not do.
+  */
+  const [workspaceMenu, setWorkspaceMenu] = useState<string | null>(null)
   /*
     The preset the bar names, resolved rather than looked up at the trigger:
     `studioWorkspace` already falls back to the first one for an id that no
@@ -4952,95 +4957,113 @@ export function BoardSurface({
         />
 
         {/*
-          ONE ENTRANCE, GROUPED, RATHER THAN SEVEN TABS IN A ROW.
+          ONE ENTRANCE PER GROUP, WHICH IS A MENU BAR AND NOT A TAB STRIP.
 
-          The strip listed all seven side by side and so claimed they were
-          seven equal destinations. They are not: four of them read one
-          subject -- Compare sets two classification predictions against each
-          other, Diagnose measures a run against the domain its model was
-          fitted on, Data opens that run's tables, Simulation is a canopy --
-          and Routing and System are different work entirely. A reader looking
-          for the flood arrangement had to know the word "Routing"; a reader
-          looking for what this studio can do at all got a row of labels with
-          no shape.
+          The strip listed all seven presets side by side and so claimed they
+          were seven equal destinations. They are not: Compare, Diagnose, Data
+          and Simulation are four readings of one subject, and Routing and
+          System are different work entirely. A reader looking for the flood
+          arrangement had to already know the word "Routing".
 
-          A menu can say the shape, because it has a device a strip does not:
-          a named section. WORKSPACE_GROUPS carries the names, the preset
-          carries which one it is in, and neither is an order in an array.
+          The groups are what belongs on the bar, and each one owns a menu of
+          its own -- File, Edit, Render, Window, in the shape every desktop
+          application has used for forty years, where the top row is the
+          SUBJECTS and the depth is the choices inside one. Grouping seven
+          items under a single entrance said the same thing with the names of
+          the groups hidden one press away, which is the wrong half to hide:
+          the groups are the map.
 
-          IT ALSO STOPS THE STRIP FROM RUNNING OUT OF BAR. Seven tabs and the
-          board's data-block already fill the 1000px minimum window; the app
-          has editors for solar, wind and flood readings that no arrangement
-          opens yet, and a strip cannot take three more. A menu can.
+          IT ALSO STOPS THE BAR RUNNING OUT OF ROOM. Seven tabs and the
+          board's data-block already fill the 1000px minimum window, and the
+          app has editors for solar readings, wind screening and flood
+          envelopes that no arrangement opens yet. A strip cannot take three
+          more. Four group names can take them without growing at all.
 
-          The cost is honest: switching workspaces is two presses rather than
-          one. What buys it back is that the trigger says which one is current
-          in the same glyph and word the tab did, so the state a strip carried
-          by position is still on the bar and not only inside the menu.
+          WHICH PRESET IS CURRENT IS STILL ON THE BAR. The group holding it
+          carries the ground of the area below -- the same relation the tabs
+          had -- and says the preset's own name beside its own, so a reader
+          sees "Land cover / Compare" without opening anything. The other
+          three say only what they are.
         */}
-        <StudioPopover
-          open={workspaceMenu}
-          onOpenChange={setWorkspaceMenu}
-          surface={surfaceRef.current}
-          widthRem={15}
-          trigger={(p) => (
-            <button
-              ref={p.ref as React.Ref<HTMLButtonElement>}
-              type="button"
-              onClick={p.onClick}
-              aria-expanded={p["aria-expanded"]}
-              aria-haspopup="menu"
-              title={currentWorkspace.hint}
-              className="relative -mb-px flex h-full items-center gap-1.5 px-2.5 text-meta text-foreground transition-colors"
-              style={{
-                /*
-                  `panel`, the ground of the AREA BELOW and not the strip's
-                  own: the entrance and the work it opens are one surface
-                  interrupted by a border. It is what the tabs did while they
-                  were tabs, kept because it is still what says the bar and the
-                  board are the same place.
-                */
-                background: "var(--s-panel)",
-                borderTopLeftRadius: 3,
-                borderTopRightRadius: 3,
-              }}
-            >
-              <currentWorkspace.icon
-                className="size-3 shrink-0"
-                strokeWidth={1.75}
-              />
-              {currentWorkspace.label}
-              <CaretDown className="size-2.5 shrink-0 text-muted-foreground" />
-            </button>
-          )}
-        >
-          {WORKSPACE_GROUPS.map((g, i) => {
-            const members = STUDIO_WORKSPACES.filter((w) => w.group === g.id)
-            if (!members.length) return null
-            return (
-              <Fragment key={g.id}>
-                {/* The hairline Blender puts between groups, never above the
-                    first one, where it would read as a lid. */}
-                {i > 0 && <StudioMenuRule />}
-                <StudioMenuGroup label={g.label}>
-                  {members.map((w) => (
-                    <StudioMenuItem
-                      key={w.id}
-                      icon={w.icon}
-                      label={w.label}
-                      checked={w.id === workspaceId}
-                      title={w.hint}
-                      onSelect={() => {
-                        setWorkspaceId(w.id)
-                        setWorkspaceMenu(false)
-                      }}
+        {WORKSPACE_GROUPS.map((g) => {
+          const members = STUDIO_WORKSPACES.filter((w) => w.group === g.id)
+          if (!members.length) return null
+          const current = members.some((w) => w.id === workspaceId)
+          return (
+            <StudioPopover
+              key={g.id}
+              open={workspaceMenu === g.id}
+              onOpenChange={(open) => setWorkspaceMenu(open ? g.id : null)}
+              surface={surfaceRef.current}
+              widthRem={14}
+              trigger={(p) => (
+                <button
+                  ref={p.ref as React.Ref<HTMLButtonElement>}
+                  type="button"
+                  onClick={p.onClick}
+                  aria-expanded={p["aria-expanded"]}
+                  aria-haspopup="menu"
+                  title={
+                    current
+                      ? currentWorkspace.hint
+                      : `${g.label}: ${members.map((w) => w.label).join(", ")}`
+                  }
+                  className={cn(
+                    "relative -mb-px flex h-full items-center gap-1.5 px-2.5 text-meta transition-colors",
+                    current
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  style={
+                    current
+                      ? {
+                          /*
+                            `panel`, the ground of the AREA BELOW and not the
+                            strip's own: the entrance and the work it opens
+                            are one surface interrupted by a border. It is
+                            what the tabs did while they were tabs, kept
+                            because it is still what says the bar and the
+                            board are the same place.
+                          */
+                          background: "var(--s-panel)",
+                          borderTopLeftRadius: 3,
+                          borderTopRightRadius: 3,
+                        }
+                      : undefined
+                  }
+                >
+                  {current && (
+                    <currentWorkspace.icon
+                      className="size-3 shrink-0"
+                      strokeWidth={1.75}
                     />
-                  ))}
-                </StudioMenuGroup>
-              </Fragment>
-            )
-          })}
-        </StudioPopover>
+                  )}
+                  {g.label}
+                  {current && (
+                    <span className="truncate text-muted-foreground">
+                      {currentWorkspace.label}
+                    </span>
+                  )}
+                  <CaretDown className="size-2.5 shrink-0 text-muted-foreground" />
+                </button>
+              )}
+            >
+              {members.map((w) => (
+                <StudioMenuItem
+                  key={w.id}
+                  icon={w.icon}
+                  label={w.label}
+                  checked={w.id === workspaceId}
+                  title={w.hint}
+                  onSelect={() => {
+                    setWorkspaceId(w.id)
+                    setWorkspaceMenu(null)
+                  }}
+                />
+              ))}
+            </StudioPopover>
+          )
+        })}
 
         <span className="flex-1" />
 
