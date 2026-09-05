@@ -32,10 +32,12 @@ import { useRef, useState } from "react"
 import { Columns, ArrowsOut, ArrowsIn, Rows, X } from "@phosphor-icons/react"
 import {
   STUDIO_EDITORS,
+  STUDIO_GROUPS,
   studioEditor,
   type EditorId,
 } from "@/lib/studioEditors"
 import {
+  StudioMenuGroup,
   StudioMenuItem,
   StudioMenuRule,
   StudioPopover,
@@ -240,50 +242,81 @@ export function StudioArea({
             />
           )}
         >
-          {STUDIO_EDITORS.map((e) => {
-            const blocked = !!e.unique && e.id !== editor && takenUnique.has(e.id)
-            const subs = modes?.[e.id] ?? []
-            return (
-              <div key={e.id}>
-                <StudioMenuItem
-                  icon={e.icon}
-                  label={e.label}
-                  checked={e.id === editor}
-                  disabled={blocked}
-                  title={
-                    blocked
-                      ? `${e.label} owns the scene and can only be in one area`
-                      : e.hint
-                  }
-                  onSelect={() => {
-                    onRetype(e.id)
-                    setTypeMenu(false)
-                  }}
-                />
-                {/*
-                  Indented rather than behind a flyout. Three items do not earn
-                  the hover-intent, the second positioning pass and the
-                  keyboard path a submenu needs, and a flyout in a 14rem
-                  popover opens where there is no room for it.
+          {/*
+            GROUPED, BY THE STUDIO'S OWN FOUR SUBJECTS.
 
-                  Choosing one retypes AND sets the mode, which is the whole
-                  point: it is one intention.
-                */}
-                {subs.map((m) => (
-                  <StudioMenuItem
-                    key={`${e.id}:${m.id}`}
-                    icon={m.icon}
-                    label={m.label}
-                    indented
-                    checked={e.id === editor && m.active}
-                    disabled={blocked}
-                    onSelect={() => {
-                      m.select()
-                      if (e.id !== editor) onRetype(e.id)
-                      setTypeMenu(false)
-                    }}
-                  />
-                ))}
+            Twenty-three editors in one column asked a reader to know the whole
+            list before choosing from it, and the column's order carried the
+            grouping implicitly -- the grid editors happened to be adjacent,
+            the classification ones happened to be adjacent -- which is a
+            grouping nothing states and any insertion breaks.
+
+            The same four names the workspace bar uses, from the same table in
+            studioEditors. A reader who has learnt "Land cover" on the bar has
+            learnt it here, and the two cannot drift because there is one list.
+
+            An empty group draws nothing rather than an empty heading, so a
+            build that ships no water editors is a menu with no Water section
+            instead of a section with nothing in it.
+          */}
+          {STUDIO_GROUPS.map((g, gi) => {
+            const members = STUDIO_EDITORS.filter((e) => e.group === g.id)
+            if (!members.length) return null
+            return (
+              <div key={g.id}>
+                {/* The hairline between groups, never above the first, where it
+                    would read as a lid on the menu. */}
+                {gi > 0 && <StudioMenuRule />}
+                <StudioMenuGroup label={g.label}>
+                  {members.map((e) => {
+                    const blocked =
+                      !!e.unique && e.id !== editor && takenUnique.has(e.id)
+                    const subs = modes?.[e.id] ?? []
+                    return (
+                      <div key={e.id}>
+                        <StudioMenuItem
+                          icon={e.icon}
+                          label={e.label}
+                          checked={e.id === editor}
+                          disabled={blocked}
+                          title={
+                            blocked
+                              ? `${e.label} owns the scene and can only be in one area`
+                              : e.hint
+                          }
+                          onSelect={() => {
+                            onRetype(e.id)
+                            setTypeMenu(false)
+                          }}
+                        />
+                        {/*
+                          Indented rather than behind a flyout. Three items do
+                          not earn the hover-intent, the second positioning pass
+                          and the keyboard path a submenu needs, and a flyout in
+                          a 14rem popover opens where there is no room for it.
+
+                          Choosing one retypes AND sets the mode, which is the
+                          whole point: it is one intention.
+                        */}
+                        {subs.map((m) => (
+                          <StudioMenuItem
+                            key={`${e.id}:${m.id}`}
+                            icon={m.icon}
+                            label={m.label}
+                            indented
+                            checked={e.id === editor && m.active}
+                            disabled={blocked}
+                            onSelect={() => {
+                              m.select()
+                              if (e.id !== editor) onRetype(e.id)
+                              setTypeMenu(false)
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )
+                  })}
+                </StudioMenuGroup>
               </div>
             )
           })}

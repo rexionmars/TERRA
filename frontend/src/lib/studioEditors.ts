@@ -64,8 +64,48 @@ export type EditorId =
   | "gridFigure"
   | "browser"
 
+/**
+ * What kind of work a thing is FOR, named once for the whole studio.
+ *
+ * The type menu listed twenty-three editors in one column and the workspace
+ * bar listed seven presets in a row, and neither said what separated them.
+ * They are the same four subjects: the board itself, land cover, water,
+ * energy. A reader who has learnt the bar has learnt the menu.
+ *
+ * DECLARED HERE, IN THE LOWER MODULE, for the reason this file already gives
+ * for the editor table: a label that exists twice is a label that can disagree
+ * with itself. `studioWorkspaces` imports EditorId from here, so here is the
+ * only place both can read one list from.
+ *
+ * "crop" rather than "landCover" as the id because that is the word the work
+ * is asked for by; the label is what a reader sees, and it can change without
+ * a rename running through two files.
+ */
+export type StudioGroup = "board" | "crop" | "water" | "energy"
+
+/** The groups in the order every menu lists them, and what each is called. */
+export const STUDIO_GROUPS: readonly {
+  id: StudioGroup
+  label: string
+}[] = [
+  { id: "board", label: "Board" },
+  { id: "crop", label: "Land cover" },
+  { id: "water", label: "Water" },
+  { id: "energy", label: "Energy" },
+]
+
 export interface StudioEditorMeta {
   id: EditorId
+  /**
+   * What kind of work it is for. See StudioGroup.
+   *
+   * `board` is the editors any task needs -- the scene, the tree, the run's
+   * own settings and tables -- and the other three are the subjects this
+   * studio is asked about. An editor's group is a property of the editor
+   * rather than its position in the array below, so the array's order still
+   * decides where it sits INSIDE its group.
+   */
+  group: StudioGroup
   /** Shown in the area header and in the type selector. */
   label: string
   icon: Icon
@@ -106,6 +146,7 @@ export interface StudioEditorMeta {
 export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   {
     id: "viewport",
+    group: "board",
     label: "Viewport",
     icon: Cube,
     minRem: 12,
@@ -116,6 +157,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "outliner",
+    group: "board",
     label: "Outliner",
     icon: TreeView,
     minRem: 11,
@@ -124,6 +166,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "properties",
+    group: "board",
     label: "Properties",
     icon: SlidersHorizontal,
     minRem: 11,
@@ -132,6 +175,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "compare",
+    group: "crop",
     label: "Comparison",
     icon: GitDiff,
     // Wider than the columns, because what it shows is a relation between two
@@ -142,6 +186,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "domainShift",
+    group: "crop",
     label: "Domain shift",
     icon: Waves,
     /*
@@ -157,6 +202,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "spectra",
+    group: "crop",
     label: "Spectral response",
     icon: ChartLine,
     /*
@@ -172,6 +218,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "separability",
+    group: "crop",
     label: "Class separability",
     icon: Ruler,
     /*
@@ -192,6 +239,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "libraryLimit",
+    group: "crop",
     label: "Library check",
     icon: Books,
     /*
@@ -206,6 +254,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "brush",
+    group: "crop",
     label: "Rover",
     icon: Crosshair,
     /*
@@ -226,6 +275,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "table",
+    group: "board",
     label: "Data table",
     icon: Table,
     minRem: 24,
@@ -234,6 +284,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "runParams",
+    group: "board",
     label: "Run",
     /*
       A graph rather than PanelBottom, which named the foot this editor used to
@@ -257,6 +308,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "canopy",
+    group: "crop",
     label: "Canopy",
     icon: Tree,
     /*
@@ -293,6 +345,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "floodRouting",
+    group: "water",
     label: "Routing",
     // Droplets and not Waves. Waves is already the domain-shift editor's, and
     // an icon that means two things in one list is a label that disagrees with
@@ -314,6 +367,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "globe",
+    group: "board",
     label: "Globe",
     icon: Globe,
     /*
@@ -345,6 +399,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "canopyParams",
+    group: "crop",
     label: "Canopy run",
     icon: Plant,
     /*
@@ -368,6 +423,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "solarReading",
+    group: "energy",
     label: "Solar result",
     icon: Sun,
     minRem: 20,
@@ -376,6 +432,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "windReading",
+    group: "energy",
     label: "Wind screening",
     icon: Fan,
     /*
@@ -399,6 +456,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "floodReading",
+    group: "water",
     label: "Flood envelope",
     icon: Waves,
     minRem: 20,
@@ -407,6 +465,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "gridRecord",
+    group: "energy",
     label: "Grid record",
     icon: Database,
     /*
@@ -431,6 +490,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "gridCurtailment",
+    group: "energy",
     label: "Curtailment",
     icon: Lightning,
     /*
@@ -451,6 +511,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "gridConnection",
+    group: "energy",
     label: "Connection",
     icon: Lightning,
     /*
@@ -467,6 +528,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "gridFigure",
+    group: "energy",
     label: "Series figure",
     icon: ChartLine,
     /*
@@ -491,6 +553,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
   },
   {
     id: "browser",
+    group: "board",
     label: "Browser",
     icon: TreeStructure,
     /*
