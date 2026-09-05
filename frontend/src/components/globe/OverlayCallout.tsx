@@ -55,10 +55,12 @@ import {
   useRef,
   useState,
 } from "react"
+import { CaretRight } from "@phosphor-icons/react"
 import { Marker, type Map as MapLibreMap } from "maplibre-gl"
 import { createRoot, type Root } from "react-dom/client"
 
 import type { LayerLegend } from "@/lib/layerLegend"
+import { cn } from "@/lib/utils"
 
 /**
  * How far up the screen a height of `metres` lands, at this camera.
@@ -457,6 +459,23 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
     caption -- a product with no acquisition window is a line shorter -- and
     the leader has to know which edge faces the dot.
   */
+  /*
+    Whether the parameter line is showing in full, and whether it has anything
+    to show. See the disclosure below.
+  */
+  const [openDetail, setOpenDetail] = useState(false)
+  const [clipped, setClipped] = useState(false)
+  const detailRef = useRef<HTMLSpanElement | null>(null)
+  useLayoutEffect(() => {
+    const el = detailRef.current
+    if (!el || openDetail) return
+    const read = () => setClipped(el.scrollWidth > el.clientWidth + 1)
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [openDetail, clipped, caption.detail])
+
   const boxRef = useRef<HTMLDivElement | null>(null)
   const [boxH, setBoxH] = useState(BOX_H_GUESS)
   useLayoutEffect(() => {
@@ -612,11 +631,62 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
         <p className="mt-0.5 truncate text-emphasis italic text-foreground">
           {caption.area}
         </p>
-        {caption.detail && (
-          <p className="telemetry truncate text-micro text-muted-foreground">
-            {caption.detail}
-          </p>
-        )}
+        {caption.detail &&
+          (clipped || openDetail ? (
+            /*
+              THE DISCLOSURE EXISTS ONLY WHERE THERE IS SOMETHING BEHIND IT.
+
+              The parameter line is as long as the product has parameters --
+              "Annual · kWh/m2/year · Copernicus DEM GLO-30 · 10 yr · opacity
+              100%" in a box 216 wide -- so it clips, and a clipped line with
+              no way past it is a box that says it knows more than it will
+              tell. A reading's line can be short enough to fit, and there a
+              caret would be a control that expands nothing.
+
+              So it is measured rather than assumed: the span reports whether
+              its own content overflows it, and the caret appears for that
+              answer. Which is also why `clipped` is a dependency of the effect
+              that measures -- the node it observes is a different one once the
+              line becomes a button, and an observer left on the old node would
+              answer for a box that is no longer there.
+
+              `stopPropagation` on the press, because the box captures the
+              pointer to be dragged: without it the capture takes the pointerup
+              and the button's click never happens, which reads as a caret that
+              does nothing.
+            */
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setOpenDetail((v) => !v)}
+              aria-expanded={openDetail}
+              title={openDetail ? "Show less" : caption.detail}
+              className="mt-0.5 flex w-full items-start gap-1 text-left text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <CaretRight
+                aria-hidden
+                className={cn(
+                  "mt-[3px] size-2.5 shrink-0 transition-transform",
+                  openDetail && "rotate-90"
+                )}
+              />
+              <span
+                ref={detailRef}
+                className={cn(
+                  "telemetry min-w-0 flex-1 text-micro",
+                  openDetail ? "leading-relaxed" : "truncate"
+                )}
+              >
+                {caption.detail}
+              </span>
+            </button>
+          ) : (
+            <p className="telemetry text-micro text-muted-foreground">
+              <span ref={detailRef} className="block truncate">
+                {caption.detail}
+              </span>
+            </p>
+          ))}
         <LegendBody legend={caption.legend} />
       </div>
     </div>
