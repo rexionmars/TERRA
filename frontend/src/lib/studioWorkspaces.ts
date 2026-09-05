@@ -26,48 +26,28 @@ import type { Icon } from "@phosphor-icons/react"
 import { Cube, Database, Drop, GitDiff, Table, Tree, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
-import type { EditorId } from "@/lib/studioEditors"
+import { type EditorId, type StudioGroup } from "@/lib/studioEditors"
 
 export type StudioTree = AreaNode<EditorId>
 
 /**
- * What kind of work an arrangement is FOR.
+ * The groups an arrangement can belong to are the STUDIO's groups, not a set
+ * of this file's own.
  *
- * The tab strip listed seven presets in a row and said nothing about what
- * separates them, which read as seven equal destinations. Four of them are not
- * equal to the other three: Compare sets two classification predictions
- * against each other, Diagnose measures how far a run sits from the domain its
- * model was fitted on, Data opens that run's tables, and Simulation is a
- * canopy. Those are one subject with four readings of it, and the strip was
- * the only place in the studio that did not say so.
- *
- * ONE ARRANGEMENT IS GENUINELY FOR ANY WORK, and it stays on its own: Layout
- * is the board, what is in it and what is selected, which is the question
- * every task starts from.
- *
- * The groups are a property of the preset rather than an order in the array,
- * so adding one is a field and not a position -- and the array's order still
- * decides where a preset sits inside its own group.
+ * They were declared here first and that was one list too many: the type menu
+ * groups twenty-three editors by the same four subjects, and two tables of
+ * group names is two tables that can disagree. `studioEditors` is the lower
+ * module -- this file already imports EditorId from it -- so the vocabulary
+ * lives there and both read it.
  */
-export type WorkspaceGroup = "board" | "crop" | "water" | "energy"
-
-/** The groups in the order the menu lists them, and what each is called. */
-export const WORKSPACE_GROUPS: readonly {
-  id: WorkspaceGroup
-  label: string
-}[] = [
-  { id: "board", label: "Board" },
-  { id: "crop", label: "Land cover" },
-  { id: "water", label: "Water" },
-  { id: "energy", label: "Energy" },
-]
+export type { StudioGroup } from "@/lib/studioEditors"
 
 export interface StudioWorkspace {
   id: string
   /** The tab's label. */
   label: string
-  /** What kind of work it is for. See WorkspaceGroup. */
-  group: WorkspaceGroup
+  /** What kind of work it is for. See StudioGroup. */
+  group: StudioGroup
   /** One line, for the tab's title attribute. */
   hint: string
   /**

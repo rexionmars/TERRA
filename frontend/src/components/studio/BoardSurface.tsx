@@ -187,7 +187,12 @@ import {
   splitArea,
   type AreaId,
 } from "@/lib/boardAreas"
-import { STUDIO_EDITORS, studioEditor, type EditorId } from "@/lib/studioEditors"
+import {
+  STUDIO_EDITORS,
+  STUDIO_GROUPS,
+  studioEditor,
+  type EditorId,
+} from "@/lib/studioEditors"
 import { toGlobeArea, type GlobeArea } from "@/components/globe/globeArea"
 import type { Icon } from "@phosphor-icons/react"
 import {
@@ -256,10 +261,7 @@ import {
   Waves,
 } from "@phosphor-icons/react"
 import { StudioAreaTree } from "@/components/studio/StudioAreaTree"
-import {
-  STUDIO_WORKSPACES,
-  WORKSPACE_GROUPS,
-} from "@/lib/studioWorkspaces"
+import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import {
   CanopyEditor,
   type CanopyMode,
@@ -4985,7 +4987,7 @@ export function BoardSurface({
           sees "Land cover / Compare" without opening anything. The other
           three say only what they are.
         */}
-        {WORKSPACE_GROUPS.map((g) => {
+        {STUDIO_GROUPS.map((g) => {
           const members = STUDIO_WORKSPACES.filter((w) => w.group === g.id)
           if (!members.length) return null
           const current = members.some((w) => w.id === workspaceId)
