@@ -2504,18 +2504,6 @@ func RedactDSN(dsn string) string {
 	return strings.Join(fields, " ")
 }
 
-// AnalyzeGridCurtailment reads what the operator withheld at the plants inside
-// an AOI, over a window the store bounds.
-//
-// NO WORK DIR. Every other Analyze method makes one because the sidecar writes
-// a raster or a mesh into it; this one produces figures and tables only, so a
-// temporary directory would be created, passed, and removed empty on every run.
-//
-// A NIL SUMMARY IS A RESULT, NOT A FAILURE. An AOI containing no plant of the
-// record comes back with Summary nil and Note set, and this returns it as it
-// stands. Turning that into an error would make "nothing here is measured"
-// indistinguishable from "the run broke", which is the distinction the whole
-// slice is careful about.
 // AnalyzeGridCongestion reads what an area could reach and what it is joined to.
 //
 // NO WINDOW, AND THAT IS THE DIFFERENCE FROM ITS SIBLING. Curtailment is a
@@ -2567,6 +2555,18 @@ func (r *Runner) AnalyzeGridCongestion(
 	return wrapped.Congestion, nil
 }
 
+// AnalyzeGridCurtailment reads what the operator withheld at the plants inside
+// an AOI, over a window the store bounds.
+//
+// NO WORK DIR. Every other Analyze method makes one because the sidecar writes
+// a raster or a mesh into it; this one produces figures and tables only, so a
+// temporary directory would be created, passed, and removed empty on every run.
+//
+// A NIL SUMMARY IS A RESULT, NOT A FAILURE. An AOI containing no plant of the
+// record comes back with Summary nil and Note set, and this returns it as it
+// stands. Turning that into an error would make "nothing here is measured"
+// indistinguishable from "the run broke", which is the distinction the whole
+// slice is careful about.
 func (r *Runner) AnalyzeGridCurtailment(
 	ctx context.Context,
 	req GridCurtailmentRequest,

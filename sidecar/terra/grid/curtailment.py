@@ -38,7 +38,6 @@ import json
 
 import pandas as pd
 
-
 # The two the record calls LOCAL. They are the ones a siting decision can act
 # on: a constraint at this connection rather than a surplus across the
 # subsystem. Named here rather than inlined, because the distinction is the

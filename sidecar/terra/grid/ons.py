@@ -329,7 +329,7 @@ def fetch_period(dataset: str, row, cache_dir, retries: int = 4,
 
     superseded = dest.exists() and have is not None and have != wanted
     last = None
-    for attempt in range(retries):
+    for _ in range(retries):
         try:
             _download(row['url'], dest, timeout)
             # Written after the file, so a stamp never exists for a file that
