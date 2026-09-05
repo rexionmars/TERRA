@@ -32,6 +32,11 @@ import { btnGhost, btnPrimary } from "@/components/ui/buttons"
 import { EnvironmentPanel } from "@/components/EnvironmentPanel"
 import { StorageModal } from "@/components/StorageModal"
 import {
+  setStudioGutter,
+  studioGutterOn,
+  subscribeStudioGutter,
+} from "@/lib/studioGutter"
+import {
   TELEMETRY_FIGURES,
   setStudioTelemetry,
   studioTelemetry,
@@ -90,7 +95,7 @@ const SECTIONS: {
   /** How many settings the page holds, where that is a countable thing. */
   count?: number
 }[] = [
-  { id: "account", label: "Account", count: 10 },
+  { id: "account", label: "Account", count: 12 },
   // No count. The other page is a list of controls, and the number says how
   // long the list is. This one reports the state of an environment and offers
   // what to do about it, so "(1)" would be counting the wrong thing.
@@ -269,6 +274,28 @@ export function ProfilePage({
     [user, prefs?.default_model, prefs?.overlay_opacity, prefs?.theme, prefs?.extras_json, savePrefs]
   )
 
+  /*
+    The store first and the preferences after, for the reason persistTelemetry
+    states above it: a switch that waited for the round trip would feel like it
+    had not registered, and the store is what the studio reads.
+  */
+  const persistPanelGap = useCallback(
+    async (on: boolean) => {
+      setStudioGutter(on)
+      if (!user) return
+      await savePrefs({
+        user_id: user.id,
+        default_model: prefs?.default_model || "spectral",
+        overlay_opacity: prefs?.overlay_opacity ?? 0.75,
+        theme: prefs?.theme || "dark",
+        extras_json: mergePreferenceExtras(prefs?.extras_json, {
+          studio_panel_gap: on,
+        }),
+      })
+    },
+    [user, prefs?.default_model, prefs?.overlay_opacity, prefs?.theme, prefs?.extras_json, savePrefs]
+  )
+
   const persistPreferences = useCallback(
     async (next: {
       theme: string
@@ -312,6 +339,13 @@ export function ProfilePage({
   )
 
   const alwaysShowWhatsNew = alwaysShowWhatsNewFromPrefs(prefs)
+  /*
+    From the store rather than from `prefs`, so the row reflects what the
+    studio is actually drawing. App seeds the store from preferences on
+    sign-in; reading the blob again here would be a second parse of the same
+    value that can disagree with it while a save is in flight.
+  */
+  const panelGap = useSyncExternalStore(subscribeStudioGutter, studioGutterOn)
 
   /*
     Named from the destination itself. This read a navigation table, so that
@@ -977,6 +1011,36 @@ export function ProfilePage({
                     {alwaysShowWhatsNew
                       ? "Every start opens on the notes for this version, until this is set back. They are read from the first release rather than from the last one seen, so nothing is withheld for having been acknowledged once."
                       : "A release announces itself once and then stays out of the way. Takes effect at the next start, which is the only moment the notes are reached."}
+                  </p>
+                </div>
+              </SettingRow>
+
+              {/*
+                After the two that decide what a session opens with and
+                through, because this decides what it LOOKS like once open --
+                and it is the only setting here the reader can watch take
+                effect, since the studio is behind this page.
+              */}
+              <SettingRow
+                id="account.panelgap"
+                title="Space between panels"
+                description="The studio separates its panels with a gap of the window's own ground. Closed, they meet flush and a hairline border tells them apart instead."
+                focused={focusedSetting === "account.panelgap"}
+                onFocus={() => setFocusedSetting("account.panelgap")}
+              >
+                <div className="flex max-w-md flex-col gap-2">
+                  <select
+                    className="field-input max-w-xs focus-visible:ring-1 focus-visible:ring-ring"
+                    value={panelGap ? "gap" : "flush"}
+                    onChange={(e) => void persistPanelGap(e.target.value === "gap")}
+                  >
+                    <option value="gap">A gap</option>
+                    <option value="flush">Flush, with a border</option>
+                  </select>
+                  <p className="text-meta leading-relaxed text-muted-foreground">
+                    {panelGap
+                      ? "Five pixels, and the same at the window's edge. The division still runs down the middle of it, so the gap is what a drag grabs to resize two panels."
+                      : "Every panel gains five pixels in each direction, which is a row of a table or a line of a reading. The border that returns is a boundary to resolve where the gap was one to see."}
                   </p>
                 </div>
               </SettingRow>

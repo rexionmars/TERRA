@@ -6,6 +6,7 @@ import {
   TELEMETRY_DEFAULT,
   setStudioTelemetry,
 } from "@/lib/studioTelemetry"
+import { setStudioGutter } from "@/lib/studioGutter"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import type { Studio } from "@/lib/studios"
 import { listStudios, openStudio } from "@/lib/studios"
@@ -457,6 +458,9 @@ function App() {
         which is what a reader who has never opened the setting should get.
       */
       setStudioTelemetry(extras.studio_telemetry ?? TELEMETRY_DEFAULT)
+      // Same reason, and the same shape: the readers are the area tree, the
+      // areas themselves and a keydown handler outside React.
+      setStudioGutter(extras.studio_panel_gap)
     },
     [setTheme]
   )
