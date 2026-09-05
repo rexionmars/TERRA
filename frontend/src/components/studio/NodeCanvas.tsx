@@ -110,36 +110,35 @@ const SLOT_PITCH = RIBBON_W + SLOT_GAP
 const SLOT_FOOT = 12
 
 /**
- * The shadow a ribbon casts on whatever it crosses.
+ * How much of the field's ink a ribbon is smoked with, by state.
  *
- * A SHADOW, NOT A BLOOM. It was a widened stroke in the wire's OWN colour at
- * low alpha -- a glow, which softened every edge on the board and was half of
- * why the ribbons read as light rather than as material. It is the ink of the
- * field now, laid under the ribbon, so where one crosses another the upper one
- * darkens the lower and the two stay separable. That is the mark the reference
- * has at its crossings, and the only one it has.
+ * A RIBBON IS A PANE, AND IT TOOK FIVE WRONG ANSWERS TO SAY SO. Two stacked
+ * strokes, then three, then a blurred cast beneath, then an inner shadow
+ * clipped to the shape, then a soft edge on the shape itself. Every one of
+ * them was an attempt to draw LIGHT -- a glow, a shadow, a falloff -- and what
+ * the reference has is not a light effect at all. Its edges are hard. What
+ * happens where two of them cross is that the upper one is translucent and
+ * DARKENS what is under it: the lime goes olive under the dark band, in the
+ * band's own shape, with a boundary you could cut out. Smoked acrylic laid on
+ * a sheet of colour, not a shadow falling on one.
  *
- * feGaussianBlur, WHICH REVERSES A DECISION THIS FILE MADE TWICE. Stacked
- * strokes were the way round it -- two of them at first, then three -- and
- * they are not the same mark. A stroke has a hard outer edge, so a stack of
- * them is a set of concentric bands: the falloff reaches half the widest
- * stroke and steps rather than fades. The reference's shadow spreads two or
- * three ribbon-widths into whatever is under it and has no edge at all, and
- * that spread is the whole of what says one ribbon is over another rather than
- * beside it.
+ * So a carrying ribbon is two fills: the field's ink at the weight below, then
+ * its own colour. Together they leave the pane translucent -- a quarter of
+ * what it crosses comes through, darkened and tinted -- and neither fill has
+ * a soft edge anywhere.
  *
- * WHAT THE OLD REASONING GOT RIGHT was the cost of an unbounded filter: a
- * filter region left to its default is sized off the shape's bounding box, and
- * on a long diagonal ribbon that is most of the board, rasterised again on
- * every frame the field is dragged. So the region is given in user space, per
- * wire, as that wire's own extent plus the reach of its blur -- a band a few
- * ribbons wide, not a surface.
+ * A ROUTE THAT WAS TAKEN IS NOT SMOKED. Read, failed and reading take a full
+ * ground and near-full colour, which is the reference's lime: opaque, exact,
+ * and covering what it crosses. Only the waiting ones are glass, and they are
+ * the ones that have to be crossed.
  */
-const SHADOW_BLUR = 7
-/** How far past its wire a shadow's region has to reach: about three sigma. */
-const SHADOW_PAD = 22
-/** How dark the cast is before the blur spreads it. */
-const SHADOW_ALPHA = 0.8
+const GROUND: Record<EdgeState, number> = {
+  missing: 0,
+  pending: 0.62,
+  reading: 1,
+  read: 1,
+  failed: 1,
+}
 
 /**
  * What each state is drawn in, and the one that is drawn in the wire's own.
@@ -192,7 +191,7 @@ const EDGE_COLOUR: Record<EdgeState, string | null> = {
  */
 const FILL_OPACITY: Record<EdgeState, number> = {
   missing: 0,
-  pending: 0.34,
+  pending: 0.38,
   reading: 0.92,
   read: 0.92,
   failed: 0.92,
@@ -977,9 +976,6 @@ export function NodeCanvas({
             const ribbon = ribbonPath(a1, py, p.w, a2, qy, q.w)
             const key = `${from}-${to}`
             const spine = `${gid}-spine-${key}`
-            const cast = `${gid}-cast-${key}`
-            /* Half the widest end, plus the blur's reach. */
-            const reachY = Math.max(p.w, q.w) / 2 + SHADOW_PAD
             /*
               HOW MUCH OF THE READING FITS, and the second term is the one that
               matters. What is left of the horizontal span once the tail and
@@ -1032,45 +1028,15 @@ export function NodeCanvas({
                     wire it belongs to and cannot leave it.
                   */}
                   <path id={spine} d={line} />
-                  {/*
-                    The blur's region, in user space and bounded to this wire.
-                    See SHADOW_BLUR for why it is not left to the default.
-                  */}
-                  {carrying && (
-                    <filter
-                      id={cast}
-                      filterUnits="userSpaceOnUse"
-                      x={Math.min(a1, a2) - SHADOW_PAD}
-                      y={Math.min(py, qy) - reachY}
-                      width={Math.abs(a2 - a1) + SHADOW_PAD * 2}
-                      height={Math.abs(qy - py) + reachY * 2}
-                    >
-                      <feGaussianBlur stdDeviation={SHADOW_BLUR} />
-                    </filter>
-                  )}
                 </defs>
                 {carrying && (
                   <>
-                    {/*
-                      The shadow: the ribbon's own shape, in the field's ink,
-                      blurred. Its darkest part lands exactly where the ribbon
-                      is about to be painted and is covered by it, so what
-                      shows is the spill -- on the field, and on any ribbon
-                      already drawn under this one.
-                    */}
+                    {/* The smoke, and then the tint. See GROUND. */}
                     <path
                       d={ribbon}
                       fill="rgb(var(--p-ink))"
-                      fillOpacity={SHADOW_ALPHA}
-                      filter={`url(#${cast})`}
+                      fillOpacity={GROUND[st]}
                     />
-                    {/*
-                      The ground, which is what makes a ribbon a thing rather
-                      than a tint. Filled in the ink the field is drawn on, so
-                      the colour above it lands on a known surface and the
-                      ribbon hides what it crosses instead of mixing with it.
-                    */}
-                    <path d={ribbon} fill="rgb(var(--p-ink))" />
                     <path d={ribbon} fill={stroke} fillOpacity={FILL_OPACITY[st]} />
                   </>
                 )}
