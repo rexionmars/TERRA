@@ -119,6 +119,18 @@ export const FLOOD_DEFAULT_PARAMS: FloodParams = {
 export const FLOOD_OVERRIDE_SEED = { bufferM: 2000, insetMarginCells: 30 }
 
 /**
+ * The fewest elevation products an envelope can be made from.
+ *
+ * Two, because an envelope IS the disagreement between products: one yields an
+ * extent with no measure of how much of it follows from the choice of product.
+ * Named rather than written out, because four places had the numeral -- this
+ * refusal, the board's run button, the card that will not let the second
+ * product be unpicked, and the wire that draws the input as absent -- and a
+ * rule stated four times is a rule three of them can be wrong about.
+ */
+export const FLOOD_LEAST_DEMS = 2
+
+/**
  * Why the run is not admissible yet, or null when it is.
  *
  * The sidecar refuses each of these as well, and its messages are the
@@ -130,7 +142,7 @@ export function floodRequestBlocker(
   hasArea: boolean
 ): string | null {
   if (!hasArea) return "Define an area to run over."
-  if (params.demIds.length < 2) {
+  if (params.demIds.length < FLOOD_LEAST_DEMS) {
     return (
       "An envelope is a disagreement between DEM products and needs at least " +
       "two. One product yields an extent with no measure of how much of it " +
