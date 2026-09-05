@@ -3395,7 +3395,7 @@ function AppBody(props: {
   )
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-app text-foreground">
       <TitleBar
         view={props.view}
         /*

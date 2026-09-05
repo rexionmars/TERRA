@@ -535,7 +535,7 @@ export function AnalysisPlotModal({
                     <select
                       value={comparePlot?.id ?? ""}
                       onChange={(e) => setCompareId(e.target.value)}
-                      className="rounded-sm border border-border bg-background max-w-[12rem] px-1.5 py-0.5 text-body text-foreground"
+                      className="rounded-sm border border-border bg-sunk max-w-[12rem] px-1.5 py-0.5 text-body text-foreground"
                     >
                       {compareCandidates.map((p) => (
                         <option key={p.id} value={p.id}>

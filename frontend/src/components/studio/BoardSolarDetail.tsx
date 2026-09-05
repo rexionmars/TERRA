@@ -410,8 +410,8 @@ function PredictionBody({
               className={cn(
                 "rounded-sm px-1.5 py-0.5 text-[9px] transition-colors",
                 brushRadius === r
-                  ? "bg-surface-raised text-foreground"
-                  : "text-muted-foreground hover:bg-surface-raised/40"
+                  ? "bg-selected text-foreground"
+                  : "text-muted-foreground hover:bg-hover"
               )}
               title={
                 r === 0
@@ -1037,8 +1037,8 @@ export function BoardSolarDetail({
             "flex items-center gap-1 rounded-sm px-1.5 py-1 text-meta transition-colors",
             "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
             brushOn
-              ? "bg-surface-raised text-foreground"
-              : "text-muted-foreground hover:bg-surface-raised/40"
+              ? "bg-selected text-foreground"
+              : "text-muted-foreground hover:bg-hover"
           )}
           title={
             brushOn
@@ -1187,7 +1187,7 @@ export function BoardSolarDetail({
                 onClick={onToggleCollapsed}
                 title={collapsed ? "Expand the band" : "Collapse the band"}
                 aria-label={collapsed ? "Expand the band" : "Collapse the band"}
-                className="absolute left-1.5 flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+                className="absolute left-1.5 flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
               >
                 <CaretDown
                   className={cn(

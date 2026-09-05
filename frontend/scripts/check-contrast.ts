@@ -25,7 +25,10 @@ const CSS = join(here, "..", "src", "index.css")
 
 /** index.css names, in the order lib/contrast.ts declares them. */
 const CSS_NAME: Record<string, string> = {
+  sunk: "--p-sunk",
   ink: "--p-ink",
+  control: "--p-control",
+  head: "--p-head",
   surface: "--p-surface",
   surfaceRaised: "--p-surface-raised",
   line: "--p-line",
@@ -58,6 +61,7 @@ const CSS_HEX: Record<string, string> = {
   destructiveQuiet: "--destructive-quiet",
   success: "--success",
   warning: "--warning",
+  wireFailed: "--p-wire-failed",
 }
 
 function hexChannels(hex: string): Channels {

@@ -47,7 +47,7 @@ export const btnPrimaryCommit =
   `inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-emphasis font-semibold text-primary-foreground ${DISABLED} ${FOCUS}`
 
 export const btnGhost =
-  `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-line/40 bg-ink/45 px-3 text-body text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground ${DISABLED} ${FOCUS}`
+  `inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-line/40 bg-control px-3 text-body text-muted-foreground transition-colors hover:bg-hover hover:text-foreground ${DISABLED} ${FOCUS}`
 
 /**
  * The dense band, 28px. Real rather than lazy: these sit in a table toolbar, an
@@ -55,7 +55,7 @@ export const btnGhost =
  * control repeats per row or per card.
  */
 export const btnGhostDense =
-  `inline-flex h-7 items-center justify-center gap-1 rounded-sm border border-line/40 bg-ink/45 px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground ${DISABLED} ${FOCUS}`
+  `inline-flex h-7 items-center justify-center gap-1 rounded-sm border border-line/40 bg-control px-2 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground ${DISABLED} ${FOCUS}`
 
 /** 28px square, matching the dense height so a toolbar row lines up. */
 export const btnIcon =

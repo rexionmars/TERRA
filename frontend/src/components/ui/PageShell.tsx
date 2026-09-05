@@ -36,7 +36,7 @@ export function PageShell({
   return (
     <div
       className={cn(
-        "app-no-drag flex h-full min-h-0 gap-3 bg-ink p-3",
+        "app-no-drag flex h-full min-h-0 gap-3 bg-app p-3",
         className
       )}
     >

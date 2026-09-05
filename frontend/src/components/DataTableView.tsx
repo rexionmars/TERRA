@@ -107,7 +107,7 @@ export function DataTableView({
       </div>
 
       {/* Wide tables scroll inside the section rather than widening the page. */}
-      <div className="rounded-sm border border-border bg-background max-h-[22rem] overflow-auto">
+      <div className="rounded-sm border border-border bg-sunk max-h-[22rem] overflow-auto">
         <table className="selectable w-full min-w-max text-left text-[11px]">
           <thead className="sticky top-0 z-10">
             <tr

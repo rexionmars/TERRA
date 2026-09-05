@@ -179,7 +179,7 @@ export function MethodPanel({
               ? "cursor-not-allowed text-muted-foreground/40"
               : open
                 ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
           <Info className="size-3 shrink-0" />

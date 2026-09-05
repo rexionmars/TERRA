@@ -227,7 +227,7 @@ export function SeparabilityEditor({
               "rounded-sm px-1.5 py-0.5 text-meta transition-colors",
               reading === id
                 ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                : "text-muted-foreground hover:bg-hover hover:text-foreground"
             )}
           >
             {label}
@@ -298,7 +298,7 @@ export function SeparabilityEditor({
                       "flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-left text-meta transition-colors",
                       active
                         ? "bg-accent-dim text-foreground"
-                        : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                        : "text-muted-foreground hover:bg-hover hover:text-foreground"
                     )}
                   >
                     <span className="flex shrink-0 items-center gap-0.5">
@@ -544,7 +544,7 @@ function RunTabs({
             "max-w-[9rem] truncate rounded-sm px-1.5 py-0.5 text-meta transition-colors",
             i === value
               ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-              : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+              : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
           {r.label}

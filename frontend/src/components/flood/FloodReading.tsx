@@ -368,7 +368,7 @@ function Block({
         aria-expanded={open}
         aria-controls={panelId}
         title={open ? `Collapse ${title}` : `Expand ${title}`}
-        className="app-no-drag -mx-1 flex items-center justify-between gap-2 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-surface-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="app-no-drag -mx-1 flex items-center justify-between gap-2 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         <span className="eyebrow !text-foreground">{title}</span>
         <CaretDown

@@ -3806,7 +3806,7 @@ export function BoardSurface({
             "flex h-6 items-center gap-1.5 rounded-sm px-1.5 text-emphasis",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             selectedRuns.length
-              ? "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+              ? "text-muted-foreground hover:bg-hover hover:text-foreground"
               : "cursor-not-allowed text-muted-foreground/50"
           )}
         >
@@ -5023,7 +5023,7 @@ export function BoardSurface({
                     ref={p.ref as React.Ref<HTMLButtonElement>}
                     type="button"
                     disabled={!onActivateProject}
-                    className="app-no-drag flex min-w-0 items-center gap-1 rounded-sm px-1 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:cursor-default disabled:hover:bg-transparent"
+                    className="app-no-drag flex min-w-0 items-center gap-1 rounded-sm px-1 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:cursor-default disabled:hover:bg-transparent"
                     title={
                       onActivateProject
                         ? `${activeProjectName} — open another project`
@@ -5230,7 +5230,7 @@ export function BoardSurface({
                     ? `Save over "${savedName}"`
                     : "Save this studio under a name"
               }
-              className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              className="app-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm px-2 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FloppyDisk className="size-3.5" />
               {saving ? "Saving…" : "Save"}
@@ -5249,7 +5249,7 @@ export function BoardSurface({
                 if (e.key === "Enter") void doSave(naming)
                 else if (e.key === "Escape") setNaming(null)
               }}
-              className="app-no-drag h-7 w-48 shrink-0 rounded-sm border-0 bg-surface-raised px-2 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
+              className="app-no-drag h-7 w-48 shrink-0 rounded-sm border-0 bg-sunk px-2 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
             />
           )}
         </div>

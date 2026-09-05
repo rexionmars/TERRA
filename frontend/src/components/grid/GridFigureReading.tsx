@@ -178,7 +178,7 @@ function Figure1({ result }: { result: GridFigureAnalysis }) {
                 <span className="telemetry w-8 shrink-0 text-micro text-muted-foreground">
                   {String(r.cod_razaorestricao)}
                 </span>
-                <div className="flex h-3 min-w-0 flex-1 bg-surface-raised/40">
+                <div className="flex h-3 min-w-0 flex-1 bg-sunk">
                   <div
                     className="h-full bg-accent/70"
                     style={{ width: `${(num(r.SIS) / peak) * 100}%` }}

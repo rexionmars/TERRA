@@ -45,8 +45,38 @@
     scripts/check-contrast.ts, which prints them every run and still fails for
     anything not on that list.
   */
-  --p-ink: 33 33 33;
-  --p-surface: 47 47 47;
+  /*
+    SIX STEPS, NOT THREE, AND THE THREE WERE THE DEFECT.
+
+    Measured against Blender, which is the reference for this: sampling its
+    window, its neutral chrome holds seven modes -- 24 for the status bar, 30
+    for the menu strip and the input wells, 40 for toolbar buttons and list row
+    headers, 43 for the outliner, 48 for the properties panel, 53 for editor
+    headers, 64 for the viewport. Sampling ours, EIGHTY-EIGHT PER CENT of the
+    chrome sat in a single eight-level bucket. As a distribution: 2.1 effective
+    levels against Blender's 5.5.
+
+    The consequence is not that it looked flat. It is that with one surface
+    level, every boundary between two regions has to be drawn by a 1px border,
+    because there is no step in the ground to draw it -- so reading the layout
+    means resolving hairlines at low contrast, everywhere, continuously. In
+    Blender the border is redundant: the step already said it.
+
+    These are Blender's own values, stopping at 67. Its 85 exists once, on a
+    single button carrying bright text, and this palette cannot follow it there:
+    the highest neutral ground --p-accent-quiet clears 4.5 on is 67, and 67 is
+    where the raised surface already was. The room was never at the top. It was
+    the four steps missing underneath.
+
+    NAMED BY POSITION, WHICH IS WHAT A RAMP IS. What each step PAINTS is the
+    next block down: these say how deep, and the roles say what for. Nothing
+    outside that block should reach for one of these.
+  */
+  --p-sunk: 24 24 24;
+  --p-ink: 30 30 30;
+  --p-control: 40 40 40;
+  --p-surface: 48 48 48;
+  --p-head: 53 53 53;
   --p-surface-raised: 67 67 67;
   /*
     Surface separation is 1.20 and 1.35 -- wider than any earlier reading of
@@ -164,31 +194,45 @@
 
     THE HUES ARE PLACED AGAINST WHAT THE BOARD ALREADY PAINTS, measured in
     OKLCH rather than chosen by eye: the accent sits at h51, destructive at
-    h18, warning at h98, success at h136 and aside at h250. These take 170,
-    215, 285 and 330 -- 34 degrees clear of success, 35 either side of aside,
-    48 clear of destructive. The product scale above takes 75, 195, 245 and
-    295, and two of these sit inside 25 degrees of it; that is accepted rather
-    than corrected, because that scale draws a grid of runs in the browser and
-    this one draws the cards on a board, and no surface holds both.
+    h18, warning at h98, aside at h250, and the two outcomes a wire can report
+    at h124 and h25. These take 155, 215, 291 and 345 -- 31 degrees clear of
+    the taken route, 35 either side of aside, 40 clear of the failed one. The
+    product scale above takes 75, 195, 245 and 295, and two of these sit inside
+    25 degrees of it; that is accepted rather than corrected, because that
+    scale draws a grid of runs in the browser and this one draws the cards on a
+    board, and no surface holds both.
 
-    L 0.699 and C 0.112 in the dark theme. The product scale's 0.090 was tried
-    first, on its own argument that a categorical colour at the chroma of the
+    155 RATHER THAN 170, AND THE MOVE WAS FORCED. Success used to be a mid
+    green at h136 and is now the reference's lime at h124, which is a hue this
+    scale has to keep clear of: a WAITING wire painted in the part it carries
+    and a wire that has BEEN READ are the same picture at different weights,
+    and if they are also the same hue the board stops distinguishing a question
+    from its answer. 155 is as warm as the first of these can go and still hold
+    31 degrees of separation.
+
+    L 0.699 AND C 0.078, WHERE THE CHROMA USED TO BE 0.112. Two settings have
+    been wrong here in opposite directions. The product scale's 0.090 was tried
+    first, on the argument that a categorical colour at the chroma of the
     semantic tokens competes with the ones asking to be acted on -- and at that
-    chroma, behind a header wash, four cards read as four greys. The argument
-    holds for a tile drawn in solid colour and not for a tint. 0.112 is under
-    the accent's 0.149 and is what the tightest of these hues can take: at this
-    lightness the cyan runs out of sRGB at 0.122.
+    chroma, behind a header wash, four cards read as four greys. It went to
+    0.112, which is where the wires were flat fills. They are panes now, lit
+    and scattered and tinted at 0.42 (see PANE_TINT_HEAD in NodeCanvas), and a
+    pane multiplies whatever chroma it is given by the light behind it: at
+    0.112 the board was four saturated bands where the reference has near-black
+    ones and reserves colour for the two outcomes. 0.078 is the reading that
+    leaves the cards separable and gives the lime and the salmon the field.
 
-    LIGHTNESS UNCHANGED, WHICH IS WHY THE RATIOS BARELY MOVED. Chroma at a
-    fixed L is a change contrast does not notice and the eye does -- the same
-    move --p-aside records above. Each is drawn as a card's header wash, its
-    border and its glyph: a boundary at the 3.0 floor, never text. 3.87, 3.82,
-    3.60 and 3.50 on the raised surface, checked in lib/contrast.ts.
+    LIGHTNESS UNCHANGED THROUGH BOTH MOVES, WHICH IS WHY THE RATIOS BARELY
+    MOVED. Chroma at a fixed L is a change contrast does not notice and the eye
+    does -- the same move --p-aside records above. Each is drawn as a card's
+    header wash, its border and its glyph: a boundary at the 3.0 floor, never
+    text. 3.82, 3.80, 3.62 and 3.56 on the raised surface, checked in
+    lib/contrast.ts.
   */
-  --p-part-source: 71 180 147;
-  --p-part-when: 48 175 201;
-  --p-part-method: 151 148 225;
-  --p-part-value: 197 132 191;
+  --p-part-source: 118 173 137;
+  --p-part-when: 97 171 188;
+  --p-part-method: 158 150 203;
+  --p-part-value: 194 139 169;
 
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
@@ -225,9 +269,30 @@
   ink at 5.02.
 */
 :root[data-theme="light"] {
-  --p-ink: 241 241 241;
-  --p-surface: 249 249 249;
-  --p-surface-raised: 227 227 227;
+  /*
+    THE SAME SIX STEPS, ORDERED BY ELEVATION RATHER THAN BY VALUE, WHICH IS THE
+    ONLY WAY THE TWO THEMES CAN SHARE A ROLE LAYER. A recessed surface is
+    greyer here and a raised one is whiter, so the ramp still runs from the
+    deepest step to the topmost -- it just runs 223 to 253 instead of 24 to 67.
+
+    IT ALSO REPAIRS AN INVERSION. The three it replaces were 241 ground, 249
+    panel, 227 raised: the panel above the ground, correct, and the RAISED
+    surface below both, which is the one thing an elevation cannot do. Nothing
+    caught it because no rule compares two grounds to each other.
+
+    THE FLOOR IS 215 AND IT IS --p-line-strong'S. Dark text has room to spare
+    here -- 134 -- but a 3:1 boundary at 121 does not, and the same measurement
+    puts --p-muted at 212 and --p-accent-quiet at 204. So the six steps live
+    inside forty levels, where the dark theme's live inside forty-three. The
+    ladder is narrower in absolute terms and the same in ratio, which is what
+    the eye is reading.
+  */
+  --p-sunk: 223 223 223;
+  --p-ink: 231 231 231;
+  --p-control: 238 238 238;
+  --p-surface: 244 244 244;
+  --p-head: 248 248 248;
+  --p-surface-raised: 253 253 253;
   --p-line: 177 177 177;
   --p-line-strong: 121 121 121;
   --p-text: 31 31 31;
@@ -250,14 +315,15 @@
   --p-kind-flood: 64 119 163;
   --p-kind-wind: 117 103 161;
 
-  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.094
-     rather than the dark theme's 0.112 -- a light ground holds less chroma at
-     these hues, and 0.094 is where the cyan leaves sRGB. 3.60, 3.65, 3.89 and
-     4.00 on the raised surface. */
-  --p-part-source: 40 131 105;
-  --p-part-when: 15 127 147;
-  --p-part-method: 108 105 166;
-  --p-part-value: 144 92 139;
+  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.066
+     rather than the dark theme's 0.078 -- a light ground holds less chroma at
+     these hues, and the two themes keep the same ratio between their chromas
+     as they did before the scale was muted. 3.68, 3.71, 3.86 and 3.93 on the
+     raised surface. */
+  --p-part-source: 81 125 96;
+  --p-part-when: 63 123 137;
+  --p-part-method: 113 107 149;
+  --p-part-value: 141 98 122;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
@@ -270,15 +336,74 @@
   --v-grid-alpha: 0.14;
 }
 
+/*
+  THE ROLE LAYER, WHICH IS THE THING THIS PALETTE DID NOT HAVE.
+
+  A ramp step says how deep a surface sits. A ROLE says what it paints. Until
+  now there was no second layer: components asked for the primitive by name --
+  `bg-surface` ninety-one times across thirty files, `bg-surface-raised` ninety
+  more -- and those two hundred sites were not two hundred requests for the same
+  thing. They were panel bodies, panel headers, list rows, chips, input wells
+  and toolbar buttons, each naming a POSITION because there was no name for its
+  JOB. Which made the primitive the public interface, and made every colour
+  correction unlandable: moving --p-surface to fix a panel moved ninety other
+  places that had nothing to do with panels, so the correction got reverted.
+
+  The rule that keeps it fixed: BELOW this comment, roles read the ramp.
+  ABOVE it is the ramp. Everywhere else reads roles and never the ramp. A
+  component that reaches for --p-surface is re-opening the defect.
+
+  Roles may share a step -- `field` and `sunk` are both the ramp's second --
+  and that is not a redundancy. Two roles on one step can be moved apart later
+  by editing one line; two components on one primitive cannot be moved apart at
+  all, which is the whole difference.
+*/
 :root {
-  --background: rgb(var(--p-ink));
+  /* The window's own ground, behind and between every panel. Deepest. */
+  --s-app: rgb(var(--p-sunk));
+  /* A working canvas: the run board's field, the frame a raster is drawn in. */
+  --s-field: rgb(var(--p-ink));
+  /* Sunken into a surface: an input well, a search field, a dropdown's box. */
+  --s-sunk: rgb(var(--p-ink));
+  /* A control at rest on a surface: a toolbar button, a chip, a row header. */
+  --s-control: rgb(var(--p-control));
+  /* A panel's body -- the largest surface most screens are made of. */
+  --s-panel: rgb(var(--p-surface));
+  /* A panel's header, a selected tab, a toolbar: the band above a body. */
+  --s-panel-head: rgb(var(--p-head));
+  /*
+    Under the pointer, and the current one -- AS OVERLAYS RATHER THAN STEPS,
+    which is the one place a role must not name a ramp position.
+
+    These replaced five weights of one primitive: bg-surface-raised at 40, 50,
+    60, 70 and 80 per cent, chosen per site with no rule behind which was
+    which. The alpha was there because a hover has to work over whatever it
+    lands on, and the ramp cannot answer that -- a hover painted as a step
+    LIGHTENS a row in a panel and DARKENS the same row in a popover. A white
+    wash is the same gesture on every ground, so one token covers all five
+    sites and stays correct when a surface moves under it.
+  */
+  --s-hover: rgb(255 255 255 / 0.07);
+  --s-selected: rgb(255 255 255 / 0.13);
+  /* A card resting on a canvas, which is the topmost thing that does not float. */
+  --s-card: rgb(var(--p-surface-raised));
+  /* Anything that floats over the rest: popover, menu, tooltip, dialog. */
+  --s-float: rgb(var(--p-surface-raised));
+
+  --background: var(--s-app);
   --foreground: rgb(var(--p-text));
 
-  --panel: rgb(var(--p-ink) / 0.55);
-  --panel-solid: rgb(var(--p-ink));
-  --card: rgb(var(--p-ink) / 0.45);
+  /*
+    THE THREE THAT COMPOSITED BACK TO THE GROUND. --panel was ink at 0.55 and
+    --card ink at 0.45, both laid on a --background that was also ink: the alpha
+    bought nothing, because what is behind a panel IS the colour the panel is
+    made of. That is the arithmetic behind "four surface roles, one value".
+  */
+  --panel: var(--s-panel);
+  --panel-solid: var(--s-panel);
+  --card: var(--s-card);
   --card-foreground: rgb(var(--p-text));
-  --popover: rgb(12 12 12);
+  --popover: var(--s-float);
   --popover-foreground: rgb(var(--p-text));
 
   --primary: rgb(var(--p-accent));
@@ -335,7 +460,45 @@
     5.21 / 5.65 / 4.58 light, so it clears the mark floor on every surface.
   */
   --warning: #d5be4b;
-  --success: #6f9c5a;
+  /*
+    THE ROUTE THAT WAS TAKEN, AND IT IS A LIME NOW RATHER THAN A MID GREEN.
+    L 0.887 C 0.173 h124, where it was L 0.644 C 0.106 h136.
+
+    The old value was measured for a toast mark: a small graphic on a plate,
+    where 3.0 is the floor and a green that dark clears it easily. It has since
+    become the widest thing on the run board -- an opaque band that crosses the
+    whole field -- and at L 0.644 a band of it read as one more dark stripe
+    among the waiting ones. Which is the distinction the board exists to draw:
+    a route that produced an answer against seven that are still waiting.
+
+    Lifting the lightness is what makes it a taken route rather than a coloured
+    one, and it is why the reading written on this band is set in --p-ink: at
+    L 0.887 dark type clears 11.87:1 on it and white would read 1.4. The toast
+    mark it also paints gains from the same move, at 11.87 / 9.87 / 7.29 on the
+    three surfaces against a floor of 3.
+  */
+  --success: #c3ec5f;
+  /*
+    THE WIRE THAT FAILED, and it is NOT --destructive.
+
+    A separate token because the two have separate jobs and separate shapes.
+    --destructive fills a button the size of a word and is measured for a label
+    sitting on it, so it is dark: L 0.474, with --p-text on top at 5.33. This
+    fills a band that crosses the board, and a band that dark is invisible
+    against a field of ink -- the failed wire would report its failure by
+    disappearing.
+
+    L 0.710 C 0.114 h25, which is the reference's salmon and one hue-step off
+    destructive's h18, so the two still read as the same family where they
+    appear together. Dark type on it clears 5.95:1, the same construction the
+    lime above uses and for the same reason.
+
+    KEPT OUT OF --destructive rather than folded into it: that token paints a
+    delete button, an error badge and a refusing control across nineteen files,
+    and a colour chosen for a band on a board has no business deciding what a
+    confirmation dialog looks like.
+  */
+  --p-wire-failed: #e0847d;
 
   /*
     The vegetation index series, one value per theme.
@@ -400,21 +563,59 @@
   --destructive-foreground: rgb(var(--p-surface));
   --destructive-quiet: #a32b3b;
   --warning: #877000;
-  --success: #3f6b2c;
+  /* The same two, at the lightness a light ground needs. The bands invert with
+     the theme rather than holding their value: --p-ink is the light surface
+     here, so the reading on a band is LIGHT type and the band has to be dark
+     enough to carry it. L 0.451 and L 0.501, giving 6.34 and 5.61 for that
+     reading, and 6.80 / 5.58 for the lime as a toast mark. */
+  --success: #446018;
+  --p-wire-failed: #9c443f;
   /* Darkened for the light ground; same four floors, same search. */
   --series-ndvi: #4b9b55;
   --series-evi: #315f72;
   --series-savi: #291d14;
-  --panel: rgb(var(--p-surface) / 0.72);
-  --card: rgb(var(--p-surface) / 0.65);
-  --panel-solid: rgb(var(--p-surface));
-  --popover: rgb(var(--p-surface));
+  /*
+    The four surface aliases are NOT redeclared here any more. They resolve
+    through the role layer, which resolves through the ramp, and the ramp is
+    what this block overrides -- so a light panel follows from `--p-surface`
+    being 244 here rather than from a second declaration of what a panel is.
+    Two declarations of one role is how the light theme ended up with its
+    raised surface below its ground.
+  */
+  /*
+    The two overlays invert with the theme, and nothing else in the role layer
+    does. A white wash lifts a dark ground and washes a light one out, so the
+    light theme lands the same gesture with black, at the weights that measured
+    equivalent against their own grounds rather than at the same numbers.
+  */
+  --s-hover: rgb(0 0 0 / 0.05);
+  --s-selected: rgb(0 0 0 / 0.10);
+
   --border: rgb(var(--p-line) / 0.45);
   --hairline: rgb(var(--p-line) / 0.35);
   --input: rgb(var(--p-line-strong) / 0.5);
 }
 
-@theme inline {
+/*
+  `@theme` AND NOT `@theme inline`, WHICH IS A ONE-WORD FIX FOR A WHOLE CLASS OF
+  DEAD UTILITY.
+
+  With `inline`, Tailwind substitutes a token's VALUE at the call site, and a
+  value it cannot parse as a colour -- every one of these is `rgb(var(--p-x))`,
+  because the channels have to stay on --p-* for the themes to switch -- is
+  passed through whole. Which means the alpha modifier is silently DROPPED:
+  `border-line/40` compiled to `border-color: rgb(var(--p-line))` at full
+  strength, with the /40 gone and no warning anywhere.
+
+  Without `inline`, the same token compiles to
+  `color-mix(in srgb, rgb(var(--p-line)) 40%, transparent)` -- the alpha kept,
+  the theme switch kept, because a custom property is substituted where it is
+  USED and --p-line is still resolved per theme on the element.
+
+  Verified by building a probe element under both forms and reading the emitted
+  rules rather than reasoning about it.
+*/
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-panel: var(--panel);
@@ -443,17 +644,69 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --color-ink: rgb(var(--p-ink) / <alpha-value>);
-  --color-surface: rgb(var(--p-surface) / <alpha-value>);
-  --color-surface-raised: rgb(var(--p-surface-raised) / <alpha-value>);
-  --color-line: rgb(var(--p-line) / <alpha-value>);
-  --color-line-strong: rgb(var(--p-line-strong) / <alpha-value>);
-  --color-text: rgb(var(--p-text) / <alpha-value>);
-  --color-place: rgb(var(--p-place) / <alpha-value>);
-  --color-aside: rgb(var(--p-aside) / <alpha-value>);
-  --color-haze: rgb(var(--p-haze) / <alpha-value>);
-  --color-accent-dim: rgb(var(--p-accent-dim) / <alpha-value>);
-  --color-accent-quiet-raw: rgb(var(--p-accent-quiet) / <alpha-value>);
+  /*
+    NO TOKEN BELOW CARRIES <alpha-value> ANY MORE, AND THAT WAS NOT A TIDY-UP.
+
+    It is a Tailwind v3 placeholder. v4 does not substitute it, so every one of
+    these compiled to `background-color: rgb(var(--p-surface-raised) /
+    <alpha-value>)` -- invalid, dropped by the parser, the element painted
+    NOTHING and showed whatever was behind it. Verified by building a probe
+    element and reading the emitted rule, not inferred.
+
+    Which is the real answer to why this interface measured 2.1 effective
+    surface levels against Blender's 5.5. It was not that the palette had only
+    one usable step. It had three, and two of them were referenced in ninety
+    places that rendered as the ground, plus forty-three more utilities --
+    border-line, inset-ring-line-strong, bg-accent-dim -- doing the same. The
+    palette was not flat. Most of it was never drawn.
+
+    It also explains a class of correction that could not land: editing
+    --p-surface-raised moved nothing on screen, because nothing was reading it
+    through a utility that compiled.
+
+    In v4 alpha needs no placeholder. `bg-panel/40` is color-mix, computed from
+    the plain colour, and works on every token here.
+  */
+
+  /*
+    The roles, as utilities. `bg-panel`, `bg-row-hover`, `bg-card` -- a class
+    that says what the element IS. These are what components use.
+  */
+  --color-app: var(--s-app);
+  --color-field: var(--s-field);
+  --color-sunk: var(--s-sunk);
+  --color-control: var(--s-control);
+  --color-panel-head: var(--s-panel-head);
+  --color-hover: var(--s-hover);
+  --color-selected: var(--s-selected);
+  --color-float: var(--s-float);
+
+  /*
+    The ramp, still reachable, and deliberately still here.
+
+    Not every surface in this application has been given a role yet, and a
+    half-migrated palette that DELETES the old names produces a build error at
+    every unconverted site, which is a worse position to stop in than a working
+    screen painted from the ramp. What the roles above buy is that anything
+    converted can now be moved on its own; what these keep is that nothing is
+    broken while the rest converts.
+
+    `--color-ink` also stays because ink is genuinely two things -- the deepest
+    ground AND the type written on a bright band -- and the second is not a
+    surface role at all.
+  */
+  --color-ink: rgb(var(--p-ink));
+  --color-sunk-step: rgb(var(--p-sunk));
+  --color-surface: rgb(var(--p-surface));
+  --color-surface-raised: rgb(var(--p-surface-raised));
+  --color-line: rgb(var(--p-line));
+  --color-line-strong: rgb(var(--p-line-strong));
+  --color-text: rgb(var(--p-text));
+  --color-place: rgb(var(--p-place));
+  --color-aside: rgb(var(--p-aside));
+  --color-haze: rgb(var(--p-haze));
+  --color-accent-dim: rgb(var(--p-accent-dim));
+  --color-accent-quiet-raw: rgb(var(--p-accent-quiet));
 
   /*
     Two container radii, not four. The app used rounded-md for glass panels,

@@ -196,7 +196,7 @@ export function DateField({
             if (e.key === "Enter") commitTyped(e.currentTarget.value)
             else if (e.key === "Escape") setTyping(null)
           }}
-          className="telemetry w-[6.5rem] rounded-sm border-0 bg-surface-raised px-1.5 py-0.5 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
+          className="telemetry w-[6.5rem] rounded-sm border-0 bg-sunk px-1.5 py-0.5 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"
         />
       ) : (
       <button
@@ -229,17 +229,17 @@ export function DateField({
         className={cn(
           /*
             The same box as NumberField, and for the same reason: at
-            bg-surface-raised/60 this composited to 1.17 against the band's ink
+            bg-selected this composited to 1.17 against the band's ink
             and 1.08 in light -- the faintest chrome in the band, reading as
             plain mono text. Matched in height too, so a row of fields lines up.
           */
           "telemetry inline-flex h-[1.375rem] items-center rounded-sm px-1.5 text-meta transition-colors",
           "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
           disabled
-            ? "cursor-not-allowed bg-surface-raised/40 inset-ring-1 inset-ring-line text-muted-foreground/50"
+            ? "cursor-not-allowed bg-control inset-ring-1 inset-ring-line text-muted-foreground/50"
             : open
-              ? "bg-surface-raised text-foreground inset-ring-1 inset-ring-accent"
-              : "bg-surface-raised text-foreground inset-ring-1 inset-ring-line-strong hover:bg-surface-raised/80",
+              ? "bg-selected text-foreground inset-ring-1 inset-ring-accent"
+              : "bg-selected text-foreground inset-ring-1 inset-ring-line-strong hover:bg-hover",
           className
         )}
       >

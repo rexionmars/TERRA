@@ -58,7 +58,7 @@ function Bars({
           <span className="telemetry w-8 shrink-0 text-right text-micro text-muted-foreground">
             {label(r.key)}
           </span>
-          <div className="h-2.5 min-w-0 flex-1 bg-surface-raised/40">
+          <div className="h-2.5 min-w-0 flex-1 bg-sunk">
             <div
               className="h-full bg-accent/70"
               style={{ width: `${Math.max(0, ((r.v ?? 0) / peak) * 100)}%` }}

@@ -121,7 +121,7 @@ function Entry({ entry }: { entry: StatsEntry }) {
                   setDraft(area)
                 }
               }}
-              className="w-full rounded-sm border border-border bg-background px-1.5 py-0.5 text-[12px] font-medium leading-tight text-foreground outline-none"
+              className="w-full rounded-sm border border-border bg-sunk px-1.5 py-0.5 text-[12px] font-medium leading-tight text-foreground outline-none"
               aria-label="Area name"
             />
           ) : (
@@ -143,7 +143,7 @@ function Entry({ entry }: { entry: StatsEntry }) {
               className={cn(
                 "group flex max-w-full items-center gap-1.5 text-left",
                 onRenameArea &&
-                  "cursor-text rounded-sm hover:bg-surface-raised/50",
+                  "cursor-text rounded-sm hover:bg-hover",
               )}
             >
               <span

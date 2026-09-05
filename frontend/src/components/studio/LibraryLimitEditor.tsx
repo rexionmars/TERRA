@@ -419,7 +419,7 @@ export function LibraryLimitEditor({
                 "max-w-[12rem] truncate rounded-sm px-1.5 py-0.5 text-meta transition-colors",
                 i === runIdx
                   ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                  : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
               )}
             >
               {r.label}
@@ -461,7 +461,7 @@ export function LibraryLimitEditor({
                     "shrink-0 rounded-sm p-0.5 transition-colors",
                     notes
                       ? "bg-accent-dim text-foreground"
-                      : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                      : "text-muted-foreground hover:bg-hover hover:text-foreground"
                   )}
                 >
                   <Info className="size-3.5" />
@@ -552,7 +552,7 @@ export function LibraryLimitEditor({
                           "flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-meta transition-colors",
                           shown.class_id === c.class_id
                             ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                            : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                            : "text-muted-foreground hover:bg-hover hover:text-foreground"
                         )}
                       >
                         <span
@@ -572,8 +572,8 @@ export function LibraryLimitEditor({
                         className={cn(
                           "rounded-sm px-1.5 py-0.5 text-meta transition-colors",
                           band === m
-                            ? "bg-surface-raised text-foreground"
-                            : "text-muted-foreground hover:bg-surface-raised/40"
+                            ? "bg-selected text-foreground"
+                            : "text-muted-foreground hover:bg-hover"
                         )}
                       >
                         {m === "ratio" ? "Canopy / leaf" : "Normalised"}

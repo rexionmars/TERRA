@@ -36,7 +36,7 @@ export function NumberField({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
+        className="rounded-sm border border-border bg-sunk px-2 py-1 text-xs text-foreground outline-none"
       />
     </label>
   )
@@ -62,7 +62,7 @@ export function TextField({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
+        className="rounded-sm border border-border bg-sunk px-2 py-1 text-xs text-foreground outline-none"
       />
     </label>
   )

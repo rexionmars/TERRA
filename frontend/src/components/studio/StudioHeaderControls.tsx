@@ -49,7 +49,7 @@ export function StudioHeaderMenu({
       className={cn(
         BASE,
         HEADER_CONTROL,
-        "px-1.5 text-meta text-foreground hover:bg-surface-raised",
+        "px-1.5 text-meta text-foreground hover:bg-hover",
         rest.className
       )}
     >
@@ -94,7 +94,7 @@ export function StudioHeaderToggle({
         disabled && "cursor-not-allowed opacity-40",
         on
           ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+          : "text-muted-foreground hover:bg-hover hover:text-foreground"
       )}
     >
       <Icon className="size-3 shrink-0" />
@@ -140,8 +140,8 @@ export const StudioHeaderPopoverButton = ({
       active
         ? "bg-accent text-accent-foreground"
         : open
-          ? "bg-surface-raised text-foreground"
-          : "text-muted-foreground hover:bg-surface-raised hover:text-foreground",
+          ? "bg-selected text-foreground"
+          : "text-muted-foreground hover:bg-hover hover:text-foreground",
       rest.className
     )}
   >
@@ -209,7 +209,7 @@ export function StudioHeaderRadio<T extends string>({
             "flex h-full shrink-0 items-center gap-1 px-1.5 transition-colors",
             o.id === value
               ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+              : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
           <o.icon className="size-3 shrink-0" strokeWidth={1.75} />

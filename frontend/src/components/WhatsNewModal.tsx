@@ -39,7 +39,7 @@ export function WhatsNewModal({
         onClose={onContinue}
       />
 
-        <div className="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto bg-background p-4">
+        <div className="flex max-h-[min(28rem,60vh)] flex-col gap-3 overflow-y-auto bg-panel p-4">
           {entries.map((entry) => (
             <section key={entry.version} className="rounded-sm border border-border bg-secondary/50 p-4">
               <div className="mb-2 flex flex-wrap items-baseline gap-2">

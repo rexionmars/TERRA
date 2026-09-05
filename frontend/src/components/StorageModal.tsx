@@ -151,7 +151,7 @@ function Overview({
           {report.buckets.map((b) => (
             <li
               key={b.label}
-              className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-sm border border-border bg-background px-3 py-2"
+              className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-sm border border-border bg-sunk px-3 py-2"
             >
               <div className="min-w-0">
                 <span className="text-body text-foreground">{b.label}</span>
@@ -194,7 +194,7 @@ function Overview({
 
       <Section title="Reclaimable">
         {report.orphan_count > 0 ? (
-          <div className="rounded-sm border border-border bg-background px-3 py-2">
+          <div className="rounded-sm border border-border bg-sunk px-3 py-2">
             <p className="text-body text-foreground">
               {formatBytes(report.orphan_bytes)} in {report.orphan_count}{" "}
               {report.orphan_count === 1 ? "folder" : "folders"} no analysis
@@ -306,7 +306,7 @@ function Projects({ report }: { report: store.StorageReport }) {
       {report.by_project.map((p) => (
         <li
           key={p.project_id}
-          className="flex items-baseline justify-between gap-3 rounded-sm border border-border bg-background px-3 py-2"
+          className="flex items-baseline justify-between gap-3 rounded-sm border border-border bg-sunk px-3 py-2"
         >
           <div className="min-w-0">
             <span className="truncate text-body text-foreground">{p.name}</span>

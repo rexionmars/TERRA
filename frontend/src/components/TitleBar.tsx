@@ -153,7 +153,7 @@ export function TitleBar({
     <header className={cn(
         // border-border/60 matches the sidebar's right edge, which this line
         // meets at the top-left corner.
-        "app-draggable relative flex h-11 shrink-0 items-center justify-between border-b border-border/60 bg-ink/40 pr-2 backdrop-blur-md",
+        "app-draggable relative flex h-11 shrink-0 items-center justify-between border-b border-border/60 bg-app/70 pr-2 backdrop-blur-md",
         /*
           The window's traffic lights own the first 4.5rem in both states, and
           the wordmark keeps a centimetre clear of them.
@@ -328,7 +328,7 @@ export function TitleBar({
           <button
             type="button"
             onClick={() => (user ? goProfile() : goAuth())}
-            className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             title={user ? "Settings" : "Sign in"}
           >
             {user?.avatar_uri ? (

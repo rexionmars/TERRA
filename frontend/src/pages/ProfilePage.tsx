@@ -559,7 +559,7 @@ export function ProfilePage({
           onClick={leaveSettings}
           className={cn(
             "flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-emphasis",
-            "text-muted-foreground transition-colors hover:bg-surface-raised/70 hover:text-foreground",
+            "text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
             focusRing
           )}
         >
@@ -860,7 +860,7 @@ export function ProfilePage({
                     Choose a backup
                   </button>
                 ) : (
-                  <div className="flex flex-col gap-2 rounded-sm border border-border bg-background px-3 py-2">
+                  <div className="flex flex-col gap-2 rounded-sm border border-border bg-sunk px-3 py-2">
                     {/* What is about to arrive, and what it displaces. Stated
                         before the action, not reported after it. */}
                     <p className="text-body text-foreground">

@@ -116,8 +116,11 @@ export function apca(text: Channels, background: Channels): number {
 /** The channel values in index.css, per theme. Edited together with it. */
 export const TOKENS = {
   dark: {
-    ink: [33, 33, 33],
-    surface: [47, 47, 47],
+    sunk: [24, 24, 24],
+    ink: [30, 30, 30],
+    control: [40, 40, 40],
+    surface: [48, 48, 48],
+    head: [53, 53, 53],
     surfaceRaised: [67, 67, 67],
     line: [91, 91, 91],
     lineStrong: [145, 145, 145],
@@ -127,20 +130,24 @@ export const TOKENS = {
     accentQuiet: [240, 155, 99],
     accentDim: [83, 40, 12],
     destructive: [159, 43, 58],
-    success: [111, 156, 90],
+    success: [195, 236, 95],
     warning: [213, 190, 75],
     destructiveForeground: [221, 221, 221],
     destructiveQuiet: [248, 152, 158],
     aside: [112, 150, 190],
-    partSource: [71, 180, 147],
-    partWhen: [48, 175, 201],
-    partMethod: [151, 148, 225],
-    partValue: [197, 132, 191],
+    partSource: [118, 173, 137],
+    partWhen: [97, 171, 188],
+    partMethod: [158, 150, 203],
+    partValue: [194, 139, 169],
+    wireFailed: [224, 132, 125],
   },
   light: {
-    ink: [241, 241, 241],
-    surface: [249, 249, 249],
-    surfaceRaised: [227, 227, 227],
+    sunk: [223, 223, 223],
+    ink: [231, 231, 231],
+    control: [238, 238, 238],
+    surface: [244, 244, 244],
+    head: [248, 248, 248],
+    surfaceRaised: [253, 253, 253],
     line: [177, 177, 177],
     lineStrong: [121, 121, 121],
     text: [31, 31, 31],
@@ -149,15 +156,16 @@ export const TOKENS = {
     accentQuiet: [158, 48, 14],
     accentDim: [240, 214, 198],
     destructive: [178, 54, 69],
-    success: [63, 107, 44],
+    success: [68, 96, 24],
     warning: [135, 112, 0],
-    destructiveForeground: [249, 249, 249],
+    destructiveForeground: [244, 244, 244],
     destructiveQuiet: [163, 43, 59],
     aside: [70, 106, 152],
-    partSource: [40, 131, 105],
-    partWhen: [15, 127, 147],
-    partMethod: [108, 105, 166],
-    partValue: [144, 92, 139],
+    partSource: [81, 125, 96],
+    partWhen: [63, 123, 137],
+    partMethod: [113, 107, 149],
+    partValue: [141, 98, 122],
+    wireFailed: [156, 68, 63],
   },
 } as const satisfies Record<string, Record<string, Channels>>
 
@@ -172,7 +180,9 @@ export type ThemeName = keyof typeof TOKENS
  * What the list buys is that anything NOT on it still fails.
  *
  * All three came in together, from a chassis whose surfaces were lifted: ink 33,
- * surface 47, raised 67. Lifting a surface does not lift what has to be seen
+ * surface 47, raised 67. The ramp has since grown to six steps and every rule
+ * below is measured against all of them rather than against three, which is
+ * what caught the light theme: its darkest ground is no longer `ink`. Lifting a surface does not lift what has to be seen
  * against it, and these are the three tokens that did not follow. The values
  * that would clear were measured -- lineStrong 142, muted 175, destructiveQuiet
  * #E59E8F -- and were not taken.
@@ -231,25 +241,25 @@ export interface ContrastRule {
 export const RULES: readonly ContrastRule[] = [
   {
     fg: "text",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 4.5,
     why: "body text, on every surface it lands on",
   },
   {
     fg: "muted",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 4.5,
     why: "secondary text, which carries the assumptions beside every figure",
   },
   {
     fg: "accentQuiet",
-    on: ["ink", "surface", "surfaceRaised", "accentDim"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised", "accentDim"],
     min: 4.5,
     why: "the accent where it is read rather than filled; accentDim is the plate the studio band lights a chosen value on, and the label sits on it",
   },
   {
     fg: "accent",
-    on: ["ink", "surface", "surfaceRaised", "accentDim"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised", "accentDim"],
     min: 3.0,
     why: "fill, focus ring and active state; never small text. On accentDim it is the underline that carries the chosen state where hue does not reach",
   },
@@ -262,7 +272,7 @@ export const RULES: readonly ContrastRule[] = [
      * plain text.
      */
     fg: "lineStrong",
-    on: ["ink", "surface", "surfaceRaised", "accentDim"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised", "accentDim"],
     min: 3.0,
     why: "component boundary, WCAG 1.4.11; the surfaces are 1.20 and 1.35 apart, so the border is what separates them",
   },
@@ -279,7 +289,7 @@ export const RULES: readonly ContrastRule[] = [
   },
   {
     fg: "destructiveQuiet",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 4.5,
     why: "destructive where it is read rather than filled: error text, a delete row, a hover state",
   },
@@ -295,7 +305,7 @@ export const RULES: readonly ContrastRule[] = [
    */
   {
     fg: "success",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 3.0,
     why: "the success mark on a toast, which is a graphic rather than text",
   },
@@ -310,7 +320,7 @@ export const RULES: readonly ContrastRule[] = [
    */
   {
     fg: "aside",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 3.0,
     why: "the border and glyph of a card that is on the run graph but not in the request; a boundary under WCAG 1.4.11, never text",
   },
@@ -330,27 +340,50 @@ export const RULES: readonly ContrastRule[] = [
    */
   {
     fg: "partSource",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 3.0,
     why: "the header, border and glyph of a card that says WHERE a run reads: the area, a scene, a store",
   },
   {
     fg: "partWhen",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 3.0,
     why: "the same, for a card that says OVER WHAT STRETCH: a period, a window, a depth of record",
   },
   {
     fg: "partMethod",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 3.0,
     why: "the same, for a card that says BY WHICH METHOD: a model, an index, a product, a set of bands",
   },
   {
     fg: "partValue",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 3.0,
     why: "the same, for a card that says AT WHAT VALUES: a threshold, a slope, a ratio, a loss",
+  },
+  /*
+   * The two bands a wire draws once it has an outcome to report, checked as
+   * GROUNDS rather than as marks -- which is why `ink` is the foreground here
+   * and they are the background.
+   *
+   * Both are filled opaque and carry the wire's reading on them, set in
+   * --p-ink: dark type in the dark theme, light type in the light one, because
+   * the token flips and the bands do not. That makes each a text pair at the
+   * 4.5 floor, not a graphic at 3.0 -- and it is the pairing the destructive
+   * tokens got wrong before anything was looking, a fill measured for what it
+   * is rather than for what is written on it.
+   *
+   * The waiting states are absent from this list on purpose: a pending wire is
+   * a translucent pane over whatever it crosses, so its ground is not a token
+   * and cannot be checked from one. Its floor is held in NodeCanvas instead,
+   * by PANE_TINT_HEAD, which is measured against the worst case there.
+   */
+  {
+    fg: "ink",
+    on: ["success", "wireFailed"],
+    min: 4.5,
+    why: "the reading written on a wire that reported an outcome, dark on the taken route and on the failed one",
   },
   /*
    * Warning joins the list because it stopped deriving from a checked token.
@@ -364,7 +397,7 @@ export const RULES: readonly ContrastRule[] = [
    */
   {
     fg: "warning",
-    on: ["ink", "surface", "surfaceRaised"],
+    on: ["sunk", "ink", "control", "surface", "head", "surfaceRaised"],
     min: 3.0,
     why: "the warning mark on a toast, which is an amber of its own rather than whatever the accent happens to be",
   },

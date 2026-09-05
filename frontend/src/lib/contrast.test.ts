@@ -95,11 +95,11 @@ describe("contrast", () => {
     )
     // Two tokens the interface actually paints, one per theme.
     expect(contrast(TOKENS.dark.text, TOKENS.dark.ink)).toBeCloseTo(
-      11.85512560381741,
+      12.274022068707811,
       10
     )
     expect(contrast(TOKENS.light.text, TOKENS.light.ink)).toBeCloseTo(
-      14.59328097948885,
+      13.329277433268102,
       10
     )
   })
@@ -144,9 +144,9 @@ describe("checkContrast", () => {
       "dark.accentQuiet.accentDim": 5.71,
       "dark.lineStrong.surfaceRaised": 3.14,
       "dark.destructiveForeground.destructive": 5.37,
-      "light.text.surface": 15.66,
+      "light.text.surface": 14.99,
       "light.accent.accentDim": 4.09,
-      "light.warning.surfaceRaised": 3.76,
+      "light.warning.surfaceRaised": 4.75,
     }
     for (const [key, ratio] of Object.entries(expected)) {
       const r = results.find((x) => `${x.theme}.${x.fg}.${x.bg}` === key)
