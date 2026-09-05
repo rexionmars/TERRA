@@ -260,23 +260,19 @@ export interface CanvasNode {
   header: React.ReactNode
   children: React.ReactNode
   /**
-   * How the card is lit, and the three are DIFFERENT CLAIMS.
+   * How the card is lit, and the two are DIFFERENT CLAIMS.
    *
    * "action" is the card the others arrive at, so the eye finds the end of the
    * graph. Its header is filled.
    *
-   * "blocking" is a card holding nothing that something is waiting on. It is
-   * OUTLINED and never filled, because a fill here would read as a second run
-   * button, and the outline is DASHED -- the same mark its own wire carries,
-   * for the same reason, in the same place a reader is already looking.
-   *
-   * IT REPLACED "held", WHICH SAID THE OPPOSITE. That one lit a card that was
-   * carrying something, and it was the area's alone because the area was the
-   * only card that could be empty. Two things changed: `supplied` in
-   * runValue.ts made emptiness a question every card answers, and the wires
-   * began carrying what each card holds -- so "this one has a value" is now
-   * written along the wire in the value itself. What no other mark says is
-   * which card is stopping the run, and that is the one worth the accent.
+   * NOTHING MARKS A CARD THAT IS HOLDING NOTHING, and two attempts at one have
+   * been taken out. "held" lit the area while it had a drawing, which the wire
+   * now says better by carrying the drawing's own name; "blocking" lit the
+   * same card on the opposite condition, in a dashed accent outline, and put
+   * a second loud mark on a card whose part colour was already saying what
+   * kind of card it is. An input holding nothing is said twice as it is -- by
+   * the wire, which goes dashed and reads "not set" at the card's own edge,
+   * and by the card's body, which reads "none" where its value would be.
    *
    * "aside" is a THIRD claim and it is about the graph rather than the card:
    * this one is not in the request. Every other card feeds the run -- change it
@@ -294,7 +290,7 @@ export interface CanvasNode {
    * model always hold a value, so lighting them would be a light that is
    * always on.
    */
-  tone?: "action" | "blocking" | "aside"
+  tone?: "action" | "aside"
   /**
    * What the card is DOING, which is not what it is.
    *
@@ -331,8 +327,8 @@ export interface CanvasNode {
    * the colour of a board with no scheme at all.
    *
    * Overridden where a card has something to say about itself -- the action's
-   * filled header, the aside's wash, the blocking card's dashed border -- since
-   * what is happening outranks what a card is.
+   * filled header, the aside's wash -- since what is happening outranks what a
+   * card is.
    */
   subject?: { wash: string; edge: string }
 }
@@ -1045,20 +1041,24 @@ export function NodeCanvas({
                   </>
                 )}
                 {/*
-                  The core line, which is what a pending ribbon needs to keep an
-                  edge: at a sixth of its colour it is a band the eye can lose
-                  where two of them cross. A filled wire has its own boundary
-                  and is given none, so the only thing drawn down the middle of
-                  a route that was taken is the dash that says it is being read.
+                  NOTHING IS DRAWN DOWN THE MIDDLE OF A RIBBON THAT IS ONE.
 
-                  THE DASH SAYS TWO OPPOSITE THINGS and does it with one mark,
-                  because one of them moves. A still dash is an absence -- the
-                  line is broken because the input is not there. A travelling
-                  dash is the line being read. Nothing else on this surface
-                  moves, so motion is unambiguous here in a way a second colour
+                  A hairline through a filled band is a seam: it was put there
+                  when a pending wire was a sixth of its colour and could be
+                  lost where two of them crossed, and it stayed after the fill
+                  was raised, so every wire on the board had a pale line
+                  running the length of it for no reason a reader could name.
+                  A ribbon has its own boundary.
+
+                  The two that remain are not seams. Where an input is absent
+                  there is no ribbon at all and this IS the wire, drawn broken
+                  because nothing passes along it; where a run is reading, the
+                  same dash travels. One mark saying opposite things, and only
+                  because one of them moves -- nothing else on this surface
+                  does, so motion is unambiguous here in a way a second colour
                   would not be.
                 */}
-                {(st === "pending" || st === "missing" || st === "reading") && (
+                {(st === "missing" || st === "reading") && (
                   <path
                     d={line}
                     fill="none"
@@ -1176,13 +1176,11 @@ export function NodeCanvas({
                 ? "border-warning/70"
                 : n.tone === "action"
                   ? "border-accent/60"
-                  : n.tone === "blocking"
-                    ? "border-dashed border-accent/70"
-                    : n.tone === "aside"
-                      ? "border-aside/70"
-                      : n.subject
-                        ? undefined
-                        : "border-line-strong/45"
+                  : n.tone === "aside"
+                    ? "border-aside/70"
+                    : n.subject
+                      ? undefined
+                      : "border-line-strong/45"
             )}
             style={{
               left: n.place.x,
@@ -1219,11 +1217,9 @@ export function NodeCanvas({
                   ? "0 0 22px -6px var(--warning)"
                   : n.tone === "action"
                     ? "0 0 20px -8px var(--accent)"
-                    : n.tone === "blocking"
-                      ? "0 0 18px -10px var(--accent)"
-                      : n.tone === "aside"
-                        ? "0 0 18px -10px rgb(var(--p-aside))"
-                        : null,
+                    : n.tone === "aside"
+                      ? "0 0 18px -10px rgb(var(--p-aside))"
+                      : null,
               ]
                 .filter(Boolean)
                 .join(", "),

@@ -2163,27 +2163,16 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     */
     const aside = !wired.has(spec.id)
     /*
-      THE CARD THE RUN IS WAITING ON, which is the one thing on this surface
-      worth the accent while a question is being set up.
-
-      Derived rather than named. This was `held` and it was the area's alone,
-      on the argument that every other input arrives with a value -- which
-      `supplied` in runValue.ts has since shown to be false of four cards, not
-      one: a composition with no scene, an envelope under two elevation
-      products, a record with no store, a period with no dates. The condition
-      is also INVERTED from what `held` tested, and that is the point: a card
-      that is carrying something now says so along its own wire, and what no
-      other mark says is which card is stopping the run.
+      NO THIRD TONE. A card holding nothing was lit here twice over -- once as
+      `held`, on the opposite condition, and once as `blocking` -- and both
+      were taken out: the wire leaving such a card already goes dashed and
+      reads "not set" at the card's own edge, and the card's body already reads
+      "none" where its value would be. A third mark on the card put a loud
+      outline over a header that was already saying which part of the question
+      the card answers. `supplied` still decides the WIRE; see canvasEdges.
     */
-    const blocking = !aside && !supplied(values[spec.id])
     const tone: CanvasNode["tone"] =
-      spec.id === "run"
-        ? "action"
-        : aside
-          ? "aside"
-          : blocking
-            ? "blocking"
-            : undefined
+      spec.id === "run" ? "action" : aside ? "aside" : undefined
     const part = aside ? null : subject(values[spec.id])
     return {
       id: spec.id,
