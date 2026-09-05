@@ -43,19 +43,50 @@ import { cn } from "@/lib/utils"
 import { NODE_W, PORT_Y, type Place } from "./runGraph"
 
 /**
- * How wide a wire draws where it is carrying the request.
- *
- * UNIFORM, AND THAT IS THE CLAIM. The diagram this width was taken from is a
- * Sankey, where a ribbon's thickness is a quantity -- how many items took that
- * route. Nothing flows between these cards in an amount, so every ribbon here
- * is the same width, whatever it carries and however many wires share the card
- * it lands on.
+ * The widest a wire draws where it is carrying the request.
  *
  * THIRTY-FOUR IS THE READING'S. A wire carries what its card supplies, written
  * inside it on two lines -- the card's name over its value -- and that is
  * twenty-one pixels of text with air above and below.
+ *
+ * A CEILING RATHER THAN A CONSTANT, AND THE FIXED VERSION FAILED IN THE APP.
+ * It was this width at both ends of every wire, and the card at the head of a
+ * fan was grown tall enough to be landed on by all of them. On a four-input
+ * graph that reads. The energy model takes EIGHT, and the run node -- a card
+ * whose contents are a button and a method link -- was stretched past three
+ * hundred pixels of empty body to be met by them.
+ *
+ * So a wire is as wide as it needs to be AT EACH END, and the two ends differ:
+ * a card that feeds only the run gives its wire the full width to write the
+ * reading in, and the run node gives each of its eight arrivals an eighth of
+ * its own side. Neither number is a quantity about the datum -- every wire
+ * meeting the same card at the same end is the same width, so a comparison
+ * between two of them still reads as nothing.
  */
-const RIBBON_W = 34
+export const RIBBON_W = 34
+
+/**
+ * The narrowest a ribbon may be drawn where a card's side is crowded.
+ *
+ * Under about five pixels a filled ribbon stops reading as a ribbon and
+ * becomes a second hairline. A card crowded past this draws slots that touch,
+ * which is legible as crowding rather than silent as a mark that went missing.
+ */
+const RIBBON_MIN_W = 5
+
+/** The narrowest ribbon that still holds both lines of its reading. */
+const RIBBON_TWO_LINE_W = 26
+
+/**
+ * The narrowest ribbon that holds any text at all.
+ *
+ * Below this the reading is dropped rather than drawn outside the shape it is
+ * written in: a wire with no reading is legible, and a reading lying across
+ * three wires is not. The state word at the landing is gated on the LANDING's
+ * width for the same reason and separately, since a wire is commonly wide
+ * where it leaves and narrow where it arrives.
+ */
+const RIBBON_TEXT_MIN_W = 15
 
 /** Clearance between two neighbouring ribbons where they land. */
 const SLOT_GAP = 4
@@ -393,12 +424,14 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export const slotKey = (from: string, to: string, side: "from" | "to") =>
   `${from}>${to}>${side}`
 
+/** Where one wire meets one card: how far down its side, and how wide it lands. */
+export interface Slot {
+  y: number
+  w: number
+}
+
 /**
- * How far down its side a card is met, by wire and by side.
- *
- * A number rather than a place: the x is the card's own edge and the y is all
- * a slot decides. Ribbons are one width everywhere -- see RIBBON_W -- so there
- * is nothing else for this to carry.
+ * Where every wire meets every card, and how much of the card's side it gets.
  *
  * Computed for the whole field at once rather than per wire, because a slot is
  * not a property of the wire: it is that wire's place among the others landing
@@ -411,19 +444,21 @@ export const slotKey = (from: string, to: string, side: "from" | "to") =>
  * the other card's MIDDLE, which is a fact about where cards are and cannot
  * depend back on this.
  *
- * Sides are counted apart. A card that both takes a gate and feeds the run has
- * one wire on each edge, and neither displaces the other.
+ * Sides are counted apart, which is most of what makes the widths work: a card
+ * that feeds only the run has one wire on its right edge at the full width,
+ * and the run node fits eight down its left. The wire between them is the
+ * first at one end and the last at the other, and it is drawn as both.
  */
 export function assignSlots(
   nodes: readonly CanvasNode[],
   edges: readonly CanvasEdge[]
-): Map<string, number> {
+): Map<string, Slot> {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const middle = (id: string) => {
     const n = byId.get(id)
     return n ? n.place.y + n.h / 2 : 0
   }
-  const slots = new Map<string, number>()
+  const slots = new Map<string, Slot>()
 
   for (const node of nodes) {
     for (const side of ["from", "to"] as const) {
@@ -433,6 +468,7 @@ export function assignSlots(
       if (own.length === 0) continue
       const facing = (e: CanvasEdge) => middle(side === "from" ? e.to : e.from)
       own.sort((a, b) => facing(a) - facing(b))
+
       /*
         The band runs from the header row down, not out from the card's centre.
 
@@ -441,40 +477,28 @@ export function assignSlots(
         and grows downwards into the card. Centring it would move every
         existing wire off the header for the sake of a symmetry no card asked
         for.
+
+        BOUNDED BY THE CARD, which is the repair. The card was grown to hold
+        the fan and became a button over three hundred pixels of nothing; the
+        fan is fitted to the card instead, and a wire narrows at the end where
+        it has to share.
       */
+      const room = Math.max(0, node.h - SLOT_FOOT - PORT_Y)
+      const pitch =
+        own.length > 1 ? Math.min(SLOT_PITCH, room / (own.length - 1)) : 0
+      const w =
+        own.length > 1
+          ? clamp(pitch - SLOT_GAP, RIBBON_MIN_W, RIBBON_W)
+          : RIBBON_W
       own.forEach((e, i) => {
-        slots.set(slotKey(e.from, e.to, side), node.place.y + PORT_Y + i * SLOT_PITCH)
+        slots.set(slotKey(e.from, e.to, side), {
+          y: node.place.y + PORT_Y + i * pitch,
+          w,
+        })
       })
     }
   }
   return slots
-}
-
-/**
- * How tall a card has to be drawn to be met by the wires that meet it.
- *
- * THE CARD FOLLOWS THE FAN. A floor, not a height: a card is sized by its
- * contents like any other element and this only stops one being met below its
- * own foot. It is the busier of the two sides that decides, since the fans are
- * counted apart and either could be the taller.
- *
- * Reported to the caller through the same ResizeObserver every card already
- * goes through, so a card that grows to hold its landings also stacks its
- * column at the height it grew to.
- */
-export function fanFloor(
-  id: string,
-  edges: readonly CanvasEdge[]
-): number {
-  let inbound = 0
-  let outbound = 0
-  for (const e of edges) {
-    if (e.to === id) inbound += 1
-    if (e.from === id) outbound += 1
-  }
-  const most = Math.max(inbound, outbound)
-  if (most < 2) return 0
-  return PORT_Y + (most - 1) * SLOT_PITCH + RIBBON_W / 2 + SLOT_FOOT
 }
 
 /**
@@ -536,17 +560,19 @@ export function wirePath(x1: number, y1: number, x2: number, y2: number): string
 export function ribbonPath(
   x1: number,
   y1: number,
+  w1: number,
   x2: number,
   y2: number,
-  w: number = RIBBON_W
+  w2: number
 ): string {
   const reach = reachOf(x1, y1, x2, y2)
-  const a = w / 2
+  const a = w1 / 2
+  const b = w2 / 2
   return [
     `M ${x1} ${y1 - a}`,
-    `C ${x1 + reach} ${y1 - a}, ${x2 - reach} ${y2 - a}, ${x2} ${y2 - a}`,
-    `L ${x2} ${y2 + a}`,
-    `C ${x2 - reach} ${y2 + a}, ${x1 + reach} ${y1 + a}, ${x1} ${y1 + a}`,
+    `C ${x1 + reach} ${y1 - a}, ${x2 - reach} ${y2 - b}, ${x2} ${y2 - b}`,
+    `L ${x2} ${y2 + b}`,
+    `C ${x2 - reach} ${y2 + b}, ${x1 + reach} ${y1 + a}, ${x1} ${y1 + a}`,
     "Z",
   ].join(" ")
 }
@@ -886,9 +912,11 @@ export function NodeCanvas({
             const a = byId.get(from)
             const b = byId.get(to)
             if (!a || !b) return null
-            const py = slots.get(slotKey(from, to, "from"))
-            const qy = slots.get(slotKey(from, to, "to"))
-            if (py === undefined || qy === undefined) return null
+            const p = slots.get(slotKey(from, to, "from"))
+            const q = slots.get(slotKey(from, to, "to"))
+            if (!p || !q) return null
+            const py = p.y
+            const qy = q.y
             const x1 = a.place.x + NODE_W
             const x2 = b.place.x
             /*
@@ -905,7 +933,7 @@ export function NodeCanvas({
             const stroke =
               EDGE_COLOUR[st] ?? own ?? "rgb(var(--p-line-strong))"
             const line = wirePath(x1, py, x2, qy)
-            const ribbon = ribbonPath(x1, py, x2, qy)
+            const ribbon = ribbonPath(x1, py, p.w, x2, qy, q.w)
             const key = `${from}-${to}`
             const fade = `${gid}-fade-${key}`
             const spine = `${gid}-spine-${key}`
@@ -930,13 +958,24 @@ export function NodeCanvas({
             const drop = Math.abs(qy - py)
             const room =
               ((span - LABEL_LEAD - NOTE_ROOM) * span) / (span + drop)
-            const value = clip(label, Math.floor(room / LABEL_CH))
+            /*
+              THE READING IS THE SOURCE END'S, and it is gated on that end's
+              width alone: a wire is commonly wide where it leaves a card that
+              feeds only the run and narrow where it arrives at a node that
+              eight of them share, and the reading is written where it leaves.
+            */
+            const chars = Math.floor(room / LABEL_CH)
+            const value =
+              p.w >= RIBBON_TEXT_MIN_W ? clip(label, chars) : ""
             /*
               The name goes with the value or not at all. It is the weaker of
               the two -- the card it leaves is titled with it -- so a wire that
-              can hold one line holds the one the card does not already say.
+              can hold one line holds the one the card does not already say,
+              whether it is the horizontal run or the ribbon's own width that
+              has run out.
             */
-            const title = value ? clip(name, Math.floor(room / LABEL_CH)) : ""
+            const title =
+              value && p.w >= RIBBON_TWO_LINE_W ? clip(name, chars) : ""
             const ink = INK_ON[st]
             const type = ink ? "rgb(var(--p-ink))" : "rgb(var(--p-text))"
             return (
@@ -1069,7 +1108,14 @@ export function NodeCanvas({
                   screen was computed from what this wire carries -- and the
                   wire is horizontal there, so it needs no path to lean on.
                 */}
-                {note && (
+                {/*
+                  Gated on the LANDING's width, which is a different question
+                  from the reading's: this word is set across the wire where it
+                  arrives, and eight arrivals sharing one card's side leave no
+                  room between them for a word. The state is still said there,
+                  in the colour of the ribbon it would have annotated.
+                */}
+                {note && q.w >= RIBBON_TEXT_MIN_W && (
                   <text
                     x={x2 - NOTE_LEAD}
                     y={qy + 3.5}
@@ -1149,16 +1195,6 @@ export function NodeCanvas({
               */
               borderColor:
                 !n.status && !n.tone && n.subject ? n.subject.edge : undefined,
-              /*
-                Tall enough to be met by the wires that meet it, and no taller.
-
-                The card is sized by its contents; this is a floor under that,
-                and it is only ever reached by a card several wires land on --
-                the run node, which every input feeds. Without it the lowest
-                landing of a four-wire fan sits below the card's own foot, and
-                a ribbon arrives at nothing.
-              */
-              minHeight: fanFloor(n.id, edges) || undefined,
               background: "rgb(var(--p-surface))",
               zIndex: front === n.id ? 1 : undefined,
               /*
@@ -1228,9 +1264,23 @@ export function NodeCanvas({
                       ? undefined
                       : "bg-surface-raised/70"
               )}
+              /*
+                THE PART IS A TINT ON THE HEADER, NOT A HEADER OF ITS OWN.
+
+                It replaced the raised plate outright at first, and that is
+                what put the coloured cards out of pattern: every other header
+                on the board is the raised surface at seven tenths, about a
+                fifth lighter than the card under it, and a card with a part
+                lost that lift and became a flat plate of colour instead. Two
+                layers rather than one -- the tint over the plate every card
+                has -- so a part reads as the same header in a different
+                temperature, which is what --p-aside already does above.
+              */
               style={
                 n.tone !== "action" && n.tone !== "aside" && n.subject
-                  ? { background: n.subject.wash }
+                  ? {
+                      background: `linear-gradient(${n.subject.wash}, ${n.subject.wash}), rgb(var(--p-surface-raised) / 0.7)`,
+                    }
                   : undefined
               }
             >
