@@ -11,6 +11,7 @@
  * up while this arrives.
  */
 import {
+  Fragment,
   Suspense,
   lazy,
   useCallback,
@@ -256,7 +257,10 @@ import {
   Waves,
 } from "@phosphor-icons/react"
 import { StudioAreaTree } from "@/components/studio/StudioAreaTree"
-import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
+import {
+  STUDIO_WORKSPACES,
+  WORKSPACE_GROUPS,
+} from "@/lib/studioWorkspaces"
 import {
   CanopyEditor,
   type CanopyMode,
@@ -2906,6 +2910,14 @@ export function BoardSurface({
   restoreTreeRef.current = restoreTree
   surfaceRef2.current = surface
   const [appMenu, setAppMenu] = useState(false)
+  const [workspaceMenu, setWorkspaceMenu] = useState(false)
+  /*
+    The preset the bar names, resolved rather than looked up at the trigger:
+    `studioWorkspace` already falls back to the first one for an id that no
+    longer exists, which is the case a saved layout naming a removed preset
+    produces.
+  */
+  const currentWorkspace = studioWorkspace(workspaceId)
   const [filterMenu, setFilterMenu] = useState(false)
   /*
     Which compare slot has its menu open, as `${paneId}:${slot}` rather than a
@@ -4939,55 +4951,96 @@ export function BoardSurface({
           aria-hidden
         />
 
-        {STUDIO_WORKSPACES.map((w) => (
-          <button
-            key={w.id}
-            type="button"
-            onClick={() => setWorkspaceId(w.id)}
-            title={w.hint}
-            aria-current={w.id === workspaceId}
-            className={cn(
-              /*
-                A tab, not a button: the current one carries the ground it
-                sits on, which is how Blender's workspace tabs read as a row
-                of destinations rather than as four switches.
-              */
-              "relative -mb-px flex h-full items-center gap-1.5 px-2.5 text-meta transition-colors",
-              w.id === workspaceId
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            style={
-              w.id === workspaceId
-                ? {
-                    /*
-                      `panel`, which is the ground of the AREA BELOW, and not
-                      the strip's own. That is what the note above means by a
-                      tab carrying the ground it sits on: the current tab and
-                      the work it opens are one surface interrupted by a
-                      border, and the six that are not current are the strip.
+        {/*
+          ONE ENTRANCE, GROUPED, RATHER THAN SEVEN TABS IN A ROW.
 
-                      It was briefly the same role as the strip, which made the
-                      current workspace unfindable -- a tab strip where every
-                      tab is the ground is seven labels and no state.
-                    */
-                    background: "var(--s-panel)",
-                    borderTopLeftRadius: 3,
-                    borderTopRightRadius: 3,
-                  }
-                : undefined
-            }
-          >
-            {/*
-              The glyph of the editor the preset is built around, which the
-              type menu already uses for that editor. The name stays: a tab
-              strip of five glyphs would be five destinations a reader has to
-              learn before they can be chosen between.
-            */}
-            <w.icon className="size-3 shrink-0" strokeWidth={1.75} />
-            {w.label}
-          </button>
-        ))}
+          The strip listed all seven side by side and so claimed they were
+          seven equal destinations. They are not: four of them read one
+          subject -- Compare sets two classification predictions against each
+          other, Diagnose measures a run against the domain its model was
+          fitted on, Data opens that run's tables, Simulation is a canopy --
+          and Routing and System are different work entirely. A reader looking
+          for the flood arrangement had to know the word "Routing"; a reader
+          looking for what this studio can do at all got a row of labels with
+          no shape.
+
+          A menu can say the shape, because it has a device a strip does not:
+          a named section. WORKSPACE_GROUPS carries the names, the preset
+          carries which one it is in, and neither is an order in an array.
+
+          IT ALSO STOPS THE STRIP FROM RUNNING OUT OF BAR. Seven tabs and the
+          board's data-block already fill the 1000px minimum window; the app
+          has editors for solar, wind and flood readings that no arrangement
+          opens yet, and a strip cannot take three more. A menu can.
+
+          The cost is honest: switching workspaces is two presses rather than
+          one. What buys it back is that the trigger says which one is current
+          in the same glyph and word the tab did, so the state a strip carried
+          by position is still on the bar and not only inside the menu.
+        */}
+        <StudioPopover
+          open={workspaceMenu}
+          onOpenChange={setWorkspaceMenu}
+          surface={surfaceRef.current}
+          widthRem={15}
+          trigger={(p) => (
+            <button
+              ref={p.ref as React.Ref<HTMLButtonElement>}
+              type="button"
+              onClick={p.onClick}
+              aria-expanded={p["aria-expanded"]}
+              aria-haspopup="menu"
+              title={currentWorkspace.hint}
+              className="relative -mb-px flex h-full items-center gap-1.5 px-2.5 text-meta text-foreground transition-colors"
+              style={{
+                /*
+                  `panel`, the ground of the AREA BELOW and not the strip's
+                  own: the entrance and the work it opens are one surface
+                  interrupted by a border. It is what the tabs did while they
+                  were tabs, kept because it is still what says the bar and the
+                  board are the same place.
+                */
+                background: "var(--s-panel)",
+                borderTopLeftRadius: 3,
+                borderTopRightRadius: 3,
+              }}
+            >
+              <currentWorkspace.icon
+                className="size-3 shrink-0"
+                strokeWidth={1.75}
+              />
+              {currentWorkspace.label}
+              <CaretDown className="size-2.5 shrink-0 text-muted-foreground" />
+            </button>
+          )}
+        >
+          {WORKSPACE_GROUPS.map((g, i) => {
+            const members = STUDIO_WORKSPACES.filter((w) => w.group === g.id)
+            if (!members.length) return null
+            return (
+              <Fragment key={g.id}>
+                {/* The hairline Blender puts between groups, never above the
+                    first one, where it would read as a lid. */}
+                {i > 0 && <StudioMenuRule />}
+                <StudioMenuGroup label={g.label}>
+                  {members.map((w) => (
+                    <StudioMenuItem
+                      key={w.id}
+                      icon={w.icon}
+                      label={w.label}
+                      checked={w.id === workspaceId}
+                      title={w.hint}
+                      onSelect={() => {
+                        setWorkspaceId(w.id)
+                        setWorkspaceMenu(false)
+                      }}
+                    />
+                  ))}
+                </StudioMenuGroup>
+              </Fragment>
+            )
+          })}
+        </StudioPopover>
 
         <span className="flex-1" />
 

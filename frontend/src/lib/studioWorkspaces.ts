@@ -30,10 +30,44 @@ import type { EditorId } from "@/lib/studioEditors"
 
 export type StudioTree = AreaNode<EditorId>
 
+/**
+ * What kind of work an arrangement is FOR.
+ *
+ * The tab strip listed seven presets in a row and said nothing about what
+ * separates them, which read as seven equal destinations. Four of them are not
+ * equal to the other three: Compare sets two classification predictions
+ * against each other, Diagnose measures how far a run sits from the domain its
+ * model was fitted on, Data opens that run's tables, and Simulation is a
+ * canopy. Those are one subject with four readings of it, and the strip was
+ * the only place in the studio that did not say so.
+ *
+ * ONE ARRANGEMENT IS GENUINELY FOR ANY WORK, and it stays on its own: Layout
+ * is the board, what is in it and what is selected, which is the question
+ * every task starts from.
+ *
+ * The groups are a property of the preset rather than an order in the array,
+ * so adding one is a field and not a position -- and the array's order still
+ * decides where a preset sits inside its own group.
+ */
+export type WorkspaceGroup = "board" | "crop" | "water" | "energy"
+
+/** The groups in the order the menu lists them, and what each is called. */
+export const WORKSPACE_GROUPS: readonly {
+  id: WorkspaceGroup
+  label: string
+}[] = [
+  { id: "board", label: "Board" },
+  { id: "crop", label: "Land cover" },
+  { id: "water", label: "Water" },
+  { id: "energy", label: "Energy" },
+]
+
 export interface StudioWorkspace {
   id: string
   /** The tab's label. */
   label: string
+  /** What kind of work it is for. See WorkspaceGroup. */
+  group: WorkspaceGroup
   /** One line, for the tab's title attribute. */
   hint: string
   /**
@@ -78,6 +112,7 @@ const col = (id: string, at: number, a: StudioTree, b: StudioTree): StudioTree =
 export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   {
     id: "layout",
+    group: "board",
     icon: Cube,
     label: "Layout",
     hint: "The general arrangement: the board, what is in it, and what is selected",
@@ -116,6 +151,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "compare",
+    group: "crop",
     icon: GitDiff,
     label: "Compare",
     hint: "Two planes read against each other, without a dialog over the board",
@@ -145,6 +181,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "diagnose",
+    group: "crop",
     icon: Waves,
     label: "Diagnose",
     hint: "How far the domains are apart, and where the difference sits",
@@ -169,6 +206,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "data",
+    group: "crop",
     icon: Table,
     label: "Data",
     hint: "The run's own tables, at the width a table needs",
@@ -199,6 +237,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "routing",
+    group: "water",
     // Diagnose already carries Waves in this bar.
     icon: Drop,
     label: "Routing",
@@ -246,6 +285,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "simulation",
+    group: "crop",
     icon: Tree,
     label: "Simulation",
     hint: "An orchard module and the light that reaches through it",
@@ -291,6 +331,7 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
   },
   {
     id: "grid",
+    group: "energy",
     icon: Database,
     label: "System",
     hint: "The operational record, and what the grid did to the plants on it",
