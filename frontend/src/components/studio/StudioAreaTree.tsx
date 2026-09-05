@@ -18,6 +18,7 @@
  */
 import { useRef, useState } from "react"
 import {
+  AREA_GUTTER_PX,
   areaRects,
   splitsWithin,
   type AreaId,
@@ -36,10 +37,10 @@ const SEAM_PX = 6
  * How near a division has to come to another before it takes its place.
  *
  * THE PROBLEM IT ANSWERS is that two divisions running the same way are only
- * aligned when they are aligned to the pixel, and a pointer cannot do that.
- * An arrangement one pixel out reads as a mistake rather than as a choice --
- * the eye is very good at seeing a line that nearly continues -- and there was
- * no way to fix it except by dragging repeatedly and looking.
+ * aligned when they are aligned to the pixel, and a pointer cannot do that. An
+ * arrangement one pixel out reads as a mistake rather than as a choice -- the
+ * eye is very good at seeing a line that nearly continues -- and there was no
+ * way to fix it except by dragging repeatedly and looking.
  *
  * Five, which is under half the grab target: a reader aiming BETWEEN two
  * neighbouring divisions can still land between them.
@@ -74,7 +75,10 @@ export function StudioAreaTree({
     rect: Rect
   }) => React.ReactNode
 }) {
-  const { leaves, seams } = areaRects(tree, viewport)
+  // Drawn geometry, gap included -- see AREA_GUTTER_PX. Every caller of
+  // areaRects asks for the same thing, so none of them can disagree about
+  // where an area is.
+  const { leaves, seams } = areaRects(tree, viewport, AREA_GUTTER_PX)
   /*
     THE GUIDE, HELD HERE AND NOT IN THE SEAM THAT CAUSED IT.
 

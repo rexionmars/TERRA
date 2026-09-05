@@ -30,6 +30,7 @@
  */
 import { useRef, useState } from "react"
 import { Columns, ArrowsOut, ArrowsIn, Rows, X } from "@phosphor-icons/react"
+import { AREA_RADIUS_PX } from "@/lib/boardAreas"
 import {
   STUDIO_EDITORS,
   STUDIO_GROUPS,
@@ -174,7 +175,7 @@ export function StudioArea({
         the strip most.
       */
       className={cn(
-        "absolute flex flex-col overflow-hidden border-r border-t",
+        "absolute flex flex-col overflow-hidden",
         transparent && "pointer-events-none"
       )}
       style={{
@@ -182,7 +183,19 @@ export function StudioArea({
         top: rect.y,
         width: rect.w,
         height: rect.h,
-        borderColor: "rgb(var(--p-line) / 0.28)",
+        /*
+          NO BORDER, BECAUSE THE GAP IS THE BOUNDARY NOW.
+
+          It was `border-r border-t` at a tenth of a line's strength -- two of
+          four sides, because neighbours met flush and a border on all four
+          would have drawn every division twice. With a gap of the window's own
+          ground between areas there is nothing to draw: the ground is two ramp
+          steps below a panel, and a strip of it says "separate object" without
+          a rule to resolve. What the radius is for is the corner that gap
+          turns, which a square area would leave as a right angle inside a
+          rounded space.
+        */
+        borderRadius: AREA_RADIUS_PX,
         /*
           Only the BODY is transparent, never the whole area. Painting the root
           transparent for the viewport let the canvas run up through the header

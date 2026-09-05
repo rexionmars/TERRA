@@ -177,6 +177,7 @@ import {
 import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
+  AREA_GUTTER_PX,
   areaLeaves,
   findEditor,
   areaRects,
@@ -1095,7 +1096,7 @@ export function BoardSurface({
     axis gizmo clearing one column's width on the other column's side.
   */
   const viewportRect = useMemo(() => {
-    const { leaves: rects } = areaRects(tree, surface)
+    const { leaves: rects } = areaRects(tree, surface, AREA_GUTTER_PX)
     return rects.find((r) => r.editor === "viewport") ?? null
   }, [tree, surface])
   // The viewport owns the one GL context, so it may be in one area at a time.
@@ -3576,7 +3577,11 @@ export function BoardSurface({
         return
       }
       const { x, y } = pointerRef.current
-      const hit = areaRects(treeRef.current, surfaceRef2.current).leaves.find(
+      const hit = areaRects(
+        treeRef.current,
+        surfaceRef2.current,
+        AREA_GUTTER_PX
+      ).leaves.find(
         (l) => x >= l.x && x < l.x + l.w && y >= l.y && y < l.y + l.h
       )
       if (!hit) return

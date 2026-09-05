@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { splitsWithin, type AreaNode } from "./boardAreas"
+import { AREA_GUTTER_PX, areaRects, splitsWithin, type AreaNode } from "./boardAreas"
 
 const leaf = (id: string): AreaNode => ({ kind: "leaf", id, editor: "viewport" })
 
@@ -70,5 +70,50 @@ describe("splitsWithin", () => {
     // same thing to a caller: nothing is inside it, so nothing is excluded.
     expect(splitsWithin(tree, "leaf-a")).toEqual(new Set())
     expect(splitsWithin(tree, "gone")).toEqual(new Set())
+  })
+})
+
+describe("areaRects, with a gap", () => {
+  const viewport = { x: 0, y: 0, w: 100, h: 100 }
+  const two: AreaNode = split("s", "row", leaf("l"), leaf("r"))
+
+  it("leaves the same gap at the window's edge as between two areas", () => {
+    const { leaves } = areaRects(two, viewport, 10)
+    const [l, r] = leaves
+    // The window's edge, on both sides, and the gap the two share.
+    expect(l.x).toBe(10)
+    expect(viewport.w - (r.x + r.w)).toBe(10)
+    expect(r.x - (l.x + l.w)).toBe(10)
+    // And the same on the axis nothing is divided along.
+    expect(l.y).toBe(10)
+    expect(viewport.h - (l.y + l.h)).toBe(10)
+  })
+
+  it("puts the division down the middle of the gap it opened", () => {
+    // The seam is what a drag moves, so it has to sit in the space between the
+    // two areas rather than on either one's edge -- otherwise grabbing the gap
+    // and grabbing the division are two different gestures.
+    const { leaves, seams } = areaRects(two, viewport, 10)
+    const [l, r] = leaves
+    const line = seams[0].bounds.x + seams[0].bounds.w * seams[0].at
+    expect(line).toBe((l.x + l.w + r.x) / 2)
+  })
+
+  it("is the old geometry when no gap is asked for", () => {
+    // The default, which is what a caller wanting the OWNED rectangles gets.
+    const { leaves } = areaRects(two, viewport)
+    expect(leaves.map((a) => [a.x, a.y, a.w, a.h])).toEqual([
+      [0, 0, 50, 100],
+      [50, 0, 50, 100],
+    ])
+  })
+
+  it("never returns a negative extent for an area thinner than the gap", () => {
+    // A window dragged down to nothing, which is a real state during a resize.
+    const { leaves } = areaRects(two, { x: 0, y: 0, w: 4, h: 4 }, AREA_GUTTER_PX)
+    for (const l of leaves) {
+      expect(l.w).toBeGreaterThanOrEqual(0)
+      expect(l.h).toBeGreaterThanOrEqual(0)
+    }
   })
 })
