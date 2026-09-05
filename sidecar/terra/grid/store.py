@@ -39,9 +39,9 @@ was told not to generate and what the resource was doing at that half hour.
 
 from __future__ import annotations
 
-from terra import protocol
-
 from pathlib import Path
+
+from terra import protocol
 
 # Kept as text rather than assembled, because a schema is read far more often
 # than it is run and the indexes are the part that has to be seen next to the
@@ -965,7 +965,6 @@ def register_geojson(conn, bbox=None, kinds=None, limit: int = 40000) -> dict:
     viewport query would add a round trip to every pan for a payload that fits
     in memory once.
     """
-    import json
 
     where = ['p.geom IS NOT NULL']
     params: list = []
