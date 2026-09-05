@@ -532,12 +532,42 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
              gesture would still fire without this. */
           touchAction: "none",
           /*
-            Opaque, not a wash. This sits over satellite imagery, which is
-            arbitrary in tone: lib/contrast.ts records the accent measuring
-            1.43 against bright imagery through a plate at 0.55, and small text
-            is what this is made of.
+            FROSTED, AND THE FILTER IS WHAT MAKES THAT SAFE.
+
+            This was 0.94 -- opaque in all but name -- and the note here said
+            why: it sits over satellite imagery, which is arbitrary in tone,
+            and lib/contrast.ts records the accent measuring 1.43 against
+            bright imagery through a plate at 0.55. Small text is what this box
+            is made of, so a wash was not admissible.
+
+            What a wash alone could not do, a wash under a FILTER can.
+            `brightness` bounds the backdrop before the tint goes over it:
+            imagery cannot arrive brighter than half of white, so the worst
+            ground the plate can sit on is known rather than arbitrary. At 0.78
+            over a backdrop at 0.5 the binding pair -- the accent eyebrow,
+            which is the darkest thing written here -- measures 4.87 against
+            pure white and 6.63 against dark ground. It was 5.46 and is now
+            4.87: less headroom, still over the floor, and bought with a plate
+            that shows the place it is standing on.
+
+            THE BLUR IS DOING MORE THAN THE TINT HERE. What makes small text
+            hard over imagery is not only the tone, it is the TEXTURE -- a
+            field of speckle at the size of the letterforms. Sixteen pixels of
+            scatter removes that structure whatever the imagery is, which is a
+            legibility gain the old opaque plate got only by hiding the ground
+            entirely.
+
+            The saturation keeps the ground's identity through all of it: blur
+            averages toward grey and brightness flattens, so without it the
+            vegetation under the box arrives colourless and the plate reads as
+            a dark rectangle rather than as glass over that place.
+
+            Same construction as the run board's wires -- see GROUND in
+            NodeCanvas -- and the same three terms in the same order.
           */
-          background: "rgb(var(--p-ink) / 0.94)",
+          background: "rgb(var(--p-ink) / 0.78)",
+          backdropFilter: "blur(16px) brightness(0.5) saturate(1.25)",
+          WebkitBackdropFilter: "blur(16px) brightness(0.5) saturate(1.25)",
           border: "1px solid rgb(var(--p-line) / 0.35)",
         }}
       >
