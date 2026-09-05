@@ -1149,31 +1149,25 @@ export function BoardSidebar({
           onDeleteArea={onDeleteArea}
         />
       ) : mode === "scene" ? (
-        <>
-        {/*
-          THE COLUMN HEADER, which is what turns a list into an outliner.
+        /*
+          NO COLUMN HEADER.
 
-          The tree already carried all of this -- an eye, a glyph, a name, a
-          kind -- with nothing naming any of it, so every column had to be
-          inferred from its contents. Naming them costs one row and makes the
-          gutter legible before it is used: the eye at the head of its own
-          column says the column is visibility, which no amount of eyes down
-          the tree says on its own.
+          There was one -- an eye, "Item Label" and "Type" over the tree -- on
+          the argument that naming the columns makes the gutter legible before
+          it is used, since no amount of eyes down a tree says that the column
+          they are in is visibility.
 
-          Not sortable, and not pretending to be. These are labels, so they
-          take no button affordance and no cursor of one.
-        */}
-        <div
-          aria-hidden
-          className="flex shrink-0 items-center border-b py-1 text-meta text-muted-foreground/70"
-          style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-        >
-          <span className="flex w-6 shrink-0 justify-center">
-            <Eye className="size-3" />
-          </span>
-          <span className="min-w-0 flex-1 pl-1.5">Item Label</span>
-          <span className="w-[74px] shrink-0 pr-2 text-right">Type</span>
-        </div>
+          The argument holds for a table and this is not one. A table has
+          columns a reader compares DOWN; this has a gutter, a name and a kind,
+          and the kind is already a word in every row rather than a figure
+          needing a unit. What the row actually cost was a band of chrome
+          across the top of the one editor that is mostly list, above a tab
+          strip that already names what is being listed -- so a reader looked
+          past two rows of labels to reach one row of content.
+
+          The eye's own column keeps its width without it, because the rows set
+          that width and not the header.
+        */
         <div
           role="tree"
           aria-label="Layers on the board"
@@ -1468,7 +1462,6 @@ export function BoardSidebar({
             </p>
           )}
         </div>
-        </>
       ) : (
         /*
           What the run produced, drawn or not. The same set the overlay tools
