@@ -54,6 +54,7 @@ import {
   StudioMenuRule,
 } from "@/components/studio/StudioPopover"
 import { AoiFootprint } from "@/components/AoiFootprint"
+import { AreaHeaderOptions } from "@/components/studio/StudioArea"
 import type { GeoJSONGeometry } from "@/lib/types"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
@@ -1687,14 +1688,27 @@ export function BoardSidebar({
       </div>
 
       {/*
-        Under the branches and OUTSIDE the scroller.
+        ADD A RUN IS IN THE AREA'S HEADER, for the reasons New project is --
+        see AreaHeaderOptions. It was a full-width row pinned under the data
+        tree, which made a control that brings a run ONTO this area look like
+        the last entry in the list of runs already on it.
 
-        Inside it, the control scrolled away with the list it adds to, and the
-        list it opens had to escape a clip its own container imposed. Out here
-        it is pinned to the foot of the tree and its list is placed against
-        the column, which is the thing it should be measured from anyway.
+        IT HAD ALREADY BEEN MOVED ONCE, out of the scroller and onto the foot
+        of the column, because inside the list it scrolled away with the thing
+        it adds to and the menu it opens had to escape a clip its own container
+        imposed. The header is where that move was going: nothing above it
+        scrolls, and the menu is placed against the area rather than against a
+        column that is one of the area's parts.
+
+        Passed down as a node rather than portalled by its owner, because
+        unlike the browser's button this one has no state of its own here: the
+        picker is built by BoardSurface, which holds the runs. What this
+        component contributes is the one thing it knows -- that the control
+        belongs to the data tree and not to the other three modes.
       */}
-      {mode === "data" && <div className="shrink-0">{addRun}</div>}
+      {mode === "data" && addRun && (
+        <AreaHeaderOptions>{addRun}</AreaHeaderOptions>
+      )}
 
 
       {/*

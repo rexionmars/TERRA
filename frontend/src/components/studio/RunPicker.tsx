@@ -110,17 +110,32 @@ export function RunPicker({
           disabled={busy}
           aria-expanded={p["aria-expanded"]}
           aria-haspopup={p["aria-haspopup"]}
+          title="Bring a stored run onto this area"
           className={cn(
-            "flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-meta transition-colors",
-            "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+            "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             "disabled:cursor-not-allowed disabled:opacity-50",
             open
               ? "bg-selected text-foreground"
               : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
-          <Plus className="size-3.5 shrink-0" />
-          {busy ? "Loading…" : "Add a run"}
+          <Plus className="size-3 shrink-0" />
+          {/*
+            A HEADER CONTROL'S SHAPE, since that is where it stands now.
+
+            It was a full-width row at the foot of a column: no radius, its own
+            padding, and a fill that ran edge to edge because the column was its
+            container. In a header it is one control among several and wears
+            what they wear. The label withdraws with the header's others when
+            the area is too narrow; "Loading…" does not, because a control that
+            is busy has to say so whatever the width.
+          */}
+          {busy ? (
+            "Loading…"
+          ) : (
+            <span className="header-label">Add a run</span>
+          )}
         </button>
       )}
     >
