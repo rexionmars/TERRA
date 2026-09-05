@@ -75,14 +75,17 @@ function level(count: number): number {
  * were not faint here -- they were absent, and so was the first swatch of the
  * legend below.
  *
- * Reaching past the scale to the channels it is built from is the narrow way
- * around it. The wide way is to drop `<alpha-value>` from the ten tokens that
- * carry it, which is the actual repair -- and which revives thirteen further
- * utilities across roughly thirty files, `bg-surface` and `bg-surface-raised`
- * among them, repainting the navigation column and the buttons in tones that
- * were declared but never once rendered. That is a design pass over the app's
- * surfaces, not a correction to this grid, so it is left to be taken on its
- * own terms rather than smuggled in behind a heatmap.
+ * Reaching past the scale to the channels it is built from was the narrow way
+ * around it. THE WIDE WAY HAS SINCE BEEN TAKEN: `<alpha-value>` is gone from
+ * every token, and the theme block dropped `inline` so an alpha modifier
+ * composes instead of vanishing. See the note above `@theme` in index.css --
+ * ninety surface utilities and forty-three borders and washes were reading
+ * tokens that compiled to invalid CSS and painted nothing at all.
+ *
+ * This escape hatch is left standing rather than unwound with it. It is
+ * correct as written, it is the one place in the app that needs the channels
+ * rather than the scale, and rewriting a working heatmap to prove a repair
+ * elsewhere is how a repair acquires an unrelated regression.
  */
 const LEVEL_CLASS = [
   "bg-[rgb(var(--p-line))]/75 dark:bg-[rgb(var(--p-line))]",

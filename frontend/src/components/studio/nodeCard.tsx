@@ -119,7 +119,7 @@ export function Choice({
           ? "cursor-not-allowed text-muted-foreground/40"
           : chosen
             ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-            : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+            : "text-muted-foreground hover:bg-hover hover:text-foreground"
       )}
     >
       {label}

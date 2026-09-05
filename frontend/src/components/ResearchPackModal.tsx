@@ -375,7 +375,7 @@ function AoiEntry({
       </section>
       <section className="rounded-sm border border-border bg-secondary/50 p-4">
         <p className="eyebrow mb-3">geometry source</p>
-        <pre className="rounded-sm border border-border bg-background max-h-64 overflow-auto p-3 text-meta leading-relaxed text-muted-foreground">
+        <pre className="rounded-sm border border-border bg-sunk max-h-64 overflow-auto p-3 text-meta leading-relaxed text-muted-foreground">
           {raw}
         </pre>
       </section>

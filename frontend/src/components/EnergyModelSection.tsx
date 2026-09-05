@@ -98,7 +98,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
               key={s.step}
               className={cn(
                 "border-l-2 py-1.5 pl-2.5 pr-1",
-                inPR ? "" : "bg-background"
+                inPR ? "" : "bg-sunk"
               )}
               style={{
                 borderColor: inPR ? "rgb(var(--p-accent))" : "var(--border)",
@@ -121,7 +121,7 @@ function EnergyWaterfall({ energy }: { energy: EnergyModelAnalysis }) {
                     collide, which no width this panel offers reaches; the
                     cumulative-ratio column is what carries the departure
                     there. Kept as a literal so a wider host restores it. */}
-                <span className="bg-background relative hidden h-1.5 w-24 shrink-0 @min-[49rem]:block">
+                <span className="bg-sunk relative hidden h-1.5 w-24 shrink-0 @min-[49rem]:block">
                   <span
                     className="absolute inset-y-0"
                     style={{
@@ -196,7 +196,7 @@ function PerformanceRatioScale({ energy }: { energy: EnergyModelAnalysis }) {
     <div className="@container/pr">
       <p className="eyebrow mb-2">Performance ratio · applied against the band</p>
       <div className="relative h-9">
-        <div className="bg-background absolute inset-x-0 top-4 h-1.5 rounded-sm" />
+        <div className="bg-sunk absolute inset-x-0 top-4 h-1.5 rounded-sm" />
         {hasBand && (
           <div
             className="absolute top-2.5 h-4 rounded-sm"
@@ -465,7 +465,7 @@ function TrackingComparison({ energy }: { energy: EnergyModelAnalysis }) {
               <span className="telemetry w-16 shrink-0 text-right text-body text-muted-foreground">
                 {r.tracker_poa_kwh_m2_season.toFixed(1)}
               </span>
-              <span className="bg-background relative h-1.5 min-w-[6rem] flex-1">
+              <span className="bg-sunk relative h-1.5 min-w-[6rem] flex-1">
                 <span
                   className="absolute inset-y-0"
                   style={{
@@ -632,7 +632,7 @@ function GenerationProfile({ energy }: { energy: EnergyModelAnalysis }) {
               <span className="telemetry w-6 shrink-0 text-meta text-muted-foreground">
                 {String(m.month).padStart(2, "0")}
               </span>
-              <span className="bg-background relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+              <span className="bg-sunk relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
                 <span
                   className="absolute inset-y-0 left-0 rounded-sm"
                   style={{

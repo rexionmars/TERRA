@@ -302,7 +302,7 @@ export function EnvironmentPanel() {
               return (
                 <li
                   key={pkg.name}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border bg-background px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border bg-sunk px-3 py-2"
                 >
                   <div className="min-w-0">
                     <p className="text-body text-foreground">
@@ -346,7 +346,7 @@ export function EnvironmentPanel() {
             The local PostgreSQL the Brazilian electrical-system products read.
             Nothing else in TERRA uses it.
           </p>
-          <div className="rounded-sm border border-border bg-background px-3 py-2">
+          <div className="rounded-sm border border-border bg-sunk px-3 py-2">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="telemetry min-w-0 truncate text-body text-foreground">
                 {state.grid_store.dsn}
@@ -476,7 +476,7 @@ export function EnvironmentPanel() {
                   the reason is in these lines. */}
           <div
             ref={logRef}
-            className="panel-scroll max-h-56 overflow-y-auto rounded-sm border border-border bg-background p-2"
+            className="panel-scroll max-h-56 overflow-y-auto rounded-sm border border-border bg-sunk p-2"
           >
             {log.map((ev, i) => (
               <p
@@ -556,7 +556,7 @@ function PackageRow({ pkg }: { pkg: pyenv.EnvPackage }) {
  */
 function PathRow({ path }: { path: main.ResolvedPath }) {
   return (
-    <li className="rounded-sm border border-border bg-background px-3 py-2">
+    <li className="rounded-sm border border-border bg-sunk px-3 py-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
         <span className="text-body text-foreground">{path.label}</span>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -603,7 +603,7 @@ function CandidateRow({
   onChoose: () => void
 }) {
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border bg-background px-3 py-2">
+    <li className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border bg-sunk px-3 py-2">
       <div className="min-w-0">
         <p className="telemetry truncate text-body text-foreground">
           {candidate.path}

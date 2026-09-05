@@ -299,7 +299,7 @@ export function SpectraEditor({
                 "max-w-[12rem] truncate rounded-sm px-1.5 py-0.5 text-meta transition-colors",
                 i === runIdx
                   ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-                  : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
               )}
             >
               {r.label}

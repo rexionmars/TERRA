@@ -239,7 +239,7 @@ export function FloodRoutingPanel({
                 "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
                 busy
                   ? "cursor-not-allowed text-muted-foreground/40"
-                  : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
               )}
             >
               <Upload className="size-3" />
@@ -294,7 +294,7 @@ export function FloodRoutingPanel({
               "inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-sm text-meta transition-colors",
               "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
               !geometry || busy
-                ? "cursor-not-allowed bg-surface-raised text-muted-foreground/50"
+                ? "cursor-not-allowed bg-control text-muted-foreground/50"
                 : "bg-accent text-accent-foreground hover:bg-accent/90"
             )}
           >

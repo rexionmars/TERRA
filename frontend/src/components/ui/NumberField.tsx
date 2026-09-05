@@ -135,7 +135,7 @@ export function NumberField({
           if (e.key === "Enter") commit(e.currentTarget.value)
           else if (e.key === "Escape") setEditing(null)
         }}
-        className="h-[1.375rem] w-full rounded-sm border-0 bg-surface-raised px-2 text-center text-meta text-foreground outline-none ring-1 ring-ring"
+        className="h-[1.375rem] w-full rounded-sm border-0 bg-sunk px-2 text-center text-meta text-foreground outline-none ring-1 ring-ring"
       />
     )
   }
@@ -169,8 +169,8 @@ export function NumberField({
           box-shadow, so it costs no layout width.
         */
         disabled
-          ? "cursor-not-allowed bg-surface-raised/40 inset-ring-1 inset-ring-line opacity-45"
-          : "cursor-ew-resize bg-surface-raised inset-ring-1 inset-ring-line-strong hover:bg-surface-raised/80"
+          ? "cursor-not-allowed bg-control inset-ring-1 inset-ring-line opacity-45"
+          : "cursor-ew-resize bg-selected inset-ring-1 inset-ring-line-strong hover:bg-hover"
       )}
     >
       <span className="min-w-0 truncate text-meta text-muted-foreground">

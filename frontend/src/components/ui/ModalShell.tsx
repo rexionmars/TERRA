@@ -132,7 +132,7 @@ export function ModalShell({
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : label}
         className={cn(
-          "flex flex-col overflow-hidden rounded-md border border-border bg-panel-solid shadow-[0_16px_48px_rgba(0,0,0,0.55)]",
+          "flex flex-col overflow-hidden rounded-md border border-border bg-panel shadow-[0_16px_48px_rgba(0,0,0,0.55)]",
           className
         )}
         onClick={(e) => e.stopPropagation()}

@@ -292,7 +292,7 @@ export function CanopyRunBar() {
           }
           className={cn(
             "flex shrink-0 items-center gap-1.5 rounded-sm px-2 py-1 text-meta transition-colors",
-            "bg-surface-raised/40 hover:bg-surface-raised hover:text-foreground disabled:opacity-40",
+            "bg-selected hover:bg-hover hover:text-foreground disabled:opacity-40",
             w.aoiStale ? "text-accent" : "text-muted-foreground"
           )}
         >
@@ -324,7 +324,7 @@ export function CanopyRunBar() {
             "flex shrink-0 items-center gap-1.5 rounded-sm px-3 py-1.5 text-meta transition-colors",
             "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
             busy
-              ? "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
+              ? "cursor-not-allowed bg-control text-muted-foreground"
               : "bg-accent text-accent-foreground hover:opacity-90"
           )}
         >

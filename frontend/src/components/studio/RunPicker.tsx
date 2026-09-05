@@ -115,8 +115,8 @@ export function RunPicker({
             "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
             "disabled:cursor-not-allowed disabled:opacity-50",
             open
-              ? "bg-surface-raised text-foreground"
-              : "text-muted-foreground hover:bg-surface-raised/40 hover:text-foreground"
+              ? "bg-selected text-foreground"
+              : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
           <Plus className="size-3.5 shrink-0" />
@@ -189,7 +189,7 @@ export function RunPicker({
                         onPick(r)
                       }}
                       title={runRowLine(r)}
-                      className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-surface-raised/60"
+                      className="flex w-full flex-col items-start gap-px px-2 py-1 text-left leading-tight transition-colors hover:bg-hover"
                     >
                       <span className="w-full truncate text-meta text-foreground">
                         {displayRunLabel(r.label) || r.model_kind}

@@ -189,7 +189,7 @@ export function BrushEditor({
             "rounded-sm px-2 py-0.5 text-meta transition-colors",
             on
               ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
-              : "text-muted-foreground hover:bg-surface-raised hover:text-foreground"
+              : "text-muted-foreground hover:bg-hover hover:text-foreground"
           )}
         >
           {on ? "Rover on" : "Rover off"}
@@ -209,8 +209,8 @@ export function BrushEditor({
                 className={cn(
                   "rounded-sm px-1.5 py-0.5 text-meta transition-colors",
                   radius === r
-                    ? "bg-surface-raised text-foreground"
-                    : "text-muted-foreground hover:bg-surface-raised/40"
+                    ? "bg-selected text-foreground"
+                    : "text-muted-foreground hover:bg-hover"
                 )}
                 title={
                   r === 0

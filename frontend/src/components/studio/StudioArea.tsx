@@ -315,7 +315,7 @@ export function StudioArea({
               aria-expanded={p["aria-expanded"]}
               aria-haspopup="menu"
               title="Area: split, close, maximise"
-              className="ml-0.5 flex h-5 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+              className="ml-0.5 flex h-5 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
             >
               {/* Blender's corner grip, which is also its split handle. */}
               <span className="text-[13px] leading-none">⌟</span>

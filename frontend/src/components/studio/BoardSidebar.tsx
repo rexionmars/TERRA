@@ -263,7 +263,7 @@ function AnalysesPane({
         return (
           <div
             key={e.id}
-            className="flex items-start gap-1.5 px-2 py-1 hover:bg-surface-raised/40"
+            className="flex items-start gap-1.5 px-2 py-1 hover:bg-hover"
           >
             <button
               type="button"
@@ -328,8 +328,8 @@ function AreasPane({
           className={cn(
             "flex items-center gap-1.5 px-2 py-1.5 transition-colors",
             activeRow === stackRow(a.id)
-              ? "bg-surface-raised"
-              : "hover:bg-surface-raised/40"
+              ? "bg-selected"
+              : "hover:bg-hover"
           )}
         >
           {a.geometry ? (
@@ -366,7 +366,7 @@ function AreasPane({
                   setEditing(null)
                 }
               }}
-              className="min-w-0 flex-1 rounded-sm border border-border bg-background px-1.5 py-0.5 text-meta text-foreground outline-none"
+              className="min-w-0 flex-1 rounded-sm border border-border bg-sunk px-1.5 py-0.5 text-meta text-foreground outline-none"
             />
           ) : (
             <button
@@ -395,7 +395,7 @@ function AreasPane({
               type="button"
               onClick={() => onUseArea(a.id)}
               title="Work on this geometry"
-              className="shrink-0 rounded-sm px-1.5 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+              className="shrink-0 rounded-sm px-1.5 py-0.5 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
             >
               Use
             </button>
@@ -424,7 +424,7 @@ function AreasPane({
                   ? "Delete this area, which is the one in use"
                   : "Delete this area"
               }
-              className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground"
+              className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
             >
               <Trash className="size-3" />
             </button>
@@ -1102,8 +1102,8 @@ export function BoardSidebar({
                 "flex items-center gap-1 rounded-sm px-1.5 py-1 text-meta transition-colors",
                 "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
                 mode === id
-                  ? "bg-surface-raised text-foreground"
-                  : "text-muted-foreground hover:bg-surface-raised/40"
+                  ? "bg-selected text-foreground"
+                  : "text-muted-foreground hover:bg-hover"
               )}
             >
               <Icon className="size-3" />
@@ -1241,7 +1241,7 @@ export function BoardSidebar({
                 className={cn(
                   "relative flex cursor-default select-none items-center py-[3px] pr-2 transition-colors",
                   "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-                  isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40",
+                  isActive ? "bg-selected" : "hover:bg-hover",
                   row.dimmed && !isActive && "opacity-50",
                   /*
                     Where the row would land. Drawn on the row the mark sits
@@ -1364,7 +1364,7 @@ export function BoardSidebar({
                       else if (e.key === "Escape") setEditing(null)
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    className="min-w-0 flex-1 rounded-sm border-0 bg-surface-raised px-1 text-emphasis text-foreground outline-none inset-ring-1 inset-ring-ring"
+                    className="min-w-0 flex-1 rounded-sm border-0 bg-sunk px-1 text-emphasis text-foreground outline-none inset-ring-1 inset-ring-ring"
                   />
                 ) : (
                   <span
@@ -1506,7 +1506,7 @@ export function BoardSidebar({
                   aria-expanded={isOpen}
                   tabIndex={-1}
                   onClick={() => onToggleExpanded(row.key)}
-                  className="flex cursor-default select-none items-center gap-1.5 py-[3px] pl-1.5 pr-2 transition-colors hover:bg-surface-raised/40"
+                  className="flex cursor-default select-none items-center gap-1.5 py-[3px] pl-1.5 pr-2 transition-colors hover:bg-hover"
                 >
                   {isOpen ? (
                     <CaretDown className="size-3 shrink-0 text-muted-foreground" />
@@ -1620,7 +1620,7 @@ export function BoardSidebar({
                 className={cn(
                   "flex cursor-default select-none items-center gap-2 py-[3px] pl-6 pr-2 transition-colors",
                   "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-                  isActive ? "bg-surface-raised" : "hover:bg-surface-raised/40"
+                  isActive ? "bg-selected" : "hover:bg-hover"
                 )}
               >
                 {/*

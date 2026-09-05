@@ -31,6 +31,7 @@
  * the eye already reads the column it left.
  */
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -110,31 +111,40 @@ const SLOT_PITCH = RIBBON_W + SLOT_GAP
 const SLOT_FOOT = 12
 
 /**
- * How much of the field's ink a ribbon is smoked with, by state.
+ * How much of the field's ink an opaque ribbon is founded on, by state.
  *
- * A RIBBON IS A PANE, AND IT TOOK FIVE WRONG ANSWERS TO SAY SO. Two stacked
+ * A RIBBON IS A PANE, AND IT TOOK SIX WRONG ANSWERS TO SAY SO. Two stacked
  * strokes, then three, then a blurred cast beneath, then an inner shadow
- * clipped to the shape, then a soft edge on the shape itself. Every one of
- * them was an attempt to draw LIGHT -- a glow, a shadow, a falloff -- and what
- * the reference has is not a light effect at all. Its edges are hard. What
- * happens where two of them cross is that the upper one is translucent and
- * DARKENS what is under it: the lime goes olive under the dark band, in the
- * band's own shape, with a boundary you could cut out. Smoked acrylic laid on
- * a sheet of colour, not a shadow falling on one.
+ * clipped to the shape, then a soft edge on the shape itself, then a flat
+ * translucent fill that darkened what it crossed. Every one of the first five
+ * was an attempt to draw LIGHT -- a glow, a shadow, a falloff -- and the sixth
+ * was the material with the wrong optics: a filter absorbs what passes through
+ * it, and a filter is not what the reference is.
  *
- * So a carrying ribbon is two fills: the field's ink at the weight below, then
- * its own colour. Together they leave the pane translucent -- a quarter of
- * what it crosses comes through, darkened and tinted -- and neither fill has
- * a soft edge anywhere.
+ * WHAT IS BLURRED IS THE BACKDROP, NOT THE RIBBON. Look at where the reference
+ * crosses: the band underneath does not merely darken, it SPREADS -- its colour
+ * bleeds sideways past its own boundary, inside the shape of the band on top,
+ * while that band's own edge stays cut. Nothing about the upper band is soft.
+ * That is frosted acrylic: a translucent sheet whose rough face scatters what
+ * is behind it before tinting it, which is exactly `backdrop-filter: blur()`
+ * under a tint, and is the one construction a fill of any opacity cannot
+ * imitate, because a fill can only attenuate the backdrop and never move it.
  *
- * A ROUTE THAT WAS TAKEN IS NOT SMOKED. Read, failed and reading take a full
+ * Which is also why this is drawn as a clipped div and not as an SVG path.
+ * SVG has no backdrop: `filter` takes the element, `backdrop-filter` takes what
+ * is behind it, and only CSS has the second one. The shape stays the same
+ * `ribbonPath` -- handed to `clip-path: path()` instead of to `d` -- so the
+ * geometry above is untouched and the boundary is as hard as it ever was.
+ *
+ * A ROUTE THAT WAS TAKEN IS NOT GLASS. Read, failed and reading take a full
  * ground and near-full colour, which is the reference's lime: opaque, exact,
- * and covering what it crosses. Only the waiting ones are glass, and they are
- * the ones that have to be crossed.
+ * and covering what it crosses. Only the waiting ones are panes, and they are
+ * the ones that have to be crossed -- so GROUND below is what an OPAQUE ribbon
+ * is founded on, and a pending one no longer uses it.
  */
 const GROUND: Record<EdgeState, number> = {
   missing: 0,
-  pending: 0.62,
+  pending: 0,
   reading: 1,
   read: 1,
   failed: 1,
@@ -156,61 +166,208 @@ const GROUND: Record<EdgeState, number> = {
  * all, and painting it in the colour of a part it cannot supply would be the
  * picture asserting a completeness the run does not have.
  *
- * --destructive RATHER THAN --destructive-quiet, now that the ribbon is a band
- * and not a line. The quiet one is the pale red measured to be legible AS a
- * mark on a dark surface; filled at this width it is a slab of pink. The plain
- * one is the red this chassis fills a refusing control with, which is what a
- * failed wire now is, and white sits on it at better than six to one.
+ * A FAILED WIRE HAS A COLOUR OF ITS OWN, AND IT TOOK THREE TO FIND IT.
+ * --destructive-quiet first, the pale red measured to be legible AS a mark on
+ * a dark surface, which filled at this width was a slab of pink. Then
+ * --destructive, the red this chassis fills a refusing control with, on the
+ * argument that a failed wire is a refusal -- true, and it made the band a
+ * button. That token is dark because it is measured for a word-sized label
+ * sitting on it, and a band that dark crossing a field of ink reports its
+ * failure by disappearing.
+ *
+ * --p-wire-failed is the third answer: the same hue family, one step off
+ * destructive's, at the lightness a band needs to be seen at board scale. It
+ * is declared for this and nothing else, so the delete button and the error
+ * badge keep the red they were measured for. See index.css.
  */
 const EDGE_COLOUR: Record<EdgeState, string | null> = {
   missing: "rgb(var(--p-line-strong))",
   pending: null,
   reading: "rgb(var(--p-accent))",
   read: "var(--success)",
-  failed: "var(--destructive)",
+  failed: "var(--p-wire-failed)",
 }
 
 /**
- * How much colour a ribbon takes, by state, over its own opaque ground.
+ * How much colour an OPAQUE ribbon takes, over its own opaque ground.
  *
- * NOT TRANSPARENCY. Every carrying ribbon is filled twice: once in the ink the
- * field is drawn on, which is what makes it opaque, and then in its colour at
- * the weight below. So a ribbon has a hard edge and hides what it crosses
- * instead of blending into it, and a pending wire is a DARK band of its part's
- * hue rather than a wash the background shows through.
+ * NOT TRANSPARENCY. A ribbon in one of these states is filled twice: once in
+ * the ink the field is drawn on, which is what makes it opaque, and then in
+ * its colour at the weight below. So it has a hard edge and HIDES what it
+ * crosses rather than blending into it.
  *
- * That is the reference's material, and it is what ours was not: there, the
- * routes that were taken are solid colour and the ones still waiting are a
- * band barely above the background, and every one of them has a boundary you
- * could cut out. Ours were translucent, which is why they read as smears of
- * light rather than as things passing between cards.
+ * THE SPLIT IS BETWEEN AN ANSWER AND THE ABSENCE OF ONE. A board that has not
+ * been run is most boards most of the time, and a wire only takes the surface
+ * once it has something to report; until then it is a pane, and panes are
+ * measured by the three numbers below rather than by this one.
  *
- * THE SPLIT IS STILL BETWEEN AN ANSWER AND THE ABSENCE OF ONE. A board that
- * has not been run is most boards most of the time, and a wire only takes the
- * surface once it has something to report.
+ * PENDING IS ZERO HERE AND IS NOT DRAWN FROM THIS RECORD. Left in the table
+ * rather than removed from the type so the states stay enumerated in one
+ * place: a sixth state added to EdgeState has to answer this question too.
  */
 const FILL_OPACITY: Record<EdgeState, number> = {
   missing: 0,
-  pending: 0.38,
+  pending: 0,
   reading: 0.92,
   read: 0.92,
   failed: 0.92,
 }
 
 /**
+ * What a pane does to what is behind it: scatters it, lifts it, resaturates it.
+ *
+ * THE FIRST ATTEMPT USED THE CHASSIS'S OWN GLASS -- 18px and saturate(1.05),
+ * which is what the panels, the title bar and the map chrome are blurred at --
+ * on the argument that a wire made of different glass than the panel beside it
+ * would read as a second material. The argument was sound and the result was
+ * nearly invisible, because the two surfaces are not doing the same job. A
+ * panel is glass over a MAP: something is behind it, and blurring alone has
+ * plenty to work with. A wire is glass over the FIELD, which is flat ink, and
+ * a blur of flat ink is flat ink. The only structure a pane here has to
+ * scatter is the other wires it crosses.
+ *
+ * So all three terms are doing work, and each answers a different failure:
+ *
+ * TWENTY-SIX, against a ribbon thirty-four wide. The scatter has to cross most
+ * of the band for the wire underneath to visibly spread past its own boundary;
+ * at eighteen the bleed stayed inside a few pixels of the crossing and read as
+ * a soft edge rather than as a material. The cost of the radius is that it
+ * also samples that far OUTSIDE the band, where there is nothing but ink, so
+ * a wider blur is a dimmer, greyer average -- which the other two terms are
+ * for.
+ *
+ * BRIGHTNESS IS WHAT MAKES FROSTED GLASS VISIBLE ON A DARK GROUND, and it is
+ * not a cheat: a rough face scatters ambient light back at the viewer, so a
+ * frosted sheet is lighter than what it lies on. Without it a pane over ink is
+ * ink, and the whole material shows up only at crossings. With it the wire is
+ * a lit band across the field and the crossings are its brightest places,
+ * since a pane over a pane lifts what was already lifted.
+ *
+ * 1.35 IS NOW CARRYING WHAT THE TINT USED TO. It was 1.25 while a pending
+ * band was nearly half its hue and the colour did the separating; the tint is
+ * a sixth of that now (see PANE_TINT_HEAD) and this is what tells a wire from
+ * the field: rgb(40 40 40) against a ground of rgb(30 30 30), which is 1.14 to
+ * 1 -- about what separates the reference's waiting bands from its own ground,
+ * and deliberately not more. A crossing reaches 1.39, so the places two wires
+ * meet are the lightest thing on a board at rest, exactly as they are there.
+ *
+ * The field moved under this when the chassis grew a six-step ramp: it was ink
+ * 33 and is ink 30, Blender's own second step. The three numbers above were
+ * remeasured rather than left standing, and all three improved.
+ *
+ * SATURATION UNDOES WHAT THE BLUR COSTS. Averaging a coloured wire against a
+ * neutral ground pulls it toward grey in proportion to the radius, so a
+ * 26px scatter of a part's hue arrives almost colourless. 1.7 puts back about
+ * what the radius takes and no more -- past roughly 2 the scattered colour
+ * separates from the wire it came from and reads as a second hue.
+ *
+ * Measured in board units, so all of it scales with the view: a pane zoomed
+ * out is blurred by as much of the board as one zoomed in, which is what makes
+ * the gesture read as approaching a surface rather than sharpening one.
+ */
+const PANE_BLUR = 26
+const PANE_LIFT = 1.35
+const PANE_SATURATE = 1.7
+
+/**
+ * The tint over the scatter, where the wire leaves and where it lands.
+ *
+ * A SIXTH OF THE HUE, WHERE IT USED TO BE NEARLY A HALF, AND THE CORRECTION IS
+ * THE WHOLE POINT OF THE REFERENCE. Read what that picture spends colour on:
+ * one band is lime, one is salmon, and every other band on it is within a few
+ * levels of the ground it lies on. Colour there marks the exception -- the
+ * route that produced an answer, the route that failed -- and the waiting ones
+ * are dark glass. Ours were the other way round. Every wire on a board at rest
+ * is `pending`, so the tint below is the ONLY thing that decides what the
+ * surface looks like, and at 0.42 it decided on eight saturated bands.
+ *
+ * At 0.16 a pending wire lands between rgb(50 61 64) and rgb(65 56 61) -- the
+ * part's hue as a cast on near-black, a shade off the ground rather than a
+ * colour on it. What separates it from the field is the lift and the cut edge,
+ * not the hue, and what happens the moment a wire reports something is that an
+ * opaque lime band crosses a quiet board. That contrast is the information.
+ *
+ * A GRADIENT ALONG THE RUN, AND IT FALLS RATHER THAN PEAKS. It was symmetric
+ * first -- weak at both tucks, strongest in the middle -- which is a lit strip
+ * and not what the reference has. There the bands dim steadily from one side
+ * of the field to the other, all of them the same way, which is one raking
+ * light over the whole board rather than a property of any band.
+ *
+ * Falling from source to landing also says something the board otherwise only
+ * says in words: a wire leaves a card that has an answer and arrives at one
+ * still assembling a request, and every wire on this surface runs left to
+ * right, so the gradient and the direction are the same fact. It is why the
+ * two numbers are named for the ends of a wire and not for a shape.
+ *
+ * THE CONTRAST CEILING THAT USED TO BIND HERE NO LONGER DOES. At 0.42 the
+ * reading measured 4.55:1 against the worst hue where two panes crossed, a
+ * twentieth clear of its floor; at 0.16 it measures 6.79, and on the open
+ * field 8.18. A quiet band is a legible one -- which is worth recording,
+ * because the version that looked least like the reference was also the one
+ * whose text had the least room.
+ */
+const PANE_TINT_HEAD = 0.16
+const PANE_TINT_TAIL = 0.09
+
+/**
+ * A wire's colour at a weight, whatever form the colour arrived in.
+ *
+ * The colours these ribbons are painted in are not all the same shape of
+ * string: a part's hue is `rgb(var(--p-part-x))`, an outcome's is a bare
+ * `var(--success)`, and neither can have an alpha appended to it. `color-mix`
+ * takes any of them and is how a fill weight is expressed where the weight has
+ * to live in the colour itself -- which, for a background rather than a fill,
+ * it does: `opacity` on the pane would fade the scattered backdrop with it.
+ */
+const tint = (colour: string, weight: number) =>
+  `color-mix(in srgb, ${colour} ${Math.round(weight * 100)}%, transparent)`
+
+/**
+ * The cut edge.
+ *
+ * NOT AN OUTLINE, AND THE DIFFERENCE IS WHICH SIDE THE LIGHT COMES FROM. An
+ * outline was removed from these ribbons twice, both times because it was
+ * drawn AT the boundary in a colour the band did not have. A sheet of acrylic
+ * carries light along its inside and lets it out where it was cut, so the edge
+ * is the band's own hue and brighter than its face -- the one place a pane is
+ * lighter than the material it is made of.
+ *
+ * One pixel, and nothing at the ends: those run under a card.
+ *
+ * IT CARRIES MORE OF THE WIRE'S IDENTITY THAN THE FACE DOES, now that the face
+ * is a sixth of its hue (see PANE_TINT_HEAD). On a near-black band the edge is
+ * the brightest statement of what the wire carries, and it is also the only
+ * hard thing left on a pane -- everything else is scattered and lifted, and a
+ * band with a soft interior and no cut reads as a smear, which is the failure
+ * this whole surface has been climbing out of.
+ *
+ * 0.38 rather than the 0.5 that was tried alongside the heavy tint: against a
+ * face that dark, half the hue on a one-pixel boundary stops being a cut and
+ * starts being an outline drawn round the band.
+ */
+const PANE_EDGE = 0.38
+
+/**
  * Whether a state's ribbon is bright enough to be written on in ink.
  *
- * The reference sets its labels in dark type on the routes that were taken and
- * in white on the ones that were not, and the reason is contrast rather than
- * emphasis: white on a filled green band is about three to one and fails, and
- * the ink this chassis draws its own surfaces against clears it.
+ * The reference sets its labels in dark type on the routes that reported
+ * something and in white on the ones still waiting, and the reason is contrast
+ * rather than emphasis: white on a filled lime band reads 1.4:1, and the ink
+ * this chassis draws its own surfaces against clears it at 11.87.
+ *
+ * FAILED MOVED TO INK WHEN ITS BAND MOVED. It was white type, correctly, while
+ * the band was --destructive at L 0.474 -- a fill measured for a button-sized
+ * label. The band is now --p-wire-failed at L 0.710, light enough to be seen
+ * crossing a field of ink and therefore too light to carry white type: 2.63:1
+ * against 5.95 for dark. The pair is checked in lib/contrast.ts rather than
+ * left to this table, which is what the destructive tokens did not have.
  */
 const INK_ON: Record<EdgeState, boolean> = {
   missing: false,
   pending: false,
   reading: true,
   read: true,
-  failed: false,
+  failed: true,
 }
 
 /**
@@ -929,95 +1086,189 @@ export function NodeCanvas({
         {/*
           The wires sit under the cards, in the same space.
 
-          A 1x1 box with overflow visible rather than a sized viewport: the
-          graph has no fixed extent once cards can be dragged anywhere, and a
-          box big enough for every arrangement would be a box that decides how
-          far the field goes.
+          ONE SVG PER WIRE RATHER THAN ONE FOR ALL OF THEM, and the reason is
+          the pane. A pending wire is a div -- see GROUND -- because only CSS
+          can blur a backdrop, and a div cannot go inside an SVG. So the two
+          have to interleave: pane, then what is written on it, then the next
+          pane, then what is written on THAT. Collecting the drawing into one
+          SVG above all the panes would put every reading over every wire, and
+          a pane would no longer scatter the reading it crosses.
+
+          Each SVG is a 1x1 box with overflow visible rather than a sized
+          viewport: the graph has no fixed extent once cards can be dragged
+          anywhere, and a box big enough for every arrangement would be a box
+          that decides how far the field goes.
         */}
-        <svg
-          width={1}
-          height={1}
-          className="pointer-events-none absolute left-0 top-0 overflow-visible"
-        >
-          {edges.map((edge) => {
-            const { from, to, state, name, label, note, paint: own } = edge
-            const a = byId.get(from)
-            const b = byId.get(to)
-            if (!a || !b) return null
-            const p = slots.get(slotKey(from, to, "from"))
-            const q = slots.get(slotKey(from, to, "to"))
-            if (!p || !q) return null
-            const py = p.y
-            const qy = q.y
-            const x1 = a.place.x + NODE_W
-            const x2 = b.place.x
-            /*
-              An input that has not been supplied is a hairline, never a ribbon.
+        {edges.map((edge) => {
+          const { from, to, state, name, label, note, paint: own } = edge
+          const a = byId.get(from)
+          const b = byId.get(to)
+          if (!a || !b) return null
+          const p = slots.get(slotKey(from, to, "from"))
+          const q = slots.get(slotKey(from, to, "to"))
+          if (!p || !q) return null
+          const py = p.y
+          const qy = q.y
+          const x1 = a.place.x + NODE_W
+          const x2 = b.place.x
+          /*
+            An input that has not been supplied is a hairline, never a ribbon.
 
-              This is the one place the two vocabularies have to stay apart. A
-              ribbon is the request passing between two cards; there is no
-              request to pass while the area is empty, and drawing one would be
-              the picture asserting a completeness the run does not have -- the
-              run is refused in exactly this state.
-            */
-            const carrying = state !== "missing"
-            const st = state ?? "pending"
-            const stroke =
-              EDGE_COLOUR[st] ?? own ?? "rgb(var(--p-line-strong))"
-            /*
-              Both ends run under the card they meet -- see TUCK. The source is
-              always a card's right edge and the target always a card's left,
-              whatever the reader has dragged where, so the direction is the
-              port's and not the geometry's.
-            */
-            const a1 = x1 - TUCK
-            const a2 = x2 + TUCK
-            const line = wirePath(a1, py, a2, qy)
-            const ribbon = ribbonPath(a1, py, p.w, a2, qy, q.w)
-            const key = `${from}-${to}`
-            const spine = `${gid}-spine-${key}`
-            /*
-              HOW MUCH OF THE READING FITS, and the second term is the one that
-              matters. What is left of the horizontal span once the tail and
-              the state word are cleared would be the answer if wires ran
-              straight. They do not: a wire that falls as far as it travels is
-              flat only at its two ends, and a reading longer than that flat
-              run is written down the turn, one character to a line. So the
-              room is discounted by how much of the wire's length is drop --
-              level wires keep all of it, and the steepest keep half.
+            This is the one place the two vocabularies have to stay apart. A
+            ribbon is the request passing between two cards; there is no
+            request to pass while the area is empty, and drawing one would be
+            the picture asserting a completeness the run does not have -- the
+            run is refused in exactly this state.
+          */
+          const carrying = state !== "missing"
+          const st = state ?? "pending"
+          const stroke =
+            EDGE_COLOUR[st] ?? own ?? "rgb(var(--p-line-strong))"
+          /*
+            Both ends run under the card they meet -- see TUCK. The source is
+            always a card's right edge and the target always a card's left,
+            whatever the reader has dragged where, so the direction is the
+            port's and not the geometry's.
+          */
+          const a1 = x1 - TUCK
+          const a2 = x2 + TUCK
+          const line = wirePath(a1, py, a2, qy)
+          const ribbon = ribbonPath(a1, py, p.w, a2, qy, q.w)
+          const key = `${from}-${to}`
+          const spine = `${gid}-spine-${key}`
+          /*
+            A WAITING WIRE IS A PANE OF GLASS AND A REPORTING ONE IS NOT.
+            See GROUND: the states that have something to say cover what
+            they cross, and the ones still waiting are the ones that get
+            crossed, so they are the ones made of a material that shows it.
+          */
+          const glass = carrying && st === "pending"
+          /*
+            THE BOX THE PANE IS SAMPLED IN.
 
-              Dropped rather than shrunk where it will not fit, and dropped
-              whole rather than to a stub: `clip` refuses to write fewer than a
-              few characters, because two letters and an ellipsis name nothing.
-              Dragging the cards apart is what gives a wire its reading back,
-              and that is a gesture the reader already has.
-            */
-            const span = Math.abs(x2 - x1)
-            const drop = Math.abs(qy - py)
-            const room =
-              ((span - LABEL_LEAD - NOTE_ROOM) * span) / (span + drop)
-            /*
-              THE READING IS THE SOURCE END'S, and it is gated on that end's
-              width alone: a wire is commonly wide where it leaves a card that
-              feeds only the run and narrow where it arrives at a node that
-              eight of them share, and the reading is written where it leaves.
-            */
-            const chars = Math.floor(room / LABEL_CH)
-            const value =
-              p.w >= RIBBON_TEXT_MIN_W ? clip(label, chars) : ""
-            /*
-              The name goes with the value or not at all. It is the weaker of
-              the two -- the card it leaves is titled with it -- so a wire that
-              can hold one line holds the one the card does not already say,
-              whether it is the horizontal run or the ribbon's own width that
-              has run out.
-            */
-            const title =
-              value && p.w >= RIBBON_TWO_LINE_W ? clip(name, chars) : ""
-            const ink = INK_ON[st]
-            const type = ink ? "rgb(var(--p-ink))" : "rgb(var(--p-text))"
-            return (
-              <g key={key}>
+            A backdrop is filtered over the element's BOX and clipped
+            afterwards, so a box that does not contain the shape is a shape
+            with its blur cut off along a straight line -- the one edge on
+            this surface that would be soft for no reason. The box is
+            therefore the curve's convex hull, which for a cubic is its four
+            control points: the two ends, and the two handles, which lie at
+            the ends' own heights and `reach` away in x. Exact, and cheaper
+            than sampling the curve.
+
+            The hull is then let out by the blur radius on every side. Inside
+            that margin the filter has real backdrop to average instead of
+            the edge of its own box, which is what stops a pane from going
+            pale where it approaches its boundary.
+          */
+          const reach = reachOf(a1, py, a2, qy)
+          const bx = Math.min(a1, a2 - reach) - PANE_BLUR
+          const by = Math.min(py - p.w / 2, qy - q.w / 2) - PANE_BLUR
+          const bw = Math.max(a2, a1 + reach) + PANE_BLUR - bx
+          const bh = Math.max(py + p.w / 2, qy + q.w / 2) + PANE_BLUR - by
+          /*
+            The same shape as `ribbon`, in the box's coordinates rather than
+            the board's: `clip-path` is measured from the element it clips.
+            `reachOf` reads differences alone, so shifting both ends by the
+            same amount is the identical curve and not an approximation of
+            one.
+          */
+          const pane = ribbonPath(
+            a1 - bx,
+            py - by,
+            p.w,
+            a2 - bx,
+            qy - by,
+            q.w
+          )
+          const paneClip = `path("${pane}")`
+          /*
+            Scatter, then lift, then put back the colour the scatter cost.
+            Blur leads because the other two are corrections to what it
+            produced rather than to the backdrop it started from.
+          */
+          const frost =
+            `blur(${PANE_BLUR}px) ` +
+            `brightness(${PANE_LIFT}) saturate(${PANE_SATURATE})`
+          /*
+            HOW MUCH OF THE READING FITS, and the second term is the one that
+            matters. What is left of the horizontal span once the tail and
+            the state word are cleared would be the answer if wires ran
+            straight. They do not: a wire that falls as far as it travels is
+            flat only at its two ends, and a reading longer than that flat
+            run is written down the turn, one character to a line. So the
+            room is discounted by how much of the wire's length is drop --
+            level wires keep all of it, and the steepest keep half.
+
+            Dropped rather than shrunk where it will not fit, and dropped
+            whole rather than to a stub: `clip` refuses to write fewer than a
+            few characters, because two letters and an ellipsis name nothing.
+            Dragging the cards apart is what gives a wire its reading back,
+            and that is a gesture the reader already has.
+          */
+          const span = Math.abs(x2 - x1)
+          const drop = Math.abs(qy - py)
+          const room =
+            ((span - LABEL_LEAD - NOTE_ROOM) * span) / (span + drop)
+          /*
+            THE READING IS THE SOURCE END'S, and it is gated on that end's
+            width alone: a wire is commonly wide where it leaves a card that
+            feeds only the run and narrow where it arrives at a node that
+            eight of them share, and the reading is written where it leaves.
+          */
+          const chars = Math.floor(room / LABEL_CH)
+          const value =
+            p.w >= RIBBON_TEXT_MIN_W ? clip(label, chars) : ""
+          /*
+            The name goes with the value or not at all. It is the weaker of
+            the two -- the card it leaves is titled with it -- so a wire that
+            can hold one line holds the one the card does not already say,
+            whether it is the horizontal run or the ribbon's own width that
+            has run out.
+          */
+          const title =
+            value && p.w >= RIBBON_TWO_LINE_W ? clip(name, chars) : ""
+          const ink = INK_ON[st]
+          const type = ink ? "rgb(var(--p-ink))" : "rgb(var(--p-text))"
+          return (
+            <Fragment key={key}>
+              {/*
+                THE PANE. A div, because SVG has no backdrop -- see GROUND.
+
+                Three layers in one element and no more: what is behind it,
+                scattered, lifted and resaturated; the wire's own colour over
+                that, falling from where it leaves to where it lands; and the
+                shape, taken from the same `ribbonPath` every other part of
+                this wire is drawn from, so the boundary is identical to the
+                one the edge light is stroked along.
+
+                `aria-hidden` and not focusable: what this says is said in
+                text by the reading written on it.
+              */}
+              {glass && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute"
+                  style={{
+                    left: bx,
+                    top: by,
+                    width: bw,
+                    height: bh,
+                    clipPath: paneClip,
+                    WebkitClipPath: paneClip,
+                    backdropFilter: frost,
+                    WebkitBackdropFilter: frost,
+                    background: `linear-gradient(90deg, ${tint(
+                      stroke,
+                      PANE_TINT_HEAD
+                    )}, ${tint(stroke, PANE_TINT_TAIL)})`,
+                  }}
+                />
+              )}
+              <svg
+                width={1}
+                height={1}
+                className="pointer-events-none absolute left-0 top-0 overflow-visible"
+              >
                 <defs>
                   {/*
                     The wire's own centre line, kept so the reading can be set
@@ -1029,9 +1280,9 @@ export function NodeCanvas({
                   */}
                   <path id={spine} d={line} />
                 </defs>
-                {carrying && (
+                {carrying && !glass && (
                   <>
-                    {/* The smoke, and then the tint. See GROUND. */}
+                    {/* The ground, and then the colour. See GROUND. */}
                     <path
                       d={ribbon}
                       fill="rgb(var(--p-ink))"
@@ -1039,6 +1290,21 @@ export function NodeCanvas({
                     />
                     <path d={ribbon} fill={stroke} fillOpacity={FILL_OPACITY[st]} />
                   </>
+                )}
+                {/*
+                  The cut edge of the pane, drawn over the pane it belongs to
+                  and under everything the next wire puts on top of it. See
+                  PANE_EDGE for why a boundary is admissible here when an
+                  outline was not.
+                */}
+                {glass && (
+                  <path
+                    d={ribbon}
+                    fill="none"
+                    stroke={stroke}
+                    strokeOpacity={PANE_EDGE}
+                    strokeWidth={1}
+                  />
                 )}
                 {/*
                   NOTHING IS DRAWN DOWN THE MIDDLE OF A RIBBON THAT IS ONE.
@@ -1131,10 +1397,10 @@ export function NodeCanvas({
                     {note}
                   </text>
                 )}
-              </g>
-            )
-          })}
-        </svg>
+              </svg>
+            </Fragment>
+          )
+        })}
 
         {nodes.map((n) => (
           <div
@@ -1241,7 +1507,7 @@ export function NodeCanvas({
                     ? "bg-aside/22"
                     : n.subject
                       ? undefined
-                      : "bg-surface-raised/70"
+                      : "bg-selected"
               )}
               /*
                 THE PART IS A TINT ON THE HEADER, NOT A HEADER OF ITS OWN.
@@ -1284,8 +1550,8 @@ export function NodeCanvas({
         title="Fit the graph to the view"
         className={cn(
           "absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-sm",
-          "bg-surface-raised/80 text-muted-foreground transition-colors",
-          "hover:bg-surface-raised hover:text-foreground",
+          "bg-selected text-muted-foreground transition-colors",
+          "hover:bg-hover hover:text-foreground",
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         )}
       >

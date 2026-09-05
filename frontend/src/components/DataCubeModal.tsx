@@ -98,7 +98,7 @@ export function DataCubeModal({
                   key={s.id || s.date + s.tile}
                   className="overflow-hidden rounded-sm border border-border/60 bg-secondary/20"
                 >
-                  <div className="relative aspect-[4/3] bg-ink/40">
+                  <div className="relative aspect-[4/3] bg-sunk">
                     {s.preview_uri ? (
                       <img
                         src={s.preview_uri}

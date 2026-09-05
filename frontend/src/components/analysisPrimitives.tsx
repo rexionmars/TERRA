@@ -185,7 +185,7 @@ export function PanelTile({
   const preview = (
     <div
       className={cn(
-        "rounded-sm border border-border bg-background relative overflow-hidden",
+        "rounded-sm border border-border bg-sunk relative overflow-hidden",
         fullWidth
           ? "h-[min(24rem,calc(var(--reading-h,45vh)*0.4))]"
           : "aspect-[4/3]"

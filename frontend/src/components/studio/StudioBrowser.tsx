@@ -529,7 +529,7 @@ export function StudioBrowser({
                 "flex h-6 w-6 items-center justify-center transition-colors",
                 "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                 on
-                  ? "bg-surface-raised text-foreground"
+                  ? "bg-selected text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -661,7 +661,7 @@ export function StudioBrowser({
             className={cn(
               "flex h-7 shrink-0 items-center gap-1.5 border-t px-2 text-emphasis transition-colors",
               "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              "text-muted-foreground hover:bg-surface-raised hover:text-foreground",
+              "text-muted-foreground hover:bg-hover hover:text-foreground",
               working && "cursor-not-allowed opacity-50"
             )}
             style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
@@ -1027,8 +1027,8 @@ function SourceNode({
       className={cn(
         "group flex h-6 items-center transition-colors",
         on
-          ? "bg-surface-raised text-foreground"
-          : "text-muted-foreground hover:bg-surface-raised/60"
+          ? "bg-selected text-foreground"
+          : "text-muted-foreground hover:bg-hover"
       )}
       style={{ paddingLeft: `${0.25 + depth * 0.75}rem` }}
     >
@@ -1203,7 +1203,7 @@ function FolderTile({
       title={`${name} — ${count} ${count === 1 ? "analysis" : "analyses"}. Double-click to open.`}
       className={cn(
         "flex w-[7.5rem] flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors",
-        "hover:bg-surface-raised/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        "hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
       {/*
@@ -1264,7 +1264,7 @@ function FolderRow({
       title={`${name} — double-click to open`}
       className={cn(
         "flex h-8 items-center gap-2 rounded-sm px-1 text-left transition-colors",
-        "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground",
+        "text-muted-foreground hover:bg-hover hover:text-foreground",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
@@ -1332,7 +1332,7 @@ function RunTile({
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         on
           ? "border-primary/60 bg-primary/10"
-          : "border-transparent hover:bg-surface-raised/60"
+          : "border-transparent hover:bg-hover"
       )}
     >
       <KindPlate run={run} size="tile" />
@@ -1382,7 +1382,7 @@ function RunRow({
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         on
           ? "bg-primary/10 text-foreground"
-          : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
+          : "text-muted-foreground hover:bg-hover hover:text-foreground"
       )}
     >
       <KindPlate run={run} size="row" />

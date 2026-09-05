@@ -279,7 +279,7 @@ function SeasonAndDirection({ wind }: { wind: WindAnalysis }) {
               <span className="telemetry w-6 shrink-0 text-meta text-muted-foreground">
                 {String(r.month).padStart(2, "0")}
               </span>
-              <span className="bg-background relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+              <span className="bg-sunk relative h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
                 <span
                   className="absolute inset-y-0 left-0 rounded-sm"
                   style={{
@@ -305,7 +305,7 @@ function SeasonAndDirection({ wind }: { wind: WindAnalysis }) {
               <span className="telemetry w-10 shrink-0 text-meta text-muted-foreground">
                 {s.centre_deg.toFixed(1)}°
               </span>
-              <span className="bg-background relative h-3 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
+              <span className="bg-sunk relative h-3 min-w-[4rem] flex-1 overflow-hidden rounded-sm">
                 <span
                   className="absolute inset-x-0 top-0 h-1.5"
                   /* Energy and hours are two categories, so they take two

@@ -257,7 +257,7 @@ function TextRow({
         placeholder={placeholder}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="telemetry h-6 w-20 min-w-0 rounded-sm border border-border bg-background px-1.5 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
+        className="telemetry h-6 w-20 min-w-0 rounded-sm border border-border bg-sunk px-1.5 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
       />
     </label>
   )
@@ -291,7 +291,7 @@ function SelectRow({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="h-6 w-full rounded-sm border border-border bg-background px-1 text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
+        className="h-6 w-full rounded-sm border border-border bg-sunk px-1 text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
       >
         {options.map((o) => (
           <option key={o.id} value={o.id}>
@@ -331,7 +331,7 @@ function LossRow({
           const v = parseFloat(e.target.value)
           if (Number.isFinite(v)) onChange(v)
         }}
-        className="telemetry h-5 w-12 shrink-0 rounded-sm border border-border bg-background px-1 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
+        className="telemetry h-5 w-12 shrink-0 rounded-sm border border-border bg-sunk px-1 text-right text-micro text-foreground outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring disabled:opacity-50"
       />
     </label>
   )
@@ -391,7 +391,7 @@ function IconAction({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-surface-raised/60 hover:text-foreground disabled:opacity-40"
+      className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:opacity-40"
     >
       <Icon className="size-3" />
     </button>
@@ -1135,7 +1135,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
               props.grid?.figure === f.number
                 ? "bg-accent/15 text-foreground inset-ring-1 inset-ring-accent"
                 : f.ready
-                  ? "text-muted-foreground hover:bg-surface-raised"
+                  ? "text-muted-foreground hover:bg-hover"
                   : "text-muted-foreground/40"
             )}
           >
@@ -1334,7 +1334,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           type="button"
           onClick={props.compose.onListScenes}
           disabled={busy || !props.hasArea || props.compose.scenesLoading}
-          className="flex h-[1.375rem] items-center justify-center gap-1.5 rounded-sm bg-surface-raised/40 px-2 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:opacity-40"
+          className="flex h-[1.375rem] items-center justify-center gap-1.5 rounded-sm bg-selected px-2 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:opacity-40"
         >
           {props.compose.scenesLoading && (
             <CircleNotch className="size-3 animate-spin" />
@@ -2021,7 +2021,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
             "flex w-full items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-meta transition-colors",
             "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
             !props.canRun || busy
-              ? "cursor-not-allowed bg-surface-raised/40 text-muted-foreground"
+              ? "cursor-not-allowed bg-control text-muted-foreground"
               : "bg-accent text-accent-foreground hover:opacity-90"
           )}
         >
@@ -2111,7 +2111,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
               type="button"
               onClick={props.onAnalyzeLULC}
               disabled={busy || !props.hasArea || props.lulcRunning}
-              className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm bg-surface-raised/40 px-2 py-1 text-meta text-muted-foreground transition-colors hover:bg-surface-raised hover:text-foreground disabled:opacity-40"
+              className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm bg-selected px-2 py-1 text-meta text-muted-foreground transition-colors hover:bg-hover hover:text-foreground disabled:opacity-40"
             >
               {props.lulcRunning && <CircleNotch className="size-3 animate-spin" />}
               Land cover
