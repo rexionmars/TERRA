@@ -110,12 +110,33 @@ const SLOT_PITCH = RIBBON_W + SLOT_GAP
 const SLOT_FOOT = 12
 
 /**
- * How far the bloom stands off the ribbon.
+ * The shadow a ribbon casts on whatever it crosses, as three stacked strokes.
  *
- * Stroked around the ribbon's outline, so half of this lies outside the shape
- * and the halo is six pixels.
+ * A SHADOW, NOT A BLOOM. It was a widened stroke in the wire's OWN colour at
+ * low alpha -- a glow, which softened every edge on the board and was half of
+ * why the ribbons read as light rather than as material. It is the ink of the
+ * field now, laid under the ribbon, so where one crosses another the upper one
+ * darkens the lower and the two stay separable. That is the mark the reference
+ * has at its crossings, and the only one it has.
+ *
+ * SOFT, WHICH A SINGLE STROKE IS NOT. The reference's is a blur, and a hard
+ * dark band around every ribbon is a second outline rather than a shadow.
+ * Three strokes at falling width and rising alpha approximate the falloff:
+ * widest and faintest at the bottom, narrowest and darkest against the shape.
+ *
+ * NOT feGaussianBlur, and the reason is unchanged: a filter on every wire is a
+ * full-surface raster on each pan frame, and this field is dragged. Three more
+ * paths per wire are three more paths the browser is already compositing.
+ *
+ * Half of each lies inside the outline and is covered by the ribbon's own
+ * ground, which is painted after -- so a ribbon is never shaded by itself,
+ * only by the ones drawn over it.
  */
-const BLOOM_W = 12
+const SHADOW: readonly { w: number; a: number }[] = [
+  { w: 22, a: 0.16 },
+  { w: 15, a: 0.22 },
+  { w: 9, a: 0.3 },
+]
 
 /**
  * What each state is drawn in, and the one that is drawn in the wire's own.
@@ -148,15 +169,23 @@ const EDGE_COLOUR: Record<EdgeState, string | null> = {
 }
 
 /**
- * How solidly a ribbon is filled, by state.
+ * How much colour a ribbon takes, by state, over its own opaque ground.
  *
- * THE SPLIT IS BETWEEN AN ANSWER AND THE ABSENCE OF ONE, and it is the
- * reference's own: there, the routes that were taken are solid colour and the
- * ones still waiting are a band barely above the background. It resolves what
- * this file has argued with itself about twice -- that six wires at full
- * weight are a wash the cards have to compete with. The wash is what a board
- * that has not been run looks like, which is most boards most of the time, and
- * a wire only takes the surface once it has something to report.
+ * NOT TRANSPARENCY. Every carrying ribbon is filled twice: once in the ink the
+ * field is drawn on, which is what makes it opaque, and then in its colour at
+ * the weight below. So a ribbon has a hard edge and hides what it crosses
+ * instead of blending into it, and a pending wire is a DARK band of its part's
+ * hue rather than a wash the background shows through.
+ *
+ * That is the reference's material, and it is what ours was not: there, the
+ * routes that were taken are solid colour and the ones still waiting are a
+ * band barely above the background, and every one of them has a boundary you
+ * could cut out. Ours were translucent, which is why they read as smears of
+ * light rather than as things passing between cards.
+ *
+ * THE SPLIT IS STILL BETWEEN AN ANSWER AND THE ABSENCE OF ONE. A board that
+ * has not been run is most boards most of the time, and a wire only takes the
+ * surface once it has something to report.
  */
 const FILL_OPACITY: Record<EdgeState, number> = {
   missing: 0,
@@ -164,23 +193,6 @@ const FILL_OPACITY: Record<EdgeState, number> = {
   reading: 0.92,
   read: 0.92,
   failed: 0.92,
-}
-
-/**
- * How dark the middle of a ribbon runs, by state.
- *
- * A pending wire fades almost out between its cards, because what it has to
- * say is at its ends. A wire reporting an outcome holds its colour the whole
- * way: it is the route that was taken, and a route that faded in the middle
- * would be harder to follow across a field of them -- which is the one thing
- * these are for once there are four.
- */
-const FADE_MID: Record<EdgeState, number> = {
-  missing: 0.3,
-  pending: 0.5,
-  reading: 0.82,
-  read: 0.82,
-  failed: 0.82,
 }
 
 /**
@@ -961,9 +973,7 @@ export function NodeCanvas({
             const line = wirePath(a1, py, a2, qy)
             const ribbon = ribbonPath(a1, py, p.w, a2, qy, q.w)
             const key = `${from}-${to}`
-            const fade = `${gid}-fade-${key}`
             const spine = `${gid}-spine-${key}`
-            const paint = `url(#${fade})`
             /*
               HOW MUCH OF THE READING FITS, and the second term is the one that
               matters. What is left of the horizontal span once the tail and
@@ -1008,38 +1018,6 @@ export function NodeCanvas({
               <g key={key}>
                 <defs>
                   {/*
-                    BRIGHT AT THE CARDS, and how far it darkens between them is
-                    the state's. What a pending wire has to say is at its ends
-                    -- this card feeds that one -- and the span between is the
-                    part a reader crosses rather than reads; holding the full
-                    weight along a field of them made a wash the cards had to
-                    compete with. A wire reporting an outcome is the opposite
-                    case: it is a route that was taken, and it has to be
-                    followable across the whole field. See FADE_MID.
-
-                    Declared per wire and in user space, so the fade runs along
-                    the wire wherever its cards have been dragged to. The stops
-                    are opacity alone: every mark below multiplies this by its
-                    own, so one gradient serves the bloom, the fill and the
-                    core line at three different weights.
-                  */}
-                  <linearGradient
-                    id={fade}
-                    gradientUnits="userSpaceOnUse"
-                    x1={a1}
-                    y1={py}
-                    x2={a2}
-                    y2={qy}
-                  >
-                    <stop offset="0" stopColor={stroke} stopOpacity={1} />
-                    <stop
-                      offset="0.5"
-                      stopColor={stroke}
-                      stopOpacity={FADE_MID[st]}
-                    />
-                    <stop offset="1" stopColor={stroke} stopOpacity={1} />
-                  </linearGradient>
-                  {/*
                     The wire's own centre line, kept so the reading can be set
                     ON it. A <text x y> would be level while the wire is not,
                     and a fan-in is steepest exactly where its readings are --
@@ -1051,23 +1029,26 @@ export function NodeCanvas({
                 </defs>
                 {carrying && (
                   <>
+                    {/* The shadow, softened by stacking. See SHADOW. */}
+                    {SHADOW.map((layer) => (
+                      <path
+                        key={layer.w}
+                        d={ribbon}
+                        fill="none"
+                        stroke="rgb(var(--p-ink))"
+                        strokeWidth={layer.w}
+                        strokeOpacity={layer.a}
+                        strokeLinejoin="round"
+                      />
+                    ))}
                     {/*
-                      The bloom, as a stroke around the ribbon rather than a
-                      filter. feGaussianBlur on every wire is a full-surface
-                      raster on each pan frame, and this field is dragged. A
-                      widened stroke at low alpha gives the same falloff at the
-                      junction for the cost of one more path, which the browser
-                      is already compositing.
+                      The ground, which is what makes a ribbon a thing rather
+                      than a tint. Filled in the ink the field is drawn on, so
+                      the colour above it lands on a known surface and the
+                      ribbon hides what it crosses instead of mixing with it.
                     */}
-                    <path
-                      d={ribbon}
-                      fill="none"
-                      stroke={paint}
-                      strokeWidth={BLOOM_W}
-                      strokeOpacity={st === "pending" ? 0.06 : 0.14}
-                      strokeLinejoin="round"
-                    />
-                    <path d={ribbon} fill={paint} fillOpacity={FILL_OPACITY[st]} />
+                    <path d={ribbon} fill="rgb(var(--p-ink))" />
+                    <path d={ribbon} fill={stroke} fillOpacity={FILL_OPACITY[st]} />
                   </>
                 )}
                 {/*
@@ -1092,7 +1073,7 @@ export function NodeCanvas({
                   <path
                     d={line}
                     fill="none"
-                    stroke={st === "reading" ? type : carrying ? paint : stroke}
+                    stroke={st === "reading" ? type : stroke}
                     strokeWidth={1.5}
                     strokeOpacity={st === "missing" ? 0.5 : st === "reading" ? 0.5 : 0.85}
                     strokeDasharray={
