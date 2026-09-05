@@ -73,28 +73,32 @@
     outside that block should reach for one of these.
   */
   /*
-    TWELVE, NOT BLENDER'S TWENTY-FOUR, AND THE GAP IS WHY.
+    TWENTY-FOUR, WHICH IS BLENDER'S OWN DEEPEST STEP.
 
-    Blender's deepest step is 24 and its areas meet FLUSH -- that value paints
-    a status bar, a band with its own edges, where a step of 1.35 against a
-    panel is plenty. Ours also paints the gap between every two panels, five
-    pixels wide with a panel on each side, and a five-pixel strip at 1.35 is a
-    strip a reader has to look for. A gap that has to be looked for is a border
-    with extra steps.
+    It was briefly 12, on the argument that the gap between two panels is five
+    pixels wide with a panel on each side and needs more separation than a
+    status bar does. The measurement behind that was right -- 24 gives 1.35
+    against a panel and 12 gives 1.48 -- and the argument was still wrong,
+    because it was answering a problem that had already been fixed.
 
-    1.48 against the panel step, which is where the return flattens: pure black
-    would reach only 1.59, because contrast at this end of the range is
-    compressed and the last twelve levels buy a tenth of what the first twelve
-    do. Twelve is most of what is available without the ground becoming a hole.
+    The gap was invisible because the studio's surface root was painted
+    `panel`, so the strip between two panels was the tone of the panels on
+    either side of it. Once that took `app` the gap is a different colour at
+    all, and 1.35 is what Blender ships. Deepening the ground on top of that
+    was correcting for a cause that had already been removed.
 
-    STILL NEUTRAL, WHICH IS A DECISION AND NOT AN OMISSION. A tint here was the
+    Kept as a note rather than dropped: the numbers are what a future reader
+    needs if the gap ever does look thin, and the answer then is 12, not a
+    tint.
+
+    STILL NEUTRAL, WHICH IS A DECISION AND NOT AN OMISSION. A tint here is the
     obvious other answer and it is the one this chassis has already refused:
     the note at the top of this block records two predecessors that put the hue
     in the surfaces, and the reason for taking it out is that the accent is
     then the only colour on screen that is not data. A coloured ground would be
     a second one, permanently, behind everything.
   */
-  --p-sunk: 12 12 12;
+  --p-sunk: 24 24 24;
   --p-ink: 30 30 30;
   --p-control: 40 40 40;
   --p-surface: 48 48 48;
@@ -311,11 +315,15 @@
   */
   /*
     215, which is the floor rather than a choice: --p-line-strong needs a
-    ground at or above it to clear 3:1, and it is measured on every step. The
-    light theme therefore separates its ground from its panels by 1.31 where
-    the dark one manages 1.48 -- less room, and the reason is the range itself.
-    A light chassis has forty levels between its deepest surface and white; a
-    dark one has sixty-seven below its panels.
+    ground at or above it to clear 3:1 and measures 3.02 on it. It stayed there
+    when the dark theme's ground went back to 24, because 215 is not a value
+    someone chose to be deep -- it is the deepest this theme has, and moving it
+    back up would give away separation for nothing.
+
+    The two themes therefore separate ground from panel by 1.31 here and 1.35
+    there, and the reason is the range itself: a light chassis has forty levels
+    between its deepest surface and white, a dark one has sixty-seven below its
+    panels.
   */
   --p-sunk: 215 215 215;
   --p-ink: 231 231 231;
