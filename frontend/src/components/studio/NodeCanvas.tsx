@@ -110,7 +110,7 @@ const SLOT_PITCH = RIBBON_W + SLOT_GAP
 const SLOT_FOOT = 12
 
 /**
- * The shadow a ribbon casts on whatever it crosses, as three stacked strokes.
+ * The shadow a ribbon casts on whatever it crosses.
  *
  * A SHADOW, NOT A BLOOM. It was a widened stroke in the wire's OWN colour at
  * low alpha -- a glow, which softened every edge on the board and was half of
@@ -119,24 +119,27 @@ const SLOT_FOOT = 12
  * darkens the lower and the two stay separable. That is the mark the reference
  * has at its crossings, and the only one it has.
  *
- * SOFT, WHICH A SINGLE STROKE IS NOT. The reference's is a blur, and a hard
- * dark band around every ribbon is a second outline rather than a shadow.
- * Three strokes at falling width and rising alpha approximate the falloff:
- * widest and faintest at the bottom, narrowest and darkest against the shape.
+ * feGaussianBlur, WHICH REVERSES A DECISION THIS FILE MADE TWICE. Stacked
+ * strokes were the way round it -- two of them at first, then three -- and
+ * they are not the same mark. A stroke has a hard outer edge, so a stack of
+ * them is a set of concentric bands: the falloff reaches half the widest
+ * stroke and steps rather than fades. The reference's shadow spreads two or
+ * three ribbon-widths into whatever is under it and has no edge at all, and
+ * that spread is the whole of what says one ribbon is over another rather than
+ * beside it.
  *
- * NOT feGaussianBlur, and the reason is unchanged: a filter on every wire is a
- * full-surface raster on each pan frame, and this field is dragged. Three more
- * paths per wire are three more paths the browser is already compositing.
- *
- * Half of each lies inside the outline and is covered by the ribbon's own
- * ground, which is painted after -- so a ribbon is never shaded by itself,
- * only by the ones drawn over it.
+ * WHAT THE OLD REASONING GOT RIGHT was the cost of an unbounded filter: a
+ * filter region left to its default is sized off the shape's bounding box, and
+ * on a long diagonal ribbon that is most of the board, rasterised again on
+ * every frame the field is dragged. So the region is given in user space, per
+ * wire, as that wire's own extent plus the reach of its blur -- a band a few
+ * ribbons wide, not a surface.
  */
-const SHADOW: readonly { w: number; a: number }[] = [
-  { w: 22, a: 0.16 },
-  { w: 15, a: 0.22 },
-  { w: 9, a: 0.3 },
-]
+const SHADOW_BLUR = 7
+/** How far past its wire a shadow's region has to reach: about three sigma. */
+const SHADOW_PAD = 22
+/** How dark the cast is before the blur spreads it. */
+const SHADOW_ALPHA = 0.8
 
 /**
  * What each state is drawn in, and the one that is drawn in the wire's own.
@@ -974,6 +977,9 @@ export function NodeCanvas({
             const ribbon = ribbonPath(a1, py, p.w, a2, qy, q.w)
             const key = `${from}-${to}`
             const spine = `${gid}-spine-${key}`
+            const cast = `${gid}-cast-${key}`
+            /* Half the widest end, plus the blur's reach. */
+            const reachY = Math.max(p.w, q.w) / 2 + SHADOW_PAD
             /*
               HOW MUCH OF THE READING FITS, and the second term is the one that
               matters. What is left of the horizontal span once the tail and
@@ -1026,21 +1032,38 @@ export function NodeCanvas({
                     wire it belongs to and cannot leave it.
                   */}
                   <path id={spine} d={line} />
+                  {/*
+                    The blur's region, in user space and bounded to this wire.
+                    See SHADOW_BLUR for why it is not left to the default.
+                  */}
+                  {carrying && (
+                    <filter
+                      id={cast}
+                      filterUnits="userSpaceOnUse"
+                      x={Math.min(a1, a2) - SHADOW_PAD}
+                      y={Math.min(py, qy) - reachY}
+                      width={Math.abs(a2 - a1) + SHADOW_PAD * 2}
+                      height={Math.abs(qy - py) + reachY * 2}
+                    >
+                      <feGaussianBlur stdDeviation={SHADOW_BLUR} />
+                    </filter>
+                  )}
                 </defs>
                 {carrying && (
                   <>
-                    {/* The shadow, softened by stacking. See SHADOW. */}
-                    {SHADOW.map((layer) => (
-                      <path
-                        key={layer.w}
-                        d={ribbon}
-                        fill="none"
-                        stroke="rgb(var(--p-ink))"
-                        strokeWidth={layer.w}
-                        strokeOpacity={layer.a}
-                        strokeLinejoin="round"
-                      />
-                    ))}
+                    {/*
+                      The shadow: the ribbon's own shape, in the field's ink,
+                      blurred. Its darkest part lands exactly where the ribbon
+                      is about to be painted and is covered by it, so what
+                      shows is the spill -- on the field, and on any ribbon
+                      already drawn under this one.
+                    */}
+                    <path
+                      d={ribbon}
+                      fill="rgb(var(--p-ink))"
+                      fillOpacity={SHADOW_ALPHA}
+                      filter={`url(#${cast})`}
+                    />
                     {/*
                       The ground, which is what makes a ribbon a thing rather
                       than a tint. Filled in the ink the field is drawn on, so
