@@ -199,6 +199,28 @@ const INK_ON: Record<EdgeState, boolean> = {
   failed: false,
 }
 
+/**
+ * How far a wire runs UNDER the card it meets.
+ *
+ * A JUNCTION RATHER THAN A JOIN. A ribbon that stops dead on a card's edge is
+ * glued to it: the blunt end, the boundary and the card's own border all land
+ * on the same pixel, and at any zoom it reads as a lump on the outline rather
+ * than as something arriving. Run a few pixels past the edge instead and the
+ * card -- which is opaque and painted over the wires -- hides the end, so the
+ * wire emerges from beneath it.
+ *
+ * Seven, which clears the card's 1px border and the 6px corner radius, so the
+ * end is covered wherever down the side a wire happens to meet it.
+ *
+ * IT IS ALSO WHAT REPLACED THE TERMINAL DOTS. Those marked where a wire met a
+ * card back when a wire was a hairline, and they were the lump: a 3px circle
+ * centred on the edge, half over the card and half over the field, against a
+ * ribbon thirty-four pixels wide. What they were for -- reading as a terminal
+ * and not as a socket waiting to be pulled out of -- a wire disappearing under
+ * a card says better than a dot on its border ever did.
+ */
+const TUCK = 7
+
 /** The reading written along a wire: two lines, and how far along they start. */
 const NAME_PX = 11
 const VALUE_PX = 10
@@ -928,8 +950,16 @@ export function NodeCanvas({
             const st = state ?? "pending"
             const stroke =
               EDGE_COLOUR[st] ?? own ?? "rgb(var(--p-line-strong))"
-            const line = wirePath(x1, py, x2, qy)
-            const ribbon = ribbonPath(x1, py, p.w, x2, qy, q.w)
+            /*
+              Both ends run under the card they meet -- see TUCK. The source is
+              always a card's right edge and the target always a card's left,
+              whatever the reader has dragged where, so the direction is the
+              port's and not the geometry's.
+            */
+            const a1 = x1 - TUCK
+            const a2 = x2 + TUCK
+            const line = wirePath(a1, py, a2, qy)
+            const ribbon = ribbonPath(a1, py, p.w, a2, qy, q.w)
             const key = `${from}-${to}`
             const fade = `${gid}-fade-${key}`
             const spine = `${gid}-spine-${key}`
@@ -996,9 +1026,9 @@ export function NodeCanvas({
                   <linearGradient
                     id={fade}
                     gradientUnits="userSpaceOnUse"
-                    x1={x1}
+                    x1={a1}
                     y1={py}
-                    x2={x2}
+                    x2={a2}
                     y2={qy}
                   >
                     <stop offset="0" stopColor={stroke} stopOpacity={1} />
@@ -1083,7 +1113,7 @@ export function NodeCanvas({
                       letterSpacing: "0.04em",
                     }}
                   >
-                    <textPath href={`#${spine}`} startOffset={LABEL_LEAD}>
+                    <textPath href={`#${spine}`} startOffset={LABEL_LEAD + TUCK}>
                       {title}
                     </textPath>
                   </text>
@@ -1097,7 +1127,7 @@ export function NodeCanvas({
                       fontSize: VALUE_PX,
                     }}
                   >
-                    <textPath href={`#${spine}`} startOffset={LABEL_LEAD}>
+                    <textPath href={`#${spine}`} startOffset={LABEL_LEAD + TUCK}>
                       {value}
                     </textPath>
                   </text>
@@ -1131,23 +1161,6 @@ export function NodeCanvas({
                     {note}
                   </text>
                 )}
-                {/* The ends, marking where a wire meets a card. Filled dots
-                    rather than rings, so they read as terminals and not as
-                    sockets waiting to be pulled out of. */}
-                <circle
-                  cx={x1}
-                  cy={py}
-                  r={3}
-                  fill={stroke}
-                  fillOpacity={st === "missing" ? 0.5 : 1}
-                />
-                <circle
-                  cx={x2}
-                  cy={qy}
-                  r={3}
-                  fill={stroke}
-                  fillOpacity={st === "missing" ? 0.5 : 1}
-                />
               </g>
             )
           })}
