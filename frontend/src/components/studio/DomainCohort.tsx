@@ -261,7 +261,7 @@ export function DomainCohort({
                 <Tooltip
                   cursor={{ stroke: "rgb(var(--p-line-strong))" }}
                   contentStyle={{
-                    background: "rgb(var(--p-surface))",
+                    background: "var(--s-float)",
                     border: "1px solid rgb(var(--p-line) / 0.4)",
                     borderRadius: 2,
                     fontSize: 10,

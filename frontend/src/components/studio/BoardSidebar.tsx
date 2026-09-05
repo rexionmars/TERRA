@@ -1066,7 +1066,7 @@ export function BoardSidebar({
           a live WebGL canvas behind a full-height column is a composite this
           webview pays for on every frame.
         */
-        background: "rgb(var(--p-ink))",
+        background: "var(--s-panel)",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >

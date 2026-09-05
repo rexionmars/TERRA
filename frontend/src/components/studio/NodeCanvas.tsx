@@ -1058,6 +1058,18 @@ export function NodeCanvas({
       )}
       style={{
         /*
+          ITS OWN GROUND, AND NOT THE PANE'S.
+
+          Every other editor in the studio takes `panel`, two steps up the
+          ramp. This one cannot: a wire is a pane of frosted glass measured
+          against what is behind it, and PANE_LIFT, PANE_TINT_HEAD and the
+          contrast floor on the reading were all derived against `field`.
+          Letting the board follow its dock to 48 would lighten the ground
+          under every ribbon by eighteen levels and put the reading below its
+          floor -- so the board declares the surface it was measured on.
+        */
+        background: "var(--s-field)",
+        /*
           The field is a dot grid that travels with the view, which is what
           makes a pan legible: without it the cards slide against nothing and
           the gesture reads as the cards moving rather than the eye.
@@ -1442,7 +1454,7 @@ export function NodeCanvas({
               */
               borderColor:
                 !n.status && !n.tone && n.subject ? n.subject.edge : undefined,
-              background: "rgb(var(--p-surface))",
+              background: "var(--s-card)",
               zIndex: front === n.id ? 1 : undefined,
               /*
                 DEPTH, AND A HALO IN THE CARD'S OWN COLOUR.
@@ -1524,7 +1536,7 @@ export function NodeCanvas({
               style={
                 n.tone !== "action" && n.tone !== "aside" && n.subject
                   ? {
-                      background: `linear-gradient(${n.subject.wash}, ${n.subject.wash}), rgb(var(--p-surface-raised) / 0.7)`,
+                      background: `linear-gradient(${n.subject.wash}, ${n.subject.wash}), var(--s-panel-head)`,
                     }
                   : undefined
               }

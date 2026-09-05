@@ -57,7 +57,7 @@ export function StudioLoading({
       // Fills whatever it is given: both callers position it themselves, one
       // over the whole studio and one over the areas alone.
       className="flex h-full w-full flex-col items-center justify-center gap-3"
-      style={{ background: "rgb(var(--p-ink))" }}
+      style={{ background: "var(--s-panel)" }}
       role="status"
       aria-live="polite"
     >

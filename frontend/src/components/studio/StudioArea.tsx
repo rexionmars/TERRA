@@ -187,7 +187,7 @@ export function StudioArea({
           -- which is how the board's title block came to be drawn over two
           headers at once. A header is a layer nothing else draws into.
         */
-        background: transparent ? "transparent" : "rgb(var(--p-ink))",
+        background: transparent ? "transparent" : "var(--s-panel)",
         /*
           A query container, so an editor can respond to the AREA's width
           rather than the window's. Without it a narrow area in a wide window
@@ -219,7 +219,7 @@ export function StudioArea({
         className="studio-header pointer-events-auto relative flex shrink-0 items-center gap-0.5 overflow-hidden border-b px-1"
         style={{
           height: headerH,
-          background: "rgb(var(--p-ink))",
+          background: "var(--s-panel-head)",
           borderColor: "rgb(var(--p-line) / 0.22)",
         }}
       >
@@ -371,7 +371,7 @@ export function StudioArea({
           className="pointer-events-auto flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1"
           style={{
             height: AREA_HEADER_PX,
-            background: "rgb(var(--p-ink))",
+            background: "var(--s-panel-head)",
             borderColor: "rgb(var(--p-line) / 0.22)",
           }}
         >
@@ -385,7 +385,7 @@ export function StudioArea({
           <div
             className="pointer-events-auto flex w-8 shrink-0 flex-col items-center gap-0.5 border-r py-1"
             style={{
-              background: "rgb(var(--p-ink))",
+              background: "var(--s-panel-head)",
               borderColor: "rgb(var(--p-line) / 0.22)",
             }}
           >

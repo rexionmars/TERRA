@@ -749,7 +749,7 @@ function PredictionCompareBody({
             "min-h-0 overflow-hidden rounded-sm",
             compact ? "aspect-[4/3] h-full shrink-0" : "h-[18rem] w-full"
           )}
-          style={{ background: "rgb(var(--p-surface))" }}
+          style={{ background: "var(--s-card)" }}
         >
           <PlotSwipeView
             left={{
@@ -1223,7 +1223,7 @@ export function BoardSolarDetail({
         // moment the constant moves.
         width: `${BOARD_RIGHT_REM}rem`,
         // Same ink / no-blur rule as BoardSidebar — see the note there.
-        background: "rgb(var(--p-ink))",
+        background: "var(--s-panel)",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >

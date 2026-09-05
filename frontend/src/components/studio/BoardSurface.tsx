@@ -4608,7 +4608,7 @@ export function BoardSurface({
         if (r) pointerRef.current = { x: e.clientX - r.left, y: e.clientY - r.top }
       }}
       className="app-no-drag absolute inset-0 z-[500] overflow-hidden"
-      style={{ background: "rgb(var(--p-ink))" }}
+      style={{ background: "var(--s-panel)" }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -4718,7 +4718,12 @@ export function BoardSurface({
                   >
                     <span
                       className="absolute inset-0 rounded-sm"
-                      style={{ background: "rgb(var(--p-ink) / 0.72)" }}
+                      style={{
+                        // A plate over a raster, not a surface in the dock:
+                        // it has to stay translucent so the scene reads under it.
+                        background:
+                          "color-mix(in srgb, var(--s-app) 72%, transparent)",
+                      }}
                     />
                     {/*
                       The layer over the AREA it belongs to, because the layer
@@ -4872,7 +4877,7 @@ export function BoardSurface({
         className="absolute inset-x-0 top-0 z-[35] flex items-stretch gap-0.5 border-b px-1"
         style={{
           height: WORKSPACE_BAR_PX,
-          background: "rgb(var(--p-ink))",
+          background: "var(--s-chrome)",
           borderColor: "rgb(var(--p-line) / 0.28)",
         }}
       >
@@ -4955,7 +4960,18 @@ export function BoardSurface({
             style={
               w.id === workspaceId
                 ? {
-                    background: "rgb(var(--p-surface-raised))",
+                    /*
+                      `panel`, which is the ground of the AREA BELOW, and not
+                      the strip's own. That is what the note above means by a
+                      tab carrying the ground it sits on: the current tab and
+                      the work it opens are one surface interrupted by a
+                      border, and the six that are not current are the strip.
+
+                      It was briefly the same role as the strip, which made the
+                      current workspace unfindable -- a tab strip where every
+                      tab is the ground is seven labels and no state.
+                    */
+                    background: "var(--s-panel)",
                     borderTopLeftRadius: 3,
                     borderTopRightRadius: 3,
                   }
@@ -5106,7 +5122,7 @@ export function BoardSurface({
                 type="button"
                 disabled={!onOpenStudio}
                 className="app-no-drag flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-meta transition-colors hover:brightness-125 disabled:cursor-default"
-                style={{ background: "rgb(var(--p-surface-raised))" }}
+                style={{ background: "var(--s-control)" }}
                 title={
                   onOpenStudio
                     ? `${savedName ?? title} — open another studio`

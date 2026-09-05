@@ -267,7 +267,7 @@ export function DateField({
             left: at.left,
             bottom: at.bottom,
             width: CALENDAR_W,
-            background: "rgb(var(--p-surface-raised))",
+            background: "var(--s-float)",
             borderColor: "rgb(var(--p-line-strong) / 0.6)",
           }}
         >
