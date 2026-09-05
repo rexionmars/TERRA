@@ -165,6 +165,38 @@ export function areaIds<E extends string>(root: AreaNode<E>): Set<AreaId> {
 }
 
 /**
+ * The divisions a dragged one may line up with: every other one running the
+ * same way, EXCEPT those inside it.
+ *
+ * A division nested under the one being dragged moves with it -- that is what
+ * dragging a split does to its own subtree -- so it can never be a fixed thing
+ * to line up against. Offering one would be offering a target that runs away
+ * at exactly the rate the pointer approaches it.
+ */
+export function splitsWithin<E extends string>(
+  root: AreaNode<E>,
+  id: AreaId
+): Set<AreaId> {
+  const out = new Set<AreaId>()
+  const collect = (n: AreaNode<E>): void => {
+    if (n.kind === "leaf") return
+    out.add(n.id)
+    collect(n.a)
+    collect(n.b)
+  }
+  const find = (n: AreaNode<E>): boolean => {
+    if (n.kind === "leaf") return false
+    if (n.id === id) {
+      collect(n)
+      return true
+    }
+    return find(n.a) || find(n.b)
+  }
+  find(root)
+  return out
+}
+
+/**
  * Advance the counter past every generated id a tree already carries.
  *
  * Called wherever a stored arrangement is adopted. Only ids of the generator's
