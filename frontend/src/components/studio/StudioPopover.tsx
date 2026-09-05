@@ -159,7 +159,7 @@ export function StudioPopover({
               // Raised rather than ink: the panel floats over areas painted in
               // ink, and a panel the same colour as the ground behind it reads
               // as a hole rather than as a surface.
-              background: "rgb(var(--p-surface-raised))",
+              background: "var(--s-float)",
               borderColor: "rgb(var(--p-line-strong) / 0.5)",
               // Hidden until placed, so the first frame is never at the corner.
               visibility: pos ? "visible" : "hidden",
@@ -330,7 +330,7 @@ export function StudioContextMenu({
       style={{
         left: pos?.x ?? -9999,
         top: pos?.y ?? -9999,
-        background: "rgb(var(--p-surface-raised))",
+        background: "var(--s-float)",
         borderColor: "rgb(var(--p-line-strong) / 0.5)",
         visibility: pos ? "visible" : "hidden",
       }}

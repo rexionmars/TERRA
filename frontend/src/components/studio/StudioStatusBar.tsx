@@ -78,7 +78,7 @@ export function StudioStatusBar({
       className="absolute inset-x-0 bottom-0 z-[35] flex items-center gap-2 border-t px-2"
       style={{
         height: STATUS_BAR_PX,
-        background: "rgb(var(--p-ink))",
+        background: "var(--s-app)",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >

@@ -176,7 +176,7 @@ export function RunPicker({
                     className="eyebrow !text-[9px] sticky top-0 z-10 px-2 py-1"
                     // The popover's own plate, so a heading scrolled under does
                     // not show the rows through a differently coloured band.
-                    style={{ background: "rgb(var(--p-surface-raised))" }}
+                    style={{ background: "var(--s-selected)" }}
                   >
                     {g.name}
                   </p>

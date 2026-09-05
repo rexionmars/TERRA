@@ -363,6 +363,17 @@
   --s-app: rgb(var(--p-sunk));
   /* A working canvas: the run board's field, the frame a raster is drawn in. */
   --s-field: rgb(var(--p-ink));
+  /*
+    The window's own bands: the title bar, the workspace tab strip. Chrome that
+    belongs to the application rather than to any panel, and DELIBERATELY below
+    the panels it sits above -- a tab strip lighter than the work would read as
+    the subject rather than as the frame.
+
+    It shares the ramp's second step with `field` and `sunk`, which is the case
+    the role layer exists for: three different jobs that happen to want the
+    same depth today and can be separated tomorrow by editing one line each.
+  */
+  --s-chrome: rgb(var(--p-ink));
   /* Sunken into a surface: an input well, a search field, a dropdown's box. */
   --s-sunk: rgb(var(--p-ink));
   /* A control at rest on a surface: a toolbar button, a chip, a row header. */
@@ -385,8 +396,16 @@
   */
   --s-hover: rgb(255 255 255 / 0.07);
   --s-selected: rgb(255 255 255 / 0.13);
-  /* A card resting on a canvas, which is the topmost thing that does not float. */
-  --s-card: rgb(var(--p-surface-raised));
+  /*
+    A card resting on a canvas -- the run board's cards, a plate over a raster.
+
+    The SAME step as a panel body, not the one above it, and that is what the
+    ramp's top is being kept for. A card is a panel that happens to sit on a
+    drawing surface rather than in a dock; what actually separates it from the
+    board is that the board is `field`, two steps below. Reserving the top step
+    for things that float leaves a card's own header somewhere to go.
+  */
+  --s-card: rgb(var(--p-surface));
   /* Anything that floats over the rest: popover, menu, tooltip, dialog. */
   --s-float: rgb(var(--p-surface-raised));
 
@@ -674,6 +693,7 @@
   */
   --color-app: var(--s-app);
   --color-field: var(--s-field);
+  --color-chrome: var(--s-chrome);
   --color-sunk: var(--s-sunk);
   --color-control: var(--s-control);
   --color-panel-head: var(--s-panel-head);

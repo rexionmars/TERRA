@@ -391,7 +391,7 @@ export function BoardStatsBar({
         */
         className="app-no-drag flex h-full w-full flex-col"
       style={{
-        background: "rgb(var(--p-ink))",
+        background: "var(--s-panel)",
         borderColor: "rgb(var(--p-line) / 0.28)",
       }}
     >

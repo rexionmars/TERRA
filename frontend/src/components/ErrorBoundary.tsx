@@ -149,12 +149,12 @@ export function AppErrorFallback({ error, componentStack }: ErrorFallbackProps) 
       className="flex min-h-screen w-full items-center justify-center p-6"
       // The window's own ground. The tree that used to paint a background is
       // the thing that just unmounted.
-      style={{ background: "rgb(var(--p-ink))" }}
+      style={{ background: "var(--s-panel)" }}
     >
       <div
         className="w-full max-w-lg rounded-md border p-5"
         style={{
-          background: "rgb(var(--p-surface))",
+          background: "var(--s-card)",
           borderColor: "rgb(var(--p-line) / 0.5)",
         }}
       >
@@ -210,7 +210,7 @@ export function PanelErrorFallback({
     <div
       role="alert"
       className="pointer-events-auto flex h-full w-full flex-col items-start gap-2 overflow-auto p-3"
-      style={{ background: "rgb(var(--p-ink))" }}
+      style={{ background: "var(--s-panel)" }}
     >
       <p className="flex items-center gap-1.5 text-meta text-destructive-quiet">
         <Warning className="size-3 shrink-0" />

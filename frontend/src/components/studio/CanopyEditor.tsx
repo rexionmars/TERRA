@@ -235,13 +235,13 @@ function StandPanel() {
     <div
       ref={hostRef}
       className="relative h-full min-h-0 w-full"
-      style={{ background: "rgb(var(--p-ink))" }}
+      style={{ background: "var(--s-panel)" }}
     >
       {busyLabel ? (
         <div
           className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded px-2 py-1 text-[11px]"
           style={{
-            background: "rgb(var(--p-surface-raised))",
+            background: "var(--s-float)",
             color: "var(--muted-foreground)",
           }}
         >
@@ -252,7 +252,7 @@ function StandPanel() {
       {error ? (
         <div
           className="absolute inset-x-3 bottom-3 flex items-start gap-2 rounded px-2 py-1.5 text-[11px]"
-          style={{ background: "rgb(var(--p-surface-raised))", color: "var(--foreground)" }}
+          style={{ background: "var(--s-float)", color: "var(--foreground)" }}
         >
           <Warning
             className="mt-px h-3 w-3 shrink-0"

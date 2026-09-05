@@ -320,7 +320,7 @@ export function CanopyAOIPanes({
       {error ? (
         <div
           className="m-2 flex items-start gap-2 rounded px-2 py-1.5 text-[11px]"
-          style={{ background: "rgb(var(--p-surface-raised))", color: "var(--foreground)" }}
+          style={{ background: "var(--s-float)", color: "var(--foreground)" }}
         >
           <Warning
             className="mt-px h-3 w-3 shrink-0"

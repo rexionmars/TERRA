@@ -621,7 +621,7 @@ export function DomainShiftSection({
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "rgb(var(--p-surface-raised))",
+                        background: "var(--s-float)",
                         border: "1px solid rgb(var(--p-line-strong) / 0.6)",
                         fontSize: 11,
                       }}
@@ -707,7 +707,7 @@ export function DomainShiftSection({
                     <Tooltip
                       cursor={{ strokeDasharray: "3 3" }}
                       contentStyle={{
-                        background: "rgb(var(--p-surface-raised))",
+                        background: "var(--s-float)",
                         border: "1px solid rgb(var(--p-line-strong) / 0.6)",
                         fontSize: 11,
                       }}
