@@ -864,7 +864,6 @@ export function BoardSidebar({
   )
   const activeAssetRow =
     allAssetRows.find((x) => x.key === activeAsset) ?? allAssetRows[0] ?? null
-  const asset = activeAssetRow?.asset ?? null
   /*
     A raster right-clicked in the data tree.
 
@@ -1699,24 +1698,23 @@ export function BoardSidebar({
 
 
       {/*
-        What the selected asset is, and what can be done with it.
+        NO PARAMETER BLOCK UNDER THE TREE.
 
-        The actions that were on every card in the overlay tools panel --
-        export, show, drop -- appear once, for the active row. A column this
-        narrow cannot carry four buttons per asset, and it does not have to:
-        they act on one thing at a time anyway.
+        It named the selected asset and wrote its parameter line -- the unit,
+        the source, the opacity -- in a band pinned to the foot of this column.
+        That line now travels with the raster instead, into the callout the
+        globe draws beside the plane it describes: the question it answers is
+        "what am I looking at", and the answer belongs where the looking
+        happens rather than in a panel that may be on the other side of the
+        board from it.
+
+        The row in the tree still carries the asset's name and its kind, which
+        is what a LIST has to say. Everything past that was a second reading of
+        one thing in two places, and the two could disagree -- the panel wrote
+        the parameters of whatever was selected, the callout the parameters of
+        whatever was on the map, and selecting one raster while another is
+        displayed is an ordinary thing to do.
       */}
-      {mode === "data" && asset && (
-        <div
-          className="shrink-0 border-t px-3 py-2.5"
-          style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
-        >
-          <p className="eyebrow !text-[9px] truncate">{asset.title}</p>
-          <p className="telemetry mt-1 text-meta leading-snug text-muted-foreground">
-            {asset.params}
-          </p>
-        </div>
-      )}
 
       {/*
         THE SAME ACTIONS, AT THE PRESS THAT ASKS FOR THEM.

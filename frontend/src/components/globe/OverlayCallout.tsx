@@ -116,7 +116,12 @@ const BOX_W = 216
  */
 const BOX_H_GUESS = 92
 
-/** The straight run the leader takes off the box before it turns. */
+/**
+ * The run the leader takes off the box before it turns.
+ *
+ * Not all of it straight any more: STRAIGHT below says how much is drawn as a
+ * line, and the rest of this length is where the turn's control point sits.
+ */
 const STUB = 22
 
 /** How many classes or figures a floating box carries before it is a panel. */
@@ -134,8 +139,20 @@ export interface OverlayCaption {
   legend: NonNullable<LayerLegend>
   /** The ground it was measured over. */
   area: string
-  /** The acquisition window, where the product has one. */
-  period?: string | null
+  /**
+   * The line of parameters under the name: what the raster is, in what unit,
+   * from what source, at what opacity.
+   *
+   * IT WAS CALLED `period` AND HAD STOPPED BEING ONE. The name dated from a
+   * caption that carried an acquisition window and nothing else; the readings
+   * have passed their whole parameter line through it for some time, and the
+   * rasters now do too. A field whose name describes one of the things it
+   * holds is the same defect as a label that exists twice -- it tells the next
+   * caller to put an acquisition window here, and the box would then say two
+   * different kinds of thing in one line depending on where the caption came
+   * from.
+   */
+  detail?: string | null
 }
 
 export function OverlayCallouts({
@@ -266,6 +283,24 @@ export function OverlayCallouts({
  * left the bottom would run back THROUGH the box whenever the reader pushed it
  * below the dot.
  */
+/**
+ * How much of the stub stays straight before the leader turns.
+ *
+ * THE CORNER IS THE CURVE'S CONTROL POINT, which is what makes this one number
+ * rather than a shape. The leader was a stub and then a straight run to the
+ * dot, meeting at a hard elbow; the same two segments become one arc by
+ * shortening the stub and handing the elbow to a quadratic as its control.
+ * The curve is then tangent to the stub where it leaves the box -- so it still
+ * departs square to the edge, which is what says which side of the box it
+ * belongs to -- and tangent to the elbow-to-dot line where it arrives.
+ *
+ * A third of the stub. Nothing straight at all and the leader leaves the box
+ * at whatever angle the dot happens to be in, which reads as a line thrown at
+ * the box rather than one coming out of it; much more and the arc has too
+ * little room left to bend and the elbow comes back.
+ */
+const STRAIGHT = 0.34
+
 function leaderPath(dx: number, dy: number, boxH: number): string {
   // The box's rectangle, in the anchor's own frame.
   const left = dx
@@ -281,12 +316,12 @@ function leaderPath(dx: number, dy: number, boxH: number): string {
     const x = right < 0 ? right : left
     const y = Math.min(Math.max(0, top + 12), bottom - 12)
     const stub = right < 0 ? STUB : -STUB
-    return `M ${x} ${y} L ${x + stub} ${y} L 0 0`
+    return `M ${x} ${y} L ${x + stub * STRAIGHT} ${y} Q ${x + stub} ${y}, 0 0`
   }
   const y = bottom < 0 ? bottom : top
   const x = Math.min(Math.max(0, left + 24), right - 24)
   const stub = bottom < 0 ? STUB : -STUB
-  return `M ${x} ${y} L ${x} ${y + stub} L 0 0`
+  return `M ${x} ${y} L ${x} ${y + stub * STRAIGHT} Q ${x} ${y + stub}, 0 0`
 }
 
 /** A gradient bar and the two ends it runs between. */
@@ -577,9 +612,9 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
         <p className="mt-0.5 truncate text-emphasis italic text-foreground">
           {caption.area}
         </p>
-        {caption.period && (
+        {caption.detail && (
           <p className="telemetry truncate text-micro text-muted-foreground">
-            {caption.period}
+            {caption.detail}
           </p>
         )}
         <LegendBody legend={caption.legend} />
