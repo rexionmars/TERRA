@@ -739,6 +739,40 @@ function AppBody(props: {
     useState<GridCurtailmentAnalysis | null>(null)
   const [gridCongestion, setGridCongestion] =
     useState<GridCongestionAnalysis | null>(null)
+  /*
+    THE OUTCOME OF THE LAST RUN, AND THE VALUES IT WAS MADE FROM.
+
+    Every handler below already knows how its run ended -- it says so in a
+    toast -- and until this existed the toast was the only place that answer
+    went. A toast is gone in seconds and the raster it was about stays on the
+    map, so nothing on screen could say WHICH of the values the board is
+    holding that raster is an answer about. The board's wires say it now, and
+    this is what they read.
+
+    ONE OUTCOME FOR THE APPLICATION, because there is one run: the sidecar
+    takes a single analysis at a time and every branch that starts one enforces
+    it. What tells two runs apart is not a key but the inputs recorded beside
+    the outcome -- change the product, or the season, and the wire carrying
+    that value falls back to pending on its own, because the value it carries
+    is one of the values compared.
+
+    DECLARED HERE, ahead of every handler that settles it, rather than beside
+    the run state further down: a handler defined above a `const` can call it
+    at run time, and this file has already been bitten once by reading a
+    binding in its temporal dead zone. See `retainableRef` for that note.
+  */
+  const boardInputs = useRef<Record<string, string>>({})
+  const [lastBoardRun, setLastBoardRun] = useState<{
+    ok: boolean
+    inputs: Record<string, string>
+  } | null>(null)
+  const settleRun = useCallback((ok: boolean) => {
+    setLastBoardRun({ ok, inputs: boardInputs.current })
+  }, [])
+  /* What the board's cards supply, kept current so a settle can record it. */
+  const onBoardInputs = useCallback((inputs: Record<string, string>) => {
+    boardInputs.current = inputs
+  }, [])
   const [gridBusy, setGridBusy] = useState(false)
   /*
     The editor a just-finished run needs on screen, consumed once.
@@ -769,7 +803,9 @@ function AppBody(props: {
       setGridFigure(res)
       setReveal("gridFigure")
       notifySuccess(`Fig. ${res.number}: ${res.title}`)
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Grid figure error", e)
     } finally {
       setGridBusy(false)
@@ -822,7 +858,9 @@ function AppBody(props: {
             `at ${res.summary.plants_in_aoi} plant(s).`
         )
       }
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Grid curtailment error", e)
     } finally {
       setGridBusy(false)
@@ -873,7 +911,9 @@ function AppBody(props: {
       } else {
         notifyInfo(res.connection.note)
       }
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Grid connection error", e)
     } finally {
       setGridBusy(false)
@@ -1761,7 +1801,9 @@ function AppBody(props: {
         }
       }
       notifySuccess("Composition applied to map.")
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Composition error", e)
     } finally {
       setComposeRunning(false)
@@ -1980,7 +2022,9 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Surface water error", e)
     } finally {
       setWaterRunning(false)
@@ -2045,7 +2089,9 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Solar analysis error", e)
     } finally {
       solarDispatch({ type: "run/finish" })
@@ -2087,7 +2133,9 @@ function AppBody(props: {
       notifySuccess(
         `Terrain irradiation: ${res.poa_min.toFixed(0)} to ${res.poa_max.toFixed(0)} kWh/m2/yr.`
       )
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Solar terrain error", e)
     } finally {
       solarDispatch({ type: "run/finish" })
@@ -2132,7 +2180,9 @@ function AppBody(props: {
       notifySuccess(
         `Siting: ${res.suitable_no_conflict_ha.toFixed(1)} ha without land-use conflict, ${res.suitable_cropland_ha.toFixed(1)} ha on cropland.`
       )
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Solar siting error", e)
     } finally {
       solarDispatch({ type: "run/finish" })
@@ -2236,7 +2286,9 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Energy model error", e)
     } finally {
       solarDispatch({ type: "run/finish" })
@@ -2286,7 +2338,9 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Wind screening error", e)
     } finally {
       windDispatch({ type: "run/finish" })
@@ -2364,7 +2418,9 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Flood envelope error", e)
     } finally {
       setFloodRun({ active: false, progress: 0, message: "" })
@@ -2481,7 +2537,9 @@ function AppBody(props: {
       )
       void refreshRuns()
       void refreshProjects()
+      settleRun(true)
     } catch (e) {
+      settleRun(false)
       notifyError("Inference error", e)
     } finally {
       props.setRunning(false)
@@ -3425,6 +3483,8 @@ function AppBody(props: {
                     draw. The Solar result editor reads figures now, so the
                     band offers the product and the sidecar decides.
                   */
+                  lastRun={lastBoardRun}
+                  onBoardInputs={onBoardInputs}
                   onRunSolar={(product) => {
                     if (product === "resource") void handleRunSolar()
                     else if (product === "terrain") void handleRunSolarTerrain()

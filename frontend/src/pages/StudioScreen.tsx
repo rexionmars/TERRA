@@ -48,6 +48,7 @@ import type {
 import { solarProduct as solarProductEntry } from "@/components/energy/solarProducts";
 import {
   FLOOD_DEM_PRODUCTS,
+  FLOOD_LEAST_DEMS,
   type FloodParams,
 } from "@/components/flood/floodSetup";
 import { cn } from "@/lib/utils";
@@ -281,6 +282,17 @@ export interface StudioScreenProps {
   solarParams?: SolarParams;
   onSolarParamsChange?: (patch: Partial<SolarParams>) => void;
   /** Absent where solar cannot be run; the band then does not offer it. */
+  /**
+   * The last run of this session, and the values it was made from.
+   *
+   * Held by the map screen because this one comes and goes. The board draws it
+   * on the wires: which inputs the answer on screen was computed from, and
+   * whether that run ended.
+   */
+  lastRun?: { ok: boolean; inputs: Readonly<Record<string, string>> } | null;
+  /** What the board's cards supply, reported as it changes, for the above. */
+  onBoardInputs?: (inputs: Record<string, string>) => void;
+
   onRunSolar?: (product: SolarProductId) => void;
   /** What each product has produced, for the reading editor and the stale note. */
   solarResults?: SolarResults;
@@ -728,7 +740,7 @@ export function StudioScreen(props: StudioScreenProps) {
             canRun:
               props.hasArea &&
               !props.floodBusy &&
-              (props.floodParams?.demIds.length ?? 0) >= 2,
+              (props.floodParams?.demIds.length ?? 0) >= FLOOD_LEAST_DEMS,
             onRun: () => props.onRunFlood?.(),
           }
         : bandFamily === "solar" && solarRunnable
@@ -1188,7 +1200,7 @@ export function StudioScreen(props: StudioScreenProps) {
                 (bandTool === "flood" && props.floodBusy)
               ? "The sidecar runs one analysis at a time."
               : bandTool === "flood" &&
-                  (props.floodParams?.demIds.length ?? 0) < 2
+                  (props.floodParams?.demIds.length ?? 0) < FLOOD_LEAST_DEMS
                 ? "Pick at least two elevation models: the envelope is what they disagree about."
                 : bandTool === "compose" && !props.selectedSceneId
                   ? "List the scenes for this period and choose one."
@@ -1203,6 +1215,13 @@ export function StudioScreen(props: StudioScreenProps) {
         is when most of its questions are asked.
       */
       runLog={runLog}
+      /*
+        The last run and the values it read, both the map screen's: this screen
+        is unmounted whenever the reader leaves it and the results the wires
+        are about are not. See `lastRun` on BoardRunGraphProps.
+      */
+      lastRun={props.lastRun}
+      onInputs={props.onBoardInputs}
     />
   );
 

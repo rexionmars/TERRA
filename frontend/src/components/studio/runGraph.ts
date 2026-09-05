@@ -85,12 +85,19 @@ export interface RunNodeSpec {
   /** Distance from the left of the default layout, in whole node widths. */
   col: number
   /**
-   * Roughly how tall the node draws, for the DEFAULT LAYOUT ONLY.
+   * Roughly how tall the node draws, for THE FIRST FRAME ONLY.
    *
    * Nodes are sized by their contents like anything else; this number exists
-   * so first placement can stack a column without measuring, and being a few
-   * pixels out costs a few pixels of gap. It is not read again once a node has
-   * been moved.
+   * so a column can be stacked before there is anything on screen to measure.
+   * It is superseded the moment there is: `defaultPlaces` takes the measured
+   * heights and prefers them, and NodeCanvas reports one per card.
+   *
+   * IT USED TO BE THE ONLY HEIGHT, and it went stale in the way a hand-copied
+   * number does. `product` says 78, which was true of the four short names
+   * under solar; the same card draws the nine ENERGY_PRODUCTS labels, wraps to
+   * about six rows and stands near 200. The card declared below it in the same
+   * column was placed 124px into it, and the overlap clipped two of the nine
+   * options out of reach. Nothing compared the two numbers, so nothing failed.
    */
   h: number
 }
@@ -98,18 +105,33 @@ export interface RunNodeSpec {
 /** Every node is this wide. A fixed width is what lets a port sit at a known x. */
 export const NODE_W = 208
 
-/** Space between columns, wide enough for a curve to read as a curve. */
-export const COL_GAP = 88
+/**
+ * Space between columns.
+ *
+ * WIDE ENOUGH TO READ A WIRE ON, which is a larger number than the one that
+ * makes a curve read as a curve. It was 88 while a wire said only that two
+ * cards were joined. A wire now carries the value it supplies, written along
+ * it, and the flattest run of a wire is the part nearest the card it leaves --
+ * at 88 that part was about 48 pixels long and the shortest reading on any
+ * graph, "hourly", did not fit in it.
+ *
+ * The cost is a board about a quarter wider on a three-column graph. The
+ * field is panned and zoomed and fits itself to the graph, so width is a
+ * cheaper thing to spend here than legibility.
+ */
+export const COL_GAP = 200
 
 /** Space between stacked nodes in a column. */
 export const ROW_GAP = 28
 
 /**
- * Where a port sits, measured down from the node's own top edge.
+ * Where the first port sits, measured down from the node's own top edge.
  *
- * On the header row rather than at the node's vertical centre, which is what
- * keeps a wire's two ends level when a tall node feeds a short one -- and what
- * removes the need to measure a node at all before drawing the wire into it.
+ * On the header row rather than at the node's vertical centre, so a card met
+ * by a single wire is met on the band it already reserves for one, whatever it
+ * feeds and whatever height it draws at. A card met by several fans downwards
+ * from here; NodeCanvas owns that spread, since it is a fact about how crowded
+ * a card is rather than about where the card belongs.
  */
 export const PORT_Y = 17
 
@@ -571,7 +593,19 @@ export type Place = { x: number; y: number }
  * middle. Computed rather than stored, so a graph that gains a node lays out
  * sensibly for a board that has never seen it.
  */
-export function defaultPlaces(graph: RunGraph): Record<string, Place> {
+export function defaultPlaces(
+  graph: RunGraph,
+  /**
+   * What the cards were measured at, by id, for the ones that have been drawn.
+   *
+   * Empty on the first frame, which is what `RunNodeSpec.h` is for. Once a
+   * card has been on screen its own height is the one that stacks the column,
+   * so a card whose contents depend on the tool -- `product` carries four
+   * short names under solar and nine long ones under energy -- cannot be laid
+   * out against a number written for the other case.
+   */
+  measured: Readonly<Record<string, number>> = {}
+): Record<string, Place> {
   const cols = new Map<number, RunNodeSpec[]>()
   for (const n of graph.nodes) {
     const list = cols.get(n.col) ?? []
@@ -579,8 +613,9 @@ export function defaultPlaces(graph: RunGraph): Record<string, Place> {
     cols.set(n.col, list)
   }
 
+  const tallOf = (n: RunNodeSpec) => measured[n.id] ?? n.h
   const heightOf = (list: RunNodeSpec[]) =>
-    list.reduce((sum, n) => sum + n.h, 0) + ROW_GAP * (list.length - 1)
+    list.reduce((sum, n) => sum + tallOf(n), 0) + ROW_GAP * (list.length - 1)
 
   const tallest = Math.max(...[...cols.values()].map(heightOf))
   const out: Record<string, Place> = {}
@@ -588,7 +623,7 @@ export function defaultPlaces(graph: RunGraph): Record<string, Place> {
     let y = (tallest - heightOf(list)) / 2
     for (const n of list) {
       out[n.id] = { x: col * (NODE_W + COL_GAP), y }
-      y += n.h + ROW_GAP
+      y += tallOf(n) + ROW_GAP
     }
   }
   return out
