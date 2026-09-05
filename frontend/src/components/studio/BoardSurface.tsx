@@ -757,7 +757,7 @@ export function BoardSurface({
             .map((e) => ({
               key: `reading:${e.id}`,
               at: readingAnchor,
-              caption: { legend: e.legend, area: e.title, period: e.params },
+              caption: { legend: e.legend, area: e.title, detail: e.params },
             })),
     [analyses, analysesOnMap, readingAnchor]
   )
@@ -2854,12 +2854,27 @@ export function BoardSurface({
         */
         const src = propertyOnMap.has(key) ? legendByArea.get(a.id) : null
         const legend = src ? legendFor(l.id, src) : null
+        /*
+          THE RASTER'S OWN PARAMETERS, NOT ITS RUN'S PERIOD.
+
+          The box said the window the run analysed, which is a fact about the
+          run and the same for every raster it produced -- so two planes from
+          one run carried identical captions while differing in unit, source
+          and opacity, which is the whole of what tells them apart. The line
+          the panel wrote under a selected asset is the one that answers "what
+          am I looking at", and it belongs where the thing is being looked at.
+
+          Matched on `sceneId` rather than on the asset's own id: mapLayers
+          names a layer `solar:<id>` and runAssets carries that colon form for
+          exactly this lookup, which its own note says is the field's reason
+          for existing.
+        */
+        const detail =
+          assetRuns
+            .find((r) => r.areaId === a.id)
+            ?.assets.find((x) => x.sceneId === l.id)?.params ?? null
         const caption: OverlayCaption | undefined = legend
-          ? {
-              legend,
-              area: a.title,
-              period: assetRuns.find((r) => r.areaId === a.id)?.period ?? null,
-            }
+          ? { legend, area: a.title, detail }
           : undefined
         out.push({ key, areaId: a.id, layer: l, caption })
       }

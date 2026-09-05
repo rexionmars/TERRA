@@ -586,7 +586,7 @@ export function GlobeSurface({
               "absence of measurement, not a curtailment of zero.",
         },
         area: String(p.name ?? "—"),
-        period: null,
+        detail: null,
       },
     }
   }, [pickedPlant])
@@ -649,7 +649,7 @@ export function GlobeSurface({
               "short of the conductor.",
           },
           area: String(p.name ?? "—"),
-          period: null,
+          detail: null,
         },
       }
     }
@@ -680,7 +680,7 @@ export function GlobeSurface({
             "attaches to is published separately and is not this.",
         },
         area: String(p.name ?? "—"),
-        period: null,
+        detail: null,
       },
     }
   }, [pickedNet])
