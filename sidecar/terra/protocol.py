@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NoReturn
 
 Request = dict[str, Any]
 
@@ -28,8 +28,15 @@ def emit_progress(progress: int, msg: str) -> None:
     sys.stderr.flush()
 
 
-def fail(msg: str) -> None:
-    """Write an error to stderr and exit non-zero."""
+def fail(msg: str) -> NoReturn:
+    """
+    Write an error to stderr and exit non-zero.
+
+    NoReturn, not None. It ends in sys.exit, so nothing after a call to it runs
+    -- and typed as returning None, every caller that used it as a guard was
+    read by mypy as falling through. `terra/grid/actions.py` alone produced
+    eleven union-attr errors on values it had just refused.
+    """
     sys.stderr.write(json.dumps({'error': msg}) + '\n')
     sys.stderr.flush()
     sys.exit(1)

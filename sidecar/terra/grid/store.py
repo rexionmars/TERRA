@@ -40,6 +40,7 @@ was told not to generate and what the resource was doing at that half hour.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from terra import protocol
 
@@ -417,7 +418,7 @@ CREATE INDEX IF NOT EXISTS pv_curtail_reason_idx
 # How each ONS dataset's published columns map onto a table here. Held as data
 # because the wind record is the same shape with one column renamed, and a
 # mapping written twice is a mapping that drifts.
-TABLES = {
+TABLES: dict[str, dict[str, Any]] = {
     'pv_curtailment_detail': {
         'table': 'br.pv_detail',
         'columns': {
@@ -1007,7 +1008,7 @@ def register_geojson(conn, bbox=None, kinds=None, limit: int = 40000) -> dict:
         cols = [d.name for d in cur.description]
         rows = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
 
-    features = []
+    features: list[dict[str, Any]] = []
     for r in rows:
         features.append({
             'type': 'Feature',
