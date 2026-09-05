@@ -228,37 +228,39 @@
     scale draws a grid of runs in the browser and this one draws the cards on a
     board, and no surface holds both.
 
-    155 RATHER THAN 170, AND THE MOVE WAS FORCED. Success used to be a mid
+    160 RATHER THAN 170, AND THE MOVE WAS FORCED. Success used to be a mid
     green at h136 and is now the reference's lime at h124, which is a hue this
     scale has to keep clear of: a WAITING wire painted in the part it carries
     and a wire that has BEEN READ are the same picture at different weights,
     and if they are also the same hue the board stops distinguishing a question
-    from its answer. 155 is as warm as the first of these can go and still hold
-    31 degrees of separation.
+    from its answer. 160 holds 36 degrees of separation.
 
-    L 0.699 AND C 0.078, WHERE THE CHROMA USED TO BE 0.112. Two settings have
-    been wrong here in opposite directions. The product scale's 0.090 was tried
-    first, on the argument that a categorical colour at the chroma of the
-    semantic tokens competes with the ones asking to be acted on -- and at that
-    chroma, behind a header wash, four cards read as four greys. It went to
-    0.112, which is where the wires were flat fills. They are panes now, lit
-    and scattered and tinted at 0.42 (see PANE_TINT_HEAD in NodeCanvas), and a
-    pane multiplies whatever chroma it is given by the light behind it: at
-    0.112 the board was four saturated bands where the reference has near-black
-    ones and reserves colour for the two outcomes. 0.078 is the reading that
-    leaves the cards separable and gives the lime and the salmon the field.
+    L 0.699 AND C 0.045, WHERE THE CHROMA WAS 0.112 AND THEN 0.078. Three
+    settings have been wrong here, each in the direction of the last argument.
+    The product scale's 0.090 was tried first and four cards read as four
+    greys behind a header wash; it went to 0.112, which is where the wires were
+    flat fills; then to 0.078 when they became panes.
 
-    LIGHTNESS UNCHANGED THROUGH BOTH MOVES, WHICH IS WHY THE RATIOS BARELY
-    MOVED. Chroma at a fixed L is a change contrast does not notice and the eye
-    does -- the same move --p-aside records above. Each is drawn as a card's
-    header wash, its border and its glyph: a boundary at the 3.0 floor, never
-    text. 3.82, 3.80, 3.62 and 3.56 on the raised surface, checked in
-    lib/contrast.ts.
-  */
-  --p-part-source: 118 173 137;
-  --p-part-when: 97 171 188;
-  --p-part-method: 158 150 203;
-  --p-part-value: 194 139 169;
+    0.045 is what a set of reference palettes settled. Measured, they hold two
+    kinds of colour and nothing between: grounds at C 0.012 to 0.030 -- Toxic
+    Forest's #0B2027, Graphite 900's #23262C -- and accents at C 0.18 to 0.20,
+    which is #B1FA63 and #FE7733. This scale paints SURFACES: a card's header
+    wash, its border, and a waiting wire's pane. It belongs on the ground side
+    of that split, and at 0.078 it was in the gap, too coloured to be a ground
+    and too quiet to be an accent, so a board at rest was four muted hues
+    competing with the one control that is actually asking to be pressed.
+
+    THE TWO WARM ONES CAME ACROSS. 291 and 345 are now 280 and 325, which puts
+    the whole scale on the cool side of the wheel and leaves warmth to mean one
+    thing on this surface: the accent, the run that is reading, the route that
+    failed. The reference palettes are built the same way -- a cool near-black
+    field, one green, one orange -- and it is why they read as a field with two
+    things happening on it rather than as six colours.
+
+  --p-part-source: 135 167 149;
+  --p-part-when: 126 166 174;
+  --p-part-method: 152 156 186;
+  --p-part-value: 173 149 174;
 
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
@@ -353,15 +355,15 @@
   --p-kind-flood: 64 119 163;
   --p-kind-wind: 117 103 161;
 
-  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.066
-     rather than the dark theme's 0.078 -- a light ground holds less chroma at
-     these hues, and the two themes keep the same ratio between their chromas
-     as they did before the scale was muted. 3.68, 3.71, 3.86 and 3.93 on the
-     raised surface. */
-  --p-part-source: 81 125 96;
-  --p-part-when: 63 123 137;
-  --p-part-method: 113 107 149;
-  --p-part-value: 141 98 122;
+  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.038
+     rather than the dark theme's 0.045 -- a light ground holds less chroma at
+     these hues, and the two themes keep the ratio between their chromas that
+     they had before the scale was quietened. 3.34, 3.32, 3.42 and 3.45 against
+     the deepest light ground, which is the one that binds here. */
+  --p-part-source: 94 120 106;
+  --p-part-when: 87 120 126;
+  --p-part-method: 108 111 136;
+  --p-part-value: 125 106 126;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
