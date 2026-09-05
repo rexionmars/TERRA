@@ -82,21 +82,73 @@ export interface AreaLayout<E extends string = string> {
 }
 
 /**
+ * The gap between two areas, and between an area and the window's edge.
+ *
+ * WHAT SEPARATES TWO PANELS IS A GAP, NOT A LINE. The areas met flush and were
+ * told apart by a 1px border on two of their four sides -- a boundary a reader
+ * has to resolve, at low contrast, everywhere, continuously. A strip of the
+ * window's own ground between them is the same statement made by the surface
+ * instead of by a rule, and it needs no contrast at all: the ground is two
+ * ramp steps below a panel, so the gap reads even out of focus.
+ *
+ * TAKEN HALF FROM EACH SIDE, AND THE VIEWPORT GIVES UP HALF TOO. An area is
+ * inset by half of this inside its own rectangle, and the whole viewport is
+ * inset by half before any rectangle is computed -- so the gap between two
+ * areas is half plus half, and the gap at the window's edge is the viewport's
+ * half plus the area's half. The same number in both places, which insetting
+ * either one alone does not give.
+ *
+ * THE DIVISION STILL RUNS DOWN THE MIDDLE OF IT. Seams are computed from the
+ * inset viewport, so the line a drag moves is centred in the gap and the 6px
+ * grab target very nearly fills it: grabbing the space between two panels is
+ * what resizes them.
+ */
+export const AREA_GUTTER_PX = 5
+
+/** Applied to an area's own box, so a corner is cut where the gap turns one. */
+export const AREA_RADIUS_PX = 6
+
+/**
  * The rectangles, from one walk of the tree.
  *
  * Nothing is stored: a leaf's position is a consequence of the splits above
  * it, so there is no second copy to fall out of step with the first.
+ *
+ * THE GAP IS A PARAMETER HERE AND NOT A STYLE ON THE AREA, and that is the
+ * same argument. Three call sites read this: the tree that draws the areas,
+ * the lookup that places the 3D viewport's own overlays, and the hit test that
+ * maximises whatever is under the pointer. An inset applied by the drawing one
+ * alone would put the gizmo's idea of the viewport a few pixels from where the
+ * viewport is -- which is the mismatch `viewportRect` already carries a note
+ * about -- and would let a press in the gap maximise a panel it is not in.
+ * Passed as a number rather than assumed, so a caller that wants the OWNED
+ * rectangles rather than the drawn ones can still ask for them.
  */
 export function areaRects<E extends string>(
   root: AreaNode<E>,
-  viewport: Rect
+  viewport: Rect,
+  gutter = 0
 ): AreaLayout<E> {
   const leaves: AreaLeafRect<E>[] = []
   const seams: AreaSeam[] = []
+  const half = gutter / 2
+  const inner: Rect = {
+    x: viewport.x + half,
+    y: viewport.y + half,
+    w: Math.max(0, viewport.w - gutter),
+    h: Math.max(0, viewport.h - gutter),
+  }
 
   const walk = (node: AreaNode<E>, r: Rect): void => {
     if (node.kind === "leaf") {
-      leaves.push({ id: node.id, editor: node.editor, ...r })
+      leaves.push({
+        id: node.id,
+        editor: node.editor,
+        x: r.x + half,
+        y: r.y + half,
+        w: Math.max(0, r.w - gutter),
+        h: Math.max(0, r.h - gutter),
+      })
       return
     }
     const at = clampFraction(node.at)
@@ -112,7 +164,7 @@ export function areaRects<E extends string>(
     }
   }
 
-  walk(root, viewport)
+  walk(root, inner)
   return { leaves, seams }
 }
 
