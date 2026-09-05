@@ -281,10 +281,13 @@ const PANE_SATURATE = 1.7
  * is `pending`, so the tint below is the ONLY thing that decides what the
  * surface looks like, and at 0.42 it decided on eight saturated bands.
  *
- * At 0.16 a pending wire lands between rgb(50 61 64) and rgb(65 56 61) -- the
- * part's hue as a cast on near-black, a shade off the ground rather than a
- * colour on it. What separates it from the field is the lift and the cut edge,
- * not the hue, and what happens the moment a wire reports something is that an
+ * At 0.16 a pending wire lands between rgb(54 61 62) and rgb(62 58 62) -- four
+ * bands differing by four levels at most, which is the point. The part's hue
+ * arrives as a cast on near-black, a shade off the ground rather than a colour
+ * on it, and the scale that supplies it has since been quietened to C 0.045
+ * for the same reason the tint was: colour on this board means an outcome, not
+ * a category. What separates a wire from the field is the lift and the cut
+ * edge, not the hue, and what happens the moment a wire reports something is that an
  * opaque lime band crosses a quiet board. That contrast is the information.
  *
  * A GRADIENT ALONG THE RUN, AND IT FALLS RATHER THAN PEAKS. It was symmetric
@@ -301,8 +304,8 @@ const PANE_SATURATE = 1.7
  *
  * THE CONTRAST CEILING THAT USED TO BIND HERE NO LONGER DOES. At 0.42 the
  * reading measured 4.55:1 against the worst hue where two panes crossed, a
- * twentieth clear of its floor; at 0.16 it measures 6.79, and on the open
- * field 8.18. A quiet band is a legible one -- which is worth recording,
+ * twentieth clear of its floor; at 0.16 it measures 6.80, and on the open
+ * field 8.19. A quiet band is a legible one -- which is worth recording,
  * because the version that looked least like the reference was also the one
  * whose text had the least room.
  */
