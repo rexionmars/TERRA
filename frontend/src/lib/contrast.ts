@@ -116,7 +116,7 @@ export function apca(text: Channels, background: Channels): number {
 /** The channel values in index.css, per theme. Edited together with it. */
 export const TOKENS = {
   dark: {
-    sunk: [24, 24, 24],
+    sunk: [12, 12, 12],
     ink: [30, 30, 30],
     control: [40, 40, 40],
     surface: [48, 48, 48],
@@ -142,7 +142,7 @@ export const TOKENS = {
     wireFailed: [224, 132, 125],
   },
   light: {
-    sunk: [223, 223, 223],
+    sunk: [215, 215, 215],
     ink: [231, 231, 231],
     control: [238, 238, 238],
     surface: [244, 244, 244],

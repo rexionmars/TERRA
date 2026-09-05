@@ -4632,7 +4632,24 @@ export function BoardSurface({
         if (r) pointerRef.current = { x: e.clientX - r.left, y: e.clientY - r.top }
       }}
       className="app-no-drag absolute inset-0 z-[500] overflow-hidden"
-      style={{ background: "var(--s-panel)" }}
+      style={{
+        /*
+          `app`, THE GROUND BEHIND THE AREAS, AND NOT A PANEL.
+
+          This is what shows through the gap between every two panels, so
+          painting it `panel` made the gap the colour of the things it
+          separates -- a five-pixel strip of exactly the tone on either side of
+          it, which is no gap at all. It was mis-classified when the inline
+          backgrounds were moved onto roles: it is a full-area surface and it
+          looked like a panel body, but what it actually is is the floor they
+          all rest on.
+
+          Opaque either way, because the map keeps rendering underneath as a
+          sibling and a translucent scrim would leave tiles moving behind the
+          rasters.
+        */
+        background: "var(--s-app)",
+      }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
