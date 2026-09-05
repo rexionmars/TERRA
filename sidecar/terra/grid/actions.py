@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from terra import protocol
 from terra.protocol import Request
@@ -207,7 +208,7 @@ def grid_figure(req: Request, work_dir: Path) -> None:
                     f'figure {number} reads {dataset!r} and the store holds '
                     f'none of it')
         protocol.emit_progress(30, 'reading the record')
-        kw = {}
+        kw: dict[str, Any] = {}
         if req.get('start'):
             kw['start'] = str(req['start'])
         if req.get('end'):
