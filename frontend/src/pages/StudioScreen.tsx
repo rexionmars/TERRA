@@ -1,4 +1,5 @@
 import {
+  Fragment,
   Suspense,
   lazy,
   useEffect,
@@ -54,7 +55,7 @@ import {
 import { cn } from "@/lib/utils";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
 import { StudioLoading } from "@/components/studio/StudioLoading";
-import type { EditorId } from "@/lib/studioEditors"
+import { STUDIO_GROUPS, type EditorId } from "@/lib/studioEditors"
 import type { GridProductId } from "@/lib/gridOptions";
 import { BOARD_TOOLS } from "@/lib/mapTools";
 import {
@@ -878,7 +879,7 @@ export function StudioScreen(props: StudioScreenProps) {
   const runBarHeader = {
     menus: (
       <>
-        {BOARD_TOOLS.filter((t) =>
+        {(() => {
           /*
             ENERGY IS OFFERED IF ANY OF ITS THREE FAMILIES CAN ANSWER, which is
             weaker than what the three separate entries required and is the
@@ -894,45 +895,89 @@ export function StudioScreen(props: StudioScreenProps) {
             reader has psycopg installed and no database, or a database and no
             schema, and hiding it leaves them with no surface that says so.
           */
-          t.id === "energy"
-            ? !!props.solarParams || !!props.windParams || !!props.gridStore
-            : t.id === "flood"
-              ? !!props.floodParams
-              : true,
-        ).map((t) => {
-          const on = bandTool === t.id;
-          const Icon = TOOL_ICON[t.id];
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              onClick={() => {
-                setBoardTool(t.id);
-                if (isMapTool(t.id)) setLeftPanel(t.id);
-              }}
-              title={t.label}
-              className={cn(
-                "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
-                on
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-hover hover:text-foreground",
-              )}
-            >
-              <Icon className="size-3 shrink-0" />
-              {/*
-                  Every tab named, not only the chosen one. Naming the active
-                  tab alone tells a reader what they already know -- they just
-                  pressed it -- and leaves the three they have not tried as
-                  bare glyphs, which is the half of the choice that actually
-                  needs saying. `header-label` withdraws them together when the
-                  area is too narrow to carry four names.
-                */}
-              <span className={cn(!on && "header-label")}>{t.label}</span>
-            </button>
+          const offered = BOARD_TOOLS.filter((t) =>
+            t.id === "energy"
+              ? !!props.solarParams || !!props.windParams || !!props.gridStore
+              : t.id === "flood"
+                ? !!props.floodParams
+                : true,
           );
-        })}
+          /*
+            GROUPED BY THE STUDIO'S OWN FOUR SUBJECTS, AND WITH A RULE RATHER
+            THAN A MENU.
+
+            The workspace bar and the editor menu both took the groups as named
+            sections, and repeating that here would be repeating a pattern past
+            where it fits: this row is five entries at most and two of them
+            withdraw when their parameters are absent, so four entrances would
+            cost a press on a row that already fits, and on a store with no
+            energy and no flood it would be four entrances over three items.
+
+            What the groups buy in a row this short is not navigation but a
+            statement -- Surface water and Flood envelope are two readings of
+            one subject and stand together, Energy is not a third of them --
+            and a hairline makes it without spending a name's width on a header
+            the bar would have to withdraw first. The names are still said, in
+            the title, where there is room for them.
+
+            Empty groups draw neither entries nor a rule, so a filtered row
+            never opens or ends with a divider standing on its own.
+          */
+          return STUDIO_GROUPS.map((g, gi) => {
+            const members = offered.filter((t) => t.group === g.id);
+            if (!members.length) return null;
+            const first = STUDIO_GROUPS.slice(0, gi).every(
+              (prev) => !offered.some((t) => t.group === prev.id),
+            );
+            return (
+              <Fragment key={g.id}>
+                {!first && (
+                  <span
+                    className="mx-0.5 h-4 w-px shrink-0 self-center"
+                    style={{ background: "rgb(var(--p-line) / 0.45)" }}
+                    aria-hidden
+                  />
+                )}
+                {members.map((t) => {
+                  const on = bandTool === t.id;
+                  const Icon = TOOL_ICON[t.id];
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      onClick={() => {
+                        setBoardTool(t.id);
+                        if (isMapTool(t.id)) setLeftPanel(t.id);
+                      }}
+                      title={`${g.label}: ${t.label}`}
+                      className={cn(
+                        "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+                        on
+                          ? "bg-accent text-accent-foreground"
+                          : "text-muted-foreground hover:bg-hover hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="size-3 shrink-0" />
+                      {/*
+                        Every tab named, not only the chosen one. Naming the
+                        active tab alone tells a reader what they already know
+                        -- they just pressed it -- and leaves the others as
+                        bare glyphs, which is the half of the choice that
+                        actually needs saying. `header-label` withdraws them
+                        together when the area is too narrow to carry them.
+                      */}
+                      <span className={cn(!on && "header-label")}>
+                        {t.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </Fragment>
+            );
+          });
+        })()}
       </>
     ),
     /*
