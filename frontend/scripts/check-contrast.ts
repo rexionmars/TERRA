@@ -35,6 +35,11 @@ const CSS_NAME: Record<string, string> = {
   accent: "--p-accent",
   accentQuiet: "--p-accent-quiet",
   accentDim: "--p-accent-dim",
+  aside: "--p-aside",
+  partSource: "--p-part-source",
+  partWhen: "--p-part-when",
+  partMethod: "--p-part-method",
+  partValue: "--p-part-value",
 }
 
 /**

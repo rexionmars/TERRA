@@ -209,7 +209,7 @@ export function FloodRoutingPanel({
       run: 0,
     }
     const card = (id: string, header: React.ReactNode, body: React.ReactNode,
-                  tone?: "action" | "held"): CanvasNode => ({
+                  tone?: "action"): CanvasNode => ({
       id,
       place: places[id] ?? { x: columnX(id), y: stackY[id] },
       h: NODE[id].h,
@@ -350,9 +350,9 @@ export function FloodRoutingPanel({
   const edges = useMemo(
     () =>
       [
-        ["area", "run"],
-        ["rain", "run"],
-        ["routing", "run"],
+        { from: "area", to: "run" },
+        { from: "rain", to: "run" },
+        { from: "routing", to: "run" },
       ] as const,
     []
   )

@@ -27,20 +27,60 @@ export function Head({
   icon: Icon,
   label,
   lit,
+  aside,
+  colour,
 }: {
   icon: PhosphorIcon
   label: string
   lit?: boolean
+  /**
+   * The card's own colour, where the caller has one for it.
+   *
+   * A CSS colour rather than a name, for the reason `subject` on CanvasNode
+   * gives: this file knows nothing about what a caller's categories are. It is
+   * the weakest of the three signals the glyph can carry and is taken last --
+   * a card that is out of the request or holding something has something to
+   * say about ITSELF, and what kind of card it is can wait behind that.
+   */
+  colour?: string
+  /**
+   * The card is on the graph and not in the request.
+   *
+   * Separate from `lit` rather than a third value of it, because the two
+   * answer different questions: `lit` is about what this card is CARRYING and
+   * changes as the reader works, and this is about where the card stands in
+   * the graph and does not change at all. A card can never be both -- one that
+   * feeds nothing has nothing to feed it with -- so the glyph takes this one
+   * first and the ordering below costs nothing.
+   */
+  aside?: boolean
 }) {
   return (
     <>
       <Icon
         className={cn(
           "size-3 shrink-0",
-          lit ? "text-accent-quiet" : "text-muted-foreground"
+          aside
+            ? "text-aside"
+            : lit
+              ? "text-accent-quiet"
+              : colour
+                ? undefined
+                : "text-muted-foreground"
         )}
+        style={!aside && !lit && colour ? { color: colour } : undefined}
       />
-      <span className="eyebrow !text-[9px] truncate">{label}</span>
+      {/*
+        The label is truncated at the card's width, and `title` is how the whole
+        of it is still reachable. The run node's header is the tool's own
+        sentence -- "Map irradiation over terrain" -- which does not fit 208px
+        at any size this row uses, so the ellipsis there is the normal case
+        rather than the exception, and a name that cannot be read is a card
+        that does not say which run it is.
+      */}
+      <span className="eyebrow !text-[9px] truncate" title={label}>
+        {label}
+      </span>
     </>
   )
 }

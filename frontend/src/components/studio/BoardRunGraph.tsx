@@ -68,6 +68,7 @@ import {
   modeBlockedBy,
   type ClassifyMode,
 } from "@/lib/classifyOptions"
+import { FLOOD_LEAST_DEMS } from "@/components/flood/floodSetup"
 import { SERIES_FIGURES } from "@/lib/gridFigures"
 import { type GridProductId } from "@/lib/gridOptions"
 import {
@@ -108,8 +109,22 @@ import {
   writeBoardMemory,
 } from "./boardMemory"
 import { MethodPanel } from "./MethodPanel"
-import { NodeCanvas, type CanvasNode } from "./NodeCanvas"
+import {
+  NodeCanvas,
+  type CanvasEdge,
+  type CanvasNode,
+  type EdgeState,
+} from "./NodeCanvas"
 import { defaultPlaces, runGraph, type Place, type RunNodeId } from "./runGraph"
+import {
+  HEAVY,
+  reading,
+  signature,
+  subject,
+  supplied,
+  type RunValue,
+  type Subject,
+} from "./runValue"
 
 /**
  * One glyph per product, exported so the area header names them the same.
@@ -582,6 +597,265 @@ export interface BoardRunGraphProps {
   runLog?: RunLogEntry[]
   /** The studio surface the method panel is portalled into and clamped inside. */
   surface?: HTMLElement | null
+
+  /**
+   * The last run of this session: what it read, and how it ended.
+   *
+   * WHAT IT IS FOR is the difference between "a run succeeded" and "the answer
+   * on screen is an answer about THIS value". The first is one fact and would
+   * be drawn identically on every wire; the second is per wire, and it is what
+   * lets a season changed after a run take its wire back to pending while the
+   * area's stays read.
+   *
+   * HELD BY THE CALLER, not here, because this component is unmounted whenever
+   * the reader leaves the studio and the results it is about are not. Kept
+   * here, a wire would forget what it had been read for while the raster it
+   * produced was still on the map.
+   *
+   * Null before anything has run, which is not the same as a run that read
+   * nothing: every wire is pending, and none of them is failed.
+   */
+  lastRun?: { ok: boolean; inputs: Readonly<Record<string, string>> } | null
+
+  /**
+   * What every card supplies right now, reported as it changes.
+   *
+   * The caller records this when it starts a run and hands it back as
+   * `lastRun`. One signature per card, taken from the value the card supplies
+   * -- see cardValues here and `signature` in runValue.ts. Reported from this
+   * side because this is where the values are assembled; deriving them again
+   * on the other would be a second definition of what an input is.
+   *
+   * Stable identity expected: it is called from an effect keyed on the values
+   * themselves, so a callback rebuilt on every render would report on every render.
+   */
+  onInputs?: (inputs: Record<string, string>) => void
+}
+
+/**
+ * What one loss chain costs, as a percentage.
+ *
+ * Series, not sum: each factor takes its share of what the one before it left.
+ * Both groups the card edits are in the chain, because both are sent.
+ */
+function compoundLoss(solar: NonNullable<BoardRunGraphProps["solar"]>): number {
+  const all = [
+    ...Object.values(solar.declaredLoss),
+    ...Object.values(solar.optionalLoss),
+  ]
+  const kept = all.reduce((acc, pct) => acc * (1 - pct / 100), 1)
+  return Math.round((1 - kept) * 1000) / 10
+}
+
+/**
+ * WHAT EACH PART OF A REQUEST IS DRAWN IN, AND AT WHAT WEIGHT.
+ *
+ * Two channels over one scale, which is the whole of the scheme. The HUE says
+ * which part of the question a card answers -- where, when, by which method,
+ * at what values -- and the ALPHA says how much that part decides. Change
+ * where or when a run reads and it is a run about something else; change a
+ * threshold and it is the same question answered differently, so the source
+ * and the stretch are drawn at nearly twice the ink of the method and the
+ * settings. See HEAVY in runValue.ts, which is where that ordering is argued.
+ *
+ * A card with no part -- the layers card, the run card -- takes neither and
+ * keeps the chassis's grey, which is the correct statement about both: one is
+ * not in the request and the other is where the request ends.
+ *
+ * The tokens themselves are declared and measured in index.css and
+ * lib/contrast.ts. What is decided here is only how much of each is used.
+ */
+const PART_WASH = { heavy: 0.3, light: 0.18 }
+const PART_EDGE = { heavy: 0.85, light: 0.55 }
+
+function partPaint(part: Subject | null): CanvasNode["subject"] {
+  if (!part) return undefined
+  const weight = HEAVY.includes(part) ? "heavy" : "light"
+  const token = `var(--p-part-${part})`
+  return {
+    wash: `rgb(${token} / ${PART_WASH[weight]})`,
+    edge: `rgb(${token} / ${PART_EDGE[weight]})`,
+  }
+}
+
+/** The same colour at full strength, for the glyph that titles the card. */
+const partGlyph = (part: Subject | null): string | undefined =>
+  part ? `rgb(var(--p-part-${part}))` : undefined
+
+/**
+ * The state of a wire, in the word drawn where it lands.
+ *
+ * Lower case, and short. These sit between two cards at nine pixels and are
+ * read in passing; a sentence there would be a second thing to read on a
+ * surface whose subject is the cards.
+ */
+const EDGE_NOTE: Record<EdgeState, string> = {
+  missing: "not set",
+  pending: "pending",
+  reading: "reading",
+  read: "read",
+  failed: "error",
+}
+
+/**
+ * WHAT EVERY CARD SUPPLIES, DECLARED ONCE PER CARD.
+ *
+ * TOTAL OVER THE NODE IDS, and that is the point of it. This replaced three
+ * hand-written tables over the same subject -- a string for the wire to carry,
+ * a predicate for whether the card was empty, and the string again as the
+ * signature a later run is compared against -- each of which a new card could
+ * be added without, and one of which had already been added without: a
+ * composition with no scene chosen drew a wire as though it were carrying one.
+ * A card added to RunNodeId with no entry here does not compile.
+ *
+ * The reading, the absence and the signature all follow from the value; see
+ * runValue.ts, which owns all three and explains why they are one thing.
+ *
+ * `none` IS A REAL ANSWER, and it covers two cases that are not the same. The
+ * layers card and the run card supply nothing to a run by their nature. The
+ * rest are cards whose bundle is absent -- a board with no solar parameters
+ * draws no solar cards at all, so no wire asks these what they hold.
+ *
+ * A CARD HOLDING SEVERAL NUMBERS ALSO ANSWERS `none`, and that is a limit
+ * rather than an omission: the loss card carries nine declared percentages and
+ * the radiation card three unrelated figures, and no single reading is the
+ * value of either. Their wires draw without one rather than with a guess at
+ * which of the numbers is the card.
+ */
+function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
+  const { solar, wind, grid, compose, flood, water } = p
+  const none: RunValue = { kind: "none" }
+  const onWind =
+    p.tool === "energy" &&
+    !!p.energyProduct &&
+    energyFamily(p.energyProduct) === "wind"
+  const productLabel =
+    p.tool === "energy"
+      ? (ENERGY_PRODUCTS.find((e) => e.id === p.energyProduct)?.label ?? null)
+      : solar
+        ? SHORT_SOLAR[solar.product]
+        : null
+
+  return {
+    area: { kind: "ground", label: p.hasArea ? p.areaLabel || "drawn" : null },
+    period: { kind: "span", start: p.start, end: p.end },
+    model: {
+      kind: "choice",
+      label: MODEL_OPTIONS.find((o) => o.id === p.modelKind)?.label ?? null,
+    },
+    mode: {
+      kind: "choice",
+      label: MODE_OPTIONS.find((o) => o.id === p.mode)?.label ?? null,
+    },
+    scene: compose
+      ? {
+          kind: "scene",
+          id: compose.selectedSceneId || null,
+          found: compose.scenes.length,
+        }
+      : none,
+    composite: compose
+      ? { kind: "choice", label: compose.kind === "index" ? "index" : "rgb" }
+      : none,
+    // Three of three: a composition is an ordered triple, so the floor is the
+    // whole of it and the reading names them rather than counting them.
+    bands: compose
+      ? { kind: "several", items: compose.bands, least: 3, of: 3 }
+      : none,
+    spectralIndex: compose ? { kind: "choice", label: compose.index } : none,
+    stretch: compose
+      ? {
+          kind: "band",
+          low: compose.stretchLow,
+          high: compose.stretchHigh,
+          unit: "%",
+        }
+      : none,
+    waterIndex: water ? { kind: "choice", label: water.index } : none,
+    product: { kind: "choice", label: productLabel },
+    record: onWind
+      ? wind
+        ? { kind: "record", years: wind.recordYears, of: "hourly" }
+        : none
+      : solar
+        ? { kind: "record", years: solar.hourlyYears, of: "hourly" }
+        : none,
+    season: solar
+      ? {
+          kind: "choice",
+          label:
+            SOLAR_SEASONS.find((o) => o.id === solar.season)?.label ?? null,
+        }
+      : none,
+    slope: solar
+      ? {
+          kind: "band",
+          low: solar.slopeAcceptableDeg,
+          high: solar.slopeRestrictiveDeg,
+          unit: "deg",
+        }
+      : none,
+    turbine: wind ? { kind: "measure", of: wind.hubHeightM, unit: "m" } : none,
+    roughness: wind
+      ? {
+          kind: "band",
+          low: wind.roughnessLowM,
+          high: wind.roughnessHighM,
+          unit: "m",
+        }
+      : none,
+    models: flood
+      ? {
+          kind: "several",
+          items: flood.demIds,
+          least: FLOOD_LEAST_DEMS,
+          of: flood.demOptions.length,
+        }
+      : none,
+    // The reference height, which is what the envelope is taken AT. The
+    // drainage threshold is the second number on the same card and stays on
+    // it: two measures in different units are not one reading.
+    threshold: flood
+      ? { kind: "measure", of: flood.referenceThresholdM, unit: "m" }
+      : none,
+    store: grid ? { kind: "store", reachable: grid.reachable } : none,
+    window: grid ? { kind: "span", start: grid.start, end: grid.end } : none,
+    figure: grid ? { kind: "choice", label: `fig. ${grid.figure}` } : none,
+    /*
+      THE FOUR CARDS THAT HELD SEVERAL FIGURES, each now reporting the one it
+      is about.
+
+      They answered `none` on the argument that no single reading is the value
+      of a card carrying nine percentages -- which was true of the card and
+      false of the request. Every one of them has a headline the rest qualify:
+      the climatology is a depth of record with an azimuth and a ratio set
+      against it, the plant is an analysis period, the array is its ground
+      cover ratio, and the losses are their own compound. Leaving them blank
+      left half of the busiest graph in the neutral grey that means "this card
+      answers no part of the question", which is the one thing they do not.
+    */
+    radiation: solar
+      ? { kind: "record", years: solar.climatologyYears, of: "climatology" }
+      : none,
+    plant: solar
+      ? { kind: "record", years: solar.analysisPeriodYears, of: "analysis" }
+      : none,
+    array: solar
+      ? { kind: "measure", of: solar.gcrFixed, unit: "GCR" }
+      : none,
+    /*
+      The compound, not the sum. Losses apply in series -- each takes its share
+      of what the one before it left -- so two percent and two percent is 3.96
+      and not four. It is the figure the model itself derives; reporting the
+      sum on the wire would put a different number on the board from the one in
+      the answer.
+    */
+    losses: solar
+      ? { kind: "measure", of: compoundLoss(solar), unit: "% loss" }
+      : none,
+    layers: none,
+    run: none,
+  }
 }
 
 /**
@@ -616,6 +890,28 @@ function useKeptPlaces() {
 export function BoardRunGraph(props: BoardRunGraphProps) {
   const busy = props.running
   const [places, move] = useKeptPlaces()
+
+  /*
+    What the cards were measured at, which supersedes the heights in SPEC.
+
+    NOT KEPT ACROSS A SESSION, unlike the places above. A place is work someone
+    did by hand and is lost if it is thrown away; a height is a fact about the
+    current render, and one restored from a save would describe the card as it
+    was under a different tool, in a different theme, at a different font size.
+    It costs one extra layout pass to measure again and cannot go stale.
+
+    Compared before it is stored, because a ResizeObserver reports on every
+    layout that touches the card and an unconditional write would re-render the
+    field on each one. Sub-pixel changes are noise: the observer reports
+    fractional heights, and a card that settles at 201.6 then 201.59 has not
+    changed.
+  */
+  const [heights, setHeights] = useState<Record<string, number>>({})
+  const onMeasure = useCallback((id: string, h: number) => {
+    setHeights((prev) =>
+      Math.abs((prev[id] ?? 0) - h) < 0.5 ? prev : { ...prev, [id]: h }
+    )
+  }, [])
 
   /*
     The latest stage, read the way StudioStatusBar reads it so the card and the
@@ -1664,7 +1960,9 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
               key={o.id}
               label={o.label}
               chosen={on}
-              disabled={busy || (on && props.flood!.demIds.length <= 2)}
+              disabled={
+                busy || (on && props.flood!.demIds.length <= FLOOD_LEAST_DEMS)
+              }
               onPick={() =>
                 props.flood?.onDemIdsChange(
                   on
@@ -1824,33 +2122,164 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     ),
   }
 
-  const fallback = defaultPlaces(graph)
+  const fallback = defaultPlaces(graph, heights)
+
+  /*
+    Which cards the request actually reaches, read off the edges.
+
+    Derived rather than named. `layers` is the only card wired to nothing
+    today, and hardcoding it here would put the rule in a second place from the
+    graph that decides it -- so the next card added without an edge would draw
+    as though it fed the run, and the discrepancy would be silent in the way
+    the stale heights above were. The graph already answers the question; this
+    reads the answer.
+  */
+  const wired = new Set(graph.edges.flat())
+
+  /*
+    WHAT EACH CARD SUPPLIES, AND THE REPORT OF IT.
+
+    Reported through an effect keyed on the values rather than during the
+    render that computed them: the caller stores this, and a component that
+    wrote to its parent while rendering would be describing a board that had
+    not been drawn yet.
+  */
+  const values = cardValues(props)
+  const marks = Object.fromEntries(
+    (Object.keys(values) as RunNodeId[]).map((id) => [id, signature(values[id])])
+  ) as Record<RunNodeId, string>
+  const onInputs = props.onInputs
+  const marksKey = JSON.stringify(marks)
+  useEffect(() => {
+    onInputs?.(JSON.parse(marksKey) as Record<string, string>)
+  }, [onInputs, marksKey])
+
+
   const nodes: CanvasNode[] = graph.nodes.map((spec) => {
     /*
-      THE ONE CARD WHOSE EMPTINESS IS A REAL STATE. Every other input arrives
-      with a value -- a period has dates, a model is one of three, a mode is
-      one of two -- so there is nothing for a light to distinguish. The area
-      is the only one that can be genuinely absent, it is the one the run is
-      blocked on when it is, and "none" in small type in the middle of a card
-      is not where the eye goes first.
+      A card no edge touches is not an input to the run, and runGraph.ts places
+      one deliberately: the layers card says what is drawn while the question
+      is being set up and changes nothing about the answer.
     */
-    const held = spec.id === "area" && props.hasArea
+    const aside = !wired.has(spec.id)
+    /*
+      THE CARD THE RUN IS WAITING ON, which is the one thing on this surface
+      worth the accent while a question is being set up.
+
+      Derived rather than named. This was `held` and it was the area's alone,
+      on the argument that every other input arrives with a value -- which
+      `supplied` in runValue.ts has since shown to be false of four cards, not
+      one: a composition with no scene, an envelope under two elevation
+      products, a record with no store, a period with no dates. The condition
+      is also INVERTED from what `held` tested, and that is the point: a card
+      that is carrying something now says so along its own wire, and what no
+      other mark says is which card is stopping the run.
+    */
+    const blocking = !aside && !supplied(values[spec.id])
     const tone: CanvasNode["tone"] =
-      spec.id === "run" ? "action" : held ? "held" : undefined
+      spec.id === "run"
+        ? "action"
+        : aside
+          ? "aside"
+          : blocking
+            ? "blocking"
+            : undefined
+    const part = aside ? null : subject(values[spec.id])
     return {
       id: spec.id,
       place: places[spec.id] ?? fallback[spec.id],
-      h: spec.h,
+      h: heights[spec.id] ?? spec.h,
       tone,
+      subject: partPaint(part),
+      status: spec.id === "run" && busy ? "busy" : undefined,
       header:
         spec.id === "run" && props.tool ? (
           <Head icon={TOOL_ICON[props.tool]} label={props.runLabel} />
         ) : (
-          <Head icon={spec.icon} label={spec.label} lit={held} />
+          <Head
+            icon={spec.icon}
+            label={spec.label}
+            aside={aside}
+            colour={partGlyph(part)}
+          />
         ),
       children: body[spec.id],
     }
   })
 
-  return <NodeCanvas nodes={nodes} edges={graph.edges} onMove={move} />
+  /*
+    WHAT EACH WIRE HAS TO SAY.
+
+    THE FAN-IN IS WHERE A RUN IS VISIBLE, and only there. Wires that end
+    anywhere else are gates -- the model gating the mode, the composite gating
+    the bands -- and a gate is a rule about which choices exist rather than
+    something a run reads. Reporting a state on one would say the run consumed
+    a rule; writing a reading along one would say it read the same value twice.
+    So a gate carries neither, and draws as it always did.
+
+    READ AND FAILED ARE ABOUT THE ANSWER ON SCREEN, not about the run that is
+    over: the comparison is between what this card supplies NOW and what the
+    last run read. Change the season afterwards and its wire falls back to
+    pending while the area's stays read, which is the true state of a raster
+    that answers about one and not the other.
+
+    A card that supplies nothing -- see `none` in cardValues -- has a signature
+    that cannot change, so it settles with the run like every other wire and
+    never notices a change. It is the weaker claim of the two available, and it
+    is the honest one: the alternative is a wire that says pending forever
+    after a run that read it.
+
+    WHICH INPUTS ARE ABSENT is now a question about the value rather than a
+    list kept here. It was three cards named by hand -- the area, the flood
+    comparison, the store -- and the fourth that needed it had been missed: a
+    composition with no scene chosen drew a wire as though it carried one. See
+    `supplied` in runValue.ts.
+  */
+  const last = props.lastRun
+  /*
+    What each input is called, taken from the graph rather than written again.
+
+    The same word the card's own header carries, in the same case, so a reading
+    on a wire and the card it left are one subject. SPEC is where the pairing
+    lives and this reads it.
+  */
+  const named = new Map(graph.nodes.map((n) => [n.id, n.label.toUpperCase()]))
+  const canvasEdges: CanvasEdge[] = graph.edges.map(([from, to]) => {
+    const value = values[from]
+    const state: EdgeState | undefined = !supplied(value)
+      ? "missing"
+      : to !== "run"
+        ? undefined
+        : busy
+          ? "reading"
+          : last && last.inputs[from] === marks[from]
+            ? last.ok
+              ? "read"
+              : "failed"
+            : "pending"
+    return {
+      from,
+      to,
+      state,
+      label: to === "run" ? reading(value) : undefined,
+      name: to === "run" ? named.get(from) : undefined,
+      note: state ? EDGE_NOTE[state] : undefined,
+      /*
+        The wire in the colour of the card it leaves, for as long as it has no
+        outcome of its own to report. A gate carries no reading and takes none
+        either: what it carries is a rule about which choices exist, and the
+        parts are about what a run is made of.
+      */
+      paint: to === "run" ? partGlyph(subject(value)) : undefined,
+    }
+  })
+
+  return (
+    <NodeCanvas
+      nodes={nodes}
+      edges={canvasEdges}
+      onMove={move}
+      onMeasure={onMeasure}
+    />
+  )
 }

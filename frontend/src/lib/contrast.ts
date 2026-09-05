@@ -131,6 +131,11 @@ export const TOKENS = {
     warning: [213, 190, 75],
     destructiveForeground: [221, 221, 221],
     destructiveQuiet: [248, 152, 158],
+    aside: [112, 150, 190],
+    partSource: [71, 180, 147],
+    partWhen: [48, 175, 201],
+    partMethod: [151, 148, 225],
+    partValue: [197, 132, 191],
   },
   light: {
     ink: [241, 241, 241],
@@ -148,6 +153,11 @@ export const TOKENS = {
     warning: [135, 112, 0],
     destructiveForeground: [249, 249, 249],
     destructiveQuiet: [163, 43, 59],
+    aside: [70, 106, 152],
+    partSource: [40, 131, 105],
+    partWhen: [15, 127, 147],
+    partMethod: [108, 105, 166],
+    partValue: [144, 92, 139],
   },
 } as const satisfies Record<string, Record<string, Channels>>
 
@@ -288,6 +298,59 @@ export const RULES: readonly ContrastRule[] = [
     on: ["ink", "surface", "surfaceRaised"],
     min: 3.0,
     why: "the success mark on a toast, which is a graphic rather than text",
+  },
+  /*
+   * The aside card's border and glyph on a run graph, which is the one place a
+   * colour carries a claim about the graph's shape: this card is not in the
+   * request. It is checked at the boundary floor rather than the text floor
+   * because it is never text -- the card's own label stays on `text` and its
+   * prose on `muted`, both of which are already listed above. A hue that only
+   * ever draws a 1px border and a 12px glyph and is not measured is what the
+   * toast marks were before anything looked at them.
+   */
+  {
+    fg: "aside",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 3.0,
+    why: "the border and glyph of a card that is on the run graph but not in the request; a boundary under WCAG 1.4.11, never text",
+  },
+  /*
+   * The two parts of a request that carry a hue, and the reason they are
+   * listed where the product scale is not.
+   *
+   * --p-kind-* answers to the data: it labels what a run IS, on a plate of its
+   * own tint, and index.css says why it is left to the eye. These are chassis.
+   * They draw a rule under a card's header, on the raised surface the header
+   * fills, which is a boundary like the aside card's border above -- and a hue
+   * that only ever draws a 2px rule and is not measured is exactly what the
+   * toast marks were before anything looked at them.
+   *
+   * The boundary floor rather than the text floor, and for the same reason:
+   * neither is ever text. The card's own label stays on `text`.
+   */
+  {
+    fg: "partSource",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 3.0,
+    why: "the header, border and glyph of a card that says WHERE a run reads: the area, a scene, a store",
+  },
+  {
+    fg: "partWhen",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 3.0,
+    why: "the same, for a card that says OVER WHAT STRETCH: a period, a window, a depth of record",
+  },
+  {
+    fg: "partMethod",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 3.0,
+    why: "the same, for a card that says BY WHICH METHOD: a model, an index, a product, a set of bands",
+  },
+  {
+    fg: "partValue",
+    on: ["ink", "surface", "surfaceRaised"],
+    min: 3.0,
+    why: "the same, for a card that says AT WHAT VALUES: a threshold, a slope, a ratio, a loss",
   },
   /*
    * Warning joins the list because it stopped deriving from a checked token.

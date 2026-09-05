@@ -88,6 +88,41 @@
   --p-accent-dim: 83 40 12;
   --p-place: 120 138 148;
   --p-haze: 144 144 144;
+  /*
+    THE CARD THAT IS ON THE GRAPH AND NOT IN THE REQUEST.
+
+    A run graph draws one kind of card that feeds the run -- change it and the
+    answer changes -- and one kind that does not. The layers card says what is
+    DRAWN while the question is being set up and changes nothing about the
+    answer, which is why runGraph.ts wires it to nothing and calls the absent
+    edge the statement. Absence is the hardest thing to see on a graph, so the
+    statement was one nobody read.
+
+    COOL, AND LOW CHROMA, FOR TWO REASONS. The accent is the only hue on screen
+    that is not data, and it means "act on this"; a second hue at the same
+    saturation would compete with it for that meaning. This one is separated
+    from the accent by temperature rather than by intensity -- warm asks, cool
+    stands aside -- at the chroma the --p-kind-* scale already established for
+    a colour that labels rather than asks.
+
+    IT WAS A SLATE FIRST, AND THE SLATE DID NOT READ. rgb(133 152 167) spreads
+    34 between its channels, and the header wash drawn from it rendered
+    rgb(57 60 61) -- a spread of 4, which is grey. The measurement that mattered
+    was never taken: the token cleared its contrast floor, and contrast is a
+    LUMINANCE relation that a colourless value satisfies exactly as well as a
+    coloured one. A hue has to be measured as a hue.
+
+    So the chroma was raised at the same lightness, which contrast does not
+    notice and the eye does. The channel spread is 78 rather than 34, and the
+    ratios moved by less than a tenth: 3.20 on the raised surface against 3.32.
+
+    It is a boundary and a glyph, never text: 3.20 on the raised surface, 4.33
+    on surface, 5.21 on ink, against the WCAG 1.4.11 floor of 3.0. lineStrong,
+    the boundary it replaces on these cards, reads 3.14 on the same raised
+    surface, so the aside card's border is no quieter than the one every other
+    card carries -- it is the same weight in a different temperature.
+  */
+  --p-aside: 112 150 190;
 
   /*
     THE PRODUCTS, AS COLOUR. A scale of its own, and not part of the one above.
@@ -116,6 +151,44 @@
   --p-kind-water: 80 176 176;
   --p-kind-flood: 109 164 211;
   --p-kind-wind: 162 147 209;
+
+  /*
+    THE PARTS OF A REQUEST, AS COLOUR. A second scale of its own, on the same
+    construction as the products above and not mixed with either that one or
+    the semantic tokens.
+
+    A run over ground is asked in four parts -- WHERE it reads from, OVER WHAT
+    stretch, BY WHICH method, AT WHAT values -- and every card that feeds a run
+    is in exactly one of them. See `subject` in runValue.ts, which derives the
+    part from the value the card supplies rather than from a list.
+
+    THE HUES ARE PLACED AGAINST WHAT THE BOARD ALREADY PAINTS, measured in
+    OKLCH rather than chosen by eye: the accent sits at h51, destructive at
+    h18, warning at h98, success at h136 and aside at h250. These take 170,
+    215, 285 and 330 -- 34 degrees clear of success, 35 either side of aside,
+    48 clear of destructive. The product scale above takes 75, 195, 245 and
+    295, and two of these sit inside 25 degrees of it; that is accepted rather
+    than corrected, because that scale draws a grid of runs in the browser and
+    this one draws the cards on a board, and no surface holds both.
+
+    L 0.699 and C 0.112 in the dark theme. The product scale's 0.090 was tried
+    first, on its own argument that a categorical colour at the chroma of the
+    semantic tokens competes with the ones asking to be acted on -- and at that
+    chroma, behind a header wash, four cards read as four greys. The argument
+    holds for a tile drawn in solid colour and not for a tint. 0.112 is under
+    the accent's 0.149 and is what the tightest of these hues can take: at this
+    lightness the cyan runs out of sRGB at 0.122.
+
+    LIGHTNESS UNCHANGED, WHICH IS WHY THE RATIOS BARELY MOVED. Chroma at a
+    fixed L is a change contrast does not notice and the eye does -- the same
+    move --p-aside records above. Each is drawn as a card's header wash, its
+    border and its glyph: a boundary at the 3.0 floor, never text. 3.87, 3.82,
+    3.60 and 3.50 on the raised surface, checked in lib/contrast.ts.
+  */
+  --p-part-source: 71 180 147;
+  --p-part-when: 48 175 201;
+  --p-part-method: 151 148 225;
+  --p-part-value: 197 132 191;
 
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
@@ -165,6 +238,10 @@
   --p-accent-dim: 240 214 198;
   --p-place: 90 110 122;
   --p-haze: 176 176 176;
+  /* The same, at the lightness a light ground needs: 4.33 on the raised
+     surface, 5.28 on surface, 4.92 on ink, at a channel spread of 82. See the
+     dark block for why the spread is quoted beside the ratios. */
+  --p-aside: 70 106 152;
 
   /* The same five, at the lightness a light ground needs. See the dark block. */
   --p-kind-class: 113 113 113;
@@ -172,6 +249,15 @@
   --p-kind-water: 19 130 130;
   --p-kind-flood: 64 119 163;
   --p-kind-wind: 117 103 161;
+
+  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.094
+     rather than the dark theme's 0.112 -- a light ground holds less chroma at
+     these hues, and 0.094 is where the cyan leaves sRGB. 3.60, 3.65, 3.89 and
+     4.00 on the raised surface. */
+  --p-part-source: 40 131 105;
+  --p-part-when: 15 127 147;
+  --p-part-method: 108 105 166;
+  --p-part-value: 144 92 139;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
@@ -364,6 +450,7 @@
   --color-line-strong: rgb(var(--p-line-strong) / <alpha-value>);
   --color-text: rgb(var(--p-text) / <alpha-value>);
   --color-place: rgb(var(--p-place) / <alpha-value>);
+  --color-aside: rgb(var(--p-aside) / <alpha-value>);
   --color-haze: rgb(var(--p-haze) / <alpha-value>);
   --color-accent-dim: rgb(var(--p-accent-dim) / <alpha-value>);
   --color-accent-quiet-raw: rgb(var(--p-accent-quiet) / <alpha-value>);
@@ -630,6 +717,37 @@
   opacity: 0;
   transform: scale(0.96);
   pointer-events: none;
+}
+
+/*
+  The wires of a run graph while the run is reading them.
+
+  The dash travels one full period per cycle, so the pattern lands where it
+  started and the loop has no seam. Nothing else on that surface moves, which
+  is what lets motion mean something on its own -- and it is why the animation
+  is bound to a run being in flight rather than left on a resting graph. A
+  static request transports nothing, and a wire that crawled while nothing ran
+  would say otherwise.
+
+  UNDER REDUCED MOTION IT GOES SOLID, not still. A stopped dash is not a
+  quieter version of a moving one: on this surface a still dash already means
+  an input has not been supplied, so freezing this would draw a run in flight
+  as a request that cannot be made. The dash pattern is set as a presentation
+  attribute on the path and cleared here, which CSS is allowed to do.
+*/
+.wire-active {
+  animation: wire-travel 900ms linear infinite;
+}
+@keyframes wire-travel {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wire-active {
+    animation: none;
+    stroke-dasharray: none;
+  }
 }
 
 /* Sliding zoom (Ken Burns) behind the splash boot card */
