@@ -33,6 +33,16 @@ export interface PreferenceExtras {
    */
   always_show_whats_new?: boolean
   /**
+   * Whether the studio's panels are separated by a gap.
+   *
+   * A chrome preference and not a layout one: `studio_layout` below records
+   * WHERE the divisions are, and this records how the areas either side of one
+   * are told apart. A reader who prefers a denser board turns it off and gets
+   * a border in its place -- see lib/studioGutter for why the two are one
+   * decision rather than a setting and a fallback.
+   */
+  studio_panel_gap?: boolean
+  /**
    * Where the map was left. Restored on start so a session resumes at the last
    * place worked on rather than at the continental default.
    */

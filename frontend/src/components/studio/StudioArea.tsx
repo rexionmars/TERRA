@@ -28,9 +28,13 @@
  * domain-shift section was once fitted into a 15rem band and the outcome is
  * recorded in this codebase: "present in the code, invisible in use".
  */
-import { useRef, useState } from "react"
+import { useRef, useState, useSyncExternalStore } from "react"
 import { Columns, ArrowsOut, ArrowsIn, Rows, X } from "@phosphor-icons/react"
 import { AREA_RADIUS_PX } from "@/lib/boardAreas"
+import {
+  studioGutterOn,
+  subscribeStudioGutter,
+} from "@/lib/studioGutter"
 import {
   STUDIO_EDITORS,
   STUDIO_GROUPS,
@@ -136,6 +140,14 @@ export function StudioArea({
     this closure reads is still the pre-dismissal one.
   */
   const dismissedByRightPress = useRef(false)
+  /*
+    The reader's own answer about the gap, from the store every part of the
+    arrangement reads -- see lib/studioGutter. Read here rather than passed in
+    because the tree hands this component a rectangle and nothing about chrome,
+    and threading a boolean through that prop would make the tree carry a
+    preference it has no use for.
+  */
+  const gutter = useSyncExternalStore(subscribeStudioGutter, studioGutterOn)
 
   /*
     THE HEADER NAMES THE PANE, NOT THE EDITOR THAT HOLDS IT.
@@ -176,6 +188,17 @@ export function StudioArea({
       */
       className={cn(
         "absolute flex flex-col overflow-hidden",
+        /*
+          THE BORDER IS WHAT THE GAP REPLACED, so it comes back when the gap
+          goes away. Two of four sides, because neighbours then meet flush and
+          a border on all four would draw every division twice.
+
+          It is not a fallback but the other half of one decision: two panels
+          of the same tone with nothing between them are not two panels. A
+          reader who turns the gap off is asking for a denser board, not for an
+          unreadable one.
+        */
+        !gutter && "border-r border-t",
         transparent && "pointer-events-none"
       )}
       style={{
@@ -195,7 +218,14 @@ export function StudioArea({
           turns, which a square area would leave as a right angle inside a
           rounded space.
         */
-        borderRadius: AREA_RADIUS_PX,
+        borderColor: gutter ? undefined : "rgb(var(--p-line) / 0.28)",
+        /*
+          The corner the gap turns, which a square area would leave as a right
+          angle inside a rounded space. With no gap there is no such corner:
+          areas meet flush, and a radius there would round an edge against its
+          neighbour's straight one.
+        */
+        borderRadius: gutter ? AREA_RADIUS_PX : 0,
         /*
           Only the BODY is transparent, never the whole area. Painting the root
           transparent for the viewport let the canvas run up through the header

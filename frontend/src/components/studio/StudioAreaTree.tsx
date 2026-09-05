@@ -16,9 +16,8 @@
  * model would be a second geometry to keep in step with the first -- the exact
  * failure this replaces.
  */
-import { useRef, useState } from "react"
+import { useRef, useState, useSyncExternalStore } from "react"
 import {
-  AREA_GUTTER_PX,
   areaRects,
   splitsWithin,
   type AreaId,
@@ -27,6 +26,10 @@ import {
   type Rect,
   type SplitDir,
 } from "@/lib/boardAreas"
+import {
+  studioGutterPx,
+  subscribeStudioGutter,
+} from "@/lib/studioGutter"
 import type { EditorId } from "@/lib/studioEditors"
 import { cn } from "@/lib/utils"
 
@@ -75,10 +78,13 @@ export function StudioAreaTree({
     rect: Rect
   }) => React.ReactNode
 }) {
-  // Drawn geometry, gap included -- see AREA_GUTTER_PX. Every caller of
-  // areaRects asks for the same thing, so none of them can disagree about
-  // where an area is.
-  const { leaves, seams } = areaRects(tree, viewport, AREA_GUTTER_PX)
+  /*
+    Drawn geometry, gap included -- see AREA_GUTTER_PX. Every caller of
+    areaRects asks the same function for it, so none of them can disagree
+    about where an area is, whether or not a reader has turned it off.
+  */
+  const gutter = useSyncExternalStore(subscribeStudioGutter, studioGutterPx)
+  const { leaves, seams } = areaRects(tree, viewport, gutter)
   /*
     THE GUIDE, HELD HERE AND NOT IN THE SEAM THAT CAUSED IT.
 

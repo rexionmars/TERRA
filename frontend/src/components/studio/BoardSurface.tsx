@@ -18,6 +18,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react"
 import { motion } from "motion/react"
 import {
@@ -177,7 +178,6 @@ import {
 import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
-  AREA_GUTTER_PX,
   areaLeaves,
   findEditor,
   areaRects,
@@ -262,6 +262,10 @@ import {
   Waves,
 } from "@phosphor-icons/react"
 import { StudioAreaTree } from "@/components/studio/StudioAreaTree"
+import {
+  studioGutterPx,
+  subscribeStudioGutter,
+} from "@/lib/studioGutter"
 import { STUDIO_WORKSPACES } from "@/lib/studioWorkspaces"
 import {
   CanopyEditor,
@@ -1095,10 +1099,17 @@ export function BoardSurface({
     somewhere the viewport area is not -- the class of mismatch that had the
     axis gizmo clearing one column's width on the other column's side.
   */
+  /*
+    Subscribed rather than called, because this is a memo: the gap is a
+    preference a reader can move while the studio is open, and a value read
+    once would leave the gizmo's idea of the viewport at the old geometry until
+    something else happened to invalidate the memo.
+  */
+  const gutterPx = useSyncExternalStore(subscribeStudioGutter, studioGutterPx)
   const viewportRect = useMemo(() => {
-    const { leaves: rects } = areaRects(tree, surface, AREA_GUTTER_PX)
+    const { leaves: rects } = areaRects(tree, surface, gutterPx)
     return rects.find((r) => r.editor === "viewport") ?? null
-  }, [tree, surface])
+  }, [tree, surface, gutterPx])
   // The viewport owns the one GL context, so it may be in one area at a time.
   const takenUnique = useMemo(() => {
     const taken = new Set<EditorId>()
@@ -3577,10 +3588,14 @@ export function BoardSurface({
         return
       }
       const { x, y } = pointerRef.current
+      /*
+        Called rather than subscribed: this runs on a keypress, outside React's
+        tree, and what it needs is the geometry as it is at that moment.
+      */
       const hit = areaRects(
         treeRef.current,
         surfaceRef2.current,
-        AREA_GUTTER_PX
+        studioGutterPx()
       ).leaves.find(
         (l) => x >= l.x && x < l.x + l.w && y >= l.y && y < l.y + l.h
       )
