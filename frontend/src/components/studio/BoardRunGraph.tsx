@@ -687,7 +687,7 @@ function compoundLoss(solar: NonNullable<BoardRunGraphProps["solar"]>): number {
   Pushing the LIGHT weight down instead costs nothing -- a quieter card wants a
   quieter header -- and leaves the heavy one at 4.67.
 */
-const PART_WASH = { heavy: 0.36, light: 0.1 }
+const PART_WASH = { heavy: 0.3, light: 0.1 }
 
 /*
   THE BODY CARRIES THE WEIGHT TOO, at a tenth of the header's.

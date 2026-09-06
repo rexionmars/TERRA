@@ -282,14 +282,20 @@
     poster palettes, built for a field with two or three things on it, which is
     what a run graph is and what a settings page is not.
 
-    TAKEN FROM THE LIST RATHER THAN DERIVED NEAR IT. #06070A is Instagram's
-    ground, #172726 and #243F3D are Forest Ritual's first two steps: a
-    near-black, a dark teal and a mid teal, at 1.30 and 1.37 apart. Nothing
-    here is a value someone reached by nudging a grey.
+    THE FIELD IS NOT ONE OF THEM, AND THAT WAS A CORRECTION. It was taken to
+    #06070A, Instagram's near-black ground, which is a third of the lightness
+    the board's canvas had -- so a request about the CARDS arrived as a black
+    hole where the field used to be. The field is the chassis's, through
+    --s-field, like every other working surface in the application. These two
+    are the card and its header, and nothing else.
+
+    TAKEN FROM THE LIST RATHER THAN DERIVED NEAR IT. #243F3D is Forest
+    Ritual's second step and #114956 is Deep Teal's own: a dark teal and a
+    lighter one, 1.47 above the field and 1.14 above each other. Nothing here
+    is a value someone reached by nudging a grey.
   */
-  --b-field: 6 7 10;
-  --b-card: 23 39 38;
-  --b-card-head: 36 63 61;
+  --b-card: 36 63 61;
+  --b-card-head: 17 73 86;
 
   --p-part-source: 48 182 154;
   --p-part-when: 31 175 207;
@@ -394,11 +400,10 @@
      at this lightness, so each theme sits at its own ceiling rather than at a
      shared number neither could hold. 3.23, 3.26, 3.47 and 3.55 against the
      deepest light ground, which is the one that binds here. */
-  /* The board's own surfaces, at the elevation a light ground gives them:
-     #D3E2DE, #F4F4F4 and #FFFFFF, all from the same list. A canvas is pale
-     here and a card sits ABOVE it, which is the opposite direction from the
-     dark theme and the same relation. */
-  --b-field: 211 226 222;
+  /* The card and its header, at the elevation a light ground gives them:
+     #F4F4F4 and #FFFFFF, from the same list. A card sits ABOVE the canvas
+     here, which is the opposite direction from the dark theme and the same
+     relation. The canvas itself is the chassis's, as it is there. */
   --b-card: 244 244 244;
   --b-card-head: 255 255 255;
 

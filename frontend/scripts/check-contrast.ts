@@ -39,7 +39,6 @@ const CSS_NAME: Record<string, string> = {
   accentQuiet: "--p-accent-quiet",
   accentDim: "--p-accent-dim",
   aside: "--p-aside",
-  boardField: "--b-field",
   boardCard: "--b-card",
   boardHead: "--b-card-head",
   partSource: "--p-part-source",

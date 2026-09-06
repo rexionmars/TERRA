@@ -322,8 +322,8 @@ const PANE_SATURATE = 1.7
  * because the version that looked least like the reference was also the one
  * whose text had the least room.
  */
-const PANE_TINT_HEAD = 0.5
-const PANE_TINT_TAIL = 0.28
+const PANE_TINT_HEAD = 0.42
+const PANE_TINT_TAIL = 0.24
 
 /**
  * A wire's colour at a weight, whatever form the colour arrived in.
@@ -1090,7 +1090,7 @@ export function NodeCanvas({
           under every ribbon by eighteen levels and put the reading below its
           floor -- so the board declares the surface it was measured on.
         */
-        background: "rgb(var(--b-field))",
+        background: "var(--s-field)",
         /*
           The field is a dot grid that travels with the view, which is what
           makes a pan legible: without it the cards slide against nothing and
@@ -1319,7 +1319,7 @@ export function NodeCanvas({
                     {/* The ground, and then the colour. See GROUND. */}
                     <path
                       d={ribbon}
-                      fill="rgb(var(--b-field))"
+                      fill="rgb(var(--p-ink))"
                       fillOpacity={GROUND[st]}
                     />
                     <path d={ribbon} fill={stroke} fillOpacity={FILL_OPACITY[st]} />
