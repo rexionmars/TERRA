@@ -210,6 +210,12 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Unlock()
 	a.bootLog("store ready")
 
+	// The environments built before the build path started marking them. One
+	// system call, and the alternative is that the largest thing this
+	// application writes goes on being copied to every backup forever. See
+	// pyenv.EnsureExcludedFromBackup.
+	pyenv.EnsureExcludedFromBackup(st.DataDir())
+
 	cfg := pyenv.LoadAppConfig(st.DataDir())
 	a.bootLog("resolving sidecar paths…")
 	runner, err := analysis.NewRunner(appDir, cfg.PythonPath)

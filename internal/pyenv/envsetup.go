@@ -158,6 +158,14 @@ func (b *EnvBuilder) Build(
 		return fail(fmt.Errorf("the environment has no interpreter at %s", py))
 	}
 
+	// Marked before the packages go in, so the bulk of it is never copied.
+	// Not fatal: a backup that copies more than it needs to is not a reason to
+	// refuse to build the environment. See excludeFromBackup.
+	if err := excludeFromBackup(envDir); err != nil {
+		emit(EnvSetupEvent{Step: StepCreatingVenv,
+			Line: "could not mark the environment as excluded from backup: " + err.Error()})
+	}
+
 	emit(EnvSetupEvent{Step: StepUpgradingPip, Line: "updating pip"})
 	// Not fatal. An old pip installs the requirements in almost every case, and
 	// failing the whole build because the upgrade could not reach the network
