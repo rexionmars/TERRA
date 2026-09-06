@@ -39,12 +39,48 @@ const CSS_NAME: Record<string, string> = {
   accentQuiet: "--p-accent-quiet",
   accentDim: "--p-accent-dim",
   aside: "--p-aside",
+}
+
+/**
+ * The run board's cards, declared as hex INSIDE each theme block.
+ *
+ * Hex rather than channels, and that is the point of the block they live in.
+ * Every value here is a final colour that is never taken at an alpha, so the
+ * `R G B` form buys nothing and costs the one thing the block exists for: a
+ * colour arrives from a palette as #243F3D, and a form that has to be
+ * converted before it can be pasted is a form that invites a value nobody
+ * checked. See index.css, "THE RUN BOARD'S CARDS".
+ *
+ * Read from the theme block rather than from CSS_HEX, which searches the file
+ * either side of the status-colour block and would find the dark values twice.
+ */
+const CSS_BOARD_HEX: Record<string, string> = {
   boardCard: "--b-card",
-  boardHead: "--b-card-head",
-  partSource: "--p-part-source",
-  partWhen: "--p-part-when",
-  partMethod: "--p-part-method",
-  partValue: "--p-part-value",
+  boardCardHead: "--b-card-head",
+  boardCardEdge: "--b-card-edge",
+  boardCardInk: "--b-card-ink",
+  sourceBody: "--b-source-body",
+  sourceHead: "--b-source-head",
+  sourceEdge: "--b-source-edge",
+  sourceInk: "--b-source-ink",
+  whenBody: "--b-when-body",
+  whenHead: "--b-when-head",
+  whenEdge: "--b-when-edge",
+  whenInk: "--b-when-ink",
+  methodBody: "--b-method-body",
+  methodHead: "--b-method-head",
+  methodEdge: "--b-method-edge",
+  methodInk: "--b-method-ink",
+  valueBody: "--b-value-body",
+  valueHead: "--b-value-head",
+  valueEdge: "--b-value-edge",
+  valueInk: "--b-value-ink",
+  actionHead: "--b-action-head",
+  actionEdge: "--b-action-edge",
+  actionInk: "--b-action-ink",
+  asideHead: "--b-aside-head",
+  asideEdge: "--b-aside-edge",
+  asideInk: "--b-aside-ink",
 }
 
 /**
@@ -82,7 +118,7 @@ function hexChannels(hex: string): Channels {
  *
  * THE CHECK PASSED ON A PALETTE THAT WAS COMMENTED OUT. An edit dropped the
  * closing delimiter of the note above the part scale, which put four
- * declarations inside a comment: the browser saw no --p-part-* at all, and
+ * declarations inside a comment: the browser saw no part scale at all, and
  * every card that
  * carried one lost its border to `currentColor` and its background to an
  * invalid value. This script reported the channels as matching, because a
@@ -108,6 +144,11 @@ function channelsFromCss(theme: ThemeName): Record<string, Channels> {
     )
     if (!m) throw new Error(`${name} not declared in the ${theme} block`)
     out[key] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  }
+  for (const [key, name] of Object.entries(CSS_BOARD_HEX)) {
+    const m = block[1].match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`))
+    if (!m) throw new Error(`${name} not declared in the ${theme} block`)
+    out[key] = hexChannels(m[1])
   }
 
   // The hex tokens are declared outside the palette blocks. The dark values are

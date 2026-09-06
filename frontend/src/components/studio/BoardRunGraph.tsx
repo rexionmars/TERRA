@@ -117,7 +117,6 @@ import {
 } from "./NodeCanvas"
 import { defaultPlaces, runGraph, type Place, type RunNodeId } from "./runGraph"
 import {
-  HEAVY,
   reading,
   signature,
   subject,
@@ -648,81 +647,52 @@ function compoundLoss(solar: NonNullable<BoardRunGraphProps["solar"]>): number {
 }
 
 /**
- * WHAT EACH PART OF A REQUEST IS DRAWN IN, AND AT WHAT WEIGHT.
+ * WHAT EACH PART OF A REQUEST IS DRAWN IN.
  *
- * Two channels over one scale, which is the whole of the scheme. The HUE says
- * which part of the question a card answers -- where, when, by which method,
- * at what values -- and the LIGHTNESS says how much that part decides. Change
- * where or when a run reads and it is a run about something else; change a
- * threshold and it is the same question answered differently, so the source
- * and the stretch are drawn at nearly twice the ink of the method and the
- * settings. See HEAVY in runValue.ts, which is where that ordering is argued.
+ * FOUR TOKEN READS, AND NO ARITHMETIC. Each surface a card paints -- its body,
+ * its band, its ring, the ink on the band -- is one custom property declared
+ * as a final colour in index.css, under "THE RUN BOARD'S CARDS". This function
+ * names them; it does not decide them.
  *
- * A card with no part -- the layers card, the run card -- takes neither and
- * keeps the chassis's grey, which is the correct statement about both: one is
- * not in the request and the other is where the request ends.
+ * WHAT IT REPLACED, AND WHY THAT MATTERED. Three tables lived here -- PART_WASH
+ * at 0.30 and 0.10, PART_BODY at 0.09 and 0.03, PART_EDGE at 0.95 and 0.40 --
+ * and each surface was built as `rgb(var(--p-part-x) / a)` for NodeCanvas to
+ * composite over a base token. The colour a reader saw was therefore the
+ * product of four files, and none of them held it. Every request to change a
+ * card's colour became a change to a weight, which moved four cards at once
+ * and landed none of them where it was asked.
  *
- * The tokens themselves are declared and measured in index.css and
- * lib/contrast.ts. What is decided here is only how much of each is used.
+ * It also did not work. The base carried seventy to ninety per cent of every
+ * header, so four hues placed 31 to 40 degrees apart rendered as four shades
+ * of one blue-teal: the scheme said "type of data" and the board said nothing.
+ * A tint of an accent over a ground is a ground, which is the whole reason the
+ * references keep the two apart and put nothing between them.
+ *
+ * `ink` IS WHY THIS RETURNS FOUR THINGS AND NOT THREE. A band at full strength
+ * decides what can be written on it, so each card carries the colour its own
+ * title and glyph are set in. That is a property of the band and belongs
+ * beside it, not a global the header picks and hopes for.
  */
-/*
-  WEIGHT IS A LIGHTNESS STEP NOW, WHICH IS WHAT IT WAS SUPPOSED TO BE.
-
-  It was 0.3 against 0.18 on the header and 0.85 against 0.55 on the border,
-  and measured, the four card headers landed between levels 74.5 and 78.2 --
-  under four levels apart. Two channels were declared and one of them was not
-  arriving: a heavy card and a light card were the same brightness in different
-  hues, so the ordering the note above argues for could not be read off the
-  board at all.
-
-  The reference palettes are built the other way round. Forest Ritual is one
-  hue at four lightnesses -- #172726, #243F3D, #476664, #D3E2DE -- stepping 20,
-  38 and 129 levels; Toxic Forest is three greens at three lightnesses. Weight
-  belongs in the channel those ladders use.
-
-  0.36 against 0.10 steps 16 levels, near the reference's own smallest rung.
-  THE STEP IS TAKEN AT THE DARK END rather than by lifting the heavy one
-  further: the card's title sits on this wash in --p-text, and on the board's
-  own header surface 0.40 puts that reading at 4.40 against a floor of 4.5.
-  Pushing the LIGHT weight down instead costs nothing -- a quieter card wants a
-  quieter header -- and leaves the heavy one at 4.67.
-*/
-const PART_WASH = { heavy: 0.3, light: 0.1 }
-
-/*
-  THE BODY CARRIES THE WEIGHT TOO, at a tenth of the header's.
-
-  A step that lives only in a 34px header strip is a step a reader has to
-  compare across the board to see. Laid on the card's whole body it is there
-  without being looked for -- and it is what the reference ladders actually do,
-  since a swatch is a field and not a band. Small enough that the body is still
-  the card surface with a cast on it: 3 levels for a light card, 8 for a heavy
-  one, with the reading on it at 5.75 and better.
-*/
-const PART_BODY = { heavy: 0.09, light: 0.03 }
-
-/*
-  The border, at the widest the two weights can be told apart on one pixel.
-  0.95 against 0.40 rather than 0.85 against 0.55: a hairline is the one place
-  where alpha IS the whole signal, since a 1px line has no area for a lightness
-  step to happen in.
-*/
-const PART_EDGE = { heavy: 0.95, light: 0.4 }
-
 function partPaint(part: Subject | null): CanvasNode["subject"] {
   if (!part) return undefined
-  const weight = HEAVY.includes(part) ? "heavy" : "light"
-  const token = `var(--p-part-${part})`
   return {
-    wash: `rgb(${token} / ${PART_WASH[weight]})`,
-    body: `rgb(${token} / ${PART_BODY[weight]})`,
-    edge: `rgb(${token} / ${PART_EDGE[weight]})`,
+    band: `var(--b-${part}-head)`,
+    body: `var(--b-${part}-body)`,
+    edge: `var(--b-${part}-edge)`,
+    ink: `var(--b-${part}-ink)`,
   }
 }
 
-/** The same colour at full strength, for the glyph that titles the card. */
-const partGlyph = (part: Subject | null): string | undefined =>
-  part ? `rgb(var(--p-part-${part}))` : undefined
+/**
+ * The colour a wire leaves a card in: the card's own band.
+ *
+ * The band rather than a token of its own. A wire says which card a value came
+ * from, and the band is what a reader identifies that card BY -- a separate
+ * hue for the wire would be a second name for the same thing, and the scheme
+ * has already been through one round of colours that named nothing.
+ */
+const partWire = (part: Subject | null): string | undefined =>
+  part ? `var(--b-${part}-head)` : undefined
 
 /**
  * The state of a wire, in the word drawn where it lands.
@@ -1302,14 +1272,39 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           aria-pressed={props.monthlyBest}
           title="Keep only the best scene of each month"
           className={cn(
-            "flex h-[1.375rem] items-center gap-1 rounded-sm px-2 text-meta transition-colors inset-ring-1",
-            "focus-visible:outline-none focus-visible:inset-ring-ring",
+            "flex h-[1.375rem] items-center gap-1 rounded-sm px-2 text-meta transition-colors",
+            "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
             busy
-              ? "cursor-not-allowed inset-ring-line text-muted-foreground/40"
+              ? "cursor-not-allowed inset-ring-1 inset-ring-line text-muted-foreground/40"
               : props.monthlyBest
-                ? "bg-accent-dim text-accent-quiet inset-ring-accent"
-                : "text-muted-foreground inset-ring-line-strong hover:text-foreground"
+                ? undefined
+                : "inset-ring-1 text-muted-foreground inset-ring-line-strong hover:text-foreground"
           )}
+          /*
+            SET, IT IS THE SAME CHIP A CHOSEN OPTION IS -- the card's own band
+            filled, with the band's ink on it. See `Choice` in nodeCard.tsx,
+            which this toggle has stood beside since it stopped being a native
+            checkbox and which it was already borrowing the height and the
+            boundary from.
+
+            What it is no longer borrowing is `bg-accent-dim` with an accent
+            ring and `text-accent-quiet` on it: three chassis tokens, on a card
+            whose colour is the thing the board is read by. The ring goes with
+            them, because the chip is a fill now and the ring was what gave a
+            dim plate an edge.
+
+            The UNSET state keeps its outline. An off toggle has to be visible
+            as a control before it is visible as off, and a card body with no
+            mark on it is not one.
+          */
+          style={
+            !busy && props.monthlyBest
+              ? {
+                  background: "var(--b-lit, var(--b-card-head))",
+                  color: "var(--b-lit-ink, var(--b-card-ink))",
+                }
+              : undefined
+          }
         >
           <Check
             className={cn("size-3 shrink-0", props.monthlyBest ? "" : "opacity-0")}
@@ -2227,12 +2222,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         spec.id === "run" && props.tool ? (
           <Head icon={TOOL_ICON[props.tool]} label={props.runLabel} />
         ) : (
-          <Head
-            icon={spec.icon}
-            label={spec.label}
-            aside={aside}
-            colour={partGlyph(part)}
-          />
+          <Head icon={spec.icon} label={spec.label} />
         ),
       children: body[spec.id],
     }
@@ -2301,7 +2291,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         either: what it carries is a rule about which choices exist, and the
         parts are about what a run is made of.
       */
-      paint: to === "run" ? partGlyph(subject(value)) : undefined,
+      paint: to === "run" ? partWire(subject(value)) : undefined,
     }
   })
 

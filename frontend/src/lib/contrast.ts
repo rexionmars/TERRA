@@ -135,12 +135,32 @@ export const TOKENS = {
     destructiveForeground: [221, 221, 221],
     destructiveQuiet: [248, 152, 158],
     aside: [112, 150, 190],
-    boardCard: [36, 63, 61],
-    boardHead: [17, 73, 86],
-    partSource: [48, 182, 154],
-    partWhen: [31, 175, 207],
-    partMethod: [115, 158, 233],
-    partValue: [174, 139, 219],
+    boardCard: [35, 38, 44],
+    boardCardHead: [58, 63, 71],
+    boardCardEdge: [58, 63, 71],
+    boardCardInk: [194, 195, 197],
+    sourceBody: [35, 38, 44],
+    sourceHead: [128, 185, 24],
+    sourceEdge: [128, 185, 24],
+    sourceInk: [35, 38, 44],
+    whenBody: [35, 38, 44],
+    whenHead: [255, 208, 0],
+    whenEdge: [255, 208, 0],
+    whenInk: [18, 18, 18],
+    methodBody: [35, 38, 44],
+    methodHead: [114, 49, 255],
+    methodEdge: [58, 63, 71],
+    methodInk: [255, 255, 255],
+    valueBody: [35, 38, 44],
+    valueHead: [249, 88, 49],
+    valueEdge: [58, 63, 71],
+    valueInk: [23, 39, 38],
+    actionHead: [252, 163, 17],
+    actionEdge: [252, 163, 17],
+    actionInk: [35, 38, 44],
+    asideHead: [71, 102, 100],
+    asideEdge: [71, 102, 100],
+    asideInk: [211, 226, 222],
     wireFailed: [249, 88, 49],
   },
   light: {
@@ -164,11 +184,31 @@ export const TOKENS = {
     destructiveQuiet: [163, 43, 59],
     aside: [70, 106, 152],
     boardCard: [244, 244, 244],
-    boardHead: [255, 255, 255],
-    partSource: [32, 131, 110],
-    partWhen: [20, 126, 150],
-    partMethod: [81, 113, 168],
-    partValue: [125, 99, 158],
+    boardCardHead: [194, 195, 197],
+    boardCardEdge: [194, 195, 197],
+    boardCardInk: [35, 38, 44],
+    sourceBody: [244, 244, 244],
+    sourceHead: [128, 185, 24],
+    sourceEdge: [128, 185, 24],
+    sourceInk: [35, 38, 44],
+    whenBody: [244, 244, 244],
+    whenHead: [255, 208, 0],
+    whenEdge: [255, 208, 0],
+    whenInk: [18, 18, 18],
+    methodBody: [244, 244, 244],
+    methodHead: [114, 49, 255],
+    methodEdge: [194, 195, 197],
+    methodInk: [255, 255, 255],
+    valueBody: [244, 244, 244],
+    valueHead: [249, 88, 49],
+    valueEdge: [194, 195, 197],
+    valueInk: [23, 39, 38],
+    actionHead: [252, 163, 17],
+    actionEdge: [252, 163, 17],
+    actionInk: [35, 38, 44],
+    asideHead: [71, 102, 100],
+    asideEdge: [71, 102, 100],
+    asideInk: [211, 226, 222],
     wireFailed: [164, 62, 38],
   },
 } as const satisfies Record<string, Record<string, Channels>>
@@ -200,14 +240,22 @@ export type ThemeName = keyof typeof TOKENS
  * failure is itself reported as a failure.
  */
 /*
-  EMPTY, AND THE THREE THAT WERE HERE WERE TAKEN.
+  EMPTY, AND EVERY ENTRY THAT HAS STOOD HERE WAS TAKEN OUT RATHER THAN KEPT.
 
-  Each named the value that would have cleared its floor -- 175 for muted, 142
-  for lineStrong, #E59E8F for destructiveQuiet -- and each said the value "was
-  not taken". What changed is that APCA now reports beside the ratio, and it
-  put every one of those pairs between Lc 41 and 49, under the floor for body
-  text. A pair excused at 3.83 that also reads at Lc -41 is not a pair anyone
-  is choosing to keep; it is one nobody had a second opinion on.
+  Three came from a chassis whose surfaces were lifted -- muted, lineStrong and
+  destructiveQuiet -- and each named the value that would have cleared its floor
+  while saying the value "was not taken". APCA settled those: it put all three
+  between Lc 41 and 49, under the floor for body text, and a pair excused at
+  3.83 that also reads at Lc -41 is not one anyone is choosing to keep.
+
+  Two more stood here for the length of one scheme: the glyphs of the two heavy
+  parts, at 2.50 and 2.46 on their own headers. They are gone because the
+  headers are, and the way they went is worth keeping. They were not a trade --
+  they were what a composite turned out to be once the check started measuring
+  the surface a mark sits on rather than the base underneath it, and they had
+  been failing at those ratios for as long as the composite existed. Nobody
+  chose them; nobody could see them. A band at full strength cannot fail that
+  way, because there is nothing under it to hide the pair from the check.
 */
 export const ACCEPTED: Record<string, string> = {}
 export type TokenName = keyof (typeof TOKENS)["dark"]
@@ -329,42 +377,89 @@ export const RULES: readonly ContrastRule[] = [
     why: "the border and glyph of a card that is on the run graph but not in the request; a boundary under WCAG 1.4.11, never text",
   },
   /*
-   * The two parts of a request that carry a hue, and the reason they are
-   * listed where the product scale is not.
+   * THE RUN BOARD'S CARDS, MEASURED AS THE PAIRS THEY ARE PAINTED IN.
    *
-   * --p-kind-* answers to the data: it labels what a run IS, on a plate of its
-   * own tint, and index.css says why it is left to the eye. These are chassis.
-   * They draw a rule under a card's header, on the raised surface the header
-   * fills, which is a boundary like the aside card's border above -- and a hue
-   * that only ever draws a 2px rule and is not measured is exactly what the
-   * toast marks were before anything looked at them.
+   * A CARD IS A BAND AND A BODY, and the band is an accent at full strength.
+   * That makes the title on it the binding pair on this whole surface: what
+   * can be written on Cyber Punch's yellow is not what can be written on
+   * Instagram's violet, so each card carries its own ink and each ink is
+   * listed here against its own band and against nothing else.
    *
-   * The boundary floor rather than the text floor, and for the same reason:
-   * neither is ever text. The card's own label stays on `text`.
+   * WHAT THESE REPLACED WAS MEASURING A COLOUR NOBODY SAW. The rules here were
+   * `partSource` on `boardCard` and `boardHead` and three like it: the part's
+   * hue at full strength against the base that sat UNDER a tint of it. Neither
+   * pair was ever painted, so the scale reported 3.87, 3.84, 3.59 and 3.47
+   * while nothing on the board was those four pairs -- and the board itself,
+   * where every header was seven parts base to three parts hue, was four
+   * shades of one blue that no rule here was looking at.
+   *
+   * THE RINGS ARE MEASURED AND REPORTED, NOT FLOORED, and that is a decision
+   * rather than an omission. A heavy part is ringed in its own accent and a
+   * light part in the ground's own grey: the QUIET ring is the weight signal,
+   * so a floor that forced it bright would delete the thing it was protecting.
+   * Against the field the heavy rings read 7.04, 11.33 and 6.27 in the dark
+   * theme and the quiet ones 1.57, which is the intended spread rather than a
+   * failure. The card is bounded by its band and its body either way.
    */
   {
-    fg: "partSource",
-    on: ["boardCard", "boardHead"],
-    min: 3.0,
-    why: "the header, border and glyph of a card that says WHERE a run reads: the area, a scene, a store",
+    fg: "boardCardInk",
+    on: ["boardCardHead"],
+    min: 4.5,
+    why: "the title and glyph of a card with no part in the request, on Graphite 700",
   },
   {
-    fg: "partWhen",
-    on: ["boardCard", "boardHead"],
-    min: 3.0,
-    why: "the same, for a card that says OVER WHAT STRETCH: a period, a window, a depth of record",
+    fg: "sourceInk",
+    on: ["sourceHead"],
+    min: 4.5,
+    why: "the title and glyph of a card that says WHERE a run reads, on Toxic Forest's green",
   },
   {
-    fg: "partMethod",
-    on: ["boardCard", "boardHead"],
-    min: 3.0,
-    why: "the same, for a card that says BY WHICH METHOD: a model, an index, a product, a set of bands",
+    fg: "whenInk",
+    on: ["whenHead"],
+    min: 4.5,
+    why: "the same, for a card that says OVER WHAT STRETCH, on Cyber Punch's yellow",
   },
   {
-    fg: "partValue",
-    on: ["boardCard", "boardHead"],
-    min: 3.0,
-    why: "the same, for a card that says AT WHAT VALUES: a threshold, a slope, a ratio, a loss",
+    fg: "methodInk",
+    on: ["methodHead"],
+    min: 4.5,
+    why: "the same, for a card that says BY WHICH METHOD, on Instagram's violet",
+  },
+  {
+    fg: "valueInk",
+    on: ["valueHead"],
+    min: 4.5,
+    why: "the same, for a card that says AT WHAT VALUES, on Forest Ritual's orange",
+  },
+  {
+    fg: "actionInk",
+    on: ["actionHead"],
+    min: 4.5,
+    why: "the run card's title, on the gold band that says the request ends here",
+  },
+  {
+    fg: "asideInk",
+    on: ["asideHead"],
+    min: 4.5,
+    why: "the title of a card on the graph but not in the request, on Forest Ritual's slate",
+  },
+  /*
+   * The card body, which every card shares and which is a ground rather than
+   * an accent. Listed per part rather than once: they hold the same value
+   * today, and the block exists so that one of them can be tinted without the
+   * others -- an edit the check has to be watching for before it happens.
+   */
+  {
+    fg: "text",
+    on: ["boardCard", "sourceBody", "whenBody", "methodBody", "valueBody"],
+    min: 4.5,
+    why: "a card's own readings, on the body of every kind of card the board draws",
+  },
+  {
+    fg: "muted",
+    on: ["boardCard", "sourceBody", "whenBody", "methodBody", "valueBody"],
+    min: 4.5,
+    why: "a card's secondary line -- a unit, a count, an absence -- on the same bodies",
   },
   /*
    * The two bands a wire draws once it has an outcome to report, checked as
