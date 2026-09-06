@@ -879,6 +879,16 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 		{"projects", "polygon_geojson"},
 		{"projects", "area_id"},
 		{"projects", "label"},
+		/*
+			studio_members.name and .state_json were the same mistake read from
+			the other end: not columns nothing writes, but columns nothing
+			reads back for any purpose. The frontend sends "" and "{}" into
+			them and keeps the arrangement, the per-group name included, in the
+			studio's own view_json. Six saved studios on one installation held
+			those two constants and nothing else. See StudioMember.
+		*/
+		{"studio_members", "name"},
+		{"studio_members", "state_json"},
 	} {
 		if err := s.dropColumn(c.table, c.column); err != nil {
 			return fmt.Errorf("migrate: %w", err)
