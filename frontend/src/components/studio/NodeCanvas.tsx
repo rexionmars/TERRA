@@ -361,14 +361,15 @@ const PANE_EDGE = 0.38
  *
  * The reference sets its labels in dark type on the routes that reported
  * something and in white on the ones still waiting, and the reason is contrast
- * rather than emphasis: white on a filled lime band reads 1.4:1, and the ink
- * this chassis draws its own surfaces against clears it at 11.87.
+ * rather than emphasis: white on a filled lime band reads 1.08:1, and the ink
+ * this chassis draws its own surfaces against clears it at 11.39.
  *
  * FAILED MOVED TO INK WHEN ITS BAND MOVED. It was white type, correctly, while
  * the band was --destructive at L 0.474 -- a fill measured for a button-sized
- * label. The band is now --p-wire-failed at L 0.710, light enough to be seen
- * crossing a field of ink and therefore too light to carry white type: 2.63:1
- * against 5.95 for dark. The pair is checked in lib/contrast.ts rather than
+ * label. The band is now --p-wire-failed at L 0.67, light enough to be seen
+ * crossing a field of ink and therefore too light to carry white type: 2.71:1
+ * against 4.53 for dark, which is the thinnest margin on this surface and is
+ * argued at the token in index.css. The pair is checked in lib/contrast.ts rather than
  * left to this table, which is what the destructive tokens did not have.
  */
 const INK_ON: Record<EdgeState, boolean> = {

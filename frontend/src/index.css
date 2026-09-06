@@ -530,23 +530,25 @@
   */
   --warning: #d5be4b;
   /*
-    THE ROUTE THAT WAS TAKEN, AND IT IS A LIME NOW RATHER THAN A MID GREEN.
-    L 0.887 C 0.173 h124, where it was L 0.644 C 0.106 h136.
+    THE ROUTE THAT WAS TAKEN, AND IT IS A REFERENCE VALUE RATHER THAN A
+    NEIGHBOUR OF ONE.
 
-    The old value was measured for a toast mark: a small graphic on a plate,
-    where 3.0 is the floor and a green that dark clears it easily. It has since
-    become the widest thing on the run board -- an opaque band that crosses the
-    whole field -- and at L 0.644 a band of it read as one more dark stripe
-    among the waiting ones. Which is the distinction the board exists to draw:
-    a route that produced an answer against seven that are still waiting.
+    It was #6f9c5a, a mid green measured for a toast mark -- a small graphic on
+    a plate, where 3.0 is the floor. It became the widest thing on the run
+    board, an opaque band crossing the whole field, and at L 0.644 a band of it
+    read as one more dark stripe among the waiting ones. That is the
+    distinction the board exists to draw.
 
-    Lifting the lightness is what makes it a taken route rather than a coloured
-    one, and it is why the reading written on this band is set in --p-ink: at
-    L 0.887 dark type clears 11.87:1 on it and white would read 1.4. The toast
-    mark it also paints gains from the same move, at 11.87 / 9.87 / 7.29 on the
-    three surfaces against a floor of 3.
+    It went to a lime constructed at L 0.887 C 0.173 h124, which was near a
+    reference and not one. This IS one: #B1FA63, the "Neon Sprout" of the
+    graphite palette, at L 0.91 C 0.196 h131. Three hundredths more chroma and
+    two of lightness than the value that was aiming at it.
+
+    Dark type clears 11.39:1 on the band and white would read 1.08, which is
+    why the reading here is set in --p-ink. As a toast mark it measures 14.14,
+    10.51 and 7.88 on the three surfaces against a floor of 3.
   */
-  --success: #c3ec5f;
+  --success: #b1fa63;
   /*
     THE WIRE THAT FAILED, and it is NOT --destructive.
 
@@ -557,17 +559,26 @@
     against a field of ink -- the failed wire would report its failure by
     disappearing.
 
-    L 0.710 C 0.114 h25, which is the reference's salmon and one hue-step off
-    destructive's h18, so the two still read as the same family where they
-    appear together. Dark type on it clears 5.95:1, the same construction the
-    lime above uses and for the same reason.
+    #F95831, WHICH IS FOREST RITUAL'S OWN. It was a salmon constructed at
+    L 0.710 C 0.114, which cleared everything and looked like a wire that had
+    faded rather than failed; the reference is L 0.67 C 0.204, nearly twice the
+    chroma. The palettes it comes from are the same ones the lime does, and a
+    board that takes its "answered" from one and its "refused" from a guess is
+    a board with two vocabularies.
 
-    KEPT OUT OF --destructive rather than folded into it: that token paints a
+    THE MARGIN IS THIN AND IS RECORDED HERE. The band is this colour at 0.92
+    over ink, and --p-ink written on THAT measures 4.53 against a floor of 4.5.
+    The checker sees 5.13, because it compares the token and not the composite;
+    the composite is what a reader looks at, so the number that matters is the
+    smaller one. Raising the fill to opaque would give 5.13 and is the move if
+    this ever needs room.
+
+    Kept out of --destructive rather than folded into it: that token paints a
     delete button, an error badge and a refusing control across nineteen files,
     and a colour chosen for a band on a board has no business deciding what a
     confirmation dialog looks like.
   */
-  --p-wire-failed: #e0847d;
+  --p-wire-failed: #f95831;
 
   /*
     The vegetation index series, one value per theme.
@@ -635,10 +646,13 @@
   /* The same two, at the lightness a light ground needs. The bands invert with
      the theme rather than holding their value: --p-ink is the light surface
      here, so the reading on a band is LIGHT type and the band has to be dark
-     enough to carry it. L 0.451 and L 0.501, giving 6.34 and 5.61 for that
-     reading, and 6.80 / 5.58 for the lime as a toast mark. */
-  --success: #446018;
-  --p-wire-failed: #9c443f;
+     enough to carry it. L 0.451 and L 0.501, at the reference hues
+     the dark theme now takes -- h131 for the lime, h35 for the failed one --
+     giving 5.29 and 4.88 for that reading. The references are dark palettes
+     and have no light counterpart to copy, so what carries across is the hue
+     and not the value. */
+  --success: #3f6115;
+  --p-wire-failed: #a43e26;
   /* Darkened for the light ground; same four floors, same search. */
   --series-ndvi: #4b9b55;
   --series-evi: #315f72;

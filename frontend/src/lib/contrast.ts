@@ -130,7 +130,7 @@ export const TOKENS = {
     accentQuiet: [240, 155, 99],
     accentDim: [83, 40, 12],
     destructive: [159, 43, 58],
-    success: [195, 236, 95],
+    success: [177, 250, 99],
     warning: [213, 190, 75],
     destructiveForeground: [221, 221, 221],
     destructiveQuiet: [248, 152, 158],
@@ -139,7 +139,7 @@ export const TOKENS = {
     partWhen: [31, 176, 204],
     partMethod: [155, 146, 227],
     partValue: [205, 128, 184],
-    wireFailed: [224, 132, 125],
+    wireFailed: [249, 88, 49],
   },
   light: {
     sunk: [215, 215, 215],
@@ -156,7 +156,7 @@ export const TOKENS = {
     accentQuiet: [158, 48, 14],
     accentDim: [240, 214, 198],
     destructive: [178, 54, 69],
-    success: [68, 96, 24],
+    success: [63, 97, 21],
     warning: [135, 112, 0],
     destructiveForeground: [244, 244, 244],
     destructiveQuiet: [163, 43, 59],
@@ -165,7 +165,7 @@ export const TOKENS = {
     partWhen: [15, 127, 147],
     partMethod: [111, 104, 165],
     partValue: [149, 91, 132],
-    wireFailed: [156, 68, 63],
+    wireFailed: [164, 62, 38],
   },
 } as const satisfies Record<string, Record<string, Channels>>
 
