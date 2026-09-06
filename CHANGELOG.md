@@ -19,6 +19,98 @@ hand-written "unreleased" section beside a generated one is the same list twice,
 and only one of them is kept current.
 
 
+## [0.6.0](https://github.com/rexionmars/TERRA/compare/v0.5.0...v0.6.0) (2026-09-06)
+
+
+### Features
+
+* **design:** APCA beside the ratio, Inter's optical size axis, and how a line breaks ([2d591c6](https://github.com/rexionmars/TERRA/commit/2d591c634a1e56de69b32c635906488e8eecd068))
+* **energy:** one band entry, the register on the map, readings as a tab ([18c36d8](https://github.com/rexionmars/TERRA/commit/18c36d831a694e25e5610411f8efc852890d9fce))
+* **flood:** rainfall routed over an area, as depth, speed and arrival ([c44b3c2](https://github.com/rexionmars/TERRA/commit/c44b3c2051b268de8cbed738dbdf821c82e9400d))
+* **flood:** the routing contract, read off a recorded payload ([b1f5cd6](https://github.com/rexionmars/TERRA/commit/b1f5cd615ecfc284905404e826ba88b96b5a2a1b))
+* **globe:** a raster's legend, tied to the ground it measures ([a1238a6](https://github.com/rexionmars/TERRA/commit/a1238a6e7328600a37bb196b5b0747bb873548c5))
+* **globe:** rasters are drawn at a height, so a stack can be read ([53f0325](https://github.com/rexionmars/TERRA/commit/53f03250d07b36e3d20692cb564934c05d007ca9))
+* **globe:** the callout's parameter line opens ([0e51adc](https://github.com/rexionmars/TERRA/commit/0e51adc9aeef443c06439af063fc47c43d2c0e46))
+* **globe:** the map callout is frosted, and the filter is what makes it safe ([7090022](https://github.com/rexionmars/TERRA/commit/709002200e9670f277faaa843acb02835277933e))
+* **globe:** the raster's parameters travel with it, and the leader curves ([b4ac84b](https://github.com/rexionmars/TERRA/commit/b4ac84ba05230259d2c3363c206ecf3c60b0204b))
+* **grid:** bare ground gets the neighbours' attachment, not just a distance ([afbbd46](https://github.com/rexionmars/TERRA/commit/afbbd46b423819c244d198e53d7b2148cd52c266))
+* **grid:** the Brazilian operational record, as a slice of its own ([db51396](https://github.com/rexionmars/TERRA/commit/db5139621b15e99c167f69c75a1139e5e49facb0))
+* **grid:** the connection reaches the screen, and the network answers a press ([73992d7](https://github.com/rexionmars/TERRA/commit/73992d768993ee428d06e610bf172edfae995ab7))
+* **grid:** the connection reading is an analysis, not only a panel ([1802626](https://github.com/rexionmars/TERRA/commit/18026260a31a2d781380c8995e22d0aaffb0faf7))
+* **grid:** the transmission network as a layer, under the plants that reach it ([4b49ead](https://github.com/rexionmars/TERRA/commit/4b49eadee4c2049f9ace9fc33059eb834367d5d0))
+* **map:** a second imagery source, and a credit that says which one is drawn ([7a11e68](https://github.com/rexionmars/TERRA/commit/7a11e68ed88d5bfdad72c8d47adbd0ab1f30c955))
+* **motion:** one table for how the application moves, and a press on every button ([8d96837](https://github.com/rexionmars/TERRA/commit/8d96837121f66ac087a11d3715f669beec20afd9))
+* **settings:** the space between panels is the reader's to set ([1fbe74b](https://github.com/rexionmars/TERRA/commit/1fbe74b2280290fc5d6360e88f1a7cdeafeb954e))
+* **studio:** a card is a ground with a band of accent on it ([0e09f20](https://github.com/rexionmars/TERRA/commit/0e09f2064510e7d840124bb4b86e358b89c5c54f))
+* **studio:** a dragged division lines up with the others ([83e83e0](https://github.com/rexionmars/TERRA/commit/83e83e09bb9f693c6392bc310a9afc145272a34e))
+* **studio:** a gap between panels, not a border ([5162b15](https://github.com/rexionmars/TERRA/commit/5162b1529f6ca856c923701d2bde64c5c265807b))
+* **studio:** a menu bar of groups, not one menu of everything ([e22ac04](https://github.com/rexionmars/TERRA/commit/e22ac044a3c3f5bede155dbf7f1588e6745b9a85))
+* **studio:** a routing board, and the panel that drives it ([b2ab6fc](https://github.com/rexionmars/TERRA/commit/b2ab6fcf74714e8965aac55a292a0153b8684a3e))
+* **studio:** Add a run joins New project in the area header ([45422c3](https://github.com/rexionmars/TERRA/commit/45422c3ed5d9aef91b3d245b198e6b4d8be8df25))
+* **studio:** New project moves to the browser's own header ([4f19b49](https://github.com/rexionmars/TERRA/commit/4f19b49c4fb70ec34b1beb03c4f2cf804c301002))
+* **studio:** the browser, where every saved analysis is filed and found ([a08ea72](https://github.com/rexionmars/TERRA/commit/a08ea72e42ed93031069225cdf7017febeb4366d))
+* **studio:** the browser's sources become a tree, and folders are drawn in the grid ([346146b](https://github.com/rexionmars/TERRA/commit/346146b61f859e4db0f9cde022f956b4e646c7a1))
+* **studio:** the loading surface carries the mark ([fc95d5a](https://github.com/rexionmars/TERRA/commit/fc95d5aef5cfcf8f5423d5ff4d3a558cf024ee69))
+* **studio:** the outcome colours become reference values rather than neighbours ([8ca8558](https://github.com/rexionmars/TERRA/commit/8ca855857bd1e5f77e970ad04c7e985af544f7b1))
+* **studio:** the part scale goes quiet, and cool ([369dfb9](https://github.com/rexionmars/TERRA/commit/369dfb96390accbba26baa760bf95beceff8aae3))
+* **studio:** the property on the map is asked for, per raster, from either surface ([dee5eba](https://github.com/rexionmars/TERRA/commit/dee5eba2919c8171d1cb853619b0313cc95484b2))
+* **studio:** the resource and the energy model come back, and solar gets its own editor ([d2135de](https://github.com/rexionmars/TERRA/commit/d2135de4d2a45b14e8e1e3ac29d88f68428315e7))
+* **studio:** the run band's products open from their subject, like the rest ([bcb0e3c](https://github.com/rexionmars/TERRA/commit/bcb0e3c8b15af035e78cea6c6a6d7908587cdff0))
+* **studio:** the run band's products stand with their subjects ([39dbd61](https://github.com/rexionmars/TERRA/commit/39dbd61d25fdd99265db59581a2b46143a0320fa))
+* **studio:** the run board gets a palette of its own ([abceba8](https://github.com/rexionmars/TERRA/commit/abceba8c6bfa529672b451a6d2bf5f94818ed7b3))
+* **studio:** the stack's spread has a handle on the board ([7536586](https://github.com/rexionmars/TERRA/commit/753658695cb34d563ae2bf617699176a7ce78018))
+* **studio:** the status strip reports the map it has, not the board's bindings ([f13f7e7](https://github.com/rexionmars/TERRA/commit/f13f7e76f9903caadabac50a33b3eaf2a69c6e6e))
+* **studio:** the type menu takes the same four subjects as the bar ([a515def](https://github.com/rexionmars/TERRA/commit/a515def67186b91e9cff40c0dabba6f860ad83a4))
+* **studio:** the wind and flood readings, and the research pack, become studio panels ([a4e7470](https://github.com/rexionmars/TERRA/commit/a4e74707c9932a71d9ac048f94a19f67f643bd47))
+* **studio:** the workspaces are grouped by the work they are for ([a633e29](https://github.com/rexionmars/TERRA/commit/a633e29e990e691232c88dfaea9968ad2f34a22a))
+* **studio:** what a card supplies, as a kind of thing ([6163625](https://github.com/rexionmars/TERRA/commit/61636254e8007225655df0af80f0f5cad0306029))
+* **studio:** wind and the flood envelope become cards on the run graph ([5cd6ee4](https://github.com/rexionmars/TERRA/commit/5cd6ee481887436e550a2fa4f51d233f2b2eaa99))
+* **studio:** wires that carry what passes along them, and cards that say what they answer ([c7ff60f](https://github.com/rexionmars/TERRA/commit/c7ff60fddf6af3263c61e66526fbe2a3fa68a192))
+
+
+### Bug fixes
+
+* **brand:** the mark's optical correction ([623481e](https://github.com/rexionmars/TERRA/commit/623481ee81de597e818ba969eb85d3ae2ba04762))
+* **chassis:** two of the three surfaces were never drawn ([0db8dd7](https://github.com/rexionmars/TERRA/commit/0db8dd70ff20e197d10300a95ecb3e7c582079ee))
+* **globe:** a tied legend rides its raster's height, not the ground under it ([a09d0e8](https://github.com/rexionmars/TERRA/commit/a09d0e85d810d3f6350c1ae60c1530a1f04d7311))
+* **globe:** the ground scale is measured across the screen, not up it ([9fdeb12](https://github.com/rexionmars/TERRA/commit/9fdeb127b9d880d47f273f7d400a2f8994f05220))
+* **globe:** the map stacks rasters in the order the scene tree sets ([a777122](https://github.com/rexionmars/TERRA/commit/a777122037b07656da2e5afbc1f9daff3eba3b93))
+* **globe:** the stack was drawn at one height, and the control becomes a move tool ([b047ead](https://github.com/rexionmars/TERRA/commit/b047eadef300a97b8b6b90c2836b4a5824e59a9b))
+* **globe:** the tied legend's anchor stays on the raster when the box is moved ([85f7cee](https://github.com/rexionmars/TERRA/commit/85f7ceef8b130465790c7c0b49d4f80e5390b0a8))
+* **grid:** Connection runs Connection, and a refusal stops wearing a tick ([9f52f69](https://github.com/rexionmars/TERRA/commit/9f52f6954fc58c3d7973df5d6a752995281b5e6d))
+* **grid:** the lint set the CI runs, which this branch had not been held to ([7f0a5c9](https://github.com/rexionmars/TERRA/commit/7f0a5c924b61f3ff3489b948d8309799dda57164))
+* **grid:** the neighbour bus figures stop calling themselves the nearest ([7a7f8ad](https://github.com/rexionmars/TERRA/commit/7a7f8ad9b401a011e6d432f19becf5bbc1cd1899))
+* **import:** the file picker opens from a node in the document ([a4cb3c8](https://github.com/rexionmars/TERRA/commit/a4cb3c84215577f89dd5ecdc66f5190dc9f4fd09))
+* **nav:** the column says Studio, which is the screen it opens ([30a839e](https://github.com/rexionmars/TERRA/commit/30a839e0fd569c96a56d4a165d0819b3f6a00691))
+* **readme:** crop the black frame the alpha channel left behind ([b035052](https://github.com/rexionmars/TERRA/commit/b035052ea0505e906bcf919ca7ae9289a4238815))
+* **readme:** WebP with the alpha channel, so the window keeps its shadow ([eedd637](https://github.com/rexionmars/TERRA/commit/eedd637bf223e9722c354aafb62782b91a8bc9df))
+* **sidecar:** protocol.fail never returns, and three structures say their type ([93b6c16](https://github.com/rexionmars/TERRA/commit/93b6c1665243718301c6a08d731e9730cf51704f))
+* **studio:** a reading announces itself in the tree, not by taking a panel ([ece05a2](https://github.com/rexionmars/TERRA/commit/ece05a290c24bf332254992c5ad0d155a6252d6a))
+* **studio:** a ribbon is a pane, not a light effect ([213b293](https://github.com/rexionmars/TERRA/commit/213b2931f0c4a415832635025eee8b719eb4b996))
+* **studio:** a ribbon is material, not light ([ffe9a60](https://github.com/rexionmars/TERRA/commit/ffe9a60a08904247ef39a619a52378a4ad911070))
+* **studio:** a solar, water, wind or flood run lets the studio be saved ([a89fe85](https://github.com/rexionmars/TERRA/commit/a89fe851755e2960a7fb818dad4af936b9de5ab4))
+* **studio:** a wire comes out from under its card, not off its edge ([5265ff1](https://github.com/rexionmars/TERRA/commit/5265ff1b1c09863f5c31684dbee85392a86afb2d))
+* **studio:** no dashed outline on a card, no seam down a ribbon ([72f9ca1](https://github.com/rexionmars/TERRA/commit/72f9ca11c24928b85870281f54de9f59ca976ddb))
+* **studio:** the board's field goes back to the chassis ([790e1f5](https://github.com/rexionmars/TERRA/commit/790e1f573ae3d393d0c5ec3fcbd1a63e4beb08e2))
+* **studio:** the browser's view toggle reaches its folders, and a folder looks like one ([567f523](https://github.com/rexionmars/TERRA/commit/567f52359f3bebbbe7f4ae726b3b522adb6336f3))
+* **studio:** the folder in the browser's grid aligns with its own name ([b105fb9](https://github.com/rexionmars/TERRA/commit/b105fb93c342caa8c8749e1878773be0c2ecda51))
+* **studio:** the gap was painted the colour of the panels it separates ([765d52a](https://github.com/rexionmars/TERRA/commit/765d52a277ead04c5aa1a0282725b435f03a481c))
+* **studio:** the ground goes back to Blender's own deepest step ([1e81383](https://github.com/rexionmars/TERRA/commit/1e81383f2a51c6f89e06fe1e136917111aa2f5c1))
+* **studio:** the outliner drops its column header ([a371bfe](https://github.com/rexionmars/TERRA/commit/a371bfe7fb260515d2af6a5d5d18b0b53c7e83b0))
+* **studio:** the panels were still the ground, and the ramp was reached inline ([100d9e1](https://github.com/rexionmars/TERRA/commit/100d9e115fd925e84e4ea0eb9df46db7f46c9efc))
+* **studio:** the part palette was inside a comment ([33cd590](https://github.com/rexionmars/TERRA/commit/33cd5904c3f641e03b4d6926719000f62ae8520a))
+* **studio:** the part scale gets its colour back, and the run card joins the pattern ([a21e3b2](https://github.com/rexionmars/TERRA/commit/a21e3b20ce6a8e32f22f852e24e89c5ab43314b3))
+* **studio:** the project can be changed from where it is named ([d54184e](https://github.com/rexionmars/TERRA/commit/d54184e760d62b84c73debfa597e3dae77a746f3))
+* **studio:** the shadow at a crossing is a blur, not a stack of outlines ([bcae383](https://github.com/rexionmars/TERRA/commit/bcae383851be18c448ad885c83e03db6a69a19b3))
+* **studio:** the two cards that fell out of the pattern ([983aeb0](https://github.com/rexionmars/TERRA/commit/983aeb050907c46178e10e1f8b881a4f20d76627))
+* **studio:** weight becomes a lightness step, which is what it was meant to be ([917f83b](https://github.com/rexionmars/TERRA/commit/917f83b30d46f2651ba36c2a236a89e20f413ff7))
+* **test:** restore the twelve contrast cases the APCA commit overwrote ([08549c7](https://github.com/rexionmars/TERRA/commit/08549c761cab7cf62f07141a31c48361219f25ad))
+
+
+### Performance
+
+* **grid:** the curtailment reading comes from the rollup, and cannot fall back ([d5c62a8](https://github.com/rexionmars/TERRA/commit/d5c62a8577614c5042cea290dbeac25258a5fce7))
+
 ## [0.5.0](https://github.com/rexionmars/TERRA/compare/v0.4.0...v0.5.0) (2026-08-31)
 
 
