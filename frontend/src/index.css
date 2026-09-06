@@ -263,44 +263,123 @@
 
     LIGHTNESS UNCHANGED THROUGH EVERY ONE OF THOSE MOVES, which is why the
     ratios barely shift: chroma at a fixed L is a change contrast does not
-    notice and the eye does. Each is drawn as a card's header wash, its border
-    and its glyph: a boundary at the 3.0 floor, never text. 3.87, 3.84, 3.59
-    and 3.47 on the raised surface, checked in lib/contrast.ts.
+    notice and the eye does. THE HUE ITSELF IS NOW DRAWN ONLY AS A GLYPH: the
+    header, the body and the border a part paints are written out as final
+    colours in the block below, each one the value this hue produced at the
+    weight that surface carried. This scale is where those four came from and
+    what a fifth would be placed against; it is no longer what paints them.
+    A boundary at the 3.0 floor, never text -- 3.87, 3.84, 3.59 and 3.47 on the
+    raised surface, checked in lib/contrast.ts.
   */
   /*
-    THE RUN BOARD'S OWN SURFACES, WHICH ARE NOT THE CHASSIS'S.
+    THE RUN BOARD'S CARDS, ONE LITERAL PER SURFACE.
 
-    Three tokens rather than three uses of --s-field, --s-card and
-    --s-panel-head, and the difference is the whole point: those roles resolve
-    through the ramp, and the ramp paints every panel in the application. Every
-    attempt to give the board a colour by moving them repainted the whole
-    product, which is a change nobody asked for to reach a surface that did.
+    EVERY COLOUR A CARD PAINTS IS WRITTEN HERE AS A FINAL VALUE. Nothing below
+    is composited at the call site, nothing is a hue at an alpha over a base,
+    and nothing is derived from anything else in this file. To change what a
+    card looks like, change the value on its line.
 
-    The board is a canvas, not a dock. It is the one surface here that is
-    LOOKED AT rather than worked in, it fills an area of its own, and it is
-    where this application's reference palettes actually apply -- those are
-    poster palettes, built for a field with two or three things on it, which is
-    what a run graph is and what a settings page is not.
+    EVERY VALUE IS FROM THE REFERENCE PALETTES, NAMED ON ITS OWN LINE. Not
+    placed near them, not sampled at their lightness, not fitted to their
+    chroma: the hex that is written here is the hex that is printed on the
+    swatch. That is the rule this block exists to hold, and it is the one the
+    two schemes before it broke.
 
-    THE FIELD IS NOT ONE OF THEM, AND THAT WAS A CORRECTION. It was taken to
-    #06070A, Instagram's near-black ground, which is a third of the lightness
-    the board's canvas had -- so a request about the CARDS arrived as a black
-    hole where the field used to be. The field is the chassis's, through
-    --s-field, like every other working surface in the application. These two
-    are the card and its header, and nothing else.
+    WHAT THE TWO BEFORE IT DID. The first built each surface as a hue at an
+    alpha over a shared base -- `rgb(var(--p-part-x) / 0.3)` over Deep Teal --
+    with the weights in three tables in BoardRunGraph.tsx. The base then did
+    seventy to ninety per cent of the work on every card, so four hues placed
+    31 to 40 degrees apart arrived on screen as four shades of the same
+    blue-teal and the board could not be read at all. The second answered that
+    by generating four hues in OKLCH at a matched lightness and chroma, which
+    is a scale built NEAR the references rather than FROM them, and it put a
+    magenta on the board that appears in none of them.
 
-    TAKEN FROM THE LIST RATHER THAN DERIVED NEAR IT. #243F3D is Forest
-    Ritual's second step and #114956 is Deep Teal's own: a dark teal and a
-    lighter one, 1.47 above the field and 1.14 above each other. Nothing here
-    is a value someone reached by nudging a grey.
+    A GROUND AND AN ACCENT, WITH NOTHING BETWEEN THEM, is what the references
+    actually hold and what this block now follows. Measured, they carry grounds
+    at C 0.012 to 0.030 -- #23262C, #0B2027, #172726 -- and accents at C 0.18
+    to 0.20 -- #FE7733, #B1FA63, #7231FF, #80B918 -- and no fourth of a hue in
+    between. The middle is where the first scheme tried to live, and the middle
+    is where colour dies: a tint of an accent over a ground is a ground.
+
+    SO A CARD IS A GROUND WITH A BAND OF ACCENT ON IT, which is how the posters
+    themselves are built -- #FE7733 with near-black type on it, #23262C with
+    pale type. The body is the ground, the same one for every card. The header
+    is the part's accent at FULL STRENGTH, and it carries its own ink, because
+    dark type on a bright band is what the reference does and what the band's
+    lightness requires.
+
+    TYPE OF DATA IS THE HUE, AND THERE IS ONE PER PART:
+
+      source  #80B918  Toxic Forest's green      WHERE a run reads
+      when    #FFD000  Cyber Punch's yellow      OVER WHAT STRETCH
+      method  #7231FF  Instagram's violet        BY WHICH METHOD
+      value   #F95831  Forest Ritual's orange    AT WHAT VALUES
+
+    WEIGHT IN THE WORKFLOW IS THE RING. A heavy part -- one whose change makes
+    the run a different question -- is ringed in its own accent and reads as an
+    outlined card across the field. A light part is ringed in the ground's own
+    #3A3F47, so the accent stays in the band alone. See HEAVY in runValue.ts,
+    which is where that ordering is argued. Two channels, and each is now a
+    line rather than a weight in a table.
+
+    THE ADJACENCY TO WATCH is value's #F95831 against the run card's #FCA311:
+    both are warm, and on the solar board the losses card sits beside the run
+    card. They are a red-orange and a gold, and they are the two the palettes
+    give that are closest together. Moving either is one line.
+
+    WHAT THE CHECK ENFORCES: a card's title and glyph read at 4.5 on the band
+    they sit in, and the body carries --p-text and --p-muted at 4.5. The rings
+    are measured and reported but not floored -- a light part's ring is meant
+    to be quiet, and that is the weight signal rather than a boundary. See
+    lib/contrast.ts, and scripts/check-contrast.ts, which re-reads these lines.
   */
-  --b-card: 36 63 61;
-  --b-card-head: 17 73 86;
 
-  --p-part-source: 48 182 154;
-  --p-part-when: 31 175 207;
-  --p-part-method: 115 158 233;
-  --p-part-value: 174 139 219;
+  /* The ground every card is built on: Graphite 900, and its 700 for a card
+     with no part in the request -- the layers card, and any card a panel
+     builds on this canvas without a subject. */
+  --b-card: #23262C;
+  --b-card-head: #3A3F47;
+  --b-card-edge: #3A3F47;
+  --b-card-ink: #C2C3C5;
+
+  /* WHERE a run reads -- the area, a scene, a store. Heavy: ringed in itself. */
+  --b-source-body: #23262C;
+  --b-source-head: #80B918;
+  --b-source-edge: #80B918;
+  --b-source-ink: #23262C;
+
+  /* OVER WHAT STRETCH -- a period, a window, a depth of record. Heavy. */
+  --b-when-body: #23262C;
+  --b-when-head: #FFD000;
+  --b-when-edge: #FFD000;
+  --b-when-ink: #121212;
+
+  /* BY WHICH METHOD -- a model, an index, a product, a set of bands. Light:
+     the accent stays in the band and the ring is the ground's own. */
+  --b-method-body: #23262C;
+  --b-method-head: #7231FF;
+  --b-method-edge: #3A3F47;
+  --b-method-ink: #FFFFFF;
+
+  /* AT WHAT VALUES -- a threshold, a slope, a ratio, a loss. Light. */
+  --b-value-body: #23262C;
+  --b-value-head: #F95831;
+  --b-value-edge: #3A3F47;
+  --b-value-ink: #172726;
+
+  /* The run card: where the request ends, and the one control asking to be
+     pressed. Ringed in itself, like a heavy part, because it is the loudest
+     thing on the board by role. */
+  --b-action-head: #FCA311;
+  --b-action-edge: #FCA311;
+  --b-action-ink: #23262C;
+
+  /* On the graph, not in the request. Forest Ritual's slate: the one band here
+     a reader is not meant to look at first. */
+  --b-aside-head: #476664;
+  --b-aside-edge: #476664;
+  --b-aside-ink: #D3E2DE;
 
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
@@ -395,22 +474,68 @@
   --p-kind-flood: 64 119 163;
   --p-kind-wind: 117 103 161;
 
-  /* The same four, at the lightness a light ground needs: L 0.549, and C 0.094
-     rather than the dark theme's 0.118 -- 0.094 is where the cyan leaves sRGB
-     at this lightness, so each theme sits at its own ceiling rather than at a
-     shared number neither could hold. 3.23, 3.26, 3.47 and 3.55 against the
-     deepest light ground, which is the one that binds here. */
-  /* The card and its header, at the elevation a light ground gives them:
-     #F4F4F4 and #FFFFFF, from the same list. A card sits ABOVE the canvas
-     here, which is the opposite direction from the dark theme and the same
-     relation. The canvas itself is the chassis's, as it is there. */
-  --b-card: 244 244 244;
-  --b-card-head: 255 255 255;
+  /*
+    THE SAME BLOCK FOR A LIGHT GROUND, and the same rule: every line is a hex
+    printed on one of the reference swatches, nothing here is composited or
+    derived. The dark theme's note above is the argument; this is the other end
+    of it.
 
-  --p-part-source: 32 131 110;
-  --p-part-when: 20 126 150;
-  --p-part-method: 81 113 168;
-  --p-part-value: 125 99 158;
+    THE BANDS DO NOT CHANGE, and that is the point of taking them from posters.
+    An accent at full strength is a colour, not a relation to a ground: Safety
+    Orange is Safety Orange on white and on graphite, which is why the same
+    four hues name the same four parts in both themes and a reader who learns
+    the board in one theme has not learned it only there.
+
+    WHAT FLIPS IS THE GROUND AND THE RINGS. The body is White Smoke rather than
+    Graphite 900, a card sits ABOVE the canvas here rather than below it, and
+    the quiet ring a light part takes is Silver rather than Graphite 700 --
+    each the same role on the other side of the ramp.
+
+    THE INK IS UNCHANGED TOO, for the same reason as the bands: it is measured
+    against the band it sits on, and the band did not move.
+  */
+
+  /* The ground every card is built on, and the card with no part in the
+     request. White Smoke, with Silver for the header and the ring. */
+  --b-card: #F4F4F4;
+  --b-card-head: #C2C3C5;
+  --b-card-edge: #C2C3C5;
+  --b-card-ink: #23262C;
+
+  /* WHERE a run reads -- the area, a scene, a store. Heavy: ringed in itself. */
+  --b-source-body: #F4F4F4;
+  --b-source-head: #80B918;
+  --b-source-edge: #80B918;
+  --b-source-ink: #23262C;
+
+  /* OVER WHAT STRETCH -- a period, a window, a depth of record. Heavy. */
+  --b-when-body: #F4F4F4;
+  --b-when-head: #FFD000;
+  --b-when-edge: #FFD000;
+  --b-when-ink: #121212;
+
+  /* BY WHICH METHOD -- a model, an index, a product, a set of bands. Light:
+     the accent stays in the band and the ring is Silver. */
+  --b-method-body: #F4F4F4;
+  --b-method-head: #7231FF;
+  --b-method-edge: #C2C3C5;
+  --b-method-ink: #FFFFFF;
+
+  /* AT WHAT VALUES -- a threshold, a slope, a ratio, a loss. Light. */
+  --b-value-body: #F4F4F4;
+  --b-value-head: #F95831;
+  --b-value-edge: #C2C3C5;
+  --b-value-ink: #172726;
+
+  /* The run card: where the request ends. Ringed in itself. */
+  --b-action-head: #FCA311;
+  --b-action-edge: #FCA311;
+  --b-action-ink: #23262C;
+
+  /* On the graph, not in the request. */
+  --b-aside-head: #476664;
+  --b-aside-edge: #476664;
+  --b-aside-ink: #D3E2DE;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the

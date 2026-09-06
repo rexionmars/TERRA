@@ -27,49 +27,29 @@ export function Head({
   icon: Icon,
   label,
   lit,
-  aside,
-  colour,
 }: {
   icon: PhosphorIcon
   label: string
   lit?: boolean
-  /**
-   * The card's own colour, where the caller has one for it.
-   *
-   * A CSS colour rather than a name, for the reason `subject` on CanvasNode
-   * gives: this file knows nothing about what a caller's categories are. It is
-   * the weakest of the three signals the glyph can carry and is taken last --
-   * a card that is out of the request or holding something has something to
-   * say about ITSELF, and what kind of card it is can wait behind that.
-   */
-  colour?: string
-  /**
-   * The card is on the graph and not in the request.
-   *
-   * Separate from `lit` rather than a third value of it, because the two
-   * answer different questions: `lit` is about what this card is CARRYING and
-   * changes as the reader works, and this is about where the card stands in
-   * the graph and does not change at all. A card can never be both -- one that
-   * feeds nothing has nothing to feed it with -- so the glyph takes this one
-   * first and the ordering below costs nothing.
-   */
-  aside?: boolean
 }) {
   return (
     <>
-      <Icon
-        className={cn(
-          "size-3 shrink-0",
-          aside
-            ? "text-aside"
-            : lit
-              ? "text-accent-quiet"
-              : colour
-                ? undefined
-                : "text-muted-foreground"
-        )}
-        style={!aside && !lit && colour ? { color: colour } : undefined}
-      />
+      {/*
+        THE GLYPH INHERITS THE BAND'S INK, which is the only colour that can be
+        stated about it from here.
+
+        It used to take three: the aside token, the accent when the card was
+        holding something, and otherwise the part's own hue. All three were
+        chosen against a header that was a WASH -- a tint over a plate -- and
+        none of them survives a band at full strength: the part's hue on a band
+        painted in the part's hue is the glyph disappearing, and a blue aside
+        mark on Forest Ritual's slate is not far behind it.
+
+        `lit` is the one that stays, and only because its callers do not paint
+        bands: FloodRoutingPanel builds cards with no subject and no tone, so
+        the accent still lands on the graphite header those take.
+      */}
+      <Icon className={cn("size-3 shrink-0", lit && "text-accent-quiet")} />
       {/*
         The label is truncated at the card's width, and `title` is how the whole
         of it is still reachable. The run node's header is the tool's own
@@ -79,26 +59,21 @@ export function Head({
         that does not say which run it is.
       */}
       {/*
-        `!text-foreground`, OVERRIDING THE EYEBROW'S OWN MUTED COLOUR.
+        NO COLOUR NAMED HERE. `.eyebrow` is drawn in --p-muted, which is
+        measured against the surfaces a PANEL is made of, and this row sits on
+        a card band instead. The override that used to stand here forced it to
+        --p-text, a pale grey, and that was correct for exactly as long as
+        every band was a wash over a plate: on Cyber Punch's yellow it is a
+        title nobody can read.
 
-        `.eyebrow` is drawn in --p-muted, which is measured against the
-        surfaces a panel is made of. This one sits on a card header, and every
-        card header on the board is a WASH: the part's hue at three tenths over
-        the raised plate, the accent at the same weight on the run card, the
-        aside at 0.22. Muted reads 3.77 to 3.92 on the four part washes and
-        3.81 on the run's -- under the 4.5 floor on all of them, and only the
-        aside's lighter wash clears at 4.51.
-
-        The floor lives here rather than in check-contrast because the ground
-        is a composite: a token laid over another token at an alpha, which the
-        checker compares tokens to tokens and cannot see. Measured at the full
-        weight: 5.51, 5.61, 5.62, 5.72 for the parts, 5.56 for the run, 6.59
-        for the aside.
+        The band sets `color` and this inherits it. Which pair lands on which
+        band is decided and measured where the two are written down together,
+        in index.css, rather than half here and half there.
 
         Small and letter-spaced is what keeps it quiet at this weight. Quiet
-        was never the muted TOKEN's job here; it is the size's.
+        was never a token's job here; it is the size's.
       */}
-      <span className="eyebrow !text-[9px] truncate !text-foreground" title={label}>
+      <span className="eyebrow !text-[9px] truncate !text-current" title={label}>
         {label}
       </span>
     </>
@@ -138,9 +113,38 @@ export function Choice({
         disabled || blockedBy
           ? "cursor-not-allowed text-muted-foreground/40"
           : chosen
-            ? "bg-accent-dim text-foreground inset-ring-1 inset-ring-accent"
+            ? undefined
             : "text-muted-foreground hover:bg-hover hover:text-foreground"
       )}
+      /*
+        A CHOSEN OPTION IS A CHIP IN THE CARD'S OWN COLOUR, and it is the same
+        pair the header band is: the band filled, the band's ink on it.
+
+        It was `bg-accent-dim text-foreground inset-ring-1 inset-ring-accent` --
+        a brown plate with an orange ring, the chassis's accent at the one
+        weight it has. On a board where a card's colour says which part of a
+        request it answers, that made every chosen value on every card say the
+        same thing, and what it said was the RUN card's colour: the board's one
+        press-me signal, repeated down every list of options that is not it.
+
+        No ring. The chip is a filled shape now, and a ring on a fill in the
+        same family is a second boundary drawn around the first -- the accent
+        ring existed to give a dim plate an edge, and a plate that is no longer
+        dim does not need one.
+
+        The two properties come from the card this chip is inside, which
+        declares them on its own box; see NodeCanvas. The fallbacks are what a
+        card with no part is drawn in, so a chip rendered outside one is quiet
+        rather than invisible.
+      */
+      style={
+        !disabled && !blockedBy && chosen
+          ? {
+              background: "var(--b-lit, var(--b-card-head))",
+              color: "var(--b-lit-ink, var(--b-card-ink))",
+            }
+          : undefined
+      }
     >
       {label}
     </button>

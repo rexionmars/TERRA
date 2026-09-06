@@ -329,7 +329,7 @@ const PANE_TINT_TAIL = 0.24
  * A wire's colour at a weight, whatever form the colour arrived in.
  *
  * The colours these ribbons are painted in are not all the same shape of
- * string: a part's hue is `rgb(var(--p-part-x))`, an outcome's is a bare
+ * string: a part's hue is `var(--b-x-head)`, an outcome's is a bare
  * `var(--success)`, and neither can have an alpha appended to it. `color-mix`
  * takes any of them and is how a fill weight is expressed where the weight has
  * to live in the colour itself -- which, for a background rather than a fill,
@@ -541,11 +541,18 @@ export interface CanvasNode {
    * card is.
    */
   /*
-    `body` is the same hue at a tenth of the wash: the weight the header states
-    in one band, laid over the card's whole surface so it reads without being
-    compared. See PART_BODY in BoardRunGraph.
+    FOUR FINISHED COLOURS, NOT FOUR INGREDIENTS. Each is a `var()` naming one
+    line of index.css, and this canvas paints it as given: no alpha is appended
+    here and nothing is composited over a base, so what the board shows is what
+    that line says.
+
+    `ink` IS PART OF THE SET RATHER THAN A GLOBAL. The band is an accent at
+    full strength, so what can be written on it follows from the band -- gold
+    takes near-black, violet takes white -- and a header that picked one colour
+    for every card would be readable on some of them by luck. The caller
+    measured the pair; it hands over both halves of it.
   */
-  subject?: { wash: string; body: string; edge: string }
+  subject?: { band: string; body: string; edge: string; ink: string }
 }
 
 /**
@@ -1455,63 +1462,118 @@ export function NodeCanvas({
                 either way -- the header keeps its accent plate -- and this says
                 whether the action is under way.
               */
-              n.status === "busy"
-                ? "border-warning/70"
-                : n.tone === "action"
-                  ? "border-accent/60"
-                  : n.tone === "aside"
-                    ? "border-aside/70"
-                    : n.subject
-                      ? undefined
-                      : "border-line-strong/45"
+              n.status === "busy" ? "border-warning/70" : undefined
             )}
             style={{
               left: n.place.x,
               top: n.place.y,
               width: NODE_W,
               /*
-                The card's own part, where nothing louder is being said. A
-                border set from a token with an alpha rather than from a class,
-                because the colour arrives as a string the caller composed.
+                THE CARD'S OWN COLOUR, PUT WHERE ITS CONTENTS CAN REACH IT.
+
+                A control inside a card that is ON -- a chosen option, a toggle
+                that is set -- was lit in `bg-accent-dim` with an accent ring:
+                the chassis's orange, at the one weight it has, on every card
+                of every kind. Two things were wrong with that. It said nothing
+                about the card it was in, on a board whose whole scheme is that
+                a card says which part of a request it answers. And it was the
+                RUN card's colour, on cards that are not the run card, so the
+                board's one press-me signal was repeated in every list of
+                options on it.
+
+                Declared here rather than passed down because the depth is
+                arbitrary and the answer is not: everything inside this box
+                belongs to this card, so the card states its colour once and
+                whatever is nested in it reads the same two values. The pair is
+                the band's own, which is why nothing new had to be measured --
+                a lit control is a miniature of the header above it, and that
+                pairing is already floored at 4.5 in lib/contrast.ts.
               */
-              borderColor:
-                !n.status && !n.tone && n.subject ? n.subject.edge : undefined,
+              ["--b-lit" as string]:
+                n.tone === "action"
+                  ? "var(--b-action-head)"
+                  : n.tone === "aside"
+                    ? "var(--b-aside-head)"
+                    : n.subject
+                      ? n.subject.band
+                      : "var(--b-card-head)",
+              ["--b-lit-ink" as string]:
+                n.tone === "action"
+                  ? "var(--b-action-ink)"
+                  : n.tone === "aside"
+                    ? "var(--b-aside-ink)"
+                    : n.subject
+                      ? n.subject.ink
+                      : "var(--b-card-ink)",
               /*
-                The card's own part, over the card surface every card has --
-                two layers rather than one, for the reason the header states
-                below: a card with a part must keep the surface it shares with
-                the cards that have none, or it stops being the same object in
-                a different colour and becomes a differently made one.
+                EVERY BORDER BUT THE BUSY ONE IS A BOARD TOKEN, named here
+                rather than in a class.
+
+                The four it used to take from utilities -- accent/60,
+                aside/70, line-strong/45 -- were the chassis's colours at an
+                alpha, so the run card and the layers card were outlined in
+                whatever the panels around the board were outlined in, at a
+                fraction nobody had measured against this field. They are
+                --b-action-edge, --b-aside-edge and --b-card-edge now, on the
+                same footing as a part's: one line in index.css per card, and
+                the whole board's outlines editable in one place.
+
+                Busy stays a utility. It is a STATUS, not a colour this board
+                owns -- the same warning the rest of the application uses for
+                the same meaning -- and it outranks the card's own edge for as
+                long as the work is under way.
               */
-              background: n.subject
-                ? `linear-gradient(${n.subject.body}, ${n.subject.body}), rgb(var(--b-card))`
-                : "rgb(var(--b-card))",
+              borderColor: n.status
+                ? undefined
+                : n.tone === "action"
+                  ? "var(--b-action-edge)"
+                  : n.tone === "aside"
+                    ? "var(--b-aside-edge)"
+                    : n.subject
+                      ? n.subject.edge
+                      : "var(--b-card-edge)",
+              /*
+                One token, not a tint over a base. It WAS two layers -- the
+                part at 0.09 laid over --b-card -- to keep the constraint the
+                header states below: a card with a part has to stay the surface
+                it shares with the cards that have none, or it stops being the
+                same object in a different colour and becomes a differently
+                made one. That constraint is now held in index.css, where each
+                body sits three to eight levels off --b-card and can be read
+                against it on the page rather than worked out from an alpha.
+              */
+              background: n.subject ? n.subject.body : "var(--b-card)",
               zIndex: front === n.id ? 1 : undefined,
               /*
-                DEPTH, AND A HALO IN THE CARD'S OWN COLOUR.
+                DEPTH ONLY, AND THE HALOES ARE GONE.
 
                 The depth deepens under the card being dragged and only there:
                 a card lifted off the field is the one gesture on this surface
                 with no other feedback, since the pointer is already captured
                 and the cursor already says grabbing.
 
-                The halo is the reference's, and it is spread NEGATIVE so the
-                colour stays close to the edge rather than washing the field
-                between cards. A card with nothing to report about itself gets
-                none -- the period and the model always hold a value, and a
-                glow on every card is a glow that distinguishes nothing.
+                THE COLOURED GLOW WAS ANSWERING A QUESTION THE CARD NO LONGER
+                ASKS. The run card carried an accent halo and the aside card a
+                blue one, from a board where every header was a wash over the
+                same plate: a card could not be told apart by looking at it, so
+                the two that most needed telling apart were ringed in light.
+                Each card now wears its own accent at full strength across the
+                top and, where it is heavy, around its whole edge -- the halo
+                repeats that at a lower fidelity, spread into the field, and a
+                second statement of a thing already said reads as glare rather
+                than as emphasis.
+
+                THE BUSY GLOW STAYS, and it is the one that is not about
+                identity. It says work is under way, which is true only while
+                it is true, and it is the sole non-textual mark of that: the
+                stage beneath it is a word, and a word is not what tells a
+                reader who is looking elsewhere on the board that the run went.
               */
               boxShadow: [
                 lifted === n.id
                   ? "0 14px 34px -10px rgb(0 0 0 / 0.62)"
                   : "0 6px 18px -8px rgb(0 0 0 / 0.5)",
-                n.status === "busy"
-                  ? "0 0 22px -6px var(--warning)"
-                  : n.tone === "action"
-                    ? "0 0 20px -8px var(--accent)"
-                    : n.tone === "aside"
-                      ? "0 0 18px -10px rgb(var(--p-aside))"
-                      : null,
+                n.status === "busy" ? "0 0 22px -6px var(--warning)" : null,
               ]
                 .filter(Boolean)
                 .join(", "),
@@ -1527,78 +1589,67 @@ export function NodeCanvas({
               onPointerMove={onPointerMove}
               onPointerUp={endDrag}
               onPointerCancel={endDrag}
-              className={cn(
-                "flex h-[2.125rem] cursor-grab items-center gap-1.5 rounded-t-md px-2.5 active:cursor-grabbing",
+              className="flex h-[2.125rem] cursor-grab items-center gap-1.5 rounded-t-md px-2.5 active:cursor-grabbing"
+              /*
+                THE HEADER IS ONE TOKEN, WHICHEVER CARD IT BELONGS TO.
+
+                Four constructions used to meet here and no two were the same
+                kind of thing: a part was a tint composited over --b-card-head,
+                the action card was the accent at 0.38 over the same base, the
+                aside card was `bg-aside/22` -- a utility, over the card body
+                rather than over the head -- and a card with neither took
+                `bg-selected`, which is the chassis's white-at-13% and belongs
+                to selected rows in tables. Each arrived by a different route
+                and each had to be reasoned about separately, which is why the
+                four of them were never once in agreement.
+
+                They are four lines in index.css now, in the same block and the
+                same units, and the relations that were argued into them hold
+                by being visible rather than by being derived:
+
+                - a part's header is a lift on the card under it, not a plate
+                  laid instead of it, so a coloured card is the same header in
+                  a different temperature and not a differently made object;
+                - the run card's stays above every part's, because it is where
+                  the request ends and the one control asking to be pressed;
+                - the aside card's stays below every card that IS in the
+                  request, since a card the run does not read should not be the
+                  loudest thing on the field.
+
+                Set one of them and the board takes it. That is the point of
+                the block: these are ORDERED against each other, and an order
+                is something a reader can check on four adjacent lines and
+                cannot check across four files.
+              */
+              style={{
+                background:
+                  n.tone === "action"
+                    ? "var(--b-action-head)"
+                    : n.tone === "aside"
+                      ? "var(--b-aside-head)"
+                      : n.subject
+                        ? n.subject.band
+                        : "var(--b-card-head)",
                 /*
-                  The aside header is a WASH, not a fill. `bg-accent-dim` under
-                  the action tone is an opaque plate and says "this is the end
-                  of the graph"; the same weight here would make the card that
-                  is not in the request the loudest thing on the field. A tint
-                  reads as a different KIND of card at a glance and stays
-                  quieter than every card that is.
-
-                  22%, NOT 12%. The first attempt drew the wash so thin that it
-                  rendered rgb(57 60 61) over this surface -- four levels of
-                  spread between the channels, which is grey. It also lands the
-                  header within a tenth of the step the raised fill gives every
-                  other card, so this reads as the same header in a different
-                  temperature rather than as a header that went missing.
+                  THE BAND SETS THE COLOUR ITS CONTENTS INHERIT, and nothing
+                  inside it names a colour of its own. The title and the glyph
+                  both ran on tokens picked for the chassis before this -- the
+                  label forced to --p-text, the glyph to the part's hue -- and
+                  on a band at full strength each was a guess: --p-text is a
+                  pale grey, which is what you want on graphite and unreadable
+                  on gold. Setting `color` here and letting both inherit makes
+                  the pair a property of the band, which is where it was
+                  measured.
                 */
-                n.tone === "aside"
-                  ? "bg-aside/22"
-                  : n.tone === "action" || n.subject
-                    ? undefined
-                    : "bg-selected"
-              )}
-              /*
-                THE PART IS A TINT ON THE HEADER, NOT A HEADER OF ITS OWN.
-
-                It replaced the raised plate outright at first, and that is
-                what put the coloured cards out of pattern: every other header
-                on the board is the raised surface at seven tenths, about a
-                fifth lighter than the card under it, and a card with a part
-                lost that lift and became a flat plate of colour instead. Two
-                layers rather than one -- the tint over the plate every card
-                has -- so a part reads as the same header in a different
-                temperature, which is what --p-aside already does above.
-              */
-              /*
-                THE ACTION HEADER IS A WASH NOW TOO, and it was the last one
-                that was not.
-
-                It was `bg-accent-dim`: an opaque plate, laid instead of the
-                raised surface rather than over it. The note above records that
-                exact construction being wrong for the aside card and the note
-                below records it being wrong for a card with a part -- "a card
-                with a part lost that lift and became a flat plate of colour
-                instead" -- and the action card kept it through both
-                corrections, so on a board of washed headers it was the one
-                solid band.
-
-                0.38 of the accent, and the number follows the parts rather
-                than leading them: a heavy part's header now reaches level 86.6
-                and this has to stay above it, because the run card is where
-                the request ends and is the one control asking to be pressed.
-                0.38 puts it at 88.6 with its title still at 4.87 -- 0.44 would
-                clear the parts more comfortably and drop the title to 4.41,
-                under the floor.
-
-                What it no longer is is a different KIND of header.
-                --p-accent-dim is left to the things it was measured for, which
-                are fills that carry a label.
-              */
-              style={
-                n.tone === "aside"
-                  ? undefined
-                  : {
-                      background:
-                        n.tone === "action"
-                          ? "linear-gradient(rgb(var(--p-accent) / 0.38), rgb(var(--p-accent) / 0.38)), rgb(var(--b-card-head))"
-                          : n.subject
-                            ? `linear-gradient(${n.subject.wash}, ${n.subject.wash}), rgb(var(--b-card-head))`
-                            : undefined,
-                    }
-              }
+                color:
+                  n.tone === "action"
+                    ? "var(--b-action-ink)"
+                    : n.tone === "aside"
+                      ? "var(--b-aside-ink)"
+                      : n.subject
+                        ? n.subject.ink
+                        : "var(--b-card-ink)",
+              }}
             >
               {n.header}
             </div>
