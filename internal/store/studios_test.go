@@ -33,8 +33,8 @@ func TestSaveStudioRoundTrip(t *testing.T) {
 		Name:     "  Pato Branco vs Teresina  ",
 		ViewJSON: `{"spread":0.12}`,
 		Members: []StudioMember{
-			{RunID: "run-a", Name: "Pato Branco 2024", StateJSON: `{"x":0}`},
-			{RunID: "run-b", StateJSON: `{"x":1.4}`},
+			{RunID: "run-a"},
+			{RunID: "run-b"},
 		},
 	})
 	if err != nil {
@@ -71,10 +71,6 @@ func TestSaveStudioRoundTrip(t *testing.T) {
 		t.Errorf("order not preserved: %v", []string{
 			got.Members[0].RunID, got.Members[1].RunID,
 		})
-	}
-	// Empty means "use the run's own name", not "has no name".
-	if got.Members[1].Name != "" {
-		t.Errorf("unnamed member carries %q", got.Members[1].Name)
 	}
 }
 
@@ -428,11 +424,16 @@ func TestABoardSavedAsAWhiteboardOpensAsAStudio(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Put the file back into the shape the previous name left it in.
+	// Put the file back into the shape the previous name left it in. The two
+	// added columns are part of that shape: a file written under the old name
+	// carries them, and dropping them is the other thing migrate has to do to
+	// it. See StudioMember.
 	for _, stmt := range []string{
 		`ALTER TABLE studios RENAME TO whiteboards`,
 		`ALTER TABLE studio_members RENAME COLUMN studio_id TO whiteboard_id`,
 		`ALTER TABLE studio_members RENAME TO whiteboard_members`,
+		`ALTER TABLE whiteboard_members ADD COLUMN name TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE whiteboard_members ADD COLUMN state_json TEXT NOT NULL DEFAULT '{}'`,
 	} {
 		if _, err := s.db.Exec(stmt); err != nil {
 			t.Fatal(err)
@@ -478,8 +479,23 @@ func TestABoardSavedAsAWhiteboardOpensAsAStudio(t *testing.T) {
 	if len(got.Members) != 1 || got.Members[0].RunID != "run-1" {
 		t.Fatalf("the studio came back with %d member(s)", len(got.Members))
 	}
-	if got.Members[0].Name != "Left" {
-		t.Errorf("the member's own name is %q, want %q", got.Members[0].Name, "Left")
+	// The legacy row carried name and state_json; those columns are dropped by
+	// the same migrate, and what mattered about the member -- which run it is
+	// and where in the order -- came through. See StudioMember.
+	if got.Members[0].Position != 0 {
+		t.Errorf("the member's position is %d, want 0", got.Members[0].Position)
+	}
+	for _, gone := range []string{"name", "state_json"} {
+		var n int
+		if err := s.db.QueryRow(
+			`SELECT COUNT(1) FROM pragma_table_info('studio_members') WHERE name = ?`,
+			gone,
+		).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("studio_members still declares %s", gone)
+		}
 	}
 
 	// The old names are gone rather than left beside the new ones: two tables

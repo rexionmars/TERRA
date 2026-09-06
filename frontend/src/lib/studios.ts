@@ -88,13 +88,21 @@ export async function saveStudio(
     updated_at: "",
     view_json: JSON.stringify(snapshot),
     member_count: snapshot.runIds.length,
+    /*
+      A member is the run and its place, and nothing else.
+
+      It also carried `name` and `state_json`, sent as "" and "{}" from here
+      every time: the name given on the board and the placement of its planes
+      live in the snapshot above, keyed `stack::<runId>`, which is where the
+      board reads them from when it reopens. The two constants were a second
+      place for the same thing that never held it, and the columns behind them
+      are gone.
+    */
     members: snapshot.runIds.map((runId, i) => ({
       id: "",
       studio_id: id ?? "",
       run_id: runId,
       position: i,
-      name: "",
-      state_json: "{}",
     })),
   }
   return (await SaveStudio(payload as never)) as unknown as Studio

@@ -75,7 +75,7 @@ var expectedColumns = map[string][]string{
 	"projects":         {"id", "user_id", "name", "notes", "created_at", "updated_at", "last_area_id"},
 	"project_overlays": {"id", "project_id", "kind", "title", "meta_json", "png_relpath", "tif_relpath", "created_at", "run_id", "area_id"},
 	"studios":          {"id", "user_id", "name", "created_at", "updated_at", "view_json", "project_id"},
-	"studio_members":   {"id", "studio_id", "run_id", "position", "name", "state_json"},
+	"studio_members":   {"id", "studio_id", "run_id", "position"},
 	"areas":            {"id", "project_id", "user_id", "name", "polygon_geojson", "notes", "created_at", "updated_at"},
 }
 

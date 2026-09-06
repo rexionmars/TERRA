@@ -68,21 +68,23 @@ type StudioMember struct {
 	/** Order on the board, left to right. */
 	Position int `json:"position"`
 	/*
-		The name given on the board, over the one the run carries.
+		WHAT A MEMBER IS NOT, and it used to be two more things.
 
-		Empty means the run's own name is used, rather than meaning the member
-		has no name: a run renamed later is still followed until someone has
-		said otherwise.
-	*/
-	Name string `json:"name,omitempty"`
-	/*
-		Where the group sits, and how its planes are set.
+		`name` held the name given on the board over the one the run carries,
+		and `state_json` held where the group sat and how its planes were set.
+		Both were written by SaveStudio and read by GetStudio, and in six saved
+		studios on one installation every one of them held "" and "{}": the
+		frontend sends those two constants and has always kept the real values
+		in the studio's own view_json, where the whole arrangement lives. The
+		override is a real feature and it is still there -- as the `names` map
+		keyed `stack::<runId>` -- so what was dropped is a second place for it,
+		not the thing itself.
 
-		Opaque for the same reason as ViewJSON, and it is the frontend's
-		CardPlane vocabulary: offsets in board units, per-layer opacity and
-		visibility. None of it means anything to the store.
+		Dropped rather than left unwritten, which is the rule migrate states
+		for the columns it drops: a column nothing writes always reads its
+		default and will disagree with the table one day. These crossed into
+		TypeScript as well, so the disagreement had two sides to appear on.
 	*/
-	StateJSON string `json:"state_json,omitempty"`
 	/*
 		The run this member names is gone.
 
@@ -112,9 +114,7 @@ CREATE TABLE IF NOT EXISTS studio_members (
   id TEXT PRIMARY KEY,
   studio_id TEXT NOT NULL REFERENCES studios(id) ON DELETE CASCADE,
   run_id TEXT NOT NULL,
-  position INTEGER NOT NULL DEFAULT 0,
-  name TEXT NOT NULL DEFAULT '',
-  state_json TEXT NOT NULL DEFAULT '{}'
+  position INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_studio_members_studio
   ON studio_members(studio_id, position);
@@ -234,14 +234,12 @@ func (s *Store) SaveStudio(c Studio) (*Studio, error) {
 		m.ID = uuid.NewString()
 		m.StudioID = c.ID
 		m.Position = i
-		if m.StateJSON == "" {
-			m.StateJSON = "{}"
-		}
+
 		if _, err := tx.Exec(
 			`INSERT INTO studio_members
-			 (id, studio_id, run_id, position, name, state_json)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
-			m.ID, m.StudioID, m.RunID, m.Position, m.Name, m.StateJSON,
+			 (id, studio_id, run_id, position)
+			 VALUES (?, ?, ?, ?)`,
+			m.ID, m.StudioID, m.RunID, m.Position,
 		); err != nil {
 			return nil, err
 		}
@@ -326,7 +324,7 @@ func (s *Store) GetStudio(userID, id string) (*Studio, error) {
 		marked, not dropped. See StudioMember.Missing.
 	*/
 	rows, err := s.db.Query(
-		`SELECT m.id, m.studio_id, m.run_id, m.position, m.name, m.state_json,
+		`SELECT m.id, m.studio_id, m.run_id, m.position,
 		        r.id IS NULL
 		 FROM studio_members m
 		 LEFT JOIN inference_runs r ON r.id = m.run_id
@@ -342,8 +340,7 @@ func (s *Store) GetStudio(userID, id string) (*Studio, error) {
 	for rows.Next() {
 		var m StudioMember
 		if err := rows.Scan(
-			&m.ID, &m.StudioID, &m.RunID, &m.Position, &m.Name,
-			&m.StateJSON, &m.Missing,
+			&m.ID, &m.StudioID, &m.RunID, &m.Position, &m.Missing,
 		); err != nil {
 			return nil, err
 		}
