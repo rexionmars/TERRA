@@ -7438,8 +7438,6 @@ export namespace store {
 	    studio_id: string;
 	    run_id: string;
 	    position: number;
-	    name?: string;
-	    state_json?: string;
 	    missing?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -7452,8 +7450,6 @@ export namespace store {
 	        this.studio_id = source["studio_id"];
 	        this.run_id = source["run_id"];
 	        this.position = source["position"];
-	        this.name = source["name"];
-	        this.state_json = source["state_json"];
 	        this.missing = source["missing"];
 	    }
 	}

@@ -9,10 +9,12 @@ import {
 import { setStudioGutter } from "@/lib/studioGutter"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import type { Studio } from "@/lib/studios"
-import { listStudios, openStudio } from "@/lib/studios"
+import { listStudios, openStudio, saveStudio } from "@/lib/studios"
 import {
   clearBoardMemory,
+  readBoardMemory,
   restoreBoard,
+  snapshotBoard,
   writeBoardMemory,
 } from "@/components/studio/boardMemory"
 import { useTheme } from "next-themes"
@@ -1052,53 +1054,6 @@ function AppBody(props: {
     [goStudio]
   )
 
-  const handleOpenStudio = useCallback(
-    async (board: Studio) => {
-      try {
-        const opened = await openStudio(board.id)
-        if (!opened.snapshot) {
-          notifyError(
-            "Could not read this studio",
-            new Error("its arrangement is unreadable")
-          )
-          return
-        }
-        restoreBoard(opened.snapshot)
-        /*
-          The map's retained runs go with it. A stored board is the runs it was
-          saved with; anything the map happened to be holding is not one of
-          them, and `assetRuns` would add it as an area of this board.
-        */
-        props.clearRetainedRuns()
-        /*
-          The rasters are fetched by the board itself, where LoadAnalysis
-          already lives. Members whose run has been deleted are left out with
-          a word rather than silently: a board that opened with one side
-          missing and said nothing would look like it had been built that way.
-        */
-        const wanted = opened.snapshot.runIds.filter(
-          (id) => !opened.missingRunIds.includes(id)
-        )
-        writeBoardMemory("savedId", board.id)
-        writeBoardMemory("savedName", board.name)
-        if (opened.missingRunIds.length) {
-          notifyInfo(
-            `${opened.missingRunIds.length} run(s) in this studio no longer exist.`
-          )
-        }
-        /*
-          No workspace: a saved board carries its own arrangement, which
-          `restoreBoard` has just put back. Asking for one here would replace
-          what the reader saved with a preset.
-        */
-        openInStudio(wanted)
-      } catch (e) {
-        notifyError("Could not open this studio", e)
-      }
-    },
-    [openInStudio, props.clearRetainedRuns]
-  )
-
   /**
    * Open settings at System when nothing can be computed.
    *
@@ -1126,6 +1081,18 @@ function AppBody(props: {
    * then went unreported for the rest of the session, which is precisely the
    * silence the gate exists to break.
    */
+  /*
+    The ground the map is leaving, and what was on it.
+
+    DECLARED HERE, ABOVE THE TWO HANDLERS THAT HAVE TO CLEAR IT. Its effect is
+    further down, beside the state it reads; this is only the cell. See
+    handleOpenStudio for what goes wrong when a studio switch reaches that
+    effect with the cell still full.
+  */
+  const leavingRef = useRef<{
+    id: string | undefined
+    result: PredictResult | null
+  }>({ id: undefined, result: null })
   const envGateDone = useRef(false)
   useEffect(() => {
     if (!user || envGateDone.current) return
@@ -1607,6 +1574,21 @@ function AppBody(props: {
               key: Date.now(),
             })
           }
+        } else if (userInitiated) {
+          /*
+            A PROJECT WITH NO GROUND YET OPENS ON NO GROUND.
+
+            The branch above replaces the drawing when the project being opened
+            has one to resume on, so the case that was never handled is the
+            project that has none: the previous project's outline stayed on the
+            map, over a field the opened project does not own, and a run made
+            there was filed against it. The clear above this only dropped the
+            catalogued id -- the shape itself was left drawn, which is the half
+            a reader can see.
+          */
+          props.setCustomPolygon(null)
+          props.setAnalysisLabel(undefined)
+          void persistAoiLabel(null)
         }
         const overlays = (await ListProjectOverlays(
           id
@@ -2805,6 +2787,122 @@ function AppBody(props: {
   ])
 
   /**
+   * Open a saved studio.
+   *
+   * MOVED HERE FROM ABOVE THE STATE IT NEEDS. It used to sit beside
+   * openInStudio, hundreds of lines before clearAnalysisResults and the
+   * composition are declared, which is why it could not do what
+   * handleNewStudio does -- naming any of them in its dependency list from up
+   * there is a reference before initialisation. Sitting next to its mirror is
+   * also where a reader compares the two, which is the comparison that was
+   * needed to find what follows.
+   */
+  const handleOpenStudio = useCallback(
+    async (board: Studio) => {
+      try {
+        const opened = await openStudio(board.id)
+        if (!opened.snapshot) {
+          notifyError(
+            "Could not read this studio",
+            new Error("its arrangement is unreadable")
+          )
+          return
+        }
+        restoreBoard(opened.snapshot)
+        /*
+          The map's retained runs go with it. A stored board is the runs it was
+          saved with; anything the map happened to be holding is not one of
+          them, and `assetRuns` would add it as an area of this board.
+        */
+        props.clearRetainedRuns()
+        /*
+          AND THE MAP'S OWN ANALYSIS, which this path was leaving behind.
+
+          handleNewStudio says why in full: a plane on the board comes from
+          three places and only two of them are the board's, the third being
+          whatever the map is showing right now. That fix was made for the new
+          studio and not for this one, so opening a saved studio kept the
+          previous studio's run on the map -- as the live area of the board
+          just opened, since liveRunId in StudioScreen resolves from these very
+          fields.
+
+          What that costs is not cosmetic. The live area is a member like any
+          other when the board is saved, so the studio being opened inherits
+          the run of the studio being left, and saving it writes that run into
+          its arrangement. One installation carried two studios saved two
+          minutes apart naming the same run, with no analysis having been made
+          between them, and the arrangement of the second holding a name for
+          the ground of a third.
+
+          THE AOI GOES TOO. Both of these paths used to keep it, on the
+          argument that an area belongs to the project rather than to the
+          board. The argument holds for the ownership and not for the drawing:
+          a reader who has just changed studios is not standing on the ground
+          they left, and the outline of it stays on the map saying they are.
+
+          It is not only an outline. The area carries the auto-name the store
+          minted for it -- "drawn", "drawn 2" -- and that name becomes the
+          label of the next run made over it, so the run made after a switch
+          was filed under the ground of the studio before it. That is visible
+          in an installation where a studio named "Sao gonçalo" holds a run
+          called run-drawn-2, which is the area of the studio saved two minutes
+          earlier.
+        */
+        /*
+          NOT A MOVE FROM ONE GROUND TO ANOTHER, so the run being left is not
+          kept in hand.
+
+          Clearing the area below moves activeAreaId, and an effect further
+          down retains whatever the map was showing whenever that id changes --
+          which put the run of the studio being left straight back onto the
+          board of the one being opened, as an area of its own, after every
+          clear above had already run. The board showed a studio named for one
+          ground holding the run of another, which is the defect these clears
+          exist to prevent, arriving one render later than they do.
+
+          Retention is the map's affordance: a ground the map moved on from
+          stays in hand so the board can still show it beside the new one.
+          Putting the board down is the opposite gesture, and clearRetainedRuns
+          above already says so.
+        */
+        leavingRef.current = { id: undefined, result: null }
+        clearAnalysisResults()
+        clearAreaAndComposition()
+        /*
+          The rasters are fetched by the board itself, where LoadAnalysis
+          already lives. Members whose run has been deleted are left out with
+          a word rather than silently: a board that opened with one side
+          missing and said nothing would look like it had been built that way.
+        */
+        const wanted = opened.snapshot.runIds.filter(
+          (id) => !opened.missingRunIds.includes(id)
+        )
+        writeBoardMemory("savedId", board.id)
+        writeBoardMemory("savedName", board.name)
+        if (opened.missingRunIds.length) {
+          notifyInfo(
+            `${opened.missingRunIds.length} run(s) in this studio no longer exist.`
+          )
+        }
+        /*
+          No workspace: a saved board carries its own arrangement, which
+          `restoreBoard` has just put back. Asking for one here would replace
+          what the reader saved with a preset.
+        */
+        openInStudio(wanted)
+      } catch (e) {
+        notifyError("Could not open this studio", e)
+      }
+    },
+    [
+      openInStudio,
+      clearAnalysisResults,
+      clearAreaAndComposition,
+      props.clearRetainedRuns,
+    ]
+  )
+
+  /**
    * An empty board, bound to no saved studio.
    *
    * The mirror of handleOpenStudio: that one restores an arrangement and writes
@@ -2826,32 +2924,78 @@ function AppBody(props: {
    * the result to retainRun on the way out. A retained run becomes an area of
    * the board, which is the thing being emptied.
    *
-   * The AOI stays. Areas belong to the project rather than to the board, and
-   * dropping them would take the ground out from under a studio that is meant
-   * to be built on it. The composition goes, since it would otherwise be the
-   * one plane left on an empty board.
+   * THE AOI GOES WITH IT, which reverses what this used to do. It kept the
+   * drawing on the argument that an area belongs to the project and not to the
+   * board -- true of the ownership, and not of what the map should be showing
+   * a reader who has just left one studio for another. See handleOpenStudio,
+   * where the same reversal is made and where the cost of the old behaviour is
+   * recorded: the kept area carries its "drawn N" name into the label of the
+   * next run, so a run made after a switch is filed under the previous
+   * studio's ground.
+   *
+   * The composition goes with it, since it would otherwise be the one plane
+   * left on an empty board.
    *
    * `clearBoardMemory` runs first, because openInStudio writes pendingRunIds
    * into that same store and a clear afterwards would take them with it.
    */
-  const handleNewStudio = useCallback(() => {
-    clearBoardMemory()
-    props.clearRetainedRuns()
-    clearAnalysisResults()
-    props.setShowPredictionOverlay(true)
-    props.setSwipeCompare(false)
-    props.setSwipeRatio(0.5)
-    setComposition(null)
-    setCompositionGallery([])
-    openInStudio([])
-  }, [
-    openInStudio,
-    clearAnalysisResults,
-    props.clearRetainedRuns,
-    props.setShowPredictionOverlay,
-    props.setSwipeCompare,
-    props.setSwipeRatio,
-  ])
+  const handleNewStudio = useCallback(
+    async (name: string) => {
+      clearBoardMemory()
+      props.clearRetainedRuns()
+      // Not a move from one ground to another either. See handleOpenStudio.
+      leavingRef.current = { id: undefined, result: null }
+      clearAnalysisResults()
+      clearAreaAndComposition()
+      props.setShowPredictionOverlay(true)
+      props.setSwipeCompare(false)
+      props.setSwipeRatio(0.5)
+      /*
+        WRITTEN NOW, EMPTY, RATHER THAN AT THE FIRST SAVE.
+
+        A studio that exists only in the board's memory has no name to lend,
+        and the ground drawn under it therefore took the store's provisional
+        one -- "drawn 2" -- which then became the label of the run made over
+        it. Both were written before the studio had a name of its own, and
+        neither is revisited when it gets one.
+
+        The row is created here so the name exists first. It costs a studio
+        with no members, which the store already permits: SaveStudio requires a
+        name and does not require an arrangement, because an arrangement is
+        what a studio accumulates rather than what makes it one.
+
+        Best effort. If the write fails the board is still cleared and still
+        usable; what is lost is the binding, so the next save creates the
+        studio instead of updating it -- which is exactly the behaviour this
+        replaces.
+      */
+      try {
+        const board = await saveStudio(
+          name,
+          snapshotBoard([]),
+          undefined,
+          activeProjectId
+        )
+        writeBoardMemory("savedId", board.id)
+        writeBoardMemory("savedName", board.name)
+        void refreshStudios()
+      } catch (e) {
+        notifyError("Could not start the studio", e)
+      }
+      openInStudio([])
+    },
+    [
+      openInStudio,
+      clearAnalysisResults,
+      clearAreaAndComposition,
+      activeProjectId,
+      refreshStudios,
+      props.clearRetainedRuns,
+      props.setShowPredictionOverlay,
+      props.setSwipeCompare,
+      props.setSwipeRatio,
+    ]
+  )
 
   const areaLabel = useMemo(() => {
     if (props.analysisLabel) return props.analysisLabel
@@ -3028,7 +3172,25 @@ function AppBody(props: {
         looking at a map that is waiting for them, not at half a result.
       */
       props.setCustomPolygon(geom)
-      void createArea(geom).then((entry) => {
+      /*
+        THE STUDIO IS THE STEM, WHEN THERE IS ONE.
+
+        Without it the store mints "drawn", "drawn 2", and that name becomes
+        the label of the run made over the ground -- so a studio called "Serra
+        do mel" ended up holding a run called run-drawn-2, named after nothing
+        a reader chose. The name is available here because a studio is now
+        named when it begins rather than when it is first saved; see
+        handleNewStudio. The store numbers the stem, so two grounds drawn under
+        one studio do not arrive with one name between them.
+
+        Empty when the board is not bound to a studio -- an area drawn from the
+        map with no studio open -- and then the sequence is the one it has
+        always been.
+      */
+      void createArea(
+        geom,
+        readBoardMemory<string | null>("savedName", null) ?? undefined
+      ).then((entry) => {
         if (entry) return
         lastDrawnRef.current = null
         props.setCustomPolygon(null)
@@ -3380,10 +3542,6 @@ function AppBody(props: {
     always holds the result as it was while the previous area was still the
     active one.
   */
-  const leavingRef = useRef<{
-    id: string | undefined
-    result: PredictResult | null
-  }>({ id: undefined, result: null })
   useEffect(() => {
     const leaving = leavingRef.current
     leavingRef.current = { id: props.activeAreaId, result: resultWithWater }

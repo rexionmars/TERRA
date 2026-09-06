@@ -67,8 +67,24 @@ type savedRun struct {
 	*/
 	result func(assetsDir, assetsRel string) any
 
-	// The file in that directory the run list paints its thumbnail from, for
-	// the products that write one.
+	/*
+		Which of the run's files is the one to show, for the products that
+		write one.
+
+		EVERY PRODUCT THAT WRITES A RASTER SETS THIS, and the completeness is
+		the point rather than a tidiness. Only the classification and the flood
+		envelope did: water and the two solar rasters wrote a PNG and recorded
+		no path to it, so the column was right for 5 rows out of 40 on one
+		installation. Nothing reads it today, and that is downstream of the
+		same fact -- a reader of a column that is right for an eighth of the
+		table is a reader that is wrong for the rest, so the run list loads a
+		whole result to find an image it already has on disk, and the studio
+		browser draws a colour instead of a thumbnail rather than pay for that.
+		Filling it is what makes a cheap reader possible; TestEveryRasterRunRecordsItsOverlay
+		is what keeps it true.
+
+		Empty is a real answer, for the products whose whole result is figures.
+	*/
 	overlayFile string
 }
 
@@ -231,14 +247,21 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 		},
 		result: func(assetsDir, _ string) any {
 			_ = store.WriteDataURIFile(
-				res.OccurrenceURI, filepath.Join(assetsDir, "water_occurrence.png"))
+				res.OccurrenceURI, filepath.Join(assetsDir, waterOccurrencePNG))
 			// Store without the bulky data URI; the asset is restored on load.
 			stored := *res
 			stored.OccurrenceURI = ""
 			return stored
 		},
+		// The one image this product has, so the column that names a run's
+		// representative raster names it. See savedRun.overlayFile.
+		overlayFile: waterOccurrencePNG,
 	})
 }
+
+// waterOccurrencePNG is the occurrence raster's name inside a run's asset
+// directory, written here and read back by LoadAnalysis.
+const waterOccurrencePNG = "water_occurrence.png"
 
 // persistSolarRun saves a solar resource run so it survives the session and is
 // listed, opened and exported like the other analyses. Returns the row it
@@ -283,6 +306,9 @@ func (a *App) persistSolarRaster(
 		return ""
 	}
 	l := aoiLabel(label)
+	// One name for the rendering: the file written below, and the column that
+	// says which of a run's files is the one to show.
+	overlay := kindTag + ".png"
 	return a.saveRun(savedRun{
 		kind:      store.RunKindSolar,
 		modelKind: "NASA POWER",
@@ -298,9 +324,10 @@ func (a *App) persistSolarRaster(
 			"aoi_label":     l,
 		},
 		result: func(assetsDir, _ string) any {
-			_ = store.WriteDataURIFile(overlayURI, filepath.Join(assetsDir, kindTag+".png"))
+			_ = store.WriteDataURIFile(overlayURI, filepath.Join(assetsDir, overlay))
 			return payload
 		},
+		overlayFile: overlay,
 	})
 }
 
@@ -515,12 +542,6 @@ func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnal
 		// the one image this product has.
 		overlayFile: overlay,
 	})
-}
-
-// persistRunIfLoggedIn saves the run and returns its id, so the caller can tell
-// the frontend which run it is now looking at. Empty when nothing was saved.
-func (a *App) persistRunIfLoggedIn(req analysis.PredictRequest, res *analysis.PredictResult) string {
-	return a.persistAnalysis(req, res)
 }
 
 func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.PredictResult) string {

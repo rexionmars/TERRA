@@ -629,7 +629,7 @@ export function BoardSurface({
    * off the current one by hand, and that leaves it still bound to the saved
    * id, so the next save wrote over the studio it started from.
    */
-  onNewStudio?: () => void
+  onNewStudio?: (name: string) => void
   /** Refreshes the list as the menu opens, so it is not a stale catalog. */
   onStudiosMenu?: () => void | Promise<void>
   /**
@@ -1227,6 +1227,16 @@ export function BoardSurface({
     })
   }, [])
   const [naming, setNaming] = useState<string | null>(null)
+  /*
+    Which of the two things the name box is being used for.
+
+    "save" is what it has always done: name the arrangement that is on the
+    board. "new" names a studio that does not exist yet -- see newBoard, where
+    the reason for asking first is set out. One box for both, because the
+    question it asks is the same question and a second box would be the second
+    way of asking that this file argues against elsewhere.
+  */
+  const [namingFor, setNamingFor] = useState<"save" | "new">("save")
   const [saving, setSaving] = useState(false)
   /** Whether the title block's catalog is open. */
   const [boardMenu, setBoardMenu] = useState(false)
@@ -1262,9 +1272,27 @@ export function BoardSurface({
     dialog for it would be the second way of asking that ConfirmDelete's own
     docblock argues against.
   */
+  /*
+    A STUDIO IS NAMED WHEN IT BEGINS, NOT WHEN IT IS FIRST SAVED.
+
+    It used to be the other way round, and the cost was not the naming. A
+    studio with no name has nothing to lend to the ground drawn under it, so an
+    area drawn inside a new studio took the store's provisional "drawn N" and
+    the run made over it was labelled run-drawn-N. The studio then got its real
+    name minutes later, at save, by which point the area and the run carrying
+    the wrong one were already written and nothing goes back to correct them.
+
+    Asked here, the name exists before the first drawing does, and createArea
+    is handed it as the stem.
+  */
   const newBoard = () => {
     if (boardIsDirty()) setPendingOpen("new")
-    else onNewStudio?.()
+    else beginNewStudio()
+  }
+
+  const beginNewStudio = () => {
+    setNamingFor("new")
+    setNaming("")
   }
 
   /*
@@ -1321,6 +1349,19 @@ export function BoardSurface({
     // change to `runs` would fetch nothing and cost a pass over the array.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // The name box answers to whichever question it was opened with.
+  const confirmName = async (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (namingFor === "new") {
+      setNaming(null)
+      setNamingFor("save")
+      onNewStudio?.(trimmed)
+      return
+    }
+    await doSave(name)
+  }
 
   const doSave = async (name: string) => {
     const trimmed = name.trim()
@@ -1410,9 +1451,15 @@ export function BoardSurface({
           It said "run something", and a reader who had just applied a
           composition had. Then it named four products where five record a run,
           omitting wind. And it said "carries one yet", which is not the test:
-          the test is whether the store has a ROW, and a run made while signed
-          out has none -- so a reader with a finished analysis on screen was
-          told they had not made one.
+          the test is whether the store has a ROW.
+
+          A THIRD WORDING, and this one was wrong about the Go side. It told
+          the reader that a run made while signed out has no row "having
+          nowhere to write one". It has one: saveRun falls back to
+          store.LocalUserID when no user is held, and the store creates that
+          user during migration precisely so there is somewhere to write. The
+          sentence sent a reader looking for a sign-in that would not have
+          changed the outcome.
 
           It said "run something", and a reader who had just applied a
           composition had. A composition is not a run and never becomes one:
@@ -1427,7 +1474,7 @@ export function BoardSurface({
         notifyError(
           "Nothing for a studio to record",
           new Error(
-            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. A run made while signed out has no row either, having nowhere to write one. So run a classification, water, solar, wind or flood analysis here while signed in, or add an existing run from the outliner, and the studio will have something to arrange"
+            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. So run a classification, water, solar, wind or flood analysis here, or add an existing run from the outliner, and the studio will have something to arrange"
           )
         )
         return
@@ -4879,7 +4926,7 @@ export function BoardSurface({
           onConfirm={() => {
             const board = pendingOpen
             setPendingOpen(null)
-            if (board === "new") onNewStudio?.()
+            if (board === "new") beginNewStudio()
             else onOpenStudio?.(board)
           }}
         />
@@ -5336,6 +5383,7 @@ export function BoardSurface({
               label={savedName ? "Save under another name…" : "Save studio…"}
               onSelect={() => {
                 setBoardMenu(false)
+                setNamingFor("save")
                 setNaming(savedName ?? "")
               }}
             />
@@ -5366,7 +5414,9 @@ export function BoardSurface({
             <button
               type="button"
               onClick={() =>
-                savedName ? void doSave(savedName) : setNaming("")
+                savedName
+                  ? void doSave(savedName)
+                  : (setNamingFor("save"), setNaming(""))
               }
               disabled={saving || loadingRun}
               title={
@@ -5385,14 +5435,16 @@ export function BoardSurface({
             <input
               autoFocus
               value={naming}
-              placeholder="Name this studio"
+              placeholder={
+                namingFor === "new" ? "Name the new studio" : "Name this studio"
+              }
               onChange={(e) => setNaming(e.target.value)}
               onBlur={() => setNaming(null)}
               onKeyDown={(e) => {
                 // Escape closes the board from a listener on the window, so a
                 // name abandoned here must not leave the board with it.
                 e.stopPropagation()
-                if (e.key === "Enter") void doSave(naming)
+                if (e.key === "Enter") void confirmName(naming)
                 else if (e.key === "Escape") setNaming(null)
               }}
               className="app-no-drag h-7 w-48 shrink-0 rounded-sm border-0 bg-sunk px-2 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring"

@@ -18,6 +18,7 @@ several studios.
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -67,21 +68,23 @@ type StudioMember struct {
 	/** Order on the board, left to right. */
 	Position int `json:"position"`
 	/*
-		The name given on the board, over the one the run carries.
+		WHAT A MEMBER IS NOT, and it used to be two more things.
 
-		Empty means the run's own name is used, rather than meaning the member
-		has no name: a run renamed later is still followed until someone has
-		said otherwise.
-	*/
-	Name string `json:"name,omitempty"`
-	/*
-		Where the group sits, and how its planes are set.
+		`name` held the name given on the board over the one the run carries,
+		and `state_json` held where the group sat and how its planes were set.
+		Both were written by SaveStudio and read by GetStudio, and in six saved
+		studios on one installation every one of them held "" and "{}": the
+		frontend sends those two constants and has always kept the real values
+		in the studio's own view_json, where the whole arrangement lives. The
+		override is a real feature and it is still there -- as the `names` map
+		keyed `stack::<runId>` -- so what was dropped is a second place for it,
+		not the thing itself.
 
-		Opaque for the same reason as ViewJSON, and it is the frontend's
-		CardPlane vocabulary: offsets in board units, per-layer opacity and
-		visibility. None of it means anything to the store.
+		Dropped rather than left unwritten, which is the rule migrate states
+		for the columns it drops: a column nothing writes always reads its
+		default and will disagree with the table one day. These crossed into
+		TypeScript as well, so the disagreement had two sides to appear on.
 	*/
-	StateJSON string `json:"state_json,omitempty"`
 	/*
 		The run this member names is gone.
 
@@ -111,9 +114,7 @@ CREATE TABLE IF NOT EXISTS studio_members (
   id TEXT PRIMARY KEY,
   studio_id TEXT NOT NULL REFERENCES studios(id) ON DELETE CASCADE,
   run_id TEXT NOT NULL,
-  position INTEGER NOT NULL DEFAULT 0,
-  name TEXT NOT NULL DEFAULT '',
-  state_json TEXT NOT NULL DEFAULT '{}'
+  position INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_studio_members_studio
   ON studio_members(studio_id, position);
@@ -137,7 +138,18 @@ func (s *Store) SaveStudio(c Studio) (*Studio, error) {
 		return nil, ErrInvalidInput
 	}
 	c.ProjectID = strings.TrimSpace(c.ProjectID)
-	if c.ViewJSON == "" {
+	/*
+		An arrangement that is not JSON is stored as no arrangement.
+
+		The same rule SaveRun applies to summary_json and result_json, and for
+		the same reason: this column is opaque to the store but not to
+		everything -- the frontend parses it to reopen a board, and
+		repairStudioViews reads the run ids out of it. A string that neither can
+		parse is not a board that was saved, it is a board that was lost on the
+		way in, and storing it as `{}` says so once instead of failing at every
+		later reader.
+	*/
+	if c.ViewJSON == "" || !json.Valid([]byte(c.ViewJSON)) {
 		c.ViewJSON = "{}"
 	}
 
@@ -222,14 +234,12 @@ func (s *Store) SaveStudio(c Studio) (*Studio, error) {
 		m.ID = uuid.NewString()
 		m.StudioID = c.ID
 		m.Position = i
-		if m.StateJSON == "" {
-			m.StateJSON = "{}"
-		}
+
 		if _, err := tx.Exec(
 			`INSERT INTO studio_members
-			 (id, studio_id, run_id, position, name, state_json)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
-			m.ID, m.StudioID, m.RunID, m.Position, m.Name, m.StateJSON,
+			 (id, studio_id, run_id, position)
+			 VALUES (?, ?, ?, ?)`,
+			m.ID, m.StudioID, m.RunID, m.Position,
 		); err != nil {
 			return nil, err
 		}
@@ -314,7 +324,7 @@ func (s *Store) GetStudio(userID, id string) (*Studio, error) {
 		marked, not dropped. See StudioMember.Missing.
 	*/
 	rows, err := s.db.Query(
-		`SELECT m.id, m.studio_id, m.run_id, m.position, m.name, m.state_json,
+		`SELECT m.id, m.studio_id, m.run_id, m.position,
 		        r.id IS NULL
 		 FROM studio_members m
 		 LEFT JOIN inference_runs r ON r.id = m.run_id
@@ -330,8 +340,7 @@ func (s *Store) GetStudio(userID, id string) (*Studio, error) {
 	for rows.Next() {
 		var m StudioMember
 		if err := rows.Scan(
-			&m.ID, &m.StudioID, &m.RunID, &m.Position, &m.Name,
-			&m.StateJSON, &m.Missing,
+			&m.ID, &m.StudioID, &m.RunID, &m.Position, &m.Missing,
 		); err != nil {
 			return nil, err
 		}
@@ -399,4 +408,284 @@ func (s *Store) DeleteStudio(userID, id string) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+/*
+Taking a run out of the arrangements that name it.
+
+A studio keeps its arrangement in one opaque field, `view_json`, written by the
+frontend and meaningless to this package -- except for one thing, which is that
+the run ids are in there. Deleting a run used to leave every one of them
+behind: the member row went, and the blob went on naming a run nothing could
+open. The studio then reported no gap, because the gap is reported from the
+member rows and those were the part that had been removed. One installation
+carried a studio in exactly that state, referencing two deleted runs and
+holding no members at all, which opens as an empty board with nothing to say
+why.
+
+FOUR KEY CONVENTIONS, and they are the frontend's, not this package's. See
+components/studio/boardMemory.ts, which writes them:
+
+An id on its own keys `added`, `order` and `places`. An id, a NUL and a scene
+id key `extraState` and `planePlaces`, and are also what the `removed` and
+`flat` lists hold. A row id whose second "::" segment is the run id keys
+`names`. And `runIds` is a bare list of them.
+
+Anything else in the object is copied through untouched. That is the point of
+walking the shape rather than rewriting it: a field this package has never
+heard of belongs to the frontend and survives, and one the frontend adds later
+that happens to be keyed by run id will be missed here rather than corrupted --
+a gap a test can close, not a loss.
+*/
+func pruneViewRuns(view string, drop map[string]bool) (string, bool) {
+	if len(drop) == 0 || strings.TrimSpace(view) == "" {
+		return view, false
+	}
+	/*
+		UseNumber, so a coordinate comes back out as it went in.
+
+		The board writes plane placements as full-precision floats. Decoded
+		into float64 and re-encoded they would be rewritten to whatever Go
+		prints them as, which is a change to a field this function has no
+		business changing.
+	*/
+	dec := json.NewDecoder(strings.NewReader(view))
+	dec.UseNumber()
+	var obj map[string]any
+	if err := dec.Decode(&obj); err != nil {
+		// Not an object this function understands. Left exactly as it is:
+		// refusing to rewrite something unparseable is the safe half of a
+		// best-effort cleanup.
+		return view, false
+	}
+
+	changed := false
+
+	// `runIds`: the membership list itself.
+	if list, ok := obj["runIds"].([]any); ok {
+		kept := make([]any, 0, len(list))
+		for _, v := range list {
+			if id, ok := v.(string); ok && drop[id] {
+				changed = true
+				continue
+			}
+			kept = append(kept, v)
+		}
+		obj["runIds"] = kept
+	}
+
+	// Keyed by the id on its own.
+	for _, field := range []string{"added", "order", "places"} {
+		m, ok := obj[field].(map[string]any)
+		if !ok {
+			continue
+		}
+		for k := range m {
+			if drop[k] {
+				delete(m, k)
+				changed = true
+			}
+		}
+	}
+
+	// Keyed by the id, a NUL, and a scene id.
+	for _, field := range []string{"extraState", "planePlaces"} {
+		m, ok := obj[field].(map[string]any)
+		if !ok {
+			continue
+		}
+		for k := range m {
+			if drop[sceneKeyArea(k)] {
+				delete(m, k)
+				changed = true
+			}
+		}
+	}
+
+	// Lists of those same scene keys.
+	for _, field := range []string{"removed", "flat"} {
+		list, ok := obj[field].([]any)
+		if !ok {
+			continue
+		}
+		kept := make([]any, 0, len(list))
+		for _, v := range list {
+			if k, ok := v.(string); ok && drop[sceneKeyArea(k)] {
+				changed = true
+				continue
+			}
+			kept = append(kept, v)
+		}
+		obj[field] = kept
+	}
+
+	// Row keys, whose second segment is the id.
+	if m, ok := obj["names"].(map[string]any); ok {
+		for k := range m {
+			if parts := strings.Split(k, "::"); len(parts) >= 2 && drop[parts[1]] {
+				delete(m, k)
+				changed = true
+			}
+		}
+	}
+
+	if !changed {
+		return view, false
+	}
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return view, false
+	}
+	return string(out), true
+}
+
+// sceneKeyArea is the area half of an `<area>\x00<scene>` key, or the whole
+// string when it carries no scene.
+func sceneKeyArea(k string) string {
+	if i := strings.IndexByte(k, 0); i >= 0 {
+		return k[:i]
+	}
+	return k
+}
+
+/*
+dropRunsFromViews rewrites every arrangement of one user that names a run in
+`drop`, and reports how many it rewrote.
+
+Takes the transaction rather than the store, because the only correct time to
+do this is inside the one that removes the run: a studio pointing at a run that
+is half deleted is the state this exists to prevent.
+*/
+func dropRunsFromViews(tx *sql.Tx, userID string, drop map[string]bool) (int, error) {
+	if len(drop) == 0 {
+		return 0, nil
+	}
+	writes, err := viewsWithout(tx, userID, drop)
+	if err != nil {
+		return 0, err
+	}
+	// After the read, not during it. The reading is a function of its own so
+	// its cursor is closed by defer before the first write goes out: this
+	// package holds a single connection, and a write issued while a cursor is
+	// open on it is a shape worth not depending on.
+	for _, w := range writes {
+		if _, err := tx.Exec(
+			`UPDATE studios SET view_json = ? WHERE id = ?`, w.view, w.id,
+		); err != nil {
+			return 0, err
+		}
+	}
+	return len(writes), nil
+}
+
+// viewRewrite is one arrangement and what it should become.
+type viewRewrite struct{ id, view string }
+
+// viewsWithout is the rewrite each of a user's studios needs, for those that
+// need one.
+func viewsWithout(tx *sql.Tx, userID string, drop map[string]bool) ([]viewRewrite, error) {
+	rows, err := tx.Query(
+		`SELECT id, view_json FROM studios WHERE user_id = ?`, userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var writes []viewRewrite
+	for rows.Next() {
+		var id, view string
+		if err := rows.Scan(&id, &view); err != nil {
+			return nil, err
+		}
+		if next, ok := pruneViewRuns(view, drop); ok {
+			writes = append(writes, viewRewrite{id, next})
+		}
+	}
+	return writes, rows.Err()
+}
+
+/*
+repairStudioViews takes deleted runs out of every arrangement still naming one.
+
+For the files that were written before deletion reached the blob. Not gated on
+the schema version, for the reason the drops in migrate give: a version number
+can be raised without the work behind it, and a file that slipped through such
+a window is one no later gate reopens. It is idempotent and it is a single
+query over a table holding a handful of rows, so running it at every open costs
+the read and nothing else.
+*/
+func (s *Store) repairStudioViews() error {
+	writes, err := s.viewsWithoutDeletedRuns()
+	if err != nil {
+		return err
+	}
+	for _, w := range writes {
+		if _, err := s.db.Exec(
+			`UPDATE studios SET view_json = ? WHERE id = ?`, w.view, w.id,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// viewsWithoutDeletedRuns is what each arrangement naming a run with no row
+// should become. Split from the write for the reason dropRunsFromViews gives.
+func (s *Store) viewsWithoutDeletedRuns() ([]viewRewrite, error) {
+	/*
+		json_valid FIRST, and it is not defensive dressing.
+
+		json_extract raises "malformed JSON" while the statement is stepping,
+		not when it is prepared, and one such row aborts the whole query -- so a
+		single unparseable arrangement would have taken this repair down, and
+		with it migrate, and with it Open. The application would decline to
+		start over a field it holds precisely because it does not have to
+		understand it. SQLite evaluates the WHERE of the left table before
+		expanding the table-valued function, so an invalid row never reaches
+		json_extract.
+	*/
+	rows, err := s.db.Query(`
+		SELECT DISTINCT s.id, s.view_json, j.value
+		  FROM (SELECT id, view_json FROM studios WHERE json_valid(view_json)) s,
+		       json_each(json_extract(s.view_json, '$.runIds')) j
+		  LEFT JOIN inference_runs r ON r.id = j.value
+		 WHERE r.id IS NULL`)
+	if err != nil {
+		// json_each is a table-valued function; a build of SQLite without JSON
+		// support would fail here, and a repair that cannot run is not a
+		// reason to refuse to open the database.
+		return nil, nil
+	}
+	defer func() { _ = rows.Close() }()
+
+	gone := map[string]map[string]bool{}
+	views := map[string]string{}
+	var order []string
+	for rows.Next() {
+		var id, view, runID string
+		if err := rows.Scan(&id, &view, &runID); err != nil {
+			return nil, err
+		}
+		if gone[id] == nil {
+			gone[id] = map[string]bool{}
+			order = append(order, id)
+		}
+		gone[id][runID] = true
+		views[id] = view
+	}
+	if err := rows.Err(); err != nil {
+		// Nothing repaired rather than nothing opened, for the reason the
+		// query error above gives. The guard makes this unreachable for the
+		// case that was found; it stands for the one that has not been.
+		return nil, nil
+	}
+
+	var writes []viewRewrite
+	for _, id := range order {
+		if next, ok := pruneViewRuns(views[id], gone[id]); ok {
+			writes = append(writes, viewRewrite{id, next})
+		}
+	}
+	return writes, nil
 }
