@@ -9,10 +9,12 @@ import {
 import { setStudioGutter } from "@/lib/studioGutter"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
 import type { Studio } from "@/lib/studios"
-import { listStudios, openStudio } from "@/lib/studios"
+import { listStudios, openStudio, saveStudio } from "@/lib/studios"
 import {
   clearBoardMemory,
+  readBoardMemory,
   restoreBoard,
+  snapshotBoard,
   writeBoardMemory,
 } from "@/components/studio/boardMemory"
 import { useTheme } from "next-themes"
@@ -2937,26 +2939,63 @@ function AppBody(props: {
    * `clearBoardMemory` runs first, because openInStudio writes pendingRunIds
    * into that same store and a clear afterwards would take them with it.
    */
-  const handleNewStudio = useCallback(() => {
-    clearBoardMemory()
-    props.clearRetainedRuns()
-    // Not a move from one ground to another either. See handleOpenStudio.
-    leavingRef.current = { id: undefined, result: null }
-    clearAnalysisResults()
-    clearAreaAndComposition()
-    props.setShowPredictionOverlay(true)
-    props.setSwipeCompare(false)
-    props.setSwipeRatio(0.5)
-    openInStudio([])
-  }, [
-    openInStudio,
-    clearAnalysisResults,
-    clearAreaAndComposition,
-    props.clearRetainedRuns,
-    props.setShowPredictionOverlay,
-    props.setSwipeCompare,
-    props.setSwipeRatio,
-  ])
+  const handleNewStudio = useCallback(
+    async (name: string) => {
+      clearBoardMemory()
+      props.clearRetainedRuns()
+      // Not a move from one ground to another either. See handleOpenStudio.
+      leavingRef.current = { id: undefined, result: null }
+      clearAnalysisResults()
+      clearAreaAndComposition()
+      props.setShowPredictionOverlay(true)
+      props.setSwipeCompare(false)
+      props.setSwipeRatio(0.5)
+      /*
+        WRITTEN NOW, EMPTY, RATHER THAN AT THE FIRST SAVE.
+
+        A studio that exists only in the board's memory has no name to lend,
+        and the ground drawn under it therefore took the store's provisional
+        one -- "drawn 2" -- which then became the label of the run made over
+        it. Both were written before the studio had a name of its own, and
+        neither is revisited when it gets one.
+
+        The row is created here so the name exists first. It costs a studio
+        with no members, which the store already permits: SaveStudio requires a
+        name and does not require an arrangement, because an arrangement is
+        what a studio accumulates rather than what makes it one.
+
+        Best effort. If the write fails the board is still cleared and still
+        usable; what is lost is the binding, so the next save creates the
+        studio instead of updating it -- which is exactly the behaviour this
+        replaces.
+      */
+      try {
+        const board = await saveStudio(
+          name,
+          snapshotBoard([]),
+          undefined,
+          activeProjectId
+        )
+        writeBoardMemory("savedId", board.id)
+        writeBoardMemory("savedName", board.name)
+        void refreshStudios()
+      } catch (e) {
+        notifyError("Could not start the studio", e)
+      }
+      openInStudio([])
+    },
+    [
+      openInStudio,
+      clearAnalysisResults,
+      clearAreaAndComposition,
+      activeProjectId,
+      refreshStudios,
+      props.clearRetainedRuns,
+      props.setShowPredictionOverlay,
+      props.setSwipeCompare,
+      props.setSwipeRatio,
+    ]
+  )
 
   const areaLabel = useMemo(() => {
     if (props.analysisLabel) return props.analysisLabel
@@ -3133,7 +3172,25 @@ function AppBody(props: {
         looking at a map that is waiting for them, not at half a result.
       */
       props.setCustomPolygon(geom)
-      void createArea(geom).then((entry) => {
+      /*
+        THE STUDIO IS THE STEM, WHEN THERE IS ONE.
+
+        Without it the store mints "drawn", "drawn 2", and that name becomes
+        the label of the run made over the ground -- so a studio called "Serra
+        do mel" ended up holding a run called run-drawn-2, named after nothing
+        a reader chose. The name is available here because a studio is now
+        named when it begins rather than when it is first saved; see
+        handleNewStudio. The store numbers the stem, so two grounds drawn under
+        one studio do not arrive with one name between them.
+
+        Empty when the board is not bound to a studio -- an area drawn from the
+        map with no studio open -- and then the sequence is the one it has
+        always been.
+      */
+      void createArea(
+        geom,
+        readBoardMemory<string | null>("savedName", null) ?? undefined
+      ).then((entry) => {
         if (entry) return
         lastDrawnRef.current = null
         props.setCustomPolygon(null)
