@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"geosense-infer/internal/pyenv"
 )
 
 /*
@@ -138,6 +140,46 @@ func (s *Store) InspectStorage() (*StorageReport, error) {
 		report.TotalBytes += info.Size()
 	}
 
+	/*
+		The managed Python environment, which was in none of the numbers above
+		and is larger than all of them together.
+
+		Measured at 1.9 GB on one installation against 8.2 MB for the four
+		buckets that were being reported, so the screen was answering "where
+		did my disk go" with 0.4% of the answer. Listed rather than made
+		removable: the analyses do not run without it, and rebuilding it is the
+		environment screen's job, not this one's.
+	*/
+	if bytes, files := dirSize(pyenv.ManagedEnvDir(s.dataDir)); bytes > 0 {
+		report.Buckets = append(report.Buckets, StorageBucket{
+			Label:       "Python environment",
+			Bytes:       bytes,
+			Files:       files,
+			Consequence: "the interpreter and packages every analysis runs in; rebuilt from the manifest on the environment screen",
+		})
+		report.TotalBytes += bytes
+	}
+
+	/*
+		Whatever else is in the directory, in one bucket.
+
+		The buckets above are the parts with a name and a meaning. This is the
+		part that grows without anyone choosing it -- the `.replaced-*`
+		snapshots a migration leaves behind, 16.6 MB of them on the same
+		installation, and whatever a reader has copied in beside them. The
+		database bucket says the total is listed so it adds up; with these
+		omitted it did not.
+	*/
+	if bytes, files := s.measureRemainder(); bytes > 0 {
+		report.Buckets = append(report.Buckets, StorageBucket{
+			Label:       "Other files in this folder",
+			Bytes:       bytes,
+			Files:       files,
+			Consequence: "snapshots left by an upgrade, and anything placed here by hand",
+		})
+		report.TotalBytes += bytes
+	}
+
 	runs, orphanBytes, orphanCount, err := s.measureRuns()
 	if err != nil {
 		return nil, err
@@ -242,6 +284,53 @@ func fileTypeLabel(ext string) (string, string) {
 	default:
 		return "other", "Other files"
 	}
+}
+
+/*
+measureRemainder sizes everything at the top of the data directory that no
+other bucket accounts for.
+
+By exclusion rather than by a list of the names to include, because the names
+that accumulate here are the ones nothing planned: a snapshot stamped with the
+hour it was written, a copy someone made before an experiment. A list of
+patterns would have to be extended by whoever adds the next one, which is the
+same as not having it.
+
+Top level only. What is inside runs/ and projects/ is already reported per run
+and per project, and walking them again here would count those bytes twice.
+*/
+func (s *Store) measureRemainder() (int64, int) {
+	accounted := map[string]bool{
+		"runs":     true,
+		"projects": true,
+		"avatars":  true,
+		dbFileName: true,
+		filepath.Base(pyenv.ManagedEnvDir(s.dataDir)): true,
+	}
+	entries, err := os.ReadDir(s.dataDir)
+	if err != nil {
+		return 0, 0
+	}
+	var total int64
+	var count int
+	for _, e := range entries {
+		if accounted[e.Name()] {
+			continue
+		}
+		if e.IsDir() {
+			bytes, files := dirSize(filepath.Join(s.dataDir, e.Name()))
+			total += bytes
+			count += files
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		total += info.Size()
+		count++
+	}
+	return total, count
 }
 
 // measureProjects sizes each project directory, largest first.
