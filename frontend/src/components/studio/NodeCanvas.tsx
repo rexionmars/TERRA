@@ -210,7 +210,14 @@ const FILL_OPACITY: Record<EdgeState, number> = {
   pending: 0,
   reading: 0.92,
   read: 0.92,
-  failed: 0.92,
+  /*
+    OPAQUE, WHERE THE OTHER TWO ARE NEARLY SO. --p-wire-failed is the palette's
+    #F95831 and the band is the darkest of the three; at 0.92 over the board's
+    near-black field the reading on it measured 4.43 against a floor of 4.5,
+    and the eighth of ink that took it there buys nothing. Whole, it reads
+    5.13.
+  */
+  failed: 1,
 }
 
 /**
@@ -315,8 +322,8 @@ const PANE_SATURATE = 1.7
  * because the version that looked least like the reference was also the one
  * whose text had the least room.
  */
-const PANE_TINT_HEAD = 0.28
-const PANE_TINT_TAIL = 0.16
+const PANE_TINT_HEAD = 0.5
+const PANE_TINT_TAIL = 0.28
 
 /**
  * A wire's colour at a weight, whatever form the colour arrived in.
@@ -1083,7 +1090,7 @@ export function NodeCanvas({
           under every ribbon by eighteen levels and put the reading below its
           floor -- so the board declares the surface it was measured on.
         */
-        background: "var(--s-field)",
+        background: "rgb(var(--b-field))",
         /*
           The field is a dot grid that travels with the view, which is what
           makes a pan legible: without it the cards slide against nothing and
@@ -1312,7 +1319,7 @@ export function NodeCanvas({
                     {/* The ground, and then the colour. See GROUND. */}
                     <path
                       d={ribbon}
-                      fill="rgb(var(--p-ink))"
+                      fill="rgb(var(--b-field))"
                       fillOpacity={GROUND[st]}
                     />
                     <path d={ribbon} fill={stroke} fillOpacity={FILL_OPACITY[st]} />
@@ -1477,8 +1484,8 @@ export function NodeCanvas({
                 a different colour and becomes a differently made one.
               */
               background: n.subject
-                ? `linear-gradient(${n.subject.body}, ${n.subject.body}), var(--s-card)`
-                : "var(--s-card)",
+                ? `linear-gradient(${n.subject.body}, ${n.subject.body}), rgb(var(--b-card))`
+                : "rgb(var(--b-card))",
               zIndex: front === n.id ? 1 : undefined,
               /*
                 DEPTH, AND A HALO IN THE CARD'S OWN COLOUR.
@@ -1586,9 +1593,9 @@ export function NodeCanvas({
                   : {
                       background:
                         n.tone === "action"
-                          ? "linear-gradient(rgb(var(--p-accent) / 0.38), rgb(var(--p-accent) / 0.38)), var(--s-panel-head)"
+                          ? "linear-gradient(rgb(var(--p-accent) / 0.38), rgb(var(--p-accent) / 0.38)), rgb(var(--b-card-head))"
                           : n.subject
-                            ? `linear-gradient(${n.subject.wash}, ${n.subject.wash}), var(--s-panel-head)`
+                            ? `linear-gradient(${n.subject.wash}, ${n.subject.wash}), rgb(var(--b-card-head))`
                             : undefined,
                     }
               }
