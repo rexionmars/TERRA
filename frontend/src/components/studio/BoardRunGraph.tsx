@@ -680,14 +680,14 @@ function compoundLoss(solar: NonNullable<BoardRunGraphProps["solar"]>): number {
   38 and 129 levels; Toxic Forest is three greens at three lightnesses. Weight
   belongs in the channel those ladders use.
 
-  0.40 against 0.10 steps 19 levels, which is the reference's own smallest
-  rung. THE STEP IS TAKEN AT THE DARK END rather than by lifting the heavy one
-  further: the card's title sits on this wash in --p-text, and at 0.44 that
-  reading falls to 4.35 against a floor of 4.5. Pushing the LIGHT weight down
-  instead costs nothing -- a quieter card wants a quieter header -- and leaves
-  the heavy one at 4.65.
+  0.36 against 0.10 steps 16 levels, near the reference's own smallest rung.
+  THE STEP IS TAKEN AT THE DARK END rather than by lifting the heavy one
+  further: the card's title sits on this wash in --p-text, and on the board's
+  own header surface 0.40 puts that reading at 4.40 against a floor of 4.5.
+  Pushing the LIGHT weight down instead costs nothing -- a quieter card wants a
+  quieter header -- and leaves the heavy one at 4.67.
 */
-const PART_WASH = { heavy: 0.4, light: 0.1 }
+const PART_WASH = { heavy: 0.36, light: 0.1 }
 
 /*
   THE BODY CARRIES THE WEIGHT TOO, at a tenth of the header's.

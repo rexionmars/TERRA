@@ -267,10 +267,34 @@
     and its glyph: a boundary at the 3.0 floor, never text. 3.87, 3.84, 3.59
     and 3.47 on the raised surface, checked in lib/contrast.ts.
   */
-  --p-part-source: 81 180 133;
-  --p-part-when: 31 176 204;
-  --p-part-method: 155 146 227;
-  --p-part-value: 205 128 184;
+  /*
+    THE RUN BOARD'S OWN SURFACES, WHICH ARE NOT THE CHASSIS'S.
+
+    Three tokens rather than three uses of --s-field, --s-card and
+    --s-panel-head, and the difference is the whole point: those roles resolve
+    through the ramp, and the ramp paints every panel in the application. Every
+    attempt to give the board a colour by moving them repainted the whole
+    product, which is a change nobody asked for to reach a surface that did.
+
+    The board is a canvas, not a dock. It is the one surface here that is
+    LOOKED AT rather than worked in, it fills an area of its own, and it is
+    where this application's reference palettes actually apply -- those are
+    poster palettes, built for a field with two or three things on it, which is
+    what a run graph is and what a settings page is not.
+
+    TAKEN FROM THE LIST RATHER THAN DERIVED NEAR IT. #06070A is Instagram's
+    ground, #172726 and #243F3D are Forest Ritual's first two steps: a
+    near-black, a dark teal and a mid teal, at 1.30 and 1.37 apart. Nothing
+    here is a value someone reached by nudging a grey.
+  */
+  --b-field: 6 7 10;
+  --b-card: 23 39 38;
+  --b-card-head: 36 63 61;
+
+  --p-part-source: 48 182 154;
+  --p-part-when: 31 175 207;
+  --p-part-method: 115 158 233;
+  --p-part-value: 174 139 219;
 
   /*
     THE STUDIO'S OWN THREE, and the reason they exist.
@@ -370,10 +394,18 @@
      at this lightness, so each theme sits at its own ceiling rather than at a
      shared number neither could hold. 3.23, 3.26, 3.47 and 3.55 against the
      deepest light ground, which is the one that binds here. */
-  --p-part-source: 55 130 94;
-  --p-part-when: 15 127 147;
-  --p-part-method: 111 104 165;
-  --p-part-value: 149 91 132;
+  /* The board's own surfaces, at the elevation a light ground gives them:
+     #D3E2DE, #F4F4F4 and #FFFFFF, all from the same list. A canvas is pale
+     here and a card sits ABOVE it, which is the opposite direction from the
+     dark theme and the same relation. */
+  --b-field: 211 226 222;
+  --b-card: 244 244 244;
+  --b-card-head: 255 255 255;
+
+  --p-part-source: 32 131 110;
+  --p-part-when: 20 126 150;
+  --p-part-method: 81 113 168;
+  --p-part-value: 125 99 158;
 
   /*
     The light theme's studio is unchanged: the chassis tokens, at the alpha the
