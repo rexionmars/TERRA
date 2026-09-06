@@ -913,6 +913,22 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 	if err := s.repairStudioViews(); err != nil {
 		return err
 	}
+	/*
+		The three things that accumulate on their own. See maintenance.go.
+
+		Last, and in this order: the strip is what makes the free pages the
+		compaction then reclaims, and both are done before the snapshots are
+		pruned so a failure in either leaves the most recent copy where it is.
+	*/
+	if err := s.stripStoredOverlayURIs(); err != nil {
+		return err
+	}
+	if err := s.compactIfFragmented(); err != nil {
+		return err
+	}
+	if err := s.pruneReplacedSnapshots(); err != nil {
+		return err
+	}
 	return nil
 }
 
