@@ -532,7 +532,12 @@ export interface CanvasNode {
    * filled header, the aside's wash -- since what is happening outranks what a
    * card is.
    */
-  subject?: { wash: string; edge: string }
+  /*
+    `body` is the same hue at a tenth of the wash: the weight the header states
+    in one band, laid over the card's whole surface so it reads without being
+    compared. See PART_BODY in BoardRunGraph.
+  */
+  subject?: { wash: string; body: string; edge: string }
 }
 
 /**
@@ -1463,7 +1468,16 @@ export function NodeCanvas({
               */
               borderColor:
                 !n.status && !n.tone && n.subject ? n.subject.edge : undefined,
-              background: "var(--s-card)",
+              /*
+                The card's own part, over the card surface every card has --
+                two layers rather than one, for the reason the header states
+                below: a card with a part must keep the surface it shares with
+                the cards that have none, or it stops being the same object in
+                a different colour and becomes a differently made one.
+              */
+              background: n.subject
+                ? `linear-gradient(${n.subject.body}, ${n.subject.body}), var(--s-card)`
+                : "var(--s-card)",
               zIndex: front === n.id ? 1 : undefined,
               /*
                 DEPTH, AND A HALO IN THE CARD'S OWN COLOUR.
@@ -1553,12 +1567,17 @@ export function NodeCanvas({
                 corrections, so on a board of washed headers it was the one
                 solid band.
 
-                0.30 of the accent, which is the weight a HEAVY part takes (see
-                PART_WASH). It stays the loudest header on the field, because
-                the accent is the loudest hue and nothing else on the board is
-                painted in it; what it no longer is is a different KIND of
-                header. --p-accent-dim is left to the things it was measured
-                for, which are fills that carry a label.
+                0.38 of the accent, and the number follows the parts rather
+                than leading them: a heavy part's header now reaches level 86.6
+                and this has to stay above it, because the run card is where
+                the request ends and is the one control asking to be pressed.
+                0.38 puts it at 88.6 with its title still at 4.87 -- 0.44 would
+                clear the parts more comfortably and drop the title to 4.41,
+                under the floor.
+
+                What it no longer is is a different KIND of header.
+                --p-accent-dim is left to the things it was measured for, which
+                are fills that carry a label.
               */
               style={
                 n.tone === "aside"
@@ -1566,7 +1585,7 @@ export function NodeCanvas({
                   : {
                       background:
                         n.tone === "action"
-                          ? "linear-gradient(rgb(var(--p-accent) / 0.3), rgb(var(--p-accent) / 0.3)), var(--s-panel-head)"
+                          ? "linear-gradient(rgb(var(--p-accent) / 0.38), rgb(var(--p-accent) / 0.38)), var(--s-panel-head)"
                           : n.subject
                             ? `linear-gradient(${n.subject.wash}, ${n.subject.wash}), var(--s-panel-head)`
                             : undefined,

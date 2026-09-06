@@ -652,7 +652,7 @@ function compoundLoss(solar: NonNullable<BoardRunGraphProps["solar"]>): number {
  *
  * Two channels over one scale, which is the whole of the scheme. The HUE says
  * which part of the question a card answers -- where, when, by which method,
- * at what values -- and the ALPHA says how much that part decides. Change
+ * at what values -- and the LIGHTNESS says how much that part decides. Change
  * where or when a run reads and it is a run about something else; change a
  * threshold and it is the same question answered differently, so the source
  * and the stretch are drawn at nearly twice the ink of the method and the
@@ -665,8 +665,49 @@ function compoundLoss(solar: NonNullable<BoardRunGraphProps["solar"]>): number {
  * The tokens themselves are declared and measured in index.css and
  * lib/contrast.ts. What is decided here is only how much of each is used.
  */
-const PART_WASH = { heavy: 0.3, light: 0.18 }
-const PART_EDGE = { heavy: 0.85, light: 0.55 }
+/*
+  WEIGHT IS A LIGHTNESS STEP NOW, WHICH IS WHAT IT WAS SUPPOSED TO BE.
+
+  It was 0.3 against 0.18 on the header and 0.85 against 0.55 on the border,
+  and measured, the four card headers landed between levels 74.5 and 78.2 --
+  under four levels apart. Two channels were declared and one of them was not
+  arriving: a heavy card and a light card were the same brightness in different
+  hues, so the ordering the note above argues for could not be read off the
+  board at all.
+
+  The reference palettes are built the other way round. Forest Ritual is one
+  hue at four lightnesses -- #172726, #243F3D, #476664, #D3E2DE -- stepping 20,
+  38 and 129 levels; Toxic Forest is three greens at three lightnesses. Weight
+  belongs in the channel those ladders use.
+
+  0.40 against 0.10 steps 19 levels, which is the reference's own smallest
+  rung. THE STEP IS TAKEN AT THE DARK END rather than by lifting the heavy one
+  further: the card's title sits on this wash in --p-text, and at 0.44 that
+  reading falls to 4.35 against a floor of 4.5. Pushing the LIGHT weight down
+  instead costs nothing -- a quieter card wants a quieter header -- and leaves
+  the heavy one at 4.65.
+*/
+const PART_WASH = { heavy: 0.4, light: 0.1 }
+
+/*
+  THE BODY CARRIES THE WEIGHT TOO, at a tenth of the header's.
+
+  A step that lives only in a 34px header strip is a step a reader has to
+  compare across the board to see. Laid on the card's whole body it is there
+  without being looked for -- and it is what the reference ladders actually do,
+  since a swatch is a field and not a band. Small enough that the body is still
+  the card surface with a cast on it: 3 levels for a light card, 8 for a heavy
+  one, with the reading on it at 5.75 and better.
+*/
+const PART_BODY = { heavy: 0.09, light: 0.03 }
+
+/*
+  The border, at the widest the two weights can be told apart on one pixel.
+  0.95 against 0.40 rather than 0.85 against 0.55: a hairline is the one place
+  where alpha IS the whole signal, since a 1px line has no area for a lightness
+  step to happen in.
+*/
+const PART_EDGE = { heavy: 0.95, light: 0.4 }
 
 function partPaint(part: Subject | null): CanvasNode["subject"] {
   if (!part) return undefined
@@ -674,6 +715,7 @@ function partPaint(part: Subject | null): CanvasNode["subject"] {
   const token = `var(--p-part-${part})`
   return {
     wash: `rgb(${token} / ${PART_WASH[weight]})`,
+    body: `rgb(${token} / ${PART_BODY[weight]})`,
     edge: `rgb(${token} / ${PART_EDGE[weight]})`,
   }
 }
