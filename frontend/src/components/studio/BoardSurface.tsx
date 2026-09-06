@@ -1410,9 +1410,15 @@ export function BoardSurface({
           It said "run something", and a reader who had just applied a
           composition had. Then it named four products where five record a run,
           omitting wind. And it said "carries one yet", which is not the test:
-          the test is whether the store has a ROW, and a run made while signed
-          out has none -- so a reader with a finished analysis on screen was
-          told they had not made one.
+          the test is whether the store has a ROW.
+
+          A THIRD WORDING, and this one was wrong about the Go side. It told
+          the reader that a run made while signed out has no row "having
+          nowhere to write one". It has one: saveRun falls back to
+          store.LocalUserID when no user is held, and the store creates that
+          user during migration precisely so there is somewhere to write. The
+          sentence sent a reader looking for a sign-in that would not have
+          changed the outcome.
 
           It said "run something", and a reader who had just applied a
           composition had. A composition is not a run and never becomes one:
@@ -1427,7 +1433,7 @@ export function BoardSurface({
         notifyError(
           "Nothing for a studio to record",
           new Error(
-            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. A run made while signed out has no row either, having nowhere to write one. So run a classification, water, solar, wind or flood analysis here while signed in, or add an existing run from the outliner, and the studio will have something to arrange"
+            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. So run a classification, water, solar, wind or flood analysis here, or add an existing run from the outliner, and the studio will have something to arrange"
           )
         )
         return
