@@ -30,7 +30,7 @@ func (a *App) Predict(req analysis.PredictRequest) (*analysis.PredictResult, err
 	// Set after persisting, so the stored copy -- marshalled inside -- does not
 	// carry a run's own id inside its own row. The frontend needs it to attach
 	// compositions made while this run is on screen.
-	res.RunID = a.persistRunIfLoggedIn(req, res)
+	res.RunID = a.persistAnalysis(req, res)
 	return res, nil
 }
 
@@ -281,8 +281,24 @@ func (a *App) AnalyzeSolarTerrain(req analysis.SolarTerrainRequest) (*analysis.S
 	if err != nil {
 		return nil, err
 	}
+	/*
+		The rendering is withheld from the payload that reaches the database.
+
+		persistSolarRaster writes the PNG into the run's asset directory and
+		LoadAnalysis reads it back from there, so a data URI left on the stored
+		copy is the same image held twice -- once as base64 inside result_json
+		and once as the file that base64 was decoded into. The classification
+		and flood paths already withhold theirs and say so; these two did not,
+		and on one installation the rows they wrote carried 512 KB of base64
+		duplicating 452 KB of PNG already on disk.
+
+		A copy rather than clearing the field on res: res is what the frontend
+		is about to draw, and it needs the URI.
+	*/
+	stored := *res
+	stored.OverlayURI = ""
 	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
-		req.RunLabel, req.ProjectID, req.AreaID, "solar_terrain", res.Season, res,
+		req.RunLabel, req.ProjectID, req.AreaID, "solar_terrain", res.Season, &stored,
 		res.OverlayURI, res.NDates())
 	return res, nil
 }
@@ -297,8 +313,11 @@ func (a *App) AnalyzeSolarSiting(req analysis.SolarSitingRequest) (*analysis.Sol
 	if err != nil {
 		return nil, err
 	}
+	// Withheld from the stored copy for the reason AnalyzeSolarTerrain states.
+	stored := *res
+	stored.OverlayURI = ""
 	res.RunID = a.persistSolarRaster(req.PolygonGeoJSON, req.Label,
-		req.RunLabel, req.ProjectID, req.AreaID, "solar_siting", "siting", res,
+		req.RunLabel, req.ProjectID, req.AreaID, "solar_siting", "siting", &stored,
 		res.OverlayURI, 0)
 	return res, nil
 }
