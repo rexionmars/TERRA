@@ -122,12 +122,19 @@ func (s *Store) CreateArea(userID string, a Area) (*Area, error) {
 	}
 
 	a.UserID = owner
-	a.Name = strings.TrimSpace(a.Name)
-	if a.Name == "" {
-		a.Name, err = nextDrawnName(tx, a.ProjectID)
-		if err != nil {
-			return nil, err
-		}
+	/*
+		The name is numbered whether the caller supplied a stem or not.
+
+		It used to be numbered only when the caller had nothing, and any name
+		it was given went in verbatim -- so two imports of one file, or two
+		grounds drawn under one studio, produced two areas with one name
+		between them. That is the same defect the numbering was moved in here
+		to fix, reached from the other side: the caller cannot see what the
+		project already holds, and this can.
+	*/
+	a.Name, err = provisionalName(tx, a.ProjectID, a.Name)
+	if err != nil {
+		return nil, err
 	}
 	if a.ID == "" {
 		a.ID = uuid.NewString()
@@ -154,7 +161,12 @@ func (s *Store) CreateArea(userID string, a Area) (*Area, error) {
 }
 
 /*
-nextDrawnName is "drawn", then "drawn 2", and so on within one project.
+provisionalName is the stem, then the stem and 2, and so on within one project.
+
+"drawn" when the caller has no stem of its own, which is the sequence this
+started as. A caller that does have one -- the file name an import carries, the
+studio a ground was drawn under -- passes it and gets the same treatment, since
+a name that is provisional is provisional whatever it was derived from.
 
 Scoped to the project rather than to the user: two projects each holding a
 "drawn" is not a collision, it is two fields with the same provisional name, and
@@ -163,7 +175,11 @@ numbering across them would make the second project open at "drawn 4".
 Counted by asking rather than by taking the row count, because an area renamed
 by hand leaves a gap the count would step on.
 */
-func nextDrawnName(tx *sql.Tx, projectID string) (string, error) {
+func provisionalName(tx *sql.Tx, projectID, stem string) (string, error) {
+	stem = strings.TrimSpace(stem)
+	if stem == "" {
+		stem = "drawn"
+	}
 	rows, err := tx.Query(`SELECT name FROM areas WHERE project_id = ?`, projectID)
 	if err != nil {
 		return "", err
@@ -180,11 +196,11 @@ func nextDrawnName(tx *sql.Tx, projectID string) (string, error) {
 	if err := rows.Err(); err != nil {
 		return "", err
 	}
-	if !taken["drawn"] {
-		return "drawn", nil
+	if !taken[strings.ToLower(stem)] {
+		return stem, nil
 	}
 	for i := 2; ; i++ {
-		candidate := fmt.Sprintf("drawn %d", i)
+		candidate := fmt.Sprintf("%s %d", stem, i)
 		if !taken[strings.ToLower(candidate)] {
 			return candidate, nil
 		}
