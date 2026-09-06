@@ -230,7 +230,7 @@ export interface StudioScreenProps {
   /** Saved studios, for the studio's own title block. */
   studios?: import("@/lib/studios").Studio[];
   onOpenStudio?: (board: import("@/lib/studios").Studio) => void;
-  onNewStudio?: () => void;
+  onNewStudio?: (name: string) => void;
   /** Called when the studio's board menu opens, to refresh the list. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
