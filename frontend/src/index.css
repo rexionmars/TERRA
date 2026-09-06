@@ -261,6 +261,12 @@
     CLEARANCE and survive the chroma coming back: 160 holds 36 degrees off the
     lime a taken route is painted in, where 155 held 31.
 
+    LIGHTNESS UNCHANGED THROUGH EVERY ONE OF THOSE MOVES, which is why the
+    ratios barely shift: chroma at a fixed L is a change contrast does not
+    notice and the eye does. Each is drawn as a card's header wash, its border
+    and its glyph: a boundary at the 3.0 floor, never text. 3.87, 3.84, 3.59
+    and 3.47 on the raised surface, checked in lib/contrast.ts.
+  */
   --p-part-source: 81 180 133;
   --p-part-when: 31 176 204;
   --p-part-method: 155 146 227;

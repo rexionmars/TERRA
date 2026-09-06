@@ -75,8 +75,24 @@ function hexChannels(hex: string): Channels {
  * the same custom properties, so a whole-file search would return whichever
  * came first and silently check the dark values twice.
  */
+/**
+ * Comments removed before anything is read out of the stylesheet.
+ *
+ * THE CHECK PASSED ON A PALETTE THAT WAS COMMENTED OUT. An edit dropped the
+ * closing delimiter of the note above the part scale, which put four
+ * declarations inside a comment: the browser saw no --p-part-* at all, and
+ * every card that
+ * carried one lost its border to `currentColor` and its background to an
+ * invalid value. This script reported the channels as matching, because a
+ * regex over raw text finds a declaration whether or not CSS would.
+ *
+ * Cheap, and it is the difference between a checker that reads the stylesheet
+ * and one that reads a file that happens to contain it.
+ */
+const withoutComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "")
+
 function channelsFromCss(theme: ThemeName): Record<string, Channels> {
-  const css = readFileSync(CSS, "utf8")
+  const css = withoutComments(readFileSync(CSS, "utf8"))
   const selector =
     theme === "dark"
       ? /:root,\s*\n:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/
