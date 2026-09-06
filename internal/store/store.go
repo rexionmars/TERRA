@@ -900,6 +900,9 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 	if err := s.ensureLocalUser(); err != nil {
 		return err
 	}
+	if err := s.repairStudioViews(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1531,6 +1534,19 @@ func (s *Store) DeleteRun(userID, runID string) error {
 		"belongs to the project" rather than "belongs to nothing".
 	*/
 	if _, err := tx.Exec(`DELETE FROM studio_members WHERE run_id = ?`, runID); err != nil {
+		return err
+	}
+	/*
+		AND THE ARRANGEMENT ITSELF, which the member row is only half of.
+
+		A studio keeps what it looks like in `view_json`, and that field names
+		its runs too. Removing the member and leaving the blob produced the one
+		state the Missing flag above cannot report: the row that would have
+		carried the flag is the row that was just deleted, so the studio opens
+		with a run's worth of arrangement pointing at nothing and says nothing
+		about it. See dropRunsFromViews.
+	*/
+	if _, err := dropRunsFromViews(tx, userID, map[string]bool{runID: true}); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(
