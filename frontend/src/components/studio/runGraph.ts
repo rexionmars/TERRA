@@ -31,6 +31,7 @@ import {
   Drop,
   Fan,
   Images,
+  MapTrifold,
   Mountains,
   Network,
   Package,
@@ -69,6 +70,7 @@ export type RunNodeId =
   | "threshold"
   | "store"
   | "layers"
+  | "catalogue"
   | "window"
   | "figure"
   | "radiation"
@@ -179,6 +181,27 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
     what left the map bare while a product card offered to read it.
   */
   layers: { id: "layers", label: "Layers", icon: Stack, h: 148 },
+  /*
+    THE PUBLISHED BOUNDARIES, AS GROUND A RUN CAN BE MADE OVER.
+
+    A polygon already reached this application two ways -- drawn on the map, or
+    read from a file the reader has -- and both put the burden of HAVING the
+    shape on them. For a state or a municipality that burden is misplaced: the
+    boundary is published, it is the same for everyone, and a reader asking
+    about Natal should not have to find a file first.
+
+    NO EDGE, FOR THE REASON THE LAYERS CARD GIVES. Everything else on a graph
+    feeds the run and this does not: what it produces is an AREA of the
+    project, and the area card's own edge is what carries it. A line from here
+    to the run would say the run reads two geometries, and a line from here to
+    the area card would draw a pipeline -- which the note at the top of this
+    file is written against. Filling a card is an action; only what a run is
+    MADE OF is an edge.
+
+    On every graph rather than one, unlike Layers: every product this
+    application has is asked over ground.
+  */
+  catalogue: { id: "catalogue", label: "Catalogue", icon: MapTrifold, h: 200 },
   // The solar parameters, back on the graph. Named for what they configure,
   // not for the product that sends them: `radiation` and `slope` are each read
   // by two products, which is why SolarParams holds one of each for the axis.
@@ -195,6 +218,23 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   // its own here; TOOL_ICON in BoardRunGraph names it.
   run: { id: "run", label: "Run", icon: Package, h: 96 },
 }
+
+/**
+ * The cards a reader can add to a graph, with what each is for.
+ *
+ * A TABLE AND NOT A UNION, because the menu that offers them has to name them
+ * and say what they do -- and a list of ids somewhere else, matched by hand to
+ * labels somewhere else again, is the drift this file's SPEC exists to end.
+ */
+export const OPTIONAL_NODES = [
+  {
+    id: "catalogue" as const,
+    label: "Boundary catalogue",
+    hint: "States and municipalities, as published, to make a run over",
+  },
+]
+
+export type OptionalNodeId = (typeof OPTIONAL_NODES)[number]["id"]
 
 export interface RunGraph {
   nodes: readonly RunNodeSpec[]
@@ -227,7 +267,9 @@ export function runGraph(
   solarProduct: SolarProductId | null,
   compositeKind: "rgb" | "index" | null = null,
   gridProduct: GridProductId | null = null,
-  energyProduct: EnergyProductId | null = null
+  energyProduct: EnergyProductId | null = null,
+  /** The optional cards the reader has added. See the note below. */
+  extras: readonly OptionalNodeId[] = []
 ): RunGraph | null {
   const graph = productGraph(
     tool,
@@ -236,11 +278,31 @@ export function runGraph(
     gridProduct,
     energyProduct
   )
-  if (!graph || tool !== "energy") return graph
-  return {
-    ...graph,
-    nodes: [...graph.nodes, { ...SPEC.layers, col: 0 }],
-  }
+  if (!graph) return graph
+  /*
+    THE OPTIONAL CARDS, AND WHY THEY ARE NOT ON EVERY GRAPH.
+
+    The catalogue was appended here unconditionally at first, on the argument
+    that ground is what every product is asked over -- which is true, and is
+    an argument for it being AVAILABLE rather than for it being present. A
+    graph states what a run is made of, and a reader who draws their own areas
+    has a card on every board that answers a question they are not asking.
+
+    So it is asked for, from the additional-components menu on the band's own
+    bar, and this appends what was asked for. None of them is reached by an
+    edge -- see SPEC.catalogue -- so a graph gains a card and the request it
+    describes is unchanged.
+
+    Layers is not one of them: it is appended for Energy alone and is not the
+    reader's to add or remove, because the register it draws is a property of
+    that slice rather than a component of a request.
+  */
+  const nodes = [
+    ...graph.nodes,
+    ...extras.map((id) => ({ ...SPEC[id], col: 0 })),
+    ...(tool === "energy" ? [{ ...SPEC.layers, col: 0 }] : []),
+  ]
+  return { ...graph, nodes }
 }
 
 function productGraph(

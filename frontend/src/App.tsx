@@ -3102,6 +3102,39 @@ function AppBody(props: {
     ]
   )
 
+  /*
+    A boundary chosen in the catalogue card, kept as an area of the project.
+
+    BELOW createArea AND NOT BESIDE THE OTHER HANDLERS, which is where it was
+    first written: naming createArea in a dependency list above its own
+    declaration is a reference before initialisation. It belongs next to the
+    writer it calls anyway.
+
+    THE SAME DOOR THE OTHER TWO USE. A polygon reaches this application by
+    being drawn, by being read from a file, and now by being chosen from a
+    published register -- and all three end here, at createArea, which is what
+    decides the id, files it under the open project and puts it on the map. A
+    third path with its own writer would be a third set of those decisions to
+    keep in step.
+
+    The name is the boundary's own, so an area taken from the register is
+    called what the register calls it -- and the store numbers it if the
+    project already holds a ground by that name, which is what makes two runs
+    over Natal two areas rather than one overwritten.
+  */
+  const handlePickBoundary = useCallback(
+    async (name: string, geometry: GeoJSONGeometry) => {
+      const entry = await createArea(geometry, name)
+      if (!entry) return
+      const centroid = geometryCentroid(geometry)
+      if (centroid) {
+        props.setFlyTo({ lat: centroid[1], lon: centroid[0], key: Date.now() })
+      }
+      notifySuccess(`\u201c${entry.name}\u201d is the area now.`)
+    },
+    [createArea, props.setFlyTo]
+  )
+
   /**
    * A polygon drawn on either map. Appended to the saved-AOI catalog so a
    * second draw does not throw the first away; the new entry becomes active.
@@ -3610,6 +3643,7 @@ function AppBody(props: {
               >
                 <StudioScreen
                   onOpenReading={openSavedAnalysis}
+                  onPickBoundary={handlePickBoundary}
                   activeProjectId={activeProjectId}
                   activeProjectName={
                     projects.find((p) => p.id === activeProjectId)?.name ?? null

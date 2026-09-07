@@ -121,6 +121,12 @@ describe("cards no edge reaches", () => {
 
   const isEnergy = (name: string) => /^(solar|wind|grid)/.test(name)
 
+  /*
+    The layers card is appended for the Energy entry alone -- it draws the
+    register this slice can be asked about, and hanging it off a classification
+    graph would offer a control over a layer that run has nothing to do with.
+    So every other graph reaches all of its cards.
+  */
   it("is the layers card, and only that, on every energy graph", () => {
     const energy = GRAPHS.filter(([name]) => isEnergy(name))
     expect(energy.length).toBe(9)
@@ -129,17 +135,38 @@ describe("cards no edge reaches", () => {
     }
   })
 
-  /*
-    The layers card is appended for the Energy entry alone -- it draws the
-    register this slice can be asked about, and hanging it off a classification
-    graph would offer a control over a layer that run has nothing to do with.
-    So every other graph reaches all of its cards.
-  */
   it("is nothing at all on the graphs that are not energy", () => {
     const rest = GRAPHS.filter(([name]) => !isEnergy(name))
     expect(rest.length).toBe(5)
     for (const [name, graph] of rest) {
       expect(unwired(graph), name).toEqual([])
     }
+  })
+
+  /*
+    AN ADDED COMPONENT IS UNWIRED, AND THAT IS THE POINT OF IT.
+
+    The catalogue produces an area, and the area card's own edge is what
+    carries that to the run -- so a graph gains a card and the request it
+    describes is unchanged. A line from here would say the run reads a second
+    geometry. This asserts both halves: the card arrives, and no edge does.
+  */
+  it("adds what the reader asked for, and reaches none of it", () => {
+    const plain = runGraph("classify", null)!
+    const withCatalogue = runGraph("classify", null, null, null, null, [
+      "catalogue",
+    ])!
+    expect(unwired(plain)).toEqual([])
+    expect(unwired(withCatalogue)).toEqual(["catalogue"])
+    expect(withCatalogue.edges).toEqual(plain.edges)
+    expect(withCatalogue.nodes.length).toBe(plain.nodes.length + 1)
+  })
+
+  // Energy keeps its own, and the two do not displace each other.
+  it("puts an added component beside the layers card on energy", () => {
+    const graph = runGraph("energy", "resource", null, null, "solar:resource", [
+      "catalogue",
+    ])!
+    expect(unwired(graph).sort()).toEqual(["catalogue", "layers"])
   })
 })
