@@ -695,6 +695,18 @@ const partWire = (part: Subject | null): string | undefined =>
   part ? `var(--b-${part}-head)` : undefined
 
 /**
+ * What can be written on that wire.
+ *
+ * The band's own type colour, the fourth thing partPaint returns and for the
+ * same reason: a band at full strength decides what can be written on it, and
+ * #FFD000 takes dark type where #7231FF takes white. The canvas cannot pick
+ * between them -- it does not know the categories -- so the pair travels
+ * together. See CanvasEdge.paintInk.
+ */
+const partWireInk = (part: Subject | null): string | undefined =>
+  part ? `var(--b-${part}-ink)` : undefined
+
+/**
  * The state of a wire, in the word drawn where it lands.
  *
  * Lower case, and short. These sit between two cards at nine pixels and are
@@ -2292,6 +2304,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         parts are about what a run is made of.
       */
       paint: to === "run" ? partWire(subject(value)) : undefined,
+      paintInk: to === "run" ? partWireInk(subject(value)) : undefined,
     }
   })
 
