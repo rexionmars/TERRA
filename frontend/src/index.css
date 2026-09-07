@@ -1383,46 +1383,13 @@
 }
 
 /*
-  The glow is a layer of its own rather than a second entry in the card's
-  box-shadow, so it can be animated without the depth shadow -- which carries
-  the drag and must not breathe -- being animated with it. `inherit` on the
-  radius keeps it in step with the card's corners wherever those are set.
-*/
-.card-busy {
-  position: relative;
-}
-.card-busy::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: 0 0 26px -4px var(--warning);
-  animation: card-busy 2200ms ease-in-out infinite;
-}
-@keyframes card-busy {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/*
   Reduced motion keeps the STATEMENT and drops the movement. The wire's light
-  is withdrawn -- a bar parked at one end of a ribbon says nothing and hides
-  part of the reading written on it -- and the card's glow is held at a
-  constant weight, which is what it was before it learnt to breathe.
+  is withdrawn: a bar parked at one end of a ribbon says nothing and hides part
+  of the reading written on it.
 */
 @media (prefers-reduced-motion: reduce) {
   .wire-sweep {
     display: none;
-  }
-  .card-busy::after {
-    animation: none;
-    opacity: 0.8;
   }
 }
 
