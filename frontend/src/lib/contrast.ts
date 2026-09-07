@@ -155,6 +155,9 @@ export const TOKENS = {
     valueHead: [197, 101, 77],
     valueEdge: [58, 63, 71],
     valueInk: [11, 11, 11],
+    catalogueHead: [203, 129, 187],
+    catalogueBody: [35, 38, 44],
+    catalogueInk: [35, 38, 44],
     actionHead: [220, 166, 79],
     actionEdge: [220, 166, 79],
     actionInk: [35, 38, 44],
@@ -203,6 +206,9 @@ export const TOKENS = {
     valueHead: [197, 101, 77],
     valueEdge: [194, 195, 197],
     valueInk: [11, 11, 11],
+    catalogueHead: [203, 129, 187],
+    catalogueBody: [244, 244, 244],
+    catalogueInk: [35, 38, 44],
     actionHead: [220, 166, 79],
     actionEdge: [220, 166, 79],
     actionInk: [35, 38, 44],
@@ -442,6 +448,12 @@ export const RULES: readonly ContrastRule[] = [
     on: ["asideHead"],
     min: 4.5,
     why: "the title of a card on the graph but not in the request, on Forest Ritual's slate",
+  },
+  {
+    fg: "catalogueInk",
+    on: ["catalogueHead"],
+    min: 4.5,
+    why: "the title of the data source card, on the band placed in the arc the four parts leave empty",
   },
   /*
    * The card body, which every card shares and which is a ground rather than
