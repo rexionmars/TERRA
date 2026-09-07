@@ -27,6 +27,22 @@
  * latitude, because a mercator unit is a different number of metres at the
  * equator than at sixty degrees.
  *
+ * AND BOTH ARE WANTED AT ONCE WHILE THE PROJECTION IS CHANGING, which is the
+ * thing `projectTileFor3D` cannot express and the reason the globe path below
+ * is written out instead of delegated. MapLibre hands a custom layer a globe
+ * matrix and a fallback matrix and crossfades between them as the sphere
+ * flattens; the fallback it hands is the MERCATOR custom-layer matrix, whose z
+ * is scaled by the world size. So inside one call the sphere wants metres and
+ * the fallback wants mercator units, and the helper takes one argument for
+ * both.
+ *
+ * Feeding it metres put the fallback corner an Earth's circumference up: for
+ * the width of the crossfade the quad was mixed between a position on the
+ * ground and one forty thousand kilometres above it. That is what smeared the
+ * overlay from 11.1 and had it gone by 11.5, and why nothing was ever wrong
+ * above 12 -- past the crossfade the transition is 1, the fallback drops out
+ * of the mix, and the sphere term is the only one left.
+ *
  * BACK TO FRONT, WITH DEPTH WRITES OFF. These quads are translucent and they
  * overlap; sorted by elevation and drawn without writing depth is the painter's
  * order, which is what lets the lower raster show through the upper one rather
@@ -82,7 +98,7 @@ function mercatorPerMetre(b: Bounds): number {
   ).meterInMercatorCoordinateUnits()
 }
 
-const VERT = (prelude: string, define: string) => `#version 300 es
+export const vertexSource = (prelude: string, define: string) => `#version 300 es
 ${prelude}
 ${define}
 in vec2 a_pos;
@@ -97,11 +113,29 @@ void main() {
     MapLibre's own, so the branch cannot fall out of step with the prelude it
     was compiled beside.
   */
-  #ifdef GLOBE
-  gl_Position = projectTileFor3D(a_pos, u_elevation_m);
-  #else
+#ifdef GLOBE
+  /*
+    What the prelude's own projectTileFor3D does, with one difference: the two
+    terms are given the two units they are each written in, rather than one
+    number spent on both. Everything used here is the prelude's -- the sphere,
+    the radius, the fallback matrix and the transition -- so this stays a
+    restatement of MapLibre's arithmetic and not a second projection.
+  */
+  v_projection_tile_x = a_pos.x;
+  vec3 spherePos = projectToSphere(a_pos, a_pos);
+  vec3 raised = spherePos * (1.0 + u_elevation_m / GLOBE_RADIUS);
+  vec4 onSphere = u_projection_matrix * vec4(raised, 1.0);
+  if (u_projection_transition > 0.999) {
+    // Wholly a sphere: the fallback is not mixed in, so it is not computed.
+    gl_Position = onSphere;
+  } else {
+    vec4 onPlane =
+      u_projection_fallback_matrix * vec4(a_pos, u_elevation_mercator, 1.0);
+    gl_Position = mix(onPlane, onSphere, u_projection_transition);
+  }
+#else
   gl_Position = projectTileFor3D(a_pos, u_elevation_mercator);
-  #endif
+#endif
 }`
 
 const FRAG = `#version 300 es
@@ -222,7 +256,7 @@ export function raisedRasterLayer(
     if (held) return held
     const vs = compile(
       ctx,
-      VERT(shader.vertexShaderPrelude, shader.define),
+      vertexSource(shader.vertexShaderPrelude, shader.define),
       ctx.VERTEX_SHADER
     )
     const fs = compile(ctx, FRAG, ctx.FRAGMENT_SHADER)
