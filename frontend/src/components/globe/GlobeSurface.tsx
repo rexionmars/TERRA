@@ -25,6 +25,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { usePlantLayers, useNetwork } from "@/lib/plantRegister"
+import { voltageColourExpression } from "@/lib/gridVoltage"
 import {
   Broadcast,
   Globe,
@@ -1095,12 +1096,15 @@ export function GlobeSurface({
                   4, ["interpolate", ["linear"], ["get", "kv"], 230, 0.4, 800, 1.4],
                   10, ["interpolate", ["linear"], ["get", "kv"], 230, 1.1, 800, 3],
                 ],
-                "line-color": [
-                  "interpolate", ["linear"], ["get", "kv"],
-                  230, "#6E7B8B",
-                  500, "#8FA3B8",
-                  800, "#C6D4E1",
-                ],
+                /*
+                  THE SECTOR'S OWN COLOURS, not a ramp of this map's choosing.
+                  It was three blue-greys interpolated across the voltage,
+                  which said which of two circuits was higher and nothing about
+                  what either one is -- and at a glance it read as one mesh
+                  drawn in two weights. See lib/gridVoltage, which holds the
+                  table and where it was read from.
+                */
+                "line-color": voltageColourExpression(),
                 // Out of service dimmed rather than dropped: it is a corridor
                 // that exists, and its absence from the map would read as
                 // ground with no line near it.
@@ -1117,14 +1121,16 @@ export function GlobeSurface({
                   4, ["interpolate", ["linear"], ["get", "kv"], 69, 0.8, 800, 2.4],
                   10, ["interpolate", ["linear"], ["get", "kv"], 69, 2, 800, 5],
                 ],
+                /*
+                  A dark disc under a coloured ring, which is what makes a bus
+                  a bus and not a small plant: the plants below are filled
+                  marks. The ring takes the same table the circuits do, so a
+                  500 kV bus and the 500 kV line arriving at it are one colour
+                  and a reader does not have to learn the station separately.
+                */
                 "circle-color": "#0F1620",
                 "circle-stroke-width": 1,
-                "circle-stroke-color": [
-                  "interpolate", ["linear"], ["get", "kv"],
-                  69, "#6E7B8B",
-                  500, "#9FB3C8",
-                  800, "#D8E3EE",
-                ],
+                "circle-stroke-color": voltageColourExpression(),
                 "circle-opacity": 0.85,
               },
             },
@@ -1232,7 +1238,17 @@ export function GlobeSurface({
       const accent = token("--p-accent", "#ED8744")
       map.setPaintProperty(AREA_FILL, "fill-color", accent)
       map.setPaintProperty(AREA_LINE, "line-color", accent)
-
+      /*
+        THE METERED PLANT FOLLOWS THE ACCENT TOO, and it did not. Its colour
+        was the accent's literal, written into the style at construction and
+        never repainted -- so when the accent moved, the one mark on the map
+        that means "this is what can be asked about" stayed the colour the
+        accent used to be. The two AOI paints above were already read from the
+        token; this is the third that should have been.
+      */
+      if (map.getLayer(PLANT_METERED)) {
+        map.setPaintProperty(PLANT_METERED, "circle-color", accent)
+      }
     }
 
     /*
