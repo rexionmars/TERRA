@@ -42,3 +42,54 @@ export const energyMwh = (v: number) => `${v.toFixed(0)} MWh`
 /** Length of the reanalysis record. Two decimals, printed beside
  *  `record_window`, which carries the exact dates. */
 export const recordYears = (v: number) => `${v.toFixed(2)} years`
+
+/*
+  THE WIND PANEL'S OWN QUANTITIES, added when its body was brought here.
+
+  The module's opening states the defect it was made for -- one measurement
+  printed twice at two roundings -- and names hub speed and the gross capacity
+  factor as two of the seven. The headline was converted then and the panel's
+  body was not, so the same panel went on printing the 50 m speed at four
+  decimals beside a hub speed at two, and the operating regime's three
+  reference speeds at 1, 4 and 1 inside a single string.
+
+  The precisions below are chosen from what each quantity resolves to on a
+  screening run over a reanalysis record, not from what the widest of its
+  printings happened to use.
+*/
+
+/** Wind power density. Whole watts per square metre: it runs in the hundreds,
+ *  and a hundredth of a watt is four orders below anything the record settles. */
+export const powerDensityWm2 = (v: number) => `${v.toFixed(0)} W/m2`
+
+/** Weibull shape. Two decimals: k moves between about 1.5 and 3 across a
+ *  continent, and the second decimal is where two sites start to differ. */
+export const weibullK = (v: number) => v.toFixed(2)
+
+/** Air density. Three decimals, because the whole range this reports is
+ *  1.05 to 1.25 and the differences that matter live in the third. */
+export const airDensityKgM3 = (v: number) => `${v.toFixed(3)} kg/m3`
+
+/** A share of the record's hours. One decimal, for the reason the capacity
+ *  factor gives: it is a screening figure and a thousandth of a per cent is a
+ *  precision the record does not have. */
+export const sharePct = (v: number) => `${v.toFixed(1)}%`
+
+/** How far a fitted distribution sits from the record it was fitted to. Two
+ *  decimals rather than one, since this one is commonly under a per cent and
+ *  is read as a check rather than as a measurement. */
+export const fitErrorPct = (v: number) => `${v.toFixed(2)}%`
+
+/** The power-law shear exponent. Three decimals: 0.143 is the classical open
+ *  -country value and the third decimal is where a site departs from it. The
+ *  sensitivity sweep keeps four on its own column, where consecutive rows are
+ *  chosen to differ there. */
+export const shearExponent = (v: number) => v.toFixed(3)
+
+/** Energy pattern factor. Two decimals: it sits near 1.9 for a Rayleigh wind
+ *  and a hundredth is the useful step away from it. */
+export const patternFactor = (v: number) => v.toFixed(2)
+
+/** Mean of the cube of the speed. One decimal, on a figure in the hundreds
+ *  that exists to be compared with the fitted one beside it. */
+export const meanCubeM3S3 = (v: number) => `${v.toFixed(1)} m3/s3`

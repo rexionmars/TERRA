@@ -18,6 +18,26 @@
  * The passages that carried numbers inside sentences -- the Weibull fit check,
  * the air density range, the operating regime -- are still here as figures.
  * Nothing measured was dropped; it stopped being written out longhand.
+ *
+ * AND THE FIGURES NOW ROUND WHERE THE QUANTITY DOES. This panel printed 35 of
+ * its 54 numbers at three or four decimals: a mean speed to a tenth of a
+ * millimetre per second, a share of the record's hours to a thousandth of a
+ * per cent, a turbine's rated power as "2.000 MW". On a screening indication
+ * over a reanalysis record that is a precision the method does not have, and
+ * the panel says so twice in its own chrome -- the heading, and the chips
+ * reading gross and unvalidated.
+ *
+ * The roundings come from lib/energyFormat, which was written for exactly this
+ * and states the defect in its own opening: one measurement printed twice at
+ * two roundings. The headline strip was converted then and this body was not,
+ * so the same panel showed a 50 m speed at four decimals beside a hub speed at
+ * two, and the operating regime's three reference speeds at 1, 4 and 1 inside
+ * one string.
+ *
+ * THE SHEAR SWEEP KEEPS ITS FOUR, and that is the exception the speed
+ * formatter already names: its rows are chosen to differ in the fourth
+ * decimal, so rounding them would print a column of identical numbers under a
+ * heading promising a sensitivity.
  */
 import type { ReactNode } from "react"
 import type { WindAnalysis } from "@/lib/types"
@@ -29,9 +49,18 @@ import {
 } from "@/components/analysisPrimitives"
 import type { ReadingSection } from "@/components/energy/readingSections"
 import {
+  airDensityKgM3,
   capacityFactorPct,
+  capacityMw,
   energyMwh,
+  fitErrorPct,
+  meanCubeM3S3,
+  patternFactor,
+  powerDensityWm2,
+  sharePct,
+  shearExponent,
   speedMs,
+  weibullK,
 } from "@/lib/energyFormat"
 import { PALETTE_STOPS } from "@/lib/palettes"
 
@@ -47,21 +76,21 @@ function ReanalysisLevels({ wind }: { wind: WindAnalysis }) {
       <div className="grid grid-cols-2 gap-3 @min-[35rem]:grid-cols-4">
         <WaterFigure
           label="Mean speed 10 m"
-          value={`${m.mean_speed_10m_ms.toFixed(4)} m/s`}
+          value={speedMs(m.mean_speed_10m_ms)}
         />
         <WaterFigure
           label="Mean speed 50 m"
-          value={`${m.mean_speed_50m_ms.toFixed(4)} m/s`}
+          value={speedMs(m.mean_speed_50m_ms)}
         />
         <WaterFigure
           label="Weibull 50 m"
-          value={`k ${m.weibull_k_50m.toFixed(4)}`}
-          sub={`c ${m.weibull_c_50m_ms.toFixed(4)} m/s`}
+          value={`k ${weibullK(m.weibull_k_50m)}`}
+          sub={`c ${speedMs(m.weibull_c_50m_ms)}`}
         />
         <WaterFigure
           label="Power density 50 m"
-          value={`${m.wind_power_density_50m_w_m2.toFixed(2)} W/m2`}
-          sub={`pattern factor ${m.energy_pattern_factor_50m.toFixed(4)}`}
+          value={powerDensityWm2(m.wind_power_density_50m_w_m2)}
+          sub={`pattern factor ${patternFactor(m.energy_pattern_factor_50m)}`}
         />
       </div>
       {/* The fit check and the density range, which were a paragraph. */}
@@ -69,19 +98,19 @@ function ReanalysisLevels({ wind }: { wind: WindAnalysis }) {
         <StatGrid at="fit">
           <Stat
             label="Weibull mean vs record"
-            value={`${fit.weibull_mean_ms.toFixed(4)} / ${fit.empirical_mean_ms.toFixed(4)} m/s · ${fit.mean_error_pct.toFixed(3)}%`}
+            value={`${speedMs(fit.weibull_mean_ms)} / ${speedMs(fit.empirical_mean_ms)} · ${fitErrorPct(fit.mean_error_pct)}`}
           />
           <Stat
             label="Weibull mean cube vs record"
-            value={`${fit.weibull_mean_cube_m3s3.toFixed(3)} / ${fit.empirical_mean_cube_m3s3.toFixed(3)} m3/s3 · ${fit.mean_cube_error_pct.toFixed(3)}%`}
+            value={`${meanCubeM3S3(fit.weibull_mean_cube_m3s3)} / ${meanCubeM3S3(fit.empirical_mean_cube_m3s3)} · ${fitErrorPct(fit.mean_cube_error_pct)}`}
           />
           <Stat
             label="Air density mean"
-            value={`${m.air_density_mean_kg_m3.toFixed(4)} kg/m3`}
+            value={airDensityKgM3(m.air_density_mean_kg_m3)}
           />
           <Stat
             label="Air density range"
-            value={`${m.air_density_min_kg_m3.toFixed(4)} – ${m.air_density_max_kg_m3.toFixed(4)} kg/m3`}
+            value={`${m.air_density_min_kg_m3.toFixed(3)} – ${airDensityKgM3(m.air_density_max_kg_m3)}`}
           />
         </StatGrid>
       </div>
@@ -101,12 +130,12 @@ function HubResult({ wind }: { wind: WindAnalysis }) {
         <WaterFigure
           label="Hub speed"
           value={speedMs(h.mean_speed_ms)}
-          sub={`power law α ${wind.assumptions.shear_exponent.toFixed(4)}, ${h.extrapolation.height_ratio.toFixed(1)}× the top level`}
+          sub={`power law α ${shearExponent(wind.assumptions.shear_exponent)}, ${h.extrapolation.height_ratio.toFixed(1)}× the top level`}
         />
         <WaterFigure
           label="Gross capacity factor"
           value={capacityFactorPct(h.gross_capacity_factor_pct)}
-          sub={`${h.gross_capacity_factor_no_density_correction_pct.toFixed(3)}% undensity-corrected`}
+          sub={`${capacityFactorPct(h.gross_capacity_factor_no_density_correction_pct)} undensity-corrected`}
         />
         <WaterFigure
           label="Gross annual energy"
@@ -115,8 +144,8 @@ function HubResult({ wind }: { wind: WindAnalysis }) {
         />
         <WaterFigure
           label="Power density"
-          value={`${h.wind_power_density_w_m2.toFixed(2)} W/m2`}
-          sub={`k ${h.weibull_k.toFixed(4)}, c ${h.weibull_c_ms.toFixed(4)} m/s`}
+          value={powerDensityWm2(h.wind_power_density_w_m2)}
+          sub={`k ${weibullK(h.weibull_k)}, c ${speedMs(h.weibull_c_ms)}`}
         />
       </div>
       {/* The operating regime, which was a sentence. */}
@@ -124,19 +153,19 @@ function HubResult({ wind }: { wind: WindAnalysis }) {
         <StatGrid at="three">
           <Stat
             label="Hours above cut-in"
-            value={`${h.operating_regime.above_cut_in_pct.toFixed(3)}%`}
+            value={sharePct(h.operating_regime.above_cut_in_pct)}
           />
           <Stat
             label="Hours at or above rated"
-            value={`${h.operating_regime.at_or_above_rated_pct.toFixed(3)}%`}
+            value={sharePct(h.operating_regime.at_or_above_rated_pct)}
           />
           <Stat
             label="Hours above cut-out"
-            value={`${h.operating_regime.above_cut_out_pct.toFixed(3)}%`}
+            value={sharePct(h.operating_regime.above_cut_out_pct)}
           />
           <Stat
             label="Cut-in / rated / cut-out"
-            value={`${h.operating_regime.cut_in_ms.toFixed(1)} / ${h.operating_regime.rated_ms.toFixed(4)} / ${h.operating_regime.cut_out_ms.toFixed(1)} m/s`}
+            value={`${h.operating_regime.cut_in_ms.toFixed(1)} / ${h.operating_regime.rated_ms.toFixed(1)} / ${h.operating_regime.cut_out_ms.toFixed(1)} m/s`}
           />
         </StatGrid>
       </div>
@@ -154,18 +183,18 @@ function FieldDiagnostics({ wind }: { wind: WindAnalysis }) {
       <div className="grid grid-cols-1 gap-3 @min-[28rem]:grid-cols-2 @min-[56rem]:grid-cols-4">
         <WaterFigure
           label={`Hours below ${q.calm_threshold_ms} m/s`}
-          value={`${(q.calm_fraction_pct["10m"] ?? 0).toFixed(3)}%`}
-          sub={`50 m ${(q.calm_fraction_pct["50m"] ?? 0).toFixed(3)}%, 2 m ${(q.calm_fraction_pct["2m"] ?? 0).toFixed(3)}%`}
+          value={sharePct(q.calm_fraction_pct["10m"] ?? 0)}
+          sub={`50 m ${sharePct(q.calm_fraction_pct["50m"] ?? 0)}, 2 m ${sharePct(q.calm_fraction_pct["2m"] ?? 0)}`}
         />
         <WaterFigure
           label="Record maximum 10 m"
-          value={`${(q.record_maximum_ms["10m"] ?? 0).toFixed(2)} m/s`}
+          value={speedMs(q.record_maximum_ms["10m"] ?? 0)}
           sub={`floor ${q.record_maximum_floor_ms.toFixed(1)} m/s · ${q.record_maximum_plausible ? "met" : "not met"}`}
         />
         <WaterFigure
           label="Shear exponent"
-          value={shear.shear_exponent.toFixed(4)}
-          sub={`day ${shear.shear_exponent_day.toFixed(4)}, night ${shear.shear_exponent_night.toFixed(4)}`}
+          value={shearExponent(shear.shear_exponent)}
+          sub={`day ${shearExponent(shear.shear_exponent_day)}, night ${shearExponent(shear.shear_exponent_night)}`}
         />
         {/* Null when the exponent lies outside what a neutral logarithmic
             profile between 10 m and 50 m can produce for any roughness
@@ -207,7 +236,7 @@ function FieldDiagnostics({ wind }: { wind: WindAnalysis }) {
           <Stat
             label="Shear band supported"
             value={shear.expected_shear_exponent_band
-              .map((v) => v.toFixed(3))
+              .map(shearExponent)
               .join(" – ")}
           />
         </StatGrid>
@@ -289,7 +318,7 @@ function SeasonAndDirection({ wind }: { wind: WindAnalysis }) {
                 />
               </span>
               <span className="telemetry w-16 shrink-0 text-right text-body">
-                {r.mean_speed_ms.toFixed(3)}
+                {r.mean_speed_ms.toFixed(2)}
               </span>
             </li>
           ))}
@@ -364,7 +393,7 @@ function ReferenceCurve({ wind }: { wind: WindAnalysis }) {
         <Stat label="Model" value={wind.turbine.name} />
         <Stat
           label="Rated power"
-          value={`${(wind.turbine.rated_power_w / 1e6).toFixed(3)} MW`}
+          value={capacityMw(wind.turbine.rated_power_w / 1e6)}
         />
         <Stat
           label="Rotor / blades"
