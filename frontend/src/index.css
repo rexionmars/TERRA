@@ -417,6 +417,36 @@
   --b-value-ink: #0B0B0B;
 
   /*
+    A DATA SOURCE, WHICH IS NOT ONE OF THE FOUR PARTS.
+
+    The scale above is the parts of a REQUEST, and its own note says every card
+    that feeds a run is in exactly one of them. This card feeds none: it
+    produces an area, and the area card's edge is what carries that. So it sits
+    outside the four rather than becoming a fifth of them -- beside `action`
+    and `aside`, which are also on the board and also not in the request.
+
+    PLACED BY THE METHOD THE SCALE STATES, since there was no swatch left to
+    take. Measured in OKLCH against everything the board already paints, the
+    largest free arc is the 86 degrees between method at h292 and destructive
+    at h18. h335 sits 43 from each -- more than the 36 of clearance the scale
+    holds against success -- at the L 0.699 and C 0.118 that scale settles on.
+
+    IT IS THE MAGENTA THAT SCHEME TWO WAS FAULTED FOR, and the fault was not
+    the hue. That scheme GENERATED all four and so replaced the references with
+    a construction; this takes the four references as they are and places one
+    more where the circle is actually empty. The note above says as much: the
+    scale "is where those four came from and what a fifth would be placed
+    against".
+
+    Its ink is the same near-black the source band carries, at 5.34 -- checked
+    in lib/contrast.ts like the rest.
+  */
+  --b-catalogue-body: #23262C;
+  --b-catalogue-head: #CB81BB;
+  --b-catalogue-edge: #3A3F47;
+  --b-catalogue-ink: #23262C;
+
+  /*
     The run card: where the request ends, and the one control asking to be
     pressed. Ringed in itself, like a heavy part.
 
@@ -601,6 +631,13 @@
   --b-value-head: #C5654D;
   --b-value-edge: #C2C3C5;
   --b-value-ink: #0B0B0B;
+
+  /* The fifth band, outside the four parts. See the dark block for where the
+     hue was placed and why. */
+  --b-catalogue-body: #F4F4F4;
+  --b-catalogue-head: #CB81BB;
+  --b-catalogue-edge: #C2C3C5;
+  --b-catalogue-ink: #23262C;
 
   /* The run card: where the request ends. Ringed in itself. Muted with the
      four parts; see the dark block for the measurement. */

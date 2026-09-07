@@ -2484,15 +2484,43 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       outline over a header that was already saying which part of the question
       the card answers. `supplied` still decides the WIRE; see canvasEdges.
     */
+    /*
+      ASIDE IS ABOUT CONTEXT, NOT ABOUT WIRING, AND THE TWO CAME APART.
+
+      It was derived from the absence of an edge alone, which was right while
+      the layers card was the only card without one: that card says what is
+      drawn while the question is set up, and a reader is not meant to look at
+      it first. The catalogue has no edge either and is the opposite -- it is
+      where ground comes from, so a reader IS meant to look at it, and drawing
+      it in the same quiet slate said otherwise.
+
+      IT CARRIES A BAND OF ITS OWN AND NOT ONE OF THE FOUR. The parts scale is
+      the parts of a request and every card in it feeds a run; this one feeds
+      none. Taking `source` was tried first, on the argument that a data source
+      deals in ground -- true, and it put a second green card on the board
+      beside the one the run actually reads, which is the reading it was meant
+      to avoid. --b-catalogue-* is placed in the arc the board leaves empty;
+      see index.css for the measurement.
+    */
+    const context = aside && spec.id !== "catalogue"
     const tone: CanvasNode["tone"] =
-      spec.id === "run" ? "action" : aside ? "aside" : undefined
+      spec.id === "run" ? "action" : context ? "aside" : undefined
     const part = aside ? null : subject(values[spec.id])
+    const paint =
+      spec.id === "catalogue"
+        ? {
+            band: "var(--b-catalogue-head)",
+            body: "var(--b-catalogue-body)",
+            edge: "var(--b-catalogue-edge)",
+            ink: "var(--b-catalogue-ink)",
+          }
+        : partPaint(part)
     return {
       id: spec.id,
       place: places[spec.id] ?? fallback[spec.id],
       h: heights[spec.id] ?? spec.h,
       tone,
-      subject: partPaint(part),
+      subject: paint,
       status: spec.id === "run" && busy ? "busy" : undefined,
       header:
         spec.id === "run" && props.tool ? (
