@@ -963,10 +963,51 @@ export function StudioScreen(props: StudioScreenProps) {
                         ? `${g.label}: ${active.label}`
                         : `${g.label}: ${members.map((t) => t.label).join(", ")}`
                     }
+                    /*
+                      THE ACTIVE SUBJECT IS A GROUND, NOT AN ACCENT.
+
+                      It was `bg-accent text-accent-foreground`, an orange pill
+                      -- the only one of the three bars that answered "which
+                      subject is current" with a colour. The workspace bar
+                      answers it with the ground of the work below and normal
+                      ink, and the editor menu with a check; a third answer
+                      makes the same state something to learn again on the bar
+                      that happens to be on screen.
+
+                      Accent is also the wrong register for it. This bar names
+                      what the band is SHOWING, which is a location and not an
+                      outcome, and the palette spends accent on outcomes -- the
+                      run that can be started, the cell that is reachable. A
+                      permanent orange in the header competes with those for
+                      the reader's eye and wins, because it never goes away.
+
+                    `rounded-sm` on all four corners rather than the workspace
+                      bar's two: that bar's entrance sits on the edge it shares
+                      with the area below, so its ground runs into it. This one
+                      floats inside a header and meets nothing, so a square
+                      bottom would read as a tab attached to nothing.
+
+                      AND IT IS `selected`, NOT `panel`, WHICH THE NUMBERS
+                      DECIDE. Copying the workspace bar's `panel` literally put
+                      the token at --p-surface 48 on a header of --p-head 53:
+                      five levels DOWN from the ground it sits on, so the
+                      current subject receded instead of standing out and read
+                      as barely there. `panel` works on that bar because the
+                      bar's own ground is --s-chrome 30 and the step is +18;
+                      the step is a relation between two surfaces and does not
+                      travel with the token.
+
+                      `selected` is an overlay rather than a surface -- white
+                      at 0.13 here, black at 0.10 in the light theme -- so it
+                      steps away from whatever it is over, upward on 53 to
+                      about 79 and downward in light. It is also what the
+                      state IS: the palette keeps this token for the row that
+                      has been chosen, which is the question this bar answers.
+                    */
                     className={cn(
                       "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
                       active
-                        ? "bg-accent text-accent-foreground"
+                        ? "bg-selected text-foreground"
                         : "text-muted-foreground hover:bg-hover hover:text-foreground",
                     )}
                   >
@@ -979,13 +1020,24 @@ export function StudioScreen(props: StudioScreenProps) {
                       withdraws first when the header runs out of room, because
                       between the two the subject is the one that says where a
                       reader is.
+
+                      WITHHELD WHERE IT WOULD REPEAT THE SUBJECT. The Energy
+                      group holds one product and BOARD_TOOLS labels it
+                      "Energy", so the entrance read "Energy Energy" -- two
+                      words saying one thing, in the position where the second
+                      is supposed to narrow the first. The other three groups
+                      name products that differ from their subject
+                      (Compositions, Classification, Surface water) and are
+                      unaffected. Compared rather than special-cased on the
+                      energy id, because a product renamed to match its group
+                      tomorrow reaches the same place.
                     */}
-                    {active && (
-                      <span className="header-label text-accent-foreground/70">
+                    {active && active.label !== g.label && (
+                      <span className="header-label text-muted-foreground">
                         {active.label}
                       </span>
                     )}
-                    <CaretDown className="size-2.5 shrink-0 opacity-70" />
+                    <CaretDown className="size-2.5 shrink-0 text-muted-foreground" />
                   </button>
                 )}
               >
