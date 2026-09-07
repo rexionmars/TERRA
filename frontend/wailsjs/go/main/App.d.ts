@@ -144,6 +144,8 @@ export function RevealMainWindow():Promise<void>;
 
 export function RunActivity(arg1:number):Promise<Array<store.ActivityDay>>;
 
+export function RunOverlayURL(arg1:string):Promise<string>;
+
 export function SavePreferences(arg1:store.Preferences):Promise<void>;
 
 export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<store.ProjectOverlay>;
