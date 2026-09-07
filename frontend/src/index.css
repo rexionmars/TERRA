@@ -132,16 +132,25 @@
     Neutral greys under it, deliberately: the chassis carried the accent's hue
     while the accent was blue, and does not now. So the accent is the only hue
     on screen that is not data, which is a stronger position than it had when
-    every surface leaned the same way.
+    every surface leaned the same way. That still holds, and it is why this is
+    blue again without being the blue it was.
 
-    A LIGHT FILL TAKES THE NEAR-BLACK LABEL. Ink measures 6.25 on it and white
-    2.58, which is the reverse of the blue that preceded it -- that one was a
-    mid tone and took white at 4.43. --accent-foreground follows the accent
-    rather than staying where the blue left it.
+    BLUE AGAIN, BY ROTATION AND NOT BY REPLACEMENT. The hue moved to 255 deg in
+    OKLCH and nothing else did: each of the three below keeps its own lightness
+    and its own chroma, so the accent weighs on screen exactly what the orange
+    weighed. A blue chosen rather than derived would have had to be argued back
+    up from nothing -- how bright, how saturated, how it sits against four
+    board hues and a field of ink -- and every one of those answers is already
+    here, in the values the orange was measured into.
+
+    A LIGHT FILL STILL TAKES THE NEAR-BLACK LABEL, which is the property the
+    rotation was for. Ink measures 6.73 on it and white 2.48, against 6.47 and
+    2.58 for the orange -- the same relation, so --accent-foreground stays
+    where it is rather than following a second time.
   */
-  --p-accent: 237 135 68;
-  --p-accent-quiet: 240 155 99;
-  --p-accent-dim: 83 40 12;
+  --p-accent: 97 167 255;
+  --p-accent-quiet: 122 181 255;
+  --p-accent-dim: 24 54 91;
   --p-place: 120 138 148;
   --p-haze: 144 144 144;
   /*
@@ -515,10 +524,17 @@
   --p-line-strong: 121 121 121;
   --p-text: 31 31 31;
   --p-muted: 92 92 92;
-  /* Same rule as dark: a fill, not a text colour. 4.42 on the raised surface. */
-  --p-accent: 186 58 18;
-  --p-accent-quiet: 158 48 14;
-  --p-accent-dim: 240 214 198;
+  /*
+    Same rule as dark: a fill, not a text colour.
+
+    ROTATED WITH THE DARK ONE, AND THEN DARKENED BY ONE STEP. At the orange's
+    own lightness the blue measures 4.30 against this theme's label, under the
+    4.5 floor -- a warm fill and a cool one of equal lightness do not carry a
+    light label equally. L 0.532 to 0.517, chroma untouched, takes it to 4.56.
+  */
+  --p-accent: 0 102 199;
+  --p-accent-quiet: 6 89 173;
+  --p-accent-dim: 204 222 244;
   --p-place: 90 110 122;
   --p-haze: 176 176 176;
   /* The same, at the lightness a light ground needs: 4.33 on the raised
