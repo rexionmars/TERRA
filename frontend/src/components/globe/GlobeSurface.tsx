@@ -28,8 +28,11 @@ import { usePlantLayers, useNetwork } from "@/lib/plantRegister"
 import {
   Broadcast,
   Globe,
+  CompassTool,
   MagnifyingGlass,
   Mountains,
+  Planet,
+  RoadHorizon,
   Path,
   Pencil,
   ArrowsOutCardinal,
@@ -46,7 +49,7 @@ import {
 import "@/lib/maplibreWorker"
 
 import type { GlobeArea } from "@/components/globe/globeArea"
-import { MapBar, MapButton } from "@/components/globe/MapChrome"
+import { MapBar, MapButton, MapMenu } from "@/components/globe/MapChrome"
 import {
   raisedRasterLayer,
   type RaisedRasterLayer,
@@ -122,6 +125,33 @@ import { cn } from "@/lib/utils"
  * it. Written as the conversion rather than as 11, so it cannot drift from the
  * level it means.
  */
+/**
+ * What the base control offers, in the order it lists them.
+ *
+ * The names are the basemap table's own, so the menu cannot call a base
+ * something the credit line does not -- the imagery row is the near half of a
+ * pair and is named for the choice rather than for either half of it.
+ */
+type BaseKind = "imagery" | "street" | "topo"
+
+const BASE_OPTIONS: readonly {
+  id: BaseKind
+  name: string
+  icon: React.ReactNode
+}[] = [
+  { id: "imagery", name: "Imagery", icon: <Planet className="size-4" /> },
+  {
+    id: "street",
+    name: basemapByKind("street").name,
+    icon: <RoadHorizon className="size-4" />,
+  },
+  {
+    id: "topo",
+    name: basemapByKind("topo").name,
+    icon: <CompassTool className="size-4" />,
+  },
+]
+
 export const GLOBE_BASEMAP: BasemapKind = "esri"
 export const GLOBE_WIDE_BASEMAP: BasemapKind = "eox"
 const ESRI_FIRST_LEVEL = 12
@@ -805,6 +835,21 @@ export function GlobeSurface({
     belongs to the question being asked, not to the session.
   */
   const [recent, setRecent] = useState(false)
+  /*
+    WHETHER THE BASE IS A PHOTOGRAPH OR A DRAWING.
+
+    Every basemap this screen could show was imagery: the button above chooses
+    between two pictures of the ground, and there was no way to ask for a map.
+    A drawing answers what a photograph cannot -- what a place is called, where
+    the road runs, which side of the river a town is on -- and on this
+    application's products it is what a classification can be checked against
+    by name.
+
+    Held here and not remembered, like `recent` and for the same reason: it
+    belongs to the question being asked rather than to the session.
+  */
+  const [base, setBase] = useState<BaseKind>("imagery")
+  const drawing = base !== "imagery"
   const [esriHere, setEsriHere] = useState<ImageryHere>({
     date: null,
     maxLevel: null,
@@ -1187,6 +1232,7 @@ export function GlobeSurface({
       const accent = token("--p-accent", "#ED8744")
       map.setPaintProperty(AREA_FILL, "fill-color", accent)
       map.setPaintProperty(AREA_LINE, "line-color", accent)
+
     }
 
     /*
@@ -1548,6 +1594,49 @@ export function GlobeSurface({
     no visible layer references it, so the mosaic costs nothing until it is
     asked for.
   */
+  /*
+    THE BASE, SWAPPED IN THE SOURCE THE NEAR IMAGERY ALREADY USES.
+
+    setTiles rather than a fourth source, which is safe here for the reason
+    `imagery-recent` needed one of its own and did not get it: a source's
+    maxzoom is fixed at creation, and these three products all end at 19. The
+    mosaic ends at 14, which is why it is separate.
+
+    AND THE HANDOVER GOES WITH THE PHOTOGRAPH. The imagery pair splits at level
+    12 because Esri's World Imagery is a Landsat-derived composite below it --
+    an argument about that product and not about the base being a base. The
+    street and topographic maps are one drawing at every level, so the near
+    layer is opened down to the planet and the wide one withdrawn, rather than
+    handing over to a satellite mosaic a reader did not ask for.
+  */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !map.getSource("imagery")) return
+    const drawn = basemapByKind(drawing ? base : GLOBE_BASEMAP)
+    const source = map.getSource("imagery")
+    if (source && "setTiles" in source) {
+      ;(source as { setTiles: (t: string[]) => void }).setTiles([drawn.url])
+    }
+    map.setLayerZoomRange("imagery", drawing ? 0 : HANDOVER_ZOOM - 1, 24)
+    if (map.getLayer("imagery-wide")) {
+      map.setLayoutProperty(
+        "imagery-wide",
+        "visibility",
+        drawing ? "none" : "visible"
+      )
+    }
+  }, [base, drawing, ready])
+
+  /*
+    The recent mosaic is imagery, and it is asked for over imagery. Left on
+    under a drawing it would cover the streets that were the point of choosing
+    one -- so the ask is withdrawn with the base rather than left set on a
+    button the reader can no longer see.
+  */
+  useEffect(() => {
+    if (drawing) setRecent(false)
+  }, [drawing])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !map.getLayer("imagery-recent")) return
@@ -1691,14 +1780,34 @@ export function GlobeSurface({
     which they came from different sides of the handover -- or from a mosaic
     the level has already put away -- would read as a claim nobody made.
   */
-  const wide = zoom < HANDOVER_ZOOM
+  /*
+    Below the handover the wide basemap is what is drawn -- of the imagery
+    pair. Under a drawing there is no pair and no handover, so this is false at
+    every level and the credit names the one map on screen.
+  */
+  const wide = !drawing && zoom < HANDOVER_ZOOM
   /* The reader's ask AND the level agreeing. Above the cap the button is still
      down and the picture is Esri again, so everything below says Esri. */
   const recentDrawn = !wide && recent && zoom < RECENT_MAX_ZOOM
   const shownBasemap = basemapByKind(
-    wide ? GLOBE_WIDE_BASEMAP : recentDrawn ? "s2recent" : GLOBE_BASEMAP
+    drawing
+      ? base
+      : wide
+        ? GLOBE_WIDE_BASEMAP
+        : recentDrawn
+          ? "s2recent"
+          : GLOBE_BASEMAP
   )
-  const shownDate = wide ? (shownBasemap.imageryDate ?? null) : esriHere.date
+  /*
+    A drawing has no acquisition. Esri's date readout is about a photograph's
+    footprint, and reporting one under a street map would answer a question
+    nothing on screen is asking.
+  */
+  const shownDate = drawing
+    ? null
+    : wide
+      ? (shownBasemap.imageryDate ?? null)
+      : esriHere.date
   /*
     WHERE THE IMAGERY ENDS UNDER THE CENTRE, which is not where the product
     ends. World Imagery's ceiling is per footprint: one town reads to z20, the
@@ -1711,7 +1820,11 @@ export function GlobeSurface({
     it is not asked past the cap.
   */
   const ceiling =
-    !recentDrawn && !wide && esriHere.magnified && esriHere.maxLevel !== null
+    !drawing &&
+    !recentDrawn &&
+    !wide &&
+    esriHere.magnified &&
+    esriHere.maxLevel !== null
       ? zoomOfLevel(esriHere.maxLevel)
       : null
   /* Both, while the mosaic is drawn OVER Esri rather than in place of it. */
@@ -1883,17 +1996,49 @@ export function GlobeSurface({
             BETWEEN FINDING THE PLACE AND LIGHTING IT, because choosing which
             imagery answers is part of looking rather than part of drawing.
           */}
-          <MapButton
-            label={
-              recent
-                ? "Imagery: recent Sentinel-2"
-                : "Imagery: Esri, deepest available"
-            }
-            active={recent}
-            onClick={() => setRecent((v) => !v)}
+          {/*
+            THE BASE, BEFORE THE QUESTION ABOUT WHICH IMAGERY. Choosing a
+            photograph or a drawing is the wider of the two asks, and the one
+            below only applies to one of its answers.
+
+            A LIST AND NOT A CYCLE, which the first version was. Three answers
+            behind one button makes the second two presses away and the third
+            either one or two depending on where the reader already is, and a
+            cycling button can only name where it is going. The list names all
+            three at one press each.
+
+            THE GLYPHS ARE THE THREE SUBJECTS AND NOT THREE MAPS. A planet for
+            the photograph, a road for the streets. Topographic takes the
+            drafting compass rather than the mountains it would otherwise
+            want: the relief toggle two controls down already wears those, and
+            two identical glyphs on one rail is a rail that cannot be read
+            without pressing it.
+          */}
+          <MapMenu
+            label="Base"
+            value={base}
+            onChange={setBase}
+            options={BASE_OPTIONS}
           >
-            <Broadcast className="size-4" />
-          </MapButton>
+            {BASE_OPTIONS.find((o) => o.id === base)?.icon}
+          </MapMenu>
+          {/*
+            Withheld under a drawing: it asks which IMAGERY answers, and under
+            a street map neither does. See the effect that clears it.
+          */}
+          {!drawing && (
+            <MapButton
+              label={
+                recent
+                  ? "Imagery: recent Sentinel-2"
+                  : "Imagery: Esri, deepest available"
+              }
+              active={recent}
+              onClick={() => setRecent((v) => !v)}
+            >
+              <Broadcast className="size-4" />
+            </MapButton>
+          )}
           <MapButton
             label="Relief"
             active={relief}
