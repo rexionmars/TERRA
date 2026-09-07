@@ -252,10 +252,15 @@ const RAISED_LAYER = "raised-rasters"
 /**
  * How far the lowest raster sits above the ground, in metres.
  *
- * At zero it shares a depth with the imagery it is drawn over, and two
- * surfaces at one depth flicker against each other as the camera moves. A
- * metre is below the resolution of anything drawn here and above the depth
- * buffer's ability to confuse them.
+ * It is what separates the stack from the ground when the spread is zero, so
+ * the lowest raster and the legend tied to it are anchored a little above the
+ * surface rather than on it.
+ *
+ * It is NOT what keeps the two apart in the depth buffer, and it was written
+ * believing it was. A metre is one part in six million of the globe's radius,
+ * which no depth buffer resolves at that scale -- the overlay banded against
+ * the ground below zoom 12 for exactly that reason. What fixed it was the
+ * layer not testing depth at all; see the note in `raisedRasters`.
  */
 const BASE_LIFT_M = 1
 /**
