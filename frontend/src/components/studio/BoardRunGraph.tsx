@@ -57,11 +57,18 @@ import {
   type Icon,
   Upload,
   Waves,
+  CaretRight,
 } from "@phosphor-icons/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DateField } from "@/components/ui/DateField"
 import { NumberField } from "@/components/ui/NumberField"
 import { Choice, Head } from "./nodeCard"
+import {
+  boundaryGeometry,
+  listMunicipalities,
+  listStates,
+  type Boundary,
+} from "@/lib/ibgeBoundaries"
 import {
   MODEL_OPTIONS,
   MODE_OPTIONS,
@@ -100,6 +107,7 @@ import type {
   ModelKind,
   SolarSeason,
   WaterIndex,
+  GeoJSONGeometry,
 } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import {
@@ -115,7 +123,13 @@ import {
   type CanvasNode,
   type EdgeState,
 } from "./NodeCanvas"
-import { defaultPlaces, runGraph, type Place, type RunNodeId } from "./runGraph"
+import {
+  defaultPlaces,
+  runGraph,
+  type OptionalNodeId,
+  type Place,
+  type RunNodeId,
+} from "./runGraph"
 import {
   reading,
   signature,
@@ -159,6 +173,236 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
  * dropped, because that exact rule is the board tree's drop indicator. One
  * idiom, one meaning.
  */
+/**
+ * The catalogue card: a published boundary, chosen and turned into an area.
+ *
+ * TWO LEVELS AND A THIRD DEFERRED. States and municipalities are read from
+ * IBGE's malhas service, which publishes the geometry the census is drawn on.
+ * Neighbourhoods are not here because that service has no bairro mesh -- asked
+ * for a municipality's subdivisions it refuses by name -- so the granularity
+ * waits for a source of its own rather than being approximated from one that
+ * does not have it. See lib/ibgeBoundaries.
+ *
+ * A STATE IS BOTH A CHOICE AND A FILTER, which is why there is no third
+ * control. Choosing "Municipality" without first naming a state would be a
+ * list of 5,570, and a search over it would still be answering inside a state
+ * the reader has in mind. So the state row narrows the municipality list, and
+ * the same row is what is picked when the level is State -- one gesture
+ * serving the level above and the level below it.
+ *
+ * WHAT IT PRODUCES IS AN AREA, NOT A RUN. Pressing an entry fetches the
+ * polygon and hands it up, where it becomes an area of the open project by the
+ * same path a drawn shape and an imported file already take. This card has no
+ * edge for the same reason: filling the area card is an action, and only what
+ * a run is MADE OF is an edge. See SPEC.catalogue in runGraph.
+ */
+function CatalogueCard({
+  busy,
+  onPick,
+}: {
+  busy: boolean
+  onPick: (name: string, geometry: GeoJSONGeometry) => void
+}) {
+  const [level, setLevel] = useState<"estados" | "municipios">("estados")
+  const [states, setStates] = useState<Boundary[] | null>(null)
+  const [state, setState] = useState<Boundary | null>(null)
+  const [towns, setTowns] = useState<Boundary[] | null>(null)
+  const [query, setQuery] = useState("")
+  const [taking, setTaking] = useState<number | null>(null)
+  const [failed, setFailed] = useState<string | null>(null)
+
+  useEffect(() => {
+    let live = true
+    listStates()
+      .then((rows) => live && setStates(rows))
+      .catch((e) => live && setFailed(String(e)))
+    return () => {
+      live = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (level !== "municipios" || !state) return
+    let live = true
+    setTowns(null)
+    listMunicipalities(state)
+      .then((rows) => live && setTowns(rows))
+      .catch((e) => live && setFailed(String(e)))
+    return () => {
+      live = false
+    }
+  }, [level, state])
+
+  /*
+    The list the reader is choosing from: the states, or the named state's
+    municipalities. Filtered without accents, because a reader typing "sao"
+    means Sao and Sao means São -- and a catalogue that answers nothing to that
+    is a catalogue they conclude is empty.
+  */
+  const shown = useMemo(() => {
+    const rows = level === "estados" ? states : towns
+    if (!rows) return null
+    const q = fold(query)
+    return q ? rows.filter((r) => fold(r.name).includes(q)) : rows
+  }, [level, states, towns, query])
+
+  const take = async (row: Boundary) => {
+    setTaking(row.id)
+    setFailed(null)
+    try {
+      const geom = await boundaryGeometry(level, row.id)
+      if (!geom) {
+        setFailed(`${row.name} has no published outline.`)
+        return
+      }
+      onPick(row.name, geom)
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTaking(null)
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+      <div className="flex gap-1">
+        {(
+          [
+            ["estados", "State"],
+            ["municipios", "Municipality"],
+          ] as const
+        ).map(([id, label]) => (
+          <Choice
+            key={id}
+            label={label}
+            chosen={level === id}
+            disabled={busy}
+            onPick={() => {
+              setLevel(id)
+              setQuery("")
+            }}
+          />
+        ))}
+      </div>
+      {/*
+        The state row is a readout while it names a filter and a control
+        always: pressing it goes back to the states, which is the only way out
+        of a municipality list and is where a reader looks for it.
+      */}
+      {level === "municipios" && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setState(null)}
+          className="flex items-center gap-1 text-left text-micro text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <CaretRight
+            aria-hidden
+            className={cn("size-2.5 shrink-0", state && "rotate-180")}
+          />
+          {state ? state.name : "Choose a state"}
+        </button>
+      )}
+      {(level === "estados" || state) && (
+        <input
+          value={query}
+          disabled={busy}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={level === "estados" ? "Search states" : "Search here"}
+          className="h-6 w-full rounded-sm border-0 bg-sunk px-1.5 text-meta text-foreground outline-none inset-ring-1 inset-ring-ring/40 placeholder:text-muted-foreground"
+        />
+      )}
+      <div className="panel-scroll min-h-0 flex-1 overflow-y-auto">
+        {failed ? (
+          <p className="text-micro leading-relaxed text-destructive">{failed}</p>
+        ) : level === "municipios" && !state ? (
+          <ul className="flex flex-col">
+            {(states ?? []).map((s) => (
+              <CatalogueRow
+                key={s.id}
+                label={s.name}
+                note={s.uf}
+                busy={busy}
+                onSelect={() => {
+                  setState(s)
+                  setQuery("")
+                }}
+              />
+            ))}
+          </ul>
+        ) : shown === null ? (
+          <span className="text-meta text-muted-foreground">Reading IBGE</span>
+        ) : shown.length === 0 ? (
+          <span className="text-meta text-muted-foreground">
+            Nothing by that name
+          </span>
+        ) : (
+          <ul className="flex flex-col">
+            {shown.map((row) => (
+              <CatalogueRow
+                key={row.id}
+                label={row.name}
+                note={taking === row.id ? "taking" : row.uf}
+                busy={busy || taking !== null}
+                onSelect={() => void take(row)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** One entry, at the density the card's other lists use. */
+function CatalogueRow({
+  label,
+  note,
+  busy,
+  onSelect,
+}: {
+  label: string
+  note?: string
+  busy: boolean
+  onSelect: () => void
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onSelect}
+        className={cn(
+          "flex w-full items-baseline justify-between gap-2 rounded-sm px-1 py-0.5 text-left text-meta transition-colors",
+          "text-foreground hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+        )}
+      >
+        <span className="min-w-0 truncate">{label}</span>
+        {note && (
+          <span className="shrink-0 text-micro text-muted-foreground">
+            {note}
+          </span>
+        )}
+      </button>
+    </li>
+  )
+}
+
+/**
+ * A name with its accents and case removed, for matching what was typed.
+ *
+ * Every municipality in this country is spelled with them and almost nobody
+ * types them: "sao", "goias", "brasilia". Matching the written form alone
+ * answers nothing to those, which a reader reads as a catalogue that does not
+ * hold the place.
+ */
+const fold = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+
 /**
  * One map layer, with how many marks it puts on screen.
  *
@@ -398,6 +642,16 @@ function IconAction({
 }
 
 export interface BoardRunGraphProps {
+  /**
+   * A published boundary the reader chose, to become an area of the project.
+   *
+   * Held by the application rather than here: creating an area needs the open
+   * project and the store, which are the shell's. This card only knows which
+   * outline was asked for.
+   */
+  onPickBoundary?: (name: string, geometry: GeoJSONGeometry) => void
+  /** The optional cards the reader has added. See OPTIONAL_NODES. */
+  components?: readonly OptionalNodeId[]
   tool: BoardToolId | null
 
   /**
@@ -762,6 +1016,9 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
 
   return {
     area: { kind: "ground", label: p.hasArea ? p.areaLabel || "drawn" : null },
+    // Supplies nothing to a run: what it produces is an area, and the area
+    // card's own wire is what carries that. See SPEC.catalogue.
+    catalogue: none,
     period: { kind: "span", start: p.start, end: p.end },
     model: {
       kind: "choice",
@@ -978,7 +1235,8 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     // Without this the Energy entry has no family to dispatch on and the graph
     // comes back null, which the surface renders as "pick a product above" --
     // over a product card that is already showing one picked.
-    props.energyProduct ?? null
+    props.energyProduct ?? null,
+    props.components ?? []
   )
 
   /*
@@ -1019,6 +1277,12 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   }
 
   const body: Record<RunNodeId, React.ReactNode> = {
+    catalogue: (
+      <CatalogueCard
+        busy={busy}
+        onPick={(name, geometry) => props.onPickBoundary?.(name, geometry)}
+      />
+    ),
     /*
       WHAT THE MAP IS DRAWING, AND HOW MUCH OF IT CAN BE ASKED ABOUT.
 

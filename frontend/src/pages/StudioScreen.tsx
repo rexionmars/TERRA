@@ -53,7 +53,7 @@ import {
   type FloodParams,
 } from "@/components/flood/floodSetup";
 import { cn } from "@/lib/utils";
-import { CaretDown } from "@phosphor-icons/react";
+import { CaretDown, Database } from "@phosphor-icons/react";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
 import {
   StudioMenuItem,
@@ -63,6 +63,10 @@ import { StudioLoading } from "@/components/studio/StudioLoading";
 import { STUDIO_GROUPS, type EditorId } from "@/lib/studioEditors"
 import type { GridProductId } from "@/lib/gridOptions";
 import { BOARD_TOOLS } from "@/lib/mapTools";
+import {
+  OPTIONAL_NODES,
+  type OptionalNodeId,
+} from "@/components/studio/runGraph";
 import {
   BOARD_DETAIL_REM,
   BOARD_LEFT_REM,
@@ -234,6 +238,8 @@ export interface StudioScreenProps {
   onNewStudio?: (name: string) => void;
   /** Load a saved run as the live one. See BoardSurface.onOpenReading. */
   onOpenReading?: (run: InferenceRun) => void;
+  /** A published boundary chosen in the catalogue card, to become an area. */
+  onPickBoundary?: (name: string, geometry: GeoJSONGeometry) => void;
   /** Called when the studio's board menu opens, to refresh the list. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
@@ -402,6 +408,16 @@ export function StudioScreen(props: StudioScreenProps) {
     a time, which a boolean each would not enforce.
   */
   const [bandMenu, setBandMenu] = useState<string | null>(null);
+  /*
+    The optional cards on the band's graph.
+
+    Held here beside bandMenu rather than in board memory, because these belong
+    to the question being set up and not to the arrangement: a studio saved
+    with the catalogue open would reopen offering a search nobody asked for,
+    the way the recent-imagery button on the map is the reader's and not the
+    session's. See OPTIONAL_NODES.
+  */
+  const [components, setComponents] = useState<readonly OptionalNodeId[]>([]);
   /**
    * Which photovoltaic product the band will run.
    *
@@ -1061,6 +1077,83 @@ export function StudioScreen(props: StudioScreenProps) {
             );
           });
         })()}
+        {/*
+          THE COMPONENTS THE READER CAN ADD, after the subjects and apart from
+          them.
+
+          The four entrances to its left are what a run can be ABOUT -- the
+          board, land cover, water, energy -- and each opens a list of products.
+          This opens a list of CARDS, which is a different kind of answer, so it
+          is separated rather than becoming a fifth name a reader has to learn
+          is not a subject.
+
+          A HAIRLINE AND NOT A GAP, which is what the first version used. It
+          pushed the button to the far end with a flex-1 -- and the area header
+          already inserts one after this slot, so the button landed against the
+          right edge with the whole bar empty behind it, reading as chrome that
+          belongs to something else. The rule is the device the studio's own
+          bar uses between its application menu and its subjects: adjacency
+          says they are one row, and the line says they are two kinds.
+
+          IT CARRIES ITS NAME LIKE THE REST. Every other entrance on this bar
+          is a word; a lone glyph among them is the one entry a reader has to
+          press to find out what it is.
+
+          A menu of one today. It is a menu anyway, for the reason the bar's own
+          note gives about groups holding a single product: a bar where some
+          names open and others act is a bar whose affordance cannot be
+          predicted, and that costs on every press rather than on the short
+          ones.
+        */}
+        <span
+          className="mx-1 h-3.5 w-px shrink-0 self-center"
+          style={{ background: "rgb(var(--p-line) / 0.45)" }}
+          aria-hidden
+        />
+        <StudioPopover
+          open={bandMenu === "components"}
+          onOpenChange={(open) => setBandMenu(open ? "components" : null)}
+          surface={document.body}
+          widthRem={13}
+          trigger={(p) => (
+            <button
+              ref={p.ref as React.Ref<HTMLButtonElement>}
+              type="button"
+              onClick={p.onClick}
+              aria-expanded={p["aria-expanded"]}
+              aria-haspopup="menu"
+              title="Additional components"
+              className={cn(
+                "flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-meta transition-colors",
+                components.length
+                  ? "bg-selected text-foreground"
+                  : "text-muted-foreground hover:bg-hover hover:text-foreground",
+              )}
+            >
+              <Database className="size-3 shrink-0" />
+              Components
+              <CaretDown className="size-2.5 shrink-0 text-muted-foreground" />
+            </button>
+          )}
+        >
+          {OPTIONAL_NODES.map((c) => (
+            <StudioMenuItem
+              key={c.id}
+              icon={Database}
+              label={c.label}
+              title={c.hint}
+              checked={components.includes(c.id)}
+              onSelect={() => {
+                setComponents((held) =>
+                  held.includes(c.id)
+                    ? held.filter((x) => x !== c.id)
+                    : [...held, c.id],
+                );
+                setBandMenu(null);
+              }}
+            />
+          ))}
+        </StudioPopover>
       </>
     ),
     /*
@@ -1091,6 +1184,8 @@ export function StudioScreen(props: StudioScreenProps) {
   */
   const runBarNode = (
     <BoardRunGraph
+      onPickBoundary={props.onPickBoundary}
+      components={components}
       /*
         The tool is READ here and changed in the header above, which is the
         only place it was ever changed from. The band declared an
