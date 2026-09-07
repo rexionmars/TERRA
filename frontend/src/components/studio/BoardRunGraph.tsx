@@ -125,6 +125,7 @@ import {
 } from "./NodeCanvas"
 import {
   defaultPlaces,
+  OPTIONAL_NODES,
   runGraph,
   type OptionalNodeId,
   type Place,
@@ -198,9 +199,12 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
  */
 function CatalogueCard({
   busy,
+  linkedTo,
   onPick,
 }: {
   busy: boolean
+  /** The card this one has been joined to, or null while it is not. */
+  linkedTo: string | null
   onPick: (name: string, geometry: GeoJSONGeometry) => void
 }) {
   const [level, setLevel] = useState<"estados" | "municipios">("estados")
@@ -261,6 +265,23 @@ function CatalogueCard({
     } finally {
       setTaking(null)
     }
+  }
+
+  /*
+    UNCONNECTED, IT SAYS SO AND SHOWS NOTHING ELSE.
+
+    A card that listed every state and then refused to act on one would be a
+    control that looks ready and is not, which is the failure the canvas's own
+    note about ports is written against. What it holds is a sentence naming the
+    card it is waiting for and the gesture that joins them.
+  */
+  if (!linkedTo) {
+    return (
+      <p className="text-meta leading-relaxed text-muted-foreground">
+        Pull a wire from this card to Area, and the boundaries it holds become
+        ground a run can be made over.
+      </p>
+    )
   }
 
   return (
@@ -652,6 +673,10 @@ export interface BoardRunGraphProps {
   onPickBoundary?: (name: string, geometry: GeoJSONGeometry) => void
   /** The optional cards the reader has added. See OPTIONAL_NODES. */
   components?: readonly OptionalNodeId[]
+  /** The wires the reader made, as "from>to". */
+  nodeLinks?: readonly string[]
+  /** A port was pulled onto a card. */
+  onConnect?: (from: string, to: string) => void
   tool: BoardToolId | null
 
   /**
@@ -1280,6 +1305,16 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     catalogue: (
       <CatalogueCard
         busy={busy}
+        /*
+          THE WIRE IS WHAT MAKES IT ACT. Until the reader has pulled one to the
+          area card, the catalogue is a card holding a register and nothing
+          else -- which is what a source that feeds nothing is. Passed as the
+          link rather than as a boolean so the card can say which card it is
+          waiting to be joined to.
+        */
+        linkedTo={
+          (props.nodeLinks ?? []).includes("catalogue>area") ? "area" : null
+        }
         onPick={(name, geometry) => props.onPickBoundary?.(name, geometry)}
       />
     ),
@@ -2506,6 +2541,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     const tone: CanvasNode["tone"] =
       spec.id === "run" ? "action" : context ? "aside" : undefined
     const part = aside ? null : subject(values[spec.id])
+    const connectable = OPTIONAL_NODES.some((o) => o.id === spec.id)
     const paint =
       spec.id === "catalogue"
         ? {
@@ -2520,6 +2556,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
       place: places[spec.id] ?? fallback[spec.id],
       h: heights[spec.id] ?? spec.h,
       tone,
+      connectable,
       subject: paint,
       status: spec.id === "run" && busy ? "busy" : undefined,
       header:
@@ -2569,6 +2606,30 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     lives and this reads it.
   */
   const named = new Map(graph.nodes.map((n) => [n.id, n.label.toUpperCase()]))
+  /*
+    THE WIRES THE READER MADE, kept apart from the graph's own.
+
+    They are not in graph.edges and must not be: that list is the shape of a
+    request, and the test that pins which cards no edge reaches reads it. A
+    link from the catalogue to the area card says the reader connected a source
+    they added, which is a fact about the board and not about the run.
+
+    Drawn only where both ends are on the board, so a link left behind by a
+    component that has since been removed draws nothing instead of a wire from
+    nowhere.
+
+    `read` rather than a state derived from a value: what passes along this is
+    an action the reader takes, and it either happens or the wire is not there.
+  */
+  const readerEdges: CanvasEdge[] = (props.nodeLinks ?? []).flatMap((link) => {
+    const [from, to] = link.split(">")
+    const present = new Set(graph.nodes.map((n) => n.id))
+    if (!from || !to || !present.has(from as RunNodeId) || !present.has(to as RunNodeId)) {
+      return []
+    }
+    return [{ from, to, state: "read" as const }]
+  })
+
   const canvasEdges: CanvasEdge[] = graph.edges.map(([from, to]) => {
     const value = values[from]
     const state: EdgeState | undefined = !supplied(value)
@@ -2603,9 +2664,10 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   return (
     <NodeCanvas
       nodes={nodes}
-      edges={canvasEdges}
+      edges={[...canvasEdges, ...readerEdges]}
       onMove={move}
       onMeasure={onMeasure}
+      onConnect={props.onConnect}
     />
   )
 }

@@ -219,6 +219,17 @@ export interface BoardSnapshot {
    * period, model -- and there is one run editor, not one per area.
    */
   nodePlaces: Record<string, { x: number; y: number }>
+  /**
+   * The optional cards the reader added to the run editor, and the wires they
+   * pulled between them, as "from>to".
+   *
+   * NOT KEYED BY AREA, like nodePlaces and for the same reason: these are
+   * about what a card IS rather than about a run, and there is one run editor
+   * on a board rather than one per area. So they travel whole and are not
+   * rewritten on the way in or out.
+   */
+  components: string[]
+  nodeLinks: string[]
 }
 
 /** The key the run editor's card placements live under. */
@@ -339,6 +350,8 @@ export function snapshotBoard(
       RUN_NODE_PLACES,
       {}
     ),
+    components: readBoardMemory<string[]>("components", []),
+    nodeLinks: readBoardMemory<string[]>("nodeLinks", []),
   }
 }
 
@@ -361,6 +374,8 @@ export function restoreBoard(snap: BoardSnapshot): void {
   writeBoardMemory("links", snap.links)
   writeBoardMemory("labels", snap.labels)
   writeBoardMemory(RUN_NODE_PLACES, snap.nodePlaces)
+  writeBoardMemory("components", snap.components)
+  writeBoardMemory("nodeLinks", snap.nodeLinks)
   Object.assign(
     keptObject<Record<string, { x: number; z: number }>>("places", () => ({})),
     snap.places

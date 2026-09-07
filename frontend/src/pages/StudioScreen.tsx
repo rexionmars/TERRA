@@ -68,6 +68,10 @@ import {
   type OptionalNodeId,
 } from "@/components/studio/runGraph";
 import {
+  readBoardMemory,
+  writeBoardMemory,
+} from "@/components/studio/boardMemory";
+import {
   BOARD_DETAIL_REM,
   BOARD_LEFT_REM,
   BOARD_RIGHT_REM,
@@ -417,7 +421,40 @@ export function StudioScreen(props: StudioScreenProps) {
     the way the recent-imagery button on the map is the reader's and not the
     session's. See OPTIONAL_NODES.
   */
-  const [components, setComponents] = useState<readonly OptionalNodeId[]>([]);
+  const [components, setComponents] = useState<readonly OptionalNodeId[]>(() =>
+    readBoardMemory<OptionalNodeId[]>("components", []),
+  );
+  /*
+    The wires the reader made, as "from>to".
+
+    Held beside the components and persisted with them, because a link means
+    nothing without the card at its tail: a studio that reopened with the
+    catalogue and without the wire would offer a card that refuses to act and
+    no way to see why.
+  */
+  const [nodeLinks, setNodeLinks] = useState<readonly string[]>(() =>
+    readBoardMemory<string[]>("nodeLinks", []),
+  );
+  /*
+    Written through on every change rather than gathered at save time. The
+    snapshot is taken by BoardSurface, which does not hold these -- so board
+    memory is where the two meet, and it is the same store every other thing a
+    studio remembers already lives in.
+  */
+  useEffect(() => {
+    writeBoardMemory("components", [...components]);
+  }, [components]);
+  useEffect(() => {
+    writeBoardMemory("nodeLinks", [...nodeLinks]);
+  }, [nodeLinks]);
+  /*
+    Re-read when a studio is opened. restoreBoard replaces the whole store, and
+    state initialised once would go on showing the studio before it.
+  */
+  useEffect(() => {
+    setComponents(readBoardMemory<OptionalNodeId[]>("components", []));
+    setNodeLinks(readBoardMemory<string[]>("nodeLinks", []));
+  }, [props.openBoardNonce]);
   /**
    * Which photovoltaic product the band will run.
    *
@@ -1186,6 +1223,12 @@ export function StudioScreen(props: StudioScreenProps) {
     <BoardRunGraph
       onPickBoundary={props.onPickBoundary}
       components={components}
+      nodeLinks={nodeLinks}
+      onConnect={(from, to) =>
+        setNodeLinks((held) =>
+          held.includes(`${from}>${to}`) ? held : [...held, `${from}>${to}`],
+        )
+      }
       /*
         The tool is READ here and changed in the header above, which is the
         only place it was ever changed from. The band declared an
