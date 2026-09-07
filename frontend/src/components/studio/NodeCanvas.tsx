@@ -1878,7 +1878,7 @@ export function NodeCanvas({
                 either way -- the header keeps its accent plate -- and this says
                 whether the action is under way.
               */
-              n.status === "busy" ? "card-busy border-warning/70" : undefined
+              n.status === "busy" ? "border-warning/70" : undefined
             )}
             style={{
               left: n.place.x,
@@ -1979,20 +1979,18 @@ export function NodeCanvas({
                 second statement of a thing already said reads as glare rather
                 than as emphasis.
 
-                THE BUSY GLOW STAYS, and it is the one that is not about
-                identity. It says work is under way, which is true only while
-                it is true, and it is the sole non-textual mark of that: the
-                stage beneath it is a word, and a word is not what tells a
-                reader who is looking elsewhere on the board that the run went.
+                THE BUSY GLOW IS GONE, and it went in two steps. It was a
+                fixed halo composed into the shadow below, which is the one way
+                a mark cannot say something is happening -- a ring that never
+                changes reads as a property of the card. It was then made to
+                breathe, which said it correctly and said it loudly: a card the
+                size of this one, ringed in light and pulsing, over a board
+                whose whole subject is the cards.
 
-                IT MOVED OUT OF THIS LIST, and that is why only the depth is
-                here now. Composed inline it was a fixed halo: a constant ring
-                of light around a card whose whole message is that something is
-                happening, said in the one way that cannot say it -- a mark
-                that does not change looks like a property of the card. It
-                breathes now, from `.card-busy` in index.css, which is also
-                where the wire's travelling light lives. The two are the same
-                statement at two scales and are written next to each other.
+                What says the run went is now what was always saying it beside
+                the glow -- the warning border, the spinner in the card's own
+                body, the stage under it and the bar under that. Four marks,
+                each inside the card, none of them spread into the field.
               */
               boxShadow:
                 lifted === n.id
