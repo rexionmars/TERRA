@@ -718,8 +718,10 @@ export function BoardSurface({
       analysisEntries({
         curtailment: gridCurtailment,
         congestion: gridCongestion,
+        wind: windResult,
+        solar: solarResults,
       }),
-    [gridCurtailment, gridCongestion]
+    [gridCurtailment, gridCongestion, windResult, solarResults]
   )
   const [analysesOnMap, setAnalysesOnMap] = useState<ReadonlySet<string>>(
     () => new Set()
