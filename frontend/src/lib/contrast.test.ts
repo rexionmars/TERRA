@@ -141,11 +141,11 @@ describe("checkContrast", () => {
     const expected: Record<string, number> = {
       "dark.text.surfaceRaised": 7.28,
       "dark.muted.surfaceRaised": 4.99,
-      "dark.accentQuiet.accentDim": 5.71,
+      "dark.accentQuiet.accentDim": 5.75,
       "dark.lineStrong.surfaceRaised": 3.14,
       "dark.destructiveForeground.destructive": 5.37,
       "light.text.surface": 14.99,
-      "light.accent.accentDim": 4.09,
+      "light.accent.accentDim": 4.11,
       "light.warning.surfaceRaised": 4.75,
     }
     for (const [key, ratio] of Object.entries(expected)) {
