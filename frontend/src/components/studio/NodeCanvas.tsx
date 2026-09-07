@@ -4,12 +4,22 @@
  * Generic over what the cards hold: it owns the view, the gestures and the
  * geometry, and nothing about runs. `BoardRunGraph` supplies the nodes.
  *
- * WHAT IT DELIBERATELY DOES NOT HAVE IS PORTS YOU CAN PULL. The edges it draws
- * come from the graph its caller passes and cannot be made or broken, because
- * the graph is the shape of a request rather than an arrangement someone
- * chose. A port that looked draggable and refused to drag would promise a
- * freedom that does not exist -- so the ends are drawn as small filled marks
- * and take no pointer events at all.
+ * THE PORTS THAT PULL ARE THE ONES THE READER PUT THERE, AND ONLY THOSE.
+ *
+ * This file used to have none, and the argument was sound for what it covered:
+ * the edges come from the graph its caller passes, the graph is the shape of a
+ * request rather than an arrangement someone chose, and a port that looked
+ * draggable and refused to drag would promise a freedom that does not exist.
+ *
+ * What that argument did not cover is a card the reader ADDED. Such a card is
+ * not part of the request -- it is a source they brought to the board -- and
+ * whether it feeds anything is theirs to say. So the rule is the one that
+ * keeps the promise honest in both directions: a node the caller marks
+ * `connectable` draws a port and can be pulled from; every other end stays a
+ * mark that takes no pointer events, exactly as before. The two families are
+ * distinct on the board -- one is a card the request declares, the other a
+ * card someone chose -- so a reader is not asked to remember which port is
+ * which. They are asked to notice which card they are on.
  *
  * THE WIRES ARE RIBBONS, AND THAT WAS A DELIBERATE MOVE TOWARDS A REFERENCE.
  * A hairline says two cards are joined; a ribbon says something passes between
@@ -628,6 +638,14 @@ const MAX_ZOOM = 2.2
 const FIT_PAD = 32
 
 export interface CanvasNode {
+  /**
+   * This card offers a port the reader can pull a wire from.
+   *
+   * Off by default, which is what keeps the file's opening promise: every end
+   * that is not this stays a mark taking no pointer events. See the note at
+   * the top for the rule that decides which cards get one.
+   */
+  connectable?: boolean
   id: string
   place: Place
   /**
@@ -992,10 +1010,16 @@ export function NodeCanvas({
   edges,
   onMove,
   onMeasure,
+  onConnect,
   className,
 }: {
   nodes: readonly CanvasNode[]
   edges: readonly CanvasEdge[]
+  /**
+   * A port was pulled onto a card. The caller says whether that means
+   * anything; see endDrag for why this field does not.
+   */
+  onConnect?: (from: string, to: string) => void
   /** A card was dragged. The caller owns where cards are. */
   onMove: (id: string, place: Place) => void
   /**
@@ -1189,8 +1213,25 @@ export function NodeCanvas({
   const drag = useRef<
     | { kind: "pan"; startX: number; startY: number; from: View }
     | { kind: "node"; id: string; startX: number; startY: number; from: Place }
+    | { kind: "link"; from: string }
     | null
   >(null)
+
+  /*
+    The line being pulled, in board coordinates.
+
+    STATE, WHERE THE OTHER TWO GESTURES USE A REF. Panning and dragging a card
+    write through callbacks the caller already re-renders for; a link has
+    nothing on screen until this draws it, so it has to be state. The cost the
+    ref exists to avoid -- a render per pointermove -- is paid only while a
+    link is actually being pulled, which is a gesture of a second or two and
+    the only time this field has nothing else to do.
+  */
+  const [pulling, setPulling] = useState<{
+    from: string
+    x: number
+    y: number
+  } | null>(null)
 
   const beginPan = (e: React.PointerEvent) => {
     // Middle button pans from anywhere; the left button pans only from the
@@ -1235,9 +1276,34 @@ export function NodeCanvas({
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
+  /** Board coordinates for a pointer, which is what every hit test needs. */
+  const atBoard = (e: React.PointerEvent) => {
+    const r = hostRef.current?.getBoundingClientRect()
+    if (!r) return null
+    return {
+      x: (e.clientX - r.left - view.x) / view.z,
+      y: (e.clientY - r.top - view.y) / view.z,
+    }
+  }
+
+  const beginLink = (e: React.PointerEvent, id: string) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    touched.current = true
+    const at = atBoard(e)
+    drag.current = { kind: "link", from: id }
+    if (at) setPulling({ from: id, ...at })
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
+    if (d.kind === "link") {
+      const at = atBoard(e)
+      if (at) setPulling({ from: d.from, ...at })
+      return
+    }
     const dx = e.clientX - d.startX
     const dy = e.clientY - d.startY
     if (d.kind === "pan") {
@@ -1249,9 +1315,38 @@ export function NodeCanvas({
     onMove(d.id, { x: d.from.x + dx / view.z, y: d.from.y + dy / view.z })
   }
 
-  const endDrag = () => {
+  /*
+    A link ends on the card under the pointer, or nowhere.
+
+    Hit tested against the card RECTANGLES rather than against a drop zone
+    drawn for the purpose. A card is the target a reader is aiming at -- it is
+    what they can see -- and a zone smaller than the thing it stands for is a
+    gesture that fails while it looks like it should work.
+
+    The caller decides whether the pair means anything; this only reports which
+    two cards the gesture joined. A field that knew which links were legal
+    would be a field that knows what a run is, which is the property this file
+    is written to not have.
+  */
+  const endDrag = (e?: React.PointerEvent) => {
+    const d = drag.current
+    if (d?.kind === "link" && e) {
+      const at = atBoard(e)
+      const onto = at
+        ? nodes.find(
+            (n) =>
+              n.id !== d.from &&
+              at.x >= n.place.x &&
+              at.x <= n.place.x + NODE_W &&
+              at.y >= n.place.y &&
+              at.y <= n.place.y + (n.h ?? 0)
+          )
+        : undefined
+      if (onto) onConnect?.(d.from, onto.id)
+    }
     drag.current = null
     setLifted(null)
+    setPulling(null)
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]))
@@ -1272,7 +1367,7 @@ export function NodeCanvas({
       onPointerDown={beginPan}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
-      onPointerCancel={endDrag}
+      onPointerCancel={() => endDrag()}
       className={cn(
         "app-no-drag relative h-full w-full overflow-hidden touch-none select-none",
         className
@@ -1741,6 +1836,29 @@ export function NodeCanvas({
           )
         })}
 
+        {/*
+          THE LINE BEING PULLED, drawn over everything because it is the one
+          thing on the field that is not there yet. Dashed and thin, which is
+          the vocabulary this file already uses for a wire that carries
+          nothing -- and it carries nothing until it lands.
+        */}
+        {pulling && (
+          <svg
+            className="pointer-events-none absolute left-0 top-0 z-20 overflow-visible"
+            width={1}
+            height={1}
+          >
+            <line
+              x1={(byId.get(pulling.from)?.place.x ?? 0) + NODE_W}
+              y1={(byId.get(pulling.from)?.place.y ?? 0) + PORT_Y}
+              x2={pulling.x}
+              y2={pulling.y}
+              stroke="rgb(var(--p-accent))"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+            />
+          </svg>
+        )}
         {nodes.map((n) => (
           <div
             key={n.id}
@@ -1882,6 +2000,37 @@ export function NodeCanvas({
                   : "0 6px 18px -8px rgb(0 0 0 / 0.5)",
             }}
           >
+            {/*
+              THE PORT, ON THE CARDS THAT HAVE ONE.
+
+              At the card's right edge and at PORT_Y, which is where a wire has
+              always met a card -- so a link made here leaves from the place
+              every other wire leaves from, and the reader is not shown two
+              conventions for one thing.
+
+              It is the only element in this file that takes a pointer for a
+              wire. Everything else stops at the card; see the note at the top
+              for why that stays true of every port but these.
+            */}
+            {n.connectable && (
+              <span
+                role="button"
+                aria-label={`Connect ${n.id}`}
+                onPointerDown={(e) => beginLink(e, n.id)}
+                onPointerMove={onPointerMove}
+                onPointerUp={endDrag}
+                onPointerCancel={() => endDrag()}
+                className="absolute z-10 flex size-3 cursor-crosshair items-center justify-center rounded-full"
+                style={{ left: NODE_W - 6, top: PORT_Y - 6 }}
+              >
+                <span
+                  className="size-1.5 rounded-full transition-transform hover:scale-150"
+                  style={{
+                    background: n.subject ? n.subject.band : "var(--b-card-ink)",
+                  }}
+                />
+              </span>
+            )}
             {/*
               The header is the handle. Dragging from anywhere on the card would
               mean a date field or a number could not be swiped through, and

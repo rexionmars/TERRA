@@ -164,5 +164,8 @@ export function parseSnapshot(text: string | undefined): BoardSnapshot | null {
     links: raw.links === true,
     labels: raw.labels === true,
     nodePlaces: raw.nodePlaces ?? {},
+    // Absent on every board saved before the run editor had cards to add.
+    components: Array.isArray(raw.components) ? raw.components : [],
+    nodeLinks: Array.isArray(raw.nodeLinks) ? raw.nodeLinks : [],
   }
 }
