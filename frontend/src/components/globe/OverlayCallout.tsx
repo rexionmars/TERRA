@@ -54,13 +54,13 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-} from "react"
-import { CaretRight } from "@phosphor-icons/react"
-import { Marker, type Map as MapLibreMap } from "maplibre-gl"
-import { createRoot, type Root } from "react-dom/client"
+} from "react";
+import { CaretRight } from "@phosphor-icons/react";
+import { Marker, type Map as MapLibreMap } from "maplibre-gl";
+import { createRoot, type Root } from "react-dom/client";
 
-import type { LayerLegend } from "@/lib/layerLegend"
-import { cn } from "@/lib/utils"
+import type { LayerLegend } from "@/lib/layerLegend";
+import { cn } from "@/lib/utils";
 
 /**
  * How far up the screen a height of `metres` lands, at this camera.
@@ -89,25 +89,25 @@ import { cn } from "@/lib/utils"
 function riseInPixels(
   map: MapLibreMap,
   at: [number, number],
-  metres: number
+  metres: number,
 ): number {
-  if (metres <= 0) return 0
-  const p = map.project({ lng: at[0], lat: at[1] })
+  if (metres <= 0) return 0;
+  const p = map.project({ lng: at[0], lat: at[1] });
   // Over a hundred pixels: unprojecting two adjacent ones is a distance of
   // centimetres through a projection that is not exact at that scale.
-  const a = map.unproject([p.x - 50, p.y])
-  const b = map.unproject([p.x + 50, p.y])
-  const mPerPx = a.distanceTo(b) / 100
-  if (!Number.isFinite(mPerPx) || mPerPx <= 0) return 0
-  return (metres / mPerPx) * Math.sin((map.getPitch() * Math.PI) / 180)
+  const a = map.unproject([p.x - 50, p.y]);
+  const b = map.unproject([p.x + 50, p.y]);
+  const mPerPx = a.distanceTo(b) / 100;
+  if (!Number.isFinite(mPerPx) || mPerPx <= 0) return 0;
+  return (metres / mPerPx) * Math.sin((map.getPitch() * Math.PI) / 180);
 }
 
 /** Where the box starts, in pixels from the anchor. Up and to the left of it. */
-const START_X = -232
-const START_Y = -112
+const START_X = -232;
+const START_Y = -112;
 
 /** The box's width. Its height is measured: see below. */
-const BOX_W = 216
+const BOX_W = 216;
 
 /**
  * The height to assume for one frame, before the box has been measured.
@@ -116,7 +116,7 @@ const BOX_W = 216
  * window draws one line fewer, and a leader computed against a height the box
  * does not have leaves from an edge that is not there.
  */
-const BOX_H_GUESS = 92
+const BOX_H_GUESS = 92;
 
 /**
  * The run the leader takes off the box before it turns.
@@ -124,10 +124,83 @@ const BOX_H_GUESS = 92
  * Not all of it straight any more: STRAIGHT below says how much is drawn as a
  * line, and the rest of this length is where the turn's control point sits.
  */
-const STUB = 22
+const STUB = 22;
+
+/**
+ * A line that says the whole of itself, but only where it cannot show it.
+ *
+ * THE DISCLOSURE EXISTS ONLY WHERE THERE IS SOMETHING BEHIND IT. A parameter
+ * line is as long as the product has parameters -- "Annual · kWh/m2/year ·
+ * Copernicus DEM GLO-30 · 10 yr · opacity 100%" in a box 216 wide -- so it
+ * clips, and a clipped line with no way past it is a box that says it knows
+ * more than it will tell. A short one fits, and there a caret would be a
+ * control that expands nothing.
+ *
+ * So it is measured rather than assumed: the span reports whether its own
+ * content overflows it, and the caret appears for that answer. Which is also
+ * why `clipped` is a dependency of the effect that measures -- the node it
+ * observes is a different one once the line becomes a button, and an observer
+ * left on the old node would answer for a box that is no longer there.
+ *
+ * `stopPropagation` on the press, because the box captures the pointer to be
+ * dragged: without it the capture takes the pointerup and the button's click
+ * never happens, which reads as a caret that does nothing.
+ */
+function Disclosed({ text, className }: { text: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const [clipped, setClipped] = useState(false);
+  const ref = useRef<HTMLSpanElement | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || open) return;
+    const read = () => setClipped(el.scrollWidth > el.clientWidth + 1);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [open, clipped, text]);
+
+  if (!clipped && !open) {
+    return (
+      <p className={cn("mt-0.5", className)}>
+        <span ref={ref} className="block truncate">
+          {text}
+        </span>
+      </p>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={() => setOpen((v) => !v)}
+      aria-expanded={open}
+      title={open ? "Show less" : text}
+      className="mt-0.5 flex w-full items-start gap-1 text-left transition-colors hover:brightness-125"
+    >
+      <CaretRight
+        aria-hidden
+        className={cn(
+          "mt-[3px] size-2.5 shrink-0 transition-transform",
+          open && "rotate-90",
+        )}
+      />
+      <span
+        ref={ref}
+        className={cn(
+          "min-w-0 flex-1",
+          className,
+          open ? "leading-relaxed" : "truncate",
+        )}
+      >
+        {text}
+      </span>
+    </button>
+  );
+}
 
 /** How many classes or figures a floating box carries before it is a panel. */
-const MAX_ROWS = 5
+const MAX_ROWS = 5;
 
 export interface OverlayCaption {
   /**
@@ -138,9 +211,9 @@ export interface OverlayCaption {
    * raster's colours cost the last time there was one: a disagreement with the
    * renderer of up to 40 of 255 on three stops.
    */
-  legend: NonNullable<LayerLegend>
+  legend: NonNullable<LayerLegend>;
   /** The ground it was measured over. */
-  area: string
+  area: string;
   /**
    * The line of parameters under the name: what the raster is, in what unit,
    * from what source, at what opacity.
@@ -154,7 +227,7 @@ export interface OverlayCaption {
    * different kinds of thing in one line depending on where the caption came
    * from.
    */
-  detail?: string | null
+  detail?: string | null;
 }
 
 export function OverlayCallouts({
@@ -162,18 +235,18 @@ export function OverlayCallouts({
   ready,
   captions,
 }: {
-  map: MapLibreMap | null
+  map: MapLibreMap | null;
   /** The style is up. Adding a marker before it is is not an error, but the
    *  projection it would be placed by is the one about to be replaced. */
-  ready: boolean
+  ready: boolean;
   captions: readonly {
-    key: string
+    key: string;
     /** Where the dot lands, [lon, lat]: the centre of the raster's extent. */
-    at: [number, number]
+    at: [number, number];
     /** How far above the ground the raster it describes is drawn, in metres. */
-    elevationM: number
-    caption: OverlayCaption
-  }[]
+    elevationM: number;
+    caption: OverlayCaption;
+  }[];
 }) {
   /*
     One marker per raster, held across renders.
@@ -183,10 +256,10 @@ export function OverlayCallouts({
     each time the caption changed would drop the drag the reader is in the
     middle of.
   */
-  const markers = useRef(new Map<string, { marker: Marker; root: Root }>())
+  const markers = useRef(new Map<string, { marker: Marker; root: Root }>());
   /** The captions as they are now, for a handler bound to the map's events. */
-  const liveCaptions = useRef(captions)
-  liveCaptions.current = captions
+  const liveCaptions = useRef(captions);
+  liveCaptions.current = captions;
   /**
    * Put every anchor at its raster's height.
    *
@@ -194,55 +267,55 @@ export function OverlayCallouts({
    * surface and there is no elevated one to give it. Negative Y is up.
    */
   const liftAll = useCallback(() => {
-    if (!map) return
+    if (!map) return;
     for (const c of liveCaptions.current) {
-      const held = markers.current.get(c.key)
-      if (!held) continue
-      held.marker.setOffset([0, -riseInPixels(map, c.at, c.elevationM)])
+      const held = markers.current.get(c.key);
+      if (!held) continue;
+      held.marker.setOffset([0, -riseInPixels(map, c.at, c.elevationM)]);
     }
-  }, [map])
+  }, [map]);
 
   useEffect(() => {
-    if (!map || !ready) return
-    const live = new Set(captions.map((c) => c.key))
+    if (!map || !ready) return;
+    const live = new Set(captions.map((c) => c.key));
 
     for (const [key, held] of markers.current) {
-      if (live.has(key)) continue
-      held.marker.remove()
+      if (live.has(key)) continue;
+      held.marker.remove();
       // Unmounted on a later task: React refuses to unmount a root while it is
       // rendering, and this effect can run inside that window.
-      const root = held.root
-      queueMicrotask(() => root.unmount())
-      markers.current.delete(key)
+      const root = held.root;
+      queueMicrotask(() => root.unmount());
+      markers.current.delete(key);
     }
 
     for (const c of captions) {
-      let held = markers.current.get(c.key)
+      let held = markers.current.get(c.key);
       if (!held) {
-        const el = document.createElement("div")
+        const el = document.createElement("div");
         // The element is the ANCHOR POINT, not the box: the library places its
         // centre at the coordinate, so anything drawn here is positioned
         // relative to the dot rather than to a corner of a card.
-        el.style.width = "0"
-        el.style.height = "0"
+        el.style.width = "0";
+        el.style.height = "0";
         /*
           Not `draggable`. The library's drag moves the marker, and the marker
           IS the anchor: using it would move the dot off the raster, which is
           the one thing the dot is for. The box does its own dragging below, in
           screen pixels, and the anchor stays on the ground.
         */
-        const marker = new Marker({ element: el }).setLngLat(c.at).addTo(map)
-        held = { marker, root: createRoot(el) }
-        markers.current.set(c.key, held)
+        const marker = new Marker({ element: el }).setLngLat(c.at).addTo(map);
+        held = { marker, root: createRoot(el) };
+        markers.current.set(c.key, held);
       } else {
         // Follows its raster. The box's offset is the reader's and is held
         // inside the mounted body, which survives this re-render.
-        held.marker.setLngLat(c.at)
+        held.marker.setLngLat(c.at);
       }
-      held.root.render(<CalloutBody caption={c.caption} />)
+      held.root.render(<CalloutBody caption={c.caption} />);
     }
-    liftAll()
-  }, [map, ready, captions, liftAll])
+    liftAll();
+  }, [map, ready, captions, liftAll]);
 
   /*
     The lift is re-applied on every camera move, because it is a function of
@@ -254,26 +327,26 @@ export function OverlayCallouts({
     animation, and the work per marker is one project and two unprojects.
   */
   useEffect(() => {
-    if (!map || !ready) return
-    map.on("move", liftAll)
+    if (!map || !ready) return;
+    map.on("move", liftAll);
     return () => {
-      map.off("move", liftAll)
-    }
-  }, [map, ready, liftAll])
+      map.off("move", liftAll);
+    };
+  }, [map, ready, liftAll]);
 
   useEffect(
     () => () => {
       for (const [, held] of markers.current) {
-        held.marker.remove()
-        const root = held.root
-        queueMicrotask(() => root.unmount())
+        held.marker.remove();
+        const root = held.root;
+        queueMicrotask(() => root.unmount());
       }
-      markers.current.clear()
+      markers.current.clear();
     },
-    []
-  )
+    [],
+  );
 
-  return null
+  return null;
 }
 
 /**
@@ -301,29 +374,29 @@ export function OverlayCallouts({
  * the box rather than one coming out of it; much more and the arc has too
  * little room left to bend and the elbow comes back.
  */
-const STRAIGHT = 0.34
+const STRAIGHT = 0.34;
 
 function leaderPath(dx: number, dy: number, boxH: number): string {
   // The box's rectangle, in the anchor's own frame.
-  const left = dx
-  const right = dx + BOX_W
-  const top = dy
-  const bottom = dy + boxH
+  const left = dx;
+  const right = dx + BOX_W;
+  const top = dy;
+  const bottom = dy + boxH;
 
   // Horizontal where the box is clearly to one side, vertical otherwise: the
   // comparison is against the box's own measure, so a box offset by less than
   // its width still leaves from the top or bottom rather than sideways.
-  const horizontal = right < 0 || left > 0
+  const horizontal = right < 0 || left > 0;
   if (horizontal) {
-    const x = right < 0 ? right : left
-    const y = Math.min(Math.max(0, top + 12), bottom - 12)
-    const stub = right < 0 ? STUB : -STUB
-    return `M ${x} ${y} L ${x + stub * STRAIGHT} ${y} Q ${x + stub} ${y}, 0 0`
+    const x = right < 0 ? right : left;
+    const y = Math.min(Math.max(0, top + 12), bottom - 12);
+    const stub = right < 0 ? STUB : -STUB;
+    return `M ${x} ${y} L ${x + stub * STRAIGHT} ${y} Q ${x + stub} ${y}, 0 0`;
   }
-  const y = bottom < 0 ? bottom : top
-  const x = Math.min(Math.max(0, left + 24), right - 24)
-  const stub = bottom < 0 ? STUB : -STUB
-  return `M ${x} ${y} L ${x} ${y + stub * STRAIGHT} Q ${x} ${y + stub}, 0 0`
+  const y = bottom < 0 ? bottom : top;
+  const x = Math.min(Math.max(0, left + 24), right - 24);
+  const stub = bottom < 0 ? STUB : -STUB;
+  return `M ${x} ${y} L ${x} ${y + stub * STRAIGHT} Q ${x} ${y + stub}, 0 0`;
 }
 
 /** A gradient bar and the two ends it runs between. */
@@ -332,9 +405,9 @@ function Ramp({
   low,
   high,
 }: {
-  gradient: string
-  low: string
-  high: string
+  gradient: string;
+  low: string;
+  high: string;
 }) {
   return (
     <>
@@ -343,13 +416,15 @@ function Ramp({
         style={{ background: gradient }}
       />
       <div className="mt-1 flex items-baseline justify-between gap-2">
-        <span className="telemetry text-micro text-muted-foreground">{low}</span>
+        <span className="telemetry text-micro text-muted-foreground">
+          {low}
+        </span>
         <span className="telemetry text-micro text-muted-foreground">
           {high}
         </span>
       </div>
     </>
-  )
+  );
 }
 
 /**
@@ -369,13 +444,15 @@ function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
   if (legend.kind === "ramp") {
     return (
       <Ramp gradient={legend.gradient} low={legend.low} high={legend.high} />
-    )
+    );
   }
 
   if (legend.kind === "classes") {
-    const ordered = [...legend.entries].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
-    const shown = ordered.slice(0, MAX_ROWS)
-    const rest = ordered.length - shown.length
+    const ordered = [...legend.entries].sort(
+      (a, b) => (b.pct ?? 0) - (a.pct ?? 0),
+    );
+    const shown = ordered.slice(0, MAX_ROWS);
+    const rest = ordered.length - shown.length;
     return (
       <div className="mt-1.5 flex flex-col gap-0.5">
         {shown.map((c) => (
@@ -401,7 +478,7 @@ function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
           </p>
         )}
       </div>
-    )
+    );
   }
 
   if (legend.kind === "note") {
@@ -409,15 +486,18 @@ function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
       <p className="mt-1.5 text-micro leading-relaxed text-muted-foreground">
         {legend.note}
       </p>
-    )
+    );
   }
 
-  const shown = legend.rows.slice(0, MAX_ROWS)
-  const rest = legend.rows.length - shown.length
+  const shown = legend.rows.slice(0, MAX_ROWS);
+  const rest = legend.rows.length - shown.length;
   return (
     <div className="mt-1.5 flex flex-col gap-0.5">
       {shown.map((r) => (
-        <div key={r.label} className="flex items-baseline justify-between gap-2">
+        <div
+          key={r.label}
+          className="flex items-baseline justify-between gap-2"
+        >
           <span className="min-w-0 truncate text-micro text-muted-foreground">
             {r.label}
           </span>
@@ -439,7 +519,7 @@ function LegendBody({ legend }: { legend: NonNullable<LayerLegend> }) {
         />
       )}
     </div>
-  )
+  );
 }
 
 function CalloutBody({ caption }: { caption: OverlayCaption }) {
@@ -451,68 +531,51 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
     without the parent having to keep a map of offsets in step with a map of
     markers.
   */
-  const [off, setOff] = useState({ x: START_X, y: START_Y })
-  const from = useRef<{ x: number; y: number } | null>(null)
+  const [off, setOff] = useState({ x: START_X, y: START_Y });
+  const from = useRef<{ x: number; y: number } | null>(null);
 
   /*
     The box's height, measured rather than declared. It changes with the
     caption -- a product with no acquisition window is a line shorter -- and
     the leader has to know which edge faces the dot.
   */
-  /*
-    Whether the parameter line is showing in full, and whether it has anything
-    to show. See the disclosure below.
-  */
-  const [openDetail, setOpenDetail] = useState(false)
-  const [clipped, setClipped] = useState(false)
-  const detailRef = useRef<HTMLSpanElement | null>(null)
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [boxH, setBoxH] = useState(BOX_H_GUESS);
   useLayoutEffect(() => {
-    const el = detailRef.current
-    if (!el || openDetail) return
-    const read = () => setClipped(el.scrollWidth > el.clientWidth + 1)
-    read()
-    const ro = new ResizeObserver(read)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [openDetail, clipped, caption.detail])
-
-  const boxRef = useRef<HTMLDivElement | null>(null)
-  const [boxH, setBoxH] = useState(BOX_H_GUESS)
-  useLayoutEffect(() => {
-    const el = boxRef.current
-    if (!el) return
-    const read = () => setBoxH(el.offsetHeight || BOX_H_GUESS)
-    read()
-    const ro = new ResizeObserver(read)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+    const el = boxRef.current;
+    if (!el) return;
+    const read = () => setBoxH(el.offsetHeight || BOX_H_GUESS);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       // Left button only, and the map must not also read this as a pan.
-      if (e.button !== 0) return
-      e.stopPropagation()
-      e.preventDefault()
-      from.current = { x: e.clientX - off.x, y: e.clientY - off.y }
-      e.currentTarget.setPointerCapture(e.pointerId)
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      from.current = { x: e.clientX - off.x, y: e.clientY - off.y };
+      e.currentTarget.setPointerCapture(e.pointerId);
     },
-    [off.x, off.y]
-  )
+    [off.x, off.y],
+  );
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const start = from.current
-    if (!start) return
-    e.stopPropagation()
-    setOff({ x: e.clientX - start.x, y: e.clientY - start.y })
-  }, [])
+    const start = from.current;
+    if (!start) return;
+    e.stopPropagation();
+    setOff({ x: e.clientX - start.x, y: e.clientY - start.y });
+  }, []);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    from.current = null
+    from.current = null;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
-  }, [])
+  }, []);
 
   return (
     <div className="relative">
@@ -628,67 +691,28 @@ function CalloutBody({ caption }: { caption: OverlayCaption }) {
         <p className="eyebrow !text-[9px] truncate text-primary">
           {caption.legend.subject}
         </p>
-        <p className="mt-0.5 truncate text-emphasis italic text-foreground">
-          {caption.area}
-        </p>
-        {caption.detail &&
-          (clipped || openDetail ? (
-            /*
-              THE DISCLOSURE EXISTS ONLY WHERE THERE IS SOMETHING BEHIND IT.
+        {/*
+          THE NAME GETS THE SAME WAY OUT THE PARAMETER LINE HAS.
 
-              The parameter line is as long as the product has parameters --
-              "Annual · kWh/m2/year · Copernicus DEM GLO-30 · 10 yr · opacity
-              100%" in a box 216 wide -- so it clips, and a clipped line with
-              no way past it is a box that says it knows more than it will
-              tell. A reading's line can be short enough to fit, and there a
-              caret would be a control that expands nothing.
-
-              So it is measured rather than assumed: the span reports whether
-              its own content overflows it, and the caret appears for that
-              answer. Which is also why `clipped` is a dependency of the effect
-              that measures -- the node it observes is a different one once the
-              line becomes a button, and an observer left on the old node would
-              answer for a box that is no longer there.
-
-              `stopPropagation` on the press, because the box captures the
-              pointer to be dragged: without it the capture takes the pointerup
-              and the button's click never happens, which reads as a caret that
-              does nothing.
-            */
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => setOpenDetail((v) => !v)}
-              aria-expanded={openDetail}
-              title={openDetail ? "Show less" : caption.detail}
-              className="mt-0.5 flex w-full items-start gap-1 text-left text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <CaretRight
-                aria-hidden
-                className={cn(
-                  "mt-[3px] size-2.5 shrink-0 transition-transform",
-                  openDetail && "rotate-90"
-                )}
-              />
-              <span
-                ref={detailRef}
-                className={cn(
-                  "telemetry min-w-0 flex-1 text-micro",
-                  openDetail ? "leading-relaxed" : "truncate"
-                )}
-              >
-                {caption.detail}
-              </span>
-            </button>
-          ) : (
-            <p className="telemetry text-micro text-muted-foreground">
-              <span ref={detailRef} className="block truncate">
-                {caption.detail}
-              </span>
-            </p>
-          ))}
+          A circuit is named "LT 500 kV SANTA LUZIA II / MILAGRES II C1" and
+          the box is 216 wide, so the name clipped and there was nothing to
+          press: the callout told the reader which line they had picked up to
+          the point where it stops telling them. The parameter line below it
+          had had a disclosure for exactly this since it was written; this one
+          did not, and the two lines clip for the same reason.
+        */}
+        <Disclosed
+          text={caption.area}
+          className="text-emphasis italic text-foreground"
+        />
+        {caption.detail && (
+          <Disclosed
+            text={caption.detail}
+            className="telemetry text-micro text-muted-foreground"
+          />
+        )}
         <LegendBody legend={caption.legend} />
       </div>
     </div>
-  )
+  );
 }
