@@ -43,10 +43,29 @@
  * above 12 -- past the crossfade the transition is 1, the fallback drops out
  * of the mix, and the sphere term is the only one left.
  *
- * BACK TO FRONT, WITH DEPTH WRITES OFF. These quads are translucent and they
- * overlap; sorted by elevation and drawn without writing depth is the painter's
- * order, which is what lets the lower raster show through the upper one rather
- * than being cut away by a depth test against a fragment that was never opaque.
+ * BACK TO FRONT, AND NOT DEPTH TESTED AT ALL. These quads are translucent and
+ * they overlap; sorted by elevation and drawn without writing depth is the
+ * painter's order, which is what lets the lower raster show through the upper
+ * one rather than being cut away by a fragment that was never opaque.
+ *
+ * The test went with the writes, and that took measuring rather than taste.
+ * MapLibre fills the depth buffer with the ground itself -- `painter` line
+ * `if (isRenderingGlobe && !map.terrain) this._renderTilesDepthBuffer()`, the
+ * tile meshes drawn at elevation zero. So on the sphere, with relief OFF, the
+ * ground is in the buffer and this quad is a metre above it: one part in six
+ * million of the globe's radius, far under what the buffer can separate at that
+ * scale. Two surfaces the depth test cannot tell apart is z-fighting, and
+ * z-fighting is banding -- which is what the overlay did below zoom 12, in
+ * stripes that moved when the camera turned and closed up when it flattened.
+ *
+ * AND THE TEST WAS NEVER BUYING WHAT IT CLAIMED. It was here so terrain could
+ * occlude a raster behind a ridge. It cannot: the quad is lifted from mercator
+ * ZERO, not from the ground, so with relief on it is not hidden behind the hill
+ * but buried under it -- and relief on is also the case where MapLibre skips
+ * the pre-pass, so the two states each defeated it in their own way. An overlay
+ * asked for over an area is drawn over that area; occluding one by relief is a
+ * thing to build from the terrain's own elevation, deliberately, and not to
+ * half-inherit from a shared buffer.
  */
 import { MercatorCoordinate } from "maplibre-gl"
 import type {
@@ -291,10 +310,10 @@ export function raisedRasterLayer(
     id,
     type: "custom",
     /*
-      3d, so the depth buffer is shared with the rest of the map and terrain
-      can occlude a raster that is behind a ridge. It is also what makes the
-      mercator variant's z conformal, which is what the elevation is expressed
-      against.
+      3d for the projection, not for the depth: it is what makes the mercator
+      variant's z conformal, which is the space the elevation is expressed in.
+      The depth buffer is shared with the rest of the map and this layer neither
+      reads nor writes it; the header says why.
     */
     renderingMode: "3d",
 
@@ -365,14 +384,16 @@ export function raisedRasterLayer(
 
       ctx.enable(ctx.BLEND)
       ctx.blendFunc(ctx.ONE, ctx.ONE_MINUS_SRC_ALPHA)
-      ctx.enable(ctx.DEPTH_TEST)
       /*
-        Tested but not written. These quads are translucent and stacked over
-        one another; writing depth would make the first one drawn cut away
-        every fragment of the ones behind it, whatever their alpha.
+        Neither tested nor written. Not written because these quads are
+        translucent and stacked, and the first one drawn would cut away every
+        fragment behind it whatever its alpha. Not tested because the only
+        thing in the buffer to test against is the ground this raster is drawn
+        over, a metre below it and indistinguishable from it on the sphere --
+        see the header. Disabling the test disables the write with it, so the
+        mask is the driver's business rather than ours.
       */
-      ctx.depthMask(false)
-      ctx.depthFunc(ctx.LEQUAL)
+      ctx.disable(ctx.DEPTH_TEST)
 
       ctx.bindBuffer(ctx.ARRAY_BUFFER, buffer)
       ctx.enableVertexAttribArray(prog.aPos)
@@ -398,8 +419,6 @@ export function raisedRasterLayer(
         )
         ctx.drawArrays(ctx.TRIANGLES, 0, 6)
       }
-
-      ctx.depthMask(true)
     },
   }
 }
