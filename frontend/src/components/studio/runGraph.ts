@@ -444,12 +444,31 @@ function productGraph(
   */
   if (family === "wind") {
     return {
-      nodes: [at("area", 0), at("record", 0), at("turbine", 1), at("roughness", 1), at("run", 2)],
+      nodes: [
+        at("area", 0),
+        at("record", 0),
+        /*
+          THE PRODUCT CARD IS ON EVERY ENERGY GRAPH, INCLUDING THIS ONE.
+
+          It is not a parameter here -- wind has one product and the card shows
+          it rather than offering a choice within the family. It is on the
+          graph because it is the control that chose the family, and a control
+          that removes itself when used is a door that locks behind the reader:
+          picking wind took the nine labels off the board and left no way back
+          to solar or the grid. Every sibling branch carries it; this one was
+          the omission.
+        */
+        at("product", 1),
+        at("turbine", 1),
+        at("roughness", 1),
+        at("run", 2),
+      ],
       edges: [
         ["area", "run"],
         ["record", "run"],
         ["turbine", "run"],
         ["roughness", "run"],
+        ["product", "run"],
       ],
     }
   }
