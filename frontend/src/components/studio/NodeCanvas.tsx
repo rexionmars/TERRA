@@ -145,8 +145,39 @@ const SLOT_FOOT = 12
 const GROUND: Record<EdgeState, number> = {
   missing: 0,
   pending: 0,
-  reading: 1,
-  read: 1,
+  /*
+    ZERO, AND IT COSTS NOTHING TO GET THERE.
+
+    These two were founded on a full plate of the field's ink, which is what
+    made them opaque -- and opaque is what made a crossing invisible: two
+    ribbons meeting drew the upper one and nothing else, on a board whose whole
+    picture is wires meeting at a card.
+
+    The plate can go for free, and the reason is that the field IS this ink.
+    A band over the field composites to the same colour whether the ink under
+    it is painted here or read from the board behind it. Only where the
+    backdrop is NOT the field does the number matter, and that is exactly the
+    crossings:
+
+      ground   over the field   over another band
+      1.00        #AE5B46           #AE5B46
+      0.50        #AE5B46           #BA664A
+      0.00        #AE5B46           #C6704D
+
+    -- the value band over the when band, both muted. So the wires read as they
+    did everywhere a reader has already learnt them, and the places two of them
+    meet became the one thing on the board that was missing from it.
+
+    The fraction that remains is FILL_OPACITY's: a band takes 0.14 of whatever
+    is behind it, which is the whole budget a crossing has to work with.
+  */
+  reading: 0,
+  read: 0,
+  /*
+    FAILURE STAYS OPAQUE. It is diluted by nothing it crosses: a band that
+    reports a failure and takes a seventh of its colour from the wire beneath
+    it is a failure reported in a colour that is partly someone else's.
+  */
   failed: 1,
 }
 
@@ -183,9 +214,62 @@ const GROUND: Record<EdgeState, number> = {
 const EDGE_COLOUR: Record<EdgeState, string | null> = {
   missing: "rgb(var(--p-line-strong))",
   pending: null,
+  /*
+    NULL, WHERE THESE TWO USED TO BE ACCENT AND SUCCESS.
+
+    They took the wire's colour for the duration of a run and kept it after,
+    so every wire on the board was one colour while it ran and another when it
+    finished. The board's hues are spent on WHICH CARD a value comes from --
+    one per category, argued at the part palette -- and a state that repaints
+    them takes that away exactly when the board is fullest. The finished state
+    was the worse of the two: success is #b1fa63 against the source category's
+    green, so a board that had run drew every wire in the green that means
+    "from the area".
+
+    The state is said in the word at the wire's landing, which was already
+    drawn there and now carries the colour instead. A small mark in one place
+    rather than the whole picture repainted; see NOTE_COLOUR.
+  */
+  reading: null,
+  read: null,
+  /*
+    FAILURE STILL BREAKS THE PATTERN, because it has to be seen without being
+    looked for.
+
+    IT ALSO STILL COLLIDES. --p-wire-failed is #f95831 and the value
+    category's band is #F95831 -- the same colour for "this wire failed" and
+    "this wire carries a measurement". The token's own docblock says it is
+    "declared for this and nothing else", which was true when it was written
+    and stopped being true when the part palette landed. Left as it is rather
+    than replaced with a hex chosen here: the palette takes its values from
+    references, and picking a red to sit beside four of them is a decision for
+    that palette and not for this table.
+  */
+  failed: "var(--p-wire-failed)",
+}
+
+/**
+ * The colour of the word drawn where a wire lands.
+ *
+ * WHERE THE STATE LIVES NOW. The ribbon says which card the value came from
+ * and this says what has become of it, so the two questions have a channel
+ * each instead of taking turns on one.
+ *
+ * Null means the word is drawn the way it always was, in the ink the ribbon
+ * decides -- there is nothing to report in those two states and the word
+ * itself ("not set", "pending") is the whole message.
+ */
+const NOTE_COLOUR: Record<EdgeState, string | null> = {
+  missing: null,
+  pending: null,
   reading: "rgb(var(--p-accent))",
   read: "var(--success)",
-  failed: "var(--p-wire-failed)",
+  /*
+    Not repeated in the word: the whole ribbon is already this colour, and a
+    red word on a red band is the one place the state does not need saying
+    twice.
+  */
+  failed: null,
 }
 
 /**
@@ -208,8 +292,39 @@ const EDGE_COLOUR: Record<EdgeState, string | null> = {
 const FILL_OPACITY: Record<EdgeState, number> = {
   missing: 0,
   pending: 0,
-  reading: 0.92,
-  read: 0.92,
+  /*
+    0.86, DOWN FROM 0.92, AND THE TEXT FLOOR DECIDED HOW FAR.
+
+    The bands read louder than the cards they leave, which inverts the
+    hierarchy: the card states which part of the request it answers and the
+    ribbon carries that answer across the field, so a ribbon at nearly the
+    card's own strength competes with it. Eight per cent of the ink ground
+    showing through was not enough to put the two in order.
+
+    It cannot go much further, because this fraction also sets the contrast of
+    the reading written along the band. Measured against each category's own
+    ink, over --p-ink 30:
+
+      fill    source   when    method   value
+      0.92     5.62    10.99    6.45     4.19
+      0.86     5.03     9.74    6.95     3.82
+      0.80     4.53     8.60    7.46     3.45
+
+    `source` is the binding one -- 0.80 lands it exactly on the 4.5 text floor,
+    with nothing left for a later palette edit -- and `method` improves as the
+    band darkens, its ink being white. 0.86 darkens visibly and leaves the
+    tightest pair above the floor.
+
+    `value` IS ALREADY UNDER IT AND THIS DOES NOT FIX IT. #F95831 with
+    --b-value-ink #172726 measures 4.77 on the card, where the band is at full
+    strength, and 4.19 on a ribbon at 0.92 -- so the ribbon was below 4.5
+    before this change and is 3.82 after. The fraction is the wrong knob: at
+    0.86 a --b-value-ink of #0B0B0B measures 4.84. That is a palette value and
+    belongs in index.css beside the other three, not in a table about how
+    opaque a ribbon is.
+  */
+  reading: 0.86,
+  read: 0.86,
   /*
     OPAQUE, WHERE THE OTHER TWO ARE NEARLY SO. --p-wire-failed is the palette's
     #F95831 and the band is the darkest of the three; at 0.92 over the board's
@@ -275,6 +390,41 @@ const FILL_OPACITY: Record<EdgeState, number> = {
 const PANE_BLUR = 26
 const PANE_LIFT = 1.35
 const PANE_SATURATE = 1.7
+
+/**
+ * THE GRAIN, WHICH IS WHAT WAS MISSING FOR THE MATERIAL TO BE ACRYLIC.
+ *
+ * Blur, lift and saturation together describe a sheet that scatters -- and
+ * they describe smooth glass just as well as a rough one. What separates the
+ * two is that a rough face has a TEXTURE, and every implementation of this
+ * material that reads as acrylic rather than as a blur has one: the scatter
+ * is not perfectly even, and the unevenness is fine, static and achromatic.
+ *
+ * A fractal-noise tile rather than an image file: it is a few hundred bytes in
+ * the stylesheet, it has no request to make, and its frequency can be stated
+ * as a number here rather than baked into a raster nobody can adjust. 0.9 is
+ * high enough that the grain never resolves into a pattern at any zoom the
+ * board allows.
+ *
+ * PAINTED, NOT BLENDED, AND VERY NEARLY NOT THERE. At 0.055 it is below the
+ * threshold at which a reader can name it and above the one at which the
+ * surface stops looking like a screen effect -- which is the whole range this
+ * kind of texture has. Overlay and soft-light were both tried: on a band whose
+ * tint is already a sixth of its hue they push the mid-tones around more than
+ * a flat film does, and the wire's colour is the one thing here that must not
+ * move.
+ *
+ * The tile does not scale with the view. Grain is a property of the sheet's
+ * face and not of the scene, so it stays the same size as the board is zoomed,
+ * the way the reference's own texture does on a printed poster.
+ */
+const PANE_GRAIN =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' " +
+  "width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence " +
+  "type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/" +
+  "%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/" +
+  "%3E%3C/svg%3E\")"
+const PANE_GRAIN_ALPHA = 0.055
 
 /**
  * The tint over the scatter, where the wire leaves and where it lands.
@@ -362,6 +512,33 @@ const tint = (colour: string, weight: number) =>
  * starts being an outline drawn round the band.
  */
 const PANE_EDGE = 0.38
+
+/**
+ * WHAT SAYS A WIRE IS BEING READ: THE GLASS ITSELF, MOVING.
+ *
+ * A band of the same frosted material the waiting wires are made of, sliding
+ * along the ribbon and diffusing what it passes over -- the colour, and the
+ * reading written on it, which smears and comes back.
+ *
+ * IT WAS A BAR OF INK BEFORE THIS, and that is the version to argue against.
+ * The bar was filled with the band's own type colour, which is near-black on
+ * three of the four categories, so what travelled the wire was a dark smudge:
+ * a shadow crossing the band rather than the band being read. Nothing is
+ * casting a shadow here.
+ *
+ * The material is already on this surface -- every waiting wire is a pane of
+ * it -- so a reading wire is the one place where that same sheet is in motion.
+ * It costs no new vocabulary, and it is the one mark on the board that cannot
+ * be mistaken for a state drawn in colour, since it has no colour of its own.
+ *
+ * `SWEEP_LIFT` is the light it catches: a sheet of acrylic edge-on is brighter
+ * than what it lies over, and without it the bar reads as a smudge again --
+ * this time a pale one.
+ */
+const SWEEP_W = 78
+const SWEEP_BLUR = 7
+const SWEEP_LIFT = 1.16
+const SWEEP_TINT = 0.05
 
 /**
  * Whether a state's ribbon is bright enough to be written on in ink.
@@ -620,14 +797,29 @@ export interface CanvasEdge {
   /** The state in a word, drawn where the wire lands. Absent where the state is. */
   note?: string
   /**
-   * The colour this wire is drawn in while it has no outcome to report.
+   * The colour this wire is drawn in: the card it leaves.
    *
    * A CSS colour rather than a name, for the reason `subject` on CanvasNode
-   * gives: this file does not know what the caller's categories are. Ignored
-   * the moment the wire has a state that owns a colour -- see EDGE_COLOUR --
-   * because what is happening outranks what is being carried.
+   * gives: this file does not know what the caller's categories are.
+   *
+   * IT USED TO BE GIVEN UP THE MOMENT THE WIRE HAD A STATE, on the argument
+   * that what is happening outranks what is being carried. The two are not
+   * competing for the same channel any more -- see EDGE_COLOUR, where the
+   * states that are ordinary progress stopped taking one -- so this holds
+   * throughout a run and a wire keeps saying which card it comes from while
+   * it reports what has become of it.
    */
   paint?: string
+  /**
+   * What can be written on `paint`.
+   *
+   * A band at full strength decides its own type colour, which is why the
+   * caller's palette declares one per category and hands it over rather than
+   * letting this file pick. Read only where the wire is drawn in `paint`: the
+   * states that still own a colour bring their own answer in INK_ON, because
+   * the colour is theirs and so is the contrast against it.
+   */
+  paintInk?: string
 }
 
 interface View {
@@ -1142,6 +1334,7 @@ export function NodeCanvas({
         */}
         {edges.map((edge) => {
           const { from, to, state, name, label, note, paint: own } = edge
+          const ownInk = edge.paintInk
           const a = byId.get(from)
           const b = byId.get(to)
           if (!a || !b) return null
@@ -1268,8 +1461,24 @@ export function NodeCanvas({
           */
           const title =
             value && p.w >= RIBBON_TWO_LINE_W ? clip(name, chars) : ""
-          const ink = INK_ON[st]
-          const type = ink ? "rgb(var(--p-ink))" : "rgb(var(--p-text))"
+          /*
+            THE TYPE COLOUR FOLLOWS WHOEVER PAINTED THE BAND.
+
+            INK_ON answers for the states that own a colour, and it can: the
+            colour is the table's and so is the contrast against it. It cannot
+            answer for a band drawn in the caller's category hue, which is four
+            colours here and could be forty -- #FFD000 takes dark type and
+            #7231FF takes white, and a table in this file would be guessing at
+            both. The caller declares one ink per category and hands it over
+            with the paint; see CanvasEdge.paintInk.
+          */
+          const painted = EDGE_COLOUR[st] === null && !!own
+          const ink = painted ? false : INK_ON[st]
+          const type = painted
+            ? (ownInk ?? "rgb(var(--p-text))")
+            : ink
+              ? "rgb(var(--p-ink))"
+              : "rgb(var(--p-text))"
           return (
             <Fragment key={key}>
               {/*
@@ -1303,7 +1512,24 @@ export function NodeCanvas({
                       PANE_TINT_HEAD
                     )}, ${tint(stroke, PANE_TINT_TAIL)})`,
                   }}
-                />
+                >
+                  {/*
+                    The face of the sheet. A child rather than a second
+                    background layer on the pane, because the tint is a
+                    gradient and stacking a tile over a gradient in one
+                    `background` makes the two share a blend mode -- and the
+                    grain wants none while the tint wants none either. See
+                    PANE_GRAIN.
+                  */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: PANE_GRAIN,
+                      opacity: PANE_GRAIN_ALPHA,
+                    }}
+                  />
+                </div>
               )}
               <svg
                 width={1}
@@ -1323,12 +1549,28 @@ export function NodeCanvas({
                 </defs>
                 {carrying && !glass && (
                   <>
-                    {/* The ground, and then the colour. See GROUND. */}
-                    <path
-                      d={ribbon}
-                      fill="rgb(var(--p-ink))"
-                      fillOpacity={GROUND[st]}
-                    />
+                    {/*
+                      The ground, and then the colour. See GROUND -- which is
+                      zero for both of the ordinary states now, so this is
+                      drawn for failure alone and skipped rather than painted
+                      at nothing.
+                    */}
+                    {GROUND[st] > 0 && (
+                      <path
+                        d={ribbon}
+                        fill="rgb(var(--p-ink))"
+                        fillOpacity={GROUND[st]}
+                      />
+                    )}
+                    {/*
+                      No filter here any more. The bands were desaturated at
+                      this call site while the card headers were not, which put
+                      one decision in two mechanisms -- an SVG colour matrix
+                      over a path, and nothing at all over the CSS background
+                      that paints the same hue on a card. The chroma came out
+                      of the tokens instead; see the note on --b-source-head in
+                      index.css.
+                    */}
                     <path d={ribbon} fill={stroke} fillOpacity={FILL_OPACITY[st]} />
                   </>
                 )}
@@ -1357,32 +1599,35 @@ export function NodeCanvas({
                   running the length of it for no reason a reader could name.
                   A ribbon has its own boundary.
 
-                  The two that remain are not seams. Where an input is absent
+                  THE ONE THAT REMAINS IS NOT A SEAM. Where an input is absent
                   there is no ribbon at all and this IS the wire, drawn broken
-                  because nothing passes along it; where a run is reading, the
-                  same dash travels. One mark saying opposite things, and only
-                  because one of them moves -- nothing else on this surface
-                  does, so motion is unambiguous here in a way a second colour
-                  would not be.
+                  because nothing passes along it.
+
+                  A reading used to be drawn with the same dash, travelling.
+                  See SWEEP_W: it is light now, and this mark went back to
+                  meaning one thing.
                 */}
-                {(st === "missing" || st === "reading") && (
+                {st === "missing" && (
                   <path
                     d={line}
                     fill="none"
-                    stroke={st === "reading" ? type : stroke}
+                    stroke={stroke}
                     strokeWidth={1.5}
-                    strokeOpacity={st === "missing" ? 0.5 : st === "reading" ? 0.5 : 0.85}
-                    strokeDasharray={
-                      st === "missing" ? "3 4" : st === "reading" ? "6 6" : undefined
-                    }
-                    className={st === "reading" ? "wire-active" : undefined}
+                    strokeOpacity={0.5}
+                    strokeDasharray="3 4"
                   />
                 )}
                 {title && (
                   <text
                     dy={NAME_DY}
                     fill={type}
-                    fillOpacity={ink ? 0.75 : 0.65}
+                    /*
+                      The weaker line, at the weight its type colour can carry.
+                      A painted band takes the dark-ink weight whether its own
+                      ink is dark or light: the caller chose that colour for
+                      this band, so it is already the one that reads on it.
+                    */
+                    fillOpacity={painted || ink ? 0.75 : 0.65}
                     style={{
                       fontFamily: "var(--font-mono)",
                       fontSize: NAME_PX,
@@ -1427,7 +1672,7 @@ export function NodeCanvas({
                     x={x2 - NOTE_LEAD}
                     y={qy + 3.5}
                     textAnchor="end"
-                    fill={carrying ? type : stroke}
+                    fill={NOTE_COLOUR[st] ?? (carrying ? type : stroke)}
                     fillOpacity={st === "pending" || st === "missing" ? 0.75 : 1}
                     style={{
                       fontFamily: "var(--font-mono)",
@@ -1439,6 +1684,59 @@ export function NodeCanvas({
                   </text>
                 )}
               </svg>
+              {/*
+                THE MOVING PANE, ABOVE THE SVG BECAUSE THAT IS WHAT IT READS.
+
+                backdrop-filter takes what is BEHIND the element, so this has
+                to be painted after the band and its reading or there would be
+                nothing under it to diffuse. It is the same construction as the
+                waiting pane above -- a clipped div, no SVG -- for the reason
+                that one gives: only CSS has a backdrop.
+
+                Masked at both ends rather than cut. A rectangle of glass with
+                two hard edges travelling a band reads as a card sliding along
+                it; the mask takes the edges off so what passes is the frost
+                and not its boundary.
+              */}
+              {st === "reading" && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute overflow-hidden"
+                  style={{
+                    left: bx,
+                    top: by,
+                    width: bw,
+                    height: bh,
+                    clipPath: paneClip,
+                    WebkitClipPath: paneClip,
+                  }}
+                >
+                  <div
+                    className="wire-sweep absolute top-0 h-full"
+                    style={
+                      {
+                        left: -SWEEP_W,
+                        width: SWEEP_W,
+                        backdropFilter: `blur(${SWEEP_BLUR}px) brightness(${SWEEP_LIFT})`,
+                        WebkitBackdropFilter: `blur(${SWEEP_BLUR}px) brightness(${SWEEP_LIFT})`,
+                        /*
+                      No grain on this one, unlike the pane it is made of.
+                      Grain is a static property of a face; carried by an
+                      element that moves it becomes a texture crawling across
+                      the band, which is a screen effect and not a material.
+                      What this sheet shows in motion is the diffusion.
+                    */
+                    background: `rgb(255 255 255 / ${SWEEP_TINT})`,
+                        maskImage:
+                          "linear-gradient(90deg, transparent, #000 38%, #000 62%, transparent)",
+                        WebkitMaskImage:
+                          "linear-gradient(90deg, transparent, #000 38%, #000 62%, transparent)",
+                        "--sweep-travel": `${bw + SWEEP_W * 2}px`,
+                      } as React.CSSProperties
+                    }
+                  />
+                </div>
+              )}
             </Fragment>
           )
         })}
@@ -1462,7 +1760,7 @@ export function NodeCanvas({
                 either way -- the header keeps its accent plate -- and this says
                 whether the action is under way.
               */
-              n.status === "busy" ? "border-warning/70" : undefined
+              n.status === "busy" ? "card-busy border-warning/70" : undefined
             )}
             style={{
               left: n.place.x,
@@ -1568,15 +1866,20 @@ export function NodeCanvas({
                 it is true, and it is the sole non-textual mark of that: the
                 stage beneath it is a word, and a word is not what tells a
                 reader who is looking elsewhere on the board that the run went.
+
+                IT MOVED OUT OF THIS LIST, and that is why only the depth is
+                here now. Composed inline it was a fixed halo: a constant ring
+                of light around a card whose whole message is that something is
+                happening, said in the one way that cannot say it -- a mark
+                that does not change looks like a property of the card. It
+                breathes now, from `.card-busy` in index.css, which is also
+                where the wire's travelling light lives. The two are the same
+                statement at two scales and are written next to each other.
               */
-              boxShadow: [
+              boxShadow:
                 lifted === n.id
                   ? "0 14px 34px -10px rgb(0 0 0 / 0.62)"
                   : "0 6px 18px -8px rgb(0 0 0 / 0.5)",
-                n.status === "busy" ? "0 0 22px -6px var(--warning)" : null,
-              ]
-                .filter(Boolean)
-                .join(", "),
             }}
           >
             {/*

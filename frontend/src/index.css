@@ -1234,18 +1234,82 @@
   as a request that cannot be made. The dash pattern is set as a presentation
   attribute on the path and cleared here, which CSS is allowed to do.
 */
-.wire-active {
-  animation: wire-travel 900ms linear infinite;
+/*
+  WORK UNDER WAY, AT TWO SCALES.
+
+  A soft bar crossing a ribbon, and the card the ribbons arrive at breathing.
+  Both are LIGHT rather than colour: the board spends colour on which card a
+  value comes from, and a second thing said in hue would be a second reading of
+  the same channel. Light is the one property nothing else on this surface
+  uses.
+
+  The wire's bar was a travelling dash before this -- the same broken line the
+  board draws for a wire with nothing to carry, told apart only by moving. The
+  card's glow was a fixed halo, which is the one way a mark cannot say
+  "something is happening": a ring that never changes reads as a property of
+  the card.
+
+  Travel is given per wire, in the ribbon's own width plus the bar on either
+  side, because a short wire and a long one have to take the same time. See
+  SWEEP_W in NodeCanvas.tsx.
+*/
+.wire-sweep {
+  animation: wire-sweep 1900ms linear infinite;
+  /*
+    Its own layer. The element carries a backdrop-filter and moves every frame;
+    without this the compositor re-reads the backdrop from the page on each
+    step, which is the one thing on this board expensive enough to drop frames
+    while several wires are being read at once.
+  */
+  will-change: transform;
 }
-@keyframes wire-travel {
+@keyframes wire-sweep {
   to {
-    stroke-dashoffset: -12;
+    transform: translateX(var(--sweep-travel));
   }
 }
+
+/*
+  The glow is a layer of its own rather than a second entry in the card's
+  box-shadow, so it can be animated without the depth shadow -- which carries
+  the drag and must not breathe -- being animated with it. `inherit` on the
+  radius keeps it in step with the card's corners wherever those are set.
+*/
+.card-busy {
+  position: relative;
+}
+.card-busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 26px -4px var(--warning);
+  animation: card-busy 2200ms ease-in-out infinite;
+}
+@keyframes card-busy {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/*
+  Reduced motion keeps the STATEMENT and drops the movement. The wire's light
+  is withdrawn -- a bar parked at one end of a ribbon says nothing and hides
+  part of the reading written on it -- and the card's glow is held at a
+  constant weight, which is what it was before it learnt to breathe.
+*/
 @media (prefers-reduced-motion: reduce) {
-  .wire-active {
+  .wire-sweep {
+    display: none;
+  }
+  .card-busy::after {
     animation: none;
-    stroke-dasharray: none;
+    opacity: 0.8;
   }
 }
 
