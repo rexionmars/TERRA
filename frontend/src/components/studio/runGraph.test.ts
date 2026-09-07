@@ -135,6 +135,31 @@ describe("cards no edge reaches", () => {
     }
   })
 
+  /*
+    THE CARD THAT CHOSE THE FAMILY IS ON THE GRAPH THE CHOICE PRODUCES.
+
+    On the energy entry the product card draws the nine labels, so it is not
+    only a description of the run -- it is the only control that can change
+    which run is being described. A branch that leaves it out takes the choice
+    off the board the moment it is made, and the reader is held on whichever
+    product they last picked with nothing to press. Wind did exactly that.
+
+    Asserted across every energy graph rather than against wind alone, because
+    the fault was not that wind was wrong: it was that eight branches agreed
+    and nothing said they had to.
+  */
+  it("does not include the product card, which every energy graph carries", () => {
+    const energy = GRAPHS.filter(([name]) => isEnergy(name))
+    expect(energy.length).toBe(9)
+    for (const [name, graph] of energy) {
+      expect(
+        graph.nodes.map((n) => n.id),
+        name
+      ).toContain("product")
+      expect(graph.edges.flat(), name).toContain("product")
+    }
+  })
+
   it("is nothing at all on the graphs that are not energy", () => {
     const rest = GRAPHS.filter(([name]) => !isEnergy(name))
     expect(rest.length).toBe(5)
