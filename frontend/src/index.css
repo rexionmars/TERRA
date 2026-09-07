@@ -305,16 +305,19 @@
     SO A CARD IS A GROUND WITH A BAND OF ACCENT ON IT, which is how the posters
     themselves are built -- #FE7733 with near-black type on it, #23262C with
     pale type. The body is the ground, the same one for every card. The header
-    is the part's accent at FULL STRENGTH, and it carries its own ink, because
-    dark type on a bright band is what the reference does and what the band's
-    lightness requires.
+    is the part's accent, and it carries its own ink, because dark type on a
+    bright band is what the reference does and what the band's lightness
+    requires.
 
-    TYPE OF DATA IS THE HUE, AND THERE IS ONE PER PART:
+    TYPE OF DATA IS THE HUE, AND THERE IS ONE PER PART. The reference each was
+    taken from, beside the value actually painted -- see the note on
+    --b-source-head for why the second column is not the first:
 
-      source  #80B918  Toxic Forest's green      WHERE a run reads
-      when    #FFD000  Cyber Punch's yellow      OVER WHAT STRETCH
-      method  #7231FF  Instagram's violet        BY WHICH METHOD
-      value   #F95831  Forest Ritual's orange    AT WHAT VALUES
+      part     reference           painted    WHAT IT ANSWERS
+      source   #80B918 Toxic Forest    #8DB04F    WHERE a run reads
+      when     #FFD000 Cyber Punch     #EACE51    OVER WHAT STRETCH
+      method   #7231FF Instagram       #633CB8    BY WHICH METHOD
+      value    #F95831 Forest Ritual   #C5654D    AT WHAT VALUES
 
     WEIGHT IN THE WORKFLOW IS THE RING. A heavy part -- one whose change makes
     the run a different question -- is ringed in its own accent and reads as an
@@ -323,7 +326,7 @@
     which is where that ordering is argued. Two channels, and each is now a
     line rather than a weight in a table.
 
-    THE ADJACENCY TO WATCH is value's #F95831 against the run card's #FCA311:
+    THE ADJACENCY TO WATCH is value's #C5654D against the run card's #DCA64F:
     both are warm, and on the solar board the losses card sits beside the run
     card. They are a red-orange and a gold, and they are the two the palettes
     give that are closest together. Moving either is one line.
@@ -343,36 +346,92 @@
   --b-card-edge: #3A3F47;
   --b-card-ink: #C2C3C5;
 
+  /*
+    THE FOUR BANDS AT 0.6 OF THEIR CHROMA, AND WHY THE LITERALS MOVED.
+
+    The references were taken at full chroma and the board read as alive: four
+    saturated headers, and four saturated ribbons carrying them across a field
+    whose subject is the cards. Quieting them is one edit here rather than a
+    filter at each of the two call sites -- the header is a CSS background and
+    the ribbon an SVG path, so a call-site answer would have been two different
+    mechanisms for one decision, which is the composition this block was made
+    to end.
+
+    Measured, hue against its own ink, before and after:
+
+      part     head       ink        before  after
+      source   #8DB04F    #23262C     6.40   6.08
+      when     #EACE51    #121212    12.73  12.00
+      method   #633CB8    #FFFFFF     5.84   7.28
+      value    #C5654D    #0B0B0B     4.77   5.01
+
+    THE VALUE INK HAD TO MOVE WITH IT. Against #172726 the muted band measures
+    3.94, under the 4.5 floor this palette is chosen against -- so the pair
+    that was tightest at full chroma is the one the mute breaks. #0B0B0B takes
+    it to 5.01, which is more headroom than it had before. The other three inks
+    are unchanged.
+
+    IT IS A STEP TOWARD THE MIDDLE THIS PALETTE ARGUES AGAINST, and that is
+    worth stating rather than hiding. The references hold a ground and an
+    accent with nothing between, and the first scheme died in that gap. This is
+    not that move: a tint of an accent over a ground IS a ground, and these
+    keep their lightness and lose only chroma -- #8DB04F is still an accent,
+    at C 0.11 where the reference is at C 0.18. The gap remains empty; the
+    accents stand a little further from its edge.
+
+    The heavy parts ring themselves, so source and when carry the same value in
+    -edge. The light parts ring in the ground and are untouched there.
+  */
   /* WHERE a run reads -- the area, a scene, a store. Heavy: ringed in itself. */
   --b-source-body: #23262C;
-  --b-source-head: #80B918;
-  --b-source-edge: #80B918;
+  --b-source-head: #8DB04F;
+  --b-source-edge: #8DB04F;
   --b-source-ink: #23262C;
 
   /* OVER WHAT STRETCH -- a period, a window, a depth of record. Heavy. */
   --b-when-body: #23262C;
-  --b-when-head: #FFD000;
-  --b-when-edge: #FFD000;
+  --b-when-head: #EACE51;
+  --b-when-edge: #EACE51;
   --b-when-ink: #121212;
 
   /* BY WHICH METHOD -- a model, an index, a product, a set of bands. Light:
      the accent stays in the band and the ring is the ground's own. */
   --b-method-body: #23262C;
-  --b-method-head: #7231FF;
+  --b-method-head: #633CB8;
   --b-method-edge: #3A3F47;
   --b-method-ink: #FFFFFF;
 
   /* AT WHAT VALUES -- a threshold, a slope, a ratio, a loss. Light. */
   --b-value-body: #23262C;
-  --b-value-head: #F95831;
+  --b-value-head: #C5654D;
   --b-value-edge: #3A3F47;
-  --b-value-ink: #172726;
+  --b-value-ink: #0B0B0B;
 
-  /* The run card: where the request ends, and the one control asking to be
-     pressed. Ringed in itself, like a heavy part, because it is the loudest
-     thing on the board by role. */
-  --b-action-head: #FCA311;
-  --b-action-edge: #FCA311;
+  /*
+    The run card: where the request ends, and the one control asking to be
+    pressed. Ringed in itself, like a heavy part.
+
+    IT USED TO BE THE LOUDEST THING ON THE BOARD AND THAT WAS THE WRONG HALF OF
+    IT. #FCA311 measures 174 of chroma against the run button's 121 -- the
+    button being --p-accent, the chassis's own press-me colour -- so the one
+    control on this board that asks to be pressed was less saturated than the
+    plate it sits on. Two warm bands stacked read as one orange block and no
+    invitation, which is the state the card was found in.
+
+    At 0.6, with the four parts, it becomes #DCA64F at 105: below the button
+    rather than above it. The role this comment claims is unchanged and is now
+    carried by the control instead of by the plate around it -- the header
+    names the card, the button is the action, and only one of them is loud.
+
+    Its ink is unaffected: 7.50 against #23262C before, 6.95 after.
+
+    THE ADJACENCY IS TIGHTER NOW, not looser. This sits beside the value card
+    on the solar board, and value muted to #C5654D measures 90 -- so the two
+    warm bands are 15 apart in chroma and 1.80 in lightness, separated mostly
+    by hue. Moving either is still one line.
+  */
+  --b-action-head: #DCA64F;
+  --b-action-edge: #DCA64F;
   --b-action-ink: #23262C;
 
   /* On the graph, not in the request. Forest Ritual's slate: the one band here
@@ -504,32 +563,33 @@
 
   /* WHERE a run reads -- the area, a scene, a store. Heavy: ringed in itself. */
   --b-source-body: #F4F4F4;
-  --b-source-head: #80B918;
-  --b-source-edge: #80B918;
+  --b-source-head: #8DB04F;
+  --b-source-edge: #8DB04F;
   --b-source-ink: #23262C;
 
   /* OVER WHAT STRETCH -- a period, a window, a depth of record. Heavy. */
   --b-when-body: #F4F4F4;
-  --b-when-head: #FFD000;
-  --b-when-edge: #FFD000;
+  --b-when-head: #EACE51;
+  --b-when-edge: #EACE51;
   --b-when-ink: #121212;
 
   /* BY WHICH METHOD -- a model, an index, a product, a set of bands. Light:
      the accent stays in the band and the ring is Silver. */
   --b-method-body: #F4F4F4;
-  --b-method-head: #7231FF;
+  --b-method-head: #633CB8;
   --b-method-edge: #C2C3C5;
   --b-method-ink: #FFFFFF;
 
   /* AT WHAT VALUES -- a threshold, a slope, a ratio, a loss. Light. */
   --b-value-body: #F4F4F4;
-  --b-value-head: #F95831;
+  --b-value-head: #C5654D;
   --b-value-edge: #C2C3C5;
-  --b-value-ink: #172726;
+  --b-value-ink: #0B0B0B;
 
-  /* The run card: where the request ends. Ringed in itself. */
-  --b-action-head: #FCA311;
-  --b-action-edge: #FCA311;
+  /* The run card: where the request ends. Ringed in itself. Muted with the
+     four parts; see the dark block for the measurement. */
+  --b-action-head: #DCA64F;
+  --b-action-edge: #DCA64F;
   --b-action-ink: #23262C;
 
   /* On the graph, not in the request. */
