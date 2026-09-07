@@ -3609,6 +3609,7 @@ function AppBody(props: {
                 transition={SCREEN}
               >
                 <StudioScreen
+                  onOpenReading={openSavedAnalysis}
                   activeProjectId={activeProjectId}
                   activeProjectName={
                     projects.find((p) => p.id === activeProjectId)?.name ?? null

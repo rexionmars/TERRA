@@ -31,13 +31,29 @@
  *     the studio already has one across its own foot for the same reason: a
  *     count is what tells you whether a filter did what you meant.
  *
- * NO THUMBNAILS, AND NOT AS A SHORTCUT. Unreal renders one per asset; a run's
- * raster is not on the row that lists it -- `overlay_uri` arrives with the
- * loaded payload, so a wall of thumbnails is a wall of loads. What is drawn
- * instead is what Unreal draws for an asset whose thumbnail has not been
- * rendered: a type plate, with the product's own colour along its foot. The
- * colour is doing the work the thumbnail would: telling you, at a glance across
- * the grid, which of these are classifications and which are not.
+ * THUMBNAILS, WHICH THIS PANEL WENT WITHOUT. The reasoning against them was
+ * about the PAYLOAD and it was right about that: `overlay_uri` arrives with the
+ * loaded result, so a wall of thumbnails drawn from it is a wall of loads. What
+ * it missed is that the payload is not the only place the raster is -- every
+ * run that writes one records where, in `overlay_relpath` -- and that a file on
+ * disk can be FETCHED rather than marshalled. See runoverlay.go, which serves
+ * one by run id.
+ *
+ * The column could not be read until recently: two products out of five filled
+ * it, so a reader of it was right for a fifth of the grid and silently wrong
+ * for the rest. All five fill it now.
+ *
+ * THE PLATE STAYS, and not only as a fallback. It is what Unreal draws for an
+ * asset whose thumbnail has not been rendered, and it is the honest answer for
+ * a run that has no raster at all: the wind screening and the solar resource
+ * are figures, and a picture invented for them would say they have one. Each
+ * product's own glyph is what it carries, so the plate answers by product and
+ * not merely by absence.
+ *
+ * THE TYPE STRIP WENT WITH THE ARRIVAL OF THE PICTURE. See RunTile: a band of
+ * the product's colour was the only thing naming a product while every tile
+ * was the same plate, and it is a third statement of that once the tile has a
+ * thumbnail and a glyph.
  *
  * SELECTION IS SINGLE. Unreal's is not, because its operations are bulk ones.
  * Every operation here is on one thing -- open it, move it, delete it -- and a
@@ -51,8 +67,8 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   CaretRight,
-  ChartBar,
   Check,
+  Drop,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -60,9 +76,11 @@ import {
   List,
   MagnifyingGlass,
   SquaresFour,
+  Sun,
   Trash,
   Tray,
   Waves,
+  Wind,
   X,
 } from "@phosphor-icons/react"
 
@@ -70,6 +88,7 @@ import {
   CreateProject,
   DeleteAnalysis,
   DeleteProject,
+  RunOverlayURL,
   SetRunProject,
   UpdateProject,
 } from "../../../wailsjs/go/main/App"
@@ -107,7 +126,27 @@ const SOURCES_REM = 11.5
  * The first pass was 8.5 by 52px -- a 2.5:1 slab, on which a folder's tab is
  * lost and what reads is a grey rectangle.
  */
-const TILE_PLATE = "h-[4.5rem] w-full shrink-0 overflow-hidden rounded-sm"
+/*
+  The plate, and the tile it sits in, at two thirds of what they were.
+
+  The grid is for walking rather than jumping -- its own docblock says so -- and
+  a walk is over how many things fit in a glance. At 7.5rem a run took a fifth
+  of the panel's width and a project's dozen filled two screens of it.
+
+  THE LABEL IS THE FLOOR, and it is close now. A run is named for its area and
+  the minute it was made -- run-joao-2-2-20260907-051032 -- and the two clamped
+  lines under the plate are what a reader tells one run from another by, since
+  the plates of a project's runs are commonly the same product and therefore
+  the same picture. At 5rem those two lines hold about the ground and the day;
+  narrower and they hold the ground alone, which is the point at which the grid
+  stops answering the question it is for.
+
+  The plate keeps the tile's proportion rather than a height of its own: a
+  thumbnail is a raster's aspect and a plate is the frame it would be in, so
+  the two have to be the same frame.
+*/
+const TILE_W = "w-[5rem]"
+const TILE_PLATE = "h-[3rem] w-full shrink-0 overflow-hidden rounded-sm"
 
 /**
  * The products, and the token each one's plate is tinted with.
@@ -127,12 +166,30 @@ const TILE_PLATE = "h-[4.5rem] w-full shrink-0 overflow-hidden rounded-sm"
  * specialised products are what stand out -- which is the question the colour
  * is here to answer.
  */
+/*
+  ONE GLYPH PER PRODUCT, IN THE TABLE THAT ALREADY HOLDS ONE OF EVERYTHING ELSE.
+
+  The plate drew a bar chart for every run but the two watery ones, which is a
+  glyph for "there are figures here" -- true of all five, so it distinguished
+  nothing. It mattered most on exactly the runs that have no raster to show
+  instead: a wind screening and a solar resource are a plate and a label, and
+  the plate was the same picture for both.
+
+  Each is the thing the product is ABOUT rather than a picture of its output. A
+  land cover is a mosaic of classes, surface water is a water surface, a flood
+  envelope is where water reaches -- a drop rather than the water's own waves,
+  since the two are neighbours in the grid and share a colour family. Sun and
+  wind name themselves.
+
+  Here rather than in the component, beside the label and the colour, so a
+  product added to this table cannot arrive without one.
+*/
 const KINDS = [
-  { id: "class", label: "Classification", token: "--p-kind-class" },
-  { id: "water", label: "Surface water", token: "--p-kind-water" },
-  { id: "solar", label: "Solar", token: "--p-kind-solar" },
-  { id: "wind", label: "Wind", token: "--p-kind-wind" },
-  { id: "flood", label: "Flood", token: "--p-kind-flood" },
+  { id: "class", label: "Classification", token: "--p-kind-class", icon: SquaresFour },
+  { id: "water", label: "Surface water", token: "--p-kind-water", icon: Waves },
+  { id: "solar", label: "Solar", token: "--p-kind-solar", icon: Sun },
+  { id: "wind", label: "Wind", token: "--p-kind-wind", icon: Wind },
+  { id: "flood", label: "Flood", token: "--p-kind-flood", icon: Drop },
 ] as const
 
 /** The token as a colour, at an alpha. One place, so the syntax is right once. */
@@ -171,6 +228,7 @@ export function StudioBrowser({
   activeProjectId = null,
   onActivateProject,
   onOpenRun,
+  onOpenReading,
   busy = false,
 }: {
   /** Portal host for the context menus, clamped inside it as every panel is. */
@@ -178,8 +236,15 @@ export function StudioBrowser({
   activeProjectId?: string | null
   /** Make a project the one new runs are filed under. */
   onActivateProject?: (id: string) => void
-  /** Load a run and put it on the board. */
+  /** Load a run and put it on the board, as an area of its own. */
   onOpenRun?: (run: InferenceRun) => void
+  /**
+   * Load a run as the live one, so its reading is what the panels show.
+   *
+   * The other half of what a saved run can be asked for, and the only half
+   * that answers for a product with no raster. See the menu below.
+   */
+  onOpenReading?: (run: InferenceRun) => void
   /** A run is already loading; a second request would race the first. */
   busy?: boolean
 }) {
@@ -825,12 +890,44 @@ export function StudioBrowser({
           title={runLabel(runMenu.run)}
           onClose={() => setRunMenu(null)}
         >
+          {/*
+            WHAT A RUN CAN BE ASKED FOR DEPENDS ON WHETHER IT DREW ANYTHING.
+
+            This offered one action under one name, "Open in the studio",
+            which was wrong twice. The reader is already in the studio, so it
+            named a place they are standing in; and what it does is neither
+            opening nor navigating -- it loads the run and puts it on the
+            board as an area of its own.
+
+            A BOARD HOLDS PLANES, so a run that drew none has nothing to be on
+            it: a wind screening added this way became an area with nothing in
+            it, which is how a finished run came to look lost. What such a run
+            has is a reading, and the reading is in a panel -- so that is what
+            it is offered, and the board action is withheld rather than
+            offered and disappointing.
+
+            overlay_relpath is the test, and it is the right one now: every
+            product that writes a raster records it, and the three that do not
+            -- the wind screening, the solar resource, the energy model -- are
+            exactly the three whose whole result is figures.
+          */}
           <StudioMenuItem
-            icon={ChartBar}
-            label="Open in the studio"
-            disabled={busy || !onOpenRun}
+            icon={
+              (KIND_BY_ID.get(runKindLabel(runMenu.run.kind) as KindId) ??
+                KINDS[0]).icon
+            }
+            label={
+              runMenu.run.overlay_relpath
+                ? "Add to the board"
+                : "Open its reading"
+            }
+            disabled={
+              busy ||
+              (runMenu.run.overlay_relpath ? !onOpenRun : !onOpenReading)
+            }
             onSelect={() => {
-              onOpenRun?.(runMenu.run)
+              if (runMenu.run.overlay_relpath) onOpenRun?.(runMenu.run)
+              else onOpenReading?.(runMenu.run)
               setRunMenu(null)
             }}
           />
@@ -1232,7 +1329,7 @@ function FolderTile({
       }}
       title={`${name} — ${count} ${count === 1 ? "analysis" : "analyses"}. Double-click to open.`}
       className={cn(
-        "flex w-[7.5rem] flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors",
+        `flex ${TILE_W} flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors`,
         "hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
@@ -1309,10 +1406,40 @@ function FolderRow({
   )
 }
 
-/** The plate a tile and a row share: a product's glyph over its own colour. */
+/**
+ * The address of a run's image, or null where it has none.
+ *
+ * ASKED ONLY WHERE THE ROW SAYS THERE IS ONE. `overlay_relpath` is on the row
+ * already, so a run whose result is figures costs nothing here -- no call, no
+ * request, no failed <img>. The address itself comes from the Go side rather
+ * than being built here, because the route's shape is that file's business and
+ * a second copy of the prefix is a second place to edit when it moves.
+ */
+function useRunOverlay(run: InferenceRun): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  const has = !!run.overlay_relpath
+  useEffect(() => {
+    if (!has) {
+      setUrl(null)
+      return
+    }
+    let live = true
+    void RunOverlayURL(run.id)
+      .then((u) => live && setUrl(u || null))
+      .catch(() => live && setUrl(null))
+    return () => {
+      live = false
+    }
+  }, [run.id, has])
+  return url
+}
+
+/** The plate a tile and a row share: the run's raster, else its type. */
 function KindPlate({ run, size }: { run: InferenceRun; size: "tile" | "row" }) {
   const kind = KIND_BY_ID.get(runKindLabel(run.kind) as KindId) ?? KINDS[0]
-  const Icon = kind.id === "water" || kind.id === "flood" ? Waves : ChartBar
+  const Icon = kind.icon
+  const overlay = useRunOverlay(run)
+  const [failed, setFailed] = useState(false)
   return (
     <div
       className={cn(
@@ -1321,11 +1448,41 @@ function KindPlate({ run, size }: { run: InferenceRun; size: "tile" | "row" }) {
       )}
       style={{ background: tint(kind.token, 0.14) }}
     >
-      <Icon
-        className={size === "tile" ? "size-6" : "size-3.5"}
-        style={{ color: tint(kind.token) }}
-        strokeWidth={1.75}
-      />
+      {overlay && !failed ? (
+        /*
+          `lazy`, because the grid is meant to be scrolled and a project's runs
+          are counted in dozens: a row that has not been reached costs its
+          request only when it is.
+
+          `pixelated` for the same reason the board's planes are: every raster
+          this application draws is a class map or a measured field, and a
+          blend of two class colours at a plate this size names no class.
+
+          An image that fails falls back to the plate rather than to a broken
+          icon. The file can be gone -- a store restored without its assets, a
+          run whose directory was cleared -- and the type is still true.
+        */
+        <img
+          src={overlay}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="size-full object-cover [image-rendering:pixelated]"
+        />
+      ) : (
+        <Icon
+          /*
+            A third of the plate's height, which is what it was before the
+            plate shrank: the glyph is the plate's subject and a mark that
+            keeps its size while its frame loses a third becomes the frame's
+            subject instead.
+          */
+          className={size === "tile" ? "size-4" : "size-3.5"}
+          style={{ color: tint(kind.token) }}
+          strokeWidth={1.75}
+        />
+      )}
     </div>
   )
 }
@@ -1345,7 +1502,6 @@ function RunTile({
   onOpen: () => void
   onContext: (at: { x: number; y: number }) => void
 }) {
-  const kind = KIND_BY_ID.get(runKindLabel(run.kind) as KindId) ?? KINDS[0]
   return (
     <button
       type="button"
@@ -1358,7 +1514,7 @@ function RunTile({
       aria-current={on ? "true" : undefined}
       title={`${runLabel(run)} — ${runRowLine(run)}`}
       className={cn(
-        "flex w-[7.5rem] flex-col gap-1 rounded-sm border p-1 text-left transition-colors",
+        `flex ${TILE_W} flex-col gap-1 rounded-sm border p-1 text-left transition-colors`,
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         on
           ? "border-primary/60 bg-primary/10"
@@ -1366,12 +1522,19 @@ function RunTile({
       )}
     >
       <KindPlate run={run} size="tile" />
-      {/* The type strip along the plate's foot, which is what Unreal's tile
-          carries and what makes the grid readable by product at a glance. */}
-      <span
-        className="h-[2px] w-full rounded-full"
-        style={{ background: tint(kind.token) }}
-      />
+      {/*
+        NO TYPE STRIP. A two-pixel band of the product's colour ran along the
+        plate's foot, and it was the colour doing the thumbnail's work: with no
+        picture on the tile, it was the only thing telling a classification
+        from a water run across the grid.
+
+        There is a picture now, and a glyph per product behind it where there
+        is none -- so the strip became a third statement of what the tile
+        already said twice, in the position where a tile is read fastest. It
+        also fought the thumbnails it sat under: a raster is a field of colour,
+        and a saturated line beneath one is a caption in the same ink as the
+        photograph.
+      */}
       <span className="line-clamp-2 text-emphasis leading-snug text-foreground">
         {runLabel(run)}
       </span>

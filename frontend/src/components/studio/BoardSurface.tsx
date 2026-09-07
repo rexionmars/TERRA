@@ -492,6 +492,7 @@ export function BoardSurface({
   solarResults = EMPTY_SOLAR_RESULTS,
   onClearSolar,
   windResult = null,
+  onOpenReading,
   onClearWind,
   floodResult = null,
   onClearFlood,
@@ -667,6 +668,14 @@ export function BoardSurface({
    * about. They are the whole of what their editor draws.
    */
   windResult?: WindAnalysis | null
+  /**
+   * Load a saved run as the live one, so the panels read it.
+   *
+   * Held by the application rather than here: restoring a run sets the AOI,
+   * the label and every product's store, which are the shell's and not the
+   * board's. The board only knows which of its two offers suits a run.
+   */
+  onOpenReading?: (run: InferenceRun) => void
   onClearWind?: () => void
   floodResult?: FloodAnalysis | null
   onClearFlood?: () => void
@@ -4499,6 +4508,7 @@ export function BoardSurface({
         activeProjectId={activeProjectId ?? null}
         onActivateProject={onActivateProject}
         onOpenRun={(r) => void addRun(r)}
+        onOpenReading={onOpenReading}
         busy={loadingRun}
       />
     ),

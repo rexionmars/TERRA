@@ -13,6 +13,7 @@ import type {
   DataCubeScene,
   FloodAnalysis,
   GeoJSONGeometry,
+  InferenceRun,
   ModelKind,
   PredictResult,
   SolarSitingAnalysis,
@@ -231,6 +232,8 @@ export interface StudioScreenProps {
   studios?: import("@/lib/studios").Studio[];
   onOpenStudio?: (board: import("@/lib/studios").Studio) => void;
   onNewStudio?: (name: string) => void;
+  /** Load a saved run as the live one. See BoardSurface.onOpenReading. */
+  onOpenReading?: (run: InferenceRun) => void;
   /** Called when the studio's board menu opens, to refresh the list. */
   /*
     Returns its promise, so a caller that needs the list BEFORE it draws again
@@ -1537,6 +1540,7 @@ export function StudioScreen(props: StudioScreenProps) {
           studios={props.studios}
           onOpenStudio={props.onOpenStudio}
           onNewStudio={props.onNewStudio}
+          onOpenReading={props.onOpenReading}
           onStudiosMenu={props.onStudiosMenu}
           polygonGeoJSON={props.polygonGeoJSON}
           solarResults={props.solarResults}
