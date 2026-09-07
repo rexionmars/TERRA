@@ -1048,12 +1048,27 @@ export function GlobeSurface({
               written globe raycast the outline and had to fall back on nearest
               centre within a tolerance, because a line has no area to strike.
               A fill has area, so the press lands on the shape a reader aimed at.
+
+              IT PAINTS NOTHING, AND IT IS STILL THE TARGET. The wash it used to
+              carry sat over whatever the area holds -- imagery, and any raster
+              sent to it -- and tinted all of it. Fourteen percent is little on
+              an empty field and a great deal over a reading whose whole subject
+              is its colour: the value under the tint is not the value in the
+              legend beside it, and there is no way for a reader to discount a
+              cast they cannot see the size of. So the boundary is the line, and
+              the ground inside it is the ground.
+
+              Zero opacity rather than `visibility: none`, because the two are
+              not the same to the press: MapLibre's query skips a hidden layer
+              and keeps an invisible one. Measured rather than assumed --
+              `queryRenderedFeatures` returns the polygon at `fill-opacity: 0`
+              and returns nothing at `visibility: "none"`.
             */
             {
               id: AREA_FILL,
               type: "fill",
               source: AREA_SOURCE,
-              paint: { "fill-color": "#ED8744", "fill-opacity": 0.14 },
+              paint: { "fill-opacity": 0 },
             },
             {
               id: AREA_LINE,
@@ -1236,7 +1251,7 @@ export function GlobeSurface({
     const paint = () => {
       if (!map.isStyleLoaded()) return
       const accent = token("--p-accent", "#ED8744")
-      map.setPaintProperty(AREA_FILL, "fill-color", accent)
+      // AREA_FILL is not repainted: it paints nothing. See its layer above.
       map.setPaintProperty(AREA_LINE, "line-color", accent)
       /*
         THE METERED PLANT FOLLOWS THE ACCENT TOO, and it did not. Its colour
