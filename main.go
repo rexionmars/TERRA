@@ -103,6 +103,11 @@ func main() {
 				checked everywhere outside the webview. Shrinking the payload
 				moved the threshold and did not remove it.
 
+				TWO ROUTES BEHIND ONE FUNCTION. Wails takes a single Middleware,
+				so the run-overlay route -- the image the studio browser draws a
+				run by -- is composed with this one rather than added beside it.
+				See assetMiddleware.
+
 				MIDDLEWARE, NOT `Handler`. `Handler` is only reached when Assets
 				reports os.ErrNotExist, and this front end is a single-page app:
 				its dev server and its embedded build both answer an unknown
@@ -112,7 +117,7 @@ func main() {
 				<!doctype html>. Middleware runs ahead of Assets, so the route
 				is decided here and everything else falls through untouched.
 			*/
-			Middleware: app.meshMiddleware,
+			Middleware: app.assetMiddleware,
 		},
 		OnStartup:  app.startup,
 		OnDomReady: app.domReady,
