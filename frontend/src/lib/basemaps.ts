@@ -2,9 +2,9 @@
  * What each basemap requires to be shown, and where it comes from.
  *
  * The credit is a licensing obligation, not chrome: Esri's terms require the
- * source to be attributed, EOX's require the Copernicus notice, and OSM's ODbL
- * requires attribution with a link where the medium allows one. So the parts
- * are structured rather than an HTML string -- the title bar renders real
+ * source to be attributed and EOX's require the Copernicus notice, with a link
+ * where the medium allows one. So the parts are structured rather than an HTML
+ * string -- the title bar renders real
  * anchors from this, which keeps the links the obligation asks for without any
  * component having to inject markup it did not write.
  *
@@ -15,7 +15,7 @@
 
 import { MOSAIC_MIN_LEVEL, MOSAIC_TILES } from "@/lib/recentImagery"
 
-export type BasemapKind = "esri" | "eox" | "s2recent" | "osm"
+export type BasemapKind = "esri" | "eox" | "s2recent" | "street" | "topo"
 
 export interface CreditPart {
   label: string
@@ -105,17 +105,47 @@ export const BASEMAPS: readonly Basemap[] = [
       },
     ],
   },
+  /*
+    THE TWO THAT ARE NOT PHOTOGRAPHS, and the reason they are Esri's.
+
+    Every basemap above is imagery: the reader could choose between two
+    pictures of the ground and not between a picture and a drawing. A drawing
+    answers a question the photographs cannot -- what a place is CALLED, where
+    the road goes, which side of the river a town is on -- and on this
+    application's own products it is the one base a classification can be
+    checked against by name.
+
+    From the same provider as the imagery, deliberately. It is already
+    credited, its licence is already satisfied by that credit, and its tiles
+    are the same 256 px scheme, so nothing about the layer stack changes when
+    the base does.
+
+    THIS REPLACED A ROW FOR OSM WHICH NOTHING READ. It had been carried since
+    the Leaflet map, unreferenced outside this file, and its URL still held the
+    `{s}` subdomain placeholder that Leaflet expands and MapLibre does not --
+    so the one non-imagery base the table declared could not have drawn a tile
+    if it had been wired. Wiring it was the other option and is the one the
+    operator's own tile policy argues against: it asks applications not to use
+    those servers and to identify themselves when they do.
+
+    NEITHER HAS A HANDOVER. The imagery pair splits at level 12 because Esri's
+    World Imagery is a Landsat-derived composite below it; these two are one
+    product drawn at every level, so a reader on either sees the same map from
+    the planet down to a street.
+  */
   {
-    kind: "osm",
-    name: "Map (OSM)",
-    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    kind: "street",
+    name: "Streets (Esri)",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
     maxZoom: 19,
-    credit: [
-      {
-        label: "© OpenStreetMap",
-        href: "https://www.openstreetmap.org/copyright",
-      },
-    ],
+    credit: [{ label: "Tiles © Esri" }],
+  },
+  {
+    kind: "topo",
+    name: "Topographic (Esri)",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    maxZoom: 19,
+    credit: [{ label: "Tiles © Esri" }],
   },
 ]
 
