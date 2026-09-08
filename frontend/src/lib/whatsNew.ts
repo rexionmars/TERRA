@@ -91,3 +91,28 @@ export function entriesSince(
     )
     .sort((x, y) => compareSemver(y.version, x.version))
 }
+
+/**
+ * The notes to show when a reader ASKS for them, which is a different question
+ * from the one the upgrade gate asks.
+ *
+ * The gate wants everything since the version last seen, because its subject
+ * is what the reader has missed. Someone opening this from the menu has missed
+ * nothing: they want to know what the release they are running IS. So it is
+ * that version's entry alone.
+ *
+ * A build between tags -- a development version, or a patch whose notes were
+ * folded into the minor above it -- matches no entry. Answering with nothing
+ * would make the menu item do nothing at all, which reads as broken rather
+ * than as empty, so the newest entry stands in: it is the release this build
+ * belongs to, which is the honest answer to what was asked.
+ */
+export function notesForVersion(
+  version: string,
+  catalog: WhatsNewEntry[] = WHATS_NEW
+): WhatsNewEntry[] {
+  if (!catalog.length) return []
+  const exact = catalog.filter((e) => e.version === version.trim())
+  if (exact.length) return exact
+  return [...catalog].sort((a, b) => compareSemver(b.version, a.version)).slice(0, 1)
+}
