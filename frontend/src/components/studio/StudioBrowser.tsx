@@ -801,6 +801,7 @@ export function StudioBrowser({
                     key={f.id}
                     name={f.name}
                     count={f.count}
+                    kinds={folderKinds(f.id)}
                     onOpen={enter}
                     onContext={context}
                   />
@@ -1203,9 +1204,20 @@ function SourceNode({
         ) : Icon ? (
           <Icon className="size-3.5 shrink-0" />
         ) : open ? (
-          <FolderOpen className="size-3.5 shrink-0" />
+          /*
+            The same tone the grid's folders carry. A folder is one colour
+            wherever it is drawn, or the tree and the grid are two vocabularies
+            for one thing -- and this row is the same folder the tile is.
+          */
+          <FolderOpen
+            className="size-3.5 shrink-0"
+            style={{ color: tint("--p-folder") }}
+          />
         ) : (
-          <Folder className="size-3.5 shrink-0" />
+          <Folder
+            className="size-3.5 shrink-0"
+            style={{ color: tint("--p-folder") }}
+          />
         )}
         <span className="min-w-0 flex-1 truncate">{label}</span>
         {marked && (
@@ -1311,14 +1323,34 @@ function FolderBranch({
 function FolderTile({
   name,
   count,
+  kinds,
   onOpen,
   onContext,
 }: {
   name: string
   count: number
+  /** Which products are filed here, in the table's order. */
+  kinds: readonly KindId[]
   onOpen: () => void
   onContext: (at: { x: number; y: number }) => void
 }) {
+  /*
+    THE GLYPH APPEARS WHERE IT SAYS SOMETHING, AND NOWHERE ELSE.
+
+    Blender marks Desktop, Documents and Downloads and leaves every other
+    folder plain, which is the rule worth taking: a mark on all of them is a
+    mark that distinguishes none. So a folder holding one product wears that
+    product's glyph, and a mixed one wears nothing -- the same honesty the tree
+    already applies when it draws a single child for a folder with nothing to
+    choose between.
+
+    Not five small glyphs for a mixed folder. The tile is 68px of folder body
+    and the count under it already says how much is inside; a row of marks that
+    small is a texture, and the reader who wants the breakdown opens the tree,
+    where it is drawn at a size that can be read.
+  */
+  const only = kinds.length === 1 ? KIND_BY_ID.get(kinds[0]) : undefined
+  const Glyph = only?.icon
   return (
     <button
       type="button"
@@ -1327,7 +1359,11 @@ function FolderTile({
         e.preventDefault()
         onContext({ x: e.clientX, y: e.clientY })
       }}
-      title={`${name} — ${count} ${count === 1 ? "analysis" : "analyses"}. Double-click to open.`}
+      title={
+        `${name} — ${count} ${count === 1 ? "analysis" : "analyses"}` +
+        (only ? `, all ${only.label.toLowerCase()}` : "") +
+        ". Double-click to open."
+      }
       className={cn(
         `flex ${TILE_W} flex-col gap-1 rounded-sm border border-transparent p-1 text-left transition-colors`,
         "hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -1349,15 +1385,38 @@ function FolderTile({
       */}
       <span className={cn(TILE_PLATE, "flex items-center justify-start")}>
         <span className="flex h-[3.25rem] w-[4.25rem] flex-col">
-          {/* The tab, a little over a third of the width. */}
+          {/* The tab, a little over a third of the width, and behind the body. */}
           <span
             className="h-[0.5rem] w-[42%] rounded-t-[3px]"
-            style={{ background: "rgb(var(--p-line) / 0.55)" }}
+            style={{ background: tint("--p-folder-tab") }}
           />
+          {/*
+            Lit at the top and shaded at the foot, with a hairline along the
+            edge between the two -- the front panel of a folder, catching the
+            light a flat fill cannot. One tone read as a swatch beside the
+            reference this was drawn from; see the note in index.css.
+          */}
           <span
-            className="flex-1 rounded-b-[3px] rounded-tr-[3px]"
-            style={{ background: "rgb(var(--p-line) / 0.34)" }}
-          />
+            className="flex flex-1 items-center justify-center rounded-b-[3px] rounded-tr-[3px]"
+            style={{
+              background: `linear-gradient(${tint("--p-folder")}, ${tint(
+                "--p-folder-shade"
+              )})`,
+              boxShadow: "inset 0 1px 0 rgb(255 255 255 / 0.10)",
+            }}
+          >
+            {Glyph ? (
+              /*
+                On the folder rather than on a plate of its own: the body IS
+                the plate, and a second one inside it would be a tile within a
+                tile. Ink rather than the product's tint, because the tint on
+                its own ground is what every run tile in this grid already
+                does, and two things that look alike would be saying different
+                sentences.
+              */
+              <Glyph className="size-4" style={{ color: tint("--p-folder-ink") }} aria-hidden />
+            ) : null}
+          </span>
         </span>
       </span>
       <span className="truncate text-emphasis text-foreground">{name}</span>
@@ -1395,7 +1454,10 @@ function FolderRow({
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       )}
     >
-      <Folder className="size-4 shrink-0" />
+      <Folder
+        className="size-4 shrink-0"
+        style={{ color: tint("--p-folder") }}
+      />
       <span className="min-w-0 flex-1 truncate text-emphasis text-foreground">
         {name}
       </span>
