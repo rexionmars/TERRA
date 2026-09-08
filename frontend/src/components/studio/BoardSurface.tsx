@@ -27,6 +27,11 @@ import {
   FolderSimple,
   Package,
   SlidersHorizontal,
+  HardDrive,
+  ImageSquare,
+  Info,
+  Sparkle,
+  Terminal,
 } from "@phosphor-icons/react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/studio/BoardSidebar"
@@ -175,6 +180,7 @@ import {
   tokenColor,
   type BoardStats,
 } from "@/components/studio/boardScene"
+import { useAppSurfaces } from "@/lib/appSurfaces"
 import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
@@ -2997,6 +3003,11 @@ export function BoardSurface({
   surfaceRef2.current = surface
   const [appMenu, setAppMenu] = useState(false)
   /*
+    The rooms behind the application half of that menu. The hook holds their
+    state and the modals; this file draws the items and says where they go.
+  */
+  const app = useAppSurfaces()
+  /*
     WHICH GROUP'S MENU IS OPEN, by id rather than a boolean, because the bar
     carries one entrance per group and only one of them may be down at a time.
     A boolean per group would let two open together, which is the one thing a
@@ -5061,6 +5072,66 @@ export function BoardSurface({
               setAppMenu(false)
             }}
           />
+          {/*
+            AND THE THINGS THAT ARE ABOUT THE APPLICATION RATHER THAN THIS
+            BOARD, which is what the two above are.
+
+            They are here because this is already the application's menu -- the
+            note at the top of this block says so -- and because each of them
+            could otherwise be reached exactly once: the splash is shown while
+            the window boots and replaced, the release notes appear on the first
+            launch after an upgrade and mark themselves seen, and the storage
+            report and the interpreter live inside the account page, which is a
+            different screen from this one.
+
+            Below a rule rather than mixed in, since saving a studio and reading
+            the version are not the same kind of act. `useAppSurfaces` owns what
+            they open; this file only says where they are pressed.
+          */}
+          <StudioMenuRule />
+          <StudioMenuItem
+            icon={ImageSquare}
+            label={app.items.splash.label}
+            onSelect={() => {
+              app.items.splash.onSelect()
+              setAppMenu(false)
+            }}
+          />
+          <StudioMenuItem
+            icon={Sparkle}
+            label={app.items.releaseNotes.label}
+            onSelect={() => {
+              app.items.releaseNotes.onSelect()
+              setAppMenu(false)
+            }}
+          />
+          <StudioMenuRule />
+          <StudioMenuItem
+            icon={Terminal}
+            label={app.items.environment.label}
+            onSelect={() => {
+              app.items.environment.onSelect()
+              setAppMenu(false)
+            }}
+          />
+          <StudioMenuItem
+            icon={HardDrive}
+            label={app.items.storage.label}
+            disabled={app.items.storage.disabled}
+            onSelect={() => {
+              app.items.storage.onSelect()
+              setAppMenu(false)
+            }}
+          />
+          <StudioMenuRule />
+          <StudioMenuItem
+            icon={Info}
+            label={app.items.about.label}
+            onSelect={() => {
+              app.items.about.onSelect()
+              setAppMenu(false)
+            }}
+          />
         </StudioPopover>
 
         <span
@@ -5642,6 +5713,11 @@ export function BoardSurface({
       />
       </CanopyWorkflowProvider>
 
+      {/*
+        The rooms the application half of the Studio menu opens. Position does
+        not matter: every one of them is a modal or portals out of this tree.
+      */}
+      {app.surfaces}
     </motion.div>
   )
 }

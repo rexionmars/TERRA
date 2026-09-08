@@ -17,8 +17,6 @@ import { BrowserOpenURL } from "../../wailsjs/runtime/runtime"
 import {
   ChooseBackupArchive,
   ExportBackup,
-  InspectStorage,
-  PurgeOrphanedRunAssets,
   RestoreBackup,
 } from "../../wailsjs/go/main/App"
 import type { store } from "../../wailsjs/go/models"
@@ -55,6 +53,7 @@ import {
 } from "@/lib/preferenceExtras"
 import { displayRunLabel } from "@/lib/aoiLabel"
 import { formatBytes } from "@/lib/formatBytes"
+import { useStorageReport } from "@/lib/storageReport"
 import { runRowLine } from "@/lib/runSummary"
 
 const MAX_AVATAR_BYTES = 2_000_000
@@ -145,11 +144,12 @@ export function ProfilePage({
     useState<store.RestorePreview | null>(null)
   const [restoreResult, setRestoreResult] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
-  const [storage, setStorage] = useState<store.StorageReport | null>(null)
-  const [storageBusy, setStorageBusy] = useState(false)
-  const [storageNote, setStorageNote] = useState<string | null>(null)
-  const [storageError, setStorageError] = useState<string | null>(null)
-  const [storageOpen, setStorageOpen] = useState(false)
+  /*
+    The measure, the purge and the dialog's state, from the module that owns
+    them. The application menu opens the same dialog, and a second copy of this
+    sequence would be a second place for the busy flag to be forgotten.
+  */
+  const storage = useStorageReport()
   /*
     Account, always, unless something asks otherwise while this is open.
 
@@ -425,79 +425,6 @@ export function ProfilePage({
       setBackupError(e instanceof Error ? e.message : String(e))
     } finally {
       setBackupBusy(false)
-    }
-  }
-
-  /*
-    Measured on demand, not on mount.
-
-    Walking the data directory costs real time once there are hundreds of
-    analyses, and Account is opened to change a display name far more often
-    than to look at disk usage. Paying for it every visit would slow the common
-    case for the rare one.
-  */
-  const loadStorage = async () => {
-    setStorageBusy(true)
-    setStorageError(null)
-    setStorageNote(null)
-    try {
-      setStorage(await InspectStorage())
-    } catch (e) {
-      setStorageError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setStorageBusy(false)
-    }
-  }
-
-  /*
-    Measured before the modal opens, not after.
-
-    Opening first would render the dialog against no data, so its first frame
-    would be an empty shell -- and every field in it would have to guard
-    against a report that is not there yet. The button carries the wait
-    instead, where the user already clicked.
-
-    The error stays on the settings row for the same reason: a modal that opens
-    only to say it could not measure anything is a worse way to say it than a
-    line under the button.
-  */
-  const openStorage = async () => {
-    setStorageBusy(true)
-    setStorageError(null)
-    setStorageNote(null)
-    try {
-      setStorage(await InspectStorage())
-      setStorageOpen(true)
-    } catch (e) {
-      setStorageError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setStorageBusy(false)
-    }
-  }
-
-  /*
-    Clears only the folders no analysis points at.
-
-    No confirmation, deliberately: nothing in the application can open these
-    files and no export includes them, so there is nothing for the user to
-    weigh. A dialog asking them to approve deleting something they cannot see
-    or reach would be theatre.
-  */
-  const purgeOrphans = async () => {
-    setStorageBusy(true)
-    setStorageError(null)
-    try {
-      const result = await PurgeOrphanedRunAssets()
-      setStorageNote(
-        `Cleared ${formatBytes(result.freed_bytes)} from ${result.removed} ${
-          result.removed === 1 ? "folder" : "folders"
-        }.`
-      )
-      setStorage(await InspectStorage())
-    } catch (e) {
-      setStorageError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setStorageBusy(false)
     }
   }
 
@@ -848,22 +775,22 @@ export function ProfilePage({
               >
                 <button
                   type="button"
-                  disabled={storageBusy}
-                  onClick={() => void openStorage()}
+                  disabled={storage.busy}
+                  onClick={() => void storage.measureAndOpen()}
                   className={btnGhost}
                 >
-                  {storageBusy ? (
+                  {storage.busy ? (
                     <CircleNotch className="h-3 w-3 animate-spin" />
                   ) : (
                     <HardDrive className="h-3 w-3" />
                   )}
-                  {storage
-                    ? `${formatBytes(storage.total_bytes)} used`
+                  {storage.report
+                    ? `${formatBytes(storage.report.total_bytes)} used`
                     : "Measure storage"}
                 </button>
-                {storageError && (
+                {storage.problem && (
                   <p className="mt-2 text-body text-destructive-quiet">
-                    {storageError}
+                    {storage.problem}
                   </p>
                 )}
               </SettingRow>
@@ -1205,15 +1132,15 @@ export function ProfilePage({
       {/* Rendered only with a report in hand: openStorage measures first, so
           the dialog never has to guard against data that has not arrived. */}
       <AnimatePresence>
-        {storageOpen && storage && (
+        {storage.open && storage.report && (
           <StorageModal
-            report={storage}
-            busy={storageBusy}
-            note={storageNote}
-            problem={storageError}
-            onRefresh={() => void loadStorage()}
-            onPurge={() => void purgeOrphans()}
-            onClose={() => setStorageOpen(false)}
+            report={storage.report}
+            busy={storage.busy}
+            note={storage.note}
+            problem={storage.problem}
+            onRefresh={() => void storage.refresh()}
+            onPurge={() => void storage.purge()}
+            onClose={storage.close}
           />
         )}
       </AnimatePresence>

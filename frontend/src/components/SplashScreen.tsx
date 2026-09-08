@@ -13,6 +13,17 @@ import { BRAND_TAGLINE, RELEASE_NAME } from "@/lib/brand"
 type SplashScreenProps = {
   /** When true, fade/scale out before the main window opens. */
   exiting?: boolean
+  /**
+   * Whether this is the real boot.
+   *
+   * The application menu shows this screen again on request, and at that
+   * moment nothing is booting: the boot events have long since stopped and the
+   * last line would read "booting…" over a window that has been open for an
+   * hour. A still shown deliberately says what it is instead -- the signature
+   * the brand carries everywhere else -- and does not subscribe to a stream
+   * that will never speak again.
+   */
+  live?: boolean
 }
 
 /**
@@ -24,7 +35,7 @@ type SplashScreenProps = {
  * holds a single still, so every launch is that one; the claim below is what
  * walks the manifest whenever it holds more.
  */
-export function SplashScreen({ exiting = false }: SplashScreenProps) {
+export function SplashScreen({ exiting = false, live = true }: SplashScreenProps) {
   const [logs, setLogs] = useState<string[]>(["booting…"])
   /*
     Claimed once, and never advanced.
@@ -90,6 +101,8 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
   }, [])
 
   useEffect(() => {
+    // Nothing is booting when the menu asks for this; see `live`.
+    if (!live) return
     let cancelled = false
 
     GetBootLogs()
@@ -113,9 +126,9 @@ export function SplashScreen({ exiting = false }: SplashScreenProps) {
       cancelled = true
       EventsOff("boot:log")
     }
-  }, [])
+  }, [live])
 
-  const statusLine = logs[logs.length - 1] ?? "booting…"
+  const statusLine = live ? (logs[logs.length - 1] ?? "booting…") : BRAND_TAGLINE
   const activeImage = SPLASH_STILLS[slide]?.path ?? SPLASH_IMAGES[0]
 
   return (
