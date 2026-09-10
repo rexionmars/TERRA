@@ -159,6 +159,8 @@ export interface RunAssetInput {
   result: PredictResult | null
   composition: CompositionOverlay | null
   compositionGallery: CompositionOverlay[]
+  /** The area these assets are listed under, which claims its own compositions. */
+  areaId?: string
   water: WaterAnalysis | null | undefined
   areaLabel?: string
   modelKind?: ModelKind
@@ -441,11 +443,21 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
       that never produced one.
 
       One with a `runId` has already been filtered to this run by the scoping.
-      One without is the project's, and it earns a place here only by being the
-      composition actually on the map, which is the case this list exists to
-      report.
+      One without earns a place here by being the composition actually on the
+      map, or by having been made over this area.
+
+      THE SECOND CASE WAS MISSING, and it is the common one. An area worked
+      only by composition has no run, so every composition made over it has
+      none either, and the rule above listed exactly one of them: the one on
+      the map. Each new composition replaced the last in the list, though all
+      of them were saved. What it needed was the area each was made over,
+      which nothing recorded. Now the saved row and the entry in hand both
+      carry it, and a match is as good as a run -- while a composition of
+      another area, or one written before the area was carried, still needs to
+      be the one on the map to be listed.
     */
-    if (!item.runId && item.id !== i.composition?.id) continue
+    const ownArea = !!item.areaId && !!i.areaId && item.areaId === i.areaId
+    if (!item.runId && !ownArea && item.id !== i.composition?.id) continue
     const title = item.title || item.label || "Composition"
     const bandOrIndex =
       item.kind === "index" && item.index

@@ -629,6 +629,7 @@ export function StudioScreen(props: StudioScreenProps) {
     result: props.result,
     composition: props.composition,
     compositionGallery: props.compositionGallery ?? [],
+    areaId: props.activeAreaId,
     water: props.water,
     areaLabel: props.areaLabel,
     modelKind: props.modelKind,

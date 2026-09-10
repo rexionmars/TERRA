@@ -1751,6 +1751,14 @@ function AppBody(props: {
         presetId: meta.presetId,
         sceneDate,
         raster_tif: res.raster_tif,
+        /*
+          Both, as the saved row carries them. The entry in hand used to carry
+          neither, so the board could not tell it from a composition of another
+          field until the project was reopened -- and a composition with no run
+          made over this area was listed only while it was the one on the map.
+        */
+        runId: currentRunId ?? undefined,
+        areaId: props.activeAreaId,
       }
       setComposition(entry)
       setCompositionGallery((prev) => [entry, ...prev].slice(0, 12))
@@ -1774,6 +1782,8 @@ function AppBody(props: {
             // The run on screen, so this composition surfaces with that run
             // and not with every other run in the project.
             run_id: currentRunId ?? "",
+            // And the ground, which is what files one made with no run open.
+            area_id: props.activeAreaId ?? "",
             kind: "composition",
             title: meta.title,
             meta_json: metaJson,

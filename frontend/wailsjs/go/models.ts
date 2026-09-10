@@ -6857,6 +6857,7 @@ export namespace main {
 	export class SaveProjectOverlayRequest {
 	    project_id: string;
 	    run_id: string;
+	    area_id: string;
 	    kind: string;
 	    title: string;
 	    meta_json: string;
@@ -6871,6 +6872,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.project_id = source["project_id"];
 	        this.run_id = source["run_id"];
+	        this.area_id = source["area_id"];
 	        this.kind = source["kind"];
 	        this.title = source["title"];
 	        this.meta_json = source["meta_json"];
@@ -7196,6 +7198,7 @@ export namespace store {
 	    id: string;
 	    project_id: string;
 	    run_id?: string;
+	    area_id?: string;
 	    kind: string;
 	    title: string;
 	    meta_json?: string;
@@ -7214,6 +7217,7 @@ export namespace store {
 	        this.id = source["id"];
 	        this.project_id = source["project_id"];
 	        this.run_id = source["run_id"];
+	        this.area_id = source["area_id"];
 	        this.kind = source["kind"];
 	        this.title = source["title"];
 	        this.meta_json = source["meta_json"];

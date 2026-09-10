@@ -160,7 +160,22 @@ type ProjectOverlay struct {
 		existed. Empty means "belongs to the project", not "belongs to no
 		project", so readers scope those by the recorded extent instead.
 	*/
-	RunID      string `json:"run_id,omitempty"`
+	RunID string `json:"run_id,omitempty"`
+	/*
+		The ground this composition was made over.
+
+		A composition made with no run open has no run to be filed under, and
+		the board listed those by one rule only -- "is it the composition on the
+		map" -- because nothing said which area they belonged to. So each new
+		composition on an area replaced the previous one in its list. The column
+		was already in the schema, and DeleteArea already deletes by it; nothing
+		wrote it.
+
+		Empty for rows written before it was carried. Those keep the project-level
+		behaviour, scoped by extent, rather than being assigned to an area by a
+		guess.
+	*/
+	AreaID     string `json:"area_id,omitempty"`
 	Kind       string `json:"kind"`
 	Title      string `json:"title"`
 	MetaJSON   string `json:"meta_json,omitempty"`
