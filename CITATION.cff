@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use TERRA, please cite it as below."
 type: software
 title: "TERRA: Desktop land-cover classification from Sentinel-2 time series"
-version: 0.5.0 # x-release-please-version
+version: 0.6.0 # x-release-please-version
 date-released: "2026-08-23"
 url: "https://github.com/rexionmars/TERRA"
 repository-code: "https://github.com/rexionmars/TERRA"
