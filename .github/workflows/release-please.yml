@@ -12,8 +12,13 @@
 # decision stops being "do the release procedure" and becomes "merge this or
 # not", which is a decision small enough to take on a Friday afternoon.
 #
-# Merging it tags the release, which is what release.yml already watches for.
-# Nothing about how binaries are built changes.
+# Merging it tags the release and creates the release page -- and then calls
+# release.yml to build and attach the binaries. It used to leave that to the
+# tag, on the reasoning that release.yml already watches for one. It does, and
+# it never sees this one: GitHub starts no workflow from an event made with the
+# repository's own token, which is the token this runs with. v0.5.0 was the
+# first release cut here and it went out with a page and no assets. The call
+# below runs inside this workflow's run, where that rule does not reach.
 
 name: Release please
 
@@ -29,8 +34,23 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # Only on the run that merged the proposal. Every other push to main updates
+  # the proposal and cuts nothing, and release_created is false for it.
+  binaries:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
