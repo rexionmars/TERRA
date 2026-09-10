@@ -19,6 +19,15 @@ hand-written "unreleased" section beside a generated one is the same list twice,
 and only one of them is kept current.
 
 
+## [0.6.1](https://github.com/rexionmars/TERRA/compare/v0.6.0...v0.6.1) (2026-09-10)
+
+
+### Bug fixes
+
+* **compose:** every composition made over an area stays in its list ([e147730](https://github.com/rexionmars/TERRA/commit/e147730475213e3532e069f7c10a68ec31c91b98))
+* **flood:** the envelope's raster reaches the studio ([fe07b52](https://github.com/rexionmars/TERRA/commit/fe07b5253f3e240e77190fc06f12ae81ef3f87cb))
+* **landcover:** the spectral response reaches the run again ([e2f97a1](https://github.com/rexionmars/TERRA/commit/e2f97a1ea8454f62c538cb475a8c04ad904d2889))
+
 ## [0.6.0](https://github.com/rexionmars/TERRA/compare/v0.5.0...v0.6.0) (2026-09-10)
 
 
