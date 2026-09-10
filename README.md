@@ -29,10 +29,10 @@ reference protocol is published:
 > (SBrT 2026), Salvador, BA, Brazil.
 
 <p align="center">
-  <img src="docs/img/v5/terra-studio-main.webp" alt="Solar irradiation and siting suitability over an area in Rio de Janeiro, read in the studio beside the globe" width="900" />
+  <img src="docs/img/terra-v6/terra-v6-home.webp" alt="One area classified in the studio: land cover and mean NDVI on the globe, the run's graph beside it, the browser and the scene tree below" width="900" />
 </p>
 
-<p align="center"><em>Solar irradiation over an area in Rio de Janeiro, with the siting suitability derived from it and the terrain it was computed on</em></p>
+<p align="center"><em>An area classified by the Temporal Transformer over eleven scenes: land cover and mean NDVI tied to the ground on the globe, the graph of the run that made them, and the browser and scene tree below</em></p>
 
 ## The map, and the studio over it
 
@@ -53,10 +53,10 @@ two areas hundreds of kilometres apart cannot be set beside each other on one.
 Everything else the studio offers follows from that one constraint.
 
 <p align="center">
-  <img src="docs/img/v5/terra-explorer-home.webp" alt="Two classified areas in Tocantins arranged on one Studio board" width="900" />
+  <img src="docs/img/terra-v6/terra-v6-multiple-aoi-work.webp" alt="Two classified areas on one studio board, their rasters stacked on the globe and side by side in the viewport" width="900" />
 </p>
 
-<p align="center"><em>The studio: two areas in Tocantins on one board, each classified by the Temporal Transformer over eleven scenes, with its own confidence and class shares</em></p>
+<p align="center"><em>Two areas on one board, each classified by the Temporal Transformer over eleven scenes with its own class shares: stacked over their ground on the globe, side by side in the viewport</em></p>
 
 Comparison is the arrangement that answers where a classification is wrong
 rather than how much of it is right: the confusion against the reference, the
@@ -64,10 +64,21 @@ accuracy delta per class, and the agreement read block by block instead of as
 one number over the whole area.
 
 <p align="center">
-  <img src="docs/img/v5/terra-studio-compare.webp" alt="The Compare arrangement: confusion against the reference, accuracy delta and agreement by block" width="900" />
+  <img src="docs/img/terra-v6/terra-v6-compare.webp" alt="The Compare arrangement: confusion against the reference, accuracy delta and agreement by block for two runs over one area" width="900" />
 </p>
 
-<p align="center"><em>Compare: confusion against the reference, accuracy delta per class, agreement by block</em></p>
+<p align="center"><em>Compare: two runs over one area, each against the MapBiomas reference, with the accuracy delta per class and the agreement by block</em></p>
+
+Data is the arrangement for what a run leaves behind as numbers. The research
+pack's tables are read in place and copied out as CSV: the phenology metrics,
+the vegetation-index series date by date, and the predicted class shares against
+the reference.
+
+<p align="center">
+  <img src="docs/img/terra-v6/terra-v6-resource-pack.webp" alt="The Data arrangement: research pack tables for phenology, the vegetation-index series and predicted against reference class shares" width="900" />
+</p>
+
+<p align="center"><em>Data: the research pack for one run, with phenology, the vegetation-index series and predicted against reference class shares</em></p>
 
 ## What it produces
 
@@ -102,6 +113,17 @@ symmetric KL divergence on NDVI, change-vector magnitude in training standard
 deviations, RBF MMD, and a per-feature shift table, computed on standardised
 samples when both runs carry a classify-time fingerprint. It diagnoses; it does
 not adapt.
+
+The same arrangement reads a single run from the other side: the spectral
+response of each predicted class on one acquisition, each class's spectral angle
+to a leaf-level library, and how far each pair of classes can be told apart one
+band at a time.
+
+<p align="center">
+  <img src="docs/img/terra-v6/terra-v6-diagnose.webp" alt="The Diagnose arrangement: spectral response per class, spectral angle to a leaf library, and per-band class separability" width="900" />
+</p>
+
+<p align="center"><em>Diagnose: the spectral response per class on one acquisition, each class against a leaf-level library, and the Jeffries-Matusita separability per band</em></p>
 
 ### Surface water
 
@@ -152,10 +174,10 @@ built from analytic ellipsoid crowns of the same leaf area, which needs nothing
 beyond numpy.
 
 <p align="center">
-  <img src="docs/img/v5/terra-studio-simulation.webp" alt="A sorghum stand grown in three dimensions and lit by the local sun" width="900" />
+  <img src="docs/img/terra-v6/terra-v6-plant-simulation.webp" alt="A soybean stand grown in three dimensions and lit by the local sun" width="900" />
 </p>
 
-<p align="center"><em>Simulation: a sorghum stand at day 60 over an area in Tocantins, with the season's LAI, the age curve and the light budget beside it</em></p>
+<p align="center"><em>Simulation: a soybean stand at day 60, with the season's LAI, the age curve and the light budget beside it</em></p>
 
 ## Limitations
 
