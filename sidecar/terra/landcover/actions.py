@@ -377,9 +377,9 @@ def predict(req, work_dir):
         'class_stats': classify.class_statistics(classification_map),
         # Seven bands on one acquisition, per predicted class. None when the
         # scene could not be read; see lc_spectra.class_spectra for why it is one date.
-        'lc_spectra.class_spectra': spectra,
+        'class_spectra': spectra,
         # Each class against a leaf-level library, and the limit that runs into.
-        'lc_spectra.library_limit': limit,
+        'library_limit': limit,
         'temporal': temporal,
         'vi_series': vi_series,
         # The same dates averaged over crop pixels only. Empty when the AOI
