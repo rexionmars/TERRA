@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest"
 
 import { runAssets, type RunAssetInput } from "./runAssets"
-import type { CompositionOverlay } from "./types"
+import type { CompositionOverlay, FloodAnalysis } from "./types"
 
 const EXTENT = { lon_min: -48.47, lat_min: -10.74, lon_max: -48.45, lat_max: -10.71 }
 
@@ -86,5 +86,52 @@ describe("compositions listed under an area", () => {
     const a = comp("ndvi", { areaId: "area-a" })
     const b = comp("evi", { areaId: "area-a" })
     expect(listed({ composition: b, compositionGallery: [b, a] })).toEqual(["evi"])
+  })
+})
+
+describe("the flood envelope's raster", () => {
+  /*
+    The sidecar wrote it and the store kept it, and the board listed nothing:
+    this table had no flood row, so a finished flood run left a notification
+    and no raster to read. Pinned as a row with both exports.
+  */
+  const flood = {
+    agreement_uri: "data:image/png;base64,flood",
+    agreement_tif: "/data/runs/r1/flood_agreement.tif",
+    extent: EXTENT,
+    products: [{}, {}, {}, {}],
+    reference_threshold_m: 1,
+  } as unknown as FloodAnalysis
+
+  const base: RunAssetInput = {
+    result: null,
+    composition: null,
+    compositionGallery: [],
+    water: null,
+    showCompositionOverlay: false,
+    showWaterOverlay: false,
+    composeOpacity: 1,
+    waterOpacity: 1,
+  }
+
+  it("is listed under the layer name the map draws it by, with both exports", () => {
+    const a = runAssets({ ...base, flood, showFloodOverlay: true }).find(
+      (x) => x.id === "flood-agreement"
+    )
+    expect(a?.sceneId).toBe("flood")
+    expect(a?.params).toContain("4 DEMs")
+    expect(a?.onBoard).toBe(true)
+    expect(a?.exportTif).toEqual({
+      via: "file",
+      src: "/data/runs/r1/flood_agreement.tif",
+      filename: "terra_flood_agreement.tif",
+    })
+  })
+
+  it("is absent when the run carries no rendering to list", () => {
+    const bare = { ...flood, agreement_uri: "" } as FloodAnalysis
+    expect(runAssets({ ...base, flood: bare }).map((x) => x.id)).not.toContain(
+      "flood-agreement"
+    )
   })
 })

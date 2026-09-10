@@ -1749,6 +1749,8 @@ export function BoardSurface({
           composition: null,
           compositionGallery: [],
           water: r.result.water,
+          // A flood run's raster travels in its payload the same way.
+          flood: r.result.flood,
           solarTerrain: r.result.solar_terrain,
           solarSiting: r.result.solar_siting,
           showCompositionOverlay: false,
@@ -1784,6 +1786,7 @@ export function BoardSurface({
           in hand and the tree did not mention them.
         */
         water: result.water,
+        flood: result.flood,
         solarTerrain: result.solar_terrain,
         solarSiting: result.solar_siting,
         // A loaded run brings its own rasters and none of the map's state:

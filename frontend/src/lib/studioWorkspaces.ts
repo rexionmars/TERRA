@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, Database, Drop, GitDiff, Table, Tree, Waves } from "@phosphor-icons/react"
+import { Cube, Database, Drop, GitDiff, Mountains, Table, Tree, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import { type EditorId, type StudioGroup } from "@/lib/studioEditors"
@@ -213,6 +213,40 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         col("w-data-right", 0.55, leaf("a-table", "table"), leaf("a-browser", "browser"))
+      ),
+  },
+  {
+    id: "envelope",
+    group: "water",
+    // Waves is Diagnose's and Drop is Routing's; HAND is read off terrain.
+    icon: Mountains,
+    label: "Flood envelope",
+    hint: "How far the elevation products disagree about what the area floods",
+    /*
+      THE ENVELOPE HAD A PANEL AND NO BOARD. The reading existed as an editor
+      type and no arrangement opened it -- the state the routing preset below
+      was written to end for its own product: a panel nobody can find without
+      already knowing it is there has not been added to the studio, only to
+      the type selector. A flood envelope run finished with a notification
+      and nothing on screen.
+
+      Routing's shape, for routing's reason: the agreement raster is an
+      overlay of the ground it was measured over, so the viewport takes the
+      width and the reading -- products, pairs, the envelope table -- stands in
+      a column. The column is 340x624 at the 1000x700 minimum, against the
+      320x256 the reading asks for.
+    */
+    build: () =>
+      row(
+        "w-envelope-split",
+        0.66,
+        col(
+          "w-envelope-left",
+          0.68,
+          leaf("a-viewport", "viewport"),
+          leaf("a-outliner", "outliner")
+        ),
+        leaf("a-flood", "floodReading")
       ),
   },
   {
