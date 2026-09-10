@@ -3,12 +3,12 @@
 TERRA uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 Git tags use a `v` prefix (`v0.3.0`); the version itself is `0.3.0`.
 
-Pushing a tag matching `v*` runs [`.github/workflows/release.yml`](../.github/workflows/release.yml)
-and publishes LITE/FULL zip assets. The tag is normally created by merging the
-release pull request that
-[`release-please.yml`](../.github/workflows/release-please.yml) keeps open —
-see [Cutting a release](#cutting-a-release). What each release contained is in
-[`CHANGELOG.md`](../CHANGELOG.md).
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) builds the
+LITE/FULL zips and publishes them. It normally runs because
+[`release-please.yml`](../.github/workflows/release-please.yml) calls it on the
+run that merges the release pull request — see
+[Cutting a release](#cutting-a-release). A tag pushed by hand starts it too.
+What each release contained is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ## What counts as the “public API”
 
@@ -102,9 +102,19 @@ does not happen, and the only symptom is a failed run.
 Most of this is done for you. `release-please` reads the Conventional Commits
 on `main` and keeps a pull request open that carries the next version, the
 CHANGELOG entry, and the bump in `version.go`, `wails.json` and `CITATION.cff`.
-Merging that pull request tags the release, and the tag is what
-[`release.yml`](../.github/workflows/release.yml) already watches to build and
-publish the LITE and FULL zips.
+Merging that pull request tags the release and creates its page, and the same
+run then calls [`release.yml`](../.github/workflows/release.yml), which builds
+the six zips, attaches them, titles the page with the code name and adds the
+install table under the changelog.
+
+It used to leave the build to the tag, on the reasoning that `release.yml`
+watches for one. It does, and it never saw this one: release-please creates the
+tag with the repository's own `GITHUB_TOKEN`, and GitHub starts no workflow from
+an event made with that token. `v0.5.0` was the first release cut this way and
+went out with a page and no assets, where `v0.4.0` has six; `release.yml` has a
+run for each of the four tags pushed by hand and none for it. The call from
+`release-please.yml` runs inside that workflow's own run, where the rule does
+not reach, and `v0.6.0` was the first release built through it.
 
 So the procedure is:
 
@@ -119,14 +129,34 @@ So the procedure is:
    other three files now carry. That red is the reminder, and it is deliberate
    — a release that ships without telling users what changed is a release whose
    notes are a commit log.
+
+   **The red only appears if the run is allowed to run.** A CI run started by
+   release-please's own pushes to the proposal waits as `action_required` until
+   someone approves it — Actions, the run, *Approve and run*, or
+   `gh api -X POST repos/rexionmars/TERRA/actions/runs/<id>/approve`. Until
+   then the pull request shows no checks at all, which reads as nothing to
+   worry about and is the opposite. Pushing the What's New commit yourself
+   starts a run that needs no approval, so in practice step 2 also unblocks the
+   check that guards it.
 3. **On a MINOR, pick the code name and the still** — see below.
    `RELEASE_NAME` in [`brand.ts`](../frontend/src/lib/brand.ts) is edited in
    the same commit as the What's New entry, and for the same reason: neither
    can be generated. A PATCH keeps the name it has and skips this step.
-4. **Merge it.** The tag, the GitHub release and the assets follow.
+4. **Read the changelog against the log.** The parser that builds it drops
+   what it cannot read and says so only in the release-please run log — see
+   [Commits the parser drops](#commits-the-parser-drops). Correct it on the
+   proposal's branch *and* in the proposal's body, because the release page is
+   written from the body — see
+   [The page is written from the proposal](#the-page-is-written-from-the-proposal-not-from-changelogmd).
+   Do both last: release-please rewrites the branch and the body whenever
+   `main` gains a commit that changes the proposal. A push of only hidden types
+   (`ci`, `docs`, `chore`...) leaves it alone.
+5. **Merge it, by squash.** `v0.5.0` and `v0.6.0` were both squashed, which is
+   what leaves one `chore(main): release X.Y.Z (#N)` commit on `main`. The tag,
+   the page and the assets follow.
 
-`main` must be green before you merge, which CI enforces on the proposal like
-any other pull request.
+`main` must be green before you merge. CI enforces that on the proposal like
+any other pull request, once the proposal's run has been approved (step 2).
 
 ### The one number release-please does not touch
 
@@ -135,12 +165,59 @@ the release it describes. Bumping it automatically would attach this release's
 number to the previous release's prose, which is worse than leaving it to fail
 the check. It fails the check.
 
+### The page is written from the proposal, not from CHANGELOG.md
+
+release-please builds the release page from the merged pull request's body.
+The committed `CHANGELOG.md` is written at the same time, but it is not what the
+page is built from. For `v0.5.0` the body of #70 and the page carry the same 104
+entries, while the `CHANGELOG.md` committed with that tag carries 100. For
+`v0.6.0` the corrections made to the body are the ones on the page. A fix made
+only to the file is a fix the page never shows.
+
+So a correction to the changelog is made twice, to the file on the proposal's
+branch and to the pull request's body, and both late (step 4).
+
+### Commits the parser drops
+
+The changelog is only as complete as the Conventional Commits parser is willing
+to read, and when it refuses a commit it drops it without a trace outside the
+release-please run log, where the line reads `commit could not be parsed`.
+`v0.6.0` lost two this way:
+
+- **A body line that opens with an expression.** `05e57c0` has
+  `round(map.zoom + log2(transform.tileSize / source.tileSize))` at the start of
+  its fifth line, and the parser stops at the second parenthesis
+  (`unexpected token '(' at 5:22`). The feature was missing from the proposal.
+- **git's default revert subject.** `Revert "feat(studio): ..."` is not a
+  Conventional Commit, so the parser drops the revert. The commit it reverted
+  is unaffected and stays listed: `v0.6.0` announced "the stack's spread has a
+  handle on the board", which was reverted the same day. A revert written as
+  `revert: <the original subject>`, with `This reverts commit <sha>.` in the
+  body, is a type the parser reads.
+
+Both were caught by comparing the proposal against `git log` rather than
+reading it. That comparison is step 4, and the run log is where to confirm a
+suspected drop:
+
+```bash
+gh run view <release-please run id> --log | grep "could not be parsed"
+```
+
 ### If you have to tag by hand
 
 Nothing prevents it — `release.yml` triggers on any `v*` tag. Bump
 `version.go` first and run `npm run check:version` in `frontend/`, which names
 any of the four places that disagree. `version.go` is the authority; change the
 others to match it, not the other way round.
+
+### If a release shipped without its binaries
+
+`release.yml` can be started by hand for a tag that already exists: Actions,
+*Release*, *Run workflow*, with the tag. It checks out that tag rather than
+`main`, attaches the zips and appends the install table without touching the
+changelog already on the page. It publishes with `make_latest: legacy`, so
+building an older release does not move "Latest" back to it. `v0.5.0` is the
+release this exists for.
 
 ## Code names and the splash still
 
@@ -235,7 +312,7 @@ fails the build, and `npm run check:version` fails if the two names differ.
 
 ## Current line
 
-`v0.4.0` is the latest published tag. The line so far, with what each shipped:
+`v0.6.0` is the latest published tag. The line so far, with what each shipped:
 
 | Tag | Date | Commits | Named for |
 |---|---|---|---|
@@ -243,6 +320,11 @@ fails the build, and `npm run check:version` fails if the two names differ.
 | `v0.2.0` | 2026-07-31 | 51 | — |
 | `v0.3.0` | 2026-08-16 | 383 | Ember |
 | `v0.4.0` | 2026-08-22 | 60 | Amazon |
+| `v0.5.0` | 2026-08-31 | 181 | Draugen |
+| `v0.6.0` | 2026-09-10 | 131 | Cumulus |
+
+`v0.5.0` has no binaries attached; see
+[If a release shipped without its binaries](#if-a-release-shipped-without-its-binaries).
 
 THIS TABLE WAS TWO RELEASES STALE when the trigger above was written: it said
 the latest tags were `v0.1.0` and `v0.2.0` and described `v0.3.0` as future, on
