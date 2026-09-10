@@ -462,6 +462,15 @@ export function StudioScreen(props: StudioScreenProps) {
    * report figures, and the studio reads figures now: the Solar result editor
    * carries what the energy screen's reading column did.
    */
+  /*
+    The flood envelope's layer, held here because nothing above holds it.
+    Water and the solar pair answer to switches the map screen owns; flood
+    never had one, which is part of why its raster reached neither the board
+    nor the scene tree. Local rather than lifted: this is the only surface
+    that draws it.
+  */
+  const [showFloodOverlay, setShowFloodOverlay] = useState(true);
+  const [floodOpacity, setFloodOpacity] = useState(1);
   const [solarProduct, setSolarProduct] = useState<SolarProductId>("terrain");
   /*
     Which energy product the band is on, across all three families.
@@ -572,6 +581,10 @@ export function StudioScreen(props: StudioScreenProps) {
     water: props.water,
     showWaterOverlay: props.showWaterOverlay,
     waterOpacity: props.waterOpacity,
+    // The raster lib/mapLayers.ts could always draw and was never handed.
+    flood: props.floodResult,
+    showFloodOverlay,
+    floodOpacity,
     solarOverlays,
   });
 
@@ -646,6 +659,9 @@ export function StudioScreen(props: StudioScreenProps) {
     showSolarSiting: props.showSolarSiting,
     solarTerrainOpacity: props.solarTerrainOpacity,
     solarSitingOpacity: props.solarSitingOpacity,
+    flood: props.floodResult,
+    showFloodOverlay,
+    floodOpacity,
   });
 
   const changeBoardLayer = (
@@ -664,6 +680,12 @@ export function StudioScreen(props: StudioScreenProps) {
         props.onShowWaterOverlayChange(patch.visible);
       if (patch.opacity !== undefined)
         props.onWaterOpacityChange(patch.opacity);
+      return;
+    }
+    // Without this the flood row's eye would be a control that moves nothing.
+    if (id === "flood") {
+      if (patch.visible !== undefined) setShowFloodOverlay(patch.visible);
+      if (patch.opacity !== undefined) setFloodOpacity(patch.opacity);
       return;
     }
     if (id === "confidence") {
