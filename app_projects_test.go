@@ -872,3 +872,35 @@ func TestProjectBindingsWithoutAStoreReturnAnError(t *testing.T) {
 		}
 	}
 }
+
+// A composition made over an area comes back filed under it.
+//
+// The binding took a run and no area, so a composition made with no run open
+// was filed only under the project, and the board -- which lists a run-less
+// composition only when it is the one on the map, unless it knows the area --
+// showed one composition per area however many had been made there.
+func TestProjectOverlaySaveFilesTheCompositionUnderItsArea(t *testing.T) {
+	a := newTestApp(t)
+	p := mustCreateProject(t, a, "Composition project")
+	png := []byte("\x89PNG\r\n\x1a\nan index composite")
+
+	row := mustSaveOverlay(t, a, SaveProjectOverlayRequest{
+		ProjectID:  p.ID,
+		AreaID:     "  area-compos  ",
+		OverlayURI: dataURI("image/png", png),
+	})
+	if row.AreaID != "area-compos" {
+		t.Fatalf("saved under area %q, want the trimmed %q", row.AreaID, "area-compos")
+	}
+	if row.RunID != "" {
+		t.Fatalf("a composition made with no run open reports run %q", row.RunID)
+	}
+
+	listed, err := a.ListProjectOverlays(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].AreaID != "area-compos" {
+		t.Fatalf("the list does not carry the area: %+v", listed)
+	}
+}

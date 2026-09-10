@@ -99,7 +99,10 @@ type SaveProjectOverlayRequest struct {
 		scenes on the map produces one -- and those belong to the project
 		rather than to a run.
 	*/
-	RunID      string `json:"run_id"`
+	RunID string `json:"run_id"`
+	// The area the composition was made over, which is what files one that
+	// has no run. See store.ProjectOverlay.AreaID.
+	AreaID     string `json:"area_id"`
 	Kind       string `json:"kind"`
 	Title      string `json:"title"`
 	MetaJSON   string `json:"meta_json"`
@@ -170,6 +173,7 @@ func (a *App) SaveProjectOverlay(req SaveProjectOverlayRequest) (*store.ProjectO
 		ID:         overlayID,
 		ProjectID:  projectID,
 		RunID:      strings.TrimSpace(req.RunID),
+		AreaID:     strings.TrimSpace(req.AreaID),
 		Kind:       kind,
 		Title:      title,
 		MetaJSON:   meta,

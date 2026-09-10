@@ -690,6 +690,8 @@ export interface ProjectOverlay {
    * by their recorded extent instead.
    */
   run_id?: string
+  /** The area it was made over; empty on rows written before it was carried. */
+  area_id?: string
   kind: string
   title: string
   meta_json?: string
@@ -703,6 +705,8 @@ export interface ProjectOverlay {
 export interface SaveProjectOverlayRequest {
   /** The run on screen when the composition was made, when there was one. */
   run_id?: string
+  /** The area it was made over, which files a composition that has no run. */
+  area_id?: string
   project_id: string
   kind: string
   title: string
@@ -782,6 +786,11 @@ export interface CompositionOverlay {
   raster_tif?: string
   /** The run this was made under; empty for a project-level composition. */
   runId?: string
+  /**
+   * The area it was made over. What lets the board list every composition of
+   * an area that has no run, instead of only the one on the map.
+   */
+  areaId?: string
 }
 
 export type WaterIndex = "NDWI" | "MNDWI" | "AWEI"

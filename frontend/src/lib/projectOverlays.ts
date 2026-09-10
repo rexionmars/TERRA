@@ -74,6 +74,7 @@ export function projectOverlayToComposition(
     sceneDate: meta.sceneDate,
     raster_tif: o.raster_tif,
     runId: o.run_id || undefined,
+    areaId: o.area_id || undefined,
   }
 }
 
