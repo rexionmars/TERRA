@@ -7,6 +7,21 @@ export type WhatsNewEntry = {
 /** Newest first. Keep in sync with AppVersion / Git tags when cutting a release. */
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    version: "0.6.0",
+    title: "Cumulus — the network a site would join, and the work filed where it is done",
+    items: [
+      "The grid a site would join is on the map. The transmission network is drawn under the plants that reach it, each circuit coloured by the voltage it runs at in ANEEL's own convention, and a connection reading says what the plants on an area are joined to — for bare ground, from the neighbours' attachment rather than from a distance alone",
+      "Brazil's operational record is a slice of its own, so a yield can be read against a system that withholds part of what the resource delivers. The curtailment reading over an area of seventeen plants went from 78.5 seconds to 0.28",
+      "Rainfall can be routed over an area and answered as depth, speed and arrival, on a board of its own. It is a different question from the flood envelope, which measures how much of an extent follows from the choice of elevation model",
+      "Every saved analysis is filed and found in a browser inside the studio rather than on a screen of its own. Folders are drawn in a colour of their own, and one holding a single product carries that product's glyph",
+      "Rasters over one area are drawn at heights, so a stack reads as a stack, each with a legend tied to the ground it measures. The base can be a street or topographic drawing as well as a photograph, and below the imagery handover the planet is a Sentinel-2 cloudless mosaic rather than a composite of no stated year",
+      "A studio is named when it begins, and the ground drawn in it takes that name. Published state and municipal boundaries can be put on the board as a card and joined to an area with a wire the reader pulls, instead of being drawn again by hand",
+      "Saved data no longer grows on its own: a raster is stored once, deleting a run removes it from every arrangement that named it, and the database compacts itself once it fragments. The Python environment the application manages is no longer copied into every backup",
+      "The splash, these notes, the storage report and the Python environment open from the Studio menu, where before each could be reached once and then not again",
+      "A raster no longer comes apart into bands below zoom 12, and no longer leaves the frame while the planet flattens into a map",
+    ],
+  },
+  {
     version: "0.5.0",
     title: "Draugen — the ground a run was made over, and a planet to draw it on",
     items: [
