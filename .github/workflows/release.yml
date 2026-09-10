@@ -1,9 +1,38 @@
 name: Release
 
+# Three ways in, one build.
+#
+# A TAG PUSHED BY A PERSON starts this directly, which is how v0.1.0 to v0.4.0
+# were built.
+#
+# A TAG CREATED BY release-please DOES NOT. GitHub does not start a workflow
+# from an event made with the repository's own GITHUB_TOKEN, which is the token
+# release-please runs with -- so merging the v0.5.0 proposal created the tag
+# and the release page and this workflow never ran. The page went out with no
+# assets at all, where v0.4.0 has six. release-please.yml therefore calls this
+# as a reusable workflow once it has cut a release, inside its own run, where
+# the token rule does not apply.
+#
+# BY HAND, for a tag that already exists: the way to put binaries on a release
+# that shipped without them. Nothing about the build depends on how it was
+# started; `inputs.tag` is empty only for the pushed tag, and every reference to
+# the tag below reads `inputs.tag || github.ref_name` for that reason.
 on:
   push:
     tags:
       - "v*"
+  workflow_call:
+    inputs:
+      tag:
+        description: The tag to build and publish, e.g. v0.6.0
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to build and publish, e.g. v0.5.0
+        required: true
+        type: string
 
 permissions:
   contents: write # needed to create the release and upload assets
@@ -60,7 +89,14 @@ jobs:
             arch: x86_64
 
     steps:
+      # The tag, not whatever the run was started from. Called from
+      # release-please the run belongs to main and a bare checkout would build
+      # main's tip -- the same commit today, but not a thing to rely on; started
+      # by hand it would build main for an older tag, which is the wrong binary
+      # under the right name.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -149,6 +185,7 @@ jobs:
       - name: Checkout for the code name
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref }}
           sparse-checkout: frontend/src/lib/brand.ts
           sparse-checkout-cone-mode: false
 
@@ -169,16 +206,31 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # APPENDED, NOT WRITTEN. When release-please cuts the release the page
+      # already carries its changelog -- the notes are taken from the proposal's
+      # body -- and this action's default is to replace a page's body with its
+      # own. Run after release-please, it would have swapped the changelog for
+      # an install table. So the table goes underneath, and GitHub's generated
+      # list is asked for only when nothing else wrote the page: a tag pushed by
+      # hand, where `inputs.tag` is empty.
+      #
+      # `make_latest: legacy` because this can now run for an older tag. Left
+      # to the API default, putting binaries on v0.5.0 after v0.6.0 is out
+      # would move "Latest" back to v0.5.0; legacy decides it by date and
+      # version, which is the question being asked.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          name: TERRA ${{ github.ref_name }} — ${{ steps.codename.outputs.name }}
-          generate_release_notes: true
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: TERRA ${{ inputs.tag || github.ref_name }} — ${{ steps.codename.outputs.name }}
+          append_body: true
+          generate_release_notes: ${{ inputs.tag == '' }}
+          make_latest: legacy
           draft: false
           prerelease: false
           body: |
-            ## TERRA ${{ github.ref_name }} — ${{ steps.codename.outputs.name }}
+            ## Installing
 
             Two install flavors per platform:
 
