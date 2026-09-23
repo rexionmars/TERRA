@@ -49,6 +49,13 @@ describe("MAP_TOOLS", () => {
     // kept.
     expect(isMapTool("unlisted" as BoardToolId)).toBe(false)
   })
+
+  it("does not admit a board-only product", () => {
+    // The mineral map was added to the band alone and is not a panel; widening
+    // MapToolId to hold it would make a value the store has never written
+    // suddenly representable.
+    expect(isMapTool("mineral")).toBe(false)
+  })
 })
 
 describe("BOARD_TOOLS", () => {

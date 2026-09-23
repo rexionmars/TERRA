@@ -31,6 +31,7 @@ const GRAPHS: [string, RunGraph][] = (
   [
     ["classify", runGraph("classify")],
     ["water", runGraph("water")],
+    ["mineral", runGraph("mineral")],
     ["compose rgb", runGraph("compose", "rgb")],
     ["compose index", runGraph("compose", "index")],
   ] as [string, RunGraph | null][]
@@ -38,7 +39,7 @@ const GRAPHS: [string, RunGraph][] = (
 
 describe("defaultPlaces", () => {
   it("covers every graph the product tables can produce", () => {
-    expect(GRAPHS.length).toBe(4)
+    expect(GRAPHS.length).toBe(5)
   })
 
   /*
@@ -113,7 +114,7 @@ describe("cards no edge reaches", () => {
     graph are the ones the reader adds, which the two tests below cover.
   */
   it("is nothing at all on any graph the product tables produce", () => {
-    expect(GRAPHS.length).toBe(4)
+    expect(GRAPHS.length).toBe(5)
     for (const [name, graph] of GRAPHS) {
       expect(unwired(graph), name).toEqual([])
     }

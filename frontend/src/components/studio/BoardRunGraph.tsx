@@ -24,6 +24,7 @@ import {
   ArrowDown,
   Check,
   CircleNotch,
+  Diamond,
   Drop,
   GridFour,
   Image as ImageIcon,
@@ -103,6 +104,9 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
   classify: GridFour,
   compose: ImageIcon,
   water: Drop,
+  // A cut stone for the mineral map: the subject is what the surface is made
+  // of, and no other product here reads composition.
+  mineral: Diamond,
 }
 
 /**
@@ -913,58 +917,67 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           onChange={(v) => props.onMaxCloudChange(Math.round(v))}
         />
         {/*
-          A boxed toggle rather than a native checkbox, which was the one
-          control here drawing platform chrome -- at a size and colour the
-          theme does not own. It joins the vocabulary instead: the same 22px
-          height and the same boundary as the fields above it, lit with the
-          accent when it is on, like a chosen cell.
+          Withheld under the mineral map, which takes each cell's answer from
+          one pass and has no monthly pick to make: the toggle would be a
+          control that moves nothing in the request.
         */}
-        <button
-          type="button"
-          onClick={() => props.onMonthlyBestChange(!props.monthlyBest)}
-          disabled={busy}
-          aria-pressed={props.monthlyBest}
-          title="Keep only the best scene of each month"
-          className={cn(
-            "flex h-[1.375rem] items-center gap-1 rounded-sm px-2 text-meta transition-colors",
-            "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
-            busy
-              ? "cursor-not-allowed inset-ring-1 inset-ring-line text-muted-foreground/40"
-              : props.monthlyBest
-                ? undefined
-                : "inset-ring-1 text-muted-foreground inset-ring-line-strong hover:text-foreground"
-          )}
-          /*
-            SET, IT IS THE SAME CHIP A CHOSEN OPTION IS -- the card's own band
-            filled, with the band's ink on it. See `Choice` in nodeCard.tsx,
-            which this toggle has stood beside since it stopped being a native
-            checkbox and which it was already borrowing the height and the
-            boundary from.
+        {props.tool !== "mineral" && (
+          <>
+            {/*
+              A boxed toggle rather than a native checkbox, which was the one
+              control here drawing platform chrome -- at a size and colour the
+              theme does not own. It joins the vocabulary instead: the same 22px
+              height and the same boundary as the fields above it, lit with the
+              accent when it is on, like a chosen cell.
+            */}
+            <button
+              type="button"
+              onClick={() => props.onMonthlyBestChange(!props.monthlyBest)}
+              disabled={busy}
+              aria-pressed={props.monthlyBest}
+              title="Keep only the best scene of each month"
+              className={cn(
+                "flex h-[1.375rem] items-center gap-1 rounded-sm px-2 text-meta transition-colors",
+                "focus-visible:outline-none focus-visible:inset-ring-1 focus-visible:inset-ring-ring",
+                busy
+                  ? "cursor-not-allowed inset-ring-1 inset-ring-line text-muted-foreground/40"
+                  : props.monthlyBest
+                    ? undefined
+                    : "inset-ring-1 text-muted-foreground inset-ring-line-strong hover:text-foreground"
+              )}
+              /*
+                SET, IT IS THE SAME CHIP A CHOSEN OPTION IS -- the card's own band
+                filled, with the band's ink on it. See `Choice` in nodeCard.tsx,
+                which this toggle has stood beside since it stopped being a native
+                checkbox and which it was already borrowing the height and the
+                boundary from.
 
-            What it is no longer borrowing is `bg-accent-dim` with an accent
-            ring and `text-accent-quiet` on it: three chassis tokens, on a card
-            whose colour is the thing the board is read by. The ring goes with
-            them, because the chip is a fill now and the ring was what gave a
-            dim plate an edge.
+                What it is no longer borrowing is `bg-accent-dim` with an accent
+                ring and `text-accent-quiet` on it: three chassis tokens, on a card
+                whose colour is the thing the board is read by. The ring goes with
+                them, because the chip is a fill now and the ring was what gave a
+                dim plate an edge.
 
-            The UNSET state keeps its outline. An off toggle has to be visible
-            as a control before it is visible as off, and a card body with no
-            mark on it is not one.
-          */
-          style={
-            !busy && props.monthlyBest
-              ? {
-                  background: "var(--b-lit, var(--b-card-head))",
-                  color: "var(--b-lit-ink, var(--b-card-ink))",
-                }
-              : undefined
-          }
-        >
-          <Check
-            className={cn("size-3 shrink-0", props.monthlyBest ? "" : "opacity-0")}
-          />
-          best/month
-        </button>
+                The UNSET state keeps its outline. An off toggle has to be visible
+                as a control before it is visible as off, and a card body with no
+                mark on it is not one.
+              */
+              style={
+                !busy && props.monthlyBest
+                  ? {
+                      background: "var(--b-lit, var(--b-card-head))",
+                      color: "var(--b-lit-ink, var(--b-card-ink))",
+                    }
+                  : undefined
+              }
+            >
+              <Check
+                className={cn("size-3 shrink-0", props.monthlyBest ? "" : "opacity-0")}
+              />
+              best/month
+            </button>
+          </>
+        )}
       </>
     ),
 

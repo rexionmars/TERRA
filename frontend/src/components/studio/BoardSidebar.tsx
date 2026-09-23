@@ -28,6 +28,7 @@ import { type ReactNode, useRef, useState } from "react"
 import {
   CaretDown,
   CaretRight,
+  Diamond,
   Download,
   Drop,
   Eye,
@@ -181,6 +182,7 @@ export const sceneKey = (areaId: string, sceneId: string) =>
  */
 function layerIcon(id: string): Icon {
   if (id === "water") return Drop
+  if (id.startsWith("mineral:")) return Diamond
   if (id === "composition") return ImageIcon
   if (id === "confidence") return Gauge
   return GridFour
@@ -199,6 +201,7 @@ function layerIcon(id: string): Icon {
  */
 function layerKind(id: string): string {
   if (id === "water") return "Water"
+  if (id.startsWith("mineral:")) return "Mineral"
   if (id === "composition") return "Composite"
   if (id === "confidence") return "Confidence"
   if (id === "prediction") return "Prediction"

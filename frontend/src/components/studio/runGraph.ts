@@ -223,6 +223,23 @@ function productGraph(
     col,
   })
 
+  /*
+    The mineral map: an area and a period, and nothing to choose between. The
+    expert system and its libraries are fixed by the EMIT mission's rule set,
+    so there is no model card -- one that offered a single option would be a
+    readout drawn as a control. The period's cloud field is the scene-level
+    ceiling the pass search applies.
+  */
+  if (tool === "mineral") {
+    return {
+      nodes: [at("area", 0), at("period", 0), at("run", 1)],
+      edges: [
+        ["area", "run"],
+        ["period", "run"],
+      ],
+    }
+  }
+
   if (tool === "classify") {
     /*
       THE MODEL HAS TWO EDGES AND BOTH ARE TRUE. It is an input to the run like

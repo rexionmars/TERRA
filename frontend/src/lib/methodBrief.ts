@@ -243,6 +243,51 @@ function composeBrief(i: MethodInputs): MethodBrief {
   }
 }
 
+/*
+  The mineral map. Not Sentinel-2, so `acquisition` does not describe it: the
+  scene search is NASA CMR over EMIT L2A granules, no scene cloud ceiling is
+  applied (the mask excludes cloud per cell), and the monthly pick has no meaning for a product that takes
+  each cell's answer from one pass.
+*/
+function mineralBrief(i: MethodInputs): MethodBrief {
+  return {
+    subtitle: "Surface mineralogy from EMIT imaging spectroscopy",
+    source: "sidecar/terra/mineral · Tetracorder",
+    sections: [
+      {
+        title: "Acquisition",
+        lines: [
+          "EMIT L2A surface reflectance, 285 channels, 60 m, from the LP DAAC",
+          `${i.start} to ${i.end}`,
+          "passes of any scene cloud cover, up to 3, least cloudy first; cloud is excluded per cell by the EMIT mask",
+          "cells under the EMIT L2A cloud mask are excluded, not answered",
+          "read over OPeNDAP for the area's rows only, the mask by byte range; an Earthdata token is required",
+        ],
+        note: "The monthly pick does not apply here. Each cell takes its answer from one pass, never an average over passes.",
+      },
+      {
+        title: "Identification",
+        lines: [
+          "Tetracorder (Clark et al., 2003; Clark et al., 2024), expert system t5.27e1, the public release nearest the one EMIT L2B V001 records (t5.27d1)",
+          "USGS splib06 and sprlb06 reference spectra convolved to the EMIT channels",
+          "continuum removal and least-squares fit of each diagnostic feature",
+          "group 1: Fe2+/Fe3+ electronic absorptions, 0.4-1.3 um",
+          "group 2: vibrational absorptions, 2.0-2.5 um",
+        ],
+      },
+      {
+        title: "Output",
+        lines: [
+          "one answer per group per 60 m cell: the best reference, its fit and its band depth",
+          "a class map per group, and a GeoTIFF of every group's entry, fit and depth",
+          "the observed area reported beside every identified area",
+        ],
+        note: "Band depth is not abundance; no unmixing is done. Green vegetation, water and cloud suppress the mineral answer, so over most vegetated ground the identified area is a small part of the AOI.",
+      },
+    ],
+  }
+}
+
 /**
  * The brief for what the band is currently set to run.
  *
@@ -258,5 +303,7 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return waterBrief(i)
     case "compose":
       return composeBrief(i)
+    case "mineral":
+      return mineralBrief(i)
   }
 }

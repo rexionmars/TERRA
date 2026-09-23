@@ -8,6 +8,7 @@ import {
 } from "@/lib/studioTelemetry"
 import { setStudioGutter } from "@/lib/studioGutter"
 import { notifyError, notifyInfo, notifySuccess } from "@/lib/notify"
+import type { EditorId } from "@/lib/studioEditors"
 import type { Studio } from "@/lib/studios"
 import { listStudios, openStudio, saveStudio } from "@/lib/studios"
 import {
@@ -35,6 +36,8 @@ import {
   UpdateArea,
   DeleteArea,
   AnalyzeWater,
+  AnalyzeMinerals,
+  GetEarthdataStatus,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -59,6 +62,8 @@ import type {
   WaterAnalysis,
   WaterIndex,
   WaterRequest,
+  MineralAnalysis,
+  MineralRequest,
 } from "@/lib/types"
 import {
   parsePreferenceExtras,
@@ -250,6 +255,7 @@ function App() {
     return (
       r.run_id ||
       r.water?.run_id ||
+      r.mineral?.run_id ||
       r.overlay_uri ||
       null
     )
@@ -298,7 +304,8 @@ function App() {
       !!outgoing &&
       (!!outgoing.class_stats?.length ||
         !!outgoing.overlay_uri ||
-        !!outgoing.water)
+        !!outgoing.water ||
+        !!outgoing.mineral)
     if (!outgoing || !carries) {
       return
     }
@@ -321,6 +328,7 @@ function App() {
         areaId?.trim() ||
         outgoing.run_id ||
         outgoing.water?.run_id ||
+        outgoing.mineral?.run_id ||
         `unsaved:${prev.length + 1}`
       /*
         ONE ENTRY PER RUN, WHATEVER IT WAS FILED UNDER.
@@ -647,6 +655,27 @@ function AppBody(props: {
    */
   const [studios, setStudios] = useState<Studio[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
+  /*
+    The mineral map and its run status, held here rather than in the screen,
+    which unmounts on every navigation away. Plain state rather than a
+    reducer: one product with one result, so there is no second consumer to
+    keep in step. Its progress has a channel of its own below, so a mineral
+    run's messages do not land under the classification's button.
+  */
+  /*
+    The editor a just-finished run needs on screen, consumed once.
+
+    A request rather than a command: the board owns its tree and decides
+    whether this is already satisfied. Cleared as soon as it is honoured, so a
+    run cannot rearrange a board long after it finished.
+  */
+  const [reveal, setReveal] = useState<EditorId | null>(null)
+  const [mineral, setMineral] = useState<MineralAnalysis | null>(null)
+  const [mineralRun, setMineralRun] = useState({
+    active: false,
+    progress: 0,
+    message: "",
+  })
   /*
     THE OUTCOME OF THE LAST RUN, AND THE VALUES IT WAS MADE FROM.
 
@@ -1123,6 +1152,7 @@ function AppBody(props: {
     props.setResult(null)
     setCurrentRunId(null)
     setWater(null)
+    setMineral(null)
   }, [props.setResult])
 
   const activateProject = useCallback(
@@ -1473,18 +1503,41 @@ function AppBody(props: {
     setShowWaterOverlay(true)
   }, [aoiSignature, water])
 
+  /** The AOI the mineral map on screen was identified over. */
+  const mineralAoiRef = useRef<string>("")
+
+  /*
+    The same for the mineral map: its class rasters are placed on the extent
+    of the area they were identified over, and every figure in its reading is
+    over that area, so once the AOI moves both describe other ground.
+  */
+  useEffect(() => {
+    if (!mineral) return
+    if (aoiSignature === mineralAoiRef.current) return
+    setMineral(null)
+  }, [aoiSignature, mineral])
+
   /**
-   * The sidecar's progress channel, relayed to the one display that reads it.
+   * The sidecar's progress channel, and the two displays that read it.
    *
-   * The sidecar emits on a single event and runs one action at a time, and
-   * every action reports to the same display, so nothing is routed.
+   * The sidecar emits on a single event and runs one action at a time, so the
+   * run in progress decides which display receives it: the mineral map's own
+   * while one is running, the shared display otherwise. One display for both
+   * would put a mineral run's messages under the classification's button.
    *
    * Read through refs so the subscription is registered once: re-registering on
    * every run state change would drop events emitted between the unsubscribe
    * and the resubscribe. A progress of -1 means "message only, percentage
    * unchanged", which is why the percentage is set only when it is not
-   * negative.
+   * negative. The mineral map's is mirrored in mineralSeenRef rather than read
+   * back from its state, because several such lines can arrive in one React
+   * batch and a value read from state would be from before the batch;
+   * handleRunMinerals resets the mirror, so a second run cannot open on the
+   * previous run's percentage.
    */
+  const mineralRunRef = useRef(mineralRun)
+  mineralRunRef.current = mineralRun
+  const mineralSeenRef = useRef({ progress: 0, message: "" })
   const setProgressRef = useRef(props.setProgress)
   setProgressRef.current = props.setProgress
   const setProgressMsgRef = useRef(props.setProgressMsg)
@@ -1492,6 +1545,17 @@ function AppBody(props: {
 
   useEffect(() => {
     EventsOn("predict:progress", (ev: ProgressEvent) => {
+      if (mineralRunRef.current.active) {
+        const seen = mineralSeenRef.current
+        if (ev.progress >= 0) seen.progress = ev.progress
+        if (ev.msg) seen.message = ev.msg
+        setMineralRun({
+          active: true,
+          progress: seen.progress,
+          message: seen.message,
+        })
+        return
+      }
       if (ev.progress >= 0) setProgressRef.current(ev.progress)
       if (ev.msg) setProgressMsgRef.current(ev.msg)
     })
@@ -1555,6 +1619,93 @@ function AppBody(props: {
       setWaterRunning(false)
       props.setProgress(0)
       props.setProgressMsg("")
+    }
+  }
+
+  /*
+    The mineral map over the drawn area and the period.
+
+    THE TOKEN IS ASKED FOR BEFORE THE RUN, not discovered by it. Every EMIT
+    read goes through NASA Earthdata, and without a token the sidecar is
+    refused on its first read -- after a CMR search it has already waited for.
+    Asking the Go side here costs a file read and turns that failure into a
+    sentence naming where the token is set. The status is read on each run
+    rather than cached, so a token saved in Settings a moment ago applies.
+
+    The cloud ceiling is the period card's own, because that is the value the
+    reader sees beside the dates; the sidecar applies it per pass. max_scenes
+    is left at 0, which the sidecar reads as its default of 3.
+  */
+  const handleRunMinerals = async () => {
+    if (!props.customPolygon) {
+      notifyError("Draw an area on the map first.")
+      return
+    }
+    if (!props.start || !props.end) {
+      notifyError("Set the acquisition period.")
+      return
+    }
+    try {
+      const status = await GetEarthdataStatus()
+      if (!status.configured) {
+        notifyError(
+          "No Earthdata token is set. Add one in Settings > System (Earthdata token) to read EMIT reflectance."
+        )
+        return
+      }
+    } catch (e) {
+      notifyError("Could not read the Earthdata token status", e)
+      return
+    }
+    mineralSeenRef.current = { progress: 0, message: "starting" }
+    setMineralRun({ active: true, progress: 0, message: "starting" })
+    const runAoi = aoiSignature
+    try {
+      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
+      const req: MineralRequest = {
+        polygon_geojson: props.customPolygon,
+        start: props.start,
+        end: props.end,
+        // Zero: the sidecar's ceiling of 100%, not the period card's value.
+        // That value is chosen for Sentinel-2 scenes; an EMIT pass is scored
+        // for cloud over its whole ~75 km scene, and over the humid tropics
+        // every pass exceeds a typical card value while the area itself may be
+        // clear. Passes are read least cloudy first and cloud is excluded per
+        // cell by the EMIT mask.
+        max_cloud: 0,
+        max_scenes: 0,
+        label: aoiLabel,
+        run_label: nameThisRun(aoiLabel),
+        area_id: props.activeAreaId,
+        project_id: activeProjectId || undefined,
+      }
+      const res = (await AnalyzeMinerals(req as never)) as unknown as MineralAnalysis
+      // Recorded before the result, so the invalidation effect above compares
+      // against the AOI this run was made on rather than dropping the map it
+      // has just been handed.
+      mineralAoiRef.current = runAoi
+      setCurrentRunId(res.run_id || null)
+      setMineral(res)
+      setReveal("mineralReading")
+      // The observed area travels with the identified one, here as in the
+      // reading: over vegetated ground most of an area has no mineral answer.
+      const identified = res.groups
+        .map((g) => `group ${g.group} ${g.detected_area_ha.toFixed(1)} ha`)
+        .join(", ")
+      notifySuccess(
+        `Mineral map: ${identified || "no group reported"} identified over ` +
+          `${res.observed_area_ha.toFixed(1)} of ${res.aoi_area_ha.toFixed(1)} ha observed, ` +
+          `${res.scenes.length} EMIT ${res.scenes.length === 1 ? "pass" : "passes"}` +
+          `${res.run_id ? " (saved)" : ""}.`
+      )
+      void refreshRuns()
+      void refreshProjects()
+      settleRun(true)
+    } catch (e) {
+      settleRun(false)
+      notifyError("Mineral map error", e)
+    } finally {
+      setMineralRun({ active: false, progress: 0, message: "" })
     }
   }
 
@@ -1806,6 +1957,14 @@ function AppBody(props: {
           setShowWaterOverlay(true)
         } else {
           setWater(null)
+        }
+        // The same for a mineral map, whose class rasters are placed on the
+        // extent of the area it was identified over.
+        if (res.mineral) {
+          mineralAoiRef.current = restoredAoi
+          setMineral(res.mineral)
+        } else {
+          setMineral(null)
         }
         const centroid = geometryCentroid(polygon)
         if (centroid) {
@@ -2592,7 +2751,7 @@ function AppBody(props: {
       // once: this counted a loaded result, the clearing did not remove it, and
       // the detail view rebuilt itself from what the clearing left behind.
       // Adding a product here means adding it there.
-      if (!props.result && !water) {
+      if (!props.result && !water && !mineral) {
         return null
       }
       return {
@@ -2609,9 +2768,10 @@ function AppBody(props: {
         */
         run_id: currentRunId ?? "",
         water,
+        mineral,
       }
     },
-    [props.result, water, currentRunId]
+    [props.result, water, mineral, currentRunId]
   )
 
   /**
@@ -2729,6 +2889,14 @@ function AppBody(props: {
                   onBoardInputs={onBoardInputs}
                   onActivateProject={(id) => void activateProject(id)}
                   polygonGeoJSON={analysisPolygonGeoJSON}
+                  mineral={mineral}
+                  onRunMinerals={() => void handleRunMinerals()}
+                  mineralBusy={mineralRun.active}
+                  mineralProgress={mineralRun.progress}
+                  mineralProgressMsg={mineralRun.message}
+                  onClearMineral={() => setMineral(null)}
+                  reveal={reveal}
+                  onRevealed={() => setReveal(null)}
                   initialView={initialMapView}
                   customPolygon={props.customPolygon}
                   flyTo={props.flyTo}

@@ -29,11 +29,17 @@ import { notifyExportFail, notifyExportOk } from "@/lib/notify"
 import type {
   Bounds,
   CompositionOverlay,
+  MineralAnalysis,
   ModelKind,
   PredictResult,
   WaterAnalysis,
 } from "@/lib/types"
 import { isZeroExtent, predictionSource } from "@/lib/mapLayers"
+import {
+  mineralGroupTitle,
+  mineralLayerDefaultVisible,
+  mineralLayerId,
+} from "@/lib/mineral"
 
 /**
  * One run's output, as a branch of the data tree.
@@ -167,6 +173,12 @@ export interface RunAssetInput {
   showWaterOverlay: boolean
   composeOpacity: number
   waterOpacity: number
+  /**
+   * The mineral map's class rasters, one per group, and the switches the
+   * layer table reads them with (see VisibleLayerInput.mineralLayers).
+   */
+  mineral?: MineralAnalysis | null
+  mineralLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
 }
 
 /**
@@ -330,6 +342,52 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         filename: "terra_water_occurrence.png",
       },
       exportTif: null,
+    })
+  }
+
+  /*
+    The mineral map, one asset per group's class raster.
+
+    `sceneId` is lib/mapLayers.ts's layer id for the same raster, for the
+    reason RunAsset.sceneId gives. The GeoTIFF is one file carrying every
+    group's entry, fit and depth as bands, so both assets export the same file:
+    the class PNG is one group's picture and the GeoTIFF is the measurement
+    behind both.
+  */
+  const m = i.mineral
+  for (const g of m?.groups ?? []) {
+    if (!m || !g.class_uri) continue
+    const id = mineralLayerId(g.group)
+    const state = i.mineralLayers?.[id]
+    out.push({
+      id: `mineral-group${g.group}`,
+      sceneId: id,
+      title: mineralGroupTitle(g.group),
+      params: [
+        m.expert_system || null,
+        m.scenes.length ? `${m.scenes.length} EMIT passes` : null,
+        `${g.detected_area_ha.toFixed(0)} of ${m.observed_area_ha.toFixed(0)} ha observed identified`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      previewUri: g.class_uri,
+      extent: placeable(m.extent),
+      // One reference's class per cell: a blend of two colours names no mineral.
+      pixelated: true,
+      // Without switches the caller is listing a run the map is not drawing,
+      // so no group of it reads as on the board.
+      onBoard: i.mineralLayers
+        ? (state?.visible ?? mineralLayerDefaultVisible(g.group))
+        : false,
+      selectId: null,
+      removeId: null,
+      exportPng: {
+        src: g.class_uri,
+        filename: `terra_mineral_group${g.group}.png`,
+      },
+      exportTif: m.geotiff
+        ? { via: "file", src: m.geotiff, filename: "terra_mineral_map.tif" }
+        : null,
     })
   }
 

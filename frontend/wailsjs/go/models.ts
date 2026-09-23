@@ -1301,6 +1301,249 @@ export namespace analysis {
 		}
 	}
 	
+	export class MineralLegendItem {
+	    class: string;
+	    label: string;
+	    color: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralLegendItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class = source["class"];
+	        this.label = source["label"];
+	        this.color = source["color"];
+	    }
+	}
+	export class MineralEntryRow {
+	    id: string;
+	    title: string;
+	    class: string;
+	    cells: number;
+	    area_ha: number;
+	    mean_fit: number;
+	    mean_depth: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralEntryRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.class = source["class"];
+	        this.cells = source["cells"];
+	        this.area_ha = source["area_ha"];
+	        this.mean_fit = source["mean_fit"];
+	        this.mean_depth = source["mean_depth"];
+	    }
+	}
+	export class MineralClassRow {
+	    class: string;
+	    label: string;
+	    color: string;
+	    cells: number;
+	    area_ha: number;
+	    fraction_of_observed: number;
+	    mean_depth: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralClassRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.class = source["class"];
+	        this.label = source["label"];
+	        this.color = source["color"];
+	        this.cells = source["cells"];
+	        this.area_ha = source["area_ha"];
+	        this.fraction_of_observed = source["fraction_of_observed"];
+	        this.mean_depth = source["mean_depth"];
+	    }
+	}
+	export class MineralGroup {
+	    group: number;
+	    label: string;
+	    detected_cells: number;
+	    detected_area_ha: number;
+	    classes: MineralClassRow[];
+	    entries: MineralEntryRow[];
+	    class_png: string;
+	    class_uri?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.group = source["group"];
+	        this.label = source["label"];
+	        this.detected_cells = source["detected_cells"];
+	        this.detected_area_ha = source["detected_area_ha"];
+	        this.classes = this.convertValues(source["classes"], MineralClassRow);
+	        this.entries = this.convertValues(source["entries"], MineralEntryRow);
+	        this.class_png = source["class_png"];
+	        this.class_uri = source["class_uri"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MineralScene {
+	    granule: string;
+	    date: string;
+	    cloud_cover?: number;
+	    mask_granule: string;
+	    cells: number;
+	    masked_cells: number;
+	    wavelength_offset_nm: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralScene(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.granule = source["granule"];
+	        this.date = source["date"];
+	        this.cloud_cover = source["cloud_cover"];
+	        this.mask_granule = source["mask_granule"];
+	        this.cells = source["cells"];
+	        this.masked_cells = source["masked_cells"];
+	        this.wavelength_offset_nm = source["wavelength_offset_nm"];
+	    }
+	}
+	export class MineralAnalysis {
+	    run_id?: string;
+	    sensor: string;
+	    expert_system: string;
+	    libraries: string[];
+	    aoi_cells: number;
+	    aoi_area_ha: number;
+	    observed_cells: number;
+	    observed_area_ha: number;
+	    masked_cells: number;
+	    cell_size_deg: number[];
+	    scenes: MineralScene[];
+	    groups: MineralGroup[];
+	    legend: MineralLegendItem[];
+	    geotiff: string;
+	    extent: Bounds;
+	    notes: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run_id = source["run_id"];
+	        this.sensor = source["sensor"];
+	        this.expert_system = source["expert_system"];
+	        this.libraries = source["libraries"];
+	        this.aoi_cells = source["aoi_cells"];
+	        this.aoi_area_ha = source["aoi_area_ha"];
+	        this.observed_cells = source["observed_cells"];
+	        this.observed_area_ha = source["observed_area_ha"];
+	        this.masked_cells = source["masked_cells"];
+	        this.cell_size_deg = source["cell_size_deg"];
+	        this.scenes = this.convertValues(source["scenes"], MineralScene);
+	        this.groups = this.convertValues(source["groups"], MineralGroup);
+	        this.legend = this.convertValues(source["legend"], MineralLegendItem);
+	        this.geotiff = source["geotiff"];
+	        this.extent = this.convertValues(source["extent"], Bounds);
+	        this.notes = source["notes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	export class MineralRequest {
+	    polygon_geojson?: GeoJSONGeometry;
+	    start: string;
+	    end: string;
+	    max_cloud: number;
+	    max_scenes: number;
+	    label: string;
+	    run_label: string;
+	    area_id: string;
+	    project_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MineralRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.polygon_geojson = this.convertValues(source["polygon_geojson"], GeoJSONGeometry);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.max_cloud = source["max_cloud"];
+	        this.max_scenes = source["max_scenes"];
+	        this.label = source["label"];
+	        this.run_label = source["run_label"];
+	        this.area_id = source["area_id"];
+	        this.project_id = source["project_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class PhenologyMetrics {
 	    sos_doy?: number;
 	    pos_doy?: number;
@@ -1568,6 +1811,7 @@ export namespace analysis {
 	    phenology_states: PhenologyStatePoint[];
 	    lulc?: LULCAnalysis;
 	    water?: WaterAnalysis;
+	    mineral?: MineralAnalysis;
 	    domain_fingerprint?: DomainFingerprint;
 	
 	    static createFrom(source: any = {}) {
@@ -1600,6 +1844,7 @@ export namespace analysis {
 	        this.phenology_states = this.convertValues(source["phenology_states"], PhenologyStatePoint);
 	        this.lulc = this.convertValues(source["lulc"], LULCAnalysis);
 	        this.water = this.convertValues(source["water"], WaterAnalysis);
+	        this.mineral = this.convertValues(source["mineral"], MineralAnalysis);
 	        this.domain_fingerprint = this.convertValues(source["domain_fingerprint"], DomainFingerprint);
 	    }
 	
@@ -1717,6 +1962,20 @@ export namespace geocode {
 
 export namespace main {
 	
+	export class EarthdataStatus {
+	    configured: boolean;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EarthdataStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.configured = source["configured"];
+	        this.source = source["source"];
+	    }
+	}
 	export class ResolvedPath {
 	    label: string;
 	    path: string;

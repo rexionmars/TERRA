@@ -81,6 +81,33 @@ export function formatHectares(ha: number): string {
   return `${Math.round(ha).toLocaleString()} ha`
 }
 
+export function runSummaryObject(
+  summary?: string | null
+): Record<string, unknown> {
+  if (!summary?.trim()) return {}
+  try {
+    const j = JSON.parse(summary) as unknown
+    return j && typeof j === "object" ? (j as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * How much of a saved mineral map's area was observed, as "observed X of Y ha".
+ *
+ * Empty when either figure is absent, which is a run written before the keys
+ * existed; the row then carries one fewer part rather than a zero.
+ */
+export function mineralObservedLine(summary?: string | null): string {
+  const j = runSummaryObject(summary)
+  const observed = j.mineral_observed_area_ha
+  const aoi = j.mineral_aoi_area_ha
+  if (typeof observed !== "number" || typeof aoi !== "number") return ""
+  if (!Number.isFinite(observed) || !Number.isFinite(aoi)) return ""
+  return `observed ${observed.toFixed(0)} of ${aoi.toFixed(0)} ha`
+}
+
 export function modelDisplayName(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
   if (kind === "prithvi") return "Prithvi-EO 2.0"
@@ -115,6 +142,22 @@ export function runRowLine(run: {
       ]
         .filter(Boolean)
         .join(" · ")
+    case "mineral":
+      /*
+        The observed area beside the AOI, for the reason the summary carries
+        both (persistMineralRun): over vegetated ground most of an area has no
+        mineral answer, and a row that names only the product reads as though
+        the whole area was mapped. The period is the one searched for passes.
+      */
+      return [
+        `Mineral map · ${run.model_kind || "Tetracorder"}`,
+        mineralObservedLine(run.summary),
+        run.period_start && run.period_end
+          ? `${run.period_start} → ${run.period_end}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
     default: {
       const observed = parseRunSummary(run.summary).dateRange
       const period =
@@ -137,6 +180,7 @@ export function runRowLine(run: {
  */
 export function runKindLabel(kind?: string): string {
   if (kind === "water") return "water"
+  if (kind === "mineral") return "mineral"
   return "class"
 }
 

@@ -29,13 +29,16 @@ import { EventsOn } from "../../wailsjs/runtime/runtime"
 import {
   BuildManagedEnvironment,
   CancelEnvironmentBuild,
+  GetEarthdataStatus,
   InspectEnvironment,
   ListOptionalPackages,
   ManageOptionalPackage,
+  OpenExternal,
+  SetEarthdataToken,
   UseInterpreter,
 } from "../../wailsjs/go/main/App"
 import type { main, pyenv } from "../../wailsjs/go/models"
-import { btnGhost, btnPrimaryCommit } from "@/components/ui/buttons"
+import { btnGhost, btnPrimary, btnPrimaryCommit } from "@/components/ui/buttons"
 import { cn } from "@/lib/utils"
 
 type SetupEvent = {
@@ -321,6 +324,8 @@ export function EnvironmentPanel() {
         </section>
       )}
 
+      <EarthdataSection />
+
       {/* The recommended repair, and the interpreters it can be built on. */}
       <section className="rounded-sm border border-border bg-secondary/50 p-4">
         <p className="eyebrow mb-1">Interpreters on this machine</p>
@@ -434,6 +439,134 @@ export function EnvironmentPanel() {
         </section>
       )}
     </div>
+  )
+}
+
+/** How the Earthdata token in use was decided, in the reader's terms. */
+function earthdataStatusLabel(status: main.EarthdataStatus | null): string {
+  if (!status) return "not checked"
+  if (!status.configured) return "Not set"
+  if (status.source === "EARTHDATA_TOKEN") return "Set (from EARTHDATA_TOKEN)"
+  return "Set"
+}
+
+/*
+  The one credential in TERRA: a NASA Earthdata token, which the mineral map
+  needs to read EMIT reflectance from the LP DAAC.
+
+  HERE BECAUSE IT ANSWERS THE SAME QUESTION AS THE REST OF THIS SCREEN: "can
+  this product run at all", not "run it". Without a token the sidecar's first
+  read is refused, and that refusal arrives several minutes into a scene search
+  rather than here.
+
+  THE TOKEN IS NEVER SHOWN BACK. GetEarthdataStatus returns whether one is set
+  and what decided it, and nothing else; the field below starts empty on every
+  visit and is emptied after a save, so a saved token is not held by the page
+  once the store has it. Saving is refused by the Go side when NASA does not
+  accept the token, and that sentence is shown as it was written, since it
+  separates an expired token from an account that has not accepted the LP DAAC
+  data use terms.
+*/
+function EarthdataSection() {
+  const [status, setStatus] = useState<main.EarthdataStatus | null>(null)
+  const [draft, setDraft] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    GetEarthdataStatus()
+      .then(setStatus)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  const save = async (token: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      setStatus(await SetEarthdataToken(token))
+      setDraft("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const fromEnv = status?.source === "EARTHDATA_TOKEN"
+
+  return (
+    <section className="rounded-sm border border-border bg-secondary/50 p-4">
+      <p className="eyebrow mb-1">Earthdata token</p>
+      <p className="mb-3 text-body text-muted-foreground">
+        The NASA Earthdata login the mineral map reads EMIT reflectance with.
+        Nothing else in TERRA uses it. The token is tested against the LP DAAC
+        before it is saved, and it is not shown again once saved.
+      </p>
+      <div className="flex flex-col gap-2 rounded-sm border border-border bg-sunk px-3 py-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-body text-foreground">Status</span>
+          <span className="text-meta text-muted-foreground">
+            {earthdataStatusLabel(status)}
+          </span>
+        </div>
+        {fromEnv && (
+          <p className="text-micro text-muted-foreground">
+            <span className="telemetry">EARTHDATA_TOKEN</span> is set in the
+            environment and takes precedence over a token saved here.
+          </p>
+        )}
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (draft.trim()) void save(draft)
+          }}
+        >
+          <input
+            type="password"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={busy}
+            autoComplete="off"
+            spellCheck={false}
+            aria-label="Earthdata token"
+            placeholder={status?.configured ? "Replace the saved token" : "Paste a token"}
+            className="field-input min-w-0 flex-1 focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <button
+            type="submit"
+            disabled={busy || !draft.trim()}
+            className={btnPrimary}
+          >
+            {busy ? <CircleNotch className="size-3.5 animate-spin" /> : null}
+            {busy ? "Testing" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void save("")}
+            disabled={busy || !status?.configured}
+            title={
+              fromEnv
+                ? "Removes a token saved here; EARTHDATA_TOKEN stays in effect until it is unset"
+                : "Remove the saved token"
+            }
+            className={btnGhost}
+          >
+            Clear
+          </button>
+        </form>
+        {error && (
+          <p className="text-micro text-destructive-quiet">{error}</p>
+        )}
+        <button
+          type="button"
+          onClick={() => void OpenExternal("https://urs.earthdata.nasa.gov/")}
+          className="self-start text-micro text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          Create a token at urs.earthdata.nasa.gov (Profile &gt; Generate Token)
+        </button>
+      </div>
+    </section>
   )
 }
 
