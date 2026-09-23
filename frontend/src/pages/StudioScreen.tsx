@@ -13,6 +13,7 @@ import type {
   DataCubeScene,
   GeoJSONGeometry,
   InferenceRun,
+  MineralAnalysis,
   ModelKind,
   PredictResult,
   WaterAnalysis,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/panelSelection";
 import type { AoiContourSchemeId } from "@/lib/aoiStyle";
 import { isMapTool, type BoardToolId } from "@/lib/mapTools";
+import { mineralGroupOfLayer } from "@/lib/mineral";
 import { cn } from "@/lib/utils";
 import { CaretDown, Database } from "@phosphor-icons/react";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
@@ -33,7 +35,7 @@ import {
   StudioPopover,
 } from "@/components/studio/StudioPopover";
 import { StudioLoading } from "@/components/studio/StudioLoading";
-import { STUDIO_GROUPS } from "@/lib/studioEditors"
+import { STUDIO_GROUPS, type EditorId } from "@/lib/studioEditors"
 import { BOARD_TOOLS } from "@/lib/mapTools";
 import {
   OPTIONAL_NODES,
@@ -242,6 +244,19 @@ export interface StudioScreenProps {
   onBoardInputs?: (inputs: Record<string, string>) => void;
   /** The AOI as GeoJSON text, for the research pack's manifest. */
   polygonGeoJSON?: string;
+  /**
+   * The mineral map: its result, its run and its progress. The runner is
+   * absent where the product cannot be started, and the band then does not
+   * offer it.
+   */
+  mineral?: MineralAnalysis | null;
+  onRunMinerals?: () => void;
+  mineralBusy?: boolean;
+  mineralProgress?: number;
+  mineralProgressMsg?: string;
+  onClearMineral?: () => void;
+  reveal?: EditorId | null;
+  onRevealed?: () => void;
   waterIndex: WaterIndex;
   waterRunning: boolean;
   waterProgress: number;
@@ -332,6 +347,14 @@ export function StudioScreen(props: StudioScreenProps) {
     setComponents(readBoardMemory<OptionalNodeId[]>("components", []));
     setNodeLinks(readBoardMemory<string[]>("nodeLinks", []));
   }, [props.openBoardNonce]);
+  /*
+    The mineral map's two layers, held here because this is the only surface
+    that draws them. Keyed by layer id, and an id with no entry takes the
+    default lib/mineral.ts states -- group 2 drawn, group 1 one switch away.
+  */
+  const [mineralLayerState, setMineralLayerState] = useState<
+    Record<string, { visible?: boolean; opacity?: number }>
+  >({});
   /**
    * Whether the board is showing a map to draw an area on.
    *
@@ -419,6 +442,8 @@ export function StudioScreen(props: StudioScreenProps) {
     water: props.water,
     showWaterOverlay: props.showWaterOverlay,
     waterOpacity: props.waterOpacity,
+    mineral: props.mineral,
+    mineralLayers: mineralLayerState,
   });
 
   /**
@@ -463,6 +488,7 @@ export function StudioScreen(props: StudioScreenProps) {
   const liveRunId =
     props.result?.run_id ||
     props.water?.run_id ||
+    props.mineral?.run_id ||
     "current";
 
   const boardAssets = runAssets({
@@ -480,6 +506,8 @@ export function StudioScreen(props: StudioScreenProps) {
     showWaterOverlay: props.showWaterOverlay,
     composeOpacity: props.composeOpacity,
     waterOpacity: props.waterOpacity,
+    mineral: props.mineral,
+    mineralLayers: mineralLayerState,
   });
 
   const changeBoardLayer = (
@@ -498,6 +526,19 @@ export function StudioScreen(props: StudioScreenProps) {
         props.onShowWaterOverlayChange(patch.visible);
       if (patch.opacity !== undefined)
         props.onWaterOpacityChange(patch.opacity);
+      return;
+    }
+    // One entry per group's layer, merged so a patch naming only the opacity
+    // leaves the switch where the reader put it.
+    if (mineralGroupOfLayer(id) !== null) {
+      setMineralLayerState((prev) => ({
+        ...prev,
+        [id]: {
+          ...prev[id],
+          ...(patch.visible !== undefined ? { visible: patch.visible } : {}),
+          ...(patch.opacity !== undefined ? { opacity: patch.opacity } : {}),
+        },
+      }));
       return;
     }
     if (id === "confidence") {
@@ -557,10 +598,33 @@ export function StudioScreen(props: StudioScreenProps) {
 
   /*
     The band's tool: the one chosen on it, or the map's while none has been.
-    Its run is `run` above, which every product the band offers shares with
-    the map's own tools.
+    Its run is `boardRun` below, which is `run` above for every product the
+    band shares with the map's own tools.
   */
   const bandTool: BoardToolId | null = boardTool ?? leftPanel;
+
+  /*
+    The band's run. For the map's own tools it is `run` above; the mineral map
+    is the band's alone and brings its own state and its own enabling rule.
+  */
+  const mineralRunnable = !!props.onRunMinerals;
+  const boardRun =
+    bandTool === "mineral" && mineralRunnable
+      ? {
+          running: props.mineralBusy ?? false,
+          progress: props.mineralProgress ?? 0,
+          progressMsg: props.mineralProgressMsg ?? "",
+          label: props.mineralBusy ? "Mapping" : "Map minerals",
+          // The pass search is bounded by the period, so both dates are
+          // required as they are for a classification.
+          canRun:
+            props.hasArea &&
+            !!props.start &&
+            !!props.end &&
+            !props.mineralBusy,
+          onRun: () => props.onRunMinerals?.(),
+        }
+      : run;
 
   /*
     What the run in progress has said. Built from the SAME resolved run the band
@@ -568,9 +632,9 @@ export function StudioScreen(props: StudioScreenProps) {
     another.
   */
   const runLog = useRunLog({
-    running: run.running,
-    progress: run.progress,
-    message: run.progressMsg,
+    running: boardRun.running,
+    progress: boardRun.progress,
+    message: boardRun.progressMsg,
   });
 
   /**
@@ -603,6 +667,16 @@ export function StudioScreen(props: StudioScreenProps) {
       <>
         {(() => {
           /*
+            A PRODUCT IS OFFERED WHERE IT CAN BE STARTED. The mineral map's
+            runner is absent where the studio cannot start it, and an entry
+            offered without one would reach `boardRun` with no branch of its
+            own -- inheriting the classification's label, its enablement and
+            its action.
+          */
+          const offered = BOARD_TOOLS.filter((t) =>
+            t.id === "mineral" ? !!props.onRunMinerals : true,
+          );
+          /*
             ONE ENTRANCE PER SUBJECT, WHICH IS THE SHAPE THE OTHER TWO BARS
             ALREADY HAVE.
 
@@ -628,7 +702,7 @@ export function StudioScreen(props: StudioScreenProps) {
             the layer this band's other floating panels already use.
           */
           return STUDIO_GROUPS.map((g) => {
-            const members = BOARD_TOOLS.filter((t) => t.group === g.id);
+            const members = offered.filter((t) => t.group === g.id);
             if (!members.length) return null;
             const active = members.find((t) => t.id === bandTool) ?? null;
             const ActiveIcon = active ? TOOL_ICON[active.id] : null;
@@ -915,19 +989,23 @@ export function StudioScreen(props: StudioScreenProps) {
         and this graph. Two resolutions of "can this go" would be two
         answers.
       */
-      runLabel={run.label}
-      running={run.running}
-      progress={run.progress}
-      progressMsg={run.progressMsg}
-      canRun={run.canRun}
+      runLabel={boardRun.label}
+      running={boardRun.running}
+      progress={boardRun.progress}
+      progressMsg={boardRun.progressMsg}
+      canRun={boardRun.canRun}
       blockedBy={
         !props.hasArea
           ? "Draw an area on the globe, or bring one in from the Areas tab."
-          : bandTool === "compose" && !props.selectedSceneId
-            ? "List the scenes for this period and choose one."
-            : undefined
+          : bandTool === "mineral" && props.mineralBusy
+            ? "The sidecar runs one analysis at a time."
+            : bandTool === "mineral" && (!props.start || !props.end)
+              ? "Set the period: the EMIT passes are searched inside it."
+              : bandTool === "compose" && !props.selectedSceneId
+                ? "List the scenes for this period and choose one."
+                : undefined
       }
-      onRun={run.onRun}
+      onRun={boardRun.onRun}
       onAnalyzeLULC={props.onAnalyzeLULC}
       lulcRunning={props.lulcRunning}
       /*
@@ -1062,6 +1140,7 @@ export function StudioScreen(props: StudioScreenProps) {
             result: props.result,
             water: props.water,
             composition: props.composition,
+            mineral: props.mineral,
           }}
           /*
               The run on screen may never have been saved, so it has no id of
@@ -1130,6 +1209,10 @@ export function StudioScreen(props: StudioScreenProps) {
           onOpenReading={props.onOpenReading}
           onStudiosMenu={props.onStudiosMenu}
           polygonGeoJSON={props.polygonGeoJSON}
+          mineralResult={props.mineral}
+          onClearMineral={props.onClearMineral}
+          reveal={props.reveal}
+          onRevealed={props.onRevealed}
           /*
               WHERE A FAILED SURFACE GOES, which used to be the map underneath.
 

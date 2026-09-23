@@ -117,12 +117,31 @@ import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
   GeoJSONGeometry,
   InferenceRun,
+  MineralAnalysis,
   ModelKind,
   PredictResult,
 } from "@/lib/types"
 import { SURFACE } from "@/lib/motion"
+
+/**
+ * What an editor says when it has nothing to show.
+ *
+ * One shape, because the alternative is each editor inventing its own measure
+ * and alignment for the same sentence -- which is how three of them ended up
+ * with three different paddings.
+ */
+function EditorEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center p-4">
+      <p className="max-w-[26rem] text-center text-meta leading-relaxed text-muted-foreground">
+        {children}
+      </p>
+    </div>
+  )
+}
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
+import { MineralReadingColumn } from "@/components/mineral/MineralReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
   createBoard,
@@ -134,6 +153,7 @@ import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
   areaLeaves,
+  findEditor,
   areaRects,
   joinArea,
   maximizeArea,
@@ -433,6 +453,10 @@ export function BoardSurface({
   onStudiosMenu,
   polygonGeoJSON,
   onOpenReading,
+  mineralResult = null,
+  onClearMineral,
+  reveal = null,
+  onRevealed,
 }: {
   /**
    * Every layer the run could draw, drawn or not.
@@ -578,6 +602,22 @@ export function BoardSurface({
    * board's. The board only knows which of its two offers suits a run.
    */
   onOpenReading?: (run: InferenceRun) => void
+  /**
+   * The mineral map in hand, for the reading editor. Its class rasters reach
+   * the board as layers like any other; this is the tables they are read by.
+   */
+  mineralResult?: MineralAnalysis | null
+  onClearMineral?: () => void
+  /**
+   * An editor a just-finished run needs on screen, or null.
+   *
+   * A one-way signal rather than a handle: the tree lives here, so the parent
+   * cannot place an area itself, and a callback it could call at any time
+   * would let a run rearrange a board long after it finished. Cleared through
+   * onRevealed as soon as it is honoured.
+   */
+  reveal?: EditorId | null
+  onRevealed?: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
@@ -788,6 +828,44 @@ export function BoardSurface({
     resizes, and a snapshot would leave every area where it was when the studio
     opened.
   */
+  /*
+    A FRESH READING MUST BE VISIBLE.
+
+    A run whose answer lives in a reading editor -- the mineral map's does --
+    updates state the board shows only if the arrangement holds that editor.
+    The studio opens on `layout`, which carries none, so without this the
+    common case was a run that looked like it had not happened: the
+    notification arrived and the screen did not change.
+
+    THE ARRANGEMENT IS STILL THE READER'S. This only acts when the board holds
+    NO area of that type, and it retypes one rather than splitting: a reader
+    who has put the editor somewhere keeps it where they put it, and one who
+    has not is not left staring at an unchanged board. Which area is sacrificed
+    is the least-specific one present -- properties before an outliner, an
+    outliner before a viewport -- so the pane that goes is the one whose
+    content the others repeat.
+  */
+  const revealEditor = useCallback(
+    (editor: EditorId) => {
+      const root = treeRef.current
+      if (findEditor(root, editor)) return
+      const leaves = areaLeaves(root)
+      const rank = (e: EditorId) =>
+        e === "properties" ? 0 : e === "outliner" ? 1 : e === "browser" ? 2 : 3
+      const victim = [...leaves].sort(
+        (a, b) => rank(a.editor) - rank(b.editor)
+      )[0]
+      if (victim) setTree(retypeArea(root, victim.id, editor))
+    },
+    [setTree]
+  )
+
+  useEffect(() => {
+    if (!reveal) return
+    revealEditor(reveal)
+    onRevealed?.()
+  }, [reveal, revealEditor, onRevealed])
+
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const [surface, setSurface] = useState({ x: 0, y: 0, w: 0, h: 0 })
   useEffect(() => {
@@ -1451,6 +1529,8 @@ export function BoardSurface({
           composition: null,
           compositionGallery: [],
           water: r.result.water,
+          // A mineral run's class maps travel in its payload the same way.
+          mineral: r.result.mineral,
           showCompositionOverlay: false,
           showWaterOverlay: false,
           composeOpacity: 1,
@@ -1481,6 +1561,7 @@ export function BoardSurface({
           the raster existed in hand and the tree did not mention it.
         */
         water: result.water,
+        mineral: result.mineral,
         // A loaded run brings its own rasters and none of the map's state:
         // nothing here is drawn on the map, so nothing here has a switch there.
         showCompositionOverlay: false,
@@ -2424,6 +2505,7 @@ export function BoardSurface({
           {
             result,
             water: result.water,
+            mineral: result.mineral,
           },
         ] as [string, LegendSources]
     ),
@@ -2436,6 +2518,7 @@ export function BoardSurface({
           {
             result,
             water: result.water,
+            mineral: result.mineral,
           },
         ] as [string, LegendSources]
     ),
@@ -4135,6 +4218,17 @@ export function BoardSurface({
         onOpenReading={onOpenReading}
         busy={loadingRun}
       />
+    ),
+    mineralReading: mineralResult ? (
+      <MineralReadingColumn
+        mineral={mineralResult}
+        onClear={() => onClearMineral?.()}
+      />
+    ) : (
+      <EditorEmpty>
+        No mineral map yet. Draw an area, set a period in the run band, and
+        map the minerals. An Earthdata token is required (Settings).
+      </EditorEmpty>
     ),
     /*
       No longer `sides ? ... : null`. An editor that renders nothing at all

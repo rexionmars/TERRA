@@ -67,6 +67,7 @@ import { useEffect, useMemo, useState } from "react"
 import {
   CaretRight,
   Check,
+  Diamond,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -178,6 +179,8 @@ const TILE_PLATE = "h-[3rem] w-full shrink-0 overflow-hidden rounded-sm"
 const KINDS = [
   { id: "class", label: "Classification", token: "--p-kind-class", icon: SquaresFour },
   { id: "water", label: "Surface water", token: "--p-kind-water", icon: Waves },
+  // A cut stone: the mineral map is about what the surface is made of.
+  { id: "mineral", label: "Mineral map", token: "--p-kind-mineral", icon: Diamond },
 ] as const
 
 /** The token as a colour, at an alpha. One place, so the syntax is right once. */

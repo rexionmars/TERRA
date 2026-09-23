@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, GitDiff, Table, Waves } from "@phosphor-icons/react"
+import { Cube, Diamond, GitDiff, Table, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import { type EditorId, type StudioGroup } from "@/lib/studioEditors"
@@ -213,6 +213,34 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         col("w-data-right", 0.55, leaf("a-table", "table"), leaf("a-browser", "browser"))
+      ),
+  },
+  {
+    id: "minerals",
+    group: "crop",
+    icon: Diamond,
+    label: "Mineral map",
+    hint: "What the exposed surface is made of, and how much of the area was observed",
+    /*
+      The class maps are overlays of the ground they were identified over, so
+      the viewport takes the width and the reading stands in a column beside
+      it. Without a preset the reading would be reachable only by retyping an
+      area, and a panel nobody can find without already knowing it is there
+      has been added to the type selector rather than to the studio. Split at
+      0.64 so the column clears the reading's width floor: it is 360x624 at the
+      1000x700 minimum, against the 352x256 the reading asks for.
+    */
+    build: () =>
+      row(
+        "w-minerals-split",
+        0.64,
+        col(
+          "w-minerals-left",
+          0.68,
+          leaf("a-viewport", "viewport"),
+          leaf("a-outliner", "outliner")
+        ),
+        leaf("a-mineral", "mineralReading")
       ),
   },
 ]

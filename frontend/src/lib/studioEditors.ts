@@ -21,6 +21,7 @@ import {
   ChartLine,
   Crosshair,
   Cube,
+  Diamond,
   FlowArrow,
   GitDiff,
   Globe,
@@ -45,6 +46,7 @@ export type EditorId =
   | "table"
   | "runParams"
   | "globe"
+  | "mineralReading"
   | "browser"
 
 /**
@@ -317,6 +319,23 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     // now, and the type menu is where someone looking for a way to make an
     // area will be looking.
     hint: "Draw an area on the planet, over the catalog already on it",
+  },
+  {
+    id: "mineralReading",
+    group: "crop",
+    label: "Mineral map",
+    icon: Diamond,
+    /*
+      A reading beside planes it does not draw: the class maps are on the
+      board, and this carries the passes, the observed area and each group's
+      class and reference tables. Wide enough for the reference table's five
+      columns, which carry a spectrum title of about thirty characters beside
+      three figures; tall because two groups of tables stand under a coverage
+      block.
+    */
+    minRem: 22,
+    minRowRem: 16,
+    hint: "What the exposed surface is made of, from EMIT and Tetracorder, over what was observed",
   },
   {
     id: "browser",

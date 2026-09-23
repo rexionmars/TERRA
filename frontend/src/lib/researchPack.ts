@@ -25,5 +25,12 @@ export function stripResearchPackRasters(result: PredictResult) {
     water: result.water
       ? { ...result.water, occurrence_uri: "" }
       : result.water,
+    // Two class maps, one per group, each a PNG data URI.
+    mineral: result.mineral
+      ? {
+          ...result.mineral,
+          groups: result.mineral.groups.map((g) => ({ ...g, class_uri: "" })),
+        }
+      : result.mineral,
   }
 }

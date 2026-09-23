@@ -31,8 +31,18 @@ import {
   formulaGradient,
   ndviMeanRGB,
 } from "@/lib/rampFormulas"
+import {
+  MINERAL_MASKED_COLOR,
+  MINERAL_NO_ANSWER_COLOR,
+  mineralCellAreaHa,
+  mineralClassColor,
+  mineralGroupOfLayer,
+  mineralGroupTitle,
+  mineralNoAnswerHa,
+} from "@/lib/mineral"
 import type {
   CompositionOverlay,
+  MineralAnalysis,
   PredictResult,
   WaterAnalysis,
 } from "@/lib/types"
@@ -105,6 +115,7 @@ export interface LegendSources {
   result?: PredictResult | null
   water?: WaterAnalysis | null
   composition?: CompositionOverlay | null
+  mineral?: MineralAnalysis | null
 }
 
 /**
@@ -339,6 +350,60 @@ export function legendFor(
         },
       ],
       note: "Share of dates a pixel was classified water, on a fixed 0 to 1 scale.",
+    }
+  }
+
+  const mineralGroup = mineralGroupOfLayer(layerId)
+  if (mineralGroup !== null) {
+    /*
+      One group's classes, in the colours the payload says the PNG was drawn
+      with, and then the two greys that are not classes.
+
+      THE SHARE IS OF THE OBSERVED AREA, NOT OF THE AOI. Over vegetated ground
+      most of an area has no mineral answer, and a share of the AOI would read
+      as a small amount of a mineral where the fact is a small amount of bare
+      ground. The observed and AOI areas are the rows beside it for that reason.
+
+      The two grey entries carry areas where they can be derived: no answer is
+      the observed area less what the group identified, and masked is the
+      masked cell count times the cell size. Cells no pass covered at all are
+      transparent and are not listed.
+    */
+    const m = src.mineral
+    const g = m?.groups?.find((x) => x.group === mineralGroup)
+    if (!m || !g) return null
+    const cellHa = mineralCellAreaHa(m)
+    const entries: LegendClass[] = g.classes.map((c) => ({
+      name: c.label || c.class,
+      color: mineralClassColor(m, c.class, c.color),
+      pct: c.fraction_of_observed * 100,
+      areaHa: c.area_ha,
+    }))
+    // With a share, so the composition bar spans the observed area and the
+    // identified classes read as the part of it they are. Masked cells are
+    // outside the observed area and carry no share of it.
+    const noAnswerHa = mineralNoAnswerHa(m, g)
+    entries.push({
+      name: "Observed, no mineral answer",
+      color: MINERAL_NO_ANSWER_COLOR,
+      pct: m.observed_area_ha > 0 ? (noAnswerHa / m.observed_area_ha) * 100 : undefined,
+      areaHa: noAnswerHa,
+    })
+    entries.push({
+      name: "Masked (cloud)",
+      color: MINERAL_MASKED_COLOR,
+      areaHa: cellHa !== null ? m.masked_cells * cellHa : undefined,
+    })
+    return {
+      kind: "classes",
+      subject: mineralGroupTitle(mineralGroup),
+      entries,
+      rows: [
+        { label: "Identified", value: `${g.detected_area_ha.toFixed(1)} ha` },
+        { label: "Observed", value: `${m.observed_area_ha.toFixed(1)} ha` },
+        { label: "AOI", value: `${m.aoi_area_ha.toFixed(1)} ha` },
+        { label: "Passes", value: String(m.scenes.length) },
+      ],
     }
   }
 

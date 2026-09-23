@@ -14,6 +14,10 @@ export function AnalyzeLULC(arg1) {
   return window['go']['main']['App']['AnalyzeLULC'](arg1);
 }
 
+export function AnalyzeMinerals(arg1) {
+  return window['go']['main']['App']['AnalyzeMinerals'](arg1);
+}
+
 export function AnalyzeWater(arg1) {
   return window['go']['main']['App']['AnalyzeWater'](arg1);
 }
@@ -96,6 +100,10 @@ export function GetArea(arg1) {
 
 export function GetBootLogs() {
   return window['go']['main']['App']['GetBootLogs']();
+}
+
+export function GetEarthdataStatus() {
+  return window['go']['main']['App']['GetEarthdataStatus']();
 }
 
 export function GetPreferences() {
@@ -228,6 +236,10 @@ export function SaveStudio(arg1) {
 
 export function SetAvatar(arg1) {
   return window['go']['main']['App']['SetAvatar'](arg1);
+}
+
+export function SetEarthdataToken(arg1) {
+  return window['go']['main']['App']['SetEarthdataToken'](arg1);
 }
 
 export function SetProjectLastArea(arg1, arg2) {

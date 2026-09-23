@@ -40,11 +40,11 @@ export interface MapTool {
  * A separate name from MapToolId, and the distinction still means something
  * with both the map screen and the navigation column gone: `MapToolId` is what
  * a stored panel selection can be, and widening it would make a value the
- * store has never written suddenly representable. Every product the band
- * offers is a map tool at present, so the two are the same set; a product the
- * band alone offered would be added here and not there.
+ * store has never written suddenly representable. The mineral map is the one
+ * product the band offers that is not a map tool: it was added to the band
+ * alone, after the panels were gone, so it is added here and not there.
  */
-export type BoardToolId = MapToolId
+export type BoardToolId = MapToolId | "mineral"
 
 /**
  * Every product the band can start, and the subject each one answers about.
@@ -70,6 +70,13 @@ export interface BoardTool {
 export const BOARD_TOOLS: readonly BoardTool[] = [
   { id: "compose", label: "Compositions", group: "board" },
   { id: "classify", label: "Classification", group: "crop" },
+  /*
+    Land cover and not a subject of its own. The mineral map answers what the
+    exposed surface is made of, which is the classification's question asked
+    of a spectrometer instead of a multispectral imager; a fourth group for one
+    product would be a menu of one in a bar of three.
+  */
+  { id: "mineral", label: "Mineral map", group: "crop" },
   { id: "water", label: "Surface water", group: "water" },
 ]
 

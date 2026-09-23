@@ -12,6 +12,8 @@ export function AnalyzeDomainShiftCohort(arg1:analysis.DomainShiftCohortRequest)
 
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
 
+export function AnalyzeMinerals(arg1:analysis.MineralRequest):Promise<analysis.MineralAnalysis>;
+
 export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterAnalysis>;
 
 export function BuildManagedEnvironment(arg1:string):Promise<void>;
@@ -53,6 +55,8 @@ export function GetAppVersion():Promise<string>;
 export function GetArea(arg1:string):Promise<store.Area>;
 
 export function GetBootLogs():Promise<Array<string>>;
+
+export function GetEarthdataStatus():Promise<main.EarthdataStatus>;
 
 export function GetPreferences():Promise<store.Preferences>;
 
@@ -119,6 +123,8 @@ export function SaveProjectOverlay(arg1:main.SaveProjectOverlayRequest):Promise<
 export function SaveStudio(arg1:store.Studio):Promise<store.Studio>;
 
 export function SetAvatar(arg1:string):Promise<store.User>;
+
+export function SetEarthdataToken(arg1:string):Promise<main.EarthdataStatus>;
 
 export function SetProjectLastArea(arg1:string,arg2:string):Promise<store.Project>;
 

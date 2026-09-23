@@ -192,11 +192,12 @@
   /*
     THE PRODUCTS, AS COLOUR. A scale of its own, and not part of the one above.
 
-    These name what a run IS -- a classification, a water map -- and they are
-    read side by side in a grid rather than against text. They were invented inside StudioBrowser, in
-    HSL, at the moment that grid needed them, and one of them landed on the
-    accent's own hue: a solar tile and the primary action were the same orange.
-    That is what a scale nobody declared costs.
+    These name what a run IS -- a classification, a water map, a mineral map --
+    and they are read side by side in a grid rather than against text. They
+    were invented inside StudioBrowser, in HSL, at the moment that grid needed
+    them, and one of them landed on the accent's own hue: a solar tile and the
+    primary action were the same orange. That is what a scale nobody declared
+    costs.
 
     LOWER CHROMA THAN THE SEMANTIC TOKENS, deliberately. The accent means "act
     on this" and the warning and destructive mean what they say; a product is
@@ -204,14 +205,21 @@
     the ones that are asking for something. At C 0.09 against the accent's
     0.149 they read as labels rather than as calls.
 
-    Placed by hue in OKLCH -- water at 195 -- plus a neutral for
-    the classification, which is the ordinary case and the one a grid holds
-    most of. Not gated by check-contrast.ts, for the reason
-    that file gives about the scientific ramps: they answer to the data. Each
-    is drawn as a glyph on a plate of its own tint, never as small text.
+    Placed by hue in OKLCH -- water at 195, the mineral map at 345 -- plus a
+    neutral for the classification, which is the ordinary case and the one a
+    grid holds most of. Not gated by check-contrast.ts, for the reason that
+    file gives about the scientific ramps: they answer to the data. Each is
+    drawn as a glyph on a plate of its own tint, never as small text.
   */
   --p-kind-class: 158 158 158;
   --p-kind-water: 80 176 176;
+  /*
+    The mineral map, at the same L 0.699 and C 0.09, at h 345, which leaves
+    150 degrees to water at h195 and 33 to destructive at h18. The nearest kind
+    is the classification's neutral, at 0.091; the nearest status token is
+    --destructive-quiet, at 0.101.
+  */
+  --p-kind-mineral: 199 135 171;
 
   /*
     THE FOLDER, WHICH IS NOT A PRODUCT AND MUST NOT READ AS ONE.
@@ -613,9 +621,10 @@
      dark block for why the spread is quoted beside the ratios. */
   --p-aside: 70 106 152;
 
-  /* The same two, at the lightness a light ground needs. See the dark block. */
+  /* The same three, at the lightness a light ground needs. See the dark block. */
   --p-kind-class: 113 113 113;
   --p-kind-water: 19 130 130;
+  --p-kind-mineral: 151 92 126;
 
   /* The folder, receding towards THIS ground rather than away from it. The
      dark block carries the argument; these are the same four tones stepped the

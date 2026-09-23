@@ -383,6 +383,11 @@ export interface PredictResult {
   /** Attached when a surface-water run was made over the same AOI. */
   water?: WaterAnalysis | null
   /**
+   * A Tetracorder mineral map from EMIT reflectance. Band depth is not
+   * abundance, and the observed area travels with every identified area.
+   */
+  mineral?: MineralAnalysis | null
+  /**
    * Compact spectral / NDVI fingerprint cached at classify time for
    * domain-shift diagnostics. Absent on older runs and non-classify products.
    */
@@ -839,4 +844,104 @@ export interface WaterRequest {
   project_id?: string
   /** The area this run is of, so the board can link the two. */
   area_id?: string
+}
+
+/*
+  Surface mineralogy from EMIT imaging spectroscopy, identified by Tetracorder.
+  Mirrors internal/analysis/types_mineral.go, which carries the method note:
+  band depth rises with abundance at a fixed grain size but is not an
+  abundance, and vegetation, water and cloud suppress the mineral answer.
+*/
+
+/** One area over a period. max_cloud and max_scenes of 0 take the sidecar defaults. */
+export interface MineralRequest {
+  polygon_geojson: GeoJSONGeometry | null
+  start: string
+  end: string
+  /** Scene-level cloud cover, percent, above which a pass is not read. */
+  max_cloud: number
+  max_scenes: number
+  label?: string
+  run_label?: string
+  area_id?: string
+  project_id?: string
+}
+
+/** One EMIT pass that contributed cells. */
+export interface MineralScene {
+  granule: string
+  date: string
+  cloud_cover: number | null
+  mask_granule: string
+  cells: number
+  masked_cells: number
+  /** Largest band-centre difference against the convolved library, nm. */
+  wavelength_offset_nm: number
+}
+
+/** The area identified as one class within one group. */
+export interface MineralClassRow {
+  class: string
+  label: string
+  color: string
+  cells: number
+  area_ha: number
+  /** Fraction (0 to 1) of the observed area, not of the AOI. */
+  fraction_of_observed: number
+  mean_depth: number
+}
+
+/** One Tetracorder reference and the cells it won. */
+export interface MineralEntryRow {
+  id: string
+  title: string
+  class: string
+  cells: number
+  area_ha: number
+  mean_fit: number
+  mean_depth: number
+}
+
+/**
+ * One Tetracorder group: 1 reads the Fe2+/Fe3+ electronic absorptions below
+ * about 1.3 um, 2 the vibrational absorptions of 2.0-2.5 um.
+ */
+export interface MineralGroup {
+  group: number
+  label: string
+  detected_cells: number
+  detected_area_ha: number
+  classes: MineralClassRow[]
+  entries: MineralEntryRow[]
+  class_png: string
+  /** RGBA class map as a data URI, transparent outside the area. */
+  class_uri?: string
+}
+
+/** One class colour, as the class maps were drawn with it. */
+export interface MineralLegendItem {
+  class: string
+  label: string
+  color: string
+}
+
+export interface MineralAnalysis {
+  run_id?: string
+  sensor: string
+  expert_system: string
+  libraries: string[]
+  aoi_cells: number
+  aoi_area_ha: number
+  observed_cells: number
+  observed_area_ha: number
+  masked_cells: number
+  /** Output cell size in degrees, longitude then latitude. */
+  cell_size_deg: number[]
+  scenes: MineralScene[]
+  groups: MineralGroup[]
+  legend: MineralLegendItem[]
+  /** Path of the GeoTIFF: entry index, fit and depth per group, EPSG:4326. */
+  geotiff: string
+  extent: Bounds
+  notes: string[]
 }

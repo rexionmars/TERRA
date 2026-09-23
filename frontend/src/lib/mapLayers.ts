@@ -16,9 +16,15 @@
 import type {
   Bounds,
   CompositionOverlay,
+  MineralAnalysis,
   PredictResult,
   WaterAnalysis,
 } from "@/lib/types"
+import {
+  mineralGroupTitle,
+  mineralLayerDefaultVisible,
+  mineralLayerId,
+} from "@/lib/mineral"
 
 export interface RasterLayer {
   /** Stable across renders, so a consumer can key on it. */
@@ -103,6 +109,17 @@ export interface VisibleLayerInput {
   water: WaterAnalysis | null | undefined
   showWaterOverlay: boolean
   waterOpacity: number
+  /**
+   * The mineral map, one class raster per Tetracorder group.
+   *
+   * Optional where the other rasters are not: a mineral map is run against an
+   * area rather than being part of a classification's output, so most callers
+   * have none. The switches are per layer id, because the two groups are two
+   * planes a reader turns on and off separately; a layer with no entry takes
+   * mineralLayerDefaultVisible and full opacity.
+   */
+  mineral?: MineralAnalysis | null
+  mineralLayers?: Readonly<Record<string, { visible?: boolean; opacity?: number }>>
 }
 
 /** Which of the three maps the `prediction` layer draws. */
@@ -129,6 +146,39 @@ export function predictionSource(
   if (r.lulc?.map_uri) return { source: "lulc", uri: r.lulc.map_uri }
   if (r.reference_uri) return { source: "reference", uri: r.reference_uri }
   return null
+}
+
+/**
+ * The mineral map's class rasters as drawn layers, one per group that has one.
+ *
+ * Placed by the payload's `extent`, which is the box the PNG was written over.
+ * Above surface water and below the classification: the class maps and the
+ * occurrence raster are both rasters of the ground's surface over one area, and
+ * a classification stays readable over each. Not interpolated -- a cell is one
+ * reference's class, and a blend of two class colours names no mineral.
+ */
+export function mineralLayers(
+  m: MineralAnalysis | null | undefined,
+  state: Readonly<Record<string, { visible?: boolean; opacity?: number }>> = {}
+): RasterLayer[] {
+  if (!m || isZeroExtent(m.extent)) return []
+  const out: RasterLayer[] = []
+  for (const g of m.groups ?? []) {
+    if (!g.class_uri) continue
+    const id = mineralLayerId(g.group)
+    out.push({
+      id,
+      title: mineralGroupTitle(g.group),
+      uri: g.class_uri,
+      extent: m.extent,
+      opacity: state[id]?.opacity ?? 1,
+      order: 361 + Math.min(Math.max(g.group, 1), 3),
+      pixelated: true,
+      smooth: false,
+      visible: state[id]?.visible ?? mineralLayerDefaultVisible(g.group),
+    })
+  }
+  return out
 }
 
 /**
@@ -174,6 +224,8 @@ export function rasterLayers(i: VisibleLayerInput): RasterLayer[] {
       visible: i.showWaterOverlay,
     })
   }
+
+  layers.push(...mineralLayers(i.mineral, i.mineralLayers))
 
   const prediction = predictionSource(i.result)
   const predictionUri = prediction?.uri
