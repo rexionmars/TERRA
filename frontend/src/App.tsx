@@ -41,18 +41,9 @@ import {
   AnalyzeEnergyModel,
   AnalyzeWind,
   AnalyzeFlood,
-  AnalyzeGridCongestion,
-  AnalyzeGridCurtailment,
-  AnalyzeGridFigure,
-  InspectGridStore,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
-import type { EditorId } from "@/lib/studioEditors"
-import type { GridProductId } from "@/lib/gridOptions"
 import type {
-  GridCongestionAnalysis,
-  GridCurtailmentAnalysis,
-  GridFigureAnalysis,
   PredictResult,
   PredictRequest,
   ProgressEvent,
@@ -86,7 +77,6 @@ import type {
   WindRequest,
   FloodAnalysis,
   FloodRequest,
-  GridStoreReport,
 } from "@/lib/types"
 import {
   parsePreferenceExtras,
@@ -715,37 +705,6 @@ function AppBody(props: {
   const [floodParams, setFloodParams] = useState<FloodParams>(FLOOD_DEFAULT_PARAMS)
   const [flood, setFlood] = useState<FloodAnalysis | null>(null)
   /*
-    What the local grid store holds, or why it cannot be reached.
-
-    Probed once when the studio opens rather than lazily on first use, because
-    the answer decides whether a whole family of analyses can be offered at
-    all, and the reader has to be able to see WHY before choosing a product
-    that would refuse. Cheap by comparison with the interpreter inspection it
-    sits beside: three counts and a GROUP BY, no imports.
-
-    Not cleared with a result and not keyed on the AOI: it describes the
-    installation, not a run.
-  */
-  const [gridStore, setGridStore] = useState<GridStoreReport | null>(null)
-  const [gridProduct, setGridProduct] = useState<GridProductId>("record")
-  /*
-    The window a grid run reads, empty until the store says what it holds.
-
-    NOT DEFAULTED TO A CALENDAR YEAR. The resource products can assume ten
-    years of NASA POWER because POWER answers for any span; this record begins
-    when the operator started publishing it and ends where the loaded periods
-    do, and a window guessed outside that is refused rather than quietly
-    returned short. So the first answer from the store is what fills these.
-  */
-  const [gridWindow, setGridWindow] = useState<{ start: string; end: string }>({
-    start: "",
-    end: "",
-  })
-  const [gridCurtailment, setGridCurtailment] =
-    useState<GridCurtailmentAnalysis | null>(null)
-  const [gridCongestion, setGridCongestion] =
-    useState<GridCongestionAnalysis | null>(null)
-  /*
     THE OUTCOME OF THE LAST RUN, AND THE VALUES IT WAS MADE FROM.
 
     Every handler below already knows how its run ended -- it says so in a
@@ -779,205 +738,6 @@ function AppBody(props: {
   const onBoardInputs = useCallback((inputs: Record<string, string>) => {
     boardInputs.current = inputs
   }, [])
-  const [gridBusy, setGridBusy] = useState(false)
-  /*
-    The editor a just-finished run needs on screen, consumed once.
-
-    A request rather than a command: the board owns its tree and decides
-    whether this is already satisfied. Cleared as soon as it is honoured, so a
-    run cannot rearrange a board long after it finished.
-  */
-  const [reveal, setReveal] = useState<EditorId | null>(null)
-  const [gridFigureNumber, setGridFigureNumber] = useState(1)
-  const [gridFigure, setGridFigure] = useState<GridFigureAnalysis | null>(null)
-  const handleRunGridFigure = useCallback(async () => {
-    setGridBusy(true)
-    try {
-      /*
-        The window is sent deliberately and not left to the sidecar's default.
-
-        The research read to the last COMPLETE month; reading one month further
-        moved Fig. 1's day count from 852 to 883 and every energy figure with
-        it -- 3.6 percent, entirely window, and indistinguishable from a broken
-        port if nobody states it.
-      */
-      const res = (await AnalyzeGridFigure({
-        figure: gridFigureNumber,
-        start: gridWindow.start || undefined,
-        end: gridWindow.end || undefined,
-      } as never)) as unknown as GridFigureAnalysis
-      setGridFigure(res)
-      setReveal("gridFigure")
-      notifySuccess(`Fig. ${res.number}: ${res.title}`)
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Grid figure error", e)
-    } finally {
-      setGridBusy(false)
-    }
-  }, [gridFigureNumber, gridWindow.start, gridWindow.end])
-  const handleRunGridCurtailment = useCallback(async () => {
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the globe first.")
-      return
-    }
-    setGridBusy(true)
-    try {
-      /*
-        Cast because the generated model and the hand-written type disagree
-        about one field, and the hand-written one is right. Go declares
-        Summary a pointer WITHOUT omitempty, so it is always on the wire and
-        always either an object or null -- never absent. Wails' generator maps
-        every pointer to optional regardless, so models.ts says `| undefined`
-        for a case the encoder cannot produce.
-      */
-      const res = (await AnalyzeGridCurtailment({
-        polygon_geojson: props.customPolygon,
-        start: gridWindow.start || undefined,
-        end: gridWindow.end || undefined,
-      } as never)) as unknown as GridCurtailmentAnalysis
-      setGridCurtailment(res)
-      setReveal("gridCurtailment")
-      /*
-        An area with no metered plant is reported as a result, not as an error.
-        The record simply does not cover this ground, and saying so plainly is
-        the whole point of the sidecar returning a null summary rather than
-        zeros.
-      */
-      if (!res.summary) {
-        /*
-          NOT A SUCCESS, and the tick was saying it was. An area with no
-          metered plant is a real answer -- the record does not cover this
-          ground -- but it is a refusal to report, not a reading that came
-          back. Dressed with a green check it reads as "done", which is
-          exactly what a reader who drew over bare ground on purpose must not
-          conclude.
-        */
-        notifyInfo(
-          "No plant of the operational record lies inside this area. That is " +
-            "an absence of measurement, not a curtailment of zero."
-        )
-      } else {
-        notifySuccess(
-          `Curtailment: ${(res.summary.withheld_fraction * 100).toFixed(1)}% withheld ` +
-            `at ${res.summary.plants_in_aoi} plant(s).`
-        )
-      }
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Grid curtailment error", e)
-    } finally {
-      setGridBusy(false)
-    }
-  }, [props.customPolygon, gridWindow.start, gridWindow.end])
-
-  /*
-    The network an area could reach, and what its plants are joined to.
-
-    NO WINDOW IN THE DEPENDENCIES, and that is not an oversight: the register
-    does not have one. Curtailment is a reading over a period and this is two
-    facts about a cadastre, so a run repeated after the window moved would
-    return the same answer under a different label.
-  */
-  const runGridCongestion = useCallback(async () => {
-    if (!props.customPolygon) {
-      notifyError("Grid connection", new Error("draw an area first"))
-      return
-    }
-    setGridBusy(true)
-    try {
-      const res = (await AnalyzeGridCongestion({
-        polygon_geojson: props.customPolygon,
-      } as never)) as unknown as GridCongestionAnalysis
-      setGridCongestion(res)
-      setReveal("gridConnection")
-      const joined = res.connection.attachment ?? []
-      if (joined.length > 0) {
-        const a = joined[0]
-        notifySuccess(
-          `Joined at ${a.point_code} — ${a.substation ?? "?"} ` +
-            `${a.voltage_kv ?? "?"} kV${joined.length > 1 ? ` and ${joined.length - 1} more` : ""}.`
-        )
-      } else if (res.connection.reachable) {
-        /*
-          Ground with no metered plant still has an answer here, and it is the
-          case this product exists for -- proximity is what a site being
-          chosen has instead of an attachment. Reported as information rather
-          than success, because nothing was READ about this ground; the
-          register was measured against it.
-        */
-        const s = res.connection.nearest_substation
-        notifyInfo(
-          "No plant of the record stands here, so there is no published " +
-            "attachment. Nearest bus: " +
-            (s ? `${s.name} at ${s.distance_km.toFixed(1)} km.` : "none within reach.")
-        )
-      } else {
-        notifyInfo(res.connection.note)
-      }
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Grid connection error", e)
-    } finally {
-      setGridBusy(false)
-    }
-  }, [props.customPolygon])
-  /*
-    `announce` separates the probe that runs on open from the one a person
-    asked for.
-
-    The first must be silent: most installations have no grid store and never
-    will, and a toast on every studio open would be noise for them. The second
-    must NOT be, and that was the defect -- pressing "Read the record" fetched,
-    set state, and produced no visible change at all, because the editor that
-    draws it is not in the arrangement the studio opens on. A run that answers
-    and says nothing is indistinguishable from one that did not run.
-  */
-  const refreshGridStore = useCallback(async (announce = false) => {
-    try {
-      const report = await InspectGridStore()
-      setGridStore(report)
-      if (announce) {
-        setReveal("gridRecord")
-        if (!report.reachable) {
-          notifyError("Grid store", report.unreachable ?? "not reachable")
-        } else {
-          const held = report.coverage?.datasets ?? []
-          const rows = held.reduce((n, d) => n + d.rows, 0)
-          notifySuccess(
-            held.length === 0
-              ? "The store is reachable and holds no record yet."
-              : `${held.length} record(s), ${rows.toLocaleString()} half-hourly rows, ` +
-                  `${held[0].from}..${held[0].to}. Open the Grid record panel to read it.`
-          )
-        }
-      }
-      const span = report?.coverage?.datasets?.[0]
-      if (span) {
-        // Only when the reader has not chosen one: a probe that ran again
-        // must not undo a window someone narrowed by hand.
-        setGridWindow((w) =>
-          w.start || w.end
-            ? w
-            : { start: `${span.from}-01`, end: `${span.to}-28` }
-        )
-      }
-    } catch {
-      /*
-        Swallowed deliberately, and only here. A store that cannot be probed
-        leaves the panel saying it has not been checked, which is true; a toast
-        on every studio open would be noise for the majority of installations
-        that have no grid store and never will.
-      */
-      setGridStore(null)
-    }
-  }, [])
-  useEffect(() => {
-    void refreshGridStore()
-  }, [refreshGridStore])
   const [floodRun, setFloodRun] = useState({
     active: false,
     progress: 0,
@@ -3736,25 +3496,6 @@ function AppBody(props: {
                   floodProgressMsg={floodRun.message}
                   floodResult={flood}
                   onClearFlood={() => setFlood(null)}
-                  gridStore={gridStore}
-                  gridProduct={gridProduct}
-                  onGridProductChange={setGridProduct}
-                  gridWindow={gridWindow}
-                  onGridWindowChange={(start, end) =>
-                    setGridWindow({ start, end })
-                  }
-                  onCheckGridStore={() => void refreshGridStore(true)}
-                  gridCurtailment={gridCurtailment}
-                  gridBusy={gridBusy}
-                  onRunGridCurtailment={() => void handleRunGridCurtailment()}
-                  gridCongestion={gridCongestion}
-                  onRunGridConnection={() => void runGridCongestion()}
-                  gridFigure={gridFigure}
-                  gridFigureNumber={gridFigureNumber}
-                  onGridFigureChange={setGridFigureNumber}
-                  onRunGridFigure={() => void handleRunGridFigure()}
-                  reveal={reveal}
-                  onRevealed={() => setReveal(null)}
                   initialView={initialMapView}
                   customPolygon={props.customPolygon}
                   flyTo={props.flyTo}

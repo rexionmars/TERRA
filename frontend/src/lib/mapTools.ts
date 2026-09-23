@@ -86,24 +86,21 @@ export const BOARD_TOOLS: readonly BoardTool[] = [
 /*
   ONE BAND ENTRY, BECAUSE ONE QUESTION.
 
-  Solar, Wind and Grid record were three entries, and the split was the
-  sidecar's rather than a reader's: they are three slices in terra/ and three
-  tabs on screen, and choosing between them asked the reader to already know
-  that the irradiation over their AOI and the curtailment at the plants inside
-  it are answered by different modules. Standing on one piece of ground, both
-  are the same question -- what is this site worth -- and only one of the two
-  halves means anything alone. terra/grid/__init__.py says as much in its own
-  header: the resource half describes a plant with unlimited offtake, which is
-  not the plant that exists.
+  Solar and Wind were separate entries, and the split was the sidecar's rather
+  than a reader's: they are separate modules in terra/ and were separate tabs
+  on screen, and choosing between them asked the reader to already know that
+  the irradiation over their AOI and the wind over it are answered by
+  different modules. Standing on one piece of ground, both are the same
+  question -- what is this site's resource worth.
 
   FAMILY IS KEPT AND IS NOT A TOOL. Which module answers is still a real fact
-  -- it decides the parameters, the payload and whether an area is required --
-  so it stays, one level down, as the product's family. What is gone is the
-  reader having to choose it first.
+  -- it decides the parameters and the payload -- so it stays, one level down,
+  as the product's family. What is gone is the reader having to choose it
+  first.
 */
 
 /** Which slice answers a product, which decides its parameters and payload. */
-export type EnergyFamily = "solar" | "wind" | "grid"
+export type EnergyFamily = "solar" | "wind"
 
 export interface EnergyProduct {
   id: EnergyProductId
@@ -118,10 +115,10 @@ export interface EnergyProduct {
 /*
   Prefixed ids, and the prefix is load-bearing rather than decorative.
 
-  "resource" and "record" are both plausible names in more than one family, and
-  a flat union would make the product state a value whose family has to be
-  recovered by a lookup that can fail. Carried in the id, the family is
-  readable from the value itself and a switch over it is exhaustive.
+  "resource" is a member of both families, and a flat union would make the
+  product state a value whose family has to be recovered by a lookup that can
+  fail. Carried in the id, the family is readable from the value itself and a
+  switch over it is exhaustive.
 */
 export type EnergyProductId =
   | "solar:resource"
@@ -129,10 +126,6 @@ export type EnergyProductId =
   | "solar:siting"
   | "solar:energy"
   | "wind:resource"
-  | "grid:curtailment"
-  | "grid:connection"
-  | "grid:figure"
-  | "grid:record"
 
 export const ENERGY_PRODUCTS: readonly EnergyProduct[] = [
   {
@@ -169,34 +162,6 @@ export const ENERGY_PRODUCTS: readonly EnergyProduct[] = [
     label: "Wind resource",
     hint: "Wind speed and power density over the area",
     needsArea: true,
-  },
-  {
-    id: "grid:curtailment",
-    family: "grid",
-    label: "Curtailment",
-    hint: "What the operator withheld at the metered plants inside an area",
-    needsArea: true,
-  },
-  {
-    id: "grid:connection",
-    family: "grid",
-    label: "Connection",
-    hint: "The network this ground could reach, and what its plants are joined to",
-    needsArea: true,
-  },
-  {
-    id: "grid:figure",
-    family: "grid",
-    label: "Series",
-    hint: "One analysis of the published research series, over the whole record",
-    needsArea: false,
-  },
-  {
-    id: "grid:record",
-    family: "grid",
-    label: "Record",
-    hint: "Which operational record this installation holds, and of which revision",
-    needsArea: false,
   },
 ]
 

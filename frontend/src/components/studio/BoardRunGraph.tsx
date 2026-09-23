@@ -46,7 +46,6 @@ const SHORT_SOLAR: Record<SolarProductEntry["id"], string> = {
 import {
   ArrowDown,
   Check,
-  ArrowsClockwise,
   CircleNotch,
   Drop,
   GridFour,
@@ -76,18 +75,11 @@ import {
   type ClassifyMode,
 } from "@/lib/classifyOptions"
 import { FLOOD_LEAST_DEMS } from "@/components/flood/floodSetup"
-import { SERIES_FIGURES } from "@/lib/gridFigures"
-import { type GridProductId } from "@/lib/gridOptions"
-import {
-  setPlantLayer,
-  useNetwork,
-  usePlantLayers,
-  usePlantRegister,
-} from "@/lib/plantRegister"
 import {
   ENERGY_PRODUCTS,
   energyFamily,
   type BoardToolId,
+  type EnergyFamily,
   type EnergyProductId,
 } from "@/lib/mapTools"
 import { methodBrief } from "@/lib/methodBrief"
@@ -151,9 +143,8 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
   compose: ImageIcon,
   water: Drop,
   // The sun for the whole of energy, and it is the honest glyph for it: the
-  // resource is what every product here is ultimately about, including the
-  // curtailment ones -- those measure what the grid did to a resource that
-  // arrived. A fan or a database would name one family and hide two.
+  // resource is what every product here is about. A fan would name one
+  // family and hide the other.
   energy: Sun,
   // Waves rather than a droplet: the envelope reads terrain and no
   // precipitation at all, so a rain glyph would name an input it does not have.
@@ -425,52 +416,6 @@ const fold = (s: string) =>
     .trim()
 
 /**
- * One map layer, with how many marks it puts on screen.
- *
- * The count is beside the label and not in a tooltip: the difference between
- * 558 and 24,140 is the whole reason there are two switches, and a number a
- * reader has to hover for is a number they will not see before they draw.
- */
-function LayerSwitch({
-  label,
-  count,
-  on,
-  onToggle,
-}: {
-  label: string
-  count: number
-  on: boolean
-  onToggle: (on: boolean) => void
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={() => onToggle(!on)}
-      className="flex items-center gap-1.5 text-left"
-    >
-      <span
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          on ? "bg-accent" : "bg-muted-foreground/40"
-        )}
-      />
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate text-meta",
-          on ? "text-foreground" : "text-muted-foreground"
-        )}
-      >
-        {label}
-      </span>
-      <span className="telemetry shrink-0 text-micro text-muted-foreground">
-        {count.toLocaleString()}
-      </span>
-    </button>
-  )
-}
-/**
  * What the run has said, while it is saying it.
  *
  * MOVED HERE FROM THE PROPERTIES PANEL, which used to swap its whole body for
@@ -682,11 +627,11 @@ export interface BoardRunGraphProps {
   /**
    * Which energy product is chosen, and how to change it.
    *
-   * ONE CARD FOR THREE FAMILIES. The product card used to render the solar
-   * table or the grid table depending on which tool the band was on, and the
-   * reader had to have chosen the family before they could see what it
-   * offered. It renders one list now, and the family is a property of the
-   * entry rather than a question asked before it.
+   * ONE CARD FOR EVERY FAMILY. The product card used to render one family's
+   * table, chosen by the tool the band was on, and the reader had to have
+   * chosen the family before they could see what it offered. It renders one
+   * list now, and the family is a property of the entry rather than a question
+   * asked before it.
    *
    * `blocked` names the families this installation cannot run, so a product
    * that will not go is greyed WITH ITS REASON rather than hidden. A missing
@@ -694,7 +639,7 @@ export interface BoardRunGraphProps {
    */
   energyProduct?: EnergyProductId
   onEnergyProduct?: (id: EnergyProductId) => void
-  blockedFamilies?: Partial<Record<"solar" | "wind" | "grid", string>>
+  blockedFamilies?: Partial<Record<EnergyFamily, string>>
 
   /**
    * Everything the solar tool needs, or absent where it cannot be run.
@@ -761,32 +706,6 @@ export interface BoardRunGraphProps {
     roughnessLowM: number
     roughnessHighM: number
     onRoughnessChange: (low: number, high: number) => void
-  }
-
-  /**
-   * Everything the operational record needs, or absent where it cannot be
-   * read -- which on this tab is the common case rather than the exception,
-   * since most installations have no local store at all.
-   */
-  grid?: {
-    product: GridProductId
-    onProductChange: (p: GridProductId) => void
-    /** The connection as it will be used, already redacted. */
-    dsn: string
-    /** What decided it: "TERRA_BR_DSN", "chosen" or "default". */
-    dsnSource: string
-    reachable: boolean
-    /** Why not, when it is not. The sidecar's own sentence. */
-    unreachable?: string
-    /** The span the store holds, as YYYY-MM, or null before it has answered. */
-    recordFrom: string | null
-    recordTo: string | null
-    start: string
-    end: string
-    onWindowChange: (start: string, end: string) => void
-    onCheckStore: () => void
-    figure: number
-    onFigureChange: (n: number) => void
   }
 
   /** Everything the flood envelope needs, or absent where it cannot be run. */
@@ -1015,7 +934,7 @@ const EDGE_NOTE: Record<EdgeState, string> = {
  * runValue.ts, which owns all three and explains why they are one thing.
  *
  * `none` IS A REAL ANSWER, and it covers two cases that are not the same. The
- * layers card and the run card supply nothing to a run by their nature. The
+ * catalogue and the run card supply nothing to a run by their nature. The
  * rest are cards whose bundle is absent -- a board with no solar parameters
  * draws no solar cards at all, so no wire asks these what they hold.
  *
@@ -1026,7 +945,7 @@ const EDGE_NOTE: Record<EdgeState, string> = {
  * which of the numbers is the card.
  */
 function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
-  const { solar, wind, grid, compose, flood, water } = p
+  const { solar, wind, compose, flood, water } = p
   const none: RunValue = { kind: "none" }
   const onWind =
     p.tool === "energy" &&
@@ -1124,9 +1043,6 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
     threshold: flood
       ? { kind: "measure", of: flood.referenceThresholdM, unit: "m" }
       : none,
-    store: grid ? { kind: "store", reachable: grid.reachable } : none,
-    window: grid ? { kind: "span", start: grid.start, end: grid.end } : none,
-    figure: grid ? { kind: "choice", label: `fig. ${grid.figure}` } : none,
     /*
       THE FOUR CARDS THAT HELD SEVERAL FIGURES, each now reporting the one it
       is about.
@@ -1159,7 +1075,6 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
     losses: solar
       ? { kind: "measure", of: compoundLoss(solar), unit: "% loss" }
       : none,
-    layers: none,
     run: none,
   }
 }
@@ -1242,21 +1157,10 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   */
   const pct = Math.round(Math.max(0, Math.min(100, props.progress)))
 
-  // Read here rather than passed in: the register and the switches are held in
-  // a module because the card and the map it controls are in unrelated
-  // subtrees. See lib/plantRegister.ts.
-  const plantRegister = usePlantRegister()
-  const plantLayers = usePlantLayers()
-  // Same lazy fetch the globe does, so the counts beside the network switches
-  // arrive with the layer rather than before anyone asked for it. Both share
-  // one module promise, so this is not a second request.
-  const network = useNetwork(plantLayers.network || plantLayers.buses)
-
   const graph = runGraph(
     props.tool,
     props.solar ? props.solar.product : null,
     props.compose ? props.compose.kind : null,
-    props.grid ? props.grid.product : null,
     // Without this the Energy entry has no family to dispatch on and the graph
     // comes back null, which the surface renders as "pick a product above" --
     // over a product card that is already showing one picked.
@@ -1317,189 +1221,6 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
         }
         onPick={(name, geometry) => props.onPickBoundary?.(name, geometry)}
       />
-    ),
-    /*
-      WHAT THE MAP IS DRAWING, AND HOW MUCH OF IT CAN BE ASKED ABOUT.
-
-      The count beside each switch is the point of the card rather than a
-      flourish. ANEEL registers 18,639 located photovoltaic enterprises and ONS
-      meters 558 of them, so a reader deciding where to draw needs to know that
-      most of what a "show every plant" layer would put on screen is ground this
-      slice cannot answer for. Two switches state that; one switch would hide it.
-
-      No run and no edge. This changes what is drawn while the question is being
-      set up and changes nothing about the answer.
-    */
-    layers: (
-      <div className="flex flex-col gap-1.5">
-        {plantRegister === null ? (
-          <span className="text-meta text-muted-foreground">
-            Reading the register
-          </span>
-        ) : (
-          <>
-            <LayerSwitch
-              label="Plants in the record"
-              count={plantRegister.counts.metered}
-              on={plantLayers.metered}
-              onToggle={(v) => setPlantLayer("metered", v)}
-            />
-            <LayerSwitch
-              label="Registered only"
-              count={
-                plantRegister.counts.returned - plantRegister.counts.metered
-              }
-              on={plantLayers.registered}
-              onToggle={(v) => setPlantLayer("registered", v)}
-            />
-            <p className="mt-0.5 text-micro leading-relaxed text-muted-foreground">
-              Only the first can be read about. A point is one enterprise as
-              ANEEL registers it, not a footprint.
-            </p>
-            <div className="mt-1 border-t border-border/40 pt-1.5" />
-            <LayerSwitch
-              label="Transmission lines"
-              count={network?.counts.lines_in_service ?? 1830}
-              on={plantLayers.network}
-              onToggle={(v) => setPlantLayer("network", v)}
-            />
-            <LayerSwitch
-              label="Substations"
-              count={network?.counts.substations ?? 1677}
-              on={plantLayers.buses}
-              onToggle={(v) => setPlantLayer("buses", v)}
-            />
-            {/*
-              Said where the layer is switched on, because a map invites
-              measuring with the eye and this one cannot be measured that way.
-              ONS publishes a circuit's terminals and its length, never its
-              path, so the drawn segment is short of the conductor by about 8
-              percent at the median and 41 at the ninetieth percentile.
-            */}
-            <p className="mt-0.5 text-micro leading-relaxed text-muted-foreground">
-              Drawn terminal to terminal, not along the route: the conductor
-              runs ~8% longer at the median, 41% at p90. Transmission only —
-              nothing below 230 kV is in the register.
-            </p>
-          </>
-        )}
-      </div>
-    ),
-    store: (
-      <div className="flex flex-col gap-1.5">
-        {/*
-          The state first and the address second, because the state is what
-          decides whether anything below this card can run, and the address is
-          only interesting once it does not.
-        */}
-        <div className="flex items-center gap-1.5">
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              props.grid?.reachable ? "bg-accent" : "bg-muted-foreground/50"
-            )}
-          />
-          <span className="telemetry text-meta text-foreground">
-            {props.grid?.reachable ? "reachable" : "unreachable"}
-          </span>
-          <span className="ml-auto text-micro text-muted-foreground">
-            {props.grid?.dsnSource === "TERRA_BR_DSN"
-              ? "by variable"
-              : props.grid?.dsnSource === "chosen"
-                ? "chosen"
-                : "default"}
-          </span>
-        </div>
-        <span className="telemetry truncate text-micro text-muted-foreground">
-          {props.grid?.dsn ?? "—"}
-        </span>
-        {/*
-          The sidecar's own sentence, clamped to two lines. It already
-          distinguishes a missing driver from a server that is not running from
-          a database that was never created, and each needs a different action;
-          a card is not the place to read all of it, which is what the Grid
-          record editor is for.
-        */}
-        {!props.grid?.reachable && props.grid?.unreachable && (
-          <span className="line-clamp-2 text-micro leading-snug text-muted-foreground">
-            {props.grid.unreachable}
-          </span>
-        )}
-        <div className="flex items-center gap-0.5">
-          <IconAction
-            icon={ArrowsClockwise}
-            title="Check the store again"
-            disabled={busy}
-            onClick={() => props.grid?.onCheckStore()}
-          />
-        </div>
-      </div>
-    ),
-    figure: (
-      /*
-        A list and not chips: twelve entries with names like "Subsystem
-        decomposition" do not survive being cut to a chip, and the number is
-        how the series refers to them.
-
-        The ones this application does not compute yet are drawn and disabled
-        rather than hidden. Hiding them would say the series has one figure;
-        showing them says which of twelve is ready, which is the true state and
-        the one a reader can act on.
-      */
-      <div className="flex max-h-44 flex-col gap-px overflow-y-auto">
-        {SERIES_FIGURES.map((f) => (
-          <button
-            key={f.number}
-            type="button"
-            disabled={busy || !f.ready}
-            onClick={() => props.grid?.onFigureChange(f.number)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-left text-micro transition-colors",
-              props.grid?.figure === f.number
-                ? "bg-accent/15 text-foreground inset-ring-1 inset-ring-accent"
-                : f.ready
-                  ? "text-muted-foreground hover:bg-hover"
-                  : "text-muted-foreground/40"
-            )}
-          >
-            <span className="telemetry w-4 shrink-0 text-right">
-              {f.number}
-            </span>
-            <span className="min-w-0 truncate">{f.label}</span>
-          </button>
-        ))}
-      </div>
-    ),
-    window: (
-      <div className="flex flex-col gap-1.5">
-        {/*
-          Bounded by what the store holds rather than by a calendar. The hourly
-          resource window is a decade; this record begins when the operator
-          started publishing it, and a request outside that span is refused
-          rather than silently returned short.
-        */}
-        <div className="flex items-center gap-1">
-          <DateField
-            value={props.grid?.start ?? ""}
-            onChange={(v) =>
-              props.grid?.onWindowChange(v, props.grid.end)
-            }
-            disabled={busy}
-          />
-          <DateField
-            value={props.grid?.end ?? ""}
-            onChange={(v) =>
-              props.grid?.onWindowChange(props.grid.start, v)
-            }
-            disabled={busy}
-          />
-        </div>
-        <span className="text-micro text-muted-foreground">
-          {props.grid?.recordFrom && props.grid?.recordTo
-            ? `the record runs ${props.grid.recordFrom}..${props.grid.recordTo}`
-            : "the record's span is unknown until the store answers"}
-        </span>
-      </div>
     ),
     area: (
       <>
@@ -1863,13 +1584,13 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     */
     product: (
       /*
-        One card, two products, and the tool decides which table it reads.
+        One card, two tables, and the tool decides which it reads.
 
-        Not two node kinds. A `gridProduct` beside `product` would be two cards
-        that are never on screen together, drawn from two tables, saying the
-        same thing about different subjects -- and the graph would have to
+        Not one node kind per family. A product card per family would be cards
+        that are never on screen together, drawn from separate tables, saying
+        the same thing about different subjects -- and the graph would have to
         explain why the choice is called one name under solar and another under
-        the record.
+        wind.
       */
       <div className="flex flex-wrap gap-1">
         {props.tool === "energy"
@@ -2475,7 +2196,7 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   /*
     Which cards the request actually reaches, read off the edges.
 
-    Derived rather than named. `layers` is the only card wired to nothing
+    Derived rather than named. The catalogue is the only card wired to nothing
     today, and hardcoding it here would put the rule in a second place from the
     graph that decides it -- so the next card added without an edge would draw
     as though it fed the run, and the discrepancy would be silent in the way
@@ -2506,8 +2227,8 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
   const nodes: CanvasNode[] = graph.nodes.map((spec) => {
     /*
       A card no edge touches is not an input to the run, and runGraph.ts places
-      one deliberately: the layers card says what is drawn while the question
-      is being set up and changes nothing about the answer.
+      one deliberately: the catalogue produces an area, and the area card's own
+      edge is what carries it.
     */
     const aside = !wired.has(spec.id)
     /*
@@ -2522,12 +2243,11 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     /*
       ASIDE IS ABOUT CONTEXT, NOT ABOUT WIRING, AND THE TWO CAME APART.
 
-      It was derived from the absence of an edge alone, which was right while
-      the layers card was the only card without one: that card says what is
-      drawn while the question is set up, and a reader is not meant to look at
-      it first. The catalogue has no edge either and is the opposite -- it is
-      where ground comes from, so a reader IS meant to look at it, and drawing
-      it in the same quiet slate said otherwise.
+      It was derived from the absence of an edge alone, which is right for a
+      card that only says what is drawn while the question is set up: a reader
+      is not meant to look at it first. The catalogue has no edge either and is
+      the opposite -- it is where ground comes from, so a reader IS meant to
+      look at it, and drawing it in the same quiet slate said otherwise.
 
       IT CARRIES A BAND OF ITS OWN AND NOT ONE OF THE FOUR. The parts scale is
       the parts of a request and every card in it feeds a run; this one feeds
@@ -2592,10 +2312,9 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
     after a run that read it.
 
     WHICH INPUTS ARE ABSENT is now a question about the value rather than a
-    list kept here. It was three cards named by hand -- the area, the flood
-    comparison, the store -- and the fourth that needed it had been missed: a
-    composition with no scene chosen drew a wire as though it carried one. See
-    `supplied` in runValue.ts.
+    list kept here. It was three cards named by hand, and the fourth that
+    needed it had been missed: a composition with no scene chosen drew a wire
+    as though it carried one. See `supplied` in runValue.ts.
   */
   const last = props.lastRun
   /*

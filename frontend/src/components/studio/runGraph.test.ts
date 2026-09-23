@@ -4,10 +4,10 @@
  * THE DEFECT THIS FOLLOWS was a height written by hand. `defaultPlaces`
  * stacked a column from `RunNodeSpec.h`, and nothing compared that number with
  * what the card drew. `product` declared 78, which was true of the four short
- * names it carries under solar; under energy the same card draws the nine
- * ENERGY_PRODUCTS labels, wraps to about six rows and stands near 200. The
- * card below it in the same column was placed 124px inside it, and the overlap
- * clipped two of the nine options out of reach.
+ * names it carries under solar; under energy the same card drew the nine
+ * ENERGY_PRODUCTS labels the table held at the time, wrapped to about six rows
+ * and stood near 200. The card below it in the same column was placed 124px
+ * inside it, and the overlap clipped two of the nine options out of reach.
  *
  * WHAT NO TEST HERE CAN CATCH, and it is worth saying rather than implying
  * otherwise: whether a declared height matches a drawn one. That comparison
@@ -35,21 +35,17 @@ const GRAPHS: [string, RunGraph][] = (
     ["flood", runGraph("flood", null)],
     ["compose rgb", runGraph("compose", null, "rgb")],
     ["compose index", runGraph("compose", null, "index")],
-    ["solar resource", runGraph("energy", "resource", null, null, "solar:resource")],
-    ["solar terrain", runGraph("energy", "terrain", null, null, "solar:terrain")],
-    ["solar siting", runGraph("energy", "siting", null, null, "solar:siting")],
-    ["solar energy", runGraph("energy", "energy", null, null, "solar:energy")],
-    ["wind", runGraph("energy", null, null, null, "wind:resource")],
-    ["grid curtailment", runGraph("energy", null, null, "curtailment", "grid:curtailment")],
-    ["grid connection", runGraph("energy", null, null, "connection", "grid:connection")],
-    ["grid figure", runGraph("energy", null, null, "figure", "grid:figure")],
-    ["grid record", runGraph("energy", null, null, "record", "grid:record")],
+    ["solar resource", runGraph("energy", "resource", null, "solar:resource")],
+    ["solar terrain", runGraph("energy", "terrain", null, "solar:terrain")],
+    ["solar siting", runGraph("energy", "siting", null, "solar:siting")],
+    ["solar energy", runGraph("energy", "energy", null, "solar:energy")],
+    ["wind", runGraph("energy", null, null, "wind:resource")],
   ] as [string, RunGraph | null][]
 ).filter((entry): entry is [string, RunGraph] => entry[1] !== null)
 
 describe("defaultPlaces", () => {
   it("covers every graph the product tables can produce", () => {
-    expect(GRAPHS.length).toBe(14)
+    expect(GRAPHS.length).toBe(10)
   })
 
   /*
@@ -119,38 +115,25 @@ describe("cards no edge reaches", () => {
     return graph.nodes.map((n) => n.id).filter((id) => !wired.has(id))
   }
 
-  const isEnergy = (name: string) => /^(solar|wind|grid)/.test(name)
-
-  /*
-    The layers card is appended for the Energy entry alone -- it draws the
-    register this slice can be asked about, and hanging it off a classification
-    graph would offer a control over a layer that run has nothing to do with.
-    So every other graph reaches all of its cards.
-  */
-  it("is the layers card, and only that, on every energy graph", () => {
-    const energy = GRAPHS.filter(([name]) => isEnergy(name))
-    expect(energy.length).toBe(9)
-    for (const [name, graph] of energy) {
-      expect(unwired(graph), name).toEqual(["layers"])
-    }
-  })
+  const isEnergy = (name: string) => /^(solar|wind)/.test(name)
 
   /*
     THE CARD THAT CHOSE THE FAMILY IS ON THE GRAPH THE CHOICE PRODUCES.
 
-    On the energy entry the product card draws the nine labels, so it is not
-    only a description of the run -- it is the only control that can change
-    which run is being described. A branch that leaves it out takes the choice
-    off the board the moment it is made, and the reader is held on whichever
-    product they last picked with nothing to press. Wind did exactly that.
+    On the energy entry the product card draws every energy product's label,
+    so it is not only a description of the run -- it is the only control that
+    can change which run is being described. A branch that leaves it out takes
+    the choice off the board the moment it is made, and the reader is held on
+    whichever product they last picked with nothing to press. Wind did exactly
+    that.
 
     Asserted across every energy graph rather than against wind alone, because
-    the fault was not that wind was wrong: it was that eight branches agreed
-    and nothing said they had to.
+    the fault was not that wind was wrong: it was that the other branches
+    agreed and nothing said they had to.
   */
   it("does not include the product card, which every energy graph carries", () => {
     const energy = GRAPHS.filter(([name]) => isEnergy(name))
-    expect(energy.length).toBe(9)
+    expect(energy.length).toBe(5)
     for (const [name, graph] of energy) {
       expect(
         graph.nodes.map((n) => n.id),
@@ -160,10 +143,13 @@ describe("cards no edge reaches", () => {
     }
   })
 
-  it("is nothing at all on the graphs that are not energy", () => {
-    const rest = GRAPHS.filter(([name]) => !isEnergy(name))
-    expect(rest.length).toBe(5)
-    for (const [name, graph] of rest) {
+  /*
+    A product brings no card it does not read. The only unwired cards on a
+    graph are the ones the reader adds, which the two tests below cover.
+  */
+  it("is nothing at all on any graph the product tables produce", () => {
+    expect(GRAPHS.length).toBe(10)
+    for (const [name, graph] of GRAPHS) {
       expect(unwired(graph), name).toEqual([])
     }
   })
@@ -178,7 +164,7 @@ describe("cards no edge reaches", () => {
   */
   it("adds what the reader asked for, and reaches none of it", () => {
     const plain = runGraph("classify", null)!
-    const withCatalogue = runGraph("classify", null, null, null, null, [
+    const withCatalogue = runGraph("classify", null, null, null, [
       "catalogue",
     ])!
     expect(unwired(plain)).toEqual([])
@@ -187,11 +173,13 @@ describe("cards no edge reaches", () => {
     expect(withCatalogue.nodes.length).toBe(plain.nodes.length + 1)
   })
 
-  // Energy keeps its own, and the two do not displace each other.
-  it("puts an added component beside the layers card on energy", () => {
-    const graph = runGraph("energy", "resource", null, null, "solar:resource", [
+  // Energy takes an added component the same way every other graph does.
+  it("adds a component to an energy graph, and reaches none of it", () => {
+    const plain = runGraph("energy", "resource", null, "solar:resource")!
+    const graph = runGraph("energy", "resource", null, "solar:resource", [
       "catalogue",
     ])!
-    expect(unwired(graph).sort()).toEqual(["catalogue", "layers"])
+    expect(unwired(graph)).toEqual(["catalogue"])
+    expect(graph.edges).toEqual(plain.edges)
   })
 })

@@ -57,7 +57,6 @@ const GO_FILES = [
   "types_energy.go",
   "types_wind.go",
   "types_flood.go",
-  "types_grid.go",
 ]
 const TS = join(here, "..", "src", "lib", "types.ts")
 

@@ -25,7 +25,6 @@ describe("supplied", () => {
       { kind: "span", start: "", end: "" },
       { kind: "choice", label: null },
       { kind: "scene", id: null, found: 12 },
-      { kind: "store", reachable: false },
     ]
     for (const v of empty) expect(supplied(v)).toBe(false)
   })
@@ -36,7 +35,6 @@ describe("supplied", () => {
       { kind: "span", start: "2024-01-01", end: "2024-03-01" },
       { kind: "choice", label: "annual" },
       { kind: "scene", id: "S2A_20240101", found: 12 },
-      { kind: "store", reachable: true },
     ]
     for (const v of held) expect(supplied(v)).toBe(true)
   })
@@ -126,14 +124,13 @@ describe("signature", () => {
 })
 
 describe("subject", () => {
-  it("groups the three sources a run reads from as one part", () => {
+  it("groups the two sources a run reads from as one part", () => {
     // The drawn polygon is the commonest of them, not the kind: a scene is one
-    // acquisition and a store is a local database, and all three answer the
-    // same question about where the run reads.
+    // acquisition, and both answer the same question about where the run
+    // reads.
     const sources: RunValue[] = [
       { kind: "ground", label: "drawn 13" },
       { kind: "scene", id: "S2A", found: 4 },
-      { kind: "store", reachable: true },
     ]
     for (const v of sources) expect(subject(v)).toBe("source")
   })
