@@ -555,6 +555,8 @@ type PredictResult struct {
 	// Attached by the frontend when a surface-water run has been made over the
 	// same AOI. Produced by a separate action, so it is not filled by Predict.
 	Water *WaterAnalysis `json:"water,omitempty"`
+	// A Tetracorder mineral map from EMIT reflectance, reopened from the store.
+	Mineral *MineralAnalysis `json:"mineral,omitempty"`
 	// Compact spectral / NDVI fingerprint cached at classify time for
 	// domain-shift diagnostics against another run. Absent on older runs and
 	// on water-only results.
