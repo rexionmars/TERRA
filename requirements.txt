@@ -9,3 +9,13 @@ joblib>=1.3
 scikit-learn>=1.8,<1.9
 pystac-client>=0.7
 planetary-computer>=1.0
+
+# The mineral map reads EMIT L2A reflectance as NetCDF-4 subsets returned by
+# the LP DAAC's OPeNDAP service, opened in memory (h5py), and makes its
+# authenticated requests with requests. requests reaches the environment as a
+# dependency of pystac-client and planetary-computer, and h5py through no other
+# package; imported directly by terra/mineral/emit.py, both belong in the
+# manifest, because the version that satisfies another package is not a
+# promise to this one.
+h5py>=3.10
+requests>=2.31
