@@ -106,6 +106,12 @@ type InferenceRun struct {
 const (
 	RunKindClassification = "classification"
 	RunKindWater          = "water"
+	// A Tetracorder mineral map from EMIT reflectance. Its own kind because it
+	// comes from a different sensor and a different method than the two kinds
+	// above -- an expert system over imaging spectroscopy, not a classifier or
+	// an index threshold over a Sentinel-2 stack -- and its payload binds to
+	// neither of their structs.
+	RunKindMineral = "mineral"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.

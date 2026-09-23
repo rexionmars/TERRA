@@ -48,6 +48,18 @@ func TestEveryRasterRunRecordsItsOverlay(t *testing.T) {
 				)
 			},
 		},
+		{
+			name: "mineral",
+			persist: func(a *App) string {
+				return a.persistMineralRun(
+					analysis.MineralRequest{Label: "AOI"},
+					&analysis.MineralAnalysis{Groups: []analysis.MineralGroup{
+						{Group: 1, ClassURI: onePixelPNG},
+						{Group: 2, ClassURI: onePixelPNG},
+					}},
+				)
+			},
+		},
 	}
 
 	for _, c := range cases {

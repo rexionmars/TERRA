@@ -206,6 +206,8 @@ func kindLabel(kind string) string {
 		return "Classification"
 	case RunKindWater:
 		return "Surface water"
+	case RunKindMineral:
+		return "Mineral map"
 	default:
 		return kind
 	}

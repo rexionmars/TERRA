@@ -274,6 +274,82 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 // directory, written here and read back by LoadAnalysis.
 const waterOccurrencePNG = "water_occurrence.png"
 
+/*
+persistMineralRun saves a mineral map with its class rasters and GeoTIFF.
+
+The summary carries the observed area beside the identified areas: over
+vegetated ground most of an area has no mineral answer, and an identified area
+printed without the ground it was taken over reads as the whole area.
+*/
+func (a *App) persistMineralRun(req analysis.MineralRequest, res *analysis.MineralAnalysis) string {
+	if res == nil {
+		return ""
+	}
+	label := aoiLabel(req.Label)
+	summary := map[string]any{
+		"mineral_expert_system":    res.ExpertSystem,
+		"mineral_aoi_area_ha":      res.AOIAreaHa,
+		"mineral_observed_area_ha": res.ObservedAreaHa,
+		"mineral_n_scenes":         len(res.Scenes),
+		"aoi_label":                label,
+	}
+	for _, g := range res.Groups {
+		summary[fmt.Sprintf("mineral_group%d_detected_ha", g.Group)] = g.DetectedAreaHa
+		if len(g.Classes) > 0 {
+			summary[fmt.Sprintf("mineral_group%d_top_class", g.Group)] = g.Classes[0].Class
+		}
+	}
+	// The thumbnail is the 2-2.5 um group's map when there is one, the group
+	// that separates the clays; otherwise the first map written.
+	overlay := ""
+	for _, g := range res.Groups {
+		if g.ClassURI == "" && g.ClassPNG == "" {
+			continue
+		}
+		if overlay == "" || g.Group == 2 {
+			overlay = mineralGroupPNG(g.Group)
+		}
+	}
+	return a.saveRun(savedRun{
+		kind:        store.RunKindMineral,
+		modelKind:   res.ExpertSystem,
+		polygon:     req.PolygonGeoJSON,
+		aoiLabel:    label,
+		runLabel:    req.RunLabel,
+		projectID:   req.ProjectID,
+		areaID:      req.AreaID,
+		periodStart: req.Start,
+		periodEnd:   req.End,
+		nDates:      len(res.Scenes),
+		summary:     summary,
+		result: func(assetsDir, assetsRel string) any {
+			stored := *res
+			stored.Groups = make([]analysis.MineralGroup, len(res.Groups))
+			for i, g := range res.Groups {
+				src := g.ClassURI
+				if src == "" {
+					src = g.ClassPNG
+				}
+				name := mineralGroupPNG(g.Group)
+				g.ClassPNG = ""
+				if err := store.WriteDataURIFile(src, filepath.Join(assetsDir, name)); err == nil && src != "" {
+					g.ClassPNG = filepath.Join(assetsRel, name)
+				}
+				g.ClassURI = ""
+				stored.Groups[i] = g
+			}
+			stored.GeoTIFF = ""
+			if strings.TrimSpace(res.GeoTIFF) != "" {
+				if err := store.WriteDataURIFile(res.GeoTIFF, filepath.Join(assetsDir, mineralMapTIF)); err == nil {
+					stored.GeoTIFF = filepath.Join(assetsRel, mineralMapTIF)
+				}
+			}
+			return stored
+		},
+		overlayFile: overlay,
+	})
+}
+
 func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.PredictResult) string {
 	if res == nil {
 		return ""
@@ -437,6 +513,33 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 		*/
 		water.RunID = run.ID
 		return &analysis.PredictResult{Water: &water, RunID: run.ID}, nil
+	}
+
+	// A mineral run: every raster path is rewritten to the file in this run's
+	// folder, because the sidecar's own paths point into a work directory that
+	// is gone by the time a run is reopened, and one that is missing is left
+	// empty rather than offered to the export as a file that cannot be read.
+	if run.Kind == store.RunKindMineral {
+		var mineral analysis.MineralAnalysis
+		if run.ResultJSON != "" && run.ResultJSON != "{}" {
+			_ = json.Unmarshal([]byte(run.ResultJSON), &mineral)
+		}
+		mineral.NormalizeNilSlices()
+		for i := range mineral.Groups {
+			png := filepath.Join(assetsDir, mineralGroupPNG(mineral.Groups[i].Group))
+			mineral.Groups[i].ClassPNG = ""
+			if uri, err := store.ReadFileDataURI(png, "image/png"); err == nil {
+				mineral.Groups[i].ClassURI = uri
+				mineral.Groups[i].ClassPNG = png
+			}
+		}
+		mineral.GeoTIFF = ""
+		tif := filepath.Join(assetsDir, mineralMapTIF)
+		if _, err := os.Stat(tif); err == nil {
+			mineral.GeoTIFF = tif
+		}
+		mineral.RunID = run.ID
+		return &analysis.PredictResult{Mineral: &mineral, RunID: run.ID}, nil
 	}
 
 	var res analysis.PredictResult

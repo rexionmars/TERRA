@@ -767,11 +767,12 @@ const (
 	tempRetention      = 14 * 24 * time.Hour
 )
 
-// keptWorkDirPrefixes are the os.MkdirTemp prefixes in this file whose
+// keptWorkDirPrefixes are the os.MkdirTemp prefixes in this package whose
 // directory deliberately outlives the call that created it. Every other prefix
-// here is removed on return, so a sweep would never find one.
+// in the package is removed on return, so a sweep would never find one.
 var keptWorkDirPrefixes = []string{
 	"terra-run-",
+	"terra-mineral-",
 }
 
 /*
@@ -992,6 +993,13 @@ both stay with the caller: this takes marshalled bytes and hands back the raw
 payload for the caller to unmarshal into whatever it expects.
 */
 func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, error) {
+	return r.runSidecarJSONEnv(ctx, reqBytes, nil)
+}
+
+// runSidecarJSONEnv is runSidecarJSON with variables added to the child's
+// environment: a credential goes this way rather than into the request, which
+// is marshalled into saved runs and stderr tails.
+func (r *Runner) runSidecarJSONEnv(ctx context.Context, reqBytes []byte, extraEnv []string) (string, error) {
 	// A cancel of our own, because ctx is the Wails application context: it
 	// lives as long as the window and is never cancelled, so the watchdog
 	// below would have nothing to pull and a hung child nothing to stop it.
@@ -1005,6 +1013,7 @@ func (r *Runner) runSidecarJSON(ctx context.Context, reqBytes []byte) (string, e
 	// analysis runs in another, which is how the environment screen came to
 	// report ready for a run that could not import what it needed.
 	cmd.Env = append(os.Environ(), "PYTHONNOUSERSITE=1")
+	cmd.Env = append(cmd.Env, extraEnv...)
 	cmd.WaitDelay = sidecarWaitDelay
 
 	stdout, err := cmd.StdoutPipe()

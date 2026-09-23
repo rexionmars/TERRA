@@ -30,6 +30,14 @@ type AppConfig struct {
 	// Set when the interpreter above is an environment this application
 	// created, so it knows which one it may rebuild without asking.
 	Managed bool `json:"managed,omitempty"`
+	// NASA Earthdata Login bearer token, for the EMIT reflectance the mineral
+	// map reads from the LP DAAC. Here for the reason the type gives for the
+	// interpreter: EARTHDATA_TOKEN does not reach an application opened from
+	// Finder, and a file read at startup works however the application was
+	// launched. Kept in this file, which is written 0600, rather than in the
+	// database, which is exported by the backup. EARTHDATA_TOKEN still wins when
+	// it is set.
+	EarthdataToken string `json:"earthdata_token,omitempty"`
 }
 
 // ConfigPath is the settings file for this installation.
