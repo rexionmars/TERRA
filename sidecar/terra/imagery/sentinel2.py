@@ -282,8 +282,7 @@ def to_reflectance(dn, product):
     Surface reflectance from digital numbers, offset included.
 
     Use this for every quantity that is REPORTED as reflectance or derived from
-    it: the vegetation indices, phenology, the water masks, the composites and
-    the canopy series. It is the physically correct conversion.
+    it: the vegetation indices, phenology, the water masks and the composites. It is the physically correct conversion.
 
     Do not use it to feed a trained model. See as_trained.
     """

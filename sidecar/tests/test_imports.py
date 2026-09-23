@@ -75,8 +75,7 @@ def test_resolving_every_action_imports_no_heavy_dependency():
 
     The product slices are NOT walked. A module inside one is reached only by
     its own action, so a heavy import at its top level is allowed: terra/energy
-    may import pvlib and terra/canopy/phenology.py imports scipy at module
-    scope for a sentinel it needs there. Walking them would report that as a
+    may import pvlib at module scope. Walking them would report that as a
     violation of a rule it does not break.
     """
     script = textwrap.dedent(f"""

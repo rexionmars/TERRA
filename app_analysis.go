@@ -2,18 +2,12 @@ package main
 
 import (
 	"errors"
-	"net/http"
-	"strconv"
-	"strings"
 
 	"geosense-infer/internal/analysis"
 	"geosense-infer/internal/pyenv"
-
-	"github.com/google/uuid"
 )
 
-// The analyses the frontend asks for by name, and the mesh route one of them
-// serves. Each method reads its arguments, calls the runner, and hands back
+// The analyses the frontend asks for by name. Each method reads its arguments, calls the runner, and hands back
 // what the sidecar returned; persisting what came back is app_runs.go and the
 // files it wrote are app_storage.go.
 
@@ -146,129 +140,6 @@ func (a *App) AnalyzeDomainShiftCohort(
 		return nil, errors.New("runner not initialized")
 	}
 	return runner.AnalyzeDomainShiftCohort(a.ctx, req)
-}
-
-// BuildCanopyField returns the leaf-area-density field of one orchard module,
-// together with the transmittances the GLSL march has to reproduce.
-//
-// Not persisted as a run: the field is a function of its parameters and costs
-// under a second to rebuild, so storing it would keep a copy that the next
-// change of spacing invalidates. The analyses that do get saved are the ones
-// carrying a satellite acquisition nobody can reproduce on demand.
-func (a *App) BuildCanopyField(req analysis.CanopyFieldRequest) (*analysis.CanopyField, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	return runner.BuildCanopyField(a.ctx, req)
-}
-
-// BuildCanopyFromAOI reads an AOI's own vegetation-index series as a canopy:
-// LAI by date, the Helios age that carries it, and -- given a location -- what
-// that canopy intercepts under the sun the cell actually received.
-//
-// Not persisted, for the reason the other two canopy calls give: it is a
-// function of a saved run plus a sowing, and both are already recorded.
-func (a *App) BuildCanopyFromAOI(req analysis.CanopyFromAOIRequest) (*analysis.CanopyFromAOI, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	return runner.BuildCanopyFromAOI(a.ctx, req)
-}
-
-// BuildCanopyMesh grows a stand of plants and returns it as glTF, for a reader
-// who wants to see the canopy rather than a density that stands for it.
-//
-// Not persisted, for the reason BuildCanopyField gives, and for one more: the
-// stand is deterministic in its seed, so the parameters are a smaller and more
-// durable record of it than the megabytes of triangles they produce.
-func (a *App) BuildCanopyMesh(req analysis.CanopyMeshRequest) (*analysis.CanopyMesh, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	mesh, err := runner.BuildCanopyMesh(a.ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	/*
-		The bytes are held here and the reply carries a URL instead.
-
-		Returning them would put a base64 string of the whole mesh through the
-		Wails bridge, which marshals every bound result to JSON. On WKWebView
-		that is where "Maximum call stack size exceeded" is thrown -- inside the
-		bridge, before any application JavaScript runs, which is why it survived
-		being verified everywhere outside the webview.
-
-		The id changes per build so the webview cannot serve a previous stand
-		from cache, and each build is held under its own id rather than
-		replacing the last -- see the field's comment for the race that made a
-		single slot wrong.
-	*/
-	id := uuid.NewString()
-
-	a.meshMu.Lock()
-	if a.meshes == nil {
-		a.meshes = make(map[string][]byte)
-	}
-	a.meshes[id] = mesh.Data
-	a.meshOrder = append(a.meshOrder, id)
-	for len(a.meshOrder) > maxHeldMeshes {
-		delete(a.meshes, a.meshOrder[0])
-		a.meshOrder = a.meshOrder[1:]
-	}
-	a.meshMu.Unlock()
-
-	mesh.Data = nil
-	mesh.URL = meshURLPrefix + id
-	return mesh, nil
-}
-
-// The path the grown stand is served from. A prefix rather than a fixed name
-// because the id changes per build, which is what keeps the webview from
-// answering a fetch out of its cache with the previous canopy.
-const meshURLPrefix = "/canopy-mesh/"
-
-/*
-meshMiddleware serves the last grown stand as bytes.
-
-AssetServer middleware rather than its Handler, and the distinction is the whole
-reason this works: Handler is consulted only when Assets reports the file
-missing, and a single-page front end answers any unknown path with index.html
-instead. A mesh request therefore came back as HTML and the loader reported
-"Unrecognized token '<'". Middleware sits ahead of Assets, so this decides its
-own route and passes everything else through untouched.
-*/
-
-func (a *App) meshMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, meshURLPrefix) {
-			next.ServeHTTP(w, r)
-			return
-		}
-		id := strings.TrimPrefix(r.URL.Path, meshURLPrefix)
-
-		a.meshMu.RLock()
-		data, held := a.meshes[id]
-		a.meshMu.RUnlock()
-
-		// An id nobody is holding is one that has aged out, or one that was
-		// never issued. Either way this must answer rather than fall through:
-		// the asset server behind it replies to unknown paths with index.html,
-		// and a loader handed HTML reports "Unrecognized token '<'".
-		if id == "" || !held || len(data) == 0 {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "model/gltf-binary")
-		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-		// The id is unique per build, so the bytes behind a URL never change.
-		w.Header().Set("Cache-Control", "no-store")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(data)
-	})
 }
 
 // AnalyzeSolarTerrain maps plane-of-array irradiation over the AOI terrain.

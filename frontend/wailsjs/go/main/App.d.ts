@@ -36,12 +36,6 @@ export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterA
 
 export function AnalyzeWind(arg1:analysis.WindRequest):Promise<analysis.WindAnalysis>;
 
-export function BuildCanopyField(arg1:analysis.CanopyFieldRequest):Promise<analysis.CanopyField>;
-
-export function BuildCanopyFromAOI(arg1:analysis.CanopyFromAOIRequest):Promise<analysis.CanopyFromAOI>;
-
-export function BuildCanopyMesh(arg1:analysis.CanopyMeshRequest):Promise<analysis.CanopyMesh>;
-
 export function BuildManagedEnvironment(arg1:string):Promise<void>;
 
 export function CancelEnvironmentBuild():Promise<void>;

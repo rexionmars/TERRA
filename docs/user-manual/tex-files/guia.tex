@@ -672,8 +672,7 @@ o que determina qual par est\'a sendo lido; sem ela, a resposta muda sob o
 leitor.
 
 \begin{table}[htbp]\centering
-\caption{Os cinco arranjos da fita superior, e as \'areas que cada um
-disp\~oe.}
+\caption{Os arranjos da fita superior, e as \'areas que cada um disp\~oe.}
 \label{tab:arranjos}
 \small
 \renewcommand{\arraystretch}{1.18}
@@ -685,7 +684,6 @@ disp\~oe.}
 \texttt{Compare} & dois planos lidos um contra o outro, sem di\'alogo sobre o quadro & \texttt{Outliner}, \texttt{Viewport}, \texttt{Properties}, \texttt{Comparison} \\
 \texttt{Diagnose} & qu\~ao distantes os dom\'inios est\~ao, e onde a diferen\c{c}a fica & \texttt{Viewport}, \texttt{Outliner}, \texttt{Domain shift} \\
 \texttt{Data} & as tabelas da execu\c{c}\~ao, na largura que uma tabela pede & \texttt{Viewport}, \texttt{Outliner}, \texttt{Data table} \\
-\texttt{Simulation} & um m\'odulo de pomar e a luz que o atravessa & \texttt{Canopy}, \texttt{Outliner}, \texttt{Canopy run} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -800,208 +798,6 @@ coluna.
 \terrafig{png-images/impressao/studio-data.png}
   {\texttt{Data}. As tabelas da execu\c{c}\~ao exibidas na aplica\c{c}\~ao.}
   {fig:studio-data}
-
-\subsection{\texttt{Simulation}: intercepta\c{c}\~ao de luz pelo dossel}
-
-Responde a quanto da luz que chegou a uma \'area foi interceptado pelo dossel
-da cultura. A grandeza reportada \'e a \termo{faPAR}: a fra\c{c}\~ao da
-radia\c{c}\~ao fotossinteticamente ativa absorvida.
-
-Um modelo de cultura obt\'em essa fra\c{c}\~ao aplicando Beer-Lambert com um
-coeficiente de extin\c{c}\~ao assumido. Aqui ela \'e obtida marchando raios
-por uma arquitetura de planta constru\'ida a partir da s\'erie observada, sob
-o registro solar da pr\'opria c\'elula, e o coeficiente que reproduziria esse
-resultado \'e devolvido junto, sob o r\'otulo \texttt{Emergent k}. A diferen\c{c}a entre
-ele e um coeficiente fixo \'e reportada como \texttt{Fixed-k error}.
-
-\begin{ficha}
-  \item[Painel] arranjo \texttt{Simulation}: \'area \texttt{Canopy} e faixa
-        \texttt{Canopy run}
-  \item[Pr\'e-condi\c{c}\~oes] Para desenhar, nenhuma al\'em do ambiente
-        Python. Para ler uma \'area, uma execu\c{c}\~ao salva cuja s\'erie de
-        \'indice tenha ao menos tr\^es observa\c{c}\~oes
-  \item[Depend\^encia opcional] \texttt{pyhelios3d}, que n\~ao acompanha a
-        instala\c{c}\~ao padr\~ao. Sem ele o dossel \'e composto de
-        elips\'oides em vez da arquitetura crescida
-  \item[Sa\'ida] faPAR, coeficiente emergente, idade resolvida, s\'erie de LAI
-        e estados fenol\'ogicos; malha do povoamento em \texttt{glTF}
-\end{ficha}
-
-\campo{Quatro leituras da mesma cultura} A escolha \'e feita no menu de tipo
-da \'area, e n\~ao dentro do painel. Uma leitura por \'area; v\'arias \'areas
-podem mostrar leituras distintas do mesmo povoamento.
-
-\begin{table}[htbp]\centering
-\caption{Os quatro modos do editor \texttt{Canopy}.}
-\label{tab:canopymodos}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{2.6cm}L{13.0cm}@{}}
-\toprule
-\textbf{Modo} & \textbf{O que traz} \\
-\midrule
-\texttt{Stand} & o povoamento desenhado: caules e folhas, como a arquitetura foi crescida. \'E o \'unico que consome contexto WebGL \\
-\texttt{Season} & a s\'erie de LAI invertida do \'indice, os estados fenol\'ogicos e os ciclos em que a janela foi dividida \\
-\texttt{Light} & faPAR sob o sol medido, coeficiente emergente, erro do coeficiente fixo, LAI iluminado, fra\c{c}\~ao difusa e n\'umero de dire\c{c}\~oes marchadas \\
-\texttt{Ages} & as duas idades independentes, lado a lado, e se a compara\c{c}\~ao entre elas \'e admiss\'ivel naquela data \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\campo{Procedimento: desenhar um povoamento} A faixa \texttt{Canopy run}
-define esp\'ecie, idade e semeadura (tabela~\ref{tab:canopyparam}).
-\texttt{Grow} constr\'oi a malha e a carrega em toda \'area \texttt{Stand} do
-quadro. Alterado um par\^ametro depois disso, o bot\~ao passa a
-\texttt{Regrow} e o painel declara que o povoamento desenhado n\~ao
-corresponde mais aos par\^ametros em tela.
-
-\campo{Procedimento: ler uma \'area} Selecione, no grupo \texttt{Area} da
-faixa, uma execu\c{c}\~ao salva. Execu\c{c}\~oes com menos de tr\^es
-observa\c{c}\~oes n\~ao aparecem, e o controle informa \msg{No analysed area
-carries a long enough index series yet}. \texttt{Read area} executa a cadeia
-descrita abaixo e preenche as leituras \texttt{Season}, \texttt{Light} e
-\texttt{Ages} de uma vez.
-
-\campo{Como a leitura \'e obtida} Sete etapas, nesta ordem:
-
-\begin{enumerate}[leftmargin=*,itemsep=.25em]
-  \item A s\'erie de \'indice de vegeta\c{c}\~ao da \'area \'e lida. A
-        esp\'ecie \'e sugerida a partir das classes que a
-        classifica\c{c}\~ao encontrou, e uma esp\'ecie declarada na faixa
-        prevalece sobre a sugest\~ao.
-  \item O NDVI \'e invertido em \'indice de \'area foliar por Beer-Lambert
-        sobre o \'indice (Baret \& Guyot, 1991).
-  \item Os estados fenol\'ogicos s\~ao rotulados --- \texttt{soil},
-        \texttt{greenup}, \texttt{mature}, \texttt{senescence},
-        \texttt{fallow} --- e a s\'erie \'e dividida em ciclos. Mais de um
-        ciclo indica que a janela cobre mais de uma cultura, e cada idade
-        passa a ser contada do green-up do pr\'oprio ciclo.
-  \item Uma escada de crescimento por esp\'ecie devolve a idade cuja planta
-        carrega a \'area foliar observada, dividida pela densidade de
-        semeadura. A escada recusa em tr\^es casos
-        (tabela~\ref{tab:escada}).
-  \item O registro solar hor\'ario da c\'elula \'e obtido, tr\^es anos por
-        padr\~ao, e recortado numa janela de $\pm$21 dias em torno do
-        dia-do-ano da observa\c{c}\~ao iluminada. Da\'i saem o histograma de
-        energia de feixe por azimute e eleva\c{c}\~ao, e a fra\c{c}\~ao
-        difusa medida.
-  \item Raios s\~ao marchados pela arquitetura, bin a bin do histograma,
-        ponderados pela energia que chegou de cada dire\c{c}\~ao. O
-        procedimento \'e repetido para sementes distintas, pela raz\~ao
-        registrada nas limita\c{c}\~oes ao fim desta se\c{c}\~ao.
-  \item A execu\c{c}\~ao mediana em faPAR carrega os n\'umeros reportados, e
-        a dispers\~ao do conjunto acompanha.
-\end{enumerate}
-
-\begin{table}[htbp]\centering
-\caption{Quando a escada n\~ao devolve idade. A recusa \'e reportada por
-observa\c{c}\~ao, e n\~ao suprimida.}
-\label{tab:escada}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{3.6cm}L{12.0cm}@{}}
-\toprule
-\textbf{Recusa} & \textbf{Condi\c{c}\~ao} \\
-\midrule
-fora do alcance & o LAI observado excede o que a esp\'ecie atinge naquela densidade \\
-no plat\^o & passada a idade em que a \'area foliar deixa de mudar, a idade n\~ao \'e identific\'avel a partir dela. O estado fenol\'ogico desempata \\
-esp\'ecie ausente & a esp\'ecie n\~ao consta da biblioteca de arquitetura \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\terrafig{png-images/impressao/studio-simulation-soybean-tocantins-data.png}
-  {\texttt{Simulation}, no modo \texttt{Stand}. A \'area central desenha a
-   arquitetura crescida para a esp\'ecie, a idade e a semeadura da faixa ao
-   p\'e; \`a direita, o \texttt{Outliner} indica qual \'area est\'a no quadro.
-   O modo desenha a geometria e n\~ao a radia\c{c}\~ao: os valores de faPAR
-   est\~ao no modo \texttt{Light}.}
-  {fig:studio-sim}
-
-\campo{Limita\c{c}\~oes} As quatro seguintes s\~ao declaradas pela
-pr\'opria aplica\c{c}\~ao e afetam a interpreta\c{c}\~ao do resultado.
-
-\begin{objecao}
-\textbf{A arquitetura \'e opcional, e a alternativa n\~ao \'e equivalente.} A
-biblioteca que cresce a planta \'e um extra que n\~ao acompanha a
-instala\c{c}\~ao padr\~ao. Na aus\^encia dela o dossel \'e composto de
-elips\'oides de densidade uniforme que preservam \'area foliar e envelope da
-copa, e a fonte \'e declarada nos metadados do campo. Um elips\'oide nessas
-condi\c{c}\~oes intercepta mais luz que a arquitetura que substitui, de modo
-que os dois n\~ao s\~ao intercambi\'aveis.
-\end{objecao}
-
-\begin{objecao}
-\textbf{O resultado tem dispers\~ao pr\'opria, e ela \'e amostrada.} A
-arquitetura \'e crescida de forma estoc\'astica. Medido em soja aos 55 dias,
-com esp\'ecie, idade e semeadura fixas e a \'area foliar reescalada para um
-mesmo LAI, cinco sementes produziram faPAR entre 0,703 e 0,799, uma amplitude
-de 0,096. Por isso a execu\c{c}\~ao \'e repetida (tr\^es sementes por
-padr\~ao, at\'e doze) e o painel reporta a mediana com a faixa observada, em
-vez de um valor isolado. A marcha domina o custo, em torno de 11~s contra
-0,24~s para crescer uma planta.
-\end{objecao}
-
-\begin{objecao}
-\textbf{O modelo de planta n\~ao representa competi\c{c}\~ao.} A arquitetura
-cresce a ontogenia de uma planta isolada. Verificado em soja aos 60 dias:
-1,402~m$^2$ isolada contra 1,371~m$^2$ dentro de um povoamento de 24 plantas a
-30~pl/m$^2$, raz\~ao de 0,98. A vizinhan\c{c}a praticamente n\~ao altera o
-crescimento. Multiplicado pela densidade real de semeadura, o LAI alcan\c{c}\'avel
-excede o LAI de campo em parte das esp\'ecies (tabela~\ref{tab:alcance}). Onde
-excede, a invers\~ao continua devolvendo um n\'umero --- uma idade jovem cuja
-\'area foliar coincide --- mas a arquitetura \'e de planta juvenil onde o campo
-tem planta madura, com distribui\c{c}\~ao vertical e \^angulos foliares
-distintos.
-
-Por isso duas idades independentes s\~ao reportadas e nenhuma \'e escolhida: a
-que a \'area foliar implica e a fenol\'ogica, contada em dias desde o green-up
-do ciclo. Diverg\^encia grande entre elas indica que o modelo de planta isolada
-n\~ao se aplica \`aquela cultura naquela semeadura. Passado o pico da s\'erie a
-compara\c{c}\~ao \'e suprimida e a raz\~ao \'e declarada: a escada s\'o cresce,
-de modo que ap\'os o pico a idade devolvida significa ``planta com esta \'area
-foliar'', e n\~ao ``dossel desta idade''.
-\end{objecao}
-
-\begin{table}[htbp]\centering
-\caption{LAI alcan\c{c}\'avel pela escada na densidade de campo, contra o LAI
-observado na cultura. Onde o alcance excede o observado, a idade resolvida
-descreve uma planta com a \'area foliar certa e a arquitetura errada.}
-\label{tab:alcance}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{2.6cm}L{4.6cm}L{3.4cm}L{4.2cm}@{}}
-\toprule
-\textbf{Esp\'ecie} & \textbf{Alcance na densidade} & \textbf{LAI de campo} & \textbf{Leitura} \\
-\midrule
-milho  & 4,7 a 7,5 (5--8 pl/m$^2$)      & 3 a 6 & compat\'ivel \\
-arroz  & 2,9 a 7,2 (100--250 pl/m$^2$)  & 4 a 7 & compat\'ivel \\
-sorgo  & 3,8 (5 pl/m$^2$)               & 3 a 5 & compat\'ivel \\
-trigo  & 12,8 a 25,6 (200--400 pl/m$^2$)& 4 a 7 & alcance excede \\
-caupi  & 12,8 a 25,6 (10--20 pl/m$^2$)  & 3 a 5 & alcance excede \\
-soja   & 37 a 75 (20--40 pl/m$^2$)      & 4 a 7 & alcance excede \\
-feij\~ao & 35 a 59 (15--25 pl/m$^2$)    & 3 a 5 & alcance excede \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{objecao}
-\textbf{A invers\~ao satura, e a s\'erie \'e m\'edia de \'area.} Os tr\^es
-par\^ametros da invers\~ao --- NDVI de solo exposto, NDVI de dossel fechado e
-coeficiente de extin\c{c}\~ao --- s\~ao calibra\c{c}\~ao de campo, e os
-valores adotados por padr\~ao correspondem a soja ou milho. Acima de LAI 4 o
-\'indice quase n\~ao se move: a 0,85 de NDVI, um cent\'esimo de \'indice vale
-cerca de 0,3 de LAI, e a 0,88 vale 0,9. Nessa faixa o valor \'e
-extrapola\c{c}\~ao, e a propor\c{c}\~ao da s\'erie que caiu nela \'e
-reportada. Acima de LAI 8 a invers\~ao \'e recusada.
-
-A s\'erie \'e ainda uma m\'edia sobre a \'area, e uma m\'edia sobre cobertura
-mista n\~ao \'e o \'indice da cultura. Na \'area de soja contra a qual esta
-leitura foi constru\'ida, o pico l\^e 0,314 com desvio-padr\~ao de 0,190, o
-que para uma mistura aproximadamente equilibrada situa os pixels de cultura
-pr\'oximos de 0,50 e os demais pr\'oximos de 0,12. O LAI invertido subestima a
-cultura nessa propor\c{c}\~ao.
-\end{objecao}
 
 % =====================================================================
 \section{Levar o resultado para fora}
@@ -1122,29 +918,6 @@ Margem interna & derivada & n\~ao negativa & largura do anel cortado de dentro d
 \end{tabular}
 \end{center}
 
-\subsection{Dossel}
-
-\begin{center}
-\captionof{table}{Par\^ametros da faixa \texttt{Canopy run}.}
-\label{tab:canopyparam}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{2.9cm}L{2.0cm}L{2.7cm}L{7.4cm}@{}}
-\toprule
-\textbf{Par\^ametro} & \textbf{Padr\~ao} & \textbf{Faixa} & \textbf{Efeito} \\
-\midrule
-\texttt{Species} & sorgo & 30 esp\'ecies & a biblioteca n\~ao traz cana, caf\'e nem algod\~ao; a escada recusa em vez de substituir por esp\'ecie pr\'oxima \\
-\texttt{Day} & 60 & 5 a 200, passo 5 & idade do povoamento desenhado. A leitura de uma \'area resolve a idade e n\~ao usa este campo \\
-\texttt{Rows} & 3 & 1 a 8 & linhas do povoamento desenhado \\
-\texttt{Per row} & 4 & 1 a 10 & plantas por linha. A 3$\times$4 e 60 dias a malha tem cerca de 264 mil tri\^angulos \\
-\texttt{Row spacing} & 0,80~m & 0,1 a 6~m, passo 0,05 & entra na densidade de semeadura, que converte \'area foliar por planta em LAI \\
-\texttt{In row} & 0,25~m & 0,05 a 4~m, passo 0,05 & idem \\
-\texttt{Sun} & 50$^\circ$ & 2 a 90$^\circ$ & eleva\c{c}\~ao do sol \emph{da cena desenhada}. N\~ao entra no c\'alculo de faPAR, que usa o registro solar da c\'elula \\
-\texttt{Azimuth} & 35$^\circ$ & 0 a 359$^\circ$, passo 5 & idem \\
-\bottomrule
-\end{tabular}
-\end{center}
-
 \section{Refer\^encia da interface}
 
 \subsection{Origens do interpretador}
@@ -1191,8 +964,6 @@ Margem interna & derivada & n\~ao negativa & largura do anel cortado de dentro d
 \texttt{Rover} & aponta um pixel predito: a classe, a posi\c{c}\~ao e o que reflete \\
 \texttt{Data table} & as tabelas da execu\c{c}\~ao, orden\'aveis, como o pacote de pesquisa as exporta \\
 \texttt{Run} & \'area, per\'iodo e modelo da pr\'oxima execu\c{c}\~ao \\
-\texttt{Canopy} & um povoamento, especificado e desenhado, ou o que a esta\c{c}\~ao de uma \'area implica \\
-\texttt{Canopy run} & esp\'ecie, idade e semeadura do povoamento, e qual \'area \'e lida \\
 \bottomrule
 \end{tabular}
 \end{center}

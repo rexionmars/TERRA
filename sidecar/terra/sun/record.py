@@ -6,8 +6,8 @@ cell: annual totals, a trend, a monthly climatology, the clearness of the sky
 and the beam share of what arrived. Nothing here knows about a collector, which
 is the line between this module and terra/energy.
 
-scipy is deferred inside linear_trend. This module is on the canopy path, and
-the canopy has no use for a regression.
+scipy is deferred inside linear_trend, so a caller that reads the record
+without fitting a trend does not load it.
 """
 
 from __future__ import annotations
@@ -80,26 +80,6 @@ def clear_sky_index(daily: pd.DataFrame) -> float | None:
     return round(float(allsky / clear), 4)
 
 
-def clearness(df) -> float | None:
-    """
-    Global irradiance over its clear-sky reference, across the whole record.
-
-    How much of the sun that was available actually arrived: 1.0 is a cloudless
-    record, and the difference from 1 is cloud. Measured over the cell this was
-    developed against, a 21-day window runs 0.743 in February against 0.927 in
-    October -- the same site, two visibly different skies.
-    """
-    if df is None or len(df) == 0 or "clrsky" not in df.columns:
-        return None
-    ghi = df["ghi"].to_numpy()
-    clear = df["clrsky"].to_numpy()
-    ok = np.isfinite(ghi) & np.isfinite(clear) & (clear > 0)
-    if not ok.any():
-        return None
-    total = float(np.sum(clear[ok]))
-    return float(np.sum(ghi[ok]) / total) if total > 0 else None
-
-
 def beam_fraction(df) -> float:
     """
     Share of the horizontal irradiation carried by the beam component.
@@ -113,50 +93,3 @@ def beam_fraction(df) -> float:
     if ghi <= 0:
         return 0.0
     return float(np.clip((ghi - dhi) / ghi, 0.0, 1.0))
-
-
-def doy_window_mask(index, centre_date, half_width_days: int = 21):
-    """
-    Hours whose day of year lies within `half_width_days` of `centre_date`.
-
-    NOT `season_mask`, which is further down this module and selects by NAMED
-    season from a month table. This one centres on a date the caller observed,
-    which is what a dated question needs and what a fixed set of months cannot
-    express.
-
-    WHY A RECORD IS NOT A SKY. A multi-year hourly record answers "what sun does
-    this cell get", and averaging all of it answers a question nobody asked: the
-    sun of no particular time. For anything dated -- a canopy observed on one
-    Sentinel-2 pass, a yield on one harvest -- the season is the larger term.
-    Measured on this project's own cached POWER records, faPAR varies by 0.068
-    across months at one site against 0.016 across the entire latitude range of
-    Brazil, so a whole-record average is wrong by four times the geographic
-    signal it was assembled to capture.
-
-    Kept as a day-of-year window rather than a date range so the other years in
-    the record still contribute. One February in one year is a few hundred
-    daylight hours and a thin histogram; three Februaries is a sky.
-
-    The window wraps at the new year, which is not a detail in the southern
-    hemisphere: the December-January window covers the peak of the Brazilian
-    summer crop, and a naive `abs(doy - centre)` would cut it in half and keep
-    the wrong half.
-
-    Returns a boolean array, or None when there is no date to centre on -- the
-    caller then keeps the whole record and says that it did.
-    """
-    if centre_date is None:
-        return None
-    try:
-        centre = pd.Timestamp(str(centre_date)[:10]).dayofyear
-    except (ValueError, TypeError):
-        return None
-
-    half = int(half_width_days)
-    if half <= 0 or half >= 183:
-        return None
-
-    doy = np.asarray(index.dayofyear, dtype=float)
-    gap = np.abs(doy - float(centre))
-    gap = np.minimum(gap, 366.0 - gap)
-    return gap <= half

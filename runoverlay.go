@@ -10,8 +10,7 @@ import (
 /*
 The image a run is recognised by, served over HTTP.
 
-WHY THERE IS A ROUTE AND NOT A BOUND METHOD. main.go states the rule for the
-grown stand and it holds here for the same reason: everything a bound method
+WHY THERE IS A ROUTE AND NOT A BOUND METHOD. Everything a bound method
 returns is marshalled to JSON and handed to the webview as a string, so a
 raster has to be base64 to survive the trip. One raster that way is affordable
 and a WALL of them is not -- the studio browser lists every run a project
@@ -39,20 +38,6 @@ process can open, over a surface a page's own script can reach.
 */
 const runOverlayURLPrefix = "/run-overlay/"
 
-/*
-assetMiddleware is the one middleware the asset server is given, and the two
-routes it holds.
-
-Wails takes a single Middleware, so a second route cannot be added beside the
-first -- it has to be composed with it. Written as a composition rather than as
-one function with two prefix tests because each half is about a different
-subject and says so in its own docblock; the order between them does not
-matter, since neither answers a path the other claims.
-*/
-func (a *App) assetMiddleware(next http.Handler) http.Handler {
-	return a.meshMiddleware(a.runOverlayMiddleware(next))
-}
-
 func (a *App) runOverlayMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, runOverlayURLPrefix) {
@@ -63,10 +48,9 @@ func (a *App) runOverlayMiddleware(next http.Handler) http.Handler {
 		path, err := a.runOverlayPath(runID)
 		if err != nil {
 			/*
-				Answered here rather than passed on, for the reason the mesh
-				route gives: the asset server behind this replies to an unknown
-				path with index.html, and an <img> pointed at HTML shows a
-				broken image with nothing saying why.
+				Answered here rather than passed on: the asset server behind
+				this replies to an unknown path with index.html, and an <img>
+				pointed at HTML shows a broken image with nothing saying why.
 			*/
 			http.NotFound(w, r)
 			return

@@ -311,15 +311,3 @@ def test_diffuse_incidence_correction_is_applied_and_lowers_the_yield():
 
 def _three_years():
     return pd.date_range("2023-01-01", "2025-12-31 23:00", freq="h")
-
-
-def test_the_window_is_not_the_named_season_helper():
-    """São duas funções com propósitos diferentes no mesmo módulo, e a
-    segunda foi escrita depois -- sem este teste um `def` sombreia o outro em
-    silêncio, que é exatamente o que aconteceu ao escrever esta."""
-    idx = _three_years()
-    assert sun_record.doy_window_mask(idx, "2026-02-19", 21).sum() != \
-        seasons_mod.season_mask(idx, "summer").sum() if "summer" in seasons_mod.SEASONS \
-        else True
-    assert sun_record.doy_window_mask.__code__.co_argcount == 3
-    assert seasons_mod.season_mask.__code__.co_argcount == 2

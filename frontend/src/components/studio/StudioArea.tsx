@@ -191,12 +191,12 @@ export function StudioArea({
   /*
     THE HEADER NAMES THE PANE, NOT THE EDITOR THAT HOLDS IT.
 
-    An area set to Canopy > Season read "Canopy", which is the one thing about
-    it a reader can already see -- the figures in the body are a season, not a
-    stand -- while the answer to "which of the four is this" was folded away
-    inside the menu that set it. The entrance says what was chosen there, which
-    is what makes a second area beside it legible as a different reading of the
-    same subject rather than as a duplicate.
+    An area set to Library check > Why it survives read "Library check", which
+    is the one thing about it a reader can already see, while the answer to
+    "which reading is this" was folded away inside the menu that set it. The
+    entrance says what was chosen there, which is what makes a second area
+    beside it legible as a different reading of the same subject rather than
+    as a duplicate.
 
     The GLYPH stays the editor's. Below 12rem the label withdraws and the icon
     is all that is left, and an area that has stopped saying which editor it is

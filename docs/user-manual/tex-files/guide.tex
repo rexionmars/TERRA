@@ -605,7 +605,7 @@ is what determines which pair is being read; without it the answer changes
 under the reader.
 
 \begin{table}[htbp]\centering
-\caption{The five arrangements on the top ribbon, and the areas each lays out.}
+\caption{The arrangements on the top ribbon, and the areas each lays out.}
 \label{tab:arrangements}
 \small
 \renewcommand{\arraystretch}{1.18}
@@ -617,7 +617,6 @@ under the reader.
 \texttt{Compare} & two planes read against each other, with no dialogue over the board & \texttt{Outliner}, \texttt{Viewport}, \texttt{Properties}, \texttt{Comparison} \\
 \texttt{Diagnose} & how far apart the domains are, and where the difference sits & \texttt{Viewport}, \texttt{Outliner}, \texttt{Domain shift} \\
 \texttt{Data} & the run's own tables, at the width a table needs & \texttt{Viewport}, \texttt{Outliner}, \texttt{Data table} \\
-\texttt{Simulation} & an orchard module and the light that reaches through it & \texttt{Canopy}, \texttt{Outliner}, \texttt{Canopy run} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -725,218 +724,6 @@ needs width, and in the general arrangement it would sit in a column.
 \terrafig{png-images/impressao/studio-data.png}
   {\texttt{Data}. The run's tables displayed inside the application.}
   {fig:studio-data}
-
-\subsection{\texttt{Simulation}: light interception by the canopy}
-
-It answers how much of the light that reached an area was intercepted by the
-crop canopy. The reported quantity is \termo{faPAR}: the fraction of
-photosynthetically active radiation absorbed.
-
-A crop model obtains that fraction by applying Beer-Lambert with an assumed
-extinction coefficient. Here it is obtained by marching rays through a plant
-architecture built from the observed series, under the solar record of the cell
-itself, and the coefficient that would reproduce the result is returned
-alongside as \texttt{Emergent k}. The difference between it and a fixed
-coefficient is reported as \texttt{Fixed-k error}.
-
-\begin{ficha}
-  \item[Panel] The \texttt{Simulation} arrangement: the \texttt{Canopy} area
-        and the \texttt{Canopy run} band
-  \item[Preconditions] To draw, none beyond the Python environment. To read an
-        area, a saved run whose index series holds at least three observations
-  \item[Optional dependency] \texttt{pyhelios3d}, which does not come with the
-        default install. Without it the canopy is made of ellipsoids rather
-        than grown architecture
-  \item[Output] faPAR, the emergent coefficient, the resolved age, the LAI
-        series and the phenological states; the stand mesh in \texttt{glTF}
-\end{ficha}
-
-\campo{Four readings of one canopy} The choice is made in the area's type menu,
-not inside the panel. One reading per area; several areas can show different
-readings of the same stand.
-
-\begin{table}[htbp]\centering
-\caption{The four modes of the \texttt{Canopy} editor.}
-\label{tab:canopymodes}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{2.6cm}L{13.0cm}@{}}
-\toprule
-\textbf{Mode} & \textbf{What it brings} \\
-\midrule
-\texttt{Stand} & the drawn stand: stems and blades, as the architecture was grown. The only one that spends a WebGL context \\
-\texttt{Season} & the LAI series inverted from the index, the phenological states, and the cycles the window was split into \\
-\texttt{Light} & faPAR under the measured sun, the emergent coefficient, the fixed-coefficient error, the lit LAI, the diffuse share and the number of directions marched \\
-\texttt{Ages} & the two independent ages side by side, and whether comparing them is admissible on that date \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\campo{Procedure: drawing a stand} The \texttt{Canopy run} band sets species,
-age and sowing (table~\ref{tab:canopyparam}). \texttt{Grow} builds the mesh and
-loads it into every \texttt{Stand} area on the board. Change a parameter after
-that and the button becomes \texttt{Regrow}, with the panel stating that the
-drawn stand no longer matches the parameters on screen.
-
-\campo{Procedure: reading an area} In the band's \texttt{Area} group, select a
-saved run. Runs with fewer than three observations do not appear, and the
-control reports \msg{No analysed area carries a long enough index series yet}.
-\texttt{Read area} runs the chain described below and fills the \texttt{Season},
-\texttt{Light} and \texttt{Ages} readings at once.
-
-\campo{How the reading is obtained} Seven steps, in this order:
-
-\begin{enumerate}[leftmargin=*,itemsep=.25em]
-  \item The area's vegetation index series is read. The species is suggested
-        from the classes the classification found, and a species declared in
-        the band overrides the suggestion.
-  \item NDVI is inverted into leaf area index by Beer-Lambert on the index
-        (Baret \& Guyot, 1991).
-  \item The phenological states are labelled, as \texttt{soil},
-        \texttt{greenup}, \texttt{mature}, \texttt{senescence} and
-        \texttt{fallow}, and the series is split into cycles. More than one
-        cycle means the window covers more than one crop, and each age is then
-        counted from its own cycle's green-up.
-  \item A per-species growth ladder returns the age whose plant carries the
-        observed leaf area, divided by the sowing density. The ladder refuses
-        in three cases (table~\ref{tab:ladder}).
-  \item The hourly solar record for the cell is fetched, three years by
-        default, and narrowed to a window of $\pm$21 days around the
-        day-of-year of the lit observation. From it come the beam energy
-        histogram by azimuth and elevation, and the measured diffuse fraction.
-  \item Rays are marched through the architecture, bin by bin of the histogram,
-        weighted by the energy that arrived from each direction. The procedure
-        is repeated for different seeds, for the reason recorded in the
-        limitations at the end of this section.
-  \item The median run by faPAR carries the reported figures, and the spread of
-        the set accompanies them.
-\end{enumerate}
-
-\begin{table}[htbp]\centering
-\caption{Parameters of the \texttt{Canopy run} band.}
-\label{tab:canopyparam}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{2.9cm}L{2.0cm}L{2.7cm}L{7.4cm}@{}}
-\toprule
-\textbf{Parameter} & \textbf{Default} & \textbf{Range} & \textbf{Effect} \\
-\midrule
-\texttt{Species} & sorghum & 30 species & the library carries no sugarcane, coffee or cotton; the ladder refuses rather than substituting a nearby species \\
-\texttt{Day} & 60 & 5 to 200, step 5 & age of the drawn stand. Reading an area resolves the age and does not use this field \\
-\texttt{Rows} & 3 & 1 to 8 & rows in the drawn stand \\
-\texttt{Per row} & 4 & 1 to 10 & plants per row. At 3$\times$4 and 60 days the mesh holds roughly 264 thousand triangles \\
-\texttt{Row spacing} & 0.80~m & 0.1 to 6~m, step 0.05 & enters the sowing density, which converts leaf area per plant into LAI \\
-\texttt{In row} & 0.25~m & 0.05 to 4~m, step 0.05 & the same \\
-\texttt{Sun} & 50$^\circ$ & 2 to 90$^\circ$ & sun elevation \emph{for the drawn scene}. It does not enter the faPAR calculation, which uses the cell's solar record \\
-\texttt{Azimuth} & 35$^\circ$ & 0 to 359$^\circ$, step 5 & the same \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[htbp]\centering
-\caption{When the ladder returns no age. The refusal is reported per
-observation, not suppressed.}
-\label{tab:ladder}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{3.6cm}L{12.0cm}@{}}
-\toprule
-\textbf{Refusal} & \textbf{Condition} \\
-\midrule
-out of reach & the observed LAI exceeds what the species attains at that density \\
-on the plateau & past the age at which leaf area stops changing, the age is not identifiable from it. The phenological state breaks the tie \\
-species absent & the species is not in the architecture library \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\terrafig{png-images/impressao/studio-simulation-soybean-tocantins-data.png}
-  {\texttt{Simulation}, in \texttt{Stand} mode. The central area draws the
-   architecture grown for the species, age and sowing set in the band at the
-   foot; on the right, the \texttt{Outliner} shows which area is on the board.
-   The mode draws the geometry and not the radiation: the faPAR values are in
-   \texttt{Light} mode.}
-  {fig:studio-sim}
-
-\campo{Limitations} The four below are declared by the application itself and
-affect how the result is read.
-
-\begin{objecao}
-\textbf{The architecture is optional, and the alternative is not equivalent.}
-The library that grows the plant is an extra that does not come with the
-default install. In its absence the canopy is made of uniform-density
-ellipsoids preserving leaf area and crown envelope, and the source is declared
-in the field metadata. An ellipsoid on those terms intercepts more light than
-the architecture it stands in for, so the two are not interchangeable.
-\end{objecao}
-
-\begin{objecao}
-\textbf{The result has a spread of its own, and it is sampled.} The
-architecture is grown stochastically. Measured on soybean at 55 days, with
-species, age and sowing held and the leaf area rescaled to a single LAI, five
-seeds produced faPAR between 0.703 and 0.799, a spread of 0.096. The run is
-therefore repeated, three seeds by default and up to twelve, and the panel
-reports the median with the observed range instead of a single value. The march
-dominates the cost, at around 11~s against 0.24~s to grow one plant.
-\end{objecao}
-
-\begin{objecao}
-\textbf{The plant model does not represent competition.} The architecture grows
-the ontogeny of an isolated plant. Verified on soybean at 60 days:
-1.402~m$^2$ isolated against 1.371~m$^2$ inside a 24-plant stand at
-30~pl/m$^2$, a ratio of 0.98. The neighbourhood barely alters growth.
-Multiplied by the real sowing density, the attainable LAI exceeds field LAI for
-some species (table~\ref{tab:reach}). Where it does, the inversion still returns
-a number, a young age whose leaf area matches, but the architecture is that of
-a juvenile plant where the field holds a mature one, with a different vertical
-distribution and different leaf angles.
-
-Two independent ages are therefore reported and neither is chosen: the one the
-leaf area implies, and the phenological one counted in days since the cycle's
-green-up. A large divergence between them indicates that the isolated-plant
-model does not apply to that crop at that sowing. Past the peak of the series
-the comparison is suppressed and the reason is stated: the ladder only grows,
-so after the peak the age it returns means ``a plant carrying this much leaf'',
-not ``a canopy of this age''.
-\end{objecao}
-
-\begin{table}[htbp]\centering
-\caption{LAI attainable by the ladder at field density, against LAI observed in
-the crop. Where the reach exceeds the observed value, the resolved age
-describes a plant with the right leaf area and the wrong architecture.}
-\label{tab:reach}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{2.6cm}L{4.6cm}L{3.4cm}L{4.2cm}@{}}
-\toprule
-\textbf{Species} & \textbf{Reach at density} & \textbf{Field LAI} & \textbf{Reading} \\
-\midrule
-maize    & 4.7 to 7.5 (5--8 pl/m$^2$)      & 3 to 6 & consistent \\
-rice     & 2.9 to 7.2 (100--250 pl/m$^2$)  & 4 to 7 & consistent \\
-sorghum  & 3.8 (5 pl/m$^2$)                & 3 to 5 & consistent \\
-wheat    & 12.8 to 25.6 (200--400 pl/m$^2$)& 4 to 7 & reach exceeds \\
-cowpea   & 12.8 to 25.6 (10--20 pl/m$^2$)  & 3 to 5 & reach exceeds \\
-soybean  & 37 to 75 (20--40 pl/m$^2$)      & 4 to 7 & reach exceeds \\
-bean     & 35 to 59 (15--25 pl/m$^2$)      & 3 to 5 & reach exceeds \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{objecao}
-\textbf{The inversion saturates, and the series is an area mean.} The three
-parameters of the inversion, bare-soil NDVI, closed-canopy NDVI and the
-extinction coefficient, are field calibration, and the values adopted by
-default correspond to soybean or maize. Above LAI 4 the index barely moves: at
-NDVI 0.85 one hundredth of index is worth about 0.3 of LAI, and at 0.88 it is
-worth 0.9. In that range the value is extrapolation, and the proportion of the
-series that fell there is reported. Above LAI 8 the inversion is refused.
-
-The series is also a mean over the area, and a mean over mixed cover is not the
-crop's index. Over the soybean area this reading was built against, the peak
-reads 0.314 with a standard deviation of 0.190, which for a roughly balanced
-mixture places crop pixels near 0.50 and the rest near 0.12. The inverted LAI
-understates the crop by about that much.
-\end{objecao}
 
 % =====================================================================
 \section{Taking the result out}
@@ -1105,8 +892,6 @@ interpreter.}
 \texttt{Rover} & points at a predicted pixel: its class, where it is, and what it reflects \\
 \texttt{Data table} & the run's own tables, sortable, as the research pack exports them \\
 \texttt{Run} & area, period and model for the next run \\
-\texttt{Canopy} & a stand: specified and drawn, or the one an area's season implies \\
-\texttt{Canopy run} & species, age and sowing for the stand, and which area is read \\
 \bottomrule
 \end{tabular}
 \end{center}

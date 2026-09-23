@@ -53,11 +53,10 @@ README research notice — not only GitHub Issues.
   - `EnvBuilder.Build` cannot be reused. It calls `os.RemoveAll(envDir)` before
     creating, so routing an extra through it would discard the environment in
     order to add to it. The extras install has to be additive.
-  - The scope is extras in general, not Prithvi alone: `pyhelios3d` is a second
-    optional package and is absent from `requirements-prithvi.txt`. `doctor.py`
-    already reports `distribution`, `wanted` and `blocks` per package, so what
-    is missing is the mapping from optional package to extras file, plus
-    embedding those files the way `main.go` embeds `requirements.txt`.
+  - `doctor.py` already reports `distribution`, `wanted` and `blocks` per
+    package, so what is missing is the mapping from optional package to extras
+    file, plus embedding those files the way `main.go` embeds
+    `requirements.txt`.
   - `requirements.installed.txt` is written beside the environment as the record
     of what went into it. An additive install has to update that record, or it
     stops describing the environment it sits next to.

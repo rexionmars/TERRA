@@ -80,7 +80,7 @@ type = "layers"
 layers = [
     "terra.cli",
     "terra.registry",
-    "terra.energy | terra.water | terra.flood | terra.canopy | terra.landcover | terra.scenes | terra.surface",
+    "terra.energy | terra.water | terra.flood | terra.landcover | terra.scenes | terra.surface",
     "terra.imagery | terra.terrain | terra.sun",
     "terra.stac | terra.mapbiomas",
     "terra.aoi | terra.phenology",
@@ -94,7 +94,6 @@ modules = [
     "terra.energy",
     "terra.water",
     "terra.flood",
-    "terra.canopy",
     "terra.landcover",
     "terra.scenes",
     "terra.surface",

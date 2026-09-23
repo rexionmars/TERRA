@@ -17,7 +17,7 @@ visible. See report.md section 9.1.
 
 pvlib is imported inside the function bodies that use it and must stay that
 way: this module sits under an action that the registry reaches, and the
-canopy, water and land-cover runs that never touch an array would otherwise pay
+water and land-cover runs that never touch an array would otherwise pay
 for it.
 """
 
