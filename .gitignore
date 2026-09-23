@@ -53,3 +53,6 @@ docs/user-manual/guides
 # in 7509678 lost the alpha channel because the masters had already been thrown
 # away, and there was nothing left to re-encode from.
 docs/img/*/original/
+
+# Local credentials (Earthdata token and other keys). Never committed.
+.env
