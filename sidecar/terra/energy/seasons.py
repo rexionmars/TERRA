@@ -5,10 +5,6 @@ Read by two products in this slice -- the seasonal irradiation maps and the
 plant chain's seasonal energies -- so it sits beside neither. Thin on purpose:
 a season is a definition, and a definition stated twice is a definition that
 disagrees with itself.
-
-NOT terra.sun.record.doy_window_mask, which selects a window of days around a
-date for a canopy that grew in it. This selects by NAMED season from a month
-table.
 """
 
 from __future__ import annotations

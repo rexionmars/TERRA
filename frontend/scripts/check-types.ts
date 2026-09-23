@@ -56,7 +56,6 @@ const GO_FILES = [
   "types.go",
   "types_energy.go",
   "types_wind.go",
-  "types_canopy.go",
   "types_flood.go",
   "types_grid.go",
 ]

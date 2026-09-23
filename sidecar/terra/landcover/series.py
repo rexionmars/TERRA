@@ -3,7 +3,7 @@ The vegetation-index series over an area, per date.
 
 Mean and standard deviation of NDVI, EVI and SAVI across the AOI, optionally
 under a crop mask, plus the temporal mean NDVI that the overlay is drawn from.
-It is what the run band and the canopy both read the season out of.
+It is what the run band reads the season out of.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ def compute_aoi_vi_series(products, polygon, ref_prof, crop_mask=None, note=None
     small: on a measured soybean AOI the peak read 0.314 with a standard
     deviation of 0.190, which for a roughly even two-population mix puts the
     crop pixels near 0.50 and everything else near 0.12. Anything downstream
-    that inverts that mean to a leaf area index -- which is what the canopy
-    reading does -- is answering for an average of soybean and bare ground.
+    that inverts that mean to a leaf area index is answering for an average of
+    soybean and bare ground.
 
     Both are returned because they answer different questions and because the
     AOI-wide one is what every existing export and figure already carries;

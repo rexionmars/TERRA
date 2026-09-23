@@ -8,9 +8,9 @@ COG, the legend and colours every raster of these ids is drawn in, and which
 ids count as cropland.
 
 That split is what the independence contract refused. The photovoltaic siting
-chain needs a MapBiomas window to say what occupies the ground, and the canopy
-needs the crop class set to suggest a species; neither is reaching into the
-land-cover product, and with the source in one place neither has to.
+chain needs a MapBiomas window to say what occupies the ground without reaching
+into the land-cover product, and with the source in one place it does not have
+to.
 """
 
 from __future__ import annotations
@@ -81,8 +81,7 @@ def hex_to_rgb(hex_color):
 # medida, soja cobria 50% e mosaico 42%, então incluir o mosaico deixaria 92% da
 # área "lavoura" e a média praticamente onde estava.
 #
-# Cana e café ficam porque são lavoura e a série é sobre a lavoura; que o Helios
-# não cresça essas plantas é problema da simulação, não da extração do índice.
+# Cana e café ficam porque são lavoura e a série é sobre a lavoura.
 CROP_CLASSES = frozenset({
     20,  # Sugar Cane
     39,  # Soybean

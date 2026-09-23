@@ -42,32 +42,7 @@ type App struct {
 	bootMu      sync.Mutex
 	bootLogs    []string
 	bootStarted time.Time
-
-	/*
-		Grown meshes waiting to be fetched, keyed by the id in their URL.
-
-		A single slot was the first shape and it was wrong: the canopy editor is
-		deliberately not marked unique -- BoardSurface's own comment says two
-		areas holding it "describe two orchards, which is a comparison worth
-		having" -- and every instance grows once on mount. Two of them race, the
-		second build overwrites the id the first was handed, and the first area
-		fetches a URL that no longer matches and gets a 404 it cannot recover
-		from without pressing Grow again. The same race fires inside one area
-		whenever a regrow is issued while the previous body is still streaming.
-
-		Bounded because the entries are megabytes: the oldest is dropped once
-		more than a few are held, which is far more than the number of canopy
-		areas anyone opens and still cannot grow without limit.
-	*/
-	meshMu    sync.RWMutex
-	meshes    map[string][]byte
-	meshOrder []string
 }
-
-// How many grown meshes are kept fetchable at once. Each is single-digit
-// megabytes, and a fetch follows its build within a frame or two, so this only
-// has to cover concurrent areas and one regrow racing its own predecessor.
-const maxHeldMeshes = 4
 
 // NewApp creates a new App.
 func NewApp() *App {

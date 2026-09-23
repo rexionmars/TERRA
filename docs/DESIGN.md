@@ -184,19 +184,18 @@ rather than following the accent to blue.
 
 ## The 3D viewport is chassis, and repaints live
 
-The studio's two WebGL surfaces are the interface, not the data, and they are
+The studio's WebGL surfaces are the interface, not the data, and they are
 painted from the palette: `--p-ink` is the background and the fog, `--p-line` is
 the ground grid and an empty area's footprint, `--p-accent` is the selected
 plane's outline, the links between corresponding rasters, and the path and
-arrowheads through a selection. `standScene.ts` takes the same two chassis
-tokens for its ground and its haze.
+arrowheads through a selection.
 
 **They re-read the tokens when the palette moves.** A CSS custom property
 re-resolves for free; a WebGL scene cannot, because it reads the tokens once at
 build into colours it then holds as its own numbers. So the studio kept whichever
 palette it opened in until something unrelated rebuilt it. Both scenes now
 subscribe through `frontend/src/lib/paletteWatch.ts` and repaint **in place** — a
-rebuild would decode every raster again, refetch the canopy mesh, and send
+rebuild would decode every raster again and send
 dragged planes back to the layout's first answer, all for a colour.
 
 One attribute is watched: `data-theme`, which next-themes writes with the
@@ -217,8 +216,6 @@ Three groups stay literal, and each is data or an instrument rather than chrome:
 | What | Where | Why it does not follow the theme |
 | --- | --- | --- |
 | Rover lens and echo rings | `boardScene.ts` | Drawn **over a raster**, not over a surface. Their ground is the imagery, so `--p-text` would invert them to near-black on it in the light theme. White with the surroundings dimmed is the measure that works against any scene. |
-| `CLEAR_SKY`, `OVERCAST_SKY`, `SOIL_BOUNCE`, `CANOPY_BOUNCE` | `standScene.ts` | Radiances the light model reads. A sky that followed the accent would report the theme instead of the atmosphere. |
-| `ORGAN_COLOR` | `standScene.ts` | Says blade from stem. Botanical, and the whole job of that view. |
 
 ---
 

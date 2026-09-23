@@ -7,8 +7,8 @@
 TERRA classifies land cover over an area of interest from Sentinel-2 L2A time
 series, and reports where that classification is wrong rather than only how
 much of it is right. Around the classifier it carries three further products
-for the same area: surface water from spectral indices, solar and wind
-resource, and a canopy simulation grown from the crop that was classified.
+for the same area: surface water from spectral indices, flood extent, and
+solar and wind resource.
 
 It runs locally as a desktop application, with no account and no server.
 Imagery is read on demand from the Microsoft Planetary Computer STAC catalog as
@@ -42,10 +42,10 @@ on the track at the foot, and a run started.
 The **studio** opens over that map, and closes back onto it. It is where
 results are arranged: the screen divides into the panels a question needs
 (viewport, outliner, properties, comparison, domain shift, spectral response,
-library check, rover, data table, run band, canopy), and more than one area
+library check, rover, data table, run band), and more than one area
 fits on the same board, so two farms or the same farm in two seasons sit side
-by side. Five arrangements ship ready: Layout, Compare, Diagnose, Data and
-Simulation. The arrangement survives a restart; a set of readings survives it
+by side. Seven arrangements ship ready: Layout, Compare, Diagnose, Data,
+Flood envelope, Routing and System. The arrangement survives a restart; a set of readings survives it
 only if the board is saved under a name.
 
 It exists because a map cannot do this. A map puts things where they are, so
@@ -159,26 +159,6 @@ products read a different family of source.
     questions too, not because they carry equivalent methodological backing.
     Treat their output as a screening step rather than as a siting study.
 
-### Canopy simulation
-
-The crop is grown from what the satellite measured, in four steps: the NDVI
-series gives leaf area by inverting Beer-Lambert (Baret and Guyot 1991); leaf
-area gives plant age against the known growth of 24 species; age drives the
-growth itself; and the stand is lit by the hourly sun of its own location, with
-cast shadows and the light colour of that sky. The reading at the end is the
-fraction of light the canopy intercepts.
-
-With the optional 3D package installed, plants are grown organ by organ from
-the species' own architecture and then voxelised. Without it the canopy is
-built from analytic ellipsoid crowns of the same leaf area, which needs nothing
-beyond numpy.
-
-<p align="center">
-  <img src="docs/img/terra-v6/terra-v6-plant-simulation.webp" alt="A soybean stand grown in three dimensions and lit by the local sun" width="900" />
-</p>
-
-<p align="center"><em>Simulation: a soybean stand at day 60, with the season's LAI, the age curve and the light budget beside it</em></p>
-
 ## Limitations
 
 Read these before trusting an output.
@@ -248,9 +228,8 @@ The parts of this repository do not all carry the same confidence, and it is wor
 | **FULL** | `TERRA-macOS-arm64-full.zip`, `TERRA-*-amd64-full.zip` | Embeds Python 3.12 and the spectral RF dependencies |
 | **LITE** | `TERRA-macOS-universal-lite.zip`, `TERRA-*-amd64-lite.zip` | Needs system Python and [`requirements.txt`](requirements.txt) |
 
-Temporal Transformer and Prithvi need [`requirements-prithvi.txt`](requirements-prithvi.txt);
-3D plant growth needs [`requirements-helios.txt`](requirements-helios.txt). Both
-can be installed from Settings › System into the environment already in use.
+Temporal Transformer and Prithvi need [`requirements-prithvi.txt`](requirements-prithvi.txt),
+which can be installed from Settings › System into the environment already in use.
 
 ## Documentation
 
@@ -275,7 +254,7 @@ TERRA/
 ├── main.go / app.go     Wails window and frontend bindings
 ├── internal/            Sidecar runner and types, python env, export, geocode, store
 ├── sidecar/             Inference: STAC, features, models, LULC, phenology,
-│                        water, solar, wind, canopy
+│                        water, flood, solar, wind
 ├── model/               Trained artifacts (.joblib / .pt)
 ├── areas/               Embedded example polygons (GeoJSON)
 ├── frontend/            React 19 + Vite 7 + Tailwind 4 + Leaflet + three.js
@@ -317,7 +296,7 @@ pytest sidecar/tests -q
 - **FULL:** no system Python for the spectral Random Forest
 - **LITE or source:** Python 3.12 and [`requirements.txt`](requirements.txt)
 - **Optional:** [`requirements-prithvi.txt`](requirements-prithvi.txt) for the
-  neural models, [`requirements-helios.txt`](requirements-helios.txt) for 3D growth
+  neural models
 - **From source:** Go 1.23+, Node.js 18+, [Wails CLI](https://wails.io)
 
 Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` → `python3`.

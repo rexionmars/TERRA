@@ -16,9 +16,8 @@ two disagree, the code is right and this file is stale.
 
 ## The problem this shape solves
 
-The products worth building here are the ones nobody else offers: a canopy
-grown from what the satellite measured, and a diagnosis of the distance between
-two runs. Drawing a polygon on a basemap and reading a class share is not one of
+The products worth building here are the ones nobody else offers: a diagnosis
+of the distance between two runs. Drawing a polygon on a basemap and reading a class share is not one of
 them — QGIS and Earth Engine do that, they do it well, and they are free.
 
 The audience is a scientific one, and what it will pay attention to is the
@@ -51,15 +50,15 @@ now. Adding a capability adds an editor, not a mode.
 
 That is what the studio is, and the resemblance is structural rather than
 inspirational: the board subdivides, panels do not float, and an arrangement is
-a saved tree of splits. Fourteen editors exist —
+a saved tree of splits. Twelve editors exist —
 
 > Viewport · Outliner · Properties · Comparison · Domain shift ·
 > Spectral response · Class separability · Library check · Rover ·
-> Data table · Run · Canopy · Canopy run · Globe
+> Data table · Run · Globe
 
-— and five arrangements ship ready: Layout, Compare, Diagnose, Data and
-Simulation. The arrangement is the reader's; the arrangements that ship are
-starting points, not modes.
+— and seven arrangements ship ready: Layout, Compare, Diagnose, Data, Flood
+envelope, Routing and System. The arrangement is the reader's; the arrangements
+that ship are starting points, not modes.
 
 ## What this does and does not buy
 
@@ -68,8 +67,8 @@ about 4,600 for the map screen and its components. What it buys is a different
 curve: the marginal cost of the fifteenth analysis is an editor, where under the
 previous shape it was a screen with everything a screen carries.
 
-And it buys arrangements the author never has to enumerate. Fourteen editors in
-a splittable tree is not fourteen answers; a screen per combination is.
+And it buys arrangements the author never has to enumerate. Twelve editors in
+a splittable tree is not twelve answers; a screen per combination is.
 
 ## Why the differentiator cannot live on a map
 
@@ -145,7 +144,7 @@ Compositing, Geometry Nodes and Scripting. Blender opens on Layout.
 The mapping to this repository is close enough to be worth naming: `splitArea`,
 `joinArea`, `retypeArea` and `moveSplit` in `lib/boardAreas.ts` are the
 subdivision; `studioEditors.ts` is the editor registry; `studioWorkspaces.ts`
-holds five arrangements where Blender holds eleven, named the same way, after
+holds seven arrangements where Blender holds eleven, named the same way, after
 the task rather than after the panels.
 
 Blender's guidelines also carry a warning this repository has to heed: editors
@@ -187,7 +186,7 @@ getting lost. The problem is discoverability — a capability that is a panel yo
 have not opened is a capability you do not know exists.
 
 Two things reduce it here and neither removes it. The audience is a research one
-already working in napari, QGIS and their like. And the five arrangements are the
+already working in napari, QGIS and their like. And the seven arrangements are the
 answer Blender gives to the same problem: a reader who does not yet know what to
 put on screen is handed a board that already answers a named question.
 

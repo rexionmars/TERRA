@@ -14,7 +14,7 @@ them would leave a package of structs named after no subject, and put the wire
 contract on the far side of an import from the code that holds it.
 
 They are split across files by product (types_energy.go, types_wind.go,
-types_canopy.go) purely so a reader can open the one they are after. A file
+types_flood.go) purely so a reader can open the one they are after. A file
 boundary carries no meaning inside a Go package.
 
 The frontend mirrors these structs by hand in src/lib/types.ts, and

@@ -28,12 +28,10 @@ import {
   FlowArrow,
   GitDiff,
   Globe,
-  Plant,
   Ruler,
   SlidersHorizontal,
   Sun,
   Table,
-  Tree,
   TreeStructure,
   TreeView,
   Waves,
@@ -51,8 +49,6 @@ export type EditorId =
   | "brush"
   | "table"
   | "runParams"
-  | "canopy"
-  | "canopyParams"
   | "floodRouting"
   | "globe"
   | "solarReading"
@@ -267,8 +263,7 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRowRem: 12,
     /*
       Unique. There is one rover, one probe target and one sample; a second
-      area would be a second set of controls over the same one, which is the
-      duplication that moving the canopy's controls out of its panels removed.
+      area would be a second set of controls over the same one.
     */
     unique: true,
     hint: "Point at a predicted pixel: its class, where it is, and what it reflects",
@@ -305,43 +300,6 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 24,
     minRowRem: 14,
     hint: "The area, period and model the next run is made of",
-  },
-  {
-    id: "canopy",
-    group: "crop",
-    label: "Canopy",
-    icon: Tree,
-    /*
-      A volume ray-march has to be large enough to read a gap between two
-      crowns, and the shading a reader is looking for lives in the last third
-      of the depth. Below roughly this the crowns are a few pixels across and
-      the question the editor answers cannot be asked of it.
-    */
-    /*
-      Wider than the stand alone needed. This editor carries four readings now
-      -- the stand, the season an AOI implies, the light that canopy makes of
-      the sun, and whether the plant model applies to the sowing at all -- and
-      the three that are charts do not fit the 18rem a 3D view could live in.
-    */
-    minRem: 22,
-    minRowRem: 14,
-    /*
-      Only the stand pane builds a context, and it builds it on entering that
-      pane rather than on mounting the area. An area parked on Season spends
-      nothing, which is what makes four panes affordable in a budget of two.
-    */
-    gl: true,
-    /*
-      NOT unique. Two canopies is a comparison -- the same leaf area at two
-      spacings, or a young stand against a grown one -- and each builds its own
-      small scene, so the cost is one more context rather than a contested
-      singleton. The viewport is exclusive because there is one board; there is
-      no one stand.
-    */
-    // Was "An orchard module, shaded by marching its leaf-area density", which
-    // described the voxel view this editor replaced. A hint that outlives the
-    // thing it describes sends a reader to the wrong area.
-    hint: "A stand: specified and drawn, or the one an AOI's season implies",
   },
   {
     id: "floodRouting",
@@ -385,10 +343,9 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     */
     unique: true,
     /*
-      A context, and unlike the canopy's it is spent on mounting the area
-      rather than on entering a pane. With the viewport always holding one,
-      an area on this is the second of the two this file calls comfortable,
-      and a board carrying this AND a canopy on its stand pane is at three.
+      A context, spent on mounting the area. With the viewport always holding
+      one, an area on this is the second of the two this file calls
+      comfortable.
     */
     gl: true,
     // Was "Every drawn area on the planet, from the world down into the
@@ -396,30 +353,6 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     // now, and the type menu is where someone looking for a way to make an
     // area will be looking.
     hint: "Draw an area on the planet, over the catalog already on it",
-  },
-  {
-    id: "canopyParams",
-    group: "crop",
-    label: "Canopy run",
-    icon: Plant,
-    /*
-      The canopy's half of what `runParams` is for the classification products,
-      and the same floor for the same reason: the parameters scroll sideways
-      below it, which is what a band should do rather than reflow into a shape
-      a reader has to re-learn. Wider than the run band by two groups' worth --
-      it carries a sowing of four numbers where that one carries a period of
-      two.
-    */
-    minRem: 32,
-    minRowRem: 3,
-    /*
-      Unique. It is not a view of anything: it holds the species, the age, the
-      sowing and which analysed area is read, once for the board. A second one
-      would be a second set of controls over one stand, which is the exact
-      duplication that moving these out of the canopy panels removed.
-    */
-    unique: true,
-    hint: "Species, age and sowing for the stand, and which area is read",
   },
   {
     id: "solarReading",

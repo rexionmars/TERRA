@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, Database, Drop, GitDiff, Mountains, Table, Tree, Waves } from "@phosphor-icons/react"
+import { Cube, Database, Drop, GitDiff, Mountains, Table, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import { type EditorId, type StudioGroup } from "@/lib/studioEditors"
@@ -55,7 +55,7 @@ export interface StudioWorkspace {
    *
    * Not a fifth vocabulary. Every one of these presets exists to give one
    * reading the room it needs -- the comparison the lower half, the tables
-   * their width, the canopy the whole board -- and it is already listed in the
+   * their width, the routed flood its map -- and it is already listed in the
    * type menu under that editor's own glyph. Wearing the same one makes the
    * tab and the area it leads to legible as one subject, which is the argument
    * `BoardRunGraph` makes for reusing the board tree's glyphs on its tools.
@@ -257,27 +257,18 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
     label: "Routing",
     hint: "Water routed over the area's terrain, and the ground it reaches",
     /*
-      A board of its own rather than a type swapped into Simulation.
-
-      Simulation is the canopy's arrangement and its fractions are argued from
-      the canopy's needs: the stand takes the width because where light falls
-      between crowns is not readable in a column. A routed flood wants the
-      opposite proportion -- the map wide, because the answer IS where the
-      water went, and the parameters in a column beside it because a run is a
-      member of a sweep and the controls are turned far more often than they
-      are read.
+      The map takes the width because the answer IS where the water went,
+      and the parameters sit in a column beside it because a run is a member
+      of a sweep and the controls are turned far more often than they are
+      read.
 
       The panel was reachable before this preset existed, by retyping an area,
       and that was not the same thing: a product nobody can find without
       already knowing it is there has not been added to the studio, only to the
       type selector.
 
-      THE VIEWPORT IS HERE AND IS NOT IN SIMULATION. The canopy preset leaves
-      it out on the argument that a stack of rasters and a shaded orchard are
-      two answers to two questions and sitting them side by side invites
-      reading one as an overlay of the other. Routing has the opposite
-      relation: the depth raster IS an overlay of the ground it was computed
-      on, and the map is where it belongs.
+      The viewport is here because the depth raster IS an overlay of the
+      ground it was computed on, and the map is where it belongs.
 
       Fractions at the 1000x700 minimum, after the 28px workspace bar, the 22px
       status bar and each area's 26px header: the viewport is 660x420 against
@@ -295,52 +286,6 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         leaf("a-routing", "floodRouting")
-      ),
-  },
-  {
-    id: "simulation",
-    group: "crop",
-    icon: Tree,
-    label: "Simulation",
-    hint: "An orchard module and the light that reaches through it",
-    /*
-      The canopy takes the width because the question is spatial: where the
-      light falls between the crowns is not readable in a column, and the
-      outliner beside it says which ground is on the board.
-
-      THE STRIP ALONG THE FOOT IS THE CANOPY'S OWN, not the classification's.
-      It was the run band, on the argument that the orchard is the same ground
-      a classification is about -- which is true and was not enough: the
-      canopy's own parameters then had nowhere to live but inside the panels,
-      so every canopy area carried the species, the sowing, an area picker and
-      a commit, and two areas asking two questions about ONE stand offered two
-      sets of controls over it. A workspace is an arrangement for a kind of
-      work; the band that belongs at the foot of this one is the band that sets
-      what is grown. Classifying is a gesture away, in Layout, where its band
-      has always been.
-
-      No viewport in this preset. Not to save the second WebGL context -- the
-      board's is never released on a workspace switch, so it is spent either
-      way -- but because a stack of rasters and a shaded orchard are two
-      answers to two different questions, and putting them side by side invites
-      reading one as an overlay of the other.
-
-      Fractions measured at the 1000x700 minimum, after the 28px workspace bar,
-      the 22px status bar and each area's own 26px header: the canopy body is
-      720x533 against a 288x224 floor, the outliner 280x533 against 176x128,
-      and the canopy band 1000x65 against 512x48.
-    */
-    build: () =>
-      col(
-        "w-sim-foot",
-        0.86,
-        row(
-          "w-sim-split",
-          0.72,
-          leaf("a-canopy", "canopy"),
-          leaf("a-outliner", "outliner")
-        ),
-        leaf("a-canopy-run", "canopyParams")
       ),
   },
   {
