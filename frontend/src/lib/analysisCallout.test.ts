@@ -71,8 +71,8 @@ describe("readings that produce no raster", () => {
   /*
     The defect these exist for: a product with no raster appeared in neither
     tab. Data lists rasters and had nothing to list; Analyses lists readings
-    and was fed two grid products alone, so a finished wind run reported
-    nothing anywhere and the empty state went on saying no reading was made.
+    and had no entry for these, so a finished wind run reported nothing
+    anywhere and the empty state went on saying no reading was made.
   */
   it("lists all three, which were listed nowhere", () => {
     const entries = analysisEntries({

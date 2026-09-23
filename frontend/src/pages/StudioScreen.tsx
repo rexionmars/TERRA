@@ -21,10 +21,6 @@ import type {
   WaterAnalysis,
   WaterIndex,
   WindAnalysis,
-  GridStoreReport,
-  GridCongestionAnalysis,
-  GridCurtailmentAnalysis,
-  GridFigureAnalysis,
 } from "@/lib/types";
 import {
   panelSelection,
@@ -38,6 +34,7 @@ import {
   energyMember,
   isMapTool,
   type BoardToolId,
+  type EnergyFamily,
   type EnergyProductId,
 } from "@/lib/mapTools";
 import type {
@@ -60,8 +57,7 @@ import {
   StudioPopover,
 } from "@/components/studio/StudioPopover";
 import { StudioLoading } from "@/components/studio/StudioLoading";
-import { STUDIO_GROUPS, type EditorId } from "@/lib/studioEditors"
-import type { GridProductId } from "@/lib/gridOptions";
+import { STUDIO_GROUPS } from "@/lib/studioEditors"
 import { BOARD_TOOLS } from "@/lib/mapTools";
 import {
   OPTIONAL_NODES,
@@ -346,24 +342,6 @@ export interface StudioScreenProps {
   floodProgress?: number;
   floodProgressMsg?: string;
   floodResult?: FloodAnalysis | null;
-  /** What the local grid store holds, or why it cannot be reached. */
-  gridStore?: GridStoreReport | null;
-  gridProduct?: GridProductId;
-  onGridProductChange?: (p: GridProductId) => void;
-  gridWindow?: { start: string; end: string };
-  onGridWindowChange?: (start: string, end: string) => void;
-  onCheckGridStore?: () => void
-  gridCurtailment?: GridCurtailmentAnalysis | null
-  gridCongestion?: GridCongestionAnalysis | null
-  onRunGridConnection?: () => void
-  gridFigure?: GridFigureAnalysis | null
-  gridFigureNumber?: number
-  onGridFigureChange?: (n: number) => void
-  onRunGridFigure?: () => void
-  gridBusy?: boolean
-  onRunGridCurtailment?: () => void;
-  reveal?: EditorId | null;
-  onRevealed?: () => void;
   onClearFlood?: () => void;
   waterIndex: WaterIndex;
   waterRunning: boolean;
@@ -473,11 +451,11 @@ export function StudioScreen(props: StudioScreenProps) {
   const [floodOpacity, setFloodOpacity] = useState(1);
   const [solarProduct, setSolarProduct] = useState<SolarProductId>("terrain");
   /*
-    Which energy product the band is on, across all three families.
+    Which energy product the band is on, across both families.
 
-    ONE SELECTOR, AND THE FAMILY FALLS OUT OF IT. Solar, wind and grid were
-    three band entries and are one; the family is still what decides which
-    slice answers, so it is read from the product rather than chosen before it.
+    ONE SELECTOR, AND THE FAMILY FALLS OUT OF IT. Solar and wind were separate
+    band entries and are one; the family is still what decides which slice
+    answers, so it is read from the product rather than chosen before it.
 
     solarProduct is kept and synchronised rather than replaced: it is what the
     solar parameter cards and the run verb are written against, and rewriting
@@ -780,22 +758,18 @@ export function StudioScreen(props: StudioScreenProps) {
     Read from the same props the band's own filter reads, so the entry being
     offered and the product being runnable cannot disagree.
   */
-  const familyReady = (f: "solar" | "wind" | "grid") =>
-    f === "solar"
-      ? !!props.solarParams
-      : f === "wind"
-        ? !!props.windParams
-        : !!props.gridStore;
+  const familyReady = (f: EnergyFamily) =>
+    f === "solar" ? !!props.solarParams : !!props.windParams;
 
   /*
     THE CHOSEN PRODUCT, OR THE FIRST ONE THAT CAN RUN.
 
-    The band opens on a solar product, and an installation with a grid store
-    and no solar parameters would open Energy onto a graph with no family to
-    dispatch on -- which the surface renders as "pick a product above" over a
-    card that is already showing one picked. Falling back here rather than
-    choosing a default at mount, because availability arrives with the props
-    and can change after: a store probed a second later must not leave the
+    The band opens on a solar product, and a screen given wind parameters and
+    no solar ones would open Energy onto a graph with no family to dispatch on
+    -- which the surface renders as "pick a product above" over a card that is
+    already showing one picked. Falling back here rather than choosing a
+    default at mount, because availability arrives with the props and can
+    change after: parameters that arrive a moment later must not leave the
     reader on a dead entry.
   */
   const effectiveEnergyProduct: EnergyProductId = familyReady(
@@ -848,86 +822,7 @@ export function StudioScreen(props: StudioScreenProps) {
               canRun: props.hasArea && !props.solarBusy,
               onRun: () => props.onRunSolar?.(solarProduct),
             }
-          : bandFamily === "grid" && !!props.gridStore
-            ? /*
-          THE RECORD, AND WHY THIS BRANCH HAD TO EXIST AT ALL.
-
-          The chain below used to end at `run`, which is the classification's.
-          A tool with no branch of its own therefore inherited classify's
-          label, its enablement AND ITS ACTION -- so the grid tab drew a button
-          reading "Classify" that would have started a classification over
-          whatever area was drawn. The same shape as runGraph's unguarded final
-          return, in a place where the consequence is a run rather than a
-          drawing.
-        */
-              props.gridProduct === "figure"
-        ? {
-            running: props.gridBusy ?? false,
-            progress: 0,
-            progressMsg: "",
-            label: props.gridBusy ? "Reading" : "Read the figure",
-            /*
-              No area to check. Fig. 1 is about the SIN, and the sidecar
-              refuses a polygon for a system-scoped figure rather than dropping
-              it -- a national quantity answered over one polygon is a
-              different quantity under the same name.
-            */
-            canRun: !!props.gridStore?.reachable && !props.gridBusy,
-            onRun: () => props.onRunGridFigure?.(),
-          }
-        : props.gridProduct === "connection"
-              ? {
-                  running: props.gridBusy ?? false,
-                  progress: 0,
-                  progressMsg: "",
-                  label: props.gridBusy ? "Reading" : "Read the connection",
-                  /*
-                    ITS OWN BRANCH, and the comment above this chain says why
-                    it had to have one: a product with no branch inherits the
-                    label, the enablement AND THE ACTION of whatever the chain
-                    falls through to. Connection fell through to curtailment,
-                    so selecting it drew a button reading "Read the
-                    curtailment" that ran one -- and an area chosen precisely
-                    because it holds no plant came back with the curtailment
-                    refusal instead of the proximity answer this product
-                    exists to give.
-                  */
-                  canRun:
-                    !!props.gridStore?.reachable &&
-                    props.hasArea &&
-                    !props.gridBusy,
-                  onRun: () => props.onRunGridConnection?.(),
-                }
-              : props.gridProduct === "record"
-              ? {
-                  running: false,
-                  progress: 0,
-                  progressMsg: "",
-                  label: "Read the record",
-                  // No area, and nothing to refuse on: asking what this
-                  // installation holds is answerable whether or not the store is
-                  // reachable, and the unreachable answer is the useful one.
-                  canRun: true,
-                  onRun: () => props.onCheckGridStore?.(),
-                }
-              : {
-                  running: props.gridBusy ?? false,
-                  progress: 0,
-                  progressMsg: "",
-                  label: props.gridBusy ? "Reading" : "Read the curtailment",
-                  /*
-                    No progress ramp. The sidecar answers this from indexed
-                    tables in about a second, so a bar would appear and vanish;
-                    the button's own busy state is the whole of what there is
-                    to say.
-                  */
-                  canRun:
-                    !!props.gridStore?.reachable &&
-                    props.hasArea &&
-                    !props.gridBusy,
-                  onRun: () => props.onRunGridCurtailment?.(),
-                }
-            : run;
+          : run;
 
   /*
     What the run in progress has said. Built from the SAME resolved run the band
@@ -970,23 +865,16 @@ export function StudioScreen(props: StudioScreenProps) {
       <>
         {(() => {
           /*
-            ENERGY IS OFFERED IF ANY OF ITS THREE FAMILIES CAN ANSWER, which is
-            weaker than what the three separate entries required and is the
-            right weakening. A reader with the store probed and no solar
-            parameters used to see a Grid tab and no Solar tab; they now see
+            ENERGY IS OFFERED IF EITHER OF ITS FAMILIES CAN ANSWER, which is
+            weaker than what separate entries would require and is the right
+            weakening. A reader who can run one family and not the other sees
             Energy, and the product card inside it is where the difference
             belongs -- a product that cannot run is one entry to grey out, not
             a whole surface to withhold.
-
-            The store is offered whenever it has been PROBED, reachable or not,
-            unlike the other two which are gated on having parameters to send.
-            An unreachable store is the case this most needs to explain: the
-            reader has psycopg installed and no database, or a database and no
-            schema, and hiding it leaves them with no surface that says so.
           */
           const offered = BOARD_TOOLS.filter((t) =>
             t.id === "energy"
-              ? !!props.solarParams || !!props.windParams || !!props.gridStore
+              ? !!props.solarParams || !!props.windParams
               : t.id === "flood"
                 ? !!props.floodParams
                 : true,
@@ -1262,22 +1150,18 @@ export function StudioScreen(props: StudioScreenProps) {
       tool={bandTool}
       energyProduct={effectiveEnergyProduct}
       /*
-        ONE PICK, ROUTED TO WHICHEVER FAMILY OWNS IT.
+        ONE PICK, ROUTED TO THE FAMILY THAT OWNS IT.
 
         The product state is unified and the family states are not: the solar
-        parameter cards and the run verb read `solarProduct`, and the grid
-        window and figure cards read the `grid.product` the parent holds. So
-        this sets the band's own choice and forwards the member to whichever of
-        the two is behind it, rather than rewriting both to a prefixed id that
-        neither of their tables uses.
+        parameter cards and the run verb read `solarProduct`. So this sets the
+        band's own choice and forwards the member when solar is behind it,
+        rather than rewriting the solar cards to a prefixed id their table does
+        not use. Wind has one product and holds no choice of its own.
       */
       onEnergyProduct={(id) => {
         setEnergyProduct(id);
-        const member = energyMember(id);
         if (energyFamily(id) === "solar") {
-          setSolarProduct(member as SolarProductId);
-        } else if (energyFamily(id) === "grid") {
-          props.onGridProductChange?.(member as GridProductId);
+          setSolarProduct(energyMember(id) as SolarProductId);
         }
       }}
       /*
@@ -1288,36 +1172,7 @@ export function StudioScreen(props: StudioScreenProps) {
       blockedFamilies={{
         solar: props.solarParams ? undefined : "no solar parameters in this run",
         wind: props.windParams ? undefined : "no wind parameters in this run",
-        grid: props.gridStore ? undefined : "the grid store has not answered",
       }}
-      grid={
-        props.gridStore
-          ? {
-              product: props.gridProduct ?? "record",
-              onProductChange: (p) => props.onGridProductChange?.(p),
-              dsn: props.gridStore.dsn,
-              dsnSource: props.gridStore.dsn_source,
-              reachable: props.gridStore.reachable,
-              unreachable: props.gridStore.unreachable,
-              /*
-                The span the store actually holds, taken from the first record
-                it reports. Both photovoltaic records are published over the
-                same months, so one span describes the window a run can ask
-                for; a store holding several with different spans would need
-                this per record, and would say so rather than pick one.
-              */
-              recordFrom: props.gridStore.coverage?.datasets[0]?.from ?? null,
-              recordTo: props.gridStore.coverage?.datasets[0]?.to ?? null,
-              start: props.gridWindow?.start ?? "",
-              end: props.gridWindow?.end ?? "",
-              onWindowChange: (start, end) =>
-                props.onGridWindowChange?.(start, end),
-              onCheckStore: () => props.onCheckGridStore?.(),
-              figure: props.gridFigureNumber ?? 1,
-              onFigureChange: (n) => props.onGridFigureChange?.(n),
-            }
-          : undefined
-      }
       wind={
         props.windParams && props.onRunWind
           ? {
@@ -1456,44 +1311,18 @@ export function StudioScreen(props: StudioScreenProps) {
       progressMsg={boardRun.progressMsg}
       canRun={boardRun.canRun}
       blockedBy={
-        /*
-          THE RECORD IS ASKED BEFORE THE AREA, so the chain cannot open on one.
-
-          Every other product here is about a piece of ground, and "draw an
-          area" was therefore a safe first branch. Asking what this
-          installation holds is not, and the grid tab reached this chain with
-          no branch of its own -- so a reader who had drawn nothing was told to
-          draw something the run does not read, and one who had drawn something
-          was told the wrong reason the curtailment button was dark. A reason
-          that is wrong is worse than none: it sends someone to fix what is not
-          broken.
-        */
-        bandFamily === "grid"
-          ? props.gridProduct === "record"
-            ? undefined
-            : props.gridProduct === "figure"
-              ? !props.gridStore?.reachable
-                ? "The grid store is not reachable. Settings > System says why."
+        !props.hasArea
+          ? "Draw an area on the globe, or bring one in from the Areas tab."
+          : (bandFamily === "solar" && props.solarBusy) ||
+              (bandFamily === "wind" && props.windBusy) ||
+              (bandTool === "flood" && props.floodBusy)
+            ? "The sidecar runs one analysis at a time."
+            : bandTool === "flood" &&
+                (props.floodParams?.demIds.length ?? 0) < FLOOD_LEAST_DEMS
+              ? "Pick at least two elevation models: the envelope is what they disagree about."
+              : bandTool === "compose" && !props.selectedSceneId
+                ? "List the scenes for this period and choose one."
                 : undefined
-              : !props.gridStore?.reachable
-              ? "The grid store is not reachable. Settings > System says why."
-              : !props.hasArea
-                ? "Draw an area on the globe: the curtailment is read at the plants inside it."
-                : props.gridBusy
-                  ? "The sidecar runs one analysis at a time."
-                  : undefined
-          : !props.hasArea
-            ? "Draw an area on the globe, or bring one in from the Areas tab."
-            : (bandFamily === "solar" && props.solarBusy) ||
-                (bandFamily === "wind" && props.windBusy) ||
-                (bandTool === "flood" && props.floodBusy)
-              ? "The sidecar runs one analysis at a time."
-              : bandTool === "flood" &&
-                  (props.floodParams?.demIds.length ?? 0) < FLOOD_LEAST_DEMS
-                ? "Pick at least two elevation models: the envelope is what they disagree about."
-                : bandTool === "compose" && !props.selectedSceneId
-                  ? "List the scenes for this period and choose one."
-                  : undefined
       }
       onRun={boardRun.onRun}
       onAnalyzeLULC={props.onAnalyzeLULC}
@@ -1709,12 +1538,6 @@ export function StudioScreen(props: StudioScreenProps) {
           windResult={props.windResult}
           onClearWind={props.onClearWind}
           floodResult={props.floodResult}
-          gridStore={props.gridStore}
-          gridCurtailment={props.gridCurtailment}
-          gridCongestion={props.gridCongestion}
-          gridFigure={props.gridFigure}
-          reveal={props.reveal}
-          onRevealed={props.onRevealed}
           onClearFlood={props.onClearFlood}
           /*
               WHERE A FAILED SURFACE GOES, which used to be the map underneath.

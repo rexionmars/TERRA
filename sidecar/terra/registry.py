@@ -39,15 +39,6 @@ ACTIONS: dict[str, str] = {
     'solar_siting': 'terra.energy.actions:solar_siting',
     'energy_model': 'terra.energy.actions:energy_model',
     'wind_resource': 'terra.energy.actions:wind_resource',
-    # The electrical system, sibling of the energy slice above rather than an
-    # extension of it: those answer about a site's resource, these about the
-    # system it would join. See terra/grid/__init__.py.
-    'grid_curtailment': 'terra.grid.actions:grid_curtailment',
-    'grid_congestion': 'terra.grid.actions:grid_congestion',
-    'grid_plants': 'terra.grid.actions:grid_plants',
-    'grid_network': 'terra.grid.actions:grid_network',
-    'grid_coverage': 'terra.grid.actions:grid_coverage',
-    'grid_figure': 'terra.grid.actions:grid_figure',
     'list_datacube': 'terra.scenes.actions:list_datacube',
     'render_composite': 'terra.scenes.actions:render_composite',
     'surface_model': 'terra.surface.actions:surface_model',

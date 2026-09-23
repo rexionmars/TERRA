@@ -79,7 +79,6 @@ import type { OverlayCaption } from "@/components/globe/OverlayCallout"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { modelLabel, runAssets } from "@/lib/runAssets"
 import { analysisEntries } from "@/lib/analysisCallout"
-import { usePlantRegister } from "@/lib/plantRegister"
 import type { CardGroup } from "@/lib/boardLayout"
 import { layoutGroups } from "@/lib/boardLayout"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -123,10 +122,6 @@ import type {
   ModelKind,
   PredictResult,
   WindAnalysis,
-  GridStoreReport,
-  GridCongestionAnalysis,
-  GridCurtailmentAnalysis,
-  GridFigureAnalysis,
 } from "@/lib/types"
 import { SURFACE } from "@/lib/motion"
 import { ReadingPanel } from "@/components/studio/ReadingPanel"
@@ -170,10 +165,6 @@ import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
 import { windReadingGroups } from "@/components/energy/readingSections"
 import { FloodReadingColumn } from "@/components/flood/FloodReading"
-import { GridCongestionReading } from "@/components/grid/GridCongestionReading"
-import { GridCurtailmentReading } from "@/components/grid/GridCurtailmentReading"
-import { GridFigureReading } from "@/components/grid/GridFigureReading"
-import { GridRecordReading } from "@/components/grid/GridRecordReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
   createBoard,
@@ -185,7 +176,6 @@ import { cn } from "@/lib/utils"
 import { remToPx } from "@/lib/boardPartition"
 import {
   areaLeaves,
-  findEditor,
   areaRects,
   joinArea,
   maximizeArea,
@@ -493,12 +483,6 @@ export function BoardSurface({
   onClearWind,
   floodResult = null,
   onClearFlood,
-  gridStore = null,
-  gridCurtailment = null,
-  gridCongestion = null,
-  gridFigure = null,
-  reveal = null,
-  onRevealed,
 }: {
   /** Put a shape from a file on the map as the active AOI. */
   onImportPolygon: () => void
@@ -676,40 +660,7 @@ export function BoardSurface({
   onClearWind?: () => void
   floodResult?: FloodAnalysis | null
   onClearFlood?: () => void
-  /**
-   * What the local grid store holds, or why it cannot be reached.
-   *
-   * Not a result and not cleared with one: it describes the installation
-   * rather than a run, and it is the same object whether an analysis has been
-   * made or not.
-   */
-  gridStore?: GridStoreReport | null
-  /** The last curtailment read, or null before one. */
-  gridCurtailment?: GridCurtailmentAnalysis | null
-  gridCongestion?: GridCongestionAnalysis | null
-  /** The last figure of the series read, or null before one. */
-  gridFigure?: GridFigureAnalysis | null
-  /**
-   * An editor a just-finished run needs on screen, or null.
-   *
-   * A one-way signal rather than a handle: the tree lives here, so the parent
-   * cannot place an area itself, and a callback it could call at any time
-   * would let a run rearrange a board long after it finished. Cleared through
-   * onRevealed as soon as it is honoured.
-   */
-  reveal?: EditorId | null
-  onRevealed?: () => void
 }) {
-  /*
-    The plant register, read once and held for the session.
-
-    Here rather than inside the globe because the globe is lazy-loaded and
-    the register is not its to own: a second surface showing the same planet
-    would fetch it again, and the map is not the only thing that has reason
-    to know which plants the record can answer about.
-  */
-  const plantRegister = usePlantRegister()
-
   /*
     The readings held right now, and which of them the reader has put on the
     globe.
@@ -722,12 +673,10 @@ export function BoardSurface({
   const analyses = useMemo(
     () =>
       analysisEntries({
-        curtailment: gridCurtailment,
-        congestion: gridCongestion,
         wind: windResult,
         solar: solarResults,
       }),
-    [gridCurtailment, gridCongestion, windResult, solarResults]
+    [windResult, solarResults]
   )
   const [analysesOnMap, setAnalysesOnMap] = useState<ReadonlySet<string>>(
     () => new Set()
@@ -977,86 +926,6 @@ export function BoardSurface({
     resizes, and a snapshot would leave every area where it was when the studio
     opened.
   */
-  /*
-    A FRESH READING MUST BE VISIBLE, which is the rule the raster products
-    already follow and the reading products never did.
-
-    Running solar sets `showSiting` so the raster it just made is drawn -- the
-    handler says so in as many words. A wind screening, a flood envelope and
-    both grid readings had no equivalent: the run answered, the state updated,
-    and if the arrangement held no editor for it the screen did not change at
-    all. The studio opens on `layout`, which carries none of the four, so the
-    common case was a run that looked like it had not happened.
-
-    THE ARRANGEMENT IS STILL THE READER'S. This only acts when the board holds
-    NO area of that type, and it retypes one rather than splitting: a reader
-    who has put the editor somewhere keeps it where they put it, and one who
-    has not is not left staring at an unchanged board. Which area is sacrificed
-    is the least-specific one present -- properties before an outliner, an
-    outliner before a viewport -- so the pane that goes is the one whose
-    content the others repeat.
-  */
-  const revealEditor = useCallback(
-    (editor: EditorId) => {
-      const root = treeRef.current
-      if (findEditor(root, editor)) return
-      const leaves = areaLeaves(root)
-      const rank = (e: EditorId) =>
-        e === "properties" ? 0 : e === "outliner" ? 1 : e === "browser" ? 2 : 3
-      const victim = [...leaves].sort(
-        (a, b) => rank(a.editor) - rank(b.editor)
-      )[0]
-      if (victim) setTree(retypeArea(root, victim.id, editor))
-    },
-    [setTree]
-  )
-  /*
-    A READING ANNOUNCES ITSELF IN THE TREE, NOT BY TAKING A PANEL.
-
-    revealEditor retypes an existing region so the reader is not left staring
-    at an unchanged board, which was right when a reading had nowhere else to
-    appear: the studio opens on `layout`, which carries none of the reading
-    editors, so a run that answered looked like one that had not happened.
-
-    Readings are entries in the Analyses pane now, so that is no longer true --
-    and the retype has a cost this made visible: running Connection replaced
-    whatever the reader had put in the sacrificed region. A run must not
-    rearrange a board somebody arranged.
-
-    So a reading that IS an analysis flips an outliner to the Analyses pane and
-    stops there. Retyping is kept for the case it was written for -- no
-    outliner on the board at all -- and an outliner is the least destructive
-    thing to retype into, because its content is a list of what exists rather
-    than one product's answer.
-  */
-  const ANALYSIS_EDITORS: ReadonlySet<EditorId> = useMemo(
-    () => new Set<EditorId>(["gridCurtailment", "gridConnection"]),
-    []
-  )
-
-  useEffect(() => {
-    if (!reveal) return
-    if (ANALYSIS_EDITORS.has(reveal)) {
-      const root = treeRef.current
-      const outliners = areaLeaves(root).filter((l) => l.editor === "outliner")
-      if (outliners.length > 0) {
-        // Every outliner on the board, not just the first: two are on the
-        // board precisely when the reader is comparing, and flipping one of
-        // them would leave the other saying something else about the same run.
-        for (const o of outliners) setModeOf(o.id, "analyses")
-      } else {
-        revealEditor("outliner")
-      }
-      onRevealed?.()
-      return
-    }
-    revealEditor(reveal)
-    onRevealed?.()
-    // setModeOf is recreated every render and is stable in behaviour; adding
-    // it would re-run this effect on every keystroke elsewhere on the board.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reveal, revealEditor, onRevealed, ANALYSIS_EDITORS])
-
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const [surface, setSurface] = useState({ x: 0, y: 0, w: 0, h: 0 })
   useEffect(() => {
@@ -4252,14 +4121,6 @@ export function BoardSurface({
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
           overlays={globeOverlays}
-          /*
-            The register, so an area is drawn over something visible.
-
-            Not gated on a grid run having happened: the whole point is that it
-            is there BEFORE one is asked for. Null while it loads, which the
-            globe draws as an empty source rather than as no plants.
-          */
-          plants={plantRegister?.geojson ?? null}
           readings={readingCaptions}
           /*
             The same memory the work map keeps. The globe opened over Brazil at
@@ -4485,17 +4346,6 @@ export function BoardSurface({
         empty="No wind screening yet. Draw an area, then run the wind from the run band."
       />
     ),
-    gridRecord: (
-      /*
-        Rendered whether or not the store answers, because the unreachable case
-        is the one a reader most needs this editor for. GridRecordReading draws
-        the sidecar's own sentence; there is no EditorEmpty branch here.
-      */
-      <GridRecordReading report={gridStore} />
-    ),
-    gridCurtailment: <GridCurtailmentReading result={gridCurtailment} />,
-    gridConnection: <GridCongestionReading result={gridCongestion} />,
-    gridFigure: <GridFigureReading result={gridFigure} />,
     floodReading: floodResult ? (
       <FloodReadingColumn
         flood={floodResult}

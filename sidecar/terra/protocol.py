@@ -34,8 +34,8 @@ def fail(msg: str) -> NoReturn:
 
     NoReturn, not None. It ends in sys.exit, so nothing after a call to it runs
     -- and typed as returning None, every caller that used it as a guard was
-    read by mypy as falling through. `terra/grid/actions.py` alone produced
-    eleven union-attr errors on values it had just refused.
+    read by mypy as falling through, which reported union-attr errors on values
+    the guard had just refused.
     """
     sys.stderr.write(json.dumps({'error': msg}) + '\n')
     sys.stderr.flush()
@@ -44,18 +44,6 @@ def fail(msg: str) -> NoReturn:
 
 class MissingDependency(RuntimeError):
     """An optional package this path needs is not in this interpreter."""
-
-
-class Unavailable(RuntimeError):
-    """
-    Something this run needs exists outside the code and is not there.
-
-    A database that is not running, a record that was never loaded, a file the
-    user has to provide. Distinct from MissingDependency, which is answered by
-    an install this application can perform, and distinct from a bug, which is
-    answered by a traceback. This is answered by the user doing something in the
-    world, so the message has to say which thing.
-    """
 
 
 def require_torch(product: str) -> None:

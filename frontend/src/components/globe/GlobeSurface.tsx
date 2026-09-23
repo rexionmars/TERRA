@@ -24,8 +24,6 @@ import "maplibre-gl/dist/maplibre-gl.css"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { usePlantLayers, useNetwork } from "@/lib/plantRegister"
-import { voltageColourExpression } from "@/lib/gridVoltage"
 import {
   Broadcast,
   Globe,
@@ -206,43 +204,6 @@ const SHAPE_LINE = "draw-shape-line"
 const START_ZOOM = 1.6
 const START_CENTER: [number, number] = [-51.4, -23.4]
 
-/*
-  The register, drawn under whatever is being asked about it.
-
-  THE MAP WAS BARE AND EVERY AREA WAS DRAWN BLIND. This slice answers about the
-  plants inside a polygon, and until the polygon existed nothing on screen said
-  where a plant was -- so an area over a solar farm the imagery plainly shows
-  could come back with nothing, and an empty answer was indistinguishable from
-  a broken one.
-
-  TWO LAYERS AND NOT ONE, because the two populations are different questions.
-  ANEEL registers 18,639 located photovoltaic enterprises and ONS meters 558 of
-  them: three percent. Only those 558 can be answered about, so drawing all of
-  them alike would invite an area over the other 97 percent. The metered ones
-  are drawn to be aimed at; the rest are drawn to be recognised as context.
-*/
-/*
-  The transmission network, under the register that is asked about it.
-
-  DRAWN AS THE SEGMENT BETWEEN TERMINALS, WHICH IS ALL THERE IS. ONS publishes
-  a circuit's two ends and its length and never its path, so every line here is
-  in the right place and on the wrong course -- about 8 percent short at the
-  median and 41 at the ninetieth percentile. The layer says so where it is
-  switched on, because a map invites measuring with the eye.
-
-  Transmission only: the circuits in service run 230 kV and above. The
-  substations reach 69 kV because a 500/230/138 station has all three buses,
-  but nothing joins them below 230 in this register.
-*/
-const NETWORK_SOURCE = "terra-network"
-const NETWORK_LINES = "terra-network-lines"
-const BUS_SOURCE = "terra-buses"
-const BUS_POINTS = "terra-network-buses"
-
-const PLANT_SOURCE = "terra-plants"
-const PLANT_OTHER = "terra-plants-other"
-const PLANT_METERED = "terra-plants-metered"
-
 const AREA_SOURCE = "terra-areas"
 const AREA_FILL = "terra-areas-fill"
 const AREA_LINE = "terra-areas-line"
@@ -323,8 +284,6 @@ export function GlobeSurface({
   initialView = null,
   onViewChange,
   overlays = [],
-  plants = null,
-  onPickPlant,
   readings = [],
   spreadM = 0,
   onSpreadChange,
@@ -341,16 +300,6 @@ export function GlobeSurface({
    * globe that showed the saved catalog but not the current area would be
    * missing the one outline they are here about.
    */
-  /**
-   * The plant register, drawn so an area is not drawn blind.
-   *
-   * Null and an empty collection are the same to the map and different to a
-   * reader: null is "not asked for", empty is "asked and there are none here".
-   * The distinction belongs to whoever renders the legend, not here.
-   */
-  plants?: GeoJSON.FeatureCollection | null
-  /** A plant was pressed. Its CEG, as the register writes it. */
-  onPickPlant?: (ceg: string) => void
   /**
    * Readings the outliner has put on the globe, tied to the ground they were
    * read over.
@@ -435,40 +384,6 @@ export function GlobeSurface({
   viewChangeRef.current = onViewChange
   const [failure, setFailure] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
-  // Which of the register's two populations are drawn. Read from the module
-  // the Layers card writes to, because the card is in the run band and this is
-  // on the globe, and neither tree contains the other.
-  const plantLayers = usePlantLayers()
-  // Fetched only once a layer that needs it is on: about a megabyte, and most
-  // sessions never turn it on.
-  const network = useNetwork(plantLayers.network || plantLayers.buses)
-  /*
-    The plant last pressed, held here rather than lifted.
-
-    A press with no visible consequence reads as a broken control, and the
-    reader has no way to tell it from a dead layer. What a press CAN answer
-    without a run is what the register says -- name, plate rating, municipality,
-    whether the operational record covers it -- and that is enough to make the
-    mark answer for itself. Anything that needs a reading is the parent's
-    business, which is what onPickPlant is for.
-  */
-  const [pickedPlant, setPickedPlant] = useState<{
-    props: Record<string, unknown>
-    at: [number, number]
-  } | null>(null)
-  /*
-    The circuit or bus last pressed.
-
-    ANCHORED WHERE THE PRESS LANDED, not at the feature's centre. A 2,084 km
-    circuit has a midpoint that can be a thousand kilometres from the reader's
-    finger, and a leader stretching across the country says nothing about which
-    line was meant. A bus is a point and the two coincide there anyway.
-  */
-  const [pickedNet, setPickedNet] = useState<{
-    kind: "line" | "bus"
-    props: Record<string, unknown>
-    at: [number, number]
-  } | null>(null)
   /*
     RELIEF, OFF BY DEFAULT, for the reason terrain.ts states: a DEM tile per
     view and a mesh per tile, in an application with a written history of
@@ -567,160 +482,6 @@ export function GlobeSurface({
       })
   }, [overlays, spreadM])
 
-  /*
-    The pressed plant, as a caption of the same kind a raster's legend is.
-
-    NOT A CARD OF ITS OWN, and the difference is the tie. A box in a corner
-    describes something the reader has to find again; this one hangs off a dot
-    on the plant, travels with the ground under pan and pitch, and is dragged
-    out of the way without stopping saying which mark it is about. The reasons
-    are OverlayCallout.tsx's own and they hold whether the mark is a raster's
-    centre or an enterprise's coordinate.
-
-    kind "stats" because that is what this is: figures the register reported,
-    with no colour mapping to explain. layerLegend.ts makes the same choice for
-    a raster whose ramp is not published -- a legend that has numbers and no
-    bar is honest, and a bar invented for it would not be.
-  */
-  const plantCaption = useMemo(() => {
-    if (!pickedPlant) return null
-    const p = pickedPlant.props
-    const rows: { label: string; value: string }[] = []
-    if (p.mw != null) rows.push({ label: "Plate", value: `${p.mw} MW` })
-    if (p.municipality) rows.push({ label: "Where", value: String(p.municipality) })
-    if (p.since) rows.push({ label: "Operating since", value: String(p.since) })
-    return {
-      key: `plant:${String(p.ceg ?? "")}`,
-      at: pickedPlant.at,
-      // On the ground, not lifted: an enterprise is a place, and riding a
-      // raster's height would tie it to a stack it is not part of.
-      elevationM: 0,
-      caption: {
-        legend: {
-          kind: "stats" as const,
-          /*
-            Short enough to survive the box, which is about 30 characters at
-            this type size: "UFV · in the operational record" was clipped to
-            "UFV · IN THE OPERATIONAL REC…" on screen, which loses the one word
-            that carries the meaning. The long form is in the note below, where
-            there is room for it.
-          */
-          subject: `${String(p.kind ?? "Plant")} · ${
-            p.metered ? "metered" : "not metered"
-          }`,
-          rows,
-          /*
-            Said here because it decides whether asking about this ground
-            returns anything: ONS meters 558 of the 18,639 located photovoltaic
-            enterprises, so most marks on this map cannot be read about at all.
-          */
-          note: p.metered
-            ? "In ONS's operational record, so a curtailment reading over an " +
-              "area containing it returns figures for it."
-            : "The operational record does not cover this plant, so a " +
-              "curtailment reading over it returns nothing. That is an " +
-              "absence of measurement, not a curtailment of zero.",
-        },
-        area: String(p.name ?? "—"),
-        detail: null,
-      },
-    }
-  }, [pickedPlant])
-
-  /*
-    The circuit or bus pressed, as a caption of the same kind everything else
-    on this surface uses.
-
-    THE ROUTE FACTOR IS A ROW, NOT A FOOTNOTE. This is the moment a reader is
-    measuring: they pressed a line to find out how far it is and what it can
-    carry, and the drawn segment is short of the conductor by a factor the
-    register publishes per circuit. Stating it here, against THIS line's own
-    two lengths rather than the fleet median, is the difference between a
-    caveat and a correction.
-
-    A NULL RATING IS SAID, NOT OMITTED. The register publishes an operating
-    capacity for 1,082 of the 1,830 circuits in service; a row left out would
-    read as a line with nothing to report, and what it has is a rating nobody
-    published.
-  */
-  const netCaption = useMemo(() => {
-    if (!pickedNet) return null
-    const p = pickedNet.props
-    const rows: { label: string; value: string }[] = []
-    const kv = typeof p.kv === "number" ? p.kv : null
-
-    if (pickedNet.kind === "line") {
-      if (kv) rows.push({ label: "Voltage", value: `${kv} kV` })
-      rows.push({
-        label: "Rating",
-        value: p.mva == null ? "not published" : `${p.mva} MVA`,
-      })
-      const straight = typeof p.straight_km === "number" ? p.straight_km : null
-      const published =
-        typeof p.published_km === "number" ? p.published_km : null
-      if (straight !== null) {
-        rows.push({ label: "Drawn", value: `${straight.toFixed(0)} km` })
-      }
-      if (published !== null) {
-        rows.push({ label: "Route", value: `${published.toFixed(0)} km` })
-      }
-      if (straight && published) {
-        rows.push({
-          label: "Longer than drawn",
-          value: `${(((published - straight) / straight) * 100).toFixed(0)}%`,
-        })
-      }
-      return {
-        key: "net:line",
-        at: pickedNet.at,
-        elevationM: 0,
-        caption: {
-          legend: {
-            kind: "stats" as const,
-            subject: p.in_service ? "Circuit · in service" : "Circuit · out",
-            rows,
-            note:
-              "Drawn terminal to terminal, which is all the register " +
-              "publishes. A distance measured against this line on screen is " +
-              "short of the conductor.",
-          },
-          area: String(p.name ?? "—"),
-          detail: null,
-        },
-      }
-    }
-
-    if (kv) rows.push({ label: "Voltage", value: `${kv} kV` })
-    if (p.subsystem) rows.push({ label: "Subsystem", value: String(p.subsystem) })
-    if (p.uf) rows.push({ label: "State", value: String(p.uf) })
-    if (p.operator) rows.push({ label: "Operator", value: String(p.operator) })
-    return {
-      key: "net:bus",
-      at: pickedNet.at,
-      elevationM: 0,
-      caption: {
-        legend: {
-          kind: "stats" as const,
-          subject: "Substation bus",
-          rows,
-          /*
-            Said because it is the trap this whole slice ran into: the 500, 230
-            and 138 kV buses of one station are published at ONE coordinate, so
-            "the nearest substation" answers whichever the planner reached
-            first. Sol do Cerrado is wired to Jaiba's 230 kV bus and proximity
-            alone names the 500.
-          */
-          note:
-            "A station's buses are published at one coordinate, so the marks " +
-            "of several voltages sit on top of each other. Which one a plant " +
-            "attaches to is published separately and is not this.",
-        },
-        area: String(p.name ?? "—"),
-        detail: null,
-      },
-    }
-  }, [pickedNet])
-
   const rasterCaptions = useMemo(
     () =>
       overlays
@@ -740,20 +501,14 @@ export function GlobeSurface({
     [overlays, raisedRasters]
   )
 
-  // The plant last, so its box is added over the raster legends rather than
-  // under them where two are up at once.
   const captions = useMemo(
     () => [
       ...rasterCaptions,
       // On the ground, not lifted: a reading is about a piece of land, not
       // about a plane in the stack over it.
       ...readings.map((r) => ({ ...r, elevationM: 0 })),
-      ...(netCaption ? [netCaption] : []),
-      // The plant last, so a mark just pressed is added over whatever was
-      // already up rather than under it.
-      ...(plantCaption ? [plantCaption] : []),
     ],
-    [rasterCaptions, readings, netCaption, plantCaption]
+    [rasterCaptions, readings]
   )
   /*
     REVEALED, NOT ALWAYS UP. The work map carries its search bar permanently
@@ -864,14 +619,6 @@ export function GlobeSurface({
 
   const pickAreaRef = useRef(onPickArea)
   pickAreaRef.current = onPickArea
-  /*
-    Held in a ref for the reason the area one is: the handler is registered
-    once, on the map that is built once, and a callback captured there would
-    stay the one this component had on its first render. The ref is what lets
-    the press reach whatever the parent is holding NOW.
-  */
-  const pickPlantRef = useRef(onPickPlant)
-  pickPlantRef.current = onPickPlant
   /** The most recent error event, which the watchdog reports if it matters. */
   const lastError = useRef<string | null>(null)
 
@@ -978,18 +725,6 @@ export function GlobeSurface({
               type: "geojson",
               data: { type: "FeatureCollection", features: [] },
             },
-            [PLANT_SOURCE]: {
-              type: "geojson",
-              data: { type: "FeatureCollection", features: [] },
-            },
-            [NETWORK_SOURCE]: {
-              type: "geojson",
-              data: { type: "FeatureCollection", features: [] },
-            },
-            [BUS_SOURCE]: {
-              type: "geojson",
-              data: { type: "FeatureCollection", features: [] },
-            },
           },
           layers: [
             /*
@@ -1082,133 +817,6 @@ export function GlobeSurface({
               paint: { "line-color": "#ED8744", "line-width": 1.5 },
             },
             /*
-              Above the areas and any raster, below the shape being drawn.
-
-              Above, because a point under a 14-percent fill and a continuous
-              irradiation raster is a point nobody can see, and the whole reason
-              it is here is to be aimed at. Below the drawing, because a press
-              that lands on a plant while a polygon is being closed is a press
-              the reader did not mean.
-
-              UNMETERED FIRST, so a metered plant standing beside one is drawn
-              over it rather than under. Where the register puts two enterprises
-              a hundred metres apart -- which it does, constantly, because an
-              array is registered in 40 MW pieces -- the one that can be
-              answered about is the one that has to remain visible.
-            */
-            /*
-              Below the plants, because the plants are what is asked about and
-              the network is the context they sit in. A circuit drawn over a
-              mark would hide the mark at exactly the zoom where a reader is
-              choosing between two of them.
-            */
-            {
-              id: NETWORK_LINES,
-              type: "line",
-              source: NETWORK_SOURCE,
-              paint: {
-                // Width by voltage rather than one width for all: 1,062 of the
-                // 1,830 circuits in service are 230 kV, and drawn alike they
-                // read as a uniform mesh where the 500 kV spine is the thing a
-                // site is actually trying to reach.
-                "line-width": [
-                  "interpolate", ["linear"], ["zoom"],
-                  4, ["interpolate", ["linear"], ["get", "kv"], 230, 0.4, 800, 1.4],
-                  10, ["interpolate", ["linear"], ["get", "kv"], 230, 1.1, 800, 3],
-                ],
-                /*
-                  THE SECTOR'S OWN COLOURS, not a ramp of this map's choosing.
-                  It was three blue-greys interpolated across the voltage,
-                  which said which of two circuits was higher and nothing about
-                  what either one is -- and at a glance it read as one mesh
-                  drawn in two weights. See lib/gridVoltage, which holds the
-                  table and where it was read from.
-                */
-                "line-color": voltageColourExpression(),
-                // Out of service dimmed rather than dropped: it is a corridor
-                // that exists, and its absence from the map would read as
-                // ground with no line near it.
-                "line-opacity": ["case", ["get", "in_service"], 0.75, 0.28],
-              },
-            },
-            {
-              id: BUS_POINTS,
-              type: "circle",
-              source: BUS_SOURCE,
-              paint: {
-                "circle-radius": [
-                  "interpolate", ["linear"], ["zoom"],
-                  4, ["interpolate", ["linear"], ["get", "kv"], 69, 0.8, 800, 2.4],
-                  10, ["interpolate", ["linear"], ["get", "kv"], 69, 2, 800, 5],
-                ],
-                /*
-                  A dark disc under a coloured ring, which is what makes a bus
-                  a bus and not a small plant: the plants below are filled
-                  marks. The ring takes the same table the circuits do, so a
-                  500 kV bus and the 500 kV line arriving at it are one colour
-                  and a reader does not have to learn the station separately.
-                */
-                "circle-color": "#0F1620",
-                "circle-stroke-width": 1,
-                "circle-stroke-color": voltageColourExpression(),
-                "circle-opacity": 0.85,
-              },
-            },
-            {
-              id: PLANT_OTHER,
-              type: "circle",
-              source: PLANT_SOURCE,
-              filter: ["!", ["get", "metered"]],
-              paint: {
-                // Small, dim and flat: context, not a target. It says "the
-                // register knows of something here" and nothing more, because
-                // nothing more can be answered about it.
-                "circle-radius": [
-                  "interpolate", ["linear"], ["zoom"],
-                  6, 1.4,
-                  11, 2.6,
-                  15, 4,
-                ],
-                "circle-color": "#9AA0A6",
-                "circle-opacity": 0.5,
-                "circle-stroke-width": 0,
-              },
-            },
-            {
-              id: PLANT_METERED,
-              type: "circle",
-              source: PLANT_SOURCE,
-              filter: ["get", "metered"],
-              paint: {
-                /*
-                  Sized by plate rating, which is the one property that makes
-                  two dots a hundred metres apart worth telling apart: Sol do
-                  Cerrado is seventeen enterprises of 29 to 49 MW, and a row of
-                  identical dots says the array is uniform when the record's
-                  own per-plant curtailment runs 0.238 to 0.322 across it.
-
-                  sqrt, not linear. A circle's area goes as the square of its
-                  radius, so a linear radius reads an 11 GW hydro plant as a
-                  thousand times the area of an 11 MW one, and the solar fleet
-                  disappears beside it.
-                */
-                "circle-radius": [
-                  "interpolate", ["linear"], ["zoom"],
-                  6, ["*", 0.55, ["sqrt", ["max", 1, ["get", "mw"]]]],
-                  11, ["*", 1.1, ["sqrt", ["max", 1, ["get", "mw"]]]],
-                  15, ["*", 1.9, ["sqrt", ["max", 1, ["get", "mw"]]]],
-                ],
-                "circle-color": "#ED8744",
-                "circle-opacity": 0.55,
-                // The ring is what survives against imagery. A filled dot at
-                // 55 percent over a bright array is a smudge; the outline is
-                // what makes it a mark.
-                "circle-stroke-width": 1.2,
-                "circle-stroke-color": "#FFD9B8",
-                "circle-stroke-opacity": 0.9,
-              },
-            },
-            /*
               ABOVE the catalog, because it is what is being worked on. And
               stroked rather than left as a fill: DrawMap records that a closed
               polygon with no line of its own vanishes the moment it is
@@ -1258,17 +866,6 @@ export function GlobeSurface({
       const accent = token("--p-accent", "#ED8744")
       // AREA_FILL is not repainted: it paints nothing. See its layer above.
       map.setPaintProperty(AREA_LINE, "line-color", accent)
-      /*
-        THE METERED PLANT FOLLOWS THE ACCENT TOO, and it did not. Its colour
-        was the accent's literal, written into the style at construction and
-        never repainted -- so when the accent moved, the one mark on the map
-        that means "this is what can be asked about" stayed the colour the
-        accent used to be. The two AOI paints above were already read from the
-        token; this is the third that should have been.
-      */
-      if (map.getLayer(PLANT_METERED)) {
-        map.setPaintProperty(PLANT_METERED, "circle-color", accent)
-      }
     }
 
     /*
@@ -1320,77 +917,6 @@ export function GlobeSurface({
         // Kept on the console too: a reader reports what the panel says, and
         // a developer needs the stack behind it.
         console.error("[globe]", e.error ?? message)
-      })
-    )
-    subs.push(
-      map.on("click", NETWORK_LINES, (e: MapMouseEvent & { features?: unknown[] }) => {
-        const f = e.features?.[0] as
-          | { properties?: Record<string, unknown> }
-          | undefined
-        if (!f?.properties) return
-        setPickedNet({
-          kind: "line",
-          props: f.properties,
-          at: [e.lngLat.lng, e.lngLat.lat],
-        })
-      })
-    )
-    subs.push(
-      map.on("click", BUS_POINTS, (e: MapMouseEvent & { features?: unknown[] }) => {
-        const f = e.features?.[0] as
-          | { properties?: Record<string, unknown> }
-          | undefined
-        if (!f?.properties) return
-        setPickedNet({
-          kind: "bus",
-          props: f.properties,
-          at: [e.lngLat.lng, e.lngLat.lat],
-        })
-      })
-    )
-    for (const layer of [NETWORK_LINES, BUS_POINTS] as const) {
-      subs.push(
-        map.on("mouseenter", layer, () => {
-          map.getCanvas().style.cursor = "pointer"
-        })
-      )
-      subs.push(
-        map.on("mouseleave", layer, () => {
-          map.getCanvas().style.cursor = ""
-        })
-      )
-    }
-    subs.push(
-      // Registered before the area handler, and MapLibre delivers to the
-      // topmost layer that has one -- so a press on a plant standing inside an
-      // area selects the plant, which is the smaller and more specific thing
-      // the reader aimed at.
-      map.on("click", PLANT_METERED, (e: MapMouseEvent & { features?: unknown[] }) => {
-        const f = e.features?.[0] as
-          | { properties?: Record<string, unknown> }
-          | undefined
-        const props = f?.properties
-        const g = (f as { geometry?: { coordinates?: number[] } } | undefined)
-          ?.geometry
-        setPickedPlant(
-          props && g?.coordinates?.length === 2
-            ? { props, at: [g.coordinates[0], g.coordinates[1]] as [number, number] }
-            : null
-        )
-        const ceg = props?.ceg
-        if (typeof ceg === "string") pickPlantRef.current?.(ceg)
-      })
-    )
-    subs.push(
-      map.on("mouseenter", PLANT_METERED, () => {
-        // The cursor is the only thing that says a mark is pressable before it
-        // is pressed, and every other clickable layer here sets it.
-        map.getCanvas().style.cursor = "pointer"
-      })
-    )
-    subs.push(
-      map.on("mouseleave", PLANT_METERED, () => {
-        map.getCanvas().style.cursor = ""
       })
     )
     subs.push(
@@ -1481,50 +1007,6 @@ export function GlobeSurface({
     // through a ref, so nothing here should rebuild the map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    /*
-      Visibility rather than filtering the source. Both hide a mark; only this
-      one keeps the other layer's marks drawn without re-uploading seven
-      megabytes of GeoJSON on every toggle, and MapLibre does it on the GPU.
-    */
-    for (const [id, on] of [
-      [PLANT_METERED, plantLayers.metered],
-      [PLANT_OTHER, plantLayers.registered],
-      [NETWORK_LINES, plantLayers.network],
-      [BUS_POINTS, plantLayers.buses],
-    ] as const) {
-      if (map.getLayer(id)) {
-        map.setLayoutProperty(id, "visibility", on ? "visible" : "none")
-      }
-    }
-  }, [plantLayers, ready])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    const src = map.getSource<GeoJSONSource>(PLANT_SOURCE)
-    // An absent register empties the source rather than leaving the last one
-    // drawn. A layer that keeps showing the plants of the previous project is
-    // worse than a bare map: it is a bare map that lies about where it is.
-    void src?.setData(
-      plants ?? { type: "FeatureCollection", features: [] }
-    )
-  }, [plants, ready])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    const empty = { type: "FeatureCollection" as const, features: [] }
-    void map
-      .getSource<GeoJSONSource>(NETWORK_SOURCE)
-      ?.setData(network?.lines ?? empty)
-    void map
-      .getSource<GeoJSONSource>(BUS_SOURCE)
-      ?.setData(network?.substations ?? empty)
-  }, [network, ready])
 
   useEffect(() => {
     const map = mapRef.current

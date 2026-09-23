@@ -18,8 +18,6 @@
 import type { Icon } from "@phosphor-icons/react"
 import {
   Books,
-  Database,
-  Lightning,
   ChartLine,
   Crosshair,
   Cube,
@@ -54,10 +52,6 @@ export type EditorId =
   | "solarReading"
   | "windReading"
   | "floodReading"
-  | "gridRecord"
-  | "gridCurtailment"
-  | "gridConnection"
-  | "gridFigure"
   | "browser"
 
 /**
@@ -395,94 +389,6 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     minRem: 20,
     minRowRem: 16,
     hint: "How far the elevation products disagree about what the area floods",
-  },
-  {
-    id: "gridRecord",
-    group: "energy",
-    label: "Grid record",
-    icon: Database,
-    /*
-      What the local store holds, and whether it can be reached at all.
-
-      NOT A SETTINGS PANE, and the difference decides where it lives. Which
-      database to open is configuration and sits with the interpreter in
-      Settings; WHAT IS IN IT is a reading, and one that has to be at hand
-      while a result is on screen -- the record is revised in batches, so
-      "which revision is this figure about" is a question asked of a result,
-      not of a preferences screen.
-
-      Wide enough for the coverage table's five columns, which carry a dataset
-      name of about 22 characters beside four numbers. Narrower than this and
-      the row count wraps under its own heading. Short, because the whole
-      reading is that table plus a connection line and a defects line: a floor
-      taller than its content only makes an empty area harder to place.
-    */
-    minRem: 26,
-    minRowRem: 12,
-    hint: "Which operational record this installation holds, and of which revision",
-  },
-  {
-    id: "gridCurtailment",
-    group: "energy",
-    label: "Curtailment",
-    icon: Lightning,
-    /*
-      A reading and not a raster, in the family windReading names: the record
-      resolves an area to the metered plants inside it and reports figures over
-      them. Nothing here draws on the map, so there is no plane to select and
-      the reading is the editor.
-
-      Wider than the record's 26 because the per-plant rows carry a plant name
-      beside two figures, and taller than any other reading because the hourly
-      profile is the shape the product exists to show -- twenty-four labelled
-      bars under three stacked blocks. Squeezed under about 22 rem the bars
-      stop being readable as a shape, which is the whole of what they say.
-    */
-    minRem: 28,
-    minRowRem: 22,
-    hint: "What the operator withheld at the metered plants inside the area, and why",
-  },
-  {
-    id: "gridConnection",
-    group: "energy",
-    label: "Connection",
-    icon: Lightning,
-    /*
-      Two answers that must not be merged, which is what sets this editor's
-      height. Where the plants of this ground are ATTACHED is published;
-      how far the nearest bus is, is MEASURED -- and at the first site anyone
-      checked the two disagree by a voltage level, because a station's 500, 230
-      and 138 kV buses are published at one coordinate. Both blocks have to be
-      readable at once or the panel would invite reading one as the other.
-    */
-    minRem: 26,
-    minRowRem: 16,
-    hint: "The network this ground could reach, and what its plants are joined to",
-  },
-  {
-    id: "gridFigure",
-    group: "energy",
-    label: "Series figure",
-    icon: ChartLine,
-    /*
-      One analysis of the published research series, drawn here rather than
-      shown as the published image.
-
-      The paper figure is 183 mm at 7 pt. lib/figure.ts measures what that
-      becomes on a screen -- about 7.3 px in a 540 px panel, under the 9 px
-      floor this interface holds in twenty-one places -- and states that the
-      discipline is borrowed while the measurements are not. So Python returns
-      the tables and this draws them at the interface's own scale.
-
-      Wide because the published layout is 183 mm of double column and its
-      panels do not survive being stacked into a narrow strip. Tall because a
-      figure is four panels plus what retires it: four of the twelve correct an
-      earlier one, and that line is drawn above the figure rather than as a
-      footnote.
-    */
-    minRem: 30,
-    minRowRem: 26,
-    hint: "One analysis of the published series, computed here and drawn at this scale",
   },
   {
     id: "browser",

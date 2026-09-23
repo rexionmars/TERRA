@@ -17,9 +17,9 @@
  * buys over a table of strings.
  *
  * WHAT IT IS NOT. It does not type the CARD, and that is deliberate: a date
- * range and a nine-way product picker are genuinely different controls, and a
- * card body derived from a kind would be a worse editor than the bespoke one
- * each of them already has. What is typed is what leaves the card.
+ * range and a product picker are genuinely different controls, and a card
+ * body derived from a kind would be a worse editor than the bespoke one each
+ * of them already has. What is typed is what leaves the card.
  *
  * NOR IS IT A PORT TYPE. Wires here cannot be made or broken by hand -- see
  * the note at the head of NodeCanvas -- so there is no connection to refuse
@@ -66,15 +66,13 @@ export type RunValue =
   | { kind: "band"; low: number; high: number; unit: string }
   /** One acquisition out of what the period found, or none chosen. */
   | { kind: "scene"; id: string | null; found: number }
-  /** A connection to a local store, and whether it answered. */
-  | { kind: "store"; reachable: boolean }
   /**
    * A card that supplies nothing to a run.
    *
-   * The layers card, which says what is DRAWN while the question is set up;
-   * the run card itself, which is where the wires end; and any card whose
-   * bundle is absent, since a graph with no solar parameters draws no solar
-   * cards but the table over the node ids is total.
+   * The catalogue, which produces an area rather than feeding the run; the
+   * run card itself, which is where the wires end; and any card whose bundle
+   * is absent, since a graph with no solar parameters draws no solar cards but
+   * the table over the node ids is total.
    */
   | { kind: "none" }
 
@@ -114,8 +112,6 @@ export function reading(v: RunValue): string {
       return `${num(v.low)}-${num(v.high)} ${v.unit}`.trim()
     case "scene":
       return v.id ?? (v.found > 0 ? `${v.found} scenes` : "")
-    case "store":
-      return v.reachable ? "reachable" : "unreachable"
     case "none":
       return ""
   }
@@ -147,8 +143,6 @@ export function supplied(v: RunValue): boolean {
       return v.items.length >= v.least
     case "scene":
       return v.id !== null
-    case "store":
-      return v.reachable
     case "record":
     case "measure":
     case "band":
@@ -174,7 +168,7 @@ export const signature = (v: RunValue): string => JSON.stringify(v)
  * A run over ground is asked in four parts, and every card that feeds one is
  * in exactly one of them:
  *
- *   source  WHERE it reads from -- the drawn ground, one acquisition, a store
+ *   source  WHERE it reads from -- the drawn ground, one acquisition
  *   when    OVER WHAT STRETCH -- a calendar span, a depth of record
  *   method  BY WHICH METHOD -- a model, an index, a product, a set of bands
  *   value   AT WHAT VALUES -- a threshold, a slope, a ratio, a loss
@@ -182,10 +176,9 @@ export const signature = (v: RunValue): string => JSON.stringify(v)
  * IT IS DERIVED FROM THE KIND, not declared per card, so a card cannot be in
  * the wrong part and a kind cannot be added without one being chosen for it.
  *
- * `ground` IS NOT ONLY THE POLYGON. A scene is one acquisition and a store is
- * a local database, and both answer the same question the drawn area does:
- * what this run reads from. The polygon is the commonest of the sources, not
- * the kind.
+ * `ground` IS NOT ONLY THE POLYGON. A scene is one acquisition, and it answers
+ * the same question the drawn area does: what this run reads from. The polygon
+ * is the commonest of the sources, not the kind.
  *
  * THE FIRST TWO WEIGH MORE THAN THE LAST TWO, and that ordering is what the
  * board draws as weight rather than as a fifth colour. Change where or when a
@@ -203,7 +196,6 @@ export function subject(v: RunValue): Subject | null {
   switch (v.kind) {
     case "ground":
     case "scene":
-    case "store":
       return "source"
     case "span":
     case "record":
