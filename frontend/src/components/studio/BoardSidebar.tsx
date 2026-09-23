@@ -6,8 +6,8 @@
  * of this column carried a slider on every row and a section for the one
  * filter that happened to exist, so its height and its complexity grew with
  * the number of layers, and a second per-layer property would have doubled it
- * rather than added a line. Four solar products and a composition would have
- * been six sliders in a scroll.
+ * rather than added a line. Five rasters and a composition would have been six
+ * sliders in a scroll.
  *
  * Selecting makes the cost of a control independent of how many layers there
  * are. The tree says what is on the board and carries only the toggles that
@@ -35,14 +35,12 @@ import {
   Gauge,
   GridFour,
   Image as ImageIcon,
-  Lightning,
   MapTrifold,
   Minus,
   Note,
   Pentagon,
   Plus,
   Stack,
-  Sun,
   Trash,
   type Icon,
   Wrench,
@@ -58,7 +56,6 @@ import { AreaHeaderOptions } from "@/components/studio/StudioArea"
 import type { GeoJSONGeometry } from "@/lib/types"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
-import type { AnalysisEntry } from "@/lib/analysisCallout"
 import { exportPng, exportTif } from "@/lib/runAssets"
 import { datesByMonth } from "@/lib/runSummary"
 import { cn } from "@/lib/utils"
@@ -80,18 +77,17 @@ import { cn } from "@/lib/utils"
   it would have become a scroll with no end. They have since moved on again,
   from the foot into an area of their own -- see BoardRunGraph.
 */
-/*
-  A FOURTH PANE, AND IT IS A COUNTING ARGUMENT.
+/**
+ * Every pane the outliner has, as values.
+ *
+ * Declared as a list and not only as a union, because a layout stores the pane
+ * an area was left on as a plain string and hands it back: a value this list
+ * does not hold -- one a layout saved while the outliner had another pane --
+ * has to be recognised and replaced, not cast and rendered.
+ */
+export const OUTLINER_MODES = ["scene", "data", "areas"] as const
 
-  "Analyses" is not a fourth way of looking at the same things. The board
-  divides into a fixed number of regions and every product this application
-  gains arrives with a reading; the reading that has no region left is the one
-  that cannot be seen at all. A tree has no such limit -- this one lists
-  rasters in the dozens -- so a reading listed here is a reading the board does
-  not have to make room for, and one that can be put on the map beside the
-  ground it was read over.
-*/
-export type OutlinerMode = "scene" | "data" | "areas" | "analyses"
+export type OutlinerMode = (typeof OUTLINER_MODES)[number]
 
 /**
  * One geometry the board is working on.
@@ -134,9 +130,8 @@ export interface LayerPatch {
 /**
  * The row identifiers that are not a layer's own.
  *
- * Layer ids never contain a double colon -- the only one carrying a colon at
- * all is `solar:<n>` -- so a row id splits back into a layer id unambiguously,
- * and the board can outline the plane a modifier belongs to.
+ * Layer ids never contain a double colon, so a row id splits back into a layer
+ * id unambiguously, and the board can outline the plane a modifier belongs to.
  */
 /*
   Row keys.
@@ -185,7 +180,6 @@ export const sceneKey = (areaId: string, sceneId: string) =>
  * column can reach.
  */
 function layerIcon(id: string): Icon {
-  if (id.startsWith("solar:")) return Sun
   if (id === "water") return Drop
   if (id === "composition") return ImageIcon
   if (id === "confidence") return Gauge
@@ -204,7 +198,6 @@ function layerIcon(id: string): Icon {
  * scannable and sortable by eye down a tree of thirty rows.
  */
 function layerKind(id: string): string {
-  if (id.startsWith("solar:")) return "Solar"
   if (id === "water") return "Water"
   if (id === "composition") return "Composite"
   if (id === "confidence") return "Confidence"
@@ -226,75 +219,6 @@ function layerKind(id: string): string {
  * shapes cannot be compared -- the same reason the compare modal refuses two
  * places.
  */
-/**
- * The readings held for this area, and whether each is on the map.
- *
- * ONE CONTROL PER ROW, and it is the same gesture the plane rows carry: an eye
- * that says whether the thing is drawn. A reading is not a raster, so what it
- * puts on the globe is a callout tied to the ground rather than a surface over
- * it -- but "is this on the map" is the same question, and giving it a second
- * vocabulary would make the tree teach two.
- *
- * The panel is not replaced by this. A callout holds the figures a reading
- * leads with; the sentences that qualify them need the width a panel has, and
- * a reader who wants the whole of one still opens it. What this removes is the
- * requirement that every reading have a region of the board to live in.
- */
-function AnalysesPane({
-  entries,
-  onMap,
-  onToggleMap,
-}: {
-  entries: readonly AnalysisEntry[]
-  onMap: (id: string) => boolean
-  onToggleMap: (id: string) => void
-}) {
-  if (entries.length === 0) {
-    return (
-      <div className="p-3 text-meta leading-relaxed text-muted-foreground">
-        No reading yet. Run a product from the band below, and what it answers
-        is listed here.
-      </div>
-    )
-  }
-  return (
-    <div className="panel-scroll min-h-0 flex-1 overflow-y-auto py-1">
-      {entries.map((e) => {
-        const on = onMap(e.id)
-        return (
-          <div
-            key={e.id}
-            className="flex items-start gap-1.5 px-2 py-1 hover:bg-hover"
-          >
-            <button
-              type="button"
-              aria-label={on ? "Take off the globe" : "Put on the globe"}
-              aria-pressed={on}
-              onClick={() => onToggleMap(e.id)}
-              className={cn(
-                "mt-0.5 shrink-0 transition-colors",
-                on
-                  ? "text-accent"
-                  : "text-muted-foreground/50 hover:text-foreground"
-              )}
-            >
-              {on ? <Eye className="size-3" /> : <EyeSlash className="size-3" />}
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-meta text-foreground">
-                {e.title}
-              </div>
-              <div className="telemetry truncate text-micro text-muted-foreground">
-                {e.params}
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function AreasPane({
   areas,
   activeRow,
@@ -511,9 +435,6 @@ export function BoardSidebar({
   expanded,
   smooth,
   onModeChange,
-  analyses,
-  onAnalysisOnMap,
-  onToggleAnalysisMap,
   onActivate,
   onActivateAsset,
   surface,
@@ -630,16 +551,6 @@ export function BoardSidebar({
   /** The asset the panel is describing, in data mode. */
   activeAsset: string | null
   onModeChange: (m: OutlinerMode) => void
-  /**
-   * The readings held for this area, and which of them are on the map.
-   *
-   * Built by the surface rather than here, because it is what holds the
-   * results: a tree that reached into a run's payload would be a second place
-   * that knows the shape of every product's answer.
-   */
-  analyses: readonly AnalysisEntry[]
-  onAnalysisOnMap: (id: string) => boolean
-  onToggleAnalysisMap: (id: string) => void
   onActivateAsset: (id: string) => void
   /**
    * Where a context menu is portalled and clamped, as every studio panel is.
@@ -1088,7 +999,6 @@ export function BoardSidebar({
             [
               ["scene", "Scene", Stack],
               ["data", "Data", ImageIcon],
-              ["analyses", "Analyses", Lightning],
               ["areas", "Areas", Pentagon],
             ] as const
           ).map(([id, label, Icon]) => (
@@ -1118,9 +1028,7 @@ export function BoardSidebar({
               : null
             : mode === "data"
               ? allAssetRows.length || null
-              : mode === "analyses"
-                ? analyses.length || null
-                : areaInfo.length || null}
+              : areaInfo.length || null}
         </span>
       </div>
 
@@ -1133,13 +1041,7 @@ export function BoardSidebar({
         third mode fell into the data tree -- the Areas tab listed every run's
         rasters, which is what the tab beside it is for.
       */}
-      {mode === "analyses" ? (
-        <AnalysesPane
-          entries={analyses}
-          onMap={onAnalysisOnMap}
-          onToggleMap={onToggleAnalysisMap}
-        />
-      ) : mode === "areas" ? (
+      {mode === "areas" ? (
         <AreasPane
           areas={areaInfo}
           activeRow={activeRow}

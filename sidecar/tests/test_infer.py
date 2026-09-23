@@ -24,7 +24,6 @@ from terra.landcover import (  # noqa: F401
     series,
     spectra as lc_spectra,  # noqa: F401
 )
-from terra.sun import cache as power_cache
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
 
@@ -130,143 +129,30 @@ def test_classify_from_features_rf_smoke():
 
 def test_request_number_defaults_only_on_absence():
     req = {"present_zero": 0, "present_value": 3.5, "explicit_null": None}
+    # A zero the caller sent is a value. Read as falsy it becomes the default,
+    # and every figure computed from it moves with nothing on screen saying so.
     assert protocol.request_number(req, "present_zero", 0.5) == 0.0
     assert protocol.request_number(req, "present_value", 0.5) == 3.5
     assert protocol.request_number(req, "missing", 0.5) == 0.5
     assert protocol.request_number(req, "explicit_null", 0.5) == 0.5
     # A default of None survives, for parameters whose absence is the signal.
     assert protocol.request_number(req, "missing", None) is None
-    assert protocol.request_number({"utc_offset_hours": 0}, "utc_offset_hours",
-                                None) == 0.0
+    assert protocol.request_number({"a": 0}, "a", None) == 0.0
     assert protocol.request_number(req, "present_value", 0, int) == 3
-
-
-def test_request_number_carries_a_zero_degradation_rate_through():
-    """
-    The reported defect: a user entering 0 %/yr received the 0.5 %/yr default,
-    which on the lifetime-mean basis multiplied every energy figure by 0.94224
-    instead of 1.0, 5.78 percent low, with nothing on screen saying so.
-    """
-    from terra.energy import pv_plant as energy
-
-    rate = protocol.request_number(
-        {"degradation_rate_per_year": 0.0}, "degradation_rate_per_year",
-        energy.DEGRADATION_RATE_PER_YEAR,
-    )
-    assert rate == 0.0
-    assert energy.degradation_factor("lifetime_mean", rate) == 1.0
-    default = energy.degradation_factor(
-        "lifetime_mean", energy.DEGRADATION_RATE_PER_YEAR
-    )
-    assert abs(default - 0.942238) < 5e-7
-    # Every figure the run reports was 5.78 percent below what the caller asked
-    # for, which is the size of the silent substitution.
-    assert abs((1.0 - default) - 0.0578) < 5e-5
 
 
 def test_request_positive_admits_zero_only_where_zero_is_a_value():
     assert protocol.request_positive({"a": 0}, "a", 1.0, allow_zero=True) == 0.0
     assert protocol.request_positive({}, "a", 1.0, allow_zero=True) == 1.0
     assert protocol.request_positive({"a": 2}, "a", 1.0) == 2.0
-    # Zero years of record and a zero ground coverage ratio are broken
-    # requests, not values: substituting the default would report a figure the
-    # caller did not ask for under a parameter they did set.
+    # A zero drainage area is a broken request, not a value: substituting the
+    # default would report a figure the caller did not ask for under a
+    # parameter they did set.
     for bad in ({"a": 0}, {"a": -1}):
         with pytest.raises(SystemExit):
             protocol.request_positive(bad, "a", 1.0)
     with pytest.raises(SystemExit):
         protocol.request_positive({"a": -1}, "a", 1.0, allow_zero=True)
-
-
-def test_the_power_cache_key_is_not_finer_than_the_grid_it_keys_on():
-    """
-    The key used sun_power.request_point, which rounds to 0.01 degrees, about 1 km. Two
-    AOIs inside one POWER cell then missed each other and each paid the roughly
-    23 s hourly fetch, so the reuse the cache states it guarantees did not hold.
-    """
-    from terra.energy import wind  # noqa: F401
-    from terra.sun import nasa_power as sun_power
-
-    a = (-53.5048, -25.7434)
-    b = (-53.5362, -25.5)
-    assert sun_power.request_point(*a) != sun_power.request_point(*b)
-    assert sun_power.meteorology_cell(*a) == sun_power.meteorology_cell(*b)
-    assert power_cache.power_cell_key(*a) == power_cache.power_cell_key(*b)
-
-    # Both grids have to agree, because 0.625 does not divide 1.0: these two
-    # points share one MERRA-2 longitude cell and straddle the boundary between
-    # two 1 degree radiation cells, so keying on the meteorology grid alone
-    # would return one series under two different radiation cells.
-    c, d = (-53.6, -25.5), (-53.45, -25.5)
-    assert sun_power.meteorology_cell(*c) == sun_power.meteorology_cell(*d)
-    assert power_cache.power_cell_key(*c) != power_cache.power_cell_key(*d)
-
-
-def test_the_cached_power_series_reports_which_path_it_took(tmp_path):
-    """
-    Before this, a cached run and a fetched run produced byte-identical
-    payloads. POWER reprocesses historical data, so a superseded revision can
-    stay pinned to an externally benchmarked figure with nothing on screen
-    saying the series was not fetched during the run.
-    """
-    import pandas as pd
-
-    frame = pd.DataFrame({"ALLSKY_SFC_SW_DWN": [1.0, 2.0], "T2M": [20.0, 21.0]})
-    calls = []
-
-    def fetch(progress=None):
-        calls.append(1)
-        return frame
-
-    args = (tmp_path, "hourly", -53.5048, -25.7434, "20160101", "20251231",
-            ["ALLSKY_SFC_SW_DWN"])
-    first, first_provenance = power_cache.cached_power_series(*args, fetch)
-    assert calls == [1]
-    assert first_provenance["source"] == "fetch"
-    assert first_provenance["fetched_utc"].endswith("+00:00")
-    assert first_provenance["cell_key"] == power_cache.power_cell_key(
-        -53.5048, -25.7434
-    )
-
-    second, second_provenance = power_cache.cached_power_series(*args, fetch)
-    assert calls == [1]
-    assert second.equals(first)
-    assert second_provenance["source"] == "cache"
-    # The fetch date travels with the series rather than being inferred from
-    # the file, whose modification time a copy or a restore would change.
-    assert second_provenance["fetched_utc"] == first_provenance["fetched_utc"]
-    assert "superseded revision" in second_provenance["note"]
-
-    # A stored file with no stamp reports an unknown fetch date, not a fresh one.
-    for stamp in tmp_path.glob("*.parquet.json"):
-        stamp.unlink()
-    _, third_provenance = power_cache.cached_power_series(*args, fetch)
-    assert calls == [1]
-    assert third_provenance["source"] == "cache"
-    assert third_provenance["fetched_utc"] is None
-
-
-def test_the_cached_power_series_is_reused_across_the_cell_not_the_centroid():
-    """The cache miss the coarser key removes, measured on two real centroids."""
-    import tempfile
-
-    import pandas as pd
-
-    frame = pd.DataFrame({"ALLSKY_SFC_SW_DWN": [1.0]})
-    calls = []
-
-    def fetch(progress=None):
-        calls.append(1)
-        return frame
-
-    with tempfile.TemporaryDirectory() as d:
-        cache = Path(d)
-        for lon, lat in ((-53.5048, -25.7434), (-53.5362, -25.5)):
-            power_cache.cached_power_series(
-                cache, "hourly", lon, lat, "20160101", "20251231",
-                ["ALLSKY_SFC_SW_DWN"], fetch,
-            )
-        assert calls == [1]
 
 
 def _spectra_products(dn_by_band, n=3, shape=(4, 4)):
@@ -393,7 +279,7 @@ def test_reference_pixel_size_converts_a_geographic_grid():
     """
     And does not treat degrees as metres. Reading 0.0001 degrees as 0.0001 m
     would report a pixel a tenth of a millimetre across, which is the failure
-    mode of reusing terra.terrain.slope.pixel_size_m in the other direction.
+    mode of reusing terra.terrain.hand.pixel_size_m in the other direction.
     """
     profile = {
         "transform": _Transform(a=1e-4, e=-1e-4, f=0.0),

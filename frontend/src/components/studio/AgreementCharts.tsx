@@ -309,11 +309,10 @@ export function ClassAccuracyChart({
   not equal steps to the eye, which is the exact failure perceptually uniform
   colormaps exist to remove, and a confusion matrix is read by comparing cells.
 
-  inferno, because this application already answers this question that way:
-  EnergyModelSection paints its sequential magnitudes with it and its diverging
-  ones with rdbu_r. It is generated from sidecar/composite.py and guarded byte
-  for byte by test_palette_sync.py, so a swatch here is a colour the renderer
-  defines rather than one transcribed.
+  inferno, because it is the ramp the renderer's own palette table carries for
+  a sequential magnitude with no reference value. It is generated from
+  sidecar/composite.py and guarded byte for byte by test_palette_sync.py, so a
+  swatch here is a colour the renderer defines rather than one transcribed.
 
   It also starts near-black, which a dark chassis needs: a ramp that starts
   light would put its low end above the panel and read the scale backwards.

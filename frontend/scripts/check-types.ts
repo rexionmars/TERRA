@@ -54,8 +54,6 @@ const here = dirname(fileURLToPath(import.meta.url))
 const GO_DIR = join(here, "..", "..", "internal", "analysis")
 const GO_FILES = [
   "types.go",
-  "types_energy.go",
-  "types_wind.go",
   "types_flood.go",
 ]
 const TS = join(here, "..", "src", "lib", "types.ts")

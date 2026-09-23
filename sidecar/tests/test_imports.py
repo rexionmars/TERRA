@@ -4,23 +4,24 @@ What the package imports, and what it must not.
 Two properties that no other test in this suite can see, both of which a
 refactoring breaks silently rather than loudly.
 
-THE DEFERRED-IMPORT PROPERTY. Resolving an action must not import pvlib, torch,
+THE DEFERRED-IMPORT PROPERTY. Resolving an action must not import torch,
 scikit-learn, scipy, pystac_client or planetary_computer. Those are the heavy
-dependencies, two of them optional in installations that still have to answer
-every other action, and the property is what lets terra/registry.py hold dotted
-paths as strings. A module-level `import pvlib` written where a deferred one
-belonged costs start-up latency on every run and an ImportError on a machine
-that was working, and nothing else here would fail.
+dependencies, torch among them optional in installations that still have to
+answer every other action, and the property is what lets terra/registry.py hold
+dotted paths as strings. A module-level `import torch` written where a deferred
+one belonged costs start-up latency on every run and an ImportError on a
+machine that was working, and nothing else here would fail.
 
 It has to be measured in a CHILD PROCESS. sys.modules is process-wide, and by
-the time pytest reaches this file another test module has already imported wind,
-energy and solar; an in-process assertion would be reading the suite's own
-imports and would pass no matter what the package does.
+the time pytest reaches this file other test modules have already imported the
+product slices they test, and the heavy packages with them; an in-process
+assertion would be reading the suite's own imports and would pass no matter
+what the package does.
 
 THE DEFERRED-ALIAS PROPERTY. A module imported inside a function body is
 reached through a name that exists only in that body, and the attributes taken
 off it are never checked by anything: no test in this suite calls the action
-functions, so `solar_mod.prepare_hourl()` would ship. This walks the source and
+functions, so `pheno.phenology_metric()` would ship. This walks the source and
 resolves every such attribute against the real module.
 """
 
@@ -39,10 +40,10 @@ import pytest
 SIDECAR = Path(__file__).resolve().parents[1]
 
 # The dependencies whose weight or optionality is the reason the registry
-# resolves by string. scipy is here because linear_trend defers it and nothing
-# else would notice if that stopped being true.
+# resolves by string. scipy is here because every module that uses it --
+# terra.phenology's smoothing among them -- is reached only from inside an
+# action body, and nothing else would notice if that stopped being true.
 WATCHED = (
-    'pvlib',
     'torch',
     'sklearn',
     'scipy',
@@ -59,7 +60,6 @@ SHARED = (
     'terra.stac',
     'terra.imagery',
     'terra.terrain',
-    'terra.sun',
 )
 
 
@@ -74,9 +74,9 @@ def test_resolving_every_action_imports_no_heavy_dependency():
     product, including the ones that have no use for it.
 
     The product slices are NOT walked. A module inside one is reached only by
-    its own action, so a heavy import at its top level is allowed: terra/energy
-    may import pvlib at module scope. Walking them would report that as a
-    violation of a rule it does not break.
+    its own action, so a heavy import at its top level is allowed: a slice may
+    import torch at module scope and only its own action pays for it. Walking
+    them would report that as a violation of a rule it does not break.
     """
     script = textwrap.dedent(f"""
         import importlib, json, pkgutil, sys

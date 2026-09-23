@@ -20,8 +20,8 @@
 % Classe `book`, e nao `article` como os estudos nem `report` como o template
 % cientifico. Duas razoes, e as duas sao sobre navegacao num documento de dois
 % digitos de capitulos:
-%   - `\part` agrupa. Vinte e tres capitulos numa lista plana nao se leem;
-%     em sete partes, o sumario cabe numa pagina e o leitor acha o produto
+%   - `\part` agrupa. Dezessete capitulos numa lista plana nao se leem;
+%     em cinco partes, o sumario cabe numa pagina e o leitor acha o produto
 %     que procura pelo grupo antes de procurar pelo titulo.
 %   - `\frontmatter` numera o pre-textual em romano. Assim acrescentar uma
 %     pagina ao sumario nao renumera o corpo -- num livro que cresce capitulo
@@ -86,31 +86,17 @@
 
 % Ponto de preenchimento tambem na linha de capitulo, que a classe `book` nao
 % faz -- sem ele o numero de pagina do capitulo fica solto do outro lado da
-% folha. E a folga entre capitulos cai de 1 em para 0,4, senao o sumario de
-% sete partes transborda de pagina sem ganhar legibilidade.
+% folha. E a folga entre capitulos cai de 1 em para 0,4, senao o sumario
+% transborda de pagina sem ganhar legibilidade.
 \renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 \setlength{\cftbeforechapskip}{.4em}
 
 % Largura da caixa do numero de secao no sumario. O padrao de 2,3 em cabe
-% "9.9" e estoura em "16.10": dois digitos de capitulo com dois de secao. O
-% capitulo 17 tem dez secoes e foi o primeiro a chegar la.
+% "9.9" e estoura em "16.10": dois digitos de capitulo com dois de secao.
 \setlength{\cftsecnumwidth}{2.9em}
 
 \sisetup{output-decimal-marker={,},group-separator={\,},
          group-minimum-digits=4,separate-uncertainty=true}
-
-% O quilowatt-pico nao e unidade do SI: e a potencia de placa de um arranjo
-% fotovoltaico, medida em condicao padrao de ensaio. E a unidade em que a
-% industria e o Global Solar Atlas publicam rendimento especifico, e escreve-la
-% como \watt seria dizer outra coisa. Declarada aqui para que o \qty a componha
-% com as demais em vez de sair como texto solto no meio de uma coluna de numeros.
-% O quilowatt-hora composto por \kilo\watt\hour sai como "kW h", com espaco
-% entre os dois: siunitx trata hora como unidade separada e insere o produto.
-% A grafia corrente, e a que o Global Solar Atlas usa na mesma tabela contra a
-% qual o capitulo 15 se afere, e "kWh".
-\DeclareSIUnit{\kWh}{kWh}
-\DeclareSIUnit{\MWh}{MWh}
-\DeclareSIUnit{\kWp}{kWp}
 
 % COLUNA ALINHADA A ESQUERDA, herdada do guia geral com a mesma medida e a
 % mesma razao. As tabelas deste livro tem colunas estreitas, e `p{}` justifica:
@@ -300,12 +286,6 @@
 \include{capitulos/13-terreno}
 \include{capitulos/14-envoltoria}
 %
-\part{Energia}
-\include{capitulos/15-solar-ponto}
-% \include{capitulos/16-solar-terreno}
-\include{capitulos/17-energia-perdas}
-% \include{capitulos/18-vento}
-%
 % \part{Prática de pesquisa com o TERRA}
 % \include{capitulos/21-exportacao}
 % \include{capitulos/22-reprodutibilidade}
@@ -322,8 +302,8 @@
 
 % Escrito a mao, como nos demais .tex da linha: por enquanto sao poucas
 % referencias e o BibTeX so acrescentaria um passo de compilacao. Quando o
-% livro passar de umas trinta -- e vai passar, sao 24 capitulos --, troque por
-% BibTeX de uma vez, porque a conversao a meio caminho e que da trabalho.
+% livro passar de umas trinta -- e vai passar --, troque por BibTeX de uma
+% vez, porque a conversao a meio caminho e que da trabalho.
 %
 % O `thebibliography` ja imprime o titulo, por isso nao ha `\chapter*` aqui.
 %
@@ -342,75 +322,24 @@ Barnes, R., Lehman, C., Mulla, D. (2014). Priority-flood: an optimal
 depression-filling and watershed-labeling algorithm for digital elevation
 models. \emph{Computers \& Geosciences}, 62, 117--127.
 
-\bibitem[Bolinger e Bolinger(2022)]{bolinger2022}
-Bolinger, M., Bolinger, G. (2022). Land requirements for utility-scale PV: an
-empirical update on power and energy density. \emph{IEEE Journal of
-Photovoltaics}, 12(2), 589--594. Amostra de 736 usinas e
-\qty{35482}{\mega\watt} de corrente contínua, em operação comercial entre 2007
-e 2019, nos Estados Unidos.
-
 \bibitem[Brown et al.(2001)]{brown2001}
 Brown, L. D., Cai, T. T., DasGupta, A. (2001). Interval estimation for a
 binomial proportion. \emph{Statistical Science}, 16(2), 101--133.
-
-\bibitem[Dobos(2014)]{dobos2014}
-Dobos, A. P. (2014). \emph{PVWatts version 5 manual}. NREL/TP-6A20-62641,
-National Renewable Energy Laboratory, Golden, CO.
-
-\bibitem[Doelling et al.(2016)]{doelling2016}
-Doelling, D. R., Haney, C. O., Scarino, B. R., Gopalan, A., Bhatt, R. (2016).
-Advances in geostationary-derived longwave fluxes for the CERES synoptic
-(SYN1deg) product. \emph{Journal of Atmospheric and Oceanic Technology}, 33(3),
-503--521.
 
 \bibitem[ESA(2021)]{esa-psd}
 European Space Agency (2021). \emph{Sentinel-2 Products Specification
 Document}, PSD v14.9. Processing baseline 04.00, em produção desde 25 de
 janeiro de 2022.
 
-\bibitem[ESMAP(2020)]{gsa2020}
-Energy Sector Management Assistance Program (2020). \emph{Global Solar Atlas
-2.0}. Banco Mundial, Washington, DC. Dados modelados pela Solargis.
-
-\bibitem[Faiman(2008)]{faiman2008}
-Faiman, D. (2008). Assessing the outdoor operating temperature of photovoltaic
-modules. \emph{Progress in Photovoltaics: Research and Applications}, 16(4),
-307--315.
-
 \bibitem[Feyisa et al.(2014)]{feyisa2014}
 Feyisa, G. L., Meilby, H., Fensholt, R., Proud, S. R. (2014). Automated Water
 Extraction Index: a new technique for surface water mapping using Landsat
 imagery. \emph{Remote Sensing of Environment}, 140, 23--35.
 
-\bibitem[Gelaro et al.(2017)]{gelaro2017}
-Gelaro, R., McCarty, W., Suárez, M. J., et al. (2017). The Modern-Era
-Retrospective analysis for Research and Applications, version 2 (MERRA-2).
-\emph{Journal of Climate}, 30(14), 5419--5454.
-
 \bibitem[Gretton et al.(2012)]{gretton2012}
 Gretton, A., Borgwardt, K. M., Rasch, M. J., Schölkopf, B., Smola, A. (2012).
 A kernel two-sample test. \emph{Journal of Machine Learning Research}, 13,
 723--773.
-
-\bibitem[Holmgren et al.(2018)]{holmgren2018}
-Holmgren, W. F., Hansen, C. W., Mikofski, M. A. (2018). pvlib python: a python
-package for modeling solar energy systems. \emph{Journal of Open Source
-Software}, 3(29), 884.
-
-\bibitem[Jordan e Kurtz(2013)]{jordan2013}
-Jordan, D. C., Kurtz, S. R. (2013). Photovoltaic degradation rates: an
-analytical review. \emph{Progress in Photovoltaics: Research and Applications},
-21(1), 12--29. A taxa adotada pela aplicação é a mediana de silício cristalino.
-
-\bibitem[Kopp e Lean(2011)]{kopp2011}
-Kopp, G., Lean, J. L. (2011). A new, lower value of total solar irradiance:
-evidence and climate significance. \emph{Geophysical Research Letters}, 38,
-L01706.
-
-\bibitem[Marion(2017)]{marion2017}
-Marion, B. (2017). Numerical method for angle-of-incidence correction factors
-for diffuse radiation incident photovoltaic modules. \emph{Solar Energy}, 147,
-344--348.
 
 \bibitem[McFeeters(1996)]{mcfeeters1996}
 McFeeters, S. K. (1996). The use of the Normalized Difference Water Index
@@ -434,19 +363,9 @@ Olofsson, P., Foody, G. M., Herold, M., Stehman, S. V., Woodcock, C. E.,
 Wulder, M. A. (2014). Good practices for estimating area and assessing accuracy
 of land change. \emph{Remote Sensing of Environment}, 148, 42--57.
 
-\bibitem[Ong et al.(2013)]{ong2013}
-Ong, S., Campbell, C., Denholm, P., Margolis, R., Heath, G. (2013).
-\emph{Land-use requirements for solar power plants in the United States}.
-NREL/TP-6A20-56290, National Renewable Energy Laboratory, Golden, CO.
-
 \bibitem[Otsu(1979)]{otsu1979}
 Otsu, N. (1979). A threshold selection method from gray-level histograms.
 \emph{IEEE Transactions on Systems, Man, and Cybernetics}, 9(1), 62--66.
-
-\bibitem[Perez et al.(1990)]{perez1990}
-Perez, R., Ineichen, P., Seals, R., Michalsky, J., Stewart, R. (1990). Modeling
-daylight availability and irradiance components from direct and global
-irradiance. \emph{Solar Energy}, 44(5), 271--289.
 
 \bibitem[Pontius e Millones(2011)]{pontius2011}
 Pontius, R. G., Millones, M. (2011). Death to Kappa: birth of quantity

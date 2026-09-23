@@ -13,9 +13,9 @@ why they are in the same package rather than in one of their own. Splitting
 them would leave a package of structs named after no subject, and put the wire
 contract on the far side of an import from the code that holds it.
 
-They are split across files by product (types_energy.go, types_wind.go,
-types_flood.go) purely so a reader can open the one they are after. A file
-boundary carries no meaning inside a Go package.
+They are split across files by product (types_flood.go, types_surface.go,
+types_flood_routing.go) purely so a reader can open the one they are after. A
+file boundary carries no meaning inside a Go package.
 
 The frontend mirrors these structs by hand in src/lib/types.ts, and
 frontend/scripts/check-types.ts fails when the two sets of JSON field names

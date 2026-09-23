@@ -192,9 +192,8 @@
   /*
     THE PRODUCTS, AS COLOUR. A scale of its own, and not part of the one above.
 
-    These name what a run IS -- a classification, a water map, a solar product,
-    a wind screening, a flood envelope -- and they are read side by side in a
-    grid rather than against text. They were invented inside StudioBrowser, in
+    These name what a run IS -- a classification, a water map, a flood envelope
+    -- and they are read side by side in a grid rather than against text. They were invented inside StudioBrowser, in
     HSL, at the moment that grid needed them, and one of them landed on the
     accent's own hue: a solar tile and the primary action were the same orange.
     That is what a scale nobody declared costs.
@@ -205,23 +204,21 @@
     the ones that are asking for something. At C 0.09 against the accent's
     0.149 they read as labels rather than as calls.
 
-    Spread by hue in OKLCH so the steps are even to the eye: 75, 195, 245, 295,
-    plus a neutral for the classification, which is the ordinary case and the
-    one a grid holds most of. Not gated by check-contrast.ts, for the reason
+    Placed by hue in OKLCH -- water at 195, flood at 245 -- plus a neutral for
+    the classification, which is the ordinary case and the one a grid holds
+    most of. Not gated by check-contrast.ts, for the reason
     that file gives about the scientific ramps: they answer to the data. Each
     is drawn as a glyph on a plate of its own tint, never as small text.
   */
   --p-kind-class: 158 158 158;
-  --p-kind-solar: 191 150 93;
   --p-kind-water: 80 176 176;
   --p-kind-flood: 109 164 211;
-  --p-kind-wind: 162 147 209;
 
   /*
     THE FOLDER, WHICH IS NOT A PRODUCT AND MUST NOT READ AS ONE.
 
     A container holds the products above; it is not one of them, and giving it
-    a hue from that scale would say a folder of solar runs IS solar. So it sits
+    a hue from that scale would say a folder of water runs IS water. So it sits
     beside the scale rather than in it, and two measurements place it.
 
     LOWER CHROMA THAN A PRODUCT, which is the same move the scale above made
@@ -381,8 +378,8 @@
     line rather than a weight in a table.
 
     THE ADJACENCY TO WATCH is value's #C5654D against the run card's #DCA64F:
-    both are warm, and on the solar board the losses card sits beside the run
-    card. They are a red-orange and a gold, and they are the two the palettes
+    both are warm, and on the flood board the threshold card sits beside the
+    run card. They are a red-orange and a gold, and they are the two the palettes
     give that are closest together. Moving either is one line.
 
     WHAT THE CHECK ENFORCES: a card's title and glyph read at 4.5 on the band
@@ -442,20 +439,20 @@
   --b-source-edge: #8DB04F;
   --b-source-ink: #23262C;
 
-  /* OVER WHAT STRETCH -- a period, a window, a depth of record. Heavy. */
+  /* OVER WHAT STRETCH -- a period. Heavy. */
   --b-when-body: #23262C;
   --b-when-head: #EACE51;
   --b-when-edge: #EACE51;
   --b-when-ink: #121212;
 
-  /* BY WHICH METHOD -- a model, an index, a product, a set of bands. Light:
+  /* BY WHICH METHOD -- a model, an index, a set of bands. Light:
      the accent stays in the band and the ring is the ground's own. */
   --b-method-body: #23262C;
   --b-method-head: #633CB8;
   --b-method-edge: #3A3F47;
   --b-method-ink: #FFFFFF;
 
-  /* AT WHAT VALUES -- a threshold, a slope, a ratio, a loss. Light. */
+  /* AT WHAT VALUES -- a threshold, a stretch. Light. */
   --b-value-body: #23262C;
   --b-value-head: #C5654D;
   --b-value-edge: #3A3F47;
@@ -510,7 +507,7 @@
     Its ink is unaffected: 7.50 against #23262C before, 6.95 after.
 
     THE ADJACENCY IS TIGHTER NOW, not looser. This sits beside the value card
-    on the solar board, and value muted to #C5654D measures 90 -- so the two
+    on the flood board, and value muted to #C5654D measures 90 -- so the two
     warm bands are 15 apart in chroma and 1.80 in lightness, separated mostly
     by hue. Moving either is still one line.
   */
@@ -617,12 +614,10 @@
      dark block for why the spread is quoted beside the ratios. */
   --p-aside: 70 106 152;
 
-  /* The same five, at the lightness a light ground needs. See the dark block. */
+  /* The same three, at the lightness a light ground needs. See the dark block. */
   --p-kind-class: 113 113 113;
-  --p-kind-solar: 144 105 47;
   --p-kind-water: 19 130 130;
   --p-kind-flood: 64 119 163;
-  --p-kind-wind: 117 103 161;
 
   /* The folder, receding towards THIS ground rather than away from it. The
      dark block carries the argument; these are the same four tones stepped the
@@ -668,20 +663,20 @@
   --b-source-edge: #8DB04F;
   --b-source-ink: #23262C;
 
-  /* OVER WHAT STRETCH -- a period, a window, a depth of record. Heavy. */
+  /* OVER WHAT STRETCH -- a period. Heavy. */
   --b-when-body: #F4F4F4;
   --b-when-head: #EACE51;
   --b-when-edge: #EACE51;
   --b-when-ink: #121212;
 
-  /* BY WHICH METHOD -- a model, an index, a product, a set of bands. Light:
+  /* BY WHICH METHOD -- a model, an index, a set of bands. Light:
      the accent stays in the band and the ring is Silver. */
   --b-method-body: #F4F4F4;
   --b-method-head: #633CB8;
   --b-method-edge: #C2C3C5;
   --b-method-ink: #FFFFFF;
 
-  /* AT WHAT VALUES -- a threshold, a slope, a ratio, a loss. Light. */
+  /* AT WHAT VALUES -- a threshold, a stretch. Light. */
   --b-value-body: #F4F4F4;
   --b-value-head: #C5654D;
   --b-value-edge: #C2C3C5;

@@ -283,10 +283,6 @@ Each carries the focus ring and one shared `disabled` convention.
 | `btnGhostDense` | 28px | Table toolbars, card action rows — bands that repeat per row |
 | `btnIcon` | 28px | Icon-only, matching the dense height |
 
-One site legitimately cannot adopt a primitive: the energy `RunButton` states
-what its product returns and wraps to two lines, so `min-h-9` with its own
-leading is structural. It carries every other part of the primitive.
-
 ---
 
 ## The cascade hazard
@@ -328,5 +324,5 @@ Go and the sidecar are **control** — a chassis change should not move them. If
 The checks cannot see everything. Two things need eyes:
 
 - **Both themes.** The light theme derives separately and inherits nothing.
-- **The map area.** Open a terrain raster and a suitability raster and confirm
-  the frame does not compete with the ramp.
+- **The map area.** Open a spectral-index composition and a classification
+  raster and confirm the frame does not compete with the ramp.

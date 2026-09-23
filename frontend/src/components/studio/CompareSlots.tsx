@@ -20,7 +20,7 @@
  * stops working -- an empty slot follows the selection and says so.
  */
 import { PushPin, PushPinSlash } from "@phosphor-icons/react"
-import type { PredictionCompareSide } from "@/components/studio/BoardSolarDetail"
+import type { PredictionCompareSide } from "@/components/studio/BoardPredictionDetail"
 import {
   StudioMenuGroup,
   StudioMenuItem,

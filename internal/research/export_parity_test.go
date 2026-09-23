@@ -48,7 +48,7 @@ var (
 // after the CSV name rather than by a regular expression. A greedy expression
 // anchored on "])" reads several consecutive table definitions as one, which is
 // the defect that made an earlier ad-hoc version of this check report three
-// solar tables as a single table with the columns of all three.
+// consecutive tables as a single table with the columns of all three.
 func parseAnalysisTables(src string) (map[string][]string, error) {
 	out := map[string][]string{}
 	for _, loc := range csvNameRe.FindAllStringSubmatchIndex(src, -1) {

@@ -126,22 +126,6 @@ export interface VisibleLayerInput {
   flood?: FloodAnalysis | null
   showFloodOverlay?: boolean
   floodOpacity?: number
-  /**
-   * Already-resolved solar rasters, in the order the caller wants them.
-   *
-   * `pixelated` is the caller's to state because only it knows which product
-   * this is: the terrain raster is a continuous irradiation field and blends
-   * honestly, the siting raster is five codes and a blend between two of them
-   * names no class. Defaults to false, which is the terrain case.
-   */
-  solarOverlays?: {
-    id: string
-    title: string
-    uri: string
-    extent: Bounds
-    opacity: number
-    pixelated?: boolean
-  }[]
 }
 
 /** Which of the three maps the `prediction` layer draws. */
@@ -253,23 +237,6 @@ export function rasterLayers(i: VisibleLayerInput): RasterLayer[] {
       pixelated: false,
       smooth: false,
       visible: i.showCompositionOverlay,
-    })
-  }
-
-  for (const [n, o] of (i.solarOverlays ?? []).entries()) {
-    if (!o.uri || isZeroExtent(o.extent)) continue
-    layers.push({
-      id: `solar:${o.id}`,
-      title: o.title,
-      uri: o.uri,
-      extent: o.extent,
-      opacity: o.opacity,
-      order: 358 + n,
-      pixelated: o.pixelated ?? false,
-      smooth: false,
-      // Solar rasters are drawn by having been produced; the energy screen
-      // clears them rather than hiding them.
-      visible: true,
     })
   }
 

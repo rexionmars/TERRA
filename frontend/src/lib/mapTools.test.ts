@@ -42,11 +42,10 @@ describe("MAP_TOOLS", () => {
   })
 
   it("does not admit a board-only product", () => {
-    // Energy and Flood were ported from screens of their own and are not
-    // panels; widening MapToolId would make a value the store has never
-    // written suddenly representable, which is the distinction the table's own
-    // note asks to be kept.
-    expect(isMapTool("energy" as BoardToolId)).toBe(false)
+    // Flood was ported from a screen of its own and is not a panel; widening
+    // MapToolId would make a value the store has never written suddenly
+    // representable, which is the distinction the table's own note asks to be
+    // kept.
     expect(isMapTool("flood" as BoardToolId)).toBe(false)
   })
 })

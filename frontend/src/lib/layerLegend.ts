@@ -10,9 +10,9 @@
  * restraint is the design. lib/palettes.ts says in its own header how a legend
  * hand-transcribed from the renderer came to disagree with the raster it
  * described by up to 40 of 255 on three stops. So a ramp is drawn only where
- * something names a PaletteName -- solar irradiation carries one in its
- * `scale`, an index composition through the catalogue's `cmap` -- and where
- * nothing does, this reports the FIGURES THE RUN MEASURED instead of a bar. A
+ * something names a PaletteName -- an index composition does, through the
+ * catalogue's `cmap` -- and where nothing does, this reports the FIGURES THE
+ * RUN MEASURED instead of a bar. A
  * legend that is wrong is worse than a plane with none: the plane at least
  * admits it needs explaining.
  *
@@ -34,8 +34,6 @@ import {
 import type {
   CompositionOverlay,
   PredictResult,
-  SolarSitingAnalysis,
-  SolarTerrainAnalysis,
   WaterAnalysis,
 } from "@/lib/types"
 
@@ -106,12 +104,8 @@ export type LayerLegend =
 export interface LegendSources {
   result?: PredictResult | null
   water?: WaterAnalysis | null
-  solarTerrain?: SolarTerrainAnalysis | null
-  solarSiting?: SolarSitingAnalysis | null
   composition?: CompositionOverlay | null
 }
-
-const num = (v: number, d = 0) => v.toFixed(d)
 
 /**
  * The legend for one layer id, or null where the layer needs none.
@@ -215,64 +209,6 @@ export function legendFor(
         areaHa: c.area_ha,
       })),
       rows: rows.length ? rows : undefined,
-    }
-  }
-
-  if (layerId === "solar:siting") {
-    const s = src.solarSiting
-    const cls = s?.classes
-    if (!s || !cls?.length) return null
-    return {
-      kind: "classes",
-      subject: "Siting suitability",
-      entries: cls.map((c) => ({
-        name: c.name,
-        color: c.color,
-        pct: c.pct,
-        areaHa: c.area_ha,
-      })),
-      /*
-        The two suitable figures stay apart. types.ts says it beside the field:
-        never summed with the cropland class, because the trade-off between
-        siting on free land and siting on cropland is the finding.
-
-        Each read defensively: a payload from an older sidecar carries the
-        classes without one of these, and a missing figure must drop out rather
-        than take the block down with it.
-      */
-      rows: [
-        typeof s.suitable_no_conflict_ha === "number" && {
-          label: "Suitable",
-          value: `${s.suitable_no_conflict_ha.toFixed(0)} ha`,
-        },
-        typeof s.suitable_cropland_ha === "number" && {
-          label: "On cropland",
-          value: `${s.suitable_cropland_ha.toFixed(0)} ha`,
-        },
-        s.thresholds && {
-          label: "Slope",
-          value: `${s.thresholds.slope_acceptable_deg}-${s.thresholds.slope_restrictive_deg} deg`,
-        },
-      ].filter(Boolean) as LegendRow[],
-    }
-  }
-
-  if (layerId === "solar:terrain") {
-    const s = src.solarTerrain
-    if (!s) return null
-    /*
-      The domain comes from `scale`, not from poa_min/poa_max: for a seasonal
-      layer it deliberately spans both seasons so winter and summer are
-      comparable, and the layer's own range is narrower than what it was drawn
-      against. Reading the wrong one would label the ends with values no pixel
-      on this plane carries.
-    */
-    return {
-      kind: "ramp",
-      subject: `Irradiation · ${s.unit}`,
-      gradient: paletteGradient(s.scale.palette),
-      low: num(s.scale.min, s.scale.decimals),
-      high: num(s.scale.max, s.scale.decimals),
     }
   }
 

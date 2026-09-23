@@ -251,8 +251,7 @@ def test_cell_size_of_an_arcsecond_grid_is_about_thirty_metres():
 
 def test_merge_of_two_adjacent_tiles_reproduces_the_field_across_the_seam(tmp_path):
     """
-    The failure the solar terrain read had while it lived in solar.py with a
-    reader of its own: a window straddling a tile edge.
+    The failure a single-tile reader has: a window straddling a tile edge.
 
     Two tiles abut at longitude 0.03. Reading only the first would return the
     left half of the window and nothing else. The check is against the analytic

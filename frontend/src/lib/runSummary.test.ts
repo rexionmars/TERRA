@@ -11,8 +11,8 @@
  * in a run list, which is a screen with no data of its own to fall back to.
  *
  * Every expected value below was worked out from the module's documented rules
- * -- the band thresholds in formatHectares, the tag names solarProductLabel
- * discriminates on, the separators runRowLine joins with -- and none was read
+ * -- the band thresholds in formatHectares, the kinds runRowLine branches on,
+ * the separators it joins with -- and none was read
  * off the module's output. The one deliberate exception is the thousands
  * separator, noted where it appears.
  */
@@ -27,7 +27,6 @@ import {
   runKindLabel,
   runRowLine,
   runSummaryObject,
-  solarProductLabel,
   type RunClassStat,
 } from "./runSummary"
 
@@ -65,7 +64,7 @@ describe("parseRunSummary", () => {
     // is why the guard is a try and not an Array.isArray check alone.
     expect(parseRunSummary("null")).toEqual(empty)
     expect(parseRunSummary("42")).toEqual(empty)
-    expect(parseRunSummary('"solar"')).toEqual(empty)
+    expect(parseRunSummary('"water"')).toEqual(empty)
   })
 
   it("keeps only the class entries carrying both a name and a colour", () => {
@@ -244,7 +243,7 @@ describe("runSummaryObject", () => {
     // null parses, and every caller reads a key straight off the result.
     expect(runSummaryObject("null")).toEqual({})
     expect(runSummaryObject("42")).toEqual({})
-    expect(runSummaryObject('"solar_terrain"')).toEqual({})
+    expect(runSummaryObject('"flood_products"')).toEqual({})
   })
 
   it("hands back every key the row carries, including ones no reader knows", () => {
@@ -252,53 +251,8 @@ describe("runSummaryObject", () => {
     // key added by a newer writer must survive rather than be filtered against
     // a fixed schema.
     expect(
-      runSummaryObject('{"solar_product":"solar_siting","tilt_deg":21,"future":true}')
-    ).toEqual({ solar_product: "solar_siting", tilt_deg: 21, future: true })
-  })
-})
-
-describe("solarProductLabel", () => {
-  it("names each raster product by its stored tag", () => {
-    expect(solarProductLabel('{"solar_product":"solar_terrain"}')).toBe(
-      "Terrain and horizon shading"
-    )
-    expect(solarProductLabel('{"solar_product":"solar_siting"}')).toBe(
-      "Photovoltaic siting"
-    )
-  })
-
-  it("names an energy run from the tag prefix, so a renamed tag keeps the label", () => {
-    // Prefix, not equality: the module states this is what keeps a renamed
-    // energy tag from being listed as a resource run with a resource run's
-    // figures.
-    expect(solarProductLabel('{"solar_product":"energy"}')).toBe(
-      "Photovoltaic energy model"
-    )
-    expect(solarProductLabel('{"solar_product":"energy_model"}')).toBe(
-      "Photovoltaic energy model"
-    )
-    expect(solarProductLabel('{"solar_product":"energy_pv_v2"}')).toBe(
-      "Photovoltaic energy model"
-    )
-  })
-
-  it("calls a run without a usable tag a solar resource run", () => {
-    // A row written before solar_product existed carries none, and that row is
-    // a resource run -- so the fallback is a statement about those rows, not a
-    // shrug. The prefix is a prefix and not a substring: solar_energy is not
-    // an energy run.
-    expect(solarProductLabel(undefined)).toBe("Solar resource")
-    expect(solarProductLabel(null)).toBe("Solar resource")
-    expect(solarProductLabel("")).toBe("Solar resource")
-    expect(solarProductLabel("{}")).toBe("Solar resource")
-    expect(solarProductLabel('{"solar_product":null}')).toBe("Solar resource")
-    expect(solarProductLabel('{"solar_product":3}')).toBe("Solar resource")
-    expect(solarProductLabel('{"solar_product":"solar_resource"}')).toBe(
-      "Solar resource"
-    )
-    expect(solarProductLabel('{"solar_product":"solar_energy"}')).toBe(
-      "Solar resource"
-    )
+      runSummaryObject('{"water_index":"MNDWI","peak_date":"2024-02-03","future":true}')
+    ).toEqual({ water_index: "MNDWI", peak_date: "2024-02-03", future: true })
   })
 })
 
@@ -312,10 +266,13 @@ describe("modelDisplayName", () => {
   })
 
   it("returns an unrecognised kind unchanged rather than calling it Random Forest", () => {
-    // The failure the module names: a solar run recorded as NASA POWER was
-    // listed as a classification produced by a model that never ran.
-    expect(modelDisplayName("NASA POWER")).toBe("NASA POWER")
-    expect(modelDisplayName("nasa_power_merra2")).toBe("nasa_power_merra2")
+    // The failure the module names: a descriptive run recorded under the
+    // index or the source that produced it was listed as a classification
+    // produced by a model that never ran.
+    expect(modelDisplayName("MNDWI")).toBe("MNDWI")
+    expect(modelDisplayName("HAND over Planetary Computer DEM")).toBe(
+      "HAND over Planetary Computer DEM"
+    )
     expect(modelDisplayName("Prithvi")).toBe("Prithvi")
   })
 })
@@ -349,52 +306,6 @@ describe("runRowLine", () => {
     expect(
       runRowLine({ kind: "water", model_kind: "", ...period, summary: null })
     ).toBe("Surface water · index")
-  })
-
-  it("gives a solar run its product and source and no acquisition window at all", () => {
-    // A climatology has no observed window, so the row carries none even when
-    // the requested period is set on the run.
-    expect(
-      runRowLine({
-        kind: "solar",
-        model_kind: "NASA POWER",
-        ...period,
-        summary: '{"solar_product":"energy_pv","date_range":["2024-01-05","2024-03-28"]}',
-      })
-    ).toBe("Photovoltaic energy model · NASA POWER")
-  })
-
-  it("names a solar run's source generically when the row records none", () => {
-    expect(
-      runRowLine({ kind: "solar", model_kind: "", ...period, summary: null })
-    ).toBe("Solar resource · NASA POWER")
-  })
-
-  it("gives a wind run its record window from the summary", () => {
-    expect(
-      runRowLine({
-        kind: "wind",
-        model_kind: "NASA POWER MERRA-2",
-        ...period,
-        summary: '{"record_window":"2001-2020"}',
-      })
-    ).toBe("Wind screening · NASA POWER MERRA-2 · 2001-2020")
-  })
-
-  it("ends a wind run at its source when the record window is absent or blank", () => {
-    const wind = { kind: "wind", model_kind: "", ...period }
-    expect(runRowLine({ ...wind, summary: null })).toBe(
-      "Wind screening · NASA POWER MERRA-2"
-    )
-    expect(runRowLine({ ...wind, summary: "{}" })).toBe(
-      "Wind screening · NASA POWER MERRA-2"
-    )
-    expect(runRowLine({ ...wind, summary: '{"record_window":"   "}' })).toBe(
-      "Wind screening · NASA POWER MERRA-2"
-    )
-    expect(runRowLine({ ...wind, summary: '{"record_window":2001}' })).toBe(
-      "Wind screening · NASA POWER MERRA-2"
-    )
   })
 
   it("gives a flood run its reference threshold in place of a period", () => {
@@ -477,8 +388,6 @@ describe("runRowLine", () => {
 describe("runKindLabel", () => {
   it("returns the one-word product name for each kind the store writes", () => {
     expect(runKindLabel("water")).toBe("water")
-    expect(runKindLabel("solar")).toBe("solar")
-    expect(runKindLabel("wind")).toBe("wind")
     expect(runKindLabel("flood")).toBe("flood")
   })
 
@@ -510,8 +419,8 @@ describe("datesByMonth", () => {
     // A month already cut has no day to remove, and a row with no period at
     // all must survive the pass untouched.
     expect(datesByMonth("2024-01 → 2024-03")).toBe("2024-01 → 2024-03")
-    expect(datesByMonth("Photovoltaic energy model · NASA POWER")).toBe(
-      "Photovoltaic energy model · NASA POWER"
+    expect(datesByMonth("Flood envelope · Planetary Computer DEM · HAND <= 1 m")).toBe(
+      "Flood envelope · Planetary Computer DEM · HAND <= 1 m"
     )
     expect(datesByMonth("")).toBe("")
   })

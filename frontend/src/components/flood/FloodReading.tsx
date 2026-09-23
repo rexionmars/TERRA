@@ -41,9 +41,8 @@
  * analysis and what the GeoTIFF is georeferenced on. No figure on this reading
  * is measured over it.
  *
- * A column, with no scroll-spy index. The energy reading has one for nine
- * blocks across four products; this reading is one run of six blocks, which is
- * short enough to read without one.
+ * A column, with no scroll-spy index. This reading is one run of six blocks,
+ * which is short enough to read without one.
  *
  * The blocks open and close, and four of the six start closed. Six open blocks
  * are most of a screen of evidence in front of the one thing the product is

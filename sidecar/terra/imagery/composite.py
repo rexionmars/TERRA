@@ -98,20 +98,21 @@ _BLUES = [
     (0.03, 0.19, 0.42),
 ]
 
-# ---------------------------------------------------------------- solar ramps
+# ----------------------------------------------------------- perceptual ramps
 #
 # The two ramps above are diverging and hue-coded for a judgement: red is bad,
 # green is good, blue is wet. That reading is wrong for a physical quantity, and
 # the red-green axis is the one most affected by colour-vision deficiency.
-# Irradiation and shading therefore use the perceptually uniform ramps the
-# research figures use, so an overlay and a published figure of the same
-# quantity are the same colours.
+# Physical quantities therefore use the perceptually uniform ramps the research
+# figures use, so an overlay and a published figure of the same quantity are
+# the same colours.
 #
 # Each is 17 evenly spaced samples of the matplotlib lookup table. Interpolating
 # linearly between them departs from the true ramp by at most 6.7/255 (inferno),
 # 5.4/255 (viridis) and 7.6/255 (RdBu reversed), which is below a visible step.
 
-# Irradiation, matching the research terrain and seasonal maps.
+# A sequential magnitude. Starts near-black, which a dark panel needs: a ramp
+# that starts light puts its low end above the background and reads backwards.
 _INFERNO = [
     (0.0015, 0.0005, 0.0139),
     (0.0423, 0.0281, 0.1411),
@@ -132,7 +133,7 @@ _INFERNO = [
     (0.9884, 0.9984, 0.6449),
 ]
 
-# Shading loss, matching the research horizon-shading map.
+# A second sequential magnitude, for a figure drawn beside the first.
 _VIRIDIS = [
     (0.2670, 0.0049, 0.3294),
     (0.2823, 0.0950, 0.4173),
@@ -153,8 +154,8 @@ _VIRIDIS = [
     (0.9932, 0.9062, 0.1439),
 ]
 
-# Seasonal ratio. Diverging is right here because the quantity has a reference:
-# one means the two seasons deliver the same irradiation.
+# Diverging, which is right only for a quantity with a reference value at the
+# centre of the scale, such as a ratio whose parity is one.
 _RDBU_R = [
     (0.0196, 0.1882, 0.3804),
     (0.0885, 0.3211, 0.5649),

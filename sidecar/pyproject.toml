@@ -45,14 +45,14 @@ combine-as-imports = true
 # things it would otherwise refuse. CI installs the lock and so sees the real
 # stubs; a local run through a tool runner does not unless it is told to:
 #
-#   uvx --from mypy==2.3.1 --with numpy --with pandas --with scipy mypy terra
+#   uvx --from mypy==2.3.1 --with numpy --with scipy mypy terra
 #
 # Nine errors in terra/landcover/domain_shift.py reached CI green locally
 # exactly this way.
 python_version = "3.12"
 warn_unused_configs = true
 warn_redundant_casts = true
-# rasterio, pvlib, pystac_client, planetary_computer and shapely ship no stubs.
+# rasterio, pystac_client, planetary_computer and shapely ship no stubs.
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -62,7 +62,7 @@ ignore_missing_imports = true
 #
 # The whole package is checked at the DEFAULT level, which is a different and
 # cheaper thing: it does not ask for annotations, it asks that the annotations
-# and inferences that exist do not contradict each other. All 65 modules pass
+# and inferences that exist do not contradict each other. Every module passes
 # it, so the CI step guards the package rather than four modules of it.
 module = ["terra.protocol", "terra.registry", "terra.cli", "terra.stac"]
 disallow_untyped_defs = true
@@ -80,8 +80,8 @@ type = "layers"
 layers = [
     "terra.cli",
     "terra.registry",
-    "terra.energy | terra.water | terra.flood | terra.landcover | terra.scenes | terra.surface",
-    "terra.imagery | terra.terrain | terra.sun",
+    "terra.water | terra.flood | terra.landcover | terra.scenes | terra.surface",
+    "terra.imagery | terra.terrain",
     "terra.stac | terra.mapbiomas",
     "terra.aoi | terra.phenology",
     "terra.protocol",
@@ -91,20 +91,9 @@ layers = [
 name = "Products do not reach into each other"
 type = "independence"
 modules = [
-    "terra.energy",
     "terra.water",
     "terra.flood",
     "terra.landcover",
     "terra.scenes",
     "terra.surface",
-]
-
-[[tool.importlinter.contracts]]
-name = "The sun service knows nothing about the products that read it"
-type = "forbidden"
-source_modules = ["terra.sun"]
-forbidden_modules = [
-    "terra.energy",
-    "terra.registry",
-    "terra.cli",
 ]

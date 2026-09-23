@@ -40,15 +40,6 @@ export type RunValue =
   | { kind: "ground"; label: string | null }
   /** A span of calendar time, as two ISO dates. */
   | { kind: "span"; start: string; end: string }
-  /**
-   * A depth of record, in whole years, and what is being counted.
-   *
-   * `of` because the years are not interchangeable: ten years of hourly
-   * irradiance, thirty of climatology and twenty-five of an analysis period
-   * are three different spans that would otherwise all read "N yr" and compare
-   * equal to each other.
-   */
-  | { kind: "record"; years: number; of: string }
   /** One of a fixed set, by its own label, or none chosen. */
   | { kind: "choice"; label: string | null }
   /**
@@ -71,8 +62,8 @@ export type RunValue =
    *
    * The catalogue, which produces an area rather than feeding the run; the
    * run card itself, which is where the wires end; and any card whose bundle
-   * is absent, since a graph with no solar parameters draws no solar cards but
-   * the table over the node ids is total.
+   * is absent, since a graph with no composition draws no composition cards
+   * but the table over the node ids is total.
    */
   | { kind: "none" }
 
@@ -96,8 +87,6 @@ export function reading(v: RunValue): string {
       const days = Math.round((b - a) / 86_400_000) + 1
       return `${days.toLocaleString()} d`
     }
-    case "record":
-      return `${num(v.years)} yr ${v.of}`.trim()
     case "choice":
       return v.label ?? ""
     case "several":
@@ -143,7 +132,6 @@ export function supplied(v: RunValue): boolean {
       return v.items.length >= v.least
     case "scene":
       return v.id !== null
-    case "record":
     case "measure":
     case "band":
     case "none":
@@ -169,9 +157,9 @@ export const signature = (v: RunValue): string => JSON.stringify(v)
  * in exactly one of them:
  *
  *   source  WHERE it reads from -- the drawn ground, one acquisition
- *   when    OVER WHAT STRETCH -- a calendar span, a depth of record
- *   method  BY WHICH METHOD -- a model, an index, a product, a set of bands
- *   value   AT WHAT VALUES -- a threshold, a slope, a ratio, a loss
+ *   when    OVER WHAT STRETCH -- a calendar span
+ *   method  BY WHICH METHOD -- a model, an index, a set of bands
+ *   value   AT WHAT VALUES -- a threshold, a stretch
  *
  * IT IS DERIVED FROM THE KIND, not declared per card, so a card cannot be in
  * the wrong part and a kind cannot be added without one being chosen for it.
@@ -198,7 +186,6 @@ export function subject(v: RunValue): Subject | null {
     case "scene":
       return "source"
     case "span":
-    case "record":
       return "when"
     case "choice":
     case "several":

@@ -252,10 +252,10 @@ export function TitleBar({
 
       <div className="flex items-center gap-3">
         {/*
-          Wherever there is a map. The energy screen draws one full bleed and
-          the AOI is defined on it, so the position was being withheld from
-          half the places it describes. The two screens share one view, so the
-          readout is the same value in both.
+          Wherever there is a map. It was once withheld from a screen that
+          drew one full bleed with the AOI defined on it, so the position was
+          missing from half the places it describes. The screens that draw a
+          map share one view, so the readout is the same value on each.
         */}
         {showMapTelemetry && (
           <div className="telemetry hidden items-center gap-4 text-[11px] text-muted-foreground lg:flex">
@@ -297,8 +297,8 @@ export function TitleBar({
                 </span>
               </>
             )}
-            {/* The pill counts the scenes behind a classification, which the
-                energy products never read, so it stays on the map screen. */}
+            {/* The pill counts the scenes behind a classification, so it is
+                drawn only while a result is in hand. */}
             {screen === "studio" && result && (
               <>
                 <span className="hairline h-4 w-px self-center border-l" />

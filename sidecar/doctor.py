@@ -12,10 +12,10 @@ never measured the ENVIRONMENT. A bare Python 3.12 with nothing installed passed
 it, and the user found out only after drawing an area, choosing a period and
 waiting for a run to die on an import.
 
-The same blindness shipped a real defect: the POWER cache writes parquet, which
-needs an engine that nothing declared, so on any install following
-requirements.txt the cache silently never worked and every run repaid a fetch of
-about 23 seconds. Nothing surfaced it, because nothing was looking.
+The same blindness shipped a real defect: a cache that wrote parquet needed an
+engine that nothing declared, so on any install following requirements.txt the
+cache silently never worked and every run repaid a fetch of about 23 seconds.
+Nothing surfaced it, because nothing was looking.
 
 The list lives here rather than in Go because this file is next to the code that
 does the importing. A module that starts importing something new is one edit
@@ -54,7 +54,7 @@ class Need:
 
 NEEDS = [
     Need("numpy", "numpy", "every product"),
-    Need("scipy", "scipy", "phenology smoothing and the solar statistics"),
+    Need("scipy", "scipy", "phenology smoothing and the flood envelope"),
     Need("rasterio", "rasterio", "reading and writing any raster"),
     Need("shapely", "shapely", "area geometry"),
     Need("pyproj", "pyproj", "projection and area in hectares"),
@@ -69,13 +69,6 @@ NEEDS = [
          why="model/ was pickled by scikit-learn 1.8.x"),
     Need("pystac_client", "pystac-client", "finding Sentinel-2 scenes"),
     Need("planetary_computer", "planetary-computer", "reading Sentinel-2 scenes"),
-    Need("pandas", "pandas", "the solar, wind and energy series"),
-    Need("pvlib", "pvlib", "the photovoltaic model"),
-    # Not imported by name anywhere: pandas reaches for it to read and write
-    # the POWER cache. Absent, pandas raises inside the try that keeps a cache
-    # failure from failing a run, so the only symptom is every run being slow.
-    Need("pyarrow", "pyarrow", "the POWER cache, so every run refetches",
-         optional=True),
     # The heavy models. Deliberately absent from the bundled environment: torch
     # alone outweighs everything else the application ships.
     Need("torch", "torch", "Temporal Transformer and Prithvi", optional=True),

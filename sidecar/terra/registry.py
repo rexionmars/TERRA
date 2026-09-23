@@ -3,10 +3,10 @@ The action names the shell can ask for, and where each one lives.
 
 The table holds dotted paths as strings, never imported functions, and the
 module is imported only when its action is the one requested. That is what
-keeps a classification run from importing pvlib and a wind screening from
-importing torch: both are third-party packages weighing more than the rest of
-the sidecar together, and one of them is optional in installations that still
-have to answer every other action.
+lets a product slice import what it needs at module scope without every other
+action paying for it: torch, which the Temporal Transformer and Prithvi paths
+need, weighs more than the rest of the sidecar together and is optional in
+installations that still have to answer every other action.
 
 Before this table existed the same property was carried by 55 deferred imports
 written by hand inside function bodies. It now has one place to be correct, and
@@ -34,11 +34,6 @@ ACTIONS: dict[str, str] = {
     'water': 'terra.water.actions:water',
     'flood_envelope': 'terra.flood.actions:flood_envelope',
     'flood_routing': 'terra.flood.actions:flood_routing',
-    'solar_resource': 'terra.energy.actions:solar_resource',
-    'solar_terrain': 'terra.energy.actions:solar_terrain',
-    'solar_siting': 'terra.energy.actions:solar_siting',
-    'energy_model': 'terra.energy.actions:energy_model',
-    'wind_resource': 'terra.energy.actions:wind_resource',
     'list_datacube': 'terra.scenes.actions:list_datacube',
     'render_composite': 'terra.scenes.actions:render_composite',
     'surface_model': 'terra.surface.actions:surface_model',

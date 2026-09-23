@@ -14,7 +14,7 @@
  * Most cases are ABSENT FIELDS, because that is what the module is about. Its
  * header says a legend that is wrong is worse than a plane with none, and
  * nearly every branch exists because something did not arrive: Go marshals a
- * missing struct as null, an older sidecar predates a field, a water or solar
+ * missing struct as null, an older sidecar predates a field, a water or flood
  * run carries no class statistics at all. Those are the inputs built below.
  */
 import { describe, expect, it } from "vitest"
@@ -27,9 +27,6 @@ import type {
   LULCClassRow,
   LULCMetrics,
   PredictResult,
-  SolarSitingAnalysis,
-  SolarSitingClass,
-  SolarTerrainAnalysis,
   VISeriesPoint,
   WaterAnalysis,
 } from "./types"
@@ -96,7 +93,7 @@ const RDYLGN_GRADIENT =
 
 describe("legendFor, prediction", () => {
   it("returns null when the run carries none of the three maps", () => {
-    // Arrange: a result that classified nothing -- a water or solar run.
+    // Arrange: a result that classified nothing -- a water or flood run.
     const result = payload<PredictResult>({ n_dates: 0 })
 
     // Act / Assert
@@ -346,164 +343,6 @@ describe("legendFor, prediction", () => {
 
     expect(legend.entries).toHaveLength(1)
     expect(legend.rows).toBeUndefined()
-  })
-})
-
-describe("legendFor, solar siting", () => {
-  const suitable = payload<SolarSitingClass>({
-    name: "Suitable",
-    color: "#2b8a3e",
-    pct: 51.2,
-    area_ha: 512.4,
-  })
-  const cropland = payload<SolarSitingClass>({
-    name: "Suitable on cropland",
-    color: "#fab005",
-    pct: 30.1,
-    area_ha: 300.6,
-  })
-
-  it("returns null without a siting analysis or without its classes", () => {
-    expect(legendFor("solar:siting", {})).toBeNull()
-    expect(legendFor("solar:siting", { solarSiting: null })).toBeNull()
-    expect(
-      legendFor("solar:siting", {
-        solarSiting: payload<SolarSitingAnalysis>({ classes: [] }),
-      })
-    ).toBeNull()
-  })
-
-  it("keeps the two suitable areas as separate figures and never as their sum", () => {
-    /*
-      types.ts says it beside the field: the trade-off between siting on free
-      land and siting on cropland is the finding, so 512 and 301 hectares must
-      not appear as 813. The row list is compared whole, which is what makes a
-      summed row a failure rather than an extra nobody notices.
-    */
-    const solarSiting = payload<SolarSitingAnalysis>({
-      classes: [suitable, cropland],
-      suitable_no_conflict_ha: 512.4,
-      suitable_cropland_ha: 300.6,
-      thresholds: payload<SolarSitingAnalysis["thresholds"]>({
-        slope_acceptable_deg: 10,
-        slope_restrictive_deg: 15,
-      }),
-    })
-
-    const legend = asClasses(legendFor("solar:siting", { solarSiting }))
-
-    expect(legend.subject).toBe("Siting suitability")
-    expect(legend.entries).toEqual([
-      { name: "Suitable", color: "#2b8a3e", pct: 51.2, areaHa: 512.4 },
-      { name: "Suitable on cropland", color: "#fab005", pct: 30.1, areaHa: 300.6 },
-    ])
-    expect(legend.rows).toEqual([
-      { label: "Suitable", value: "512 ha" },
-      { label: "On cropland", value: "301 ha" },
-      { label: "Slope", value: "10-15 deg" },
-    ])
-  })
-
-  it("reports zero suitable hectares as a figure, not as a missing field", () => {
-    // An AOI with nothing sitable is a result. The guard is on the type rather
-    // than on truthiness precisely so this row survives.
-    const solarSiting = payload<SolarSitingAnalysis>({
-      classes: [cropland],
-      suitable_no_conflict_ha: 0,
-      suitable_cropland_ha: 300.6,
-    })
-
-    expect(asClasses(legendFor("solar:siting", { solarSiting })).rows).toEqual([
-      { label: "Suitable", value: "0 ha" },
-      { label: "On cropland", value: "301 ha" },
-    ])
-  })
-
-  it("drops the figures an older payload does not carry and keeps the classes", () => {
-    const solarSiting = payload<SolarSitingAnalysis>({ classes: [suitable] })
-
-    const legend = asClasses(legendFor("solar:siting", { solarSiting }))
-
-    expect(legend.entries).toHaveLength(1)
-    expect(legend.rows).toEqual([])
-  })
-})
-
-describe("legendFor, solar terrain", () => {
-  it("returns null without a terrain analysis", () => {
-    expect(legendFor("solar:terrain", {})).toBeNull()
-    expect(legendFor("solar:terrain", { solarTerrain: null })).toBeNull()
-  })
-
-  it("labels the ends from the render scale, not from this layer's own range", () => {
-    /*
-      A seasonal layer is drawn against a domain spanning both seasons, so its
-      own poa_min/poa_max are narrower. Labelling with those would put values on
-      the ends that no pixel on this plane carries -- here 4.2 and 5.1 against a
-      bar that runs 3.8 to 6.3.
-    */
-    const solarTerrain = payload<SolarTerrainAnalysis>({
-      unit: "kWh/m2/day",
-      poa_min: 4.2,
-      poa_max: 5.1,
-      season: "winter",
-      scale: {
-        palette: "blues",
-        min: 3.8,
-        max: 6.25,
-        reference: null,
-        basis: "shared",
-        shared_with: "summer",
-        decimals: 1,
-      },
-    })
-
-    const legend = asRamp(legendFor("solar:terrain", { solarTerrain }))
-
-    expect(legend.subject).toBe("Irradiation · kWh/m2/day")
-    expect(legend.gradient).toBe(BLUES_GRADIENT)
-    // 6.25 is a tie at one decimal and resolves upward.
-    expect(legend.low).toBe("3.8")
-    expect(legend.high).toBe("6.3")
-  })
-
-  it("rounds the ends to the decimals the scale asks for", () => {
-    const solarTerrain = payload<SolarTerrainAnalysis>({
-      unit: "kWh/m2",
-      scale: {
-        palette: "inferno",
-        min: 3.8,
-        max: 6.25,
-        reference: null,
-        basis: "own",
-        shared_with: null,
-        decimals: 0,
-      },
-    })
-
-    const legend = asRamp(legendFor("solar:terrain", { solarTerrain }))
-
-    expect(legend.low).toBe("4")
-    expect(legend.high).toBe("6")
-  })
-
-  it("draws the ramp the scale names rather than one fixed ramp", () => {
-    const solarTerrain = payload<SolarTerrainAnalysis>({
-      unit: "%",
-      scale: {
-        palette: "rdylgn",
-        min: 0,
-        max: 100,
-        reference: null,
-        basis: "fixed",
-        shared_with: null,
-        decimals: 0,
-      },
-    })
-
-    expect(asRamp(legendFor("solar:terrain", { solarTerrain })).gradient).toBe(
-      RDYLGN_GRADIENT
-    )
   })
 })
 
@@ -759,7 +598,7 @@ describe("legendFor, NDVI mean", () => {
   })
 
   it("returns null when the run measured nothing the block could report", () => {
-    // A water or solar run reaching this layer has no series and no window,
+    // A water or flood run reaching this layer has no series and no window,
     // and Go sends both as null: an empty block is worse than no block.
     const result = payload<PredictResult>({
       vi_series: null,
@@ -870,7 +709,7 @@ describe("legendFor, layers with no legend", () => {
     })
 
     expect(legendFor("true-color", { result })).toBeNull()
-    expect(legendFor("solar:ghi", { result })).toBeNull()
+    expect(legendFor("no-such-layer", { result })).toBeNull()
     expect(legendFor("", { result })).toBeNull()
   })
 })

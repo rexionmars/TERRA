@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,79 +9,167 @@ import (
 )
 
 /*
-The rendering comes out of the row and the rest of the row stays.
+A run of a retired kind leaves with everything that names it, whoever it
+belongs to, and nothing else moves.
 
-The rows this repairs were written by a path that has since stopped writing
-them, so the assertion that matters is not only that overlay_uri is gone: it is
-that the figures beside it, which are the whole reason the row exists, came
-through.
+Seeded the way the release that still had the products left them: a solar run
+of the local user and a wind run of another user, each with its asset directory
+on disk, a board of each user naming its run, and a composition made under the
+solar one. A classification sits beside them on the same board and in the same
+project, with files of its own, so "nothing else moves" has something to hold.
+The store is then opened again, because opening is where the purge runs.
 */
-func TestStripStoredOverlayURIsLeavesTheRestOfTheRow(t *testing.T) {
-	s := openTestStore(t)
-	seedRun(t, s, "solar-1", LocalUserID)
-	seedRun(t, s, "class-1", LocalUserID)
+func TestOpenPurgesRetiredRunKinds(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	s := openStoreIn(t, dir)
 
-	const withOverlay = `{"overlay_uri":"data:image/png;base64,AAAA","unit":"kWh/m2","season":"annual"}`
-	if _, err := s.db.Exec(
-		`UPDATE inference_runs SET kind = 'solar', result_json = ? WHERE id = 'solar-1'`,
-		withOverlay,
-	); err != nil {
-		t.Fatal(err)
-	}
-	// A classification stores no data URI and must not be rewritten anyway:
-	// the strip is scoped to the kind whose write path had the defect.
-	if _, err := s.db.Exec(
-		`UPDATE inference_runs SET kind = 'classification', result_json = ? WHERE id = 'class-1'`,
-		withOverlay,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := s.stripStoredOverlayURIs(); err != nil {
-		t.Fatalf("strip: %v", err)
-	}
-
-	solar, err := s.GetRun(LocalUserID, "solar-1")
+	other, _, err := s.Register("other@example.com", "secret12", "Other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(solar.ResultJSON, "overlay_uri") {
-		t.Errorf("the data uri survived: %s", solar.ResultJSON)
+	p, err := s.CreateProject(Project{UserID: LocalUserID, Name: "P"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, keep := range []string{"kWh/m2", "annual"} {
-		if !strings.Contains(solar.ResultJSON, keep) {
-			t.Errorf("%q was removed with the overlay: %s", keep, solar.ResultJSON)
+	seed := func(id, userID, kind, projectID string) {
+		t.Helper()
+		if _, err := s.SaveRun(InferenceRun{
+			ID: id, UserID: userID, Kind: kind, ModelKind: "test",
+			PolygonGeoJSON: "{}", ProjectID: projectID,
+			AssetsRelPath: filepath.Join("runs", id),
+		}); err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+		writeRunAssets(t, s, id, 64)
+	}
+	// The literals and not constants: the constants went with the products,
+	// and these rows are what the release before the removal wrote.
+	seed("solar-1", LocalUserID, "solar", p.ID)
+	seed("wind-1", other.ID, "wind", "")
+	seed("class-1", LocalUserID, RunKindClassification, p.ID)
+
+	local, err := s.SaveStudio(Studio{
+		UserID: LocalUserID,
+		Name:   "local board",
+		ViewJSON: strings.NewReplacer("run-a", "solar-1", "run-b", "class-1").
+			Replace(twoRunView),
+		Members: []StudioMember{{RunID: "solar-1"}, {RunID: "class-1"}},
+	})
+	if err != nil {
+		t.Fatalf("save local board: %v", err)
+	}
+	theirs, err := s.SaveStudio(Studio{
+		UserID:   other.ID,
+		Name:     "their board",
+		ViewJSON: `{"runIds":["wind-1"],"places":{"wind-1":{"x":1,"z":2}}}`,
+		Members:  []StudioMember{{RunID: "wind-1"}},
+	})
+	if err != nil {
+		t.Fatalf("save their board: %v", err)
+	}
+	if _, err := s.AddProjectOverlay(LocalUserID, ProjectOverlay{
+		ProjectID: p.ID, RunID: "solar-1", Title: "Composition",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// An old stamp, so a purge that touched the project would be visible even
+	// inside the second nowISO resolves to.
+	const stamp = "2020-01-01T00:00:00Z"
+	if _, err := s.db.Exec(
+		`UPDATE projects SET updated_at = ? WHERE id = ?`, stamp, p.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	kept, err := s.GetRun(LocalUserID, "class-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+
+	s = openStoreIn(t, dir)
+
+	for _, gone := range []struct{ id, userID string }{
+		{"solar-1", LocalUserID},
+		{"wind-1", other.ID},
+	} {
+		if _, err := s.GetRun(gone.userID, gone.id); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: GetRun = %v, want ErrNotFound", gone.id, err)
+		}
+		if _, err := os.Stat(s.RunsDir(gone.id)); !os.IsNotExist(err) {
+			t.Errorf("%s: its asset directory survived (%v)", gone.id, err)
 		}
 	}
+	var left int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM inference_runs WHERE kind IN ('solar', 'wind')`,
+	).Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if left != 0 {
+		t.Errorf("%d rows of a retired kind survived", left)
+	}
 
-	other, err := s.GetRun(LocalUserID, "class-1")
+	// The classification is untouched: its row whole, its files where they were.
+	got, err := s.GetRun(LocalUserID, "class-1")
+	if err != nil {
+		t.Fatalf("the classification went with them: %v", err)
+	}
+	if *got != *kept {
+		t.Errorf("the classification row changed:\n%+v\n%+v", kept, got)
+	}
+	if _, err := os.Stat(filepath.Join(s.RunsDir("class-1"), "overlay.png")); err != nil {
+		t.Errorf("the classification's files went with them: %v", err)
+	}
+
+	// Both boards, the member rows and the arrangements alike: the defect a
+	// member-only cleanup has is that the two disagree.
+	board, err := s.GetStudio(LocalUserID, local.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if other.ResultJSON != withOverlay {
-		t.Errorf("a row of another kind was rewritten: %s", other.ResultJSON)
+	if len(board.Members) != 1 || board.Members[0].RunID != "class-1" {
+		t.Errorf("local board members = %+v, want only class-1", board.Members)
 	}
-}
-
-// A row whose result is not JSON is left alone rather than taking the pass
-// down with it, the way one malformed view_json used to take the whole repair.
-func TestStripStoredOverlayURIsSurvivesMalformedResult(t *testing.T) {
-	s := openTestStore(t)
-	seedRun(t, s, "solar-1", LocalUserID)
-	if _, err := s.db.Exec(
-		`UPDATE inference_runs SET kind = 'solar', result_json = 'not json' WHERE id = 'solar-1'`,
-	); err != nil {
-		t.Fatal(err)
+	if strings.Contains(board.ViewJSON, "solar-1") {
+		t.Errorf("the local board still names the solar run:\n%s", board.ViewJSON)
 	}
-	if err := s.stripStoredOverlayURIs(); err != nil {
-		t.Fatalf("strip refused to run: %v", err)
+	if !strings.Contains(board.ViewJSON, "class-1") || !strings.Contains(board.ViewJSON, "Tocantins") {
+		t.Errorf("the surviving run lost its arrangement:\n%s", board.ViewJSON)
 	}
-	got, err := s.GetRun(LocalUserID, "solar-1")
+	theirBoard, err := s.GetStudio(other.ID, theirs.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ResultJSON != "not json" {
-		t.Errorf("result was rewritten: %q", got.ResultJSON)
+	if len(theirBoard.Members) != 0 {
+		t.Errorf("their board members = %+v, want none", theirBoard.Members)
+	}
+	if strings.Contains(theirBoard.ViewJSON, "wind-1") {
+		t.Errorf("their board still names the wind run:\n%s", theirBoard.ViewJSON)
+	}
+
+	// The composition stays and loses its run, which is what DeleteRun does.
+	overlays, err := s.ListProjectOverlays(LocalUserID, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(overlays) != 1 || overlays[0].RunID != "" {
+		t.Errorf("overlays = %+v, want one composition naming no run", overlays)
+	}
+	project, err := s.GetProject(LocalUserID, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if project.UpdatedAt != stamp {
+		t.Errorf("the project was touched: updated_at %q, want %q", project.UpdatedAt, stamp)
+	}
+
+	// Idempotent: on a store with nothing retired left it finds nothing and
+	// changes nothing.
+	if err := s.purgeRetiredRunKinds(); err != nil {
+		t.Fatalf("second purge: %v", err)
+	}
+	if again, err := s.GetRun(LocalUserID, "class-1"); err != nil || *again != *kept {
+		t.Errorf("a second purge moved the classification: %+v, %v", again, err)
 	}
 }
 

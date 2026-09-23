@@ -156,7 +156,7 @@ jobs:
         # The whole package at the default level, and strict on the modules
         # pyproject.toml lists. The default level does not ask for annotations;
         # it asks that the ones that exist do not contradict what is inferred,
-        # which all 65 modules now satisfy.
+        # which every module now satisfies.
         working-directory: sidecar
         run: mypy terra
 

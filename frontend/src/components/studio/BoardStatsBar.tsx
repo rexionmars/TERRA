@@ -3,7 +3,7 @@
  *
  * Default placement is the right sidebar: multi-AOI land-cover legends need
  * vertical room, and packing them into the foot band side-by-side was the
- * cramped readout that started the swap with BoardSolarDetail.
+ * cramped readout that started the swap with BoardPredictionDetail.
  *
  * `foot` remains for the older horizontal band (class columns bounded by
  * height). Renaming a catalogued AOI is identity of the readout — double-click

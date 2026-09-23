@@ -10,25 +10,15 @@ export function AnalyzeDomainShift(arg1:analysis.DomainShiftRequest):Promise<ana
 
 export function AnalyzeDomainShiftCohort(arg1:analysis.DomainShiftCohortRequest):Promise<analysis.DomainShiftCohort>;
 
-export function AnalyzeEnergyModel(arg1:analysis.EnergyModelRequest):Promise<analysis.EnergyModelAnalysis>;
-
 export function AnalyzeFlood(arg1:analysis.FloodRequest):Promise<analysis.FloodAnalysis>;
 
 export function AnalyzeFloodRouting(arg1:analysis.FloodRoutingRequest):Promise<analysis.FloodRoutingAnalysis>;
 
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
 
-export function AnalyzeSolar(arg1:analysis.SolarRequest):Promise<analysis.SolarAnalysis>;
-
-export function AnalyzeSolarSiting(arg1:analysis.SolarSitingRequest):Promise<analysis.SolarSitingAnalysis>;
-
-export function AnalyzeSolarTerrain(arg1:analysis.SolarTerrainRequest):Promise<analysis.SolarTerrainAnalysis>;
-
 export function AnalyzeSurfaceModel(arg1:analysis.SurfaceModelRequest):Promise<analysis.SurfaceModel>;
 
 export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterAnalysis>;
-
-export function AnalyzeWind(arg1:analysis.WindRequest):Promise<analysis.WindAnalysis>;
 
 export function BuildManagedEnvironment(arg1:string):Promise<void>;
 

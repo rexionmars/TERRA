@@ -284,7 +284,6 @@ export function GlobeSurface({
   initialView = null,
   onViewChange,
   overlays = [],
-  readings = [],
   spreadM = 0,
   onSpreadChange,
   className,
@@ -300,19 +299,6 @@ export function GlobeSurface({
    * globe that showed the saved catalog but not the current area would be
    * missing the one outline they are here about.
    */
-  /**
-   * Readings the outliner has put on the globe, tied to the ground they were
-   * read over.
-   *
-   * Given already anchored rather than as results to be placed: where a reading
-   * belongs is a question about the AREA it was run on, which this surface does
-   * not hold and the board does. This draws what it is handed.
-   */
-  readings?: readonly {
-    key: string
-    at: [number, number]
-    caption: OverlayCaption
-  }[]
   polygon?: GeoJSONGeometry | null
   /**
    * A shape was drawn, edited or removed. ABSENT MEANS THIS GLOBE CANNOT DRAW,
@@ -343,9 +329,9 @@ export function GlobeSurface({
    * stay legible over them, and above the imagery they are measurements of.
    *
    * Each carries the key it is held by, because a layer id alone does not
-   * identify one: two runs over two fields both call their raster
-   * `solar:terrain`, and keying on that would let the second replace the
-   * first while claiming to be a second overlay.
+   * identify one: two runs over two fields both call their raster `water`,
+   * and keying on that would let the second replace the first while claiming
+   * to be a second overlay.
    */
   overlays?: readonly {
     key: string
@@ -501,15 +487,6 @@ export function GlobeSurface({
     [overlays, raisedRasters]
   )
 
-  const captions = useMemo(
-    () => [
-      ...rasterCaptions,
-      // On the ground, not lifted: a reading is about a piece of land, not
-      // about a plane in the stack over it.
-      ...readings.map((r) => ({ ...r, elevationM: 0 })),
-    ],
-    [rasterCaptions, readings]
-  )
   /*
     REVEALED, NOT ALWAYS UP. The work map carries its search bar permanently
     because it has the width for it and the bar is one of few things over the
@@ -1604,7 +1581,7 @@ export function GlobeSurface({
       <OverlayCallouts
         map={mapRef.current}
         ready={ready && !failure}
-        captions={captions}
+        captions={rasterCaptions}
       />
 
       {/*

@@ -33,11 +33,10 @@ from terra.terrain import dem as terrain_dem
 #
 # THE SURFACE ITSELF, AS ITS OWN SUBJECT.
 #
-# Copernicus GLO-30 is already fetched by two products here -- solar.py reads it
-# for horizons and dem.py reads it for the flood envelope -- and in both it is
-# an input nobody looks at. A reader cannot see the ground a run was computed
-# on, which is the one thing every terrain figure in this application depends
-# on.
+# Copernicus GLO-30 is already fetched for the flood envelope, through dem.py,
+# and there it is an input nobody looks at. A reader cannot see the ground a run
+# was computed on, which is the one thing every terrain figure in this
+# application depends on.
 #
 # IT IS A SURFACE MODEL, NOT A TERRAIN MODEL, and the payload says so rather
 # than leaving it to be inferred. GLO-30 is TanDEM-X: it measures the first
@@ -46,8 +45,8 @@ from terra.terrain import dem as terrain_dem
 # carries canopy height into the height above drainage -- and naming it here is
 # where a reader can first see it.
 #
-# NO BUFFER. solar_terrain widens its window so a ridge outside the AOI can
-# shade pixels inside it; nothing here is cast from anywhere. The window is the
+# NO BUFFER. The flood envelope widens its window so the drainage entering the
+# AOI is real terrain; nothing here flows in from anywhere. The window is the
 # AOI, and the figures are over exactly what is drawn.
 # The decoded range the scalar protocol carries. The decoding is
 # r + g/256 + b/65536, whose supremum is 256; 255 leaves the top of the ramp on
@@ -96,7 +95,7 @@ def surface_model(req, work_dir):
     if nodata is not None:
         void |= elevation == nodata
 
-    # THE POLYGON, NOT ITS BOUNDING BOX. fetch_dem returns a rectangular window
+    # THE POLYGON, NOT ITS BOUNDING BOX. fetch_file returns a rectangular window
     # because that is what a raster window is; the figures below and the raster
     # written for the map are both over the shape that was drawn. Without this
     # a diagonal AOI reports the surface of a rectangle several times its area,

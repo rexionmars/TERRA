@@ -51,9 +51,9 @@ type StorageRunItem struct {
 // StorageGroup is a share of the whole, broken down some way.
 //
 // Used for two different cuts -- by what an analysis is, and by what its files
-// are -- because they answer different questions. "Solar takes half your disk"
-// tells you which work to prune; "GeoTIFFs take half your disk" tells you the
-// rasters are the weight, whatever produced them.
+// are -- because they answer different questions. "Classification takes half
+// your disk" tells you which work to prune; "GeoTIFFs take half your disk" tells
+// you the rasters are the weight, whatever produced them.
 type StorageGroup struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
@@ -206,10 +206,6 @@ func kindLabel(kind string) string {
 		return "Classification"
 	case RunKindWater:
 		return "Surface water"
-	case RunKindSolar:
-		return "Solar"
-	case RunKindWind:
-		return "Wind"
 	case RunKindFlood:
 		return "Flood envelope"
 	default:

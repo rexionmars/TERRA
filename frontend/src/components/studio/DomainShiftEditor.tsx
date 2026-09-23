@@ -20,7 +20,7 @@
 import { useEffect, useState } from "react"
 import { DomainShiftSection } from "@/components/DomainShiftSection"
 import { DomainCohort } from "@/components/studio/DomainCohort"
-import type { PredictionCompareSide } from "@/components/studio/BoardSolarDetail"
+import type { PredictionCompareSide } from "@/components/studio/BoardPredictionDetail"
 import { cohortDomainShift } from "@/lib/domainShift"
 import type { DomainShiftCohort } from "@/lib/types"
 
@@ -130,8 +130,8 @@ export function DomainShiftEditor({
   }
 
   return sides ? (
-    // px-2 py-1.5, as `BoardSolarDetail`'s own area placement uses: every other
-    // editor owns its scroll container and its inset, and this one was the
+    // px-2 py-1.5, as `BoardPredictionDetail`'s own area placement uses: every
+    // other editor owns its scroll container and its inset, and this one was the
     // exception with a p-3 wrapper around a component that also drew a p-4 card.
     <div className="panel-scroll h-full w-full overflow-auto px-2 py-1.5">
       <DomainShiftSection

@@ -35,10 +35,11 @@ import {
 } from "@phosphor-icons/react"
 import type { RasterLayer } from "@/lib/mapLayers"
 import type { LayerPatch } from "@/components/studio/BoardSidebar"
-import type { OutlinerMode } from "@/components/studio/BoardSidebar"
 import {
   BoardSidebar,
+  OUTLINER_MODES,
   type AreaInfo,
+  type OutlinerMode,
   layerRow,
   rowTarget,
   sceneKey,
@@ -46,11 +47,10 @@ import {
 } from "@/components/studio/BoardSidebar"
 import { BoardStatsBar } from "@/components/studio/BoardStatsBar"
 import {
-  BoardSolarDetail,
-
+  BoardPredictionDetail,
   type BoardDetailFocus,
   type PredictionCompareSide,
-} from "@/components/studio/BoardSolarDetail"
+} from "@/components/studio/BoardPredictionDetail"
 import { ConfirmDelete } from "@/components/ui/ConfirmDelete"
 import {
   ErrorBoundary,
@@ -78,7 +78,6 @@ import { legendFor, type LegendSources } from "@/lib/layerLegend"
 import type { OverlayCaption } from "@/components/globe/OverlayCallout"
 import type { AssetRun, RunAsset } from "@/lib/runAssets"
 import { modelLabel, runAssets } from "@/lib/runAssets"
-import { analysisEntries } from "@/lib/analysisCallout"
 import type { CardGroup } from "@/lib/boardLayout"
 import { layoutGroups } from "@/lib/boardLayout"
 import { majoritySmoothOverlay } from "@/lib/smoothOverlay"
@@ -121,28 +120,8 @@ import type {
   InferenceRun,
   ModelKind,
   PredictResult,
-  WindAnalysis,
 } from "@/lib/types"
 import { SURFACE } from "@/lib/motion"
-import { ReadingPanel } from "@/components/studio/ReadingPanel"
-import type {
-  SolarProductId,
-  SolarResults,
-} from "@/lib/energyState"
-
-/**
- * No solar result at all, as a constant.
- *
- * A default object literal in the parameter list is a NEW object on every
- * render, which would make every memo that reads it recompute for a value that
- * never changed.
- */
-const EMPTY_SOLAR_RESULTS: SolarResults = {
-  resource: null,
-  terrain: null,
-  siting: null,
-  energy: null,
-}
 
 /**
  * What an editor says when it has nothing to show.
@@ -160,10 +139,8 @@ function EditorEmpty({ children }: { children: React.ReactNode }) {
     </div>
   )
 }
-import { solarReadingGroups } from "@/components/energy/readingSections"
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
-import { windReadingGroups } from "@/components/energy/readingSections"
 import { FloodReadingColumn } from "@/components/flood/FloodReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
@@ -476,11 +453,7 @@ export function BoardSurface({
   onNewStudio,
   onStudiosMenu,
   polygonGeoJSON,
-  solarResults = EMPTY_SOLAR_RESULTS,
-  onClearSolar,
-  windResult = null,
   onOpenReading,
-  onClearWind,
   floodResult = null,
   onClearFlood,
 }: {
@@ -513,9 +486,9 @@ export function BoardSurface({
   /**
    * What the CURRENT area's colours mean, for the legend.
    *
-   * The board holds the run's rasters but not the run: class_stats, the water
-   * index and the solar scale all live on the payload the map screen has, and
-   * none of them travels on a RasterLayer -- a layer is what is drawn, not what
+   * The board holds the run's rasters but not the run: class_stats and the
+   * water index both live on the payload the map screen has, and neither
+   * travels on a RasterLayer -- a layer is what is drawn, not what
    * it means. Fetched areas carry their own inside `extraRuns`.
    */
   legendSources?: LegendSources
@@ -623,33 +596,6 @@ export function BoardSurface({
    */
   polygonGeoJSON?: string
   /**
-   * Solar, whole: which product the run band has selected, what every product
-   * sends, and what each has produced.
-   *
-   * THE PARAMETERS ARE NOT HERE, and that is the change rather than an
-   * omission. They lived in an editor of their own, on an argument that was
-   * true about the energy model and was applied to all four products. They are
-   * cards on the run graph now: a panel configures nothing a card cannot, and
-   * what a panel is FOR is showing a result. Only the results reach this
-   * component.
-   */
-  solarResults?: SolarResults
-  onClearSolar?: (product: SolarProductId) => void
-  /**
-   * The two products whose result is read rather than drawn.
-   *
-   * They arrive whole and not as layers because neither is one. A wind
-   * screening resolves the area to a single reanalysis cell and reports over
-   * it, so there is nothing to paint; the flood envelope does produce a raster,
-   * but its reading is the disagreement between products, which the raster
-   * shows the location of and not the size of.
-   *
-   * Held here rather than in `legendSources` for the same reason: that carries
-   * what a plane's colours MEAN, and these have no plane to mean anything
-   * about. They are the whole of what their editor draws.
-   */
-  windResult?: WindAnalysis | null
-  /**
    * Load a saved run as the live one, so the panels read it.
    *
    * Held by the application rather than here: restoring a run sets the AOI,
@@ -657,75 +603,20 @@ export function BoardSurface({
    * board's. The board only knows which of its two offers suits a run.
    */
   onOpenReading?: (run: InferenceRun) => void
-  onClearWind?: () => void
+  /**
+   * The product whose result is read rather than drawn.
+   *
+   * It arrives whole and not as a layer: the flood envelope does produce a
+   * raster, but its reading is the disagreement between products, which the
+   * raster shows the location of and not the size of.
+   *
+   * Held here rather than in `legendSources` for the same reason: that carries
+   * what a plane's colours MEAN, and this reading has no plane to mean
+   * anything about. It is the whole of what its editor draws.
+   */
   floodResult?: FloodAnalysis | null
   onClearFlood?: () => void
 }) {
-  /*
-    The readings held right now, and which of them the reader has put on the
-    globe.
-
-    DERIVED, NOT STORED. An entry is a view of a result: it changes when the
-    result does, and a copy kept in state would be a second answer that can
-    disagree with the panel showing the first. Only the CHOICE of what is on the
-    map is state, because nothing else records it.
-  */
-  const analyses = useMemo(
-    () =>
-      analysisEntries({
-        wind: windResult,
-        solar: solarResults,
-      }),
-    [windResult, solarResults]
-  )
-  const [analysesOnMap, setAnalysesOnMap] = useState<ReadonlySet<string>>(
-    () => new Set()
-  )
-  /*
-    Where a reading's callout is anchored: the centroid of the ground it was
-    read over.
-
-    THE AREA'S OWN SHAPE, NOT ITS BOUNDING BOX. A concave AOI -- and the drawn
-    ones frequently are -- has a bounding-box centre that can fall outside it,
-    which would put the dot on land the reading is not about. The vertex mean
-    is inside for the shapes this draws and is cheap; a true centroid would be
-    better and neither is exact, so this stays the simpler of the two and the
-    leader is what carries the meaning anyway.
-  */
-  const readingAnchor = useMemo((): [number, number] | null => {
-    const rings = customPolygon?.coordinates as number[][][] | undefined
-    const ring = rings?.[0]
-    if (!ring?.length) return null
-    let lon = 0
-    let lat = 0
-    for (const [x, y] of ring) {
-      lon += x
-      lat += y
-    }
-    return [lon / ring.length, lat / ring.length]
-  }, [customPolygon])
-
-  const readingCaptions = useMemo(
-    () =>
-      readingAnchor === null
-        ? []
-        : analyses
-            .filter((e) => analysesOnMap.has(e.id))
-            .map((e) => ({
-              key: `reading:${e.id}`,
-              at: readingAnchor,
-              caption: { legend: e.legend, area: e.title, detail: e.params },
-            })),
-    [analyses, analysesOnMap, readingAnchor]
-  )
-
-  const toggleAnalysisMap = (id: string) =>
-    setAnalysesOnMap((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
   /*
@@ -821,8 +712,17 @@ export function BoardSurface({
     storedLayout.modes ?? {}
   )
   const modeKey = (areaId: AreaId) => `${areaId}:outliner`
-  const modeOf = (areaId: AreaId): OutlinerMode =>
-    (areaModes[modeKey(areaId)] as OutlinerMode) ?? "scene"
+  /*
+    Checked against the panes the outliner has rather than cast. A layout saved
+    while the outliner had a pane it no longer has names that pane, and a cast
+    would hand the sidebar a mode it draws no tab for; it opens on the scene.
+  */
+  const modeOf = (areaId: AreaId): OutlinerMode => {
+    const kept = areaModes[modeKey(areaId)]
+    return (OUTLINER_MODES as readonly string[]).includes(kept)
+      ? (kept as OutlinerMode)
+      : "scene"
+  }
   const setModeOf = (areaId: AreaId, m: OutlinerMode) =>
     setAreaModes((prev) => ({ ...prev, [modeKey(areaId)]: m }))
 
@@ -1024,7 +924,7 @@ export function BoardSurface({
     the way the same set reads on the work map.
 
     KEYED BY AREA AND LAYER, not by the layer alone. Two runs over two fields
-    both call their raster `solar:terrain`; keyed on that, sending the second
+    both call their raster `water`; keyed on that, sending the second
     would silently replace the first while the menu claimed both were on.
     `sceneKey` is that pair, and it is the one the rest of this surface already
     files per-plane state under -- a second key space for the same question is
@@ -1331,7 +1231,7 @@ export function BoardSurface({
         notifyError(
           "Nothing for a studio to record",
           new Error(
-            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. So run a classification, water, solar, wind or flood analysis here, or add an existing run from the outliner, and the studio will have something to arrange"
+            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. So run a classification, water or flood analysis here, or add an existing run from the outliner, and the studio will have something to arrange"
           )
         )
         return
@@ -1561,14 +1461,14 @@ export function BoardSurface({
           The ground's name is the honest second answer, and
           `displayRunLabel` already knows how to make a run name out of one --
           its own legacy branch does exactly this, turning an area name into
-          `run-<name>`. So a solar run over "drawn 2" reads "run-drawn-2"
+          `run-<name>`. So a water run over "drawn 2" reads "run-drawn-2"
           rather than sharing a placeholder with every other.
 
           It mattered most for the products that carried no id of their own:
-          water was the only one recording a run_id on its payload, so solar
-          and flood were otherwise permanently anonymous. All seven carry one
-          now, so this is the answer for a run the list has not caught up with
-          rather than for a whole class of product.
+          water was the only one recording a run_id on its payload, so flood
+          and the others were otherwise permanently anonymous. Every product
+          that saves a run carries one now, so this is the answer for a run the
+          list has not caught up with rather than for a whole class of product.
         */
         title:
           displayRunLabel(
@@ -1581,9 +1481,9 @@ export function BoardSurface({
           r.result.date_range?.length === 2
             ? `${r.result.date_range[0]} → ${r.result.date_range[1]}`
             : "",
-        // Same call the picker-loaded runs make: the run's own water and solar
-        // travel in its payload, and none of the map's overlay switches apply
-        // to a run the map is no longer showing.
+        // Same call the picker-loaded runs make: the run's own water travels in
+        // its payload, and none of the map's overlay switches apply to a run
+        // the map is no longer showing.
         assets: runAssets({
           result: r.result,
           composition: null,
@@ -1591,12 +1491,8 @@ export function BoardSurface({
           water: r.result.water,
           // A flood run's raster travels in its payload the same way.
           flood: r.result.flood,
-          solarTerrain: r.result.solar_terrain,
-          solarSiting: r.result.solar_siting,
           showCompositionOverlay: false,
           showWaterOverlay: false,
-          showSolarTerrain: false,
-          showSolarSiting: false,
           composeOpacity: 1,
           waterOpacity: 1,
         }),
@@ -1618,23 +1514,19 @@ export function BoardSurface({
         composition: null,
         compositionGallery: [],
         /*
-          The run's OWN water and solar, which travel in its payload when those
-          products were made over the same AOI (PredictResult.water,
-          .solar_terrain, .solar_siting). They were being dropped here while
-          the map screen's identical call kept them, so a second area on the
-          board listed a classification and nothing else -- the rasters existed
-          in hand and the tree did not mention them.
+          The run's OWN water and flood, which travel in its payload when those
+          products were made over the same AOI (PredictResult.water, .flood).
+          They were being dropped here while the map screen's identical call
+          kept them, so a second area on the board listed a classification and
+          nothing else -- the rasters existed in hand and the tree did not
+          mention them.
         */
         water: result.water,
         flood: result.flood,
-        solarTerrain: result.solar_terrain,
-        solarSiting: result.solar_siting,
         // A loaded run brings its own rasters and none of the map's state:
         // nothing here is drawn on the map, so nothing here has a switch there.
         showCompositionOverlay: false,
         showWaterOverlay: false,
-        showSolarTerrain: false,
-        showSolarSiting: false,
         composeOpacity: 1,
         waterOpacity: 1,
       }),
@@ -2586,8 +2478,6 @@ export function BoardSurface({
           {
             result,
             water: result.water,
-            solarTerrain: result.solar_terrain,
-            solarSiting: result.solar_siting,
           },
         ] as [string, LegendSources]
     ),
@@ -2600,16 +2490,14 @@ export function BoardSurface({
           {
             result,
             water: result.water,
-            solarTerrain: result.solar_terrain,
-            solarSiting: result.solar_siting,
           },
         ] as [string, LegendSources]
     ),
   ])
 
   /*
-    Last prediction or solar plane in the selection path drives the right
-    column. Two prediction planes → difference readout instead.
+    Last prediction plane in the selection path drives the right column. Two
+    prediction planes → difference readout instead.
   */
   const predictionPicks: { areaId: string; layerId: string }[] = []
   for (const row of selection) {
@@ -2629,22 +2517,10 @@ export function BoardSurface({
       detailFocus = { areaId: t.areaId, focus: "prediction" }
       break
     }
-    if (t.layerId === "solar:terrain") {
-      detailFocus = { areaId: t.areaId, focus: "terrain" }
-      break
-    }
-    if (t.layerId === "solar:siting") {
-      detailFocus = { areaId: t.areaId, focus: "siting" }
-      break
-    }
   }
   const detailSources = detailFocus
     ? legendByArea.get(detailFocus.areaId)
     : undefined
-  const detailTerrain =
-    detailSources?.solarTerrain ?? legendSources?.solarTerrain ?? null
-  const detailSiting =
-    detailSources?.solarSiting ?? legendSources?.solarSiting ?? null
   const detailPrediction: PredictResult | null =
     detailFocus?.focus === "prediction"
       ? (detailSources?.result ?? legendSources?.result ?? null)
@@ -2771,10 +2647,10 @@ export function BoardSurface({
           the panel wrote under a selected asset is the one that answers "what
           am I looking at", and it belongs where the thing is being looked at.
 
-          Matched on `sceneId` rather than on the asset's own id: mapLayers
-          names a layer `solar:<id>` and runAssets carries that colon form for
-          exactly this lookup, which its own note says is the field's reason
-          for existing.
+          Matched on `sceneId` rather than on the asset's own id: the water
+          raster is the asset `water-occurrence` and the layer `water`, and
+          runAssets carries sceneId for exactly this lookup, which its own note
+          says is the field's reason for existing.
         */
         const detail =
           assetRuns
@@ -4121,7 +3997,6 @@ export function BoardSurface({
           polygon={customPolygon}
           onPolygonDrawn={onPolygonDrawn}
           overlays={globeOverlays}
-          readings={readingCaptions}
           /*
             The same memory the work map keeps. The globe opened over Brazil at
             zoom 1.6 every time, however far the reader had travelled on it,
@@ -4135,9 +4010,6 @@ export function BoardSurface({
     ),
     outliner: (
           <BoardSidebar
-            analyses={analyses}
-            onAnalysisOnMap={(id) => analysesOnMap.has(id)}
-            onToggleAnalysisMap={toggleAnalysisMap}
             areaInfo={areaInfo}
             /*
               The ring the board is already drawing, handed back as a geometry.
@@ -4319,33 +4191,19 @@ export function BoardSurface({
       />
     ),
     /*
-      The two readings that are not readings OF a plane.
+      The reading that is not a reading OF a plane.
 
       Every other editor here is fed by `selectedRuns` -- what the outliner has
       selected -- because every other product draws something the outliner
-      lists. These two take the result straight from the studio's props: a wind
-      screening has no plane to select, and selecting the flood raster would
-      still not be selecting the comparison that raster is evidence for.
+      lists. This one takes the result straight from the studio's props:
+      selecting the flood raster would still not be selecting the comparison
+      that raster is evidence for.
 
-      So they show the run in hand, and say so when there is none. Not unique:
+      So it shows the run in hand, and says so when there is none. Not unique:
       two areas on the same reading is two positions in one long scroll, which
       is a comparison, and neither carries a control the other could disagree
       with.
     */
-    solarReading: (
-      <ReadingPanel
-        groups={solarReadingGroups(solarResults)}
-        onClear={onClearSolar ? (key) => onClearSolar(key as SolarProductId) : undefined}
-        empty="No solar result yet. Draw an area, choose a product in the run band, and run it."
-      />
-    ),
-    windReading: (
-      <ReadingPanel
-        groups={windReadingGroups(windResult)}
-        onClear={onClearWind ? () => onClearWind() : undefined}
-        empty="No wind screening yet. Draw an area, then run the wind from the run band."
-      />
-    ),
     floodReading: floodResult ? (
       <FloodReadingColumn
         flood={floodResult}
@@ -4427,13 +4285,11 @@ export function BoardSurface({
       the domain-shift editor beside it has said what it needs all along.
     */
     compare: sides ? (
-          <BoardSolarDetail
+          <BoardPredictionDetail
             placement="area"
             leftOffset="var(--board-left)"
             rightOffset="var(--board-right)"
             focus={detailFocus?.focus ?? null}
-            terrain={detailTerrain}
-            siting={detailSiting}
             prediction={detailPrediction}
             modelKind={detailModel}
             period={detailPeriod}
@@ -4928,16 +4784,15 @@ export function BoardSurface({
           the groups are the map.
 
           IT ALSO STOPS THE BAR RUNNING OUT OF ROOM. Seven tabs and the
-          board's data-block already fill the 1000px minimum window, and the
-          app has editors for solar readings, wind screening and flood
-          envelopes that no arrangement opens yet. A strip cannot take three
-          more. Four group names can take them without growing at all.
+          board's data-block already fill the 1000px minimum window, and a
+          strip cannot take more. Group names can take them without growing at
+          all.
 
           WHICH PRESET IS CURRENT IS STILL ON THE BAR. The group holding it
           carries the ground of the area below -- the same relation the tabs
           had -- and says the preset's own name beside its own, so a reader
-          sees "Land cover / Compare" without opening anything. The other
-          three say only what they are.
+          sees "Land cover / Compare" without opening anything. The others say
+          only what they are.
         */}
         {STUDIO_GROUPS.map((g) => {
           const members = STUDIO_WORKSPACES.filter((w) => w.group === g.id)

@@ -112,8 +112,7 @@
 % does not ask a question to make the reader open the document.
 \setcapacolunas
   {Series, not images}{Sentinel-2 across a period, cloud-filtered and stacked}
-  {One area, six products}{Land cover, compositions, water, solar, wind and
-   flood}
+  {One area, four products}{Land cover, compositions, water and flood}
   {No server}{A desktop application: the scenes come from the catalogue, the
    computation is local}
 
@@ -140,9 +139,9 @@ mean.
 
 \campo{Who it is for} Whoever is going to operate the application. It assumes
 no familiarity with the code or with remote sensing, but it does assume the
-reader knows what they want to measure. Domain terms such as leaf area index,
-Jeffries-Matusita distance and diffuse fraction are used where the screen uses
-them, and defined at the point they first appear.
+reader knows what they want to measure. Domain terms such as the
+Jeffries-Matusita distance are used where the screen uses them, and defined at
+the point they first appear.
 
 \campo{What it does not cover} The derivation of the methods. Where a
 formulation is cited, it comes with the reference and without the development.
@@ -225,10 +224,9 @@ they sit beside the code that produces them.
 \section{What this guide covers}
 
 TERRA classifies land cover from Sentinel-2 time series. Over the same area and
-the same period it also produces band compositions, surface water mapping,
-solar and wind resource estimates, and a flood envelope derived from the
-terrain. The application is desktop: it runs on the user's machine, with no
-server.
+the same period it also produces band compositions, surface water mapping, and
+a flood envelope derived from the terrain. The application is desktop: it runs
+on the user's machine, with no server.
 
 Appendix~\ref{ap:messages} collects the refusal messages and the conditions
 reported during a run, for every task.
@@ -297,8 +295,8 @@ lists any it finds.
 % =====================================================================
 \section{The main screen}
 
-The operating screens for classification, water, energy and flood share the
-same structure. What varies is the content of the left-hand panel and of the
+The operating screens for classification, water and flood share the same
+structure. What varies is the content of the left-hand panel and of the
 result column.
 
 \terrafig{png-images/impressao/central-task-hub.png}
@@ -320,15 +318,14 @@ defines the extent of every subsequent operation.
 
 \campo{3 --- The time window} The bar at the foot of the screen. The axis is
 the same in every mode; what it controls varies. In classification it is the
-scene acquisition period; in wind, the historical record window.
+scene acquisition period.
 
 \campo{4 --- The action panel} Configures the run. The fields vary with the
 operating mode. The column ends in the run button.
 
 \campo{5 --- The operating modes} The navigation column. Modes with
 sub-contexts show them below: \texttt{Map} contains \texttt{Classification},
-\texttt{Compositions} and \texttt{Surface water}; \texttt{Energy} contains
-\texttt{Solar} and \texttt{Wind}.
+\texttt{Compositions} and \texttt{Surface water}.
 
 \campo{6 --- The header} On the left, the project selector, under which saved
 runs and studios are filed. On the right, the coordinates of the map centre,
@@ -479,56 +476,6 @@ proportion.
   {\texttt{Map} $\rightarrow$ \texttt{Surface water}. The proportion of dates
    on which each pixel was classified as water, on a fixed 0 to 1 scale.}
   {fig:water}
-
-\subsection{Solar}
-
-\begin{ficha}
-  \item[Panel] \texttt{Energy} $\rightarrow$ \texttt{Solar}
-  \item[Preconditions] An area. No Sentinel-2 scene is required: the irradiance
-        comes from the NASA POWER record
-  \item[Output] Plane-of-array irradiance, distribution over the terrain,
-        usable area and estimated generation
-\end{ficha}
-
-Two fields have their range checked before the run: the performance ratio,
-refused outside 0 to 1 with \msg{Performance ratio must be between 0 and 1.},
-and the UTC offset, refused outside $-12$ to $+14$ hours with \msg{UTC offset
-must be between -12 and 14 hours.}
-
-\terrafig{png-images/impressao/map-solar.png}
-  {\texttt{Energy} $\rightarrow$ \texttt{Solar}. The result column gathers
-   specific yield, optimum angle and capacity above the detail.}
-  {fig:solar}
-
-\subsection{Wind}
-
-\begin{ficha}
-  \item[Panel] \texttt{Energy} $\rightarrow$ \texttt{Wind}
-  \item[Preconditions] An area. The series is read at the area centroid
-  \item[Output] Speed levels, Weibull fit, power density, shear, seasonality
-        and a direction rose
-\end{ficha}
-
-Resource screening from reanalysis data. The result is a \termo{screening}
-figure: it applies to excluding a site, not to sizing a wind farm.
-
-\terrafig{png-images/impressao/map-wind.png}
-  {\texttt{Energy} $\rightarrow$ \texttt{Wind}. The left-hand panel states, next
-   to each field, the assumptions adopted: roughness is a supposed rather than
-   a measured property, and rotor heights above 50~m are extrapolation. The
-   right-hand column presents levels, shear, seasonality and direction.}
-  {fig:wind}
-
-\begin{aviso}
-The wind screen records that the capacity factor excludes wake, availability,
-electrical losses, icing and curtailment, and that there is no external
-comparison equivalent to the photovoltaic ratio. The values are a screening
-indication, not a generation projection.
-
-The implied roughness is reported as absent when the inversion does not
-converge, rather than replaced by a plausible value. In that case the panel
-states the assumed roughness band.
-\end{aviso}
 
 \subsection{Flood envelope}
 
@@ -939,8 +886,6 @@ process and names the condition encountered.
 \msg{Define an area: draw, search, or load an example.} & no area is defined. Draw, search or import one \\
 \msg{Select a scene first.} & a composition was requested with no scene selected from the list \\
 \msg{No polygon found in the file.} & the imported file holds no polygon geometry \\
-\msg{Performance ratio must be between 0 and 1.} & a solar field is out of range \\
-\msg{UTC offset must be between -12 and 14 hours.} & a solar field is out of range \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -959,9 +904,6 @@ of the error notice for the corresponding task.}
 \msg{no Copernicus DEM tile covers this AOI} & the area lies outside the coverage of the elevation product \\
 \msg{the merged DEM window is empty for this AOI} & the selected products returned no data over the area \\
 \msg{No MapBiomas pixels in the AOI window (empty download).} & the area lies outside MapBiomas coverage \\
-\msg{NASA POWER returned no data for this period} & the irradiance record does not cover the requested period \\
-\msg{NASA POWER request failed after N attempts} & a network failure after the allotted retries \\
-\msg{no complete year in the annual totals} & the period does not close a year, so the annual totals cannot be computed \\
 \bottomrule
 \end{tabular}
 \end{center}

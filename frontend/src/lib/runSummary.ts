@@ -94,27 +94,6 @@ export function runSummaryObject(
 }
 
 /**
- * Which solar product a saved run holds.
- *
- * One store kind covers the resource run, the two raster products and the
- * photovoltaic energy model, and app.go tells them apart by summary_json
- * solar_product, the same key LoadAnalysis discriminates on. Unread, an energy
- * model run and a resource run list under one label with one set of figures. A
- * run written before the key existed carries none and is a resource run, which
- * is what the fallback names.
- */
-export function solarProductLabel(summary?: string | null): string {
-  const product = runSummaryObject(summary).solar_product
-  if (typeof product !== "string") return "Solar resource"
-  if (product === "solar_terrain") return "Terrain and horizon shading"
-  if (product === "solar_siting") return "Photovoltaic siting"
-  // Matched by prefix, not by equality, so the label survives a rename of the
-  // energy product tag without silently falling back to "Solar resource".
-  if (product.startsWith("energy")) return "Photovoltaic energy model"
-  return "Solar resource"
-}
-
-/**
  * The HAND threshold a saved flood envelope was built at.
  *
  * The agreement raster is one threshold's, and every figure in the row is read
@@ -132,8 +111,9 @@ export function modelDisplayName(kind: string): string {
   if (kind === "prithvi") return "Prithvi-EO 2.0"
   if (kind === "spectral" || kind === "") return "Random Forest"
   // Anything else names itself. The old fallback returned Random Forest for
-  // every unknown value, so a solar run recorded as NASA POWER was listed as a
-  // classification by a model that never touched it.
+  // every unknown value, so a descriptive run, recorded under the index or the
+  // source that produced it, was listed as a classification by a model that
+  // never touched it.
   return kind
 }
 
@@ -141,8 +121,8 @@ export function modelDisplayName(kind: string): string {
  * What a saved run produced and over what period, as one line.
  *
  * Shared so that every list of runs describes a kind the same way. The profile
- * page had no branch at all and rendered a wind run's empty acquisition window
- * as a bare arrow, under a model name that never touched it.
+ * page had no branch at all and rendered an empty acquisition window as a bare
+ * arrow, under a model name that never touched it.
  */
 export function runRowLine(run: {
   kind?: string
@@ -152,27 +132,11 @@ export function runRowLine(run: {
   summary?: string | null
   n_dates?: number
 }): string {
-  const j = runSummaryObject(run.summary)
-  const window = (key: string) =>
-    typeof j[key] === "string" && (j[key] as string).trim()
-      ? (j[key] as string)
-      : ""
   switch (run.kind) {
     case "water":
       return [
         `Surface water · ${run.model_kind || "index"}`,
         parseRunSummary(run.summary).dateRange?.join(" → ") ?? "",
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    case "solar":
-      // A climatology has no observed acquisition window, so none is shown.
-      // Emitting the separator regardless left the row ending in an arrow.
-      return `${solarProductLabel(run.summary)} · ${run.model_kind || "NASA POWER"}`
-    case "wind":
-      return [
-        `Wind screening · ${run.model_kind || "NASA POWER MERRA-2"}`,
-        window("record_window"),
       ]
         .filter(Boolean)
         .join(" · ")
@@ -213,8 +177,6 @@ export function runRowLine(run: {
  */
 export function runKindLabel(kind?: string): string {
   if (kind === "water") return "water"
-  if (kind === "solar") return "solar"
-  if (kind === "wind") return "wind"
   if (kind === "flood") return "flood"
   return "class"
 }

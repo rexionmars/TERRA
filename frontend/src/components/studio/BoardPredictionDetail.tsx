@@ -1,5 +1,5 @@
 /**
- * Prediction / solar / brush readout on the studio.
+ * Prediction and brush readout on the studio.
  *
  * Default placement is the foot band above the run controls — legends and
  * multi-AOI land-cover stats live in the right sidebar (BoardStatsBar). The
@@ -9,18 +9,10 @@
  *
  * `sidebar` keeps the older full-height right column when a call site needs it.
  */
-import { CaretDown, PaintBrush, Sun, Stack } from "@phosphor-icons/react"
+import { CaretDown, PaintBrush, Stack } from "@phosphor-icons/react"
 import { BOARD_LEFT_REM, BOARD_RIGHT_REM } from "@/lib/boardPartition"
 import { useMemo, useState } from "react"
-import {
-  ContinuousRamp,
-  PowerProvenanceNote,
-  WaterFigure,
-} from "@/components/analysisPrimitives"
-import {
-  CoverChipList,
-  SkyViewFigures,
-} from "@/components/solar/SolarDetailFigures"
+import { WaterFigure } from "@/components/analysisPrimitives"
 import {
   AgreementDelta,
   BlockAgreementPair,
@@ -30,180 +22,12 @@ import { PlotSwipeView } from "@/components/AnalysisPlotModal"
 import { cn } from "@/lib/utils"
 import type { BrushRadiusPx, ClassMapCompare, ClassProbeSample } from "@/lib/boardProbe"
 import { FALLBACK_PIXEL_SIZE_M, brushFootprint } from "@/lib/boardProbe"
-import type {
-  ClassStat,
-  ModelKind,
-  PredictResult,
-  SolarSitingAnalysis,
-  SolarTerrainAnalysis,
-} from "@/lib/types"
+import type { ClassStat, ModelKind, PredictResult } from "@/lib/types"
 import { modelLabel } from "@/lib/runAssets"
 
 /** Same width as BoardSidebar — one number said on both edges. */
 
-export type BoardDetailFocus = "terrain" | "siting" | "prediction"
-
-function TerrainBody({
-  terrain,
-  compact = false,
-}: {
-  terrain: SolarTerrainAnalysis
-  compact?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "flex gap-3",
-        compact ? "min-w-max flex-row items-start" : "flex-col"
-      )}
-    >
-      <div className={cn("flex flex-col gap-2", compact && "w-[14rem] shrink-0")}>
-        <div className="flex flex-col gap-0.5">
-          <p className="eyebrow !text-[9px]">
-            Terrain irradiation · {terrain.season}
-          </p>
-          <p className="telemetry truncate text-[9px] text-muted-foreground">
-            {terrain.dem_source} · {terrain.hourly_years} years
-          </p>
-        </div>
-
-        <ContinuousRamp
-          palette={terrain.scale.palette}
-          lowLabel={terrain.scale.min.toFixed(terrain.scale.decimals)}
-          highLabel={terrain.scale.max.toFixed(terrain.scale.decimals)}
-        />
-
-        <div className="grid grid-cols-2 gap-2">
-          <WaterFigure label="Minimum" value={terrain.poa_min.toFixed(0)} />
-          <WaterFigure label="Maximum" value={terrain.poa_max.toFixed(0)} />
-          <WaterFigure
-            label="Mean"
-            value={terrain.poa_mean.toFixed(0)}
-            sub={terrain.unit}
-          />
-          <WaterFigure
-            label="Spatial spread"
-            value={`${terrain.poa_std_pct.toFixed(1)}%`}
-            sub="standard deviation"
-          />
-          <WaterFigure
-            label="Mean slope"
-            value={`${terrain.slope_mean_deg.toFixed(1)}°`}
-            sub={`max ${terrain.slope_max_deg.toFixed(1)}°`}
-          />
-          {terrain.shading_mean_pct != null && (
-            <WaterFigure
-              label="Horizon shading"
-              value={`${terrain.shading_mean_pct.toFixed(2)}%`}
-              sub={
-                terrain.shading_max_pct != null
-                  ? `max ${terrain.shading_max_pct.toFixed(1)}% of beam`
-                  : "of beam irradiance"
-              }
-            />
-          )}
-        </div>
-
-        {terrain.beam_fraction > 0 && (
-          <p className="text-[10px] leading-snug text-muted-foreground">
-            <span className="telemetry">
-              Beam share {(terrain.beam_fraction * 100).toFixed(0)}%
-            </span>{" "}
-            of horizontal · shading applies to this component
-          </p>
-        )}
-      </div>
-
-      {(terrain.sky_view || terrain.power_provenance) && (
-        <div className={cn("flex flex-col gap-2", compact && "w-[16rem] shrink-0")}>
-          {terrain.sky_view && <SkyViewFigures sky={terrain.sky_view} />}
-          <PowerProvenanceNote provenance={terrain.power_provenance} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SitingBody({
-  siting,
-  compact = false,
-}: {
-  siting: SolarSitingAnalysis
-  compact?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "flex gap-3",
-        compact ? "min-w-max flex-row items-start" : "flex-col"
-      )}
-    >
-      <div className={cn("flex flex-col gap-2", compact && "w-[14rem] shrink-0")}>
-        <p className="eyebrow !text-[9px]">Photovoltaic siting</p>
-
-        <div className="grid grid-cols-2 gap-2">
-          <WaterFigure
-            label="Suitable, no conflict"
-            value={`${siting.suitable_no_conflict_ha.toFixed(1)} ha`}
-          />
-          <WaterFigure
-            label="Suitable, on cropland"
-            value={`${siting.suitable_cropland_ha.toFixed(1)} ha`}
-            sub="never summed"
-          />
-        </div>
-
-        <p className="text-[10px] leading-snug text-muted-foreground">
-          <span className="telemetry">
-            Slope limits {siting.thresholds.slope_acceptable_deg}° /{" "}
-            {siting.thresholds.slope_restrictive_deg}°
-          </span>{" "}
-          · legal constraints not checked
-        </p>
-      </div>
-
-      {/*
-        Withheld in the band. legendFor("solar:siting") builds the same list
-        from the same classes, and the right column draws it -- so a siting
-        plane painted its composition twice, once per surface. PredictionBody
-        already conceded this for its own class list; this one had not.
-      */}
-      <ul
-        className={cn(
-          "flex flex-col gap-1.5",
-          compact ? "hidden" : undefined
-        )}
-      >
-        {siting.classes.map((c) => (
-          <li key={c.code} className="flex items-center gap-2 text-xs">
-            <span
-              className="size-2.5 shrink-0 rounded-[2px]"
-              style={{ backgroundColor: c.color }}
-            />
-            <span className="min-w-0 flex-1 truncate">{c.name}</span>
-            <span className="telemetry w-14 shrink-0 text-right">
-              {c.area_ha.toFixed(1)} ha
-            </span>
-            <span className="telemetry w-10 shrink-0 text-right text-muted-foreground">
-              {c.pct.toFixed(1)}%
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <div className={cn("flex flex-col gap-2", compact && "w-[12rem] shrink-0")}>
-        <CoverChipList
-          label="Excluded cover"
-          codes={siting.thresholds.excluded_cover}
-        />
-        <CoverChipList
-          label="Cropland cover"
-          codes={siting.thresholds.cropland_cover}
-        />
-      </div>
-    </div>
-  )
-}
+export type BoardDetailFocus = "prediction"
 
 function CompactMatrix({
   title = "Confusion matrix",
@@ -905,10 +729,8 @@ function PredictionCompareBody({
   )
 }
 
-export function BoardSolarDetail({
+export function BoardPredictionDetail({
   focus,
-  terrain,
-  siting,
   prediction,
   modelKind,
   period,
@@ -931,8 +753,6 @@ export function BoardSolarDetail({
   rightOffset = `${BOARD_RIGHT_REM}rem`,
 }: {
   focus: BoardDetailFocus | null
-  terrain?: SolarTerrainAnalysis | null
-  siting?: SolarSitingAnalysis | null
   prediction?: PredictResult | null
   modelKind?: ModelKind | string | null
   period?: string | null
@@ -978,10 +798,6 @@ export function BoardSolarDetail({
       compareError={compareError}
       compact={placement !== "sidebar"}
     />
-  ) : focus === "terrain" && terrain ? (
-    <TerrainBody terrain={terrain} compact={placement !== "sidebar"} />
-  ) : focus === "siting" && siting ? (
-    <SitingBody siting={siting} compact={placement !== "sidebar"} />
   ) : focus === "prediction" && prediction ? (
     <PredictionBody
       result={prediction}
@@ -998,22 +814,17 @@ export function BoardSolarDetail({
     />
   ) : (
     <p className="text-meta leading-snug text-muted-foreground">
-      Select a prediction or solar plane to read its figures. Shift-select a
-      second prediction to compare.
+      Select a prediction plane to read its figures. Shift-select a second
+      prediction to compare.
     </p>
   )
 
   const title = comparing
     ? "Compare"
-    : focus === "terrain"
-      ? "Irradiation"
-      : focus === "siting"
-        ? "Siting"
-        : focus === "prediction"
-          ? "Prediction"
-          : "Detail"
+    : focus === "prediction"
+      ? "Prediction"
+      : "Detail"
 
-  const TitleIcon = focus === "prediction" || comparing ? Stack : Sun
   const showBrushToggle =
     !comparing &&
     focus === "prediction" &&
@@ -1026,7 +837,7 @@ export function BoardSolarDetail({
       style={{ borderColor: "rgb(var(--p-line) / 0.22)" }}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <TitleIcon className="size-3 shrink-0 text-primary" />
+        <Stack className="size-3 shrink-0 text-primary" />
         <span className="eyebrow !text-foreground">{title}</span>
       </div>
       {showBrushToggle && (
@@ -1122,10 +933,10 @@ export function BoardSolarDetail({
           strip carries a short rule, the way a resizable edge is marked, and
           the chevron beside it collapses the band outright.
 
-          The band is FIXED, not dismissible: this studio holds land cover,
-          solar and wind, and each fills it differently. Collapsing leaves the
-          grip in place, so the surface that was folded is the surface that
-          unfolds it.
+          The band is FIXED, not dismissible: what fills it changes with the
+          selection -- a prediction, a comparison, the brush -- and collapsing
+          leaves the grip in place, so the surface that was folded is the
+          surface that unfolds it.
 
           Pointer capture, so a drag that leaves the strip -- which every drag
           does, since the band moves out from under the pointer -- keeps

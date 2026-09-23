@@ -240,15 +240,15 @@ func TestBreakdownsAgreeWithTheTotal(t *testing.T) {
 	// Two kinds, and two file types within one analysis.
 	writeRunAssets(t, s, "run-class", 1000)
 	insertRun(t, s, LocalUserID, "run-class", "A classification")
-	writeRunAssets(t, s, "run-solar", 3000)
-	insertRun(t, s, LocalUserID, "run-solar", "A solar study")
+	writeRunAssets(t, s, "run-water", 3000)
+	insertRun(t, s, LocalUserID, "run-water", "A water study")
 	if _, err := s.db.Exec(
-		`UPDATE inference_runs SET kind = ? WHERE id = ?`, RunKindSolar, "run-solar",
+		`UPDATE inference_runs SET kind = ? WHERE id = ?`, RunKindWater, "run-water",
 	); err != nil {
 		t.Fatal(err)
 	}
 	// A GeoTIFF beside a PNG, so the file-type cut has more than one row.
-	tif := filepath.Join(s.dataDir, "runs", "run-solar", "raster.tif")
+	tif := filepath.Join(s.dataDir, "runs", "run-water", "raster.tif")
 	if err := os.WriteFile(tif, make([]byte, 500), 0o600); err != nil {
 		t.Fatal(err)
 	}

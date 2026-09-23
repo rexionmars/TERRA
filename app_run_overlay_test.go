@@ -14,11 +14,11 @@ import (
 Every product that writes a raster records which one it is.
 
 The column exists to answer "which of this run's files is the image to show",
-and it was answered by two products out of five: water and the two solar
-rasters wrote a PNG and left the column NULL, so a reader of it would have been
-right for a fifth of the table and silently wrong for the rest. That is why no
-reader was ever written, and why the run list loads a whole result to reach an
-image already sitting on disk.
+and it was answered by two products out of five: the others that wrote a PNG
+left the column NULL, so a reader of it would have been right for a fifth of
+the table and silently wrong for the rest. That is why no reader was ever
+written, and why the run list loads a whole result to reach an image already
+sitting on disk.
 
 Asserted by walking the run's asset directory rather than by naming the file
 each product writes. A test that repeated those names would agree with itself
@@ -37,26 +37,6 @@ func TestEveryRasterRunRecordsItsOverlay(t *testing.T) {
 					analysis.WaterRequest{Label: "AOI"},
 					&analysis.WaterAnalysis{OccurrenceURI: onePixelPNG},
 				)
-			},
-		},
-		{
-			name: "solar terrain",
-			persist: func(a *App) string {
-				res := &analysis.SolarTerrainAnalysis{OverlayURI: onePixelPNG}
-				stored := *res
-				stored.OverlayURI = ""
-				return a.persistSolarRaster(nil, "AOI", "", "", "",
-					"solar_terrain", "annual", &stored, res.OverlayURI, 0)
-			},
-		},
-		{
-			name: "solar siting",
-			persist: func(a *App) string {
-				res := &analysis.SolarSitingAnalysis{OverlayURI: onePixelPNG}
-				stored := *res
-				stored.OverlayURI = ""
-				return a.persistSolarRaster(nil, "AOI", "", "", "",
-					"solar_siting", "siting", &stored, res.OverlayURI, 0)
 			},
 		},
 		{
@@ -101,13 +81,18 @@ func TestEveryRasterRunRecordsItsOverlay(t *testing.T) {
 	}
 }
 
-// A product whose whole result is figures records no overlay, and the empty
-// column is the right answer rather than an omission.
-func TestFigureOnlyRunRecordsNoOverlay(t *testing.T) {
+// A run that wrote no image records no overlay, and the empty column is the
+// right answer rather than an omission.
+//
+// The flood envelope is the product that reaches this: it claims its rendering
+// only when there is one to write, and a result whose agreement raster could
+// not be read carries every figure and no picture. Named unconditionally, the
+// column would point at a file the run never produced.
+func TestRunWithoutAnImageRecordsNoOverlay(t *testing.T) {
 	a := newTestApp(t)
-	runID := a.persistSolarRun(
-		analysis.SolarRequest{Label: "AOI"},
-		&analysis.SolarAnalysis{},
+	runID := a.persistFloodRun(
+		analysis.FloodRequest{Label: "AOI"},
+		&analysis.FloodAnalysis{},
 	)
 	if runID == "" {
 		t.Fatal("nothing was saved")

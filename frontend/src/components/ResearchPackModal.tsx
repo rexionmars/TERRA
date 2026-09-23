@@ -96,10 +96,9 @@ export function ResearchPackModal({
 
   /**
    * The run-metadata block of the manifest written by BuildResearchPackZIP.
-   * The per-product keys that exporter adds after it — the solar, terrain,
-   * energy and wind figures, each with the assumption that produced it — are
-   * not listed here, so this is a preview of the manifest's head rather than
-   * the whole of it.
+   * The per-product keys that exporter adds after it — the water and flood
+   * figures, each with the assumption that produced it — are not listed here,
+   * so this is a preview of the manifest's head rather than the whole of it.
    */
   const manifestRows = useMemo(() => {
     if (!result) return []
@@ -161,9 +160,9 @@ export function ResearchPackModal({
     setExporting(true)
     try {
       // Strip the bulky data URIs through the helper the analysis page also
-      // calls. Inlined here, this path kept sending solar_terrain.overlay_uri
-      // and solar_siting.overlay_uri while the other stripped them, so the two
-      // buttons in the same row put payloads of different sizes on the bridge.
+      // calls. Inlined here, this path kept sending two overlay URIs the other
+      // stripped, so the two buttons in the same row put payloads of different
+      // sizes on the bridge.
       const pack = stripResearchPackRasters(result)
       const dest = await ExportResearchPack(
         {

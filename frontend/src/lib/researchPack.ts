@@ -7,9 +7,9 @@
  * megabytes of raster.
  *
  * It lives in one function because the two export paths drifted: the analysis
- * page stripped the two solar rasters and the research pack modal, reaching the
- * same binding from the same button row, did not. A third caller cannot
- * reintroduce that difference without editing this file.
+ * page stripped two rasters that the research pack modal, reaching the same
+ * binding from the same button row, did not. A third caller cannot reintroduce
+ * that difference without editing this file.
  */
 import type { PredictResult } from "@/lib/types"
 
@@ -25,11 +25,5 @@ export function stripResearchPackRasters(result: PredictResult) {
     water: result.water
       ? { ...result.water, occurrence_uri: "" }
       : result.water,
-    solar_terrain: result.solar_terrain
-      ? { ...result.solar_terrain, overlay_uri: "" }
-      : result.solar_terrain,
-    solar_siting: result.solar_siting
-      ? { ...result.solar_siting, overlay_uri: "" }
-      : result.solar_siting,
   }
 }

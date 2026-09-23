@@ -360,11 +360,10 @@ export function OverlayToolsPanel(props: OverlayToolsPanelProps) {
               title="Generated overlays"
             >
               {cards.length === 0 ? (
-                // Names every run that puts a card here. Solar leaving does not
-                // make the old sentence true: surface water still produces a
-                // card and is neither a classification nor a composition, so a
-                // user with a water raster on the map was told to do two things
-                // that would not have produced it.
+                // Names every run that puts a card here: surface water produces
+                // a card and is neither a classification nor a composition, so
+                // a user with a water raster on the map was told to do two
+                // things that would not have produced it.
                 <p className="text-[11px] text-muted-foreground">
                   No overlays yet — classify, map surface water, or apply a
                   composition.

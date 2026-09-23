@@ -675,7 +675,7 @@ export function ProfilePage({
               <SettingRow
                 id="account.activity"
                 title="Activity"
-                description="Runs per day over the last year. A run is one classification, composition, water, solar or wind analysis."
+                description="Runs per day over the last year. A run is one classification, composition, water or flood analysis."
                 focused={focusedSetting === "account.activity"}
                 onFocus={() => setFocusedSetting("account.activity")}
               >

@@ -22,8 +22,7 @@
  * they chose, and the cadence that follows from the toggle beside them.
  */
 import { MODEL_OPTIONS } from "@/lib/classifyOptions"
-import type { SolarProductId } from "@/lib/energyState"
-import { energyFamily, type BoardToolId, type EnergyProductId } from "@/lib/mapTools"
+import type { BoardToolId } from "@/lib/mapTools"
 import type { ModelKind } from "@/lib/types"
 
 export interface MethodSection {
@@ -49,27 +48,11 @@ export interface MethodBrief {
 
 export interface MethodInputs {
   tool: BoardToolId
-  /** Which energy product, when the tool is Energy. */
-  energyProduct?: EnergyProductId | null
   modelKind: ModelKind
   start: string
   end: string
   maxCloud: number
   monthlyBest: boolean
-  solar?: {
-    product: SolarProductId
-    hourlyYears: number
-    season: string
-    slopeAcceptableDeg: number
-    slopeRestrictiveDeg: number
-  }
-  wind?: {
-    recordYears: number
-    hubHeightM: number
-    calmThresholdMS: number
-    roughnessLowM: number
-    roughnessHighM: number
-  }
   flood?: {
     demIds: string[]
     referenceThresholdM: number
@@ -265,107 +248,6 @@ function composeBrief(i: MethodInputs): MethodBrief {
   }
 }
 
-function solarBrief(i: MethodInputs): MethodBrief {
-  const s = i.solar
-  if (s?.product === "siting") {
-    return {
-      subtitle: "Photovoltaic siting classes on the DEM grid",
-      source: "sidecar/infer.py · compute_siting",
-      sections: [
-        {
-          title: "Terrain",
-          lines: [
-            "Copernicus DEM GLO-30",
-            "slope from the elevation grid",
-            `acceptable below ${s.slopeAcceptableDeg}°, restrictive below ${s.slopeRestrictiveDeg}°`,
-          ],
-        },
-        {
-          title: "Cover",
-          lines: [
-            "MapBiomas land cover for the area",
-            "excluded and cropland classes withheld from the siting classes",
-          ],
-        },
-        {
-          title: "Output",
-          lines: ["siting classes and the area of each"],
-          note: "The same classification backs the capacity figure in the energy model, so a stated area and the raster it came from cannot disagree.",
-        },
-      ],
-    }
-  }
-
-  return {
-    subtitle: "Plane-of-array irradiation over this area's terrain",
-    source: "sidecar/terra/energy",
-    sections: [
-      {
-        title: "Record",
-        lines: [
-          "NASA POWER: radiation from SYN1DEG, meteorology from MERRA-2",
-          `hourly over the last ${s?.hourlyYears ?? 10} years`,
-          "cached per grid cell, so a repeated area does not refetch",
-        ],
-        note: "Surface irradiance is not retrievable from Sentinel-2: no broadband radiometer, a 5-day revisit and a fixed overpass. This product reads a different family entirely.",
-      },
-      {
-        title: "Terrain",
-        lines: [
-          "Copernicus DEM GLO-30",
-          "slope, aspect and the horizon at each cell",
-        ],
-      },
-      {
-        title: "Transposition",
-        lines: [
-          "plane-of-array lookup over tilt and azimuth",
-          "interpolated onto each cell's own slope and aspect, in kWh/m2",
-          s?.season ? `season: ${s.season}` : "over the whole record",
-        ],
-      },
-    ],
-  }
-}
-
-function windBrief(i: MethodInputs): MethodBrief {
-  const w = i.wind
-  return {
-    subtitle: "Wind resource screening at hub height",
-    source: "sidecar/terra/energy · wind screening",
-    sections: [
-      {
-        title: "Record",
-        lines: [
-          "NASA POWER hourly wind at the area's centroid",
-          w ? `${w.recordYears} years of record` : "the configured record",
-          "no Sentinel-2 is read: the resource is a wind field, not a surface",
-        ],
-      },
-      {
-        title: "Extrapolation",
-        lines: [
-          w ? `hub height ${w.hubHeightM} m` : "the configured hub height",
-          w
-            ? `surface roughness swept from ${w.roughnessLowM} to ${w.roughnessHighM} m`
-            : "surface roughness swept across a range",
-          "the range is reported rather than one roughness chosen, because the class is not observed here",
-        ],
-      },
-      {
-        title: "Output",
-        lines: [
-          w
-            ? `hours below ${w.calmThresholdMS} m/s reported as calm`
-            : "calm hours reported against the configured threshold",
-          "a screening, not a siting study",
-        ],
-        note: "The extrapolation is a log profile over an assumed roughness. Two roughness values that both fit the ground give materially different hub-height speeds, which is why the sweep is reported instead of a single figure.",
-      },
-    ],
-  }
-}
-
 function floodBrief(i: MethodInputs): MethodBrief {
   const f = i.flood
   return {
@@ -418,26 +300,5 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return composeBrief(i)
     case "flood":
       return floodBrief(i)
-    /*
-      One tab, two briefs, and the product decides which.
-
-      The brief documents a chain of computation, and the two energy families
-      do not share one: irradiation over terrain is a model of the sky and the
-      ground, and a wind screening is a log profile extrapolated over an
-      assumed roughness. Merging the band entry did not merge the methods, so
-      this asks the product which slice answers rather than assuming the tab
-      did.
-    */
-    case "energy":
-      switch (i.energyProduct ? energyFamily(i.energyProduct) : null) {
-        case "solar":
-          return solarBrief(i)
-        case "wind":
-          return windBrief(i)
-        default:
-          // No product chosen yet. The solar brief is the one the band opens
-          // on, so it is what the panel beside it should already be showing.
-          return solarBrief(i)
-      }
   }
 }

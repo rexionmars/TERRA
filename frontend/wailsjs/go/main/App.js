@@ -10,10 +10,6 @@ export function AnalyzeDomainShiftCohort(arg1) {
   return window['go']['main']['App']['AnalyzeDomainShiftCohort'](arg1);
 }
 
-export function AnalyzeEnergyModel(arg1) {
-  return window['go']['main']['App']['AnalyzeEnergyModel'](arg1);
-}
-
 export function AnalyzeFlood(arg1) {
   return window['go']['main']['App']['AnalyzeFlood'](arg1);
 }
@@ -26,28 +22,12 @@ export function AnalyzeLULC(arg1) {
   return window['go']['main']['App']['AnalyzeLULC'](arg1);
 }
 
-export function AnalyzeSolar(arg1) {
-  return window['go']['main']['App']['AnalyzeSolar'](arg1);
-}
-
-export function AnalyzeSolarSiting(arg1) {
-  return window['go']['main']['App']['AnalyzeSolarSiting'](arg1);
-}
-
-export function AnalyzeSolarTerrain(arg1) {
-  return window['go']['main']['App']['AnalyzeSolarTerrain'](arg1);
-}
-
 export function AnalyzeSurfaceModel(arg1) {
   return window['go']['main']['App']['AnalyzeSurfaceModel'](arg1);
 }
 
 export function AnalyzeWater(arg1) {
   return window['go']['main']['App']['AnalyzeWater'](arg1);
-}
-
-export function AnalyzeWind(arg1) {
-  return window['go']['main']['App']['AnalyzeWind'](arg1);
 }
 
 export function BuildManagedEnvironment(arg1) {

@@ -57,7 +57,7 @@ func TestRunActivityCountsPerDay(t *testing.T) {
 func TestRunActivityIsPerUser(t *testing.T) {
 	s := openTestStore(t)
 	if _, err := s.SaveRun(InferenceRun{
-		UserID: LocalUserID, Kind: RunKindSolar, ModelKind: "test",
+		UserID: LocalUserID, Kind: RunKindWater, ModelKind: "test",
 		PolygonGeoJSON: "{}", Status: "ok", SummaryJSON: "{}",
 		ResultJSON: "{}", NDates: 1,
 	}); err != nil {

@@ -63,13 +63,13 @@ import { NODE_W, PORT_Y, type Place } from "./runGraph"
  * A CEILING RATHER THAN A CONSTANT, AND THE FIXED VERSION FAILED IN THE APP.
  * It was this width at both ends of every wire, and the card at the head of a
  * fan was grown tall enough to be landed on by all of them. On a four-input
- * graph that reads. The energy model takes EIGHT, and the run node -- a card
- * whose contents are a button and a method link -- was stretched past three
- * hundred pixels of empty body to be met by them.
+ * graph that reads. A graph of eight inputs stretched the run node -- a card
+ * whose contents are a button and a method link -- past three hundred pixels
+ * of empty body to be met by them.
  *
  * So a wire is as wide as it needs to be AT EACH END, and the two ends differ:
  * a card that feeds only the run gives its wire the full width to write the
- * reading in, and the run node gives each of its eight arrivals an eighth of
+ * reading in, and the run node gives each of its arrivals an equal share of
  * its own side. Neither number is a quantity about the datum -- every wire
  * meeting the same card at the same end is the same width, so a comparison
  * between two of them still reads as nothing.

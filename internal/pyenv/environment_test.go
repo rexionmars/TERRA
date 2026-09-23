@@ -33,9 +33,11 @@ cat <<'JSON'
  "packages":[
   {"module":"numpy","distribution":"numpy","blocks":"every product",
    "optional":false,"present":true,"version":"2.3.5"},
-  {"module":"pvlib","distribution":"pvlib","blocks":"the photovoltaic model",
+  {"module":"sklearn","distribution":"scikit-learn",
+   "blocks":"the Random Forest classification",
    "optional":false,"present":false},
-  {"module":"pyarrow","distribution":"pyarrow","blocks":"the POWER cache",
+  {"module":"torch","distribution":"torch",
+   "blocks":"Temporal Transformer and Prithvi",
    "optional":true,"present":false}]}
 JSON
 `
@@ -53,11 +55,11 @@ JSON
 	if rep.PythonVersion != "3.12.7" {
 		t.Fatalf("python_version=%q", rep.PythonVersion)
 	}
-	// The optional gap must not be counted as blocking: pyarrow missing costs
-	// the cache, it does not stop a run.
+	// The optional gap must not be counted as blocking: torch missing costs
+	// the two models that need it, it does not stop a run.
 	missing := rep.MissingRequired()
-	if len(missing) != 1 || missing[0].Distribution != "pvlib" {
-		t.Fatalf("MissingRequired=%v, want only pvlib", missing)
+	if len(missing) != 1 || missing[0].Distribution != "scikit-learn" {
+		t.Fatalf("MissingRequired=%v, want only scikit-learn", missing)
 	}
 	if rep.Executable != py {
 		t.Fatalf("Executable=%q, want the path we asked about", rep.Executable)

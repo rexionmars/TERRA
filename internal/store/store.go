@@ -96,24 +96,21 @@ type InferenceRun struct {
 // readers select COALESCE(kind,'classification'), so a database written before
 // a kind existed keeps working and rows of the new kind are simply new rows.
 // What a new kind does require is that every reader branching on these literals
-// gains its case, which is the failure the wind kind was added to avoid: filed
-// under RunKindSolar a wind run listed as solar, printed the solar summary line
-// and reopened as an empty solar card, with nothing raising an error.
+// gains its case. A product filed under another product's kind lists as that
+// product, prints its summary line and reopens as an empty card of it, with
+// nothing raising an error; that shipped once, and it is why each product has a
+// kind of its own.
+//
+// Removing a value is the direction that does need a step, because the rows
+// stay and no reader has a case for them any more. See retiredRunKinds.
 const (
 	RunKindClassification = "classification"
 	RunKindWater          = "water"
-	RunKindSolar          = "solar"
-	// Wind screening. Its own kind rather than a product inside RunKindSolar:
-	// it comes from a different product on a different grid, its capacity
-	// factor is gross and unvalidated, and the solar readers would label it as
-	// though it were neither.
-	RunKindWind = "wind"
 	// A HAND flood envelope: the extent per DEM product and the agreement
-	// count raster that says where the products disagree. Its own kind for the
-	// same reason wind has one -- it comes from DEM products rather than from a
-	// reanalysis or a scene stack, it carries a raster the other descriptive
-	// kinds do not, and a run filed under any of them would be listed and
-	// reopened as that product.
+	// count raster that says where the products disagree. Its own kind because
+	// it comes from DEM products rather than from a scene stack, it carries a
+	// raster the other descriptive kinds do not, and a run filed under either
+	// of them would be listed and reopened as that product.
 	RunKindFlood = "flood"
 )
 
@@ -929,13 +926,14 @@ CREATE INDEX IF NOT EXISTS idx_runs_project_created ON inference_runs(project_id
 		return err
 	}
 	/*
-		The three things that accumulate on their own. See maintenance.go.
+		What this build can no longer read, and the two things that accumulate
+		on their own. See maintenance.go.
 
-		Last, and in this order: the strip is what makes the free pages the
+		Last, and in this order: the purge is what makes the free pages the
 		compaction then reclaims, and both are done before the snapshots are
 		pruned so a failure in either leaves the most recent copy where it is.
 	*/
-	if err := s.stripStoredOverlayURIs(); err != nil {
+	if err := s.purgeRetiredRunKinds(); err != nil {
 		return err
 	}
 	if err := s.compactIfFragmented(); err != nil {
