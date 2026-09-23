@@ -52,11 +52,11 @@ def reference_pixel_size_m(profile):
     class_statistics for hectares and the brush probe in the studio -- each
     carried their own copy of the literal 10.
 
-    NOT terra.terrain.hand.pixel_size_m, which converts DEGREES to metres for
-    DEM and would multiply this grid by 111320. The reference grid comes from a
-    Sentinel-2 COG in UTM, so its transform is already in metres; the
-    geographic branch below exists for a local product that is not, and is an
-    approximation at the grid's own latitude in the way that one is.
+    A projected grid is read as it stands. The reference grid comes from a
+    Sentinel-2 COG in UTM, so its transform is already in metres, and a
+    degrees-to-metres conversion applied to it would multiply this grid by
+    111320. The geographic branch below exists for a local product that is not
+    in metres, and is an approximation at the grid's own latitude.
     """
     transform = profile['transform']
     side = abs(float(transform.a))

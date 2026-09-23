@@ -112,7 +112,7 @@
 % does not ask a question to make the reader open the document.
 \setcapacolunas
   {Series, not images}{Sentinel-2 across a period, cloud-filtered and stacked}
-  {One area, four products}{Land cover, compositions, water and flood}
+  {One area, three products}{Land cover, compositions and water}
   {No server}{A desktop application: the scenes come from the catalogue, the
    computation is local}
 
@@ -224,9 +224,8 @@ they sit beside the code that produces them.
 \section{What this guide covers}
 
 TERRA classifies land cover from Sentinel-2 time series. Over the same area and
-the same period it also produces band compositions, surface water mapping, and
-a flood envelope derived from the terrain. The application is desktop: it runs
-on the user's machine, with no server.
+the same period it also produces band compositions and surface water mapping.
+The application is desktop: it runs on the user's machine, with no server.
 
 Appendix~\ref{ap:messages} collects the refusal messages and the conditions
 reported during a run, for every task.
@@ -295,7 +294,7 @@ lists any it finds.
 % =====================================================================
 \section{The main screen}
 
-The operating screens for classification, water and flood share the same
+The operating screens for classification and water share the same
 structure. What varies is the content of the left-hand panel and of the
 result column.
 
@@ -402,7 +401,7 @@ filed under the active project.
 % =====================================================================
 \section{The other products}
 
-All of them start from the same area and the same time axis as
+Both start from the same area and the same time axis as
 figure~\ref{fig:anatomy}, and each replaces the action panel with its own.
 
 \subsection{Band compositions}
@@ -476,37 +475,6 @@ proportion.
   {\texttt{Map} $\rightarrow$ \texttt{Surface water}. The proportion of dates
    on which each pixel was classified as water, on a fixed 0 to 1 scale.}
   {fig:water}
-
-\subsection{Flood envelope}
-
-\begin{ficha}
-  \item[Panel] \texttt{Flood envelope}
-  \item[Preconditions] An area, and at least two elevation products selected
-  \item[Output] The envelope by threshold, an agreement raster, and a per-run
-        assumptions block
-\end{ficha}
-
-Flood extent is derived from the terrain, from the height of each cell above
-the drainage it flows to. Disagreement between elevation products is reported
-as the uncertainty rather than aggregated into a mean.
-
-\terrafig{png-images/impressao/flood-envelope.png}
-  {\texttt{Flood envelope}. The reading is presented in collapsible blocks:
-   agreement over the area, the products used, the envelope by threshold, and
-   the assumptions.}
-  {fig:flood}
-
-\begin{objecao}
-A threshold in metres orders relative susceptibility. It does not correspond to
-water depth, extent or probability: rainfall, discharge, propagation and
-channel geometry do not enter the calculation. The figure shows where the
-result depends on the choice of elevation product.
-
-The product set here differs from the one published in the reference study. The
-catalogue this application reads carries no SRTMGL1, and ALOS World 3D stands
-in its place. The range measured here is over that different set, and the
-published range does not apply to it.
-\end{objecao}
 
 % =====================================================================
 \section{The Studio}
@@ -770,28 +738,6 @@ application adopts on opening.}
 \end{tabular}
 \end{center}
 
-\subsection{Flood envelope}
-
-\begin{center}
-\captionof{table}{Parameters of \texttt{Flood envelope}. The first two are the
-reference values of the study; each run's \texttt{assumptions} block states
-whether the value used was the default or the operator's.}
-\label{tab:floodparam}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{3.4cm}L{2.7cm}L{2.9cm}L{6.3cm}@{}}
-\toprule
-\textbf{Parameter} & \textbf{Default} & \textbf{Range} & \textbf{Effect} \\
-\midrule
-Elevation products & all four & at least two & Copernicus GLO-30, NASADEM, ALOS World 3D and Copernicus GLO-90. One product yields an extent with no measure of how much of it follows from the choice of product \\
-Reference threshold & 1.0~m & not negative & height above the drainage at which the agreement raster is built \\
-Drainage area & 0.5~km$^2$ & above zero & contributing area above which a cell counts as drainage. At zero every cell is drainage and the extent is the whole area at any threshold \\
-Buffer & derived & not negative & metres read beyond the area \\
-Inset margin & derived & not negative & width of the ring cut from inside the polygon for the inset statistics \\
-\bottomrule
-\end{tabular}
-\end{center}
-
 \section{Interface reference}
 
 \subsection{Interpreter origins}
@@ -901,8 +847,6 @@ of the error notice for the corresponding task.}
 \textbf{Condition} & \textbf{Reading} \\
 \midrule
 \msg{No scenes found for this period / cloud filter.} & no scene passed the filter. Widen the period or raise the accepted cloud cover \\
-\msg{no Copernicus DEM tile covers this AOI} & the area lies outside the coverage of the elevation product \\
-\msg{the merged DEM window is empty for this AOI} & the selected products returned no data over the area \\
 \msg{No MapBiomas pixels in the AOI window (empty download).} & the area lies outside MapBiomas coverage \\
 \bottomrule
 \end{tabular}

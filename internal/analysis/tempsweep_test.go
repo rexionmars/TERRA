@@ -38,11 +38,10 @@ func TestSweepTempArtifactsRemovesOnlyAgedEntries(t *testing.T) {
 	// return and so must never be a candidate, plus something this program did
 	// not create at all.
 	oldRun := filepath.Join(tempDir, "terra-run-aged")
-	oldFlood := filepath.Join(tempDir, "terra-flood-aged")
 	freshRun := filepath.Join(tempDir, "terra-run-recent")
 	oldWater := filepath.Join(tempDir, "terra-water-aged")
 	foreign := filepath.Join(tempDir, "someone-elses-aged")
-	for _, d := range []string{oldRun, oldFlood, freshRun, oldWater, foreign} {
+	for _, d := range []string{oldRun, freshRun, oldWater, foreign} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -56,11 +55,11 @@ func TestSweepTempArtifactsRemovesOnlyAgedEntries(t *testing.T) {
 		}
 	}
 
-	if got := sweepTempArtifacts(tempDir, retention); got != 3 {
-		t.Fatalf("removed %d entries, want 3", got)
+	if got := sweepTempArtifacts(tempDir, retention); got != 2 {
+		t.Fatalf("removed %d entries, want 2", got)
 	}
 
-	for _, gone := range []string{oldExport, oldRun, oldFlood} {
+	for _, gone := range []string{oldExport, oldRun} {
 		if _, err := os.Stat(gone); !os.IsNotExist(err) {
 			t.Errorf("%s survived the sweep", filepath.Base(gone))
 		}

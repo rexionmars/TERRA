@@ -32,11 +32,8 @@ ACTIONS: dict[str, str] = {
     'domain_shift': 'terra.landcover.actions:domain_shift',
     'domain_shift_cohort': 'terra.landcover.actions:domain_shift_cohort',
     'water': 'terra.water.actions:water',
-    'flood_envelope': 'terra.flood.actions:flood_envelope',
-    'flood_routing': 'terra.flood.actions:flood_routing',
     'list_datacube': 'terra.scenes.actions:list_datacube',
     'render_composite': 'terra.scenes.actions:render_composite',
-    'surface_model': 'terra.surface.actions:surface_model',
 }
 
 DEFAULT_ACTION = 'predict'

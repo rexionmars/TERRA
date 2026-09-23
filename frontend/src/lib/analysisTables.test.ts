@@ -5,9 +5,8 @@
  * backend/export_parity_test.go already reads that module and fails when a
  * table's name, its column keys or their order stop agreeing with the Go
  * writer. It says nothing about what goes IN a row, and that is where the
- * rules are: a threshold flag is written as text, an unrecorded resampling is
- * an empty cell rather than false, a missing count becomes 0 while a missing
- * measurement stays empty. Any of those could invert with the parity check
+ * rules are: a threshold flag is written as text, a missing count becomes 0
+ * while a missing measurement stays empty. Any of those could invert with the parity check
  * still green, and the exported CSV would carry a number that reads as a
  * measurement.
  *
@@ -21,9 +20,6 @@ import {
   allAnalysisTables,
   classStatsTable,
   domainFingerprintTable,
-  floodEnvelopeTable,
-  floodPairsTable,
-  floodProductsTable,
   formatNumber,
   hasPhenology,
   lulcCompositionTable,
@@ -41,7 +37,6 @@ import {
 import type {
   ClassStat,
   DomainFingerprint,
-  FloodAnalysis,
   LULCAnalysis,
   PhenologyMetrics,
   PredictResult,
@@ -51,8 +46,8 @@ import type {
 /**
  * A response carrying only the fields the builder under test reads.
  *
- * The water and flood payloads hold dozens of fields each and these builders
- * read a handful. A fixture restating the rest would be pages of numbers no
+ * The water payload holds dozens of fields and these builders read a
+ * handful. A fixture restating the rest would be pages of numbers no
  * assertion mentions, and the one field a test IS about would be
  * indistinguishable from them. The names and value types stay under the
  * compiler -- a renamed field still fails the build -- and the cast is
@@ -498,99 +493,6 @@ describe("waterSeriesTable", () => {
   })
 })
 
-describe("the flood tables", () => {
-  /*
-    The rule these cover is the one the parity check cannot see: three columns
-    carry a value that may not have been measured, and each of them has to come
-    out as an empty cell rather than as a number or as "false". An unrecorded
-    alignment printed as false says the row compares terrain alone, which is
-    the single distinction the resampled column exists to draw.
-  */
-  it("writes an unrecorded resampling as an empty cell, not as false", () => {
-    const t = floodProductsTable(
-      fragment<FloodAnalysis>({
-        products: [
-          {
-            id: "cop90",
-            collection: "cop-dem-glo-90",
-            native_resolution_m: 90,
-            resampled: true,
-            cells: 1896,
-            area_km2: 1.6216,
-            area_frac: 0.04324,
-          },
-          {
-            id: "nasadem",
-            collection: "nasadem",
-            native_resolution_m: null,
-            resampled: null,
-            cells: 12,
-            area_km2: 0.01,
-            area_frac: 0.0003,
-          },
-        ],
-      })
-    )
-    const rows = tableToCSV(t as DataTable).split("\n")
-    expect(rows[1]).toBe("cop90,cop-dem-glo-90,90,true,1896,1.6216,0.04324")
-    // Both the resolution and the flag are absent, and both come out empty.
-    expect(rows[2]).toBe("nasadem,nasadem,,,12,0.01,0.0003")
-  })
-
-  it("writes an undefined index as an empty cell, not as zero", () => {
-    const t = floodPairsTable(
-      fragment<FloodAnalysis>({
-        pairs: [
-          {
-            dem_a: "cop30",
-            dem_b: "nasadem",
-            threshold_m: 1,
-            iou: null,
-            iou_inset: null,
-            area_ratio_b_over_a: null,
-            resampled: false,
-          },
-        ],
-      })
-    )
-    // An index over two empty extents is undefined; zero would state total
-    // disagreement between two products that agree the AOI is dry.
-    expect(tableToCSV(t as DataTable).split("\n")[1]).toBe(
-      "cop30,nasadem,1,,,,false"
-    )
-  })
-
-  it("writes an envelope row whose ends are undefined as empty cells", () => {
-    const t = floodEnvelopeTable(
-      fragment<FloodAnalysis>({
-        envelope: [
-          {
-            threshold_m: 20,
-            iou_min: null,
-            iou_max: null,
-            iou_min_inset: null,
-            iou_max_inset: null,
-          },
-        ],
-      })
-    )
-    expect(tableToCSV(t as DataTable).split("\n")[1]).toBe("20,,,,")
-  })
-
-  it("produces no table at all for an envelope with no rows to write", () => {
-    const bare = fragment<FloodAnalysis>({
-      products: [],
-      pairs: [],
-      envelope: [],
-    })
-    expect(floodProductsTable(bare)).toBeNull()
-    expect(floodPairsTable(bare)).toBeNull()
-    expect(floodEnvelopeTable(bare)).toBeNull()
-    expect(floodProductsTable(null)).toBeNull()
-    expect(floodPairsTable(undefined)).toBeNull()
-  })
-})
-
 describe("allAnalysisTables", () => {
   const empty: PredictResult = {
     extent: { lon_min: -53.1, lat_min: -25.5, lon_max: -53, lat_max: -25.4 },
@@ -620,7 +522,7 @@ describe("allAnalysisTables", () => {
 
   it("returns nothing for a result that produced no section", () => {
     // Go marshals a nil slice as null and a run that classified nothing --
-    // a water or flood run -- leaves every one of them nil. Taken as
+    // a water run -- leaves every one of them nil. Taken as
     // guaranteed arrays, one of these once blanked the whole application.
     expect(allAnalysisTables(empty)).toEqual([])
   })

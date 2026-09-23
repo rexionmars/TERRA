@@ -56,9 +56,9 @@ a saved tree of splits. Twelve editors exist —
 > Spectral response · Class separability · Library check · Rover ·
 > Data table · Run · Globe
 
-— and six arrangements ship ready: Layout, Compare, Diagnose, Data, Flood
-envelope and Routing. The arrangement is the reader's; the arrangements
-that ship are starting points, not modes.
+— and four arrangements ship ready: Layout, Compare, Diagnose and Data. The
+arrangement is the reader's; the arrangements that ship are starting points,
+not modes.
 
 ## What this does and does not buy
 
@@ -145,7 +145,7 @@ Compositing, Geometry Nodes and Scripting. Blender opens on Layout.
 The mapping to this repository is close enough to be worth naming: `splitArea`,
 `joinArea`, `retypeArea` and `moveSplit` in `lib/boardAreas.ts` are the
 subdivision; `studioEditors.ts` is the editor registry; `studioWorkspaces.ts`
-holds six arrangements where Blender holds eleven, named the same way, after
+holds four arrangements where Blender holds eleven, named the same way, after
 the task rather than after the panels.
 
 Blender's guidelines also carry a warning this repository has to heed: editors
@@ -187,7 +187,7 @@ getting lost. The problem is discoverability — a capability that is a panel yo
 have not opened is a capability you do not know exists.
 
 Two things reduce it here and neither removes it. The audience is a research one
-already working in napari, QGIS and their like. And the six arrangements are the
+already working in napari, QGIS and their like. And the four arrangements are the
 answer Blender gives to the same problem: a reader who does not yet know what to
 put on screen is handed a board that already answers a named question.
 

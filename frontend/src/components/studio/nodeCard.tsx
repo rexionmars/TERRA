@@ -1,11 +1,12 @@
 /**
  * The two pieces every card on a node canvas is built from.
  *
- * Lifted out of `BoardRunGraph` when a second surface needed them. They were
- * private to that file and copying them would have put the card idiom in two
- * places: the same argument `lib/studioEditors.ts` makes for naming the editors
- * once, and `lib/mapTools.ts` for its own table. A header that exists twice is
- * a header that can disagree with itself.
+ * Lifted out of `BoardRunGraph` when a second surface needed them, which has
+ * since been removed; `BoardRunGraph` is their one caller again. They stay
+ * apart because a surface that draws cards should reach for this header rather
+ * than copy it: the same argument `lib/studioEditors.ts` makes for naming the
+ * editors once, and `lib/mapTools.ts` for its own table. A header that exists
+ * twice is a header that can disagree with itself.
  *
  * Nothing about runs is in here, as nothing about runs is in `NodeCanvas`. A
  * caller supplies what the card says.
@@ -16,21 +17,13 @@ import { cn } from "@/lib/utils"
 
 /**
  * A card's header row: the glyph and its label.
- *
- * `lit` takes the glyph to the accent and leaves the name where it is. The
- * border of a card is at the edge of vision when the eye is on the value in
- * the middle of it, and the glyph is the part of the header that is already
- * being looked past -- so it is the cheapest place to put a second signal that
- * the card is carrying something.
  */
 export function Head({
   icon: Icon,
   label,
-  lit,
 }: {
   icon: PhosphorIcon
   label: string
-  lit?: boolean
 }) {
   return (
     <>
@@ -44,12 +37,8 @@ export function Head({
         none of them survives a band at full strength: the part's hue on a band
         painted in the part's hue is the glyph disappearing, and a blue aside
         mark on Forest Ritual's slate is not far behind it.
-
-        `lit` is the one that stays, and only because its callers do not paint
-        bands: FloodRoutingPanel builds cards with no subject and no tone, so
-        the accent still lands on the graphite header those take.
       */}
-      <Icon className={cn("size-3 shrink-0", lit && "text-accent-quiet")} />
+      <Icon className="size-3 shrink-0" />
       {/*
         The label is truncated at the card's width, and `title` is how the whole
         of it is still reachable. The run node's header is the tool's own

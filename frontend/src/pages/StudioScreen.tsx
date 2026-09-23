@@ -11,7 +11,6 @@ import type {
   CompositeKind,
   DataCubeResult,
   DataCubeScene,
-  FloodAnalysis,
   GeoJSONGeometry,
   InferenceRun,
   ModelKind,
@@ -26,11 +25,6 @@ import {
 } from "@/lib/panelSelection";
 import type { AoiContourSchemeId } from "@/lib/aoiStyle";
 import { isMapTool, type BoardToolId } from "@/lib/mapTools";
-import {
-  FLOOD_DEM_PRODUCTS,
-  FLOOD_LEAST_DEMS,
-  type FloodParams,
-} from "@/components/flood/floodSetup";
 import { cn } from "@/lib/utils";
 import { CaretDown, Database } from "@phosphor-icons/react";
 import { BoardRunGraph, TOOL_ICON } from "@/components/studio/BoardRunGraph";
@@ -248,19 +242,6 @@ export interface StudioScreenProps {
   onBoardInputs?: (inputs: Record<string, string>) => void;
   /** The AOI as GeoJSON text, for the research pack's manifest. */
   polygonGeoJSON?: string;
-  /*
-    Flood, as the whole parameter store plus a patch and a runner that is absent
-    where the product cannot be started. It was a screen of its own until the
-    band grew cards for it.
-  */
-  floodParams?: FloodParams;
-  onFloodParamsChange?: (patch: Partial<FloodParams>) => void;
-  onRunFlood?: () => void;
-  floodBusy?: boolean;
-  floodProgress?: number;
-  floodProgressMsg?: string;
-  floodResult?: FloodAnalysis | null;
-  onClearFlood?: () => void;
   waterIndex: WaterIndex;
   waterRunning: boolean;
   waterProgress: number;
@@ -291,13 +272,13 @@ export function StudioScreen(props: StudioScreenProps) {
   );
   const onLeftPanelChange = selectPanel;
   /**
-   * The band's own tool, which is the map's plus flood.
+   * The band's own tool.
    *
    * Not `leftPanel`, and the difference is the point: `leftPanel` is a
    * MapToolId, read by the navigation column and by this screen's dock, and a
-   * fourth id would put flood on a screen that has no panel for it. Choosing a
-   * MAP tool here still writes leftPanel, so the two agree about the three they
-   * share; choosing flood leaves it alone.
+   * product the band alone offered would be an id with no panel there. Every
+   * product the band offers is a map tool at present, so choosing one here
+   * writes leftPanel as well and the two agree.
    *
    * Null until the band is used, so it opens on whatever the map was showing.
    */
@@ -351,14 +332,6 @@ export function StudioScreen(props: StudioScreenProps) {
     setComponents(readBoardMemory<OptionalNodeId[]>("components", []));
     setNodeLinks(readBoardMemory<string[]>("nodeLinks", []));
   }, [props.openBoardNonce]);
-  /*
-    The flood envelope's layer, held here because nothing above holds it.
-    Water answers to switches the map screen owns; flood never had one, which is part of why its raster reached neither the board
-    nor the scene tree. Local rather than lifted: this is the only surface
-    that draws it.
-  */
-  const [showFloodOverlay, setShowFloodOverlay] = useState(true);
-  const [floodOpacity, setFloodOpacity] = useState(1);
   /**
    * Whether the board is showing a map to draw an area on.
    *
@@ -446,10 +419,6 @@ export function StudioScreen(props: StudioScreenProps) {
     water: props.water,
     showWaterOverlay: props.showWaterOverlay,
     waterOpacity: props.waterOpacity,
-    // The raster lib/mapLayers.ts could always draw and was never handed.
-    flood: props.floodResult,
-    showFloodOverlay,
-    floodOpacity,
   });
 
   /**
@@ -494,7 +463,6 @@ export function StudioScreen(props: StudioScreenProps) {
   const liveRunId =
     props.result?.run_id ||
     props.water?.run_id ||
-    props.floodResult?.run_id ||
     "current";
 
   const boardAssets = runAssets({
@@ -512,9 +480,6 @@ export function StudioScreen(props: StudioScreenProps) {
     showWaterOverlay: props.showWaterOverlay,
     composeOpacity: props.composeOpacity,
     waterOpacity: props.waterOpacity,
-    flood: props.floodResult,
-    showFloodOverlay,
-    floodOpacity,
   });
 
   const changeBoardLayer = (
@@ -533,12 +498,6 @@ export function StudioScreen(props: StudioScreenProps) {
         props.onShowWaterOverlayChange(patch.visible);
       if (patch.opacity !== undefined)
         props.onWaterOpacityChange(patch.opacity);
-      return;
-    }
-    // Without this the flood row's eye would be a control that moves nothing.
-    if (id === "flood") {
-      if (patch.visible !== undefined) setShowFloodOverlay(patch.visible);
-      if (patch.opacity !== undefined) setFloodOpacity(patch.opacity);
       return;
     }
     if (id === "confidence") {
@@ -597,29 +556,11 @@ export function StudioScreen(props: StudioScreenProps) {
           };
 
   /*
-    The band's run, which is the island's for the three map tools and its own
-    for flood. Kept apart from `run` above rather than adding a branch to it:
-    that object also feeds the workspace bar, which belongs to the map and has
-    no flood to start.
+    The band's tool: the one chosen on it, or the map's while none has been.
+    Its run is `run` above, which every product the band offers shares with
+    the map's own tools.
   */
   const bandTool: BoardToolId | null = boardTool ?? leftPanel;
-  const floodRunnable = !!props.floodParams && !!props.onRunFlood;
-  const boardRun =
-    bandTool === "flood" && floodRunnable
-      ? {
-          running: props.floodBusy ?? false,
-          progress: props.floodProgress ?? 0,
-          progressMsg: props.floodProgressMsg ?? "",
-          label: props.floodBusy ? "Running" : "Map the envelope",
-          // Two products or nothing, which the sidecar enforces and the card
-          // refuses to unpick; this is the same rule reported before the run.
-          canRun:
-            props.hasArea &&
-            !props.floodBusy &&
-            (props.floodParams?.demIds.length ?? 0) >= FLOOD_LEAST_DEMS,
-          onRun: () => props.onRunFlood?.(),
-        }
-      : run;
 
   /*
     What the run in progress has said. Built from the SAME resolved run the band
@@ -627,9 +568,9 @@ export function StudioScreen(props: StudioScreenProps) {
     another.
   */
   const runLog = useRunLog({
-    running: boardRun.running,
-    progress: boardRun.progress,
-    message: boardRun.progressMsg,
+    running: run.running,
+    progress: run.progress,
+    message: run.progressMsg,
   });
 
   /**
@@ -661,11 +602,6 @@ export function StudioScreen(props: StudioScreenProps) {
     menus: (
       <>
         {(() => {
-          // Flood is offered only where its parameters were handed in: a band
-          // with no way to start the run must not offer it.
-          const offered = BOARD_TOOLS.filter((t) =>
-            t.id === "flood" ? !!props.floodParams : true,
-          );
           /*
             ONE ENTRANCE PER SUBJECT, WHICH IS THE SHAPE THE OTHER TWO BARS
             ALREADY HAVE.
@@ -692,7 +628,7 @@ export function StudioScreen(props: StudioScreenProps) {
             the layer this band's other floating panels already use.
           */
           return STUDIO_GROUPS.map((g) => {
-            const members = offered.filter((t) => t.group === g.id);
+            const members = BOARD_TOOLS.filter((t) => t.group === g.id);
             if (!members.length) return null;
             const active = members.find((t) => t.id === bandTool) ?? null;
             const ActiveIcon = active ? TOOL_ICON[active.id] : null;
@@ -930,22 +866,6 @@ export function StudioScreen(props: StudioScreenProps) {
         dock. A prop nothing calls is a second way in that does not exist.
       */
       tool={bandTool}
-      flood={
-        props.floodParams && props.onRunFlood
-          ? {
-              demIds: props.floodParams.demIds,
-              onDemIdsChange: (ids) =>
-                props.onFloodParamsChange?.({ demIds: ids }),
-              demOptions: FLOOD_DEM_PRODUCTS,
-              referenceThresholdM: props.floodParams.referenceThresholdM,
-              onReferenceThresholdChange: (v) =>
-                props.onFloodParamsChange?.({ referenceThresholdM: v }),
-              drainageKm2: props.floodParams.drainageKm2,
-              onDrainageChange: (v) =>
-                props.onFloodParamsChange?.({ drainageKm2: v }),
-            }
-          : undefined
-      }
       /*
         The composition's own parameters, handed over as one object because
         they arrive together, and a graph offered no way to apply a
@@ -995,24 +915,19 @@ export function StudioScreen(props: StudioScreenProps) {
         and this graph. Two resolutions of "can this go" would be two
         answers.
       */
-      runLabel={boardRun.label}
-      running={boardRun.running}
-      progress={boardRun.progress}
-      progressMsg={boardRun.progressMsg}
-      canRun={boardRun.canRun}
+      runLabel={run.label}
+      running={run.running}
+      progress={run.progress}
+      progressMsg={run.progressMsg}
+      canRun={run.canRun}
       blockedBy={
         !props.hasArea
           ? "Draw an area on the globe, or bring one in from the Areas tab."
-          : bandTool === "flood" && props.floodBusy
-            ? "The sidecar runs one analysis at a time."
-            : bandTool === "flood" &&
-                (props.floodParams?.demIds.length ?? 0) < FLOOD_LEAST_DEMS
-              ? "Pick at least two elevation models: the envelope is what they disagree about."
-              : bandTool === "compose" && !props.selectedSceneId
-                ? "List the scenes for this period and choose one."
-                : undefined
+          : bandTool === "compose" && !props.selectedSceneId
+            ? "List the scenes for this period and choose one."
+            : undefined
       }
-      onRun={boardRun.onRun}
+      onRun={run.onRun}
       onAnalyzeLULC={props.onAnalyzeLULC}
       lulcRunning={props.lulcRunning}
       /*
@@ -1083,9 +998,6 @@ export function StudioScreen(props: StudioScreenProps) {
         }
       >
         <BoardSurface
-          // The same handler the run graph's area card uses, so importing a
-          // shape means one thing wherever it is offered.
-          onImportPolygon={props.onImportPolygon}
           /*
               REMOUNTED WHEN A BOARD IS OPENED, which is what makes opening
               one from inside the studio work at all.
@@ -1159,15 +1071,14 @@ export function StudioScreen(props: StudioScreenProps) {
               FROM WHICHEVER PRODUCT MADE ONE, not from the classification
               alone. This read `props.result?.run_id`, and `props.result` holds
               a classification -- App sets it to null for every other product.
-              So an area carrying a finished water or flood run reported the
-              sentinel, the save filtered it out, and the studio refused with
-              "none of these areas carries one yet" over a run that was on
-              screen.
+              So an area carrying a finished water run reported the sentinel,
+              the save filtered it out, and the studio refused with "none of
+              these areas carries one yet" over a run that was on screen.
 
-              All three stamp their row now; see the `run_id` docblocks in
-              lib/types.ts. Any of them identifies the ground equally well, so
-              the order is only a preference: the classification first because
-              it is the one whose rasters a reopened board is mostly made of.
+              Both stamp their row now; see the `run_id` docblocks in
+              lib/types.ts. Either identifies the ground equally well, so the
+              order is only a preference: the classification first because it
+              is the one whose rasters a reopened board is mostly made of.
             */
           runId={liveRunId}
           /*
@@ -1219,8 +1130,6 @@ export function StudioScreen(props: StudioScreenProps) {
           onOpenReading={props.onOpenReading}
           onStudiosMenu={props.onStudiosMenu}
           polygonGeoJSON={props.polygonGeoJSON}
-          floodResult={props.floodResult}
-          onClearFlood={props.onClearFlood}
           /*
               WHERE A FAILED SURFACE GOES, which used to be the map underneath.
 

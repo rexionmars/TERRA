@@ -14,8 +14,8 @@
  * Most cases are ABSENT FIELDS, because that is what the module is about. Its
  * header says a legend that is wrong is worse than a plane with none, and
  * nearly every branch exists because something did not arrive: Go marshals a
- * missing struct as null, an older sidecar predates a field, a water or flood
- * run carries no class statistics at all. Those are the inputs built below.
+ * missing struct as null, an older sidecar predates a field, a water run
+ * carries no class statistics at all. Those are the inputs built below.
  */
 import { describe, expect, it } from "vitest"
 import { legendFor, type LayerLegend } from "./layerLegend"
@@ -93,7 +93,7 @@ const RDYLGN_GRADIENT =
 
 describe("legendFor, prediction", () => {
   it("returns null when the run carries none of the three maps", () => {
-    // Arrange: a result that classified nothing -- a water or flood run.
+    // Arrange: a result that classified nothing -- a water run.
     const result = payload<PredictResult>({ n_dates: 0 })
 
     // Act / Assert
@@ -598,7 +598,7 @@ describe("legendFor, NDVI mean", () => {
   })
 
   it("returns null when the run measured nothing the block could report", () => {
-    // A water or flood run reaching this layer has no series and no window,
+    // A water run reaching this layer has no series and no window,
     // and Go sends both as null: an empty block is worse than no block.
     const result = payload<PredictResult>({
       vi_series: null,

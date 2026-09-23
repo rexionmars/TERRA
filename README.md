@@ -6,8 +6,8 @@
 
 TERRA classifies land cover over an area of interest from Sentinel-2 L2A time
 series, and reports where that classification is wrong rather than only how
-much of it is right. Around the classifier it carries two further products
-for the same area: surface water from spectral indices, and flood extent.
+much of it is right. Around the classifier it carries one further product for
+the same area: surface water from spectral indices.
 
 It runs locally as a desktop application, with no account and no server.
 Imagery is read on demand from the Microsoft Planetary Computer STAC catalog as
@@ -43,9 +43,9 @@ results are arranged: the screen divides into the panels a question needs
 (viewport, outliner, properties, comparison, domain shift, spectral response,
 library check, rover, data table, run band), and more than one area
 fits on the same board, so two farms or the same farm in two seasons sit side
-by side. Six arrangements ship ready: Layout, Compare, Diagnose, Data, Flood
-envelope and Routing. The arrangement survives a restart; a set of readings survives it
-only if the board is saved under a name.
+by side. Four arrangements ship ready: Layout, Compare, Diagnose and Data. The
+arrangement survives a restart; a set of readings survives it only if the board
+is saved under a name.
 
 It exists because a map cannot do this. A map puts things where they are, so
 two areas hundreds of kilometres apart cannot be set beside each other on one.
@@ -226,7 +226,7 @@ TERRA/
 ├── main.go / app.go     Wails window and frontend bindings
 ├── internal/            Sidecar runner and types, python env, export, geocode, store
 ├── sidecar/             Inference: STAC, features, models, LULC, phenology,
-│                        water, flood
+│                        water
 ├── model/               Trained artifacts (.joblib / .pt)
 ├── areas/               Embedded example polygons (GeoJSON)
 ├── frontend/            React 19 + Vite 7 + Tailwind 4 + Leaflet + three.js
@@ -285,7 +285,6 @@ Interpreter resolution: `TERRA_PYTHON` → bundled `python/` (FULL) → `.venv` 
 |--------|----------|
 | [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC | Sentinel-2 L2A imagery |
 | MapBiomas Brazil COGs | Land-cover reference, when the area intersects Brazil |
-| Copernicus DEM GLO-30 | Terrain for the flood envelope and flood routing |
 | [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding |
 | Esri World Imagery, EOX Sentinel-2 cloudless 2025 | Basemaps |
 

@@ -284,15 +284,6 @@ func (a *App) probeSidecar(ctx context.Context) {
 	wruntime.EventsEmit(ctx, "boot:ready", ok)
 }
 
-// The two files a flood run keeps in its assets directory. Named in one place
-// because the persist path writes them and LoadAnalysis reads them, and a run
-// whose writer and reader disagree on a file name reopens without its raster.
-const (
-	floodAgreementPNG       = "flood_agreement.png"
-	floodAgreementTIF       = "flood_agreement.tif"
-	floodAgreementValuesPNG = "flood_agreement_values.png"
-)
-
 // GeocodeSearch resolves a place name to candidate locations (OSM Nominatim).
 func (a *App) GeocodeSearch(query string) ([]geocode.GeocodeResult, error) {
 	return geocode.Geocode(a.ctx, query)

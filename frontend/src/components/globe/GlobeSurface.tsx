@@ -1429,8 +1429,8 @@ export function GlobeSurface({
             {/*
               Only while relief is drawn, because only then is a second provider
               on screen. terrain.ts states that rule and the reason behind it:
-              naming the mosaic is also what keeps it distinct from the DEMs an
-              analysis was computed on.
+              naming the mosaic is also what keeps its shading from being read
+              as part of an analysis.
             */}
             {relief && (
               <span>

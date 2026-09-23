@@ -81,31 +81,6 @@ export function formatHectares(ha: number): string {
   return `${Math.round(ha).toLocaleString()} ha`
 }
 
-export function runSummaryObject(
-  summary?: string | null
-): Record<string, unknown> {
-  if (!summary?.trim()) return {}
-  try {
-    const j = JSON.parse(summary) as unknown
-    return j && typeof j === "object" ? (j as Record<string, unknown>) : {}
-  } catch {
-    return {}
-  }
-}
-
-/**
- * The HAND threshold a saved flood envelope was built at.
- *
- * The agreement raster is one threshold's, and every figure in the row is read
- * at it, so a row that omits it states a contested share of an extent it does
- * not name. Absent on a run written before the key existed, in which case the
- * row simply carries one fewer part rather than inventing 1 m.
- */
-export function floodReferenceThreshold(summary?: string | null): string {
-  const v = runSummaryObject(summary).flood_reference_threshold_m
-  return typeof v === "number" && Number.isFinite(v) ? `HAND <= ${v} m` : ""
-}
-
 export function modelDisplayName(kind: string): string {
   if (kind === "temporal_transformer") return "Temporal Transformer"
   if (kind === "prithvi") return "Prithvi-EO 2.0"
@@ -140,21 +115,6 @@ export function runRowLine(run: {
       ]
         .filter(Boolean)
         .join(" · ")
-    case "flood":
-      /*
-        The threshold, not a period: the envelope reads terrain and has no
-        acquisition window at all, and the reference threshold is what two
-        flood runs of one area differ by. The model name defaults to the
-        catalogue the DEM products come from, because it is the substitution
-        of that catalogue for the study's that makes this envelope TERRA's own
-        rather than the published one.
-      */
-      return [
-        `Flood envelope · ${run.model_kind || "Planetary Computer DEM"}`,
-        floodReferenceThreshold(run.summary),
-      ]
-        .filter(Boolean)
-        .join(" · ")
     default: {
       const observed = parseRunSummary(run.summary).dateRange
       const period =
@@ -177,7 +137,6 @@ export function runRowLine(run: {
  */
 export function runKindLabel(kind?: string): string {
   if (kind === "water") return "water"
-  if (kind === "flood") return "flood"
   return "class"
 }
 

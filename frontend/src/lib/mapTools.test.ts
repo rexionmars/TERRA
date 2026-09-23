@@ -41,12 +41,13 @@ describe("MAP_TOOLS", () => {
     expect(byPredicate).toEqual(MAP_TOOLS.map((t) => t.id))
   })
 
-  it("does not admit a board-only product", () => {
-    // Flood was ported from a screen of its own and is not a panel; widening
-    // MapToolId would make a value the store has never written suddenly
+  it("does not admit an id outside the stored selection's list", () => {
+    // The predicate reads the id list rather than excluding known outsiders,
+    // so an id the store has never written is refused rather than admitted by
+    // default. Widening MapToolId would make such a value suddenly
     // representable, which is the distinction the table's own note asks to be
     // kept.
-    expect(isMapTool("flood" as BoardToolId)).toBe(false)
+    expect(isMapTool("unlisted" as BoardToolId)).toBe(false)
   })
 })
 

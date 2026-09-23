@@ -54,7 +54,7 @@ class Need:
 
 NEEDS = [
     Need("numpy", "numpy", "every product"),
-    Need("scipy", "scipy", "phenology smoothing and the flood envelope"),
+    Need("scipy", "scipy", "phenology smoothing"),
     Need("rasterio", "rasterio", "reading and writing any raster"),
     Need("shapely", "shapely", "area geometry"),
     Need("pyproj", "pyproj", "projection and area in hectares"),

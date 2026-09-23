@@ -10,20 +10,8 @@ export function AnalyzeDomainShiftCohort(arg1) {
   return window['go']['main']['App']['AnalyzeDomainShiftCohort'](arg1);
 }
 
-export function AnalyzeFlood(arg1) {
-  return window['go']['main']['App']['AnalyzeFlood'](arg1);
-}
-
-export function AnalyzeFloodRouting(arg1) {
-  return window['go']['main']['App']['AnalyzeFloodRouting'](arg1);
-}
-
 export function AnalyzeLULC(arg1) {
   return window['go']['main']['App']['AnalyzeLULC'](arg1);
-}
-
-export function AnalyzeSurfaceModel(arg1) {
-  return window['go']['main']['App']['AnalyzeSurfaceModel'](arg1);
 }
 
 export function AnalyzeWater(arg1) {

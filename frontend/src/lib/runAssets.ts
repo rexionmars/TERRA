@@ -31,7 +31,6 @@ import type {
   CompositionOverlay,
   ModelKind,
   PredictResult,
-  FloodAnalysis,
   WaterAnalysis,
 } from "@/lib/types"
 import { isZeroExtent, predictionSource } from "@/lib/mapLayers"
@@ -168,13 +167,6 @@ export interface RunAssetInput {
   showWaterOverlay: boolean
   composeOpacity: number
   waterOpacity: number
-  /**
-   * The flood envelope's agreement raster: how many elevation products call
-   * each cell flooded. Optional because most callers have no flood in hand.
-   */
-  flood?: FloodAnalysis | null
-  showFloodOverlay?: boolean
-  floodOpacity?: number
 }
 
 /**
@@ -338,45 +330,6 @@ export function runAssets(i: RunAssetInput): RunAsset[] {
         filename: "terra_water_occurrence.png",
       },
       exportTif: null,
-    })
-  }
-
-  /*
-    THE FLOOD ENVELOPE'S RASTER, which this table did not list at all.
-
-    The sidecar writes it and the store keeps it -- flood_agreement.png beside
-    its GeoTIFF in every flood run's folder -- and lib/mapLayers.ts already
-    knew how to draw it. Nothing asked it to: this table had the
-    classification and water and no flood, so a flood run finished with a
-    notification and nothing on screen to read it by.
-
-    `sceneId` is `flood` because that is what lib/mapLayers.ts calls the layer.
-  */
-  const f = i.flood
-  if (f?.agreement_uri) {
-    out.push({
-      id: "flood-agreement",
-      sceneId: "flood",
-      title: "Flood agreement",
-      params: [
-        f.products?.length ? `${f.products.length} DEMs` : null,
-        `HAND ≤ ${f.reference_threshold_m} m`,
-        `opacity ${Math.round((i.floodOpacity ?? 1) * 100)}%`,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      previewUri: f.agreement_uri,
-      extent: placeable(f.extent),
-      // Counts of products, not a ramp between them: a blend of two counts
-      // names no count.
-      pixelated: true,
-      onBoard: i.showFloodOverlay ?? false,
-      selectId: null,
-      removeId: null,
-      exportPng: { src: f.agreement_uri, filename: "terra_flood_agreement.png" },
-      exportTif: f.agreement_tif
-        ? { via: "file", src: f.agreement_tif, filename: "terra_flood_agreement.tif" }
-        : null,
     })
   }
 

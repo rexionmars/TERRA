@@ -285,8 +285,8 @@ export function TitleBar({
                   {/*
                     Only while relief is drawn, because only then is a second
                     provider on screen. It is also what keeps the elevation
-                    mosaic distinct from the DEMs an analysis was computed on --
-                    see components/globe/terrain.ts.
+                    mosaic from being read as part of an analysis -- see
+                    components/globe/terrain.ts.
                   */}
                   {credit.terrain && (
                     <span>

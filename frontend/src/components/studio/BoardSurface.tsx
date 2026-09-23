@@ -115,33 +115,14 @@ import { saveStudio, type Studio } from "@/lib/studios"
 import { StudioManager } from "@/components/studio/StudioManager"
 import { DeleteAnalysis, LoadAnalysis } from "../../../wailsjs/go/main/App"
 import type {
-  FloodAnalysis,
   GeoJSONGeometry,
   InferenceRun,
   ModelKind,
   PredictResult,
 } from "@/lib/types"
 import { SURFACE } from "@/lib/motion"
-
-/**
- * What an editor says when it has nothing to show.
- *
- * One shape, because the alternative is each editor inventing its own measure
- * and alignment for the same sentence -- which is how three of them ended up
- * with three different paddings.
- */
-function EditorEmpty({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-full items-center justify-center p-4">
-      <p className="max-w-[26rem] text-center text-meta leading-relaxed text-muted-foreground">
-        {children}
-      </p>
-    </div>
-  )
-}
 import { StudioBrowser } from "@/components/studio/StudioBrowser"
 import { ResearchPackModal } from "@/components/ResearchPackModal"
-import { FloodReadingColumn } from "@/components/flood/FloodReading"
 import type { BoardHandle, PlaneState } from "@/components/studio/boardScene"
 import {
   createBoard,
@@ -244,7 +225,6 @@ import {
 } from "@/components/studio/LibraryLimitEditor"
 import { SpectraEditor } from "@/components/studio/SpectraEditor"
 import { SeparabilityEditor } from "@/components/studio/SeparabilityEditor"
-import { FloodRoutingPanel } from "./FloodRoutingPanel"
 import { StudioTables } from "@/components/studio/StudioTables"
 import { StudioLoading } from "@/components/studio/StudioLoading"
 import {
@@ -415,7 +395,6 @@ function isSoloed(
 
 export function BoardSurface({
   layers,
-  onImportPolygon,
   retainedRuns = [],
   onDropRetainedRun,
   legendSources,
@@ -454,11 +433,7 @@ export function BoardSurface({
   onStudiosMenu,
   polygonGeoJSON,
   onOpenReading,
-  floodResult = null,
-  onClearFlood,
 }: {
-  /** Put a shape from a file on the map as the active AOI. */
-  onImportPolygon: () => void
   /**
    * Every layer the run could draw, drawn or not.
    *
@@ -603,19 +578,6 @@ export function BoardSurface({
    * board's. The board only knows which of its two offers suits a run.
    */
   onOpenReading?: (run: InferenceRun) => void
-  /**
-   * The product whose result is read rather than drawn.
-   *
-   * It arrives whole and not as a layer: the flood envelope does produce a
-   * raster, but its reading is the disagreement between products, which the
-   * raster shows the location of and not the size of.
-   *
-   * Held here rather than in `legendSources` for the same reason: that carries
-   * what a plane's colours MEAN, and this reading has no plane to mean
-   * anything about. It is the whole of what its editor draws.
-   */
-  floodResult?: FloodAnalysis | null
-  onClearFlood?: () => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<BoardHandle | null>(null)
@@ -1231,7 +1193,7 @@ export function BoardSurface({
         notifyError(
           "Nothing for a studio to record",
           new Error(
-            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. So run a classification, water or flood analysis here, or add an existing run from the outliner, and the studio will have something to arrange"
+            "a studio is the runs arranged in it, and none of these areas carries one the store has a row for. A composition is not a run -- it is saved with the project and comes back with it. So run a classification or water analysis here, or add an existing run from the outliner, and the studio will have something to arrange"
           )
         )
         return
@@ -1465,8 +1427,8 @@ export function BoardSurface({
           rather than sharing a placeholder with every other.
 
           It mattered most for the products that carried no id of their own:
-          water was the only one recording a run_id on its payload, so flood
-          and the others were otherwise permanently anonymous. Every product
+          water was the only one recording a run_id on its payload, so the
+          others were otherwise permanently anonymous. Every product
           that saves a run carries one now, so this is the answer for a run the
           list has not caught up with rather than for a whole class of product.
         */
@@ -1489,8 +1451,6 @@ export function BoardSurface({
           composition: null,
           compositionGallery: [],
           water: r.result.water,
-          // A flood run's raster travels in its payload the same way.
-          flood: r.result.flood,
           showCompositionOverlay: false,
           showWaterOverlay: false,
           composeOpacity: 1,
@@ -1514,15 +1474,13 @@ export function BoardSurface({
         composition: null,
         compositionGallery: [],
         /*
-          The run's OWN water and flood, which travel in its payload when those
-          products were made over the same AOI (PredictResult.water, .flood).
-          They were being dropped here while the map screen's identical call
-          kept them, so a second area on the board listed a classification and
-          nothing else -- the rasters existed in hand and the tree did not
-          mention them.
+          The run's OWN water, which travels in its payload when that product
+          was made over the same AOI (PredictResult.water). It was being
+          dropped here while the map screen's identical call kept it, so a
+          second area on the board listed a classification and nothing else --
+          the raster existed in hand and the tree did not mention it.
         */
         water: result.water,
-        flood: result.flood,
         // A loaded run brings its own rasters and none of the map's state:
         // nothing here is drawn on the map, so nothing here has a switch there.
         showCompositionOverlay: false,
@@ -1799,17 +1757,6 @@ export function BoardSurface({
     whose two ids differ would otherwise slip through as a plane that nothing
     could find again.
   */
-  /*
-    The routed flood's overlay, held here because the board owns the stack.
-
-    Not an `added` asset and not a run: routing is not persisted, so there is
-    no RunAsset to read and nothing for `extrasFor` to find. It sits above the
-    extras for the reason those sit above the map's own -- it was asked for, and
-    burying it under the stack it joined would be a strange reading of the
-    request.
-  */
-  const [routingLayer, setRoutingLayer] = useState<RasterLayer | null>(null)
-
   const extrasFor = (areaId: string, startOrder: number): RasterLayer[] =>
     (added[areaId] ?? [])
       .map((sid) => assetOf(areaId, sid))
@@ -1954,7 +1901,6 @@ export function BoardSurface({
       layers: applyOrder(live, [
         ...layers.filter((l) => !removed.has(sceneKey(live, l.id))),
         ...extrasFor(live, 1000),
-        ...(routingLayer ? [routingLayer] : []),
       ]),
     },
     /*
@@ -4191,95 +4137,6 @@ export function BoardSurface({
       />
     ),
     /*
-      The reading that is not a reading OF a plane.
-
-      Every other editor here is fed by `selectedRuns` -- what the outliner has
-      selected -- because every other product draws something the outliner
-      lists. This one takes the result straight from the studio's props:
-      selecting the flood raster would still not be selecting the comparison
-      that raster is evidence for.
-
-      So it shows the run in hand, and says so when there is none. Not unique:
-      two areas on the same reading is two positions in one long scroll, which
-      is a comparison, and neither carries a control the other could disagree
-      with.
-    */
-    floodReading: floodResult ? (
-      <FloodReadingColumn
-        flood={floodResult}
-        onClear={() => onClearFlood?.()}
-      />
-    ) : (
-      <EditorEmpty>
-        No flood envelope yet. Draw an area, choose at least two elevation
-        products in the run band, then map the envelope.
-      </EditorEmpty>
-    ),
-    /*
-      THE LIVE AREA, NOT THIS PANE'S.
-
-      The first version matched areaInfo against `areaId`, which reads as the
-      obvious thing and is wrong: the id renderEditor is given is the LAYOUT
-      LEAF's -- "a-routing", the rectangle -- while areaInfo is keyed by the
-      board's data areas. The find never matched, so a freshly drawn AOI showed
-      as no area at all no matter what was on the map.
-
-      A pane does not own an area here. The ones that read per-pane state hold
-      a pin for it, the way comparePins does for the comparison editor; until
-      routing has one of those, the ground it routes over is the ground the map
-      is on. `current` is that area, and it is also the one a reader has just
-      finished drawing, which is when they reach for this panel.
-    */
-    floodRouting: (
-      <FloodRoutingPanel
-        /*
-          THE ACTIVE AOI, from the map's own shape first.
-
-          `areaInfo` was the obvious source and is the wrong one. It is built
-          from the LIVE area plus the retained runs, and the live area follows
-          the SHOWN RUN -- so a shape just drawn or just imported, while a
-          result is on the board, is not in that list at all and the panel read
-          "nothing drawn" with an AOI plainly on the map.
-
-          `customPolygon` is what the globe is drawing and what createArea sets
-          on import, so it answers for both gestures. The area entry is still
-          consulted, for its name and for the case where the board opened on a
-          catalogued area without the map holding a shape.
-        */
-        geometry={
-          customPolygon ??
-          areaInfo.find((a) => a.current)?.geometry ??
-          catalogAreas.find((a) => a.id === activeAreaId)?.geometry ??
-          null
-        }
-        areaLabel={
-          catalogAreas.find((a) => a.id === activeAreaId)?.name ??
-          areaInfo.find((a) => a.current)?.title
-        }
-        onImport={onImportPolygon}
-        onResult={(res) =>
-          setRoutingLayer(
-            res?.depth_uri
-              ? {
-                  id: "flood-routing",
-                  title: `Routed depth, to ${res.depth_png_max_m.toFixed(1)} m`,
-                  uri: res.depth_uri,
-                  extent: res.extent,
-                  opacity: 1,
-                  order: 1100,
-                  // A depth field is continuous, so interpolating it is not a
-                  // claim about where a boundary is -- unlike a class raster,
-                  // which is why that one is pixelated and this is not.
-                  pixelated: false,
-                  smooth: false,
-                  visible: true,
-                }
-              : null
-          )
-        }
-      />
-    ),
-    /*
       No longer `sides ? ... : null`. An editor that renders nothing at all
       when it cannot answer is indistinguishable from one that is broken, and
       the domain-shift editor beside it has said what it needs all along.
@@ -4770,10 +4627,9 @@ export function BoardSurface({
           ONE ENTRANCE PER GROUP, WHICH IS A MENU BAR AND NOT A TAB STRIP.
 
           The strip listed all seven presets side by side and so claimed they
-          were seven equal destinations. They are not: Compare, Diagnose, Data
-          and Simulation are four readings of one subject, and Routing and
-          System are different work entirely. A reader looking for the flood
-          arrangement had to already know the word "Routing".
+          were seven equal destinations. They were not: several were readings
+          of one subject and others were different work entirely, and a reader
+          looking for one of the latter had to already know its name.
 
           The groups are what belongs on the bar, and each one owns a menu of
           its own -- File, Edit, Render, Window, in the shape every desktop

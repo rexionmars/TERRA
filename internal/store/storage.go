@@ -206,8 +206,6 @@ func kindLabel(kind string) string {
 		return "Classification"
 	case RunKindWater:
 		return "Surface water"
-	case RunKindFlood:
-		return "Flood envelope"
 	default:
 		return kind
 	}

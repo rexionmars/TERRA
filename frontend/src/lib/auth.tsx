@@ -27,9 +27,10 @@ import type { InferenceRun, Preferences, Project, User } from "@/lib/types"
   Three, and only one of them is work.
 
   It carried six. Four were screens the studio has since absorbed -- the map it
-  grew out of, the two energy products, the flood envelope -- and the fifth was
-  the project hub, whose management moved into the studio itself. What is left
-  beside the studio is the account: signing in, and settings.
+  grew out of and three product screens, whose products have since been
+  removed -- and the fifth was the project hub, whose management moved into the
+  studio itself. What is left beside the studio is the account: signing in,
+  and settings.
 */
 export type AppScreen = "studio" | "auth" | "profile"
 

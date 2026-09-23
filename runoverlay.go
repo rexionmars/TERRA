@@ -25,10 +25,10 @@ drew a type plate instead, the product's glyph over the product's colour. That
 reasoning was about the PAYLOAD, and the payload is not the only place the
 raster is. Every run that writes one records where, in overlay_relpath.
 
-WHICH IS ONLY TRUE AS OF NOW. That column was filled by two products out of
-five -- classification and flood -- so a reader of it was right for a fifth of
-the table and silently wrong for the rest, which is why nothing read it. Water
-records its own as well now, and the invariant is held by
+WHICH HAS NOT ALWAYS BEEN TRUE. That column was once filled by two products
+out of five, so a reader of it was right for a fifth of the table and silently
+wrong for the rest, which is why nothing read it. Every product that writes a
+raster records its own now, and the invariant is held by
 TestEveryRasterRunRecordsItsOverlay. This route is the first reader the
 column has had, and it could not have been written before that test passed.
 

@@ -53,11 +53,6 @@ export interface MethodInputs {
   end: string
   maxCloud: number
   monthlyBest: boolean
-  flood?: {
-    demIds: string[]
-    referenceThresholdM: number
-    drainageKm2: number
-  }
 }
 
 /** MapBiomas legend the three classifiers share, named once. */
@@ -248,41 +243,6 @@ function composeBrief(i: MethodInputs): MethodBrief {
   }
 }
 
-function floodBrief(i: MethodInputs): MethodBrief {
-  const f = i.flood
-  return {
-    subtitle: "Flood extent from height above nearest drainage",
-    source: "sidecar/terra/flood · HAND envelope",
-    sections: [
-      {
-        title: "Terrain",
-        lines: [
-          f?.demIds.length
-            ? `${f.demIds.length} elevation models compared: ${f.demIds.join(", ")}`
-            : "several elevation models compared",
-          f ? `cells above ${f.drainageKm2} km² of contributing area count as drainage` : "drainage by contributing area",
-          "no imagery and no precipitation: this is terrain and drainage alone",
-        ],
-      },
-      {
-        title: "Envelope",
-        lines: [
-          f ? `agreement raster built at ${f.referenceThresholdM} m` : "agreement raster at the reference threshold",
-          "each model votes, and the extent carries how many agreed",
-        ],
-        note: "Two products are the minimum the sidecar accepts. One yields an extent with no measure of how much of it that product chose, which is the whole reason the envelope exists.",
-      },
-      {
-        title: "Output",
-        lines: [
-          "the extent, the agreement raster, and the area of each",
-          "GLO-30 is a SURFACE model, so closed forest carries canopy height into the height above drainage",
-        ],
-      },
-    ],
-  }
-}
-
 /**
  * The brief for what the band is currently set to run.
  *
@@ -298,7 +258,5 @@ export function methodBrief(i: MethodInputs): MethodBrief {
       return waterBrief(i)
     case "compose":
       return composeBrief(i)
-    case "flood":
-      return floodBrief(i)
   }
 }

@@ -23,7 +23,7 @@
  * 1000x700, so no preset is born with an area under its editor's own floor.
  */
 import type { Icon } from "@phosphor-icons/react"
-import { Cube, Drop, GitDiff, Mountains, Table, Waves } from "@phosphor-icons/react"
+import { Cube, GitDiff, Table, Waves } from "@phosphor-icons/react"
 
 import type { AreaNode } from "@/lib/boardAreas"
 import { type EditorId, type StudioGroup } from "@/lib/studioEditors"
@@ -55,8 +55,8 @@ export interface StudioWorkspace {
    *
    * Not a fifth vocabulary. Every one of these presets exists to give one
    * reading the room it needs -- the comparison the lower half, the tables
-   * their width, the routed flood its map -- and it is already listed in the
-   * type menu under that editor's own glyph. Wearing the same one makes the
+   * their width, the domain-shift figures their height -- and it is already
+   * listed in the type menu under that editor's own glyph. Wearing the same one makes the
    * tab and the area it leads to legible as one subject, which is the argument
    * `BoardRunGraph` makes for reusing the board tree's glyphs on its tools.
    */
@@ -213,79 +213,6 @@ export const STUDIO_WORKSPACES: readonly StudioWorkspace[] = [
           leaf("a-outliner", "outliner")
         ),
         col("w-data-right", 0.55, leaf("a-table", "table"), leaf("a-browser", "browser"))
-      ),
-  },
-  {
-    id: "envelope",
-    group: "water",
-    // Waves is Diagnose's and Drop is Routing's; HAND is read off terrain.
-    icon: Mountains,
-    label: "Flood envelope",
-    hint: "How far the elevation products disagree about what the area floods",
-    /*
-      THE ENVELOPE HAD A PANEL AND NO BOARD. The reading existed as an editor
-      type and no arrangement opened it -- the state the routing preset below
-      was written to end for its own product: a panel nobody can find without
-      already knowing it is there has not been added to the studio, only to
-      the type selector. A flood envelope run finished with a notification
-      and nothing on screen.
-
-      Routing's shape, for routing's reason: the agreement raster is an
-      overlay of the ground it was measured over, so the viewport takes the
-      width and the reading -- products, pairs, the envelope table -- stands in
-      a column. The column is 340x624 at the 1000x700 minimum, against the
-      320x256 the reading asks for.
-    */
-    build: () =>
-      row(
-        "w-envelope-split",
-        0.66,
-        col(
-          "w-envelope-left",
-          0.68,
-          leaf("a-viewport", "viewport"),
-          leaf("a-outliner", "outliner")
-        ),
-        leaf("a-flood", "floodReading")
-      ),
-  },
-  {
-    id: "routing",
-    group: "water",
-    // Diagnose already carries Waves in this bar.
-    icon: Drop,
-    label: "Routing",
-    hint: "Water routed over the area's terrain, and the ground it reaches",
-    /*
-      The map takes the width because the answer IS where the water went,
-      and the parameters sit in a column beside it because a run is a member
-      of a sweep and the controls are turned far more often than they are
-      read.
-
-      The panel was reachable before this preset existed, by retyping an area,
-      and that was not the same thing: a product nobody can find without
-      already knowing it is there has not been added to the studio, only to the
-      type selector.
-
-      The viewport is here because the depth raster IS an overlay of the
-      ground it was computed on, and the map is where it belongs.
-
-      Fractions at the 1000x700 minimum, after the 28px workspace bar, the 22px
-      status bar and each area's 26px header: the viewport is 660x420 against
-      its 192x128 floor, the outliner 660x186 against 176x128, and the routing
-      column 340x624 against the 208x224 this editor asks for.
-    */
-    build: () =>
-      row(
-        "w-route-split",
-        0.66,
-        col(
-          "w-route-left",
-          0.68,
-          leaf("a-viewport", "viewport"),
-          leaf("a-outliner", "outliner")
-        ),
-        leaf("a-routing", "floodRouting")
       ),
   },
 ]

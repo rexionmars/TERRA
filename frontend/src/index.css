@@ -192,8 +192,8 @@
   /*
     THE PRODUCTS, AS COLOUR. A scale of its own, and not part of the one above.
 
-    These name what a run IS -- a classification, a water map, a flood envelope
-    -- and they are read side by side in a grid rather than against text. They were invented inside StudioBrowser, in
+    These name what a run IS -- a classification, a water map -- and they are
+    read side by side in a grid rather than against text. They were invented inside StudioBrowser, in
     HSL, at the moment that grid needed them, and one of them landed on the
     accent's own hue: a solar tile and the primary action were the same orange.
     That is what a scale nobody declared costs.
@@ -204,7 +204,7 @@
     the ones that are asking for something. At C 0.09 against the accent's
     0.149 they read as labels rather than as calls.
 
-    Placed by hue in OKLCH -- water at 195, flood at 245 -- plus a neutral for
+    Placed by hue in OKLCH -- water at 195 -- plus a neutral for
     the classification, which is the ordinary case and the one a grid holds
     most of. Not gated by check-contrast.ts, for the reason
     that file gives about the scientific ramps: they answer to the data. Each
@@ -212,7 +212,6 @@
   */
   --p-kind-class: 158 158 158;
   --p-kind-water: 80 176 176;
-  --p-kind-flood: 109 164 211;
 
   /*
     THE FOLDER, WHICH IS NOT A PRODUCT AND MUST NOT READ AS ONE.
@@ -378,8 +377,8 @@
     line rather than a weight in a table.
 
     THE ADJACENCY TO WATCH is value's #C5654D against the run card's #DCA64F:
-    both are warm, and on the flood board the threshold card sits beside the
-    run card. They are a red-orange and a gold, and they are the two the palettes
+    both are warm, and a board that places a value card beside the run card
+    sets them side by side. They are a red-orange and a gold, and they are the two the palettes
     give that are closest together. Moving either is one line.
 
     WHAT THE CHECK ENFORCES: a card's title and glyph read at 4.5 on the band
@@ -506,10 +505,10 @@
 
     Its ink is unaffected: 7.50 against #23262C before, 6.95 after.
 
-    THE ADJACENCY IS TIGHTER NOW, not looser. This sits beside the value card
-    on the flood board, and value muted to #C5654D measures 90 -- so the two
-    warm bands are 15 apart in chroma and 1.80 in lightness, separated mostly
-    by hue. Moving either is still one line.
+    THE ADJACENCY IS TIGHTER NOW, not looser. Wherever this sits beside a value
+    card, value muted to #C5654D measures 90 -- so the two warm bands are 15
+    apart in chroma and 1.80 in lightness, separated mostly by hue. Moving
+    either is still one line.
   */
   --b-action-head: #DCA64F;
   --b-action-edge: #DCA64F;
@@ -614,10 +613,9 @@
      dark block for why the spread is quoted beside the ratios. */
   --p-aside: 70 106 152;
 
-  /* The same three, at the lightness a light ground needs. See the dark block. */
+  /* The same two, at the lightness a light ground needs. See the dark block. */
   --p-kind-class: 113 113 113;
   --p-kind-water: 19 130 130;
-  --p-kind-flood: 64 119 163;
 
   /* The folder, receding towards THIS ground rather than away from it. The
      dark block carries the argument; these are the same four tones stepped the

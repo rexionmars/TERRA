@@ -45,9 +45,8 @@
  *
  * THE PLATE STAYS, and not only as a fallback. It is what Unreal draws for an
  * asset whose thumbnail has not been rendered, and it is the honest answer for
- * a run that has no raster to show: a flood envelope whose rendering could not
- * be read carries figures only, and a picture invented for it would say it has
- * one. Each product's own glyph is what it carries, so the plate answers by
+ * a run that has no raster to show: a row written before the column was filled
+ * names no image, and a picture invented for it would say it has one. Each product's own glyph is what it carries, so the plate answers by
  * product and not merely by absence.
  *
  * THE TYPE STRIP WENT WITH THE ARRIVAL OF THE PICTURE. See RunTile: a band of
@@ -68,7 +67,6 @@ import { useEffect, useMemo, useState } from "react"
 import {
   CaretRight,
   Check,
-  Drop,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -172,9 +170,7 @@ const TILE_PLATE = "h-[3rem] w-full shrink-0 overflow-hidden rounded-sm"
   distinguished nothing.
 
   Each is the thing the product is ABOUT rather than a picture of its output. A
-  land cover is a mosaic of classes, surface water is a water surface, a flood
-  envelope is where water reaches -- a drop rather than the water's own waves,
-  since the two are neighbours in the grid and share a colour family.
+  land cover is a mosaic of classes, and surface water is a water surface.
 
   Here rather than in the component, beside the label and the colour, so a
   product added to this table cannot arrive without one.
@@ -182,7 +178,6 @@ const TILE_PLATE = "h-[3rem] w-full shrink-0 overflow-hidden rounded-sm"
 const KINDS = [
   { id: "class", label: "Classification", token: "--p-kind-class", icon: SquaresFour },
   { id: "water", label: "Surface water", token: "--p-kind-water", icon: Waves },
-  { id: "flood", label: "Flood", token: "--p-kind-flood", icon: Drop },
 ] as const
 
 /** The token as a colour, at an alpha. One place, so the syntax is right once. */
@@ -902,8 +897,8 @@ export function StudioBrowser({
 
             overlay_relpath is the test, and it is the right one now: every
             product that writes a raster records it, so a run without one -- a
-            flood envelope whose rendering could not be read, a row written
-            before the column was filled -- has only figures to offer.
+            row written before the column was filled -- has only figures to
+            offer.
           */}
           <StudioMenuItem
             icon={

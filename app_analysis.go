@@ -56,22 +56,6 @@ func (a *App) RenderComposite(req analysis.CompositeRequest) (*analysis.Composit
 	return runner.RenderComposite(a.ctx, req)
 }
 
-// AnalyzeSurfaceModel returns the Copernicus surface over one area.
-//
-// It does not persist a run. The other products record one because they are
-// measurements a reader returns to and compares; this is the ground they were
-// measured on, static and reproducible from the polygon alone, so a row would
-// record nothing the request does not already say.
-func (a *App) AnalyzeSurfaceModel(
-	req analysis.SurfaceModelRequest,
-) (*analysis.SurfaceModel, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	return runner.AnalyzeSurfaceModel(a.ctx, req)
-}
-
 // AnalyzeWater maps surface water over a period from spectral water indices.
 // Descriptive: a thresholded index, with no model and no trained legend.
 func (a *App) AnalyzeWater(req analysis.WaterRequest) (*analysis.WaterAnalysis, error) {
@@ -114,47 +98,4 @@ func (a *App) AnalyzeDomainShiftCohort(
 		return nil, errors.New("runner not initialized")
 	}
 	return runner.AnalyzeDomainShiftCohort(a.ctx, req)
-}
-
-func (a *App) AnalyzeFlood(req analysis.FloodRequest) (*analysis.FloodAnalysis, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	res, err := runner.AnalyzeFlood(a.ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	res.RunID = a.persistFloodRun(req, res)
-	return res, nil
-}
-
-/*
-AnalyzeFloodRouting routes a flow over the AOI: depth, speed and arrival.
-
-DELIBERATELY NOT PERSISTED, unlike every analysis above it. This is a temporary
-module and a run of it is a parameter sweep -- volume, peak, roughness, cell
-size -- where the interesting object is the comparison between runs and not any
-one of them. Persisting each would fill the run store with sweep members before
-anyone has decided what a keepable run of this product even is. The result
-lives as long as the panel holds it; that is the whole contract for now, and it
-is why this returns no RunID while its neighbours do.
-*/
-func (a *App) AnalyzeFloodRouting(req analysis.FloodRoutingRequest) (*analysis.FloodRoutingAnalysis, error) {
-	runner := a.currentRunner()
-	if runner == nil {
-		return nil, errors.New("runner not initialized")
-	}
-	return runner.AnalyzeFloodRouting(a.ctx, req)
-}
-
-// floodProductIDs lists which DEM products the envelope was measured over, for
-// the run row. The envelope is a property of the set, so a range listed without
-// the set it spans is not attributable to anything.
-func floodProductIDs(products []analysis.FloodProduct) []string {
-	ids := make([]string, 0, len(products))
-	for _, p := range products {
-		ids = append(ids, p.ID)
-	}
-	return ids
 }
