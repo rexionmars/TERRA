@@ -555,12 +555,9 @@ type PredictResult struct {
 	// Attached by the frontend when a surface-water run has been made over the
 	// same AOI. Produced by a separate action, so it is not filled by Predict.
 	Water *WaterAnalysis `json:"water,omitempty"`
-	// The flood envelope. Terrain only: it needs no scene and no time series,
-	// so it can be present over an AOI that carries no classification at all.
-	Flood *FloodAnalysis `json:"flood,omitempty"`
 	// Compact spectral / NDVI fingerprint cached at classify time for
 	// domain-shift diagnostics against another run. Absent on older runs and
-	// on water-only or flood-only results.
+	// on water-only results.
 	DomainFingerprint *DomainFingerprint `json:"domain_fingerprint,omitempty"`
 }
 
@@ -888,58 +885,4 @@ type waterSidecarPayload struct {
 	MeanAnomaly      float64     `json:"mean_anomaly"`
 	OccurrencePNG    string      `json:"occurrence_png"`
 	Extent           Bounds      `json:"extent"`
-}
-
-// VIObservation is one acquisition's vegetation index over the AOI. Mirrors the
-// shape VISeriesPoint already carries, so a run's series feeds this unchanged.
-type VIObservation struct {
-	Date     string  `json:"date"`
-	NDVIMean float64 `json:"ndvi_mean"`
-}
-
-// SpeciesSuggestion is the classification's reading, or its refusal. Species is
-// empty when the dominant class has no plant in the library or does not
-// identify one, and Why then says which of the two it was -- a refusal carrying
-// its reason, rather than a silent fallback to the picker's default.
-type SpeciesSuggestion struct {
-	Species    string  `json:"species,omitempty"`
-	ClassID    int     `json:"class_id,omitempty"`
-	ClassName  string  `json:"class_name,omitempty"`
-	Confidence float64 `json:"confidence,omitempty"`
-	Why        string  `json:"why,omitempty"`
-}
-
-// SunDirection is the beam-energy-weighted mean direction, so a scene lit from
-// it is lit by the same sun the faPAR came from. It is NOT solar noon and must
-// not be captioned as such: it leans toward the hours that carried the energy.
-//
-// Concentration says how far a single direction represents the record at all.
-// Near 1 the beam effectively arrived from one place; low means the energy was
-// spread across the sky and one direction is a poor summary of it.
-type SunDirection struct {
-	AzimuthDeg    float64 `json:"azimuth_deg"`
-	ElevationDeg  float64 `json:"elevation_deg"`
-	Concentration float64 `json:"concentration"`
-}
-
-// SunHour is one hour of the representative day.
-//
-// HourUTC is named for its standard because assuming local places the sun three
-// hours wrong for a Brazilian AOI: solar noon lands at 15h UTC on this
-// project's own cell. A renderer should drive itself from azimuth and elevation
-// and treat the hour as a caption.
-type SunHour struct {
-	HourUTC      int     `json:"hour_utc"`
-	AzimuthDeg   float64 `json:"azimuth_deg"`
-	ElevationDeg float64 `json:"elevation_deg"`
-	DNI          float64 `json:"dni"`
-	DHI          float64 `json:"dhi"`
-	GHI          float64 `json:"ghi"`
-	// Already divided and already clamped, so a consumer never computes
-	// DHI/GHI itself. That ratio is not bounded by 1 in the POWER record: it
-	// reaches 1.531 over three years on this project's cell and 4.2 percent of
-	// daylight hours exceed 1, all at a median elevation of 3.3 degrees, where
-	// POWER's own components do not close. Absent for an hour with no global.
-	DiffuseShare *float64 `json:"diffuse_share,omitempty"`
-	Clearness    *float64 `json:"clearness,omitempty"`
 }

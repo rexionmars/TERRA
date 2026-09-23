@@ -10,8 +10,8 @@
  * which a new card could be added without.
  *
  * A card declares a VALUE here instead, and the three follow from it. The area
- * supplies ground; the period supplies a span; the elevation card supplies
- * several of a set with a floor under how many. `reading` writes it, `supplied`
+ * supplies ground; the period supplies a span; the bands card supplies several
+ * of a set with a floor under how many. `reading` writes it, `supplied`
  * says whether it is there, `signature` says whether it has moved. A card
  * added without a value does not compile, which is the whole of what this
  * buys over a table of strings.
@@ -29,8 +29,8 @@
 /**
  * A number written the way a card would write it: as short as it is exact.
  *
- * Two decimals at most and no trailing zeros, so a threshold set to 2.5 reads
- * "2.5" and one set to 3 reads "3" rather than "3.00".
+ * Two decimals at most and no trailing zeros, so a stretch limit set to 2.5
+ * reads "2.5" and one set to 3 reads "3" rather than "3.00".
  */
 const num = (v: number): string =>
   Number.isFinite(v) ? String(Math.round(v * 100) / 100) : ""
@@ -45,14 +45,12 @@ export type RunValue =
   /**
    * Several of a fixed set, and the fewest the run can be made with.
    *
-   * `least` is what makes this its own kind rather than a list: the flood
-   * envelope is what two elevation products DISAGREE about, so one product is
-   * not a smaller answer but no answer. The floor travels with the value
-   * because it is a fact about the input, not about the card that edits it.
+   * `least` is what makes this its own kind rather than a list: an RGB
+   * composition is an ordered triple of bands, so two bands are not a smaller
+   * composition but none. The floor travels with the value because it is a
+   * fact about the input, not about the card that edits it.
    */
   | { kind: "several"; items: readonly string[]; least: number; of: number }
-  /** A number with a unit. */
-  | { kind: "measure"; of: number; unit: string }
   /** Two numbers sharing one unit, low then high. */
   | { kind: "band"; low: number; high: number; unit: string }
   /** One acquisition out of what the period found, or none chosen. */
@@ -95,8 +93,6 @@ export function reading(v: RunValue): string {
         : v.items.length <= 3
           ? v.items.join(" ")
           : `${v.items.length} of ${v.of}`
-    case "measure":
-      return `${num(v.of)} ${v.unit}`.trim()
     case "band":
       return `${num(v.low)}-${num(v.high)} ${v.unit}`.trim()
     case "scene":
@@ -132,7 +128,6 @@ export function supplied(v: RunValue): boolean {
       return v.items.length >= v.least
     case "scene":
       return v.id !== null
-    case "measure":
     case "band":
     case "none":
       return true
@@ -159,7 +154,7 @@ export const signature = (v: RunValue): string => JSON.stringify(v)
  *   source  WHERE it reads from -- the drawn ground, one acquisition
  *   when    OVER WHAT STRETCH -- a calendar span
  *   method  BY WHICH METHOD -- a model, an index, a set of bands
- *   value   AT WHAT VALUES -- a threshold, a stretch
+ *   value   AT WHAT VALUES -- a stretch
  *
  * IT IS DERIVED FROM THE KIND, not declared per card, so a card cannot be in
  * the wrong part and a kind cannot be added without one being chosen for it.
@@ -170,8 +165,8 @@ export const signature = (v: RunValue): string => JSON.stringify(v)
  *
  * THE FIRST TWO WEIGH MORE THAN THE LAST TWO, and that ordering is what the
  * board draws as weight rather than as a fifth colour. Change where or when a
- * run reads and it is a run about something else; change a threshold and it is
- * the same question answered differently. That is a claim about this
+ * run reads and it is a run about something else; change a value it is run at
+ * and it is the same question answered differently. That is a claim about this
  * application's own products, not a general one, and it is the only ranking
  * here that the data supports.
  */
@@ -190,7 +185,6 @@ export function subject(v: RunValue): Subject | null {
     case "choice":
     case "several":
       return "method"
-    case "measure":
     case "band":
       return "value"
     case "none":

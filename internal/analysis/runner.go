@@ -750,13 +750,12 @@ What this program leaves in os.TempDir(), and for how long.
 
 Two kinds of residue collect there. promoteExportFile copies a promoted GeoTIFF
 into exportCacheDirName so its path survives the work directory it came out of,
-and three analyses keep their entire work directory for the same reason (see
-Predict, AnalyzeFlood and AnalyzeFloodRouting). Nothing removed either:
-every cleanup routine in this repository works inside the store data directory,
-so the count only ever went up. macOS ages its temp directory out and Linux has
-systemd-tmpfiles, but Windows sweeps nothing by default and release.yml builds
-for Windows -- there, a full classification raster was kept for good, once per
-analysis.
+and Predict keeps its entire work directory for the same reason. Nothing
+removed either: every cleanup routine in this repository works inside the store
+data directory, so the count only ever went up. macOS ages its temp directory
+out and Linux has systemd-tmpfiles, but Windows sweeps nothing by default and
+release.yml builds for Windows -- there, a full classification raster was kept
+for good, once per analysis.
 
 The retention protects the workflow, not the analysis. A result stays
 exportable for as long as a window holds it, and a promoted raster is the only
@@ -773,7 +772,6 @@ const (
 // here is removed on return, so a sweep would never find one.
 var keptWorkDirPrefixes = []string{
 	"terra-run-",
-	"terra-flood-",
 }
 
 /*
@@ -855,68 +853,6 @@ func promoteExportFile(src, basename string) (string, error) {
 		return "", err
 	}
 	return dest, nil
-}
-
-// AnalyzeSurfaceModel fetches the Copernicus surface over one area.
-//
-// Shorter than its neighbours because the product is: GLO-30 is one static
-// raster, so there is no period to select, no cloud limit to apply and no
-// stack to reduce. What it does share with them is the work directory, which
-// exists only until the values raster has been read into a data URI.
-func (r *Runner) AnalyzeSurfaceModel(
-	ctx context.Context, req SurfaceModelRequest,
-) (*SurfaceModel, error) {
-	if _, err := os.Stat(r.sidecar); err != nil {
-		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
-	}
-
-	var polygon *GeoJSONGeometry
-	if req.PolygonGeoJSON == nil {
-		return nil, fmt.Errorf("no polygon provided")
-	}
-	polygon = req.PolygonGeoJSON
-
-	workDir, err := os.MkdirTemp("", "terra-surface-")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create work dir: %w", err)
-	}
-	defer os.RemoveAll(workDir)
-
-	sReq := sidecarRequest{
-		Action:         "surface_model",
-		ModelDir:       r.modelDir, // unused here, kept for schema
-		PolygonGeoJSON: polygon,
-		WorkDir:        workDir,
-	}
-	reqBytes, err := json.Marshal(sReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode request: %w", err)
-	}
-
-	raw, err := r.runSidecarJSON(ctx, reqBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	var wrapped struct {
-		SurfaceModel *SurfaceModel `json:"surface_model"`
-	}
-	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
-		return nil, fmt.Errorf("failed to parse surface model result: %w", err)
-	}
-	if wrapped.SurfaceModel == nil {
-		return nil, fmt.Errorf("sidecar returned empty surface model payload")
-	}
-	// The raster, read before the work directory goes. A failure here leaves
-	// the URI empty and the figures still stand; only the map is missing,
-	// which is the same bargain the flood rasters make.
-	if wrapped.SurfaceModel.ValuesPNG != "" {
-		if uri, uerr := pngToDataURI(wrapped.SurfaceModel.ValuesPNG); uerr == nil {
-			wrapped.SurfaceModel.ValuesURI = uri
-		}
-	}
-	wrapped.SurfaceModel.NormalizeNilSlices()
-	return wrapped.SurfaceModel, nil
 }
 
 // AnalyzeWater maps surface water over a period from spectral water indices.
@@ -1339,201 +1275,4 @@ func (r *Runner) AnalyzeDomainShiftCohort(ctx context.Context, req DomainShiftCo
 		return nil, fmt.Errorf("sidecar returned empty domain_shift_cohort payload")
 	}
 	return wrapped.Cohort, nil
-}
-
-/*
-AnalyzeFlood measures the HAND flood extent over the AOI and, cell by cell, how
-much of that extent the choice of DEM product decides rather than the terrain.
-
-There is no mode that returns one mask. The recorded run put the pairwise
-agreement between four products at IoU 0.29 to 0.50 at the 1 m reference
-threshold over one window, so an extent shipped alone would be a shape produced
-by a DEM the user never chose and is never shown. What comes back is the
-agreement count raster and the envelope around it.
-*/
-func (r *Runner) AnalyzeFlood(ctx context.Context, req FloodRequest) (*FloodAnalysis, error) {
-	if _, err := os.Stat(r.sidecar); err != nil {
-		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
-	}
-
-	var polygon *GeoJSONGeometry
-	if req.PolygonGeoJSON == nil {
-		return nil, fmt.Errorf("no polygon provided")
-	}
-	polygon = req.PolygonGeoJSON
-
-	workDir, err := os.MkdirTemp("", "terra-flood-")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create work dir: %w", err)
-	}
-	// Kept, unlike most work directories here: the returned AgreementTIF is a
-	// path into this directory and nothing copies the file out, so a defer
-	// here would hand the caller a path to a file that no longer exists -- and
-	// that file is the agreement raster, which is what this product is. The
-	// prefix is in keptWorkDirPrefixes, which is what bounds the directory.
-
-	payload := map[string]any{
-		"action":          "flood_envelope",
-		"polygon_geojson": polygon,
-		"work_dir":        workDir,
-	}
-	// Each parameter travels only when the caller set it. Absence is what
-	// selects the sidecar's default, so sending a zero-valued field would
-	// silently replace four documented defaults with zeros -- and for three of
-	// these zero is itself a request the sidecar honours (the drainage surface
-	// itself, a read of exactly the AOI, no interior ring), which is why the
-	// distinction cannot be recovered downstream.
-	//
-	// An empty DEMIDs is omitted rather than sent: the sidecar reads an
-	// explicit empty list as a broken request and refuses it, while a Go caller
-	// with nothing to say arrives here holding exactly that.
-	if len(req.DEMIDs) > 0 {
-		payload["dem_ids"] = req.DEMIDs
-	}
-	if len(req.ThresholdsM) > 0 {
-		payload["thresholds_m"] = req.ThresholdsM
-	}
-	if req.ReferenceThresholdM != nil {
-		payload["reference_threshold_m"] = *req.ReferenceThresholdM
-	}
-	if req.DrainageKm2 != nil {
-		payload["drainage_km2"] = *req.DrainageKm2
-	}
-	if req.BufferM != nil {
-		payload["buffer_m"] = *req.BufferM
-	}
-	// inset_margin_cells, and not the edge_margin_cells this sent until the
-	// ring moved from the computed window to the AOI polygon. The sidecar
-	// refuses the old key by name rather than reading it as the new one, so
-	// every override run fails outright until the caller is changed -- which is
-	// the loud version of the alternative, a ring cut from a shape the payload
-	// does not describe.
-	if req.InsetMarginCells != nil {
-		payload["inset_margin_cells"] = *req.InsetMarginCells
-	}
-
-	reqBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode request: %w", err)
-	}
-
-	raw, err := r.runSidecarJSON(ctx, reqBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	// The payload key is "flood", not "flood_envelope": the action names the
-	// question, the key names the result.
-	var wrapped struct {
-		Flood *FloodAnalysis `json:"flood"`
-	}
-	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
-		return nil, fmt.Errorf("failed to parse flood result: %w", err)
-	}
-	if wrapped.Flood == nil {
-		return nil, fmt.Errorf("sidecar returned empty flood payload")
-	}
-
-	// The rendering becomes a data URI here, as every other raster this program
-	// draws does: the webview is served from its own origin and cannot open a
-	// path on disk. A failure to read it is not a failure of the analysis --
-	// every figure in the payload stands without the picture -- so it leaves
-	// AgreementURI empty instead of discarding the run.
-	if wrapped.Flood.AgreementPNG != "" {
-		if uri, uerr := pngToDataURI(wrapped.Flood.AgreementPNG); uerr == nil {
-			wrapped.Flood.AgreementURI = uri
-		}
-	}
-	// The values raster, on the same terms: a failure here leaves the field
-	// empty and the map draws the coloured overlay, which is what it drew
-	// before this existed. Nothing about the run depends on it.
-	if wrapped.Flood.AgreementValuesPNG != "" {
-		if uri, uerr := pngToDataURI(wrapped.Flood.AgreementValuesPNG); uerr == nil {
-			wrapped.Flood.AgreementValuesURI = uri
-		}
-	}
-	wrapped.Flood.NormalizeNilSlices()
-	return wrapped.Flood, nil
-}
-
-/*
-AnalyzeFloodRouting routes rainfall over the AOI and returns depth, speed and
-arrival as fields.
-
-Separate from AnalyzeFlood because the products are separate: the envelope is a
-static disagreement measure over four DEMs, this moves water over one. They
-share a slice in the sidecar and nothing else.
-*/
-func (r *Runner) AnalyzeFloodRouting(ctx context.Context, req FloodRoutingRequest) (*FloodRoutingAnalysis, error) {
-	if _, err := os.Stat(r.sidecar); err != nil {
-		return nil, fmt.Errorf("sidecar not found at %s", r.sidecar)
-	}
-	if req.PolygonGeoJSON == nil {
-		return nil, fmt.Errorf("no polygon provided")
-	}
-
-	workDir, err := os.MkdirTemp("", "terra-flood-")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create work dir: %w", err)
-	}
-	// Kept, for the reason AnalyzeFlood gives: DepthTIF is a path into this
-	// directory and nothing copies it out, so a defer would hand the caller a
-	// path to a file that no longer exists. The prefix is in
-	// keptWorkDirPrefixes, which is what bounds the directory.
-
-	payload := map[string]any{
-		"action":          "flood_routing",
-		"polygon_geojson": req.PolygonGeoJSON,
-		"work_dir":        workDir,
-	}
-	// Each parameter travels only when the caller set it, so absence keeps
-	// selecting the sidecar's default rather than sending a zero that the
-	// sidecar would have to distinguish from a real request.
-	if req.DEMID != "" {
-		payload["dem_id"] = req.DEMID
-	}
-	for key, value := range map[string]*float64{
-		"resolution_m": req.ResolutionM,
-		"buffer_m":     req.BufferM,
-		"minutes":      req.Minutes,
-		"manning":      req.Manning,
-		"rain_mm_h":    req.RainMMH,
-		"rain_minutes": req.RainMinutes,
-	} {
-		if value != nil {
-			payload[key] = *value
-		}
-	}
-
-	reqBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode request: %w", err)
-	}
-
-	raw, err := r.runSidecarJSON(ctx, reqBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	var wrapped struct {
-		Routing *FloodRoutingAnalysis `json:"flood_routing"`
-	}
-	if err := json.Unmarshal([]byte(raw), &wrapped); err != nil {
-		return nil, fmt.Errorf("failed to parse flood routing result: %w", err)
-	}
-	if wrapped.Routing == nil {
-		return nil, fmt.Errorf("sidecar returned empty flood routing payload")
-	}
-
-	// The overlay becomes a data URI here, as every other raster does: the
-	// webview is served from its own origin and cannot open a path on disk. A
-	// failure to read it leaves DepthURI empty rather than discarding the run,
-	// because every figure in the payload stands without the picture.
-	if wrapped.Routing.DepthPNG != "" {
-		if uri, uerr := pngToDataURI(wrapped.Routing.DepthPNG); uerr == nil {
-			wrapped.Routing.DepthURI = uri
-		}
-	}
-	wrapped.Routing.NormalizeNilSlices()
-	return wrapped.Routing, nil
 }

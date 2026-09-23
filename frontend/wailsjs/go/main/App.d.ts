@@ -10,13 +10,7 @@ export function AnalyzeDomainShift(arg1:analysis.DomainShiftRequest):Promise<ana
 
 export function AnalyzeDomainShiftCohort(arg1:analysis.DomainShiftCohortRequest):Promise<analysis.DomainShiftCohort>;
 
-export function AnalyzeFlood(arg1:analysis.FloodRequest):Promise<analysis.FloodAnalysis>;
-
-export function AnalyzeFloodRouting(arg1:analysis.FloodRoutingRequest):Promise<analysis.FloodRoutingAnalysis>;
-
 export function AnalyzeLULC(arg1:analysis.LULCRequest):Promise<analysis.LULCAnalysis>;
-
-export function AnalyzeSurfaceModel(arg1:analysis.SurfaceModelRequest):Promise<analysis.SurfaceModel>;
 
 export function AnalyzeWater(arg1:analysis.WaterRequest):Promise<analysis.WaterAnalysis>;
 

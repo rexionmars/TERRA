@@ -132,8 +132,8 @@
 \setcapacolunas
   {S\'eries, n\~ao imagens}{Sentinel-2 ao longo de um per\'iodo, filtrado
    por nuvem e empilhado}
-  {Uma \'area, quatro produtos}{Cobertura do solo, composi\c{c}\~oes, \'agua e
-   cheia}
+  {Uma \'area, tr\^es produtos}{Cobertura do solo, composi\c{c}\~oes e
+   \'agua}
   {Sem servidor}{Aplica\c{c}\~ao desktop: as cenas v\^em do cat\'alogo, o
    c\'alculo \'e local}
 
@@ -166,7 +166,7 @@
 % `Use as is' adota o interpretador nao se distingue de prosa.
 %
 % O aviso sobre as figuras vivia na secao 1. Veio para ca porque vale para as
-% catorze e nao so para as tres primeiras.
+% treze e nao so para as tres primeiras.
 % =====================================================================
 \section*{Pref\'acio}
 \addcontentsline{toc}{section}{Pref\'acio}
@@ -270,9 +270,9 @@ ficam junto do c\'odigo que os produz.
 
 O TERRA classifica cobertura do solo a partir de s\'eries temporais do
 Sentinel-2. Sobre a mesma \'area e o mesmo per\'iodo, produz tamb\'em
-composi\c{c}\~oes de bandas, mapeamento de \'agua superficial e uma
-envolt\'oria de cheia derivada do terreno. A aplica\c{c}\~ao \'e desktop:
-executa na m\'aquina do usu\'ario, sem servidor.
+composi\c{c}\~oes de bandas e mapeamento de \'agua superficial. A
+aplica\c{c}\~ao \'e desktop: executa na m\'aquina do usu\'ario, sem
+servidor.
 
 O ap\^endice~\ref{ap:mensagens} re\'une as mensagens de recusa e as
 condi\c{c}\~oes reportadas durante a execu\c{c}\~ao, de todas as tarefas.
@@ -349,7 +349,7 @@ p\'agina lista as que encontrar.
 % =====================================================================
 \section{A tela principal}
 
-As telas de opera\c{c}\~ao --- classifica\c{c}\~ao, \'agua e cheia ---
+As telas de opera\c{c}\~ao --- classifica\c{c}\~ao e \'agua ---
 compartilham a mesma estrutura. Variam o conte\'udo do painel da esquerda e o
 da coluna de resultado.
 
@@ -461,7 +461,7 @@ select an area first}.
 % =====================================================================
 \section{Os outros produtos}
 
-Todos partem da mesma \'area e do mesmo eixo temporal da
+Os dois partem da mesma \'area e do mesmo eixo temporal da
 figura~\ref{fig:anatomia}, e cada um substitui o painel de a\c{c}\~ao pelo seu.
 
 \subsection{Composi\c{c}\~oes de bandas}
@@ -537,38 +537,6 @@ nessa propor\c{c}\~ao.
   {\texttt{Map} $\rightarrow$ \texttt{Surface water}. Propor\c{c}\~ao de datas
    em que cada pixel foi classificado como \'agua, em escala fixa de 0 a 1.}
   {fig:agua}
-
-\subsection{Envolt\'oria de cheia}
-
-\begin{ficha}
-  \item[Painel] \texttt{Flood envelope}
-  \item[Pr\'e-condi\c{c}\~oes] \'Area definida; ao menos dois modelos de
-        eleva\c{c}\~ao selecionados
-  \item[Sa\'ida] Envolt\'oria por limiar, raster de concord\^ancia e bloco de
-        premissas por execu\c{c}\~ao
-\end{ficha}
-
-Deriva extens\~ao de inunda\c{c}\~ao do terreno, pela altura de cada c\'elula
-acima da drenagem para a qual escoa. A discord\^ancia entre os modelos de
-eleva\c{c}\~ao \'e reportada como incerteza, em vez de agregada em uma m\'edia.
-
-\terrafig{png-images/impressao/flood-envelope.png}
-  {\texttt{Flood envelope}. A leitura \'e apresentada em blocos recolh\'iveis:
-   concord\^ancia sobre a \'area, produtos utilizados, envolt\'oria por limiar
-   e premissas.}
-  {fig:cheia}
-
-\begin{objecao}
-Um limiar em metros ordena suscetibilidade relativa. N\~ao corresponde a
-profundidade de l\^amina, extens\~ao ou probabilidade: chuva, vaz\~ao,
-propaga\c{c}\~ao e geometria de canal n\~ao entram no c\'alculo. A figura
-indica onde o resultado depende da escolha do modelo de eleva\c{c}\~ao.
-
-O conjunto de produtos aqui difere do publicado no estudo de refer\^encia. O
-cat\'alogo lido pela aplica\c{c}\~ao n\~ao cont\'em SRTMGL1, e ALOS World 3D
-ocupa o lugar dele. A faixa medida aqui \'e sobre esse conjunto, e a faixa
-publicada no estudo n\~ao se aplica a ela.
-\end{objecao}
 
 % =====================================================================
 \section{O Studio}
@@ -840,28 +808,6 @@ aplica\c{c}\~ao adota ao abrir.}
 \end{tabular}
 \end{center}
 
-\subsection{Envolt\'oria de cheia}
-
-\begin{center}
-\captionof{table}{Par\^ametros de \texttt{Flood envelope}. Os dois primeiros s\~ao os
-valores de refer\^encia do estudo; o bloco \texttt{assumptions} de cada
-execu\c{c}\~ao declara se o valor usado foi o padr\~ao ou o do operador.}
-\label{tab:cheia}
-\small
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{3.4cm}L{2.7cm}L{2.9cm}L{6.3cm}@{}}
-\toprule
-\textbf{Par\^ametro} & \textbf{Padr\~ao} & \textbf{Faixa} & \textbf{Efeito} \\
-\midrule
-Produtos de eleva\c{c}\~ao & os quatro & no m\'inimo dois & Copernicus GLO-30, NASADEM, ALOS World 3D e Copernicus GLO-90. Um produto s\'o produz extens\~ao sem medida de quanto dela decorre da escolha do produto \\
-Limiar de refer\^encia & 1,0~m & n\~ao negativo & altura acima da drenagem em que o raster de concord\^ancia \'e constru\'ido \\
-\'Area de drenagem & 0,5~km$^2$ & acima de zero & \'area contribuinte a partir da qual a c\'elula conta como drenagem. Em zero, toda c\'elula \'e drenagem e a extens\~ao \'e a \'area inteira em qualquer limiar \\
-Buffer & derivado & n\~ao negativo & metros lidos al\'em da \'area \\
-Margem interna & derivada & n\~ao negativa & largura do anel cortado de dentro do pol\'igono para as estat\'isticas internas \\
-\bottomrule
-\end{tabular}
-\end{center}
-
 \section{Refer\^encia da interface}
 
 \subsection{Origens do interpretador}
@@ -970,8 +916,6 @@ detalhe do aviso de erro da tarefa correspondente.}
 \textbf{Condi\c{c}\~ao} & \textbf{Leitura} \\
 \midrule
 \msg{No scenes found for this period / cloud filter.} & nenhuma cena passou no filtro. Amplie o per\'iodo ou eleve a cobertura de nuvem aceita \\
-\msg{no Copernicus DEM tile covers this AOI} & a \'area est\'a fora da cobertura do produto de eleva\c{c}\~ao \\
-\msg{the merged DEM window is empty for this AOI} & os produtos selecionados n\~ao retornaram dado sobre a \'area \\
 \msg{No MapBiomas pixels in the AOI window (empty download).} & a \'area est\'a fora da cobertura do MapBiomas \\
 \bottomrule
 \end{tabular}

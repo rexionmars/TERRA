@@ -106,12 +106,6 @@ type InferenceRun struct {
 const (
 	RunKindClassification = "classification"
 	RunKindWater          = "water"
-	// A HAND flood envelope: the extent per DEM product and the agreement
-	// count raster that says where the products disagree. Its own kind because
-	// it comes from DEM products rather than from a scene stack, it carries a
-	// raster the other descriptive kinds do not, and a run filed under either
-	// of them would be listed and reopened as that product.
-	RunKindFlood = "flood"
 )
 
 // Project groups AOI, analyses, and overlay assets for an agronomist workflow.

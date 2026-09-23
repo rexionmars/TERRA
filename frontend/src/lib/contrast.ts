@@ -58,8 +58,8 @@ export function contrast(a: Channels, b: Channels): number {
   LICENCE: APCA's own terms prohibit some use-cases without written permission,
   naming medical, clinical evaluation, human-safety, aerospace, transportation
   and military applications. This is a research tool for Earth observation and
-  the figure is advisory here, but the flood envelope borders on the third of
-  those and this note is where that is on the record.
+  the figure is advisory here: none of its products is one of those
+  applications, and this note is where that is on the record.
 */
 const SA98G = {
   mainTRC: 2.4,

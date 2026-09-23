@@ -46,16 +46,20 @@ describe("supplied", () => {
   })
 
   it("counts a set below its floor as absent, not as smaller", () => {
-    // An envelope IS the disagreement between elevation products: one product
-    // is not a coarser answer, it is no answer.
-    const one: RunValue = { kind: "several", items: ["a"], least: 2, of: 5 }
-    const two: RunValue = { kind: "several", items: ["a", "b"], least: 2, of: 5 }
-    expect(supplied(one)).toBe(false)
-    expect(supplied(two)).toBe(true)
+    // Below the floor the set is not a coarser answer, it is no answer: an RGB
+    // composition of two bands is not a composition.
+    const two: RunValue = { kind: "several", items: ["B4", "B3"], least: 3, of: 3 }
+    const three: RunValue = {
+      kind: "several",
+      items: ["B4", "B3", "B2"],
+      least: 3,
+      of: 3,
+    }
+    expect(supplied(two)).toBe(false)
+    expect(supplied(three)).toBe(true)
   })
 
   it("holds a card that always carries a figure", () => {
-    expect(supplied({ kind: "measure", of: 2.5, unit: "m" })).toBe(true)
     expect(supplied({ kind: "band", low: 2, high: 98, unit: "%" })).toBe(true)
     expect(supplied({ kind: "none" })).toBe(true)
   })
@@ -86,9 +90,10 @@ describe("reading", () => {
   })
 
   it("writes a figure as short as it is exact", () => {
-    expect(reading({ kind: "measure", of: 3, unit: "m" })).toBe("3 m")
-    expect(reading({ kind: "measure", of: 2.5, unit: "m" })).toBe("2.5 m")
     expect(reading({ kind: "band", low: 2, high: 98, unit: "%" })).toBe("2-98 %")
+    expect(reading({ kind: "band", low: 2.5, high: 97.25, unit: "%" })).toBe(
+      "2.5-97.25 %"
+    )
   })
 
   it("says nothing for a card holding nothing", () => {
@@ -145,7 +150,6 @@ describe("subject", () => {
     expect(subject({ kind: "several", items: ["a"], least: 2, of: 5 })).toBe(
       "method"
     )
-    expect(subject({ kind: "measure", of: 2.5, unit: "m" })).toBe("value")
     expect(subject({ kind: "band", low: 2, high: 98, unit: "%" })).toBe("value")
   })
 
@@ -155,7 +159,8 @@ describe("subject", () => {
 
   it("weighs where and when above how", () => {
     // Change where or when a run reads and it is a run about something else;
-    // change a threshold and it is the same question answered differently.
+    // change a value it is run at and it is the same question answered
+    // differently.
     expect(HEAVY).toContain("source")
     expect(HEAVY).toContain("when")
     expect(HEAVY).not.toContain("method")

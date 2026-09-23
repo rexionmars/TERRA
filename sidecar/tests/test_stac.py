@@ -1,9 +1,9 @@
 """
 The one catalogue client: what it retries, and what it refuses to hide.
 
-Before this module the retry lived inside the Sentinel-2 listing, so terrain
-and flood reads had none. These tests hold the behaviour in the place all three
-now share it.
+The retry began inside the Sentinel-2 listing, where a reader of any other
+collection could not reach it. These tests hold the behaviour in the one search
+every catalogue read now goes through.
 """
 
 from __future__ import annotations
@@ -78,17 +78,18 @@ def test_a_search_that_succeeds_passes_its_criteria_through(monkeypatch):
 
 def test_criteria_the_caller_omitted_are_not_sent(monkeypatch):
     """
-    A DEM search states `intersects` and nothing else. Sending bbox=None or
-    datetime=None would be a filter the caller never asked for.
+    A search that states a bounding box and nothing else sends nothing else.
+    Sending datetime=None or query=None would be a filter the caller never
+    asked for.
     """
     calls = []
     monkeypatch.setattr(stac, "open_catalog", opener(FakeCatalog([], calls)))
 
-    stac.search("cop-dem-glo-30", intersects={"type": "Polygon", "coordinates": []})
+    stac.search("sentinel-2-l2a", bbox=(-53.5, -25.0, -53.4, -24.9))
 
     assert calls == [{
-        "collections": ["cop-dem-glo-30"],
-        "intersects": {"type": "Polygon", "coordinates": []},
+        "collections": ["sentinel-2-l2a"],
+        "bbox": [-53.5, -25.0, -53.4, -24.9],
     }]
 
 
@@ -154,7 +155,7 @@ def test_an_empty_catalogue_answer_is_an_empty_list(monkeypatch):
     """No tile covers the area is a fact, not a failure."""
     monkeypatch.setattr(stac, "open_catalog", opener(FakeCatalog([], [])))
 
-    assert stac.search("cop-dem-glo-30", intersects={"type": "Polygon"}) == []
+    assert stac.search("sentinel-2-l2a", bbox=(-53.5, -25.0, -53.4, -24.9)) == []
 
 
 def test_the_caller_can_point_at_another_endpoint(monkeypatch):

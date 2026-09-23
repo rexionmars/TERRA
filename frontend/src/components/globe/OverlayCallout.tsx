@@ -130,8 +130,8 @@ const STUB = 22;
  * A line that says the whole of itself, but only where it cannot show it.
  *
  * THE DISCLOSURE EXISTS ONLY WHERE THERE IS SOMETHING BEHIND IT. A parameter
- * line is as long as the product has parameters -- "Annual · kWh/m2/year ·
- * Copernicus DEM GLO-30 · 10 yr · opacity 100%" in a box 216 wide -- so it
+ * line is as long as the product has parameters -- "MNDWI · 24 dates ·
+ * 2024-01-05 → 2024-12-28 · opacity 100%" in a box 216 wide -- so it
  * clips, and a clipped line with no way past it is a box that says it knows
  * more than it will tell. A short one fits, and there a caret would be a
  * control that expands nothing.

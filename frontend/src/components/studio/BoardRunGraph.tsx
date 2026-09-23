@@ -31,7 +31,6 @@ import {
   Trash,
   type Icon,
   Upload,
-  Waves,
   CaretRight,
 } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -50,7 +49,6 @@ import {
   modeBlockedBy,
   type ClassifyMode,
 } from "@/lib/classifyOptions"
-import { FLOOD_LEAST_DEMS } from "@/components/flood/floodSetup"
 import type { BoardToolId } from "@/lib/mapTools"
 import { methodBrief } from "@/lib/methodBrief"
 import type { RunLogEntry } from "@/lib/runLog"
@@ -105,9 +103,6 @@ export const TOOL_ICON: Record<BoardToolId, Icon> = {
   classify: GridFour,
   compose: ImageIcon,
   water: Drop,
-  // Waves rather than a droplet: the envelope reads terrain and no
-  // precipitation at all, so a rain glyph would name an input it does not have.
-  flood: Waves,
 }
 
 /**
@@ -473,18 +468,6 @@ export interface BoardRunGraphProps {
   onConnect?: (from: string, to: string) => void
   tool: BoardToolId | null
 
-  /** Everything the flood envelope needs, or absent where it cannot be run. */
-  flood?: {
-    demIds: string[]
-    onDemIdsChange: (ids: string[]) => void
-    /** Every product the sidecar can compare, for the card to offer. */
-    demOptions: readonly { id: string; label: string }[]
-    referenceThresholdM: number
-    onReferenceThresholdChange: (v: number) => void
-    drainageKm2: number
-    onDrainageChange: (v: number) => void
-  }
-
   /**
    * Everything a composition is built from, or absent where it cannot be made.
    *
@@ -686,13 +669,9 @@ const EDGE_NOTE: Record<EdgeState, string> = {
  * catalogue and the run card supply nothing to a run by their nature. The
  * rest are cards whose bundle is absent -- a board with no composition draws
  * no composition cards at all, so no wire asks these what they hold.
- *
- * A CARD HOLDING SEVERAL NUMBERS REPORTS THE ONE IT IS ABOUT. The threshold
- * card carries a reference height and a drainage area, and its wire carries
- * the height, which is what the envelope is taken at.
  */
 function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
-  const { compose, flood, water } = p
+  const { compose, water } = p
   const none: RunValue = { kind: "none" }
 
   return {
@@ -734,20 +713,6 @@ function cardValues(p: BoardRunGraphProps): Record<RunNodeId, RunValue> {
         }
       : none,
     waterIndex: water ? { kind: "choice", label: water.index } : none,
-    models: flood
-      ? {
-          kind: "several",
-          items: flood.demIds,
-          least: FLOOD_LEAST_DEMS,
-          of: flood.demOptions.length,
-        }
-      : none,
-    // The reference height, which is what the envelope is taken AT. The
-    // drainage threshold is the second number on the same card and stays on
-    // it: two measures in different units are not one reading.
-    threshold: flood
-      ? { kind: "measure", of: flood.referenceThresholdM, unit: "m" }
-      : none,
     run: none,
   }
 }
@@ -1227,72 +1192,6 @@ export function BoardRunGraph(props: BoardRunGraphProps) {
           />
         ))}
       </div>
-    ) : null,
-
-    /*
-      A MULTIPLE CHOICE, and the only one on this graph.
-
-      The envelope is the disagreement between products, so one product is not
-      a smaller run -- it is a different claim, an extent with no measure of how
-      much of it that product chose. The sidecar refuses fewer than two, and the
-      card refuses to unpick the second.
-    */
-    models: props.flood ? (
-      <div className="flex flex-wrap gap-1">
-        {props.flood.demOptions.map((o) => {
-          const on = props.flood!.demIds.includes(o.id)
-          return (
-            <Choice
-              key={o.id}
-              label={o.label}
-              chosen={on}
-              disabled={
-                busy || (on && props.flood!.demIds.length <= FLOOD_LEAST_DEMS)
-              }
-              onPick={() =>
-                props.flood?.onDemIdsChange(
-                  on
-                    ? props.flood.demIds.filter((d) => d !== o.id)
-                    : [...props.flood.demIds, o.id]
-                )
-              }
-            />
-          )
-        })}
-      </div>
-    ) : null,
-
-    threshold: props.flood ? (
-      <>
-        <NumberField
-          label="Reference"
-          value={props.flood.referenceThresholdM}
-          min={0.5}
-          max={20}
-          step={0.5}
-          disabled={busy}
-          format={(v) => `${v.toFixed(1)} m`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("m", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.flood?.onReferenceThresholdChange(v)}
-        />
-        <NumberField
-          label="Drainage"
-          value={props.flood.drainageKm2}
-          min={0.05}
-          max={50}
-          step={0.05}
-          disabled={busy}
-          format={(v) => `${v.toFixed(2)} km²`}
-          parse={(t) => {
-            const v = parseFloat(t.replace("km²", "").trim())
-            return Number.isFinite(v) ? v : null
-          }}
-          onChange={(v) => props.flood?.onDrainageChange(v)}
-        />
-      </>
     ) : null,
 
     run: (

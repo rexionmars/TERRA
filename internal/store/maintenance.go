@@ -27,20 +27,21 @@ was, which is the state the previous release shipped.
 /*
 retiredRunKinds are the run kinds this build has no product for.
 
-Solar and wind runs were written by products that have since been removed, and
-every reader that could open what they stored went with them. LoadAnalysis has
-no branch for either kind, so a row of one falls through to the classification
-path and reopens as an empty classification with nothing raising an error,
-while the run list and the storage screen go on offering it as a run that can
-be opened. The rows are deleted instead, with everything that refers to them.
+Solar, wind and flood runs were written by products that have since been
+removed, and every reader that could open what they stored went with them.
+LoadAnalysis has no branch for any of these kinds, so a row of one falls through
+to the classification path and reopens as an empty classification with nothing
+raising an error, while the run list and the storage screen go on offering it
+as a run that can be opened. The rows are deleted instead, with everything that
+refers to them.
 
-A list rather than two literals inside the step, so a kind retired later is one
-line here and not a second copy of purgeRetiredRunKinds. A kind stays on it once
-its rows are gone: on a database that never held one the step costs a query that
-returns nothing, and an archive written before the removal and restored after it
-is exactly the file that still holds them.
+A list rather than literals inside the step, so a kind retired later is one
+entry here and not a second copy of purgeRetiredRunKinds; flood was added that
+way. A kind stays on it once its rows are gone: on a database that never held
+one the step costs a query that returns nothing, and an archive written before
+the removal and restored after it is exactly the file that still holds them.
 */
-var retiredRunKinds = []string{"solar", "wind"}
+var retiredRunKinds = []string{"solar", "wind", "flood"}
 
 /*
 purgeRetiredRunKinds deletes every run of a retired kind, whoever it belongs

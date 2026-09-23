@@ -96,9 +96,9 @@ export function ResearchPackModal({
 
   /**
    * The run-metadata block of the manifest written by BuildResearchPackZIP.
-   * The per-product keys that exporter adds after it — the water and flood
-   * figures, each with the assumption that produced it — are not listed here,
-   * so this is a preview of the manifest's head rather than the whole of it.
+   * The per-product keys that exporter adds after it — the water figures and
+   * the MapBiomas comparison's sample size — are not listed here, so this is a
+   * preview of the manifest's head rather than the whole of it.
    */
   const manifestRows = useMemo(() => {
     if (!result) return []

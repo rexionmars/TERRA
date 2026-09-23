@@ -37,26 +37,23 @@ export interface MapTool {
 /**
  * Every product the studio's band can start.
  *
- * A separate table from MAP_TOOLS, and the distinction still means something
+ * A separate name from MapToolId, and the distinction still means something
  * with both the map screen and the navigation column gone: `MapToolId` is what
  * a stored panel selection can be, and widening it would make a value the
- * store has never written suddenly representable.
- *
- * Flood joined by being ported rather than by being wrapped. It had a screen
- * of its own, and that screen was a fixed answer to "what do you want to see"
- * for a product whose parameters are a handful of numbers. It is a card on the
- * graph now, beside the area it reads.
+ * store has never written suddenly representable. Every product the band
+ * offers is a map tool at present, so the two are the same set; a product the
+ * band alone offered would be added here and not there.
  */
-export type BoardToolId = MapToolId | "flood"
+export type BoardToolId = MapToolId
 
 /**
  * Every product the band can start, and the subject each one answers about.
  *
  * The groups are the studio's own -- the same three the workspace bar and the
  * editor menu use, from the same table in studioEditors -- so a reader who has
- * learnt "Water" on either of those has learnt it here. What they buy in a row
- * this short is not navigation but a statement: Surface water and Flood
- * envelope are two readings of one subject and sit together.
+ * learnt "Land cover" on either of those has learnt it here. What they buy in
+ * a row this short is not navigation but a statement: each product sits under
+ * the subject it answers about.
  *
  * COMPOSITIONS IS `board` AND NOT `crop`, which is the one call here worth
  * disagreeing with. Classification answers what the ground IS; a composition
@@ -74,19 +71,18 @@ export const BOARD_TOOLS: readonly BoardTool[] = [
   { id: "compose", label: "Compositions", group: "board" },
   { id: "classify", label: "Classification", group: "crop" },
   { id: "water", label: "Surface water", group: "water" },
-  { id: "flood", label: "Flood envelope", group: "water" },
 ]
 
 /**
  * Whether a board tool is one the stored panel selection can hold.
  *
- * AN ALLOWLIST, AND IT HAS TO BE. This was written as the complement -- `id
- * !== "solar" && id !== "wind" && id !== "flood"` -- which is a denylist
- * wearing a type predicate. A predicate is ASSERTED, not checked: adding a
- * fourth board tool made this return true for it, TypeScript said nothing, and
- * the stored panel selection could then hold a value MapToolId has never
- * contained. That is exactly what the header above says the two tables exist to
- * prevent, so the check now reads the table it is about.
+ * AN ALLOWLIST, AND IT HAS TO BE. This was written as the complement -- a
+ * list of the board-only ids it excluded -- which is a denylist wearing a type
+ * predicate. A predicate is ASSERTED, not checked: adding a fourth board tool
+ * made this return true for it, TypeScript said nothing, and the stored panel
+ * selection could then hold a value MapToolId has never contained. That is
+ * exactly what the header above says the two tables exist to prevent, so the
+ * check now reads the table it is about.
  */
 export function isMapTool(id: BoardToolId): id is MapToolId {
   return (MAP_TOOL_IDS as readonly string[]).includes(id)

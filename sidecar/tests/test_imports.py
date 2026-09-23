@@ -59,7 +59,6 @@ SHARED = (
     'terra.cli',
     'terra.stac',
     'terra.imagery',
-    'terra.terrain',
 )
 
 

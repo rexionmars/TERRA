@@ -98,8 +98,8 @@ linters:
     errorlint:
       # The three type assertions in this tree are all `err.(*exec.ExitError)`
       # applied to the value cmd.Output() just returned, which os/exec does not
-      # wrap -- internal/pyenv/environment.go:98, internal/pyenv/envsetup.go:235,
-      # internal/analysis/runner.go:211. The errorf and comparison checks, which are the
+      # wrap -- internal/pyenv/environment.go:98, internal/pyenv/envsetup.go:243,
+      # internal/analysis/runner.go:208. The errorf and comparison checks, which are the
       # ones with a defect behind them here, stay on.
       asserts: false
 
@@ -126,7 +126,7 @@ linters:
       # --- errcheck: the two shapes the type list above cannot separate ---
 
       # The two read handles that errcheck cannot rule out by type, in
-      # app.go:1217 and internal/research/export_research.go:1039. Both come from
+      # app_storage.go:311 and internal/research/export_research.go:496. Both come from
       # os.Open, nothing is written through them, so Close can only report a
       # failure that has already surfaced and been returned. Spelled as the one
       # identifier that occurs rather than a set of plausible names: an
@@ -134,7 +134,7 @@ linters:
       - linters: [errcheck]
         source: '^\s*defer in\.Close\(\)$'
 
-      # The io.Copy failure branch in app.go:1223 and
+      # The io.Copy failure branch in app_storage.go:317 and
       # internal/store/restore.go:325. The copy error is what the function
       # returns; Close is called only to release the descriptor before the
       # partial file is abandoned. Deliberately written without `defer`, and
@@ -184,10 +184,3 @@ linters:
       - linters: [errcheck]
         path: _test\.go
         source: '\.Close\(\)$'
-
-      # govet's inline analyzer on reflect.Ptr, the pre-Go-1.18 spelling of
-      # reflect.Pointer, in app_run_roundtrip_test.go:312. The alias is not
-      # deprecated and the file is test scaffolding; the analyzer stays on for
-      # everything else it inlines.
-      - linters: [govet]
-        text: Constant reflect.Ptr should be inlined

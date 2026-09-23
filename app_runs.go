@@ -82,19 +82,19 @@ type savedRun struct {
 		write one.
 
 		EVERY PRODUCT THAT WRITES A RASTER SETS THIS, and the completeness is
-		the point rather than a tidiness. Only the classification and the flood
-		envelope did: the other products that wrote a PNG recorded no path to
-		it, so the column was right for 5 rows out of 40 on one
-		installation. Nothing reads it today, and that is downstream of the
-		same fact -- a reader of a column that is right for an eighth of the
-		table is a reader that is wrong for the rest, so the run list loads a
-		whole result to find an image it already has on disk, and the studio
-		browser draws a colour instead of a thumbnail rather than pay for that.
-		Filling it is what makes a cheap reader possible; TestEveryRasterRunRecordsItsOverlay
-		is what keeps it true.
+		the point rather than a tidiness. At first only two products did: the
+		others that wrote a PNG recorded no path to it, so the column was right
+		for 5 rows out of 40 on one installation. Nothing reads it today, and
+		that is downstream of the same fact -- a reader of a column that is
+		right for an eighth of the table is a reader that is wrong for the
+		rest, so the run list loads a whole result to find an image it already
+		has on disk, and the studio browser draws a colour instead of a
+		thumbnail rather than pay for that. Filling it is what makes a cheap
+		reader possible; TestEveryRasterRunRecordsItsOverlay is what keeps it
+		true.
 
-		Empty is a real answer, for a run that wrote no image: the flood
-		envelope claims its rendering only when there is one to write.
+		Left empty, the column stays NULL rather than naming a file the run
+		never produced.
 	*/
 	overlayFile string
 }
@@ -274,134 +274,6 @@ func (a *App) persistWaterRun(req analysis.WaterRequest, res *analysis.WaterAnal
 // directory, written here and read back by LoadAnalysis.
 const waterOccurrencePNG = "water_occurrence.png"
 
-/*
-AnalyzeFlood measures the HAND flood extent over the AOI and how much of that
-extent the choice of DEM product decides rather than the terrain.
-
-There is no call that returns one mask. What comes back is the agreement count
-raster -- per cell, how many products call it flooded at the reference
-threshold -- with the pairwise envelope around it, because an extent shipped
-alone is a shape produced by a DEM the user never chose and is never shown.
-*/
-
-// persistFloodRun saves a flood envelope run under its own kind, with its two
-// rasters copied out of the sidecar's work directory and the bounds that place
-// the displayed one stored beside them.
-//
-// The copy is the point. AnalyzeFlood deliberately leaves the work directory in
-// place because the returned paths point into it, but that directory is under
-// the system temporary root and is removed on a schedule nobody here controls.
-// A run whose stored paths still named it would list, reopen, and hand the
-// reader a GeoTIFF path that resolves to nothing -- and the GeoTIFF is the
-// product, not an illustration of it.
-func (a *App) persistFloodRun(req analysis.FloodRequest, res *analysis.FloodAnalysis) string {
-	if res == nil {
-		return ""
-	}
-	label := aoiLabel(req.Label)
-	// The envelope row at the reference threshold: the narrowest and widest
-	// pairwise agreement where the agreement raster was built. Absent when the
-	// reference threshold produced no defined pair, in which case the summary
-	// carries no range rather than a zero one.
-	var refRow *analysis.FloodEnvelopeRow
-	for i := range res.Envelope {
-		if res.Envelope[i].ThresholdM == res.ReferenceThresholdM {
-			refRow = &res.Envelope[i]
-			break
-		}
-	}
-	summary := map[string]any{
-		"flood_reference_threshold_m": res.ReferenceThresholdM,
-		"flood_drainage_km2":          res.DrainageKm2,
-		"flood_n_products":            len(res.Products),
-		"flood_products":              floodProductIDs(res.Products),
-		/*
-			The AOI area, beside the two areas measured inside it.
-
-			The agreement figures below are now taken over the AOI polygon
-			rather than over the buffered window the terrain chain ran on, and
-			a row listing a contested area with no denominator cannot be told
-			apart from one that was taken over the window -- the difference on
-			the recorded payload is 4.5 km2 against 37.5. Listed here so the
-			run row carries the ground its own numbers are of.
-		*/
-		"flood_aoi_area_km2":      res.AOI.AreaKm2,
-		"flood_unanimous_wet_km2": res.Agreement.UnanimousWetKm2,
-		"flood_contested_km2":     res.Agreement.ContestedKm2,
-		// Null when no product calls anything wet. Zero would read as four
-		// products agreeing on an extent, which is the opposite of the fact.
-		"flood_contested_frac_of_wet": res.Agreement.ContestedFracOfWet,
-		/*
-			The qualifier is a listed field and not a detail of the open card.
-
-			Every figure above is a measurement over TERRA's own DEM set and
-			none of them is a flood depth, an extent or a probability. A row
-			printing a contested area with nothing beside it is exactly the
-			reading the qualifier exists to prevent, and the run list is where
-			these figures are read most often and explained least.
-		*/
-		"qualifier": res.Qualifier,
-		"aoi_label": label,
-	}
-	if refRow != nil {
-		summary["flood_iou_min"] = refRow.IoUMin
-		summary["flood_iou_max"] = refRow.IoUMax
-	}
-	// The thumbnail is claimed only when there is a rendering to write. Named
-	// unconditionally, the row would carry an overlay path into a file the
-	// result closure never produced, which is the shape saveRun refuses to
-	// write a row for elsewhere.
-	overlay := ""
-	if res.AgreementURI != "" || res.AgreementPNG != "" {
-		overlay = floodAgreementPNG
-	}
-	return a.saveRun(savedRun{
-		kind: store.RunKindFlood,
-		// No model produced this; the terrain index and the catalogue the DEMs
-		// were read from are the method.
-		modelKind: "HAND over Planetary Computer DEM",
-		polygon:   req.PolygonGeoJSON,
-		aoiLabel:  label,
-		runLabel:  req.RunLabel,
-		projectID: req.ProjectID,
-		areaID:    req.AreaID,
-		// Zero, and not unfilled: HAND is a static terrain index with no
-		// observation dates to count. See FloodAnalysis.NDates.
-		nDates:  res.NDates(),
-		summary: summary,
-		result: func(assetsDir, assetsRel string) any {
-			stored := *res
-			// The rendering, written from the data URI when there is one and
-			// from the sidecar's path when the URI could not be read.
-			pngSrc := res.AgreementURI
-			if pngSrc == "" {
-				pngSrc = res.AgreementPNG
-			}
-			stored.AgreementPNG = ""
-			if err := store.WriteDataURIFile(
-				pngSrc, filepath.Join(assetsDir, floodAgreementPNG),
-			); err == nil && pngSrc != "" {
-				stored.AgreementPNG = filepath.Join(assetsRel, floodAgreementPNG)
-			}
-			stored.AgreementTIF = ""
-			if strings.TrimSpace(res.AgreementTIF) != "" {
-				if err := store.WriteDataURIFile(
-					res.AgreementTIF, filepath.Join(assetsDir, floodAgreementTIF),
-				); err == nil {
-					stored.AgreementTIF = filepath.Join(assetsRel, floodAgreementTIF)
-				}
-			}
-			// The base64 stays out of the database; LoadAnalysis reads it back
-			// from the file written above.
-			stored.AgreementURI = ""
-			return stored
-		},
-		// The run list paints its thumbnail from the agreement raster, which is
-		// the one image this product has.
-		overlayFile: overlay,
-	})
-}
-
 func (a *App) persistAnalysis(req analysis.PredictRequest, res *analysis.PredictResult) string {
 	if res == nil {
 		return ""
@@ -539,51 +411,6 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 	}
 	assetsDir := st.RunsDir(run.ID)
 
-	/*
-		A flood run stores a FloodAnalysis and two rasters.
-
-		Without this branch the run falls through to the classification path,
-		which decodes the flood payload into a PredictResult where nothing binds
-		and returns it: the run lists correctly, reopens as an empty card, and
-		reports nothing, with no error raised anywhere. Every kind that stores a
-		payload of its own needs a branch here for that reason.
-
-		Both raster paths are rewritten to where the files actually are. What
-		was stored is relative to the data directory, and the sidecar's own
-		paths -- into a temporary work directory -- are long gone by the time a
-		run is reopened. A path that resolves to nothing is worse than none: the
-		export would offer a GeoTIFF that cannot be produced.
-	*/
-	if run.Kind == store.RunKindFlood {
-		var flood analysis.FloodAnalysis
-		if run.ResultJSON != "" && run.ResultJSON != "{}" {
-			_ = json.Unmarshal([]byte(run.ResultJSON), &flood)
-		}
-		flood.NormalizeNilSlices()
-		/*
-			Extent comes back with the rest of the payload and is not rebuilt
-			here. It is the bounds of the AOI clip alone; Grid.Bounds is the
-			buffered window the chain ran on, several times that ground, so a
-			restore that filled the missing field from the grid would place the
-			overlay stretched over the buffer -- the same misreading in pixels
-			that reporting over the window was in numbers. A run stored before
-			the field existed therefore restores with a zero extent and no
-			overlay, which the map can detect; a plausible wrong one it cannot.
-		*/
-		png := filepath.Join(assetsDir, floodAgreementPNG)
-		flood.AgreementPNG = ""
-		if uri, err := store.ReadFileDataURI(png, "image/png"); err == nil {
-			flood.AgreementURI = uri
-			flood.AgreementPNG = png
-		}
-		flood.AgreementTIF = ""
-		tif := filepath.Join(assetsDir, floodAgreementTIF)
-		if _, err := os.Stat(tif); err == nil {
-			flood.AgreementTIF = tif
-		}
-		return &analysis.PredictResult{Flood: &flood, RunID: run.ID}, nil
-	}
-
 	// A water run stores a WaterAnalysis, not a PredictResult. It is returned
 	// attached to an otherwise empty result so the analysis view and the export
 	// see it through the same field a live run uses. The classification fields
@@ -600,7 +427,7 @@ func (a *App) LoadAnalysis(runID string) (*analysis.PredictResult, error) {
 			water.OccurrenceURI = uri
 		}
 		/*
-			Stamped, like the flood and classification branches around it.
+			Stamped, like the classification branch below it.
 
 			This branch returned without it, so reopening a saved water run
 			handed the frontend a result that did not know which run it was --

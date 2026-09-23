@@ -26,7 +26,6 @@ import {
   parseRunSummary,
   runKindLabel,
   runRowLine,
-  runSummaryObject,
   type RunClassStat,
 } from "./runSummary"
 
@@ -233,29 +232,6 @@ describe("formatHectares", () => {
   })
 })
 
-describe("runSummaryObject", () => {
-  it("returns no keys for a summary that is absent, blank, unparseable or not an object", () => {
-    expect(runSummaryObject(undefined)).toEqual({})
-    expect(runSummaryObject(null)).toEqual({})
-    expect(runSummaryObject("")).toEqual({})
-    expect(runSummaryObject("  ")).toEqual({})
-    expect(runSummaryObject("{")).toEqual({})
-    // null parses, and every caller reads a key straight off the result.
-    expect(runSummaryObject("null")).toEqual({})
-    expect(runSummaryObject("42")).toEqual({})
-    expect(runSummaryObject('"flood_products"')).toEqual({})
-  })
-
-  it("hands back every key the row carries, including ones no reader knows", () => {
-    // The point of the raw reader: callers pick keys out of it by name, so a
-    // key added by a newer writer must survive rather than be filtered against
-    // a fixed schema.
-    expect(
-      runSummaryObject('{"water_index":"MNDWI","peak_date":"2024-02-03","future":true}')
-    ).toEqual({ water_index: "MNDWI", peak_date: "2024-02-03", future: true })
-  })
-})
-
 describe("modelDisplayName", () => {
   it("spells out the classification model kinds the store records", () => {
     expect(modelDisplayName("temporal_transformer")).toBe("Temporal Transformer")
@@ -270,9 +246,6 @@ describe("modelDisplayName", () => {
     // index or the source that produced it was listed as a classification
     // produced by a model that never ran.
     expect(modelDisplayName("MNDWI")).toBe("MNDWI")
-    expect(modelDisplayName("HAND over Planetary Computer DEM")).toBe(
-      "HAND over Planetary Computer DEM"
-    )
     expect(modelDisplayName("Prithvi")).toBe("Prithvi")
   })
 })
@@ -306,47 +279,6 @@ describe("runRowLine", () => {
     expect(
       runRowLine({ kind: "water", model_kind: "", ...period, summary: null })
     ).toBe("Surface water · index")
-  })
-
-  it("gives a flood run its reference threshold in place of a period", () => {
-    // The envelope reads terrain and has no acquisition window at all, so the
-    // requested period on the run is not what the row states.
-    expect(
-      runRowLine({
-        kind: "flood",
-        model_kind: "Planetary Computer DEM",
-        ...period,
-        summary: '{"flood_reference_threshold_m":1}',
-      })
-    ).toBe("Flood envelope · Planetary Computer DEM · HAND <= 1 m")
-  })
-
-  it("ends a flood run at its source when no reference threshold was recorded", () => {
-    const flood = { kind: "flood", model_kind: "", ...period }
-    expect(runRowLine({ ...flood, summary: null })).toBe(
-      "Flood envelope · Planetary Computer DEM"
-    )
-    expect(runRowLine({ ...flood, summary: "{}" })).toBe(
-      "Flood envelope · Planetary Computer DEM"
-    )
-    // A threshold stored as text is not a threshold. Printing it would put an
-    // unvalidated string where a measured height belongs.
-    expect(
-      runRowLine({ ...flood, summary: '{"flood_reference_threshold_m":"1"}' })
-    ).toBe("Flood envelope · Planetary Computer DEM")
-  })
-
-  it("keeps a reference threshold of zero, which is the drainage surface", () => {
-    // Zero is a value here: HAND <= 0 m asks for the drainage surface itself.
-    // A truthiness test would drop it and describe the run as thresholdless.
-    expect(
-      runRowLine({
-        kind: "flood",
-        model_kind: "Planetary Computer DEM",
-        ...period,
-        summary: '{"flood_reference_threshold_m":0}',
-      })
-    ).toBe("Flood envelope · Planetary Computer DEM · HAND <= 0 m")
   })
 
   it("prefers a classification run's observed extent over the window it requested", () => {
@@ -388,7 +320,6 @@ describe("runRowLine", () => {
 describe("runKindLabel", () => {
   it("returns the one-word product name for each kind the store writes", () => {
     expect(runKindLabel("water")).toBe("water")
-    expect(runKindLabel("flood")).toBe("flood")
   })
 
   it("labels a row with no kind a classification rather than an unknown product", () => {
@@ -419,9 +350,7 @@ describe("datesByMonth", () => {
     // A month already cut has no day to remove, and a row with no period at
     // all must survive the pass untouched.
     expect(datesByMonth("2024-01 → 2024-03")).toBe("2024-01 → 2024-03")
-    expect(datesByMonth("Flood envelope · Planetary Computer DEM · HAND <= 1 m")).toBe(
-      "Flood envelope · Planetary Computer DEM · HAND <= 1 m"
-    )
+    expect(datesByMonth("Surface water · MNDWI")).toBe("Surface water · MNDWI")
     expect(datesByMonth("")).toBe("")
   })
 })

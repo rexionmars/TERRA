@@ -80,8 +80,8 @@ type = "layers"
 layers = [
     "terra.cli",
     "terra.registry",
-    "terra.water | terra.flood | terra.landcover | terra.scenes | terra.surface",
-    "terra.imagery | terra.terrain",
+    "terra.water | terra.landcover | terra.scenes",
+    "terra.imagery",
     "terra.stac | terra.mapbiomas",
     "terra.aoi | terra.phenology",
     "terra.protocol",
@@ -92,8 +92,6 @@ name = "Products do not reach into each other"
 type = "independence"
 modules = [
     "terra.water",
-    "terra.flood",
     "terra.landcover",
     "terra.scenes",
-    "terra.surface",
 ]

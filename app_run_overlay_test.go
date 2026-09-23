@@ -81,34 +81,6 @@ func TestEveryRasterRunRecordsItsOverlay(t *testing.T) {
 	}
 }
 
-// A run that wrote no image records no overlay, and the empty column is the
-// right answer rather than an omission.
-//
-// The flood envelope is the product that reaches this: it claims its rendering
-// only when there is one to write, and a result whose agreement raster could
-// not be read carries every figure and no picture. Named unconditionally, the
-// column would point at a file the run never produced.
-func TestRunWithoutAnImageRecordsNoOverlay(t *testing.T) {
-	a := newTestApp(t)
-	runID := a.persistFloodRun(
-		analysis.FloodRequest{Label: "AOI"},
-		&analysis.FloodAnalysis{},
-	)
-	if runID == "" {
-		t.Fatal("nothing was saved")
-	}
-	run, err := a.store.GetRun(store.LocalUserID, runID)
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	if run.OverlayRelPath != "" {
-		t.Errorf("overlay path = %q for a run that wrote no raster", run.OverlayRelPath)
-	}
-	if images := imagesUnder(t, a.store.RunsDir(runID)); len(images) != 0 {
-		t.Errorf("expected no images, found %v", images)
-	}
-}
-
 func imagesUnder(t *testing.T, dir string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)

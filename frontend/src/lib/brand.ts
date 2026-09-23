@@ -3,10 +3,10 @@
  *
  * WHY THIS IS NOT "land cover · sentinel-2" ANY MORE. That line was accurate
  * when classification was the whole product. It is now one of several the
- * sidecar answers -- surface water, scene composition and the flood envelope
- * among them -- and not all of them read Sentinel-2: the flood envelope and the
- * surface model read elevation instead. The old line described the
- * application's past and hid its present.
+ * sidecar answers -- surface water and scene composition among them -- and not
+ * all of them read Sentinel-2: the MapBiomas land-use reading takes a published
+ * map instead. The old line described the application's past and hid its
+ * present.
  *
  * WHY IT NO LONGER NAMES ENERGY EITHER. It read "earth observation · energy"
  * for a while, which named the two halves rather than listing the products --

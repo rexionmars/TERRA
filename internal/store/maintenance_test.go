@@ -12,12 +12,15 @@ import (
 A run of a retired kind leaves with everything that names it, whoever it
 belongs to, and nothing else moves.
 
-Seeded the way the release that still had the products left them: a solar run
-of the local user and a wind run of another user, each with its asset directory
-on disk, a board of each user naming its run, and a composition made under the
-solar one. A classification sits beside them on the same board and in the same
-project, with files of its own, so "nothing else moves" has something to hold.
-The store is then opened again, because opening is where the purge runs.
+Seeded the way the releases that still had the products left them: a solar run
+and a flood run of the local user and a wind run of another user, each with its
+asset directory on disk, a board of each user naming its runs, and a
+composition made under the solar run and another under the flood run. The flood
+directory holds the agreement GeoTIFF beside its rendering, so the purge is
+seen to take a directory with more than one file in it. A classification sits
+beside them on the same board and in the same project, with files of its own,
+so "nothing else moves" has something to hold. The store is then opened again,
+because opening is where the purge runs.
 */
 func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "data")
@@ -46,14 +49,23 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 	// and these rows are what the release before the removal wrote.
 	seed("solar-1", LocalUserID, "solar", p.ID)
 	seed("wind-1", other.ID, "wind", "")
+	seed("flood-1", LocalUserID, "flood", p.ID)
 	seed("class-1", LocalUserID, RunKindClassification, p.ID)
+	if err := os.WriteFile(
+		filepath.Join(s.RunsDir("flood-1"), "flood_agreement.tif"),
+		make([]byte, 64), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
 
 	local, err := s.SaveStudio(Studio{
 		UserID: LocalUserID,
 		Name:   "local board",
 		ViewJSON: strings.NewReplacer("run-a", "solar-1", "run-b", "class-1").
 			Replace(twoRunView),
-		Members: []StudioMember{{RunID: "solar-1"}, {RunID: "class-1"}},
+		Members: []StudioMember{
+			{RunID: "solar-1"}, {RunID: "flood-1"}, {RunID: "class-1"},
+		},
 	})
 	if err != nil {
 		t.Fatalf("save local board: %v", err)
@@ -67,10 +79,12 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save their board: %v", err)
 	}
-	if _, err := s.AddProjectOverlay(LocalUserID, ProjectOverlay{
-		ProjectID: p.ID, RunID: "solar-1", Title: "Composition",
-	}); err != nil {
-		t.Fatal(err)
+	for _, runID := range []string{"solar-1", "flood-1"} {
+		if _, err := s.AddProjectOverlay(LocalUserID, ProjectOverlay{
+			ProjectID: p.ID, RunID: runID, Title: "Composition",
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	// An old stamp, so a purge that touched the project would be visible even
 	// inside the second nowISO resolves to.
@@ -91,6 +105,7 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 	for _, gone := range []struct{ id, userID string }{
 		{"solar-1", LocalUserID},
 		{"wind-1", other.ID},
+		{"flood-1", LocalUserID},
 	} {
 		if _, err := s.GetRun(gone.userID, gone.id); !errors.Is(err, ErrNotFound) {
 			t.Errorf("%s: GetRun = %v, want ErrNotFound", gone.id, err)
@@ -101,7 +116,7 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 	}
 	var left int
 	if err := s.db.QueryRow(
-		`SELECT COUNT(1) FROM inference_runs WHERE kind IN ('solar', 'wind')`,
+		`SELECT COUNT(1) FROM inference_runs WHERE kind IN ('solar', 'wind', 'flood')`,
 	).Scan(&left); err != nil {
 		t.Fatal(err)
 	}
@@ -147,13 +162,18 @@ func TestOpenPurgesRetiredRunKinds(t *testing.T) {
 		t.Errorf("their board still names the wind run:\n%s", theirBoard.ViewJSON)
 	}
 
-	// The composition stays and loses its run, which is what DeleteRun does.
+	// The compositions stay and lose their runs, which is what DeleteRun does.
 	overlays, err := s.ListProjectOverlays(LocalUserID, p.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(overlays) != 1 || overlays[0].RunID != "" {
-		t.Errorf("overlays = %+v, want one composition naming no run", overlays)
+	if len(overlays) != 2 {
+		t.Errorf("overlays = %+v, want both compositions kept", overlays)
+	}
+	for _, o := range overlays {
+		if o.RunID != "" {
+			t.Errorf("composition %q still names run %q", o.ID, o.RunID)
+		}
 	}
 	project, err := s.GetProject(LocalUserID, p.ID)
 	if err != nil {

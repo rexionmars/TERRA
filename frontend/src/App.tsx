@@ -35,7 +35,6 @@ import {
   UpdateArea,
   DeleteArea,
   AnalyzeWater,
-  AnalyzeFlood,
 } from "../wailsjs/go/main/App"
 import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime"
 import type {
@@ -60,8 +59,6 @@ import type {
   WaterAnalysis,
   WaterIndex,
   WaterRequest,
-  FloodAnalysis,
-  FloodRequest,
 } from "@/lib/types"
 import {
   parsePreferenceExtras,
@@ -89,12 +86,6 @@ import { SplashScreen } from "@/components/SplashScreen"
 import { WhatsNewGate } from "@/components/WhatsNewGate"
 import { StudioScreen } from "@/pages/StudioScreen"
 import type { BasemapKind } from "@/lib/basemaps"
-import {
-  FLOOD_DEFAULT_PARAMS,
-  floodRequestBlocker,
-  type FloodParams,
-} from "@/components/flood/floodSetup"
-import { qualifierHead } from "@/components/flood/floodFormat"
 import { AuthPage } from "@/pages/AuthPage"
 import { ProfilePage } from "@/pages/ProfilePage"
 
@@ -110,8 +101,8 @@ function defaultPeriod(): { start: string; end: string } {
 /**
  * A result with no classification in it.
  *
- * Water and flood need no classification, so either can be the only product an
- * AOI carries. The analysis view keys "is there a classification" off n_dates and the overlay
+ * Water needs no classification, so it can be the only product an AOI
+ * carries. The analysis view keys "is there a classification" off n_dates and the overlay
  * URI, so those stay at zero and the page presents only what was actually run.
  */
 const EMPTY_RESULT: PredictResult = {
@@ -307,8 +298,7 @@ function App() {
       !!outgoing &&
       (!!outgoing.class_stats?.length ||
         !!outgoing.overlay_uri ||
-        !!outgoing.water ||
-        !!outgoing.flood)
+        !!outgoing.water)
     if (!outgoing || !carries) {
       return
     }
@@ -326,10 +316,6 @@ function App() {
         Water records its row on its own payload and says why: "the Go side
         withdraws its claim to have saved by returning nothing". Reading it
         here gives a retained water run its name and its outline back.
-
-        FloodAnalysis carries a run_id of its own as well, and it is not read
-        here, so a flood run left without an area named for it still retains
-        as `unsaved:`.
       */
       const id =
         areaId?.trim() ||
@@ -662,17 +648,6 @@ function AppBody(props: {
   const [studios, setStudios] = useState<Studio[]>([])
   const [openBoardNonce, setOpenBoardNonce] = useState(0)
   /*
-    The flood envelope: its parameters, its result and its run status.
-
-    Held here rather than in the screen because the screen unmounts on every
-    navigation away, and a product set chosen for a run is not a thing to
-    rebuild after looking at the map. Plain state rather than a reducer of its
-    own: this is one product with one result, so there is no second consumer
-    to keep in step.
-  */
-  const [floodParams, setFloodParams] = useState<FloodParams>(FLOOD_DEFAULT_PARAMS)
-  const [flood, setFlood] = useState<FloodAnalysis | null>(null)
-  /*
     THE OUTCOME OF THE LAST RUN, AND THE VALUES IT WAS MADE FROM.
 
     Every handler below already knows how its run ended -- it says so in a
@@ -706,16 +681,6 @@ function AppBody(props: {
   const onBoardInputs = useCallback((inputs: Record<string, string>) => {
     boardInputs.current = inputs
   }, [])
-  const [floodRun, setFloodRun] = useState({
-    active: false,
-    progress: 0,
-    message: "",
-  })
-  const setFloodParamsPatch = useCallback(
-    (patch: Partial<FloodParams>) =>
-      setFloodParams((prev) => ({ ...prev, ...patch })),
-    []
-  )
 
   /*
     Whether the studio's board is up, mirrored here for the title bar.
@@ -1139,11 +1104,12 @@ function AppBody(props: {
     Every result the screens can be holding, dropped together.
 
     ONE PLACE BECAUSE A PARTIAL COPY HAS ALREADY COST US ONE. The comment this
-    replaces recorded it: flood was added to `resultWithWater` and not to the
-    clearing, so the two disagreed about what a standalone product is -- the
-    payload counted a loaded envelope, the clearing did not remove it, and the
-    detail view rebuilt itself from the flood result the moment the reader asked
-    for the list. The list was then unreachable for the rest of the session.
+    replaces recorded it: a standalone product was added to `resultWithWater`
+    and not to the clearing, so the two disagreed about what a standalone
+    product is -- the payload counted the loaded result, the clearing did not
+    remove it, and the detail view rebuilt itself from that result the moment
+    the reader asked for the list. The list was then unreachable for the rest
+    of the session.
 
     A third caller was about to be written with the same shape and the same
     chance of missing one, which is what turned three copies into this.
@@ -1157,7 +1123,6 @@ function AppBody(props: {
     props.setResult(null)
     setCurrentRunId(null)
     setWater(null)
-    setFlood(null)
   }, [props.setResult])
 
   const activateProject = useCallback(
@@ -1508,46 +1473,18 @@ function AppBody(props: {
     setShowWaterOverlay(true)
   }, [aoiSignature, water])
 
-  /** The AOI the flood envelope on screen was measured over. */
-  const floodAoiRef = useRef<string>("")
-
-  /*
-    The same for the flood envelope, and for the same reason as the water
-    raster: every area, every cell count and the agreement raster itself are
-    over one window, so once the AOI moves the reading describes ground that is
-    no longer on the map. Compared against the AOI the run was made on rather
-    than cleared at each call site, because the AOI changes from drawing, from
-    drawing, from opening a project and from restoring a run.
-  */
-  useEffect(() => {
-    if (!flood) return
-    if (aoiSignature === floodAoiRef.current) return
-    setFlood(null)
-  }, [aoiSignature, flood])
-
   /**
-   * One sidecar progress channel, two destinations.
+   * The sidecar's progress channel, relayed to the one display that reads it.
    *
-   * The sidecar emits on a single event and runs one action at a time, so the
-   * product with a run in flight decides which display receives it. Sharing one
-   * display let a finished classification leave its last message under another
-   * product's button.
+   * The sidecar emits on a single event and runs one action at a time, and
+   * every action reports to the same display, so nothing is routed.
    *
    * Read through refs so the subscription is registered once: re-registering on
    * every run state change would drop events emitted between the unsubscribe
-   * and the resubscribe.
-   *
-   * The carried percentage is mirrored in floodSeenRef rather than read back
-   * from state. The sidecar emits every raw log line as progress -1, meaning
-   * "message only, percentage unchanged", and several of those can arrive in
-   * one React batch; carrying the state's value would then read a percentage
-   * from before the batch and roll the bar backwards. The mirror is reset by
-   * handleRunFlood below, so a second run cannot open on the previous run's
-   * percentage.
+   * and the resubscribe. A progress of -1 means "message only, percentage
+   * unchanged", which is why the percentage is set only when it is not
+   * negative.
    */
-  const floodRunRef = useRef(floodRun)
-  floodRunRef.current = floodRun
-  const floodSeenRef = useRef({ progress: 0, message: "" })
   const setProgressRef = useRef(props.setProgress)
   setProgressRef.current = props.setProgress
   const setProgressMsgRef = useRef(props.setProgressMsg)
@@ -1555,19 +1492,6 @@ function AppBody(props: {
 
   useEffect(() => {
     EventsOn("predict:progress", (ev: ProgressEvent) => {
-      if (floodRunRef.current.active) {
-        const seen = floodSeenRef.current
-        if (ev.progress >= 0) seen.progress = ev.progress
-        if (ev.msg) seen.message = ev.msg
-        setFloodRun({
-          active: true,
-          progress: seen.progress,
-          message: seen.message,
-        })
-        return
-      }
-      // No flood run in flight, so this belongs to the classification
-      // channel.
       if (ev.progress >= 0) setProgressRef.current(ev.progress)
       if (ev.msg) setProgressMsgRef.current(ev.msg)
     })
@@ -1631,86 +1555,6 @@ function AppBody(props: {
       setWaterRunning(false)
       props.setProgress(0)
       props.setProgressMsg("")
-    }
-  }
-
-  /**
-   * The flood envelope: the HAND extent and the disagreement between the DEM
-   * products it can be derived from.
-   *
-   * The two parameters the sidecar derives per window -- the buffer from the
-   * AOI extent, the inset margin from the cell size -- are sent only when the
-   * reader took them over. Absent, the sidecar chooses; sent as a number
-   * chosen for another window, they would replace that choice silently. This
-   * is the reason the two are nullable in FloodParams and why neither is
-   * defaulted here.
-   *
-   * The inset margin travels as inset_margin_cells. The sidecar refuses the
-   * edge_margin_cells this used to send, by name: the ring it names is now cut
-   * from the AOI polygon rather than from the computed window, and accepting
-   * the old key would apply a number to a different ring than the one the
-   * reading reports back.
-   */
-  const handleRunFlood = async () => {
-    if (!props.customPolygon) {
-      notifyError("Draw an area on the map first.")
-      return
-    }
-    const blocker = floodRequestBlocker(floodParams, true)
-    if (blocker) {
-      notifyError(blocker)
-      return
-    }
-    floodSeenRef.current = { progress: 0, message: "starting" }
-    setFloodRun({ active: true, progress: 0, message: "starting" })
-    const runAoi = aoiSignature
-    try {
-      const aoiLabel = props.analysisLabel?.trim() || "Custom AOI"
-      const req: FloodRequest = {
-        label: aoiLabel,
-        run_label: nameThisRun(aoiLabel),
-        area_id: props.activeAreaId,
-        project_id: activeProjectId || undefined,
-        polygon_geojson: props.customPolygon,
-        dem_ids: floodParams.demIds,
-        reference_threshold_m: floodParams.referenceThresholdM,
-        drainage_km2: floodParams.drainageKm2,
-        ...(floodParams.bufferM !== null ? { buffer_m: floodParams.bufferM } : {}),
-        ...(floodParams.insetMarginCells !== null
-          ? { inset_margin_cells: floodParams.insetMarginCells }
-          : {}),
-      }
-      const res = (await AnalyzeFlood(req as never)) as unknown as FloodAnalysis
-      // Recorded before the result, so the invalidation effect above compares
-      // against the AOI this run was made on rather than dropping the reading
-      // it has just been handed.
-      floodAoiRef.current = runAoi
-      setCurrentRunId(res.run_id || null)
-      setFlood(res)
-      // The qualifier travels with the figure, here as everywhere: a contested
-      // share quoted without it reads as a published reproducibility range
-      // rather than as this application's own measurement over its own DEM set.
-      // Tested for a number rather than against null: the share is undefined
-      // when no product calls anything wet, and an absent key multiplied by a
-      // hundred would announce NaN where the fact is that there is no extent
-      // to take a share of.
-      const contested =
-        typeof res.agreement.contested_frac_of_wet === "number"
-          ? `${(res.agreement.contested_frac_of_wet * 100).toFixed(0)}% of the wet extent is contested`
-          : "no product called any cell flooded"
-      notifySuccess(
-        `Flood envelope: ${contested} at HAND <= ${res.reference_threshold_m} m ` +
-          `over ${res.products.length} DEM products. ` +
-          qualifierHead(res.qualifier)
-      )
-      void refreshRuns()
-      void refreshProjects()
-      settleRun(true)
-    } catch (e) {
-      settleRun(false)
-      notifyError("Flood envelope error", e)
-    } finally {
-      setFloodRun({ active: false, progress: 0, message: "" })
     }
   }
 
@@ -1792,10 +1636,10 @@ function AppBody(props: {
 
         Stage one gave every product a run id and nothing on this side picked
         it up -- the standalone handlers read `res.run_id` solely to decide
-        whether their toast said "(saved)". So a board opened over a water or
-        flood run received `result.run_id || "current"` as the sentinel and
-        refused to save, reporting that none of its areas carried
-        a run while the raster of one sat on it.
+        whether their toast said "(saved)". So a board opened over a water
+        run received `result.run_id || "current"` as the sentinel and refused
+        to save, reporting that none of its areas carried a run while the
+        raster of one sat on it.
 
         Null where the save was refused. That is saveRun withdrawing its claim
         to have written a row, not an id going missing.
@@ -1923,7 +1767,7 @@ function AppBody(props: {
       setLoadingRun(true)
       try {
         const res = (await LoadAnalysis(run.id)) as unknown as PredictResult
-        // A water or flood run carries no classification: no class stats, no
+        // A water run carries no classification: no class stats, no
         // overlay, no scenes. Held as the result it made the map screen present
         // one, and the result panel then read a class list that was never
         // there. The standalone products below are what such a run restores.
@@ -1951,7 +1795,7 @@ function AppBody(props: {
         if (displayLabel) void persistAoiLabel(displayLabel)
         const polygon = parseRunPolygon(run.polygon_geojson)
         props.setCustomPolygon(polygon)
-        // A water or flood run carries its raster in the same field a live run
+        // A water run carries its raster in the same field a live run
         // uses, so opening one puts the overlay back on the map. The AOI it was
         // measured on is recorded first, otherwise the invalidation effect sees
         // a mismatch and drops the raster that was just restored.
@@ -1963,16 +1807,6 @@ function AppBody(props: {
         } else {
           setWater(null)
         }
-        /* A flood envelope carries its own window and its own raster, so it is
-           restored with the AOI it was measured over recorded first -- the
-           invalidation effect would otherwise see a mismatch and drop the
-           reading that has just been restored. */
-        if (res.flood) {
-          floodAoiRef.current = restoredAoi
-          setFlood(res.flood)
-        } else {
-          setFlood(null)
-        }
         const centroid = geometryCentroid(polygon)
         if (centroid) {
           props.setFlyTo({
@@ -1982,12 +1816,10 @@ function AppBody(props: {
           })
         }
         /*
-          One destination. This chose between four -- the hub for a
-          classification, the energy screen for solar and wind, the flood
-          screen for an envelope -- because each product was read where it was
-          run. Everything is read in the studio now, the rasters as planes and
-          the flood envelope in an editor of its own, so `run.kind` no longer
-          chooses a screen.
+          One destination. This once chose between several screens, one per
+          product, because each product was read where it was run. Everything
+          is read in the studio now, the rasters as planes, so `run.kind` no
+          longer chooses a screen.
         */
         goStudio()
         notifySuccess("Analysis restored.")
@@ -2755,12 +2587,12 @@ function AppBody(props: {
       // no longer sets a classification result, so leaving any out here would
       // hand the analysis screen nothing to show for it.
       //
-      // THE SAME LIST APPEARS IN backToAnalysesList, WHICH CLEARS IT. A product
-      // added to one and not the other is the defect flood shipped with: this
-      // counted a loaded envelope, the clearing did not remove it, and the
-      // detail view rebuilt itself from what the clearing left behind. Adding a
-      // product here means adding it there.
-      if (!props.result && !water && !flood) {
+      // THE SAME LIST APPEARS IN clearAnalysisResults, WHICH CLEARS IT. A
+      // product added to one and not the other is a defect that has shipped
+      // once: this counted a loaded result, the clearing did not remove it, and
+      // the detail view rebuilt itself from what the clearing left behind.
+      // Adding a product here means adding it there.
+      if (!props.result && !water) {
         return null
       }
       return {
@@ -2769,22 +2601,17 @@ function AppBody(props: {
           Whatever produced this state, not only a classification.
 
           The spread above supplies `run_id` from `props.result`, which a
-          standalone product never sets -- so this object described a water or
-          flood run and carried no id for it, and every reader of
+          standalone product never sets -- so this object described a water
+          run and carried no id for it, and every reader of
           `result.run_id` was told there was none. `currentRunId` is set by
           every handler that records a run and by opening a saved run, so it
           answers for each.
         */
         run_id: currentRunId ?? "",
         water,
-        // Carried for the same reason as the rest: the analysis screen's data
-        // views and the research pack read this one object, so a flood
-        // envelope left out of it is a run whose tables cannot be exported
-        // from the screen that lists it.
-        flood,
       }
     },
-    [props.result, water, flood, currentRunId]
+    [props.result, water, currentRunId]
   )
 
   /**
@@ -2855,9 +2682,9 @@ function AppBody(props: {
           NO NAVIGATION COLUMN. There is one destination that is work.
 
           The column named five, four of which were screens the studio has
-          since absorbed -- the map it grew out of, the two energy products and
-          the flood envelope, which became cards on the run band, and the
-          project hub, whose management moved into the studio itself. What
+          since absorbed -- the map it grew out of, three product screens that
+          became cards on the run band before those products were removed, and
+          the project hub, whose management moved into the studio itself. What
           was left named the studio, and a list of one is not navigation.
 
           Settings and sign-in are reached from the title bar, which is where
@@ -2902,20 +2729,6 @@ function AppBody(props: {
                   onBoardInputs={onBoardInputs}
                   onActivateProject={(id) => void activateProject(id)}
                   polygonGeoJSON={analysisPolygonGeoJSON}
-                  /*
-                    Flood, whose result travels with its parameters because it
-                    does not become a plane: the raster shows where the
-                    products disagree rather than how far. Its editor reads
-                    these; see studioEditors.ts.
-                  */
-                  floodParams={floodParams}
-                  onFloodParamsChange={setFloodParamsPatch}
-                  onRunFlood={() => void handleRunFlood()}
-                  floodBusy={floodRun.active}
-                  floodProgress={floodRun.progress}
-                  floodProgressMsg={floodRun.message}
-                  floodResult={flood}
-                  onClearFlood={() => setFlood(null)}
                   initialView={initialMapView}
                   customPolygon={props.customPolygon}
                   flyTo={props.flyTo}

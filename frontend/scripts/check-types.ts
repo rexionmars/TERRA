@@ -48,13 +48,12 @@ const here = dirname(fileURLToPath(import.meta.url))
  *
  * Listed rather than globbed, and the check fails when one is missing: a glob
  * would silently stop guarding a struct whose file was renamed, which is the
- * same shape of quiet failure this whole script exists to catch. types.go was
- * split by product, so a new products file has to be added here to be guarded.
+ * same shape of quiet failure this whole script exists to catch. A file of
+ * wire types added beside types.go has to be added here to be guarded.
  */
 const GO_DIR = join(here, "..", "..", "internal", "analysis")
 const GO_FILES = [
   "types.go",
-  "types_flood.go",
 ]
 const TS = join(here, "..", "src", "lib", "types.ts")
 

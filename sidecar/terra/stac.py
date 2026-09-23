@@ -1,19 +1,16 @@
 """
 The Planetary Computer catalogue, read through one client.
 
-Three kinds of read go through this catalogue: Sentinel-2 L2A for every
-imagery path, Copernicus DEM GLO-30 for the surface model, and the four DEM
-products the flood envelope compares. Before this module each opened its own client, and
-the three were not equivalent. Only the Sentinel-2 path retried, so a transient
-5xx from the service aborted a terrain run and a flood envelope while leaving a
-classification to recover; and the DEM read took `items[0]` with no merge,
-so an area crossing a one-degree tile boundary received terrain covering part
-of itself. A caller could not tell from the call site which behaviour it had
-reached.
+Every imagery path reads Sentinel-2 L2A from it through `search`, which retries
+the transient failures the service returns under load. The retry lives here
+rather than in a product so that a collection read later inherits it: while the
+catalogue was also read for elevation, each reader opened its own client, only
+the Sentinel-2 path retried, and a transient 5xx aborted a terrain read while
+leaving a classification to recover.
 
 This module owns the search. What is done with the items it returns stays with
-the product that asked: the band assets of a Sentinel-2 scene and the tiles of
-a DEM window are not the same subject and do not belong here.
+the product that asked: the band assets of a Sentinel-2 scene belong to the
+imagery reader, not here.
 
 Signing is `planetary_computer.sign_inplace` on the client, so hrefs come back
 signed and no key is needed anywhere downstream.
@@ -56,7 +53,6 @@ def search(
     collection: str,
     *,
     bbox: Any = None,
-    intersects: Any = None,
     datetime: str | None = None,
     query: dict[str, Any] | None = None,
     url: str = URL,
@@ -77,8 +73,6 @@ def search(
     criteria: dict[str, Any] = {'collections': [collection]}
     if bbox is not None:
         criteria['bbox'] = list(bbox)
-    if intersects is not None:
-        criteria['intersects'] = intersects
     if datetime is not None:
         criteria['datetime'] = datetime
     if query is not None:

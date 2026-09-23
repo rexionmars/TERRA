@@ -30,7 +30,6 @@ import {
   Palette,
   Pentagon,
   Repeat,
-  Ruler,
   Stack,
   type Icon,
 } from "@phosphor-icons/react"
@@ -47,8 +46,6 @@ export type RunNodeId =
   | "spectralIndex"
   | "stretch"
   | "waterIndex"
-  | "models"
-  | "threshold"
   | "catalogue"
   | "run"
 
@@ -120,8 +117,6 @@ const SPEC: Record<RunNodeId, Omit<RunNodeSpec, "col">> = {
   spectralIndex: { id: "spectralIndex", label: "Index", icon: Palette, h: 74 },
   stretch: { id: "stretch", label: "Stretch", icon: CircleHalf, h: 116 },
   waterIndex: { id: "waterIndex", label: "Index", icon: Drop, h: 78 },
-  models: { id: "models", label: "Elevation models", icon: Stack, h: 140 },
-  threshold: { id: "threshold", label: "Threshold", icon: Ruler, h: 116 },
   /*
     THE PUBLISHED BOUNDARIES, AS GROUND A RUN CAN BE MADE OVER.
 
@@ -227,22 +222,6 @@ function productGraph(
     ...SPEC[id],
     col,
   })
-
-  /*
-    FLOOD READS NO IMAGERY, so it has no period card. The envelope is terrain
-    and drainage: several elevation models over one polygon, compared against
-    each other. No scene search, no cloud ceiling, and nothing dated.
-  */
-  if (tool === "flood") {
-    return {
-      nodes: [at("area", 0), at("models", 0), at("threshold", 1), at("run", 2)],
-      edges: [
-        ["area", "run"],
-        ["models", "threshold"],
-        ["threshold", "run"],
-      ],
-    }
-  }
 
   if (tool === "classify") {
     /*

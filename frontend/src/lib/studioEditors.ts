@@ -21,7 +21,6 @@ import {
   ChartLine,
   Crosshair,
   Cube,
-  Drop,
   FlowArrow,
   GitDiff,
   Globe,
@@ -45,9 +44,7 @@ export type EditorId =
   | "brush"
   | "table"
   | "runParams"
-  | "floodRouting"
   | "globe"
-  | "floodReading"
   | "browser"
 
 /**
@@ -291,28 +288,6 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     hint: "The area, period and model the next run is made of",
   },
   {
-    id: "floodRouting",
-    group: "water",
-    label: "Routing",
-    // Droplets and not Waves. Waves is already the domain-shift editor's, and
-    // an icon that means two things in one list is a label that disagrees with
-    // itself -- the same argument this file makes for naming the editors once.
-    icon: Drop,
-    minRem: 13,
-    minRowRem: 14,
-    /*
-      Not unique. Two of these on one board is the point: a sweep is read by
-      comparison, and the panel holds its own parameters precisely so that two
-      areas can carry two floods rather than sharing one set of controls.
-
-      The row floor is the tallest of the panels here because the result is
-      three spreads, a self-consistency block and the assumptions under them.
-      Below about 14rem the assumptions are the part that scrolls away, and
-      they are the part that says what the depths are not.
-    */
-    hint: "Water routed over the terrain: depth, speed and when it arrives",
-  },
-  {
     id: "globe",
     group: "board",
     label: "Globe",
@@ -342,27 +317,6 @@ export const STUDIO_EDITORS: readonly StudioEditorMeta[] = [
     // now, and the type menu is where someone looking for a way to make an
     // area will be looking.
     hint: "Draw an area on the planet, over the catalog already on it",
-  },
-  {
-    id: "floodReading",
-    group: "water",
-    label: "Flood envelope",
-    icon: Waves,
-    /*
-      A product whose result is a reading and not a raster.
-
-      Every other editor here draws something the viewport could also draw, or
-      controls something that changes it. This one does not: the flood
-      envelope reports how far its products disagree, and there is no plane to
-      select, so the reading is the editor rather than a band that fills when a
-      plane is picked.
-
-      Wide because the figures sit two to a row, and a column narrower than
-      this wraps a labelled figure onto three lines.
-    */
-    minRem: 20,
-    minRowRem: 16,
-    hint: "How far the elevation products disagree about what the area floods",
   },
   {
     id: "browser",
