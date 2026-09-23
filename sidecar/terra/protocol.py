@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from typing import Any, NoReturn
 
 Request = dict[str, Any]
@@ -45,6 +46,19 @@ class MissingDependency(RuntimeError):
     """An optional package this path needs is not in this interpreter."""
 
 
+class Unavailable(RuntimeError):
+    """
+    Something this run needs exists outside the code and is not there.
+
+    A login token that was never set or that the data provider refuses, a
+    remote service that stops answering, a file a catalogue lists and does not
+    serve. Distinct from MissingDependency, which is answered by an install
+    this application can perform, and distinct from a bug, which is answered by
+    a traceback. This is answered by the user doing something in the world, so
+    the message has to say which thing.
+    """
+
+
 def require_torch(product: str) -> None:
     """
     Fail with an explanation when PyTorch is absent.
@@ -72,3 +86,31 @@ def require_torch(product: str) -> None:
             f'environment. Install it there, or choose the Random Forest '
             f'model, which needs nothing further. '
             f'Settings > System reports what each interpreter has.') from e
+
+
+# --- Request parameters ----------------------------------------------------
+#
+# ABSENCE SELECTS THE DEFAULT, NOT FALSINESS. `float(req.get(key) or default)`
+# reads a deliberate 0 as an omission, because 0 is falsy in Python. It is
+# silent and it is wrong wherever zero is a value the caller can mean: the
+# default replaces the value the caller set, and every figure computed from it
+# moves with nothing on screen saying so. A parameter read through this helper
+# is defaulted only when it is absent; a call site that does mean "zero selects
+# the default" has to say so where it reads the value.
+
+def request_number[T](
+    req: Request,
+    key: str,
+    default: T,
+    cast: Callable[[Any], Any] = float,
+) -> Any:
+    """
+    A numeric request parameter, defaulted only when the caller omitted it.
+
+    The default is returned as given rather than cast, so a default of None
+    stays None for the parameters whose absence is itself the signal.
+    """
+    value = req.get(key)
+    if value is None:
+        return default
+    return cast(value)
