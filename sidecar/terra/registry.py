@@ -34,6 +34,7 @@ ACTIONS: dict[str, str] = {
     'water': 'terra.water.actions:water',
     'list_datacube': 'terra.scenes.actions:list_datacube',
     'render_composite': 'terra.scenes.actions:render_composite',
+    'mineral_map': 'terra.mineral.actions:mineral_map',
 }
 
 DEFAULT_ACTION = 'predict'

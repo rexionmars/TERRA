@@ -1,0 +1,105 @@
+{
+ "hits": 2,
+ "items": [
+  {
+   "meta": {
+    "collection-concept-id": "C2408750690-LPCLOUD",
+    "concept-id": "G2829544634-LPCLOUD"
+   },
+   "umm": {
+    "GranuleUR": "EMIT_L2A_RFL_001_20231227T154141_2336110_019",
+    "CloudCover": 99,
+    "TemporalExtent": {
+     "RangeDateTime": {
+      "BeginningDateTime": "2023-12-27T15:41:41Z",
+      "EndingDateTime": "2023-12-27T15:41:53Z"
+     }
+    },
+    "SpatialExtent": {
+     "HorizontalSpatialDomain": {
+      "Geometry": {
+       "GPolygons": [
+        {
+         "Boundary": {
+          "Points": [
+           {
+            "Longitude": -44.41759490966797,
+            "Latitude": -19.394052505493164
+           },
+           {
+            "Longitude": -45.0025634765625,
+            "Latitude": -19.888803482055664
+           },
+           {
+            "Longitude": -44.48737335205078,
+            "Latitude": -20.49793815612793
+           },
+           {
+            "Longitude": -43.90240478515625,
+            "Latitude": -20.00318717956543
+           },
+           {
+            "Longitude": -44.41759490966797,
+            "Latitude": -19.394052505493164
+           }
+          ]
+         }
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  {
+   "meta": {
+    "collection-concept-id": "C2408750690-LPCLOUD",
+    "concept-id": "G3226247561-LPCLOUD"
+   },
+   "umm": {
+    "GranuleUR": "EMIT_L2A_RFL_001_20240830T135446_2424309_051",
+    "CloudCover": 0,
+    "TemporalExtent": {
+     "RangeDateTime": {
+      "BeginningDateTime": "2024-08-30T13:54:46Z",
+      "EndingDateTime": "2024-08-30T13:54:58Z"
+     }
+    },
+    "SpatialExtent": {
+     "HorizontalSpatialDomain": {
+      "Geometry": {
+       "GPolygons": [
+        {
+         "Boundary": {
+          "Points": [
+           {
+            "Longitude": -43.793216705322266,
+            "Latitude": -20.174455642700195
+           },
+           {
+            "Longitude": -44.379390716552734,
+            "Latitude": -20.678804397583008
+           },
+           {
+            "Longitude": -43.86056137084961,
+            "Latitude": -21.28180503845215
+           },
+           {
+            "Longitude": -43.27438735961914,
+            "Latitude": -20.777456283569336
+           },
+           {
+            "Longitude": -43.793216705322266,
+            "Latitude": -20.174455642700195
+           }
+          ]
+         }
+        }
+       ]
+      }
+     }
+    }
+   }
+  }
+ ]
+}

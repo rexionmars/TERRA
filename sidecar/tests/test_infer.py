@@ -10,7 +10,7 @@ import joblib
 import numpy as np
 import pytest
 
-from terra import aoi
+from terra import aoi, protocol
 from terra.imagery import (
     grid,  # noqa: F401
     indices,
@@ -121,6 +121,24 @@ def test_classify_from_features_rf_smoke():
 
 # Request parameter parsing.
 #
+# `req.get(key) or default` reads a deliberate 0 as an omission, because 0 is
+# falsy. This pins the helper that replaced it.
+
+
+def test_request_number_defaults_only_on_absence():
+    req = {"present_zero": 0, "present_value": 3.5, "explicit_null": None}
+    # A zero the caller sent is a value. Read as falsy it becomes the default,
+    # and every figure computed from it moves with nothing on screen saying so.
+    assert protocol.request_number(req, "present_zero", 0.5) == 0.0
+    assert protocol.request_number(req, "present_value", 0.5) == 3.5
+    assert protocol.request_number(req, "missing", 0.5) == 0.5
+    assert protocol.request_number(req, "explicit_null", 0.5) == 0.5
+    # A default of None survives, for parameters whose absence is the signal.
+    assert protocol.request_number(req, "missing", None) is None
+    assert protocol.request_number({"a": 0}, "a", None) == 0.0
+    assert protocol.request_number(req, "present_value", 0, int) == 3
+
+
 def _spectra_products(dn_by_band, n=3, shape=(4, 4)):
     """
     Products a month apart, all post-baseline-04.00, and a loader that answers
